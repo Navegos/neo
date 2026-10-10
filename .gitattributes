@@ -18,7 +18,7 @@
 *.ico       binary
 *.pfx       binary
 *.snk       binary
-*.exe        binary
+*.exe       binary
 *.pdb       binary
 
 #
@@ -33,6 +33,7 @@
 #
 
 # source code
+*.rs        text diff=rust
 *.cs        text diff=csharp
 *.vb        text
 *.java      text diff=java
