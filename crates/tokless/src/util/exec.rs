@@ -1,7 +1,10 @@
+use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::time::Duration;
-use super::paths::{home, which, exists, IS_WIN};
+use std::time::{Duration, Instant};
+
+use super::mcpspawn::codegraph_binary_healthy;
+use super::paths::{exists, home, which, IS_WIN};
 
 #[derive(Debug, Clone, Default)]
 pub struct ExecResult {
@@ -24,7 +27,9 @@ pub fn run(cmd: &str, args: &[&str], opts: RunOptions) -> ExecResult {
     command.args(args);
 
     if let Some(ref cwd) = opts.cwd {
-        command.current_dir(cwd);
+        if !cwd.is_empty() {
+            command.current_dir(cwd);
+        }
     }
     for (k, v) in &opts.env {
         command.env(k, v);
@@ -36,20 +41,121 @@ pub fn run(cmd: &str, args: &[&str], opts: RunOptions) -> ExecResult {
     } else if opts.quiet {
         command.stdout(Stdio::null());
         command.stderr(Stdio::null());
+    } else {
+        command.stdout(Stdio::inherit());
+        command.stderr(Stdio::inherit());
+        command.stdin(Stdio::inherit());
     }
 
-    match command.output() {
-        Ok(output) => ExecResult {
-            code: output.status.code().unwrap_or(0),
-            stdout: String::from_utf8_lossy(&output.stdout).to_string(),
-            stderr: String::from_utf8_lossy(&output.stderr).to_string(),
-        },
-        Err(err) => ExecResult {
-            code: 127,
-            stdout: String::new(),
-            stderr: err.to_string(),
-        },
+    if let Some(timeout) = opts.timeout {
+        return run_with_timeout(command, opts.capture, timeout);
     }
+
+    if opts.capture {
+        match command.output() {
+            Ok(output) => ExecResult {
+                code: output.status.code().unwrap_or(1),
+                stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+                stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+            },
+            Err(err) => ExecResult {
+                code: 127,
+                stdout: String::new(),
+                stderr: err.to_string(),
+            },
+        }
+    } else {
+        match command.status() {
+            Ok(status) => ExecResult {
+                code: status.code().unwrap_or(1),
+                stdout: String::new(),
+                stderr: String::new(),
+            },
+            Err(err) => ExecResult {
+                code: 127,
+                stdout: String::new(),
+                stderr: err.to_string(),
+            },
+        }
+    }
+}
+
+fn run_with_timeout(mut command: Command, capture: bool, timeout: Duration) -> ExecResult {
+    let mut child = match command.spawn() {
+        Ok(c) => c,
+        Err(err) => {
+            return ExecResult {
+                code: 127,
+                stdout: String::new(),
+                stderr: err.to_string(),
+            }
+        }
+    };
+
+    let out_handle = if capture {
+        child.stdout.take().map(|mut out| {
+            std::thread::spawn(move || {
+                let mut buf = Vec::new();
+                let _ = out.read_to_end(&mut buf);
+                String::from_utf8_lossy(&buf).to_string()
+            })
+        })
+    } else {
+        None
+    };
+
+    let err_handle = if capture {
+        child.stderr.take().map(|mut err| {
+            std::thread::spawn(move || {
+                let mut buf = Vec::new();
+                let _ = err.read_to_end(&mut buf);
+                String::from_utf8_lossy(&buf).to_string()
+            })
+        })
+    } else {
+        None
+    };
+
+    let start = Instant::now();
+    let code = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status.code().unwrap_or(1),
+            Ok(None) => {
+                if start.elapsed() >= timeout {
+                    kill_process_tree(&mut child);
+                    let _ = child.wait();
+                    break 124;
+                }
+                std::thread::sleep(Duration::from_millis(15));
+            }
+            Err(_) => break 127,
+        }
+    };
+
+    let stdout = out_handle
+        .and_then(|h| h.join().ok())
+        .unwrap_or_default();
+    let stderr = err_handle
+        .and_then(|h| h.join().ok())
+        .unwrap_or_default();
+
+    ExecResult {
+        code,
+        stdout,
+        stderr,
+    }
+}
+
+fn kill_process_tree(child: &mut std::process::Child) {
+    if IS_WIN {
+        let pid = child.id().to_string();
+        let _ = Command::new("taskkill")
+            .args(["/T", "/F", "/PID", &pid])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    let _ = child.kill();
 }
 
 pub fn run_cmd(cmd: &str, args: &[&str], env: &[(&str, &str)]) -> ExecResult {
@@ -73,7 +179,6 @@ pub fn run_cmd(cmd: &str, args: &[&str], env: &[(&str, &str)]) -> ExecResult {
 }
 
 pub fn prepend_process_path(dir: &str) {
-
     let sep = if IS_WIN { ";" } else { ":" };
     let cur = std::env::var("PATH").unwrap_or_default();
     for d in cur.split(sep) {
@@ -86,7 +191,7 @@ pub fn prepend_process_path(dir: &str) {
     }
 }
 
-pub fn find_binary(bin: &str, extra_dirs: &[&str]) -> String {
+pub fn find_binary<S: AsRef<str>>(bin: &str, extra_dirs: &[S]) -> String {
     let p = which(bin);
     if !p.is_empty() {
         return p;
@@ -101,7 +206,8 @@ pub fn find_binary(bin: &str, extra_dirs: &[&str]) -> String {
     } else {
         vec![bin.to_string()]
     };
-    for &dir in extra_dirs {
+    for dir_item in extra_dirs {
+        let dir = dir_item.as_ref();
         if dir.is_empty() {
             continue;
         }
@@ -129,15 +235,32 @@ pub fn which_any(bins: &[&str]) -> (String, String) {
 pub fn rtk_install_dirs() -> Vec<String> {
     if IS_WIN {
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            return vec![Path::new(&local).join("rtk").join("bin").to_string_lossy().to_string()];
+            if !local.is_empty() {
+                return vec![Path::new(&local)
+                    .join("rtk")
+                    .join("bin")
+                    .to_string_lossy()
+                    .to_string()];
+            }
         }
         return vec![];
     }
-    vec![Path::new(&home()).join(".local").join("bin").to_string_lossy().to_string()]
+    vec![Path::new(&home())
+        .join(".local")
+        .join("bin")
+        .to_string_lossy()
+        .to_string()]
 }
 
 pub fn binary_healthy(p: &str) -> bool {
-    let r = run(p, &["--version"], RunOptions { capture: true, ..Default::default() });
+    let r = run(
+        p,
+        &["--version"],
+        RunOptions {
+            capture: true,
+            ..Default::default()
+        },
+    );
     r.code == 0 && r.stdout.contains('.')
 }
 
@@ -154,25 +277,35 @@ pub fn resolve_rtk_bin() -> String {
     which("rtk")
 }
 
+fn read_sorted_dirs_desc(parent: &Path, sub: &[&str]) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(parent) {
+        let mut dir_paths: Vec<_> = entries
+            .flatten()
+            .filter(|e| e.path().is_dir())
+            .map(|e| e.path())
+            .collect();
+        dir_paths.sort();
+        dir_paths.reverse();
+        for mut p in dir_paths {
+            for s in sub {
+                p = p.join(s);
+            }
+            out.push(p.to_string_lossy().to_string());
+        }
+    }
+    out
+}
+
 fn node_bin_candidates() -> Vec<String> {
     let h = home();
     let mut dirs = Vec::new();
     let nvm_node = Path::new(&h).join(".nvm").join("versions").join("node");
-    if let Ok(entries) = std::fs::read_dir(nvm_node) {
-        for entry in entries.flatten() {
-            if entry.path().is_dir() {
-                dirs.push(entry.path().join("bin").to_string_lossy().to_string());
-            }
-        }
-    }
+    dirs.extend(read_sorted_dirs_desc(&nvm_node, &["bin"]));
+
     let fnm_dir = Path::new(&h).join(".fnm").join("node-versions");
-    if let Ok(entries) = std::fs::read_dir(fnm_dir) {
-        for entry in entries.flatten() {
-            if entry.path().is_dir() {
-                dirs.push(entry.path().join("installation").join("bin").to_string_lossy().to_string());
-            }
-        }
-    }
+    dirs.extend(read_sorted_dirs_desc(&fnm_dir, &["installation", "bin"]));
+
     if let Ok(d) = std::env::var("FNM_MULTISHELL_PATH") {
         if !d.is_empty() {
             dirs.push(d);
@@ -180,6 +313,10 @@ fn node_bin_candidates() -> Vec<String> {
     }
     dirs.push(Path::new(&h).join(".volta").join("bin").to_string_lossy().to_string());
     dirs.push(Path::new(&h).join(".asdf").join("shims").to_string_lossy().to_string());
+
+    let n_dir = Path::new(&h).join(".n").join("versions").join("node");
+    dirs.extend(read_sorted_dirs_desc(&n_dir, &["bin"]));
+
     dirs.push("/opt/homebrew/bin".to_string());
     dirs.push("/usr/local/bin".to_string());
     dirs
@@ -227,14 +364,22 @@ pub fn resolve_npm_binary() -> String {
 fn codegraph_bin_candidates() -> Vec<String> {
     let h = home();
     vec![
-        Path::new(&h).join(".local").join("bin").to_string_lossy().to_string(),
-        Path::new(&h).join(".bun").join("bin").to_string_lossy().to_string(),
+        Path::new(&h)
+            .join(".local")
+            .join("bin")
+            .to_string_lossy()
+            .to_string(),
+        Path::new(&h)
+            .join(".bun")
+            .join("bin")
+            .to_string_lossy()
+            .to_string(),
     ]
 }
 
 pub fn resolve_codegraph_bin() -> String {
     let p = which("codegraph");
-    if !p.is_empty() && binary_healthy(&p) {
+    if !p.is_empty() && codegraph_binary_healthy(&p) {
         return p;
     }
     for d in codegraph_bin_candidates() {
@@ -243,7 +388,7 @@ pub fn resolve_codegraph_bin() -> String {
         }
         let name = if IS_WIN { "codegraph.cmd" } else { "codegraph" };
         let p = Path::new(&d).join(name);
-        if exists(&p) && binary_healthy(&p.to_string_lossy()) {
+        if exists(&p) && codegraph_binary_healthy(&p.to_string_lossy()) {
             prepend_process_path(&d);
             return p.to_string_lossy().to_string();
         }
@@ -253,7 +398,7 @@ pub fn resolve_codegraph_bin() -> String {
         if let Some(dir) = Path::new(&node_path).parent() {
             let name = if IS_WIN { "codegraph.cmd" } else { "codegraph" };
             let p = dir.join(name);
-            if exists(&p) && binary_healthy(&p.to_string_lossy()) {
+            if exists(&p) && codegraph_binary_healthy(&p.to_string_lossy()) {
                 prepend_process_path(&dir.to_string_lossy());
                 return p.to_string_lossy().to_string();
             }

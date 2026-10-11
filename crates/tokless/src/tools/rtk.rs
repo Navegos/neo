@@ -3,11 +3,34 @@ use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::agents::*;
+use crate::agents::{
+    allow_antigravity_entry, allow_claude_bash_pattern, configure_cursor_rtk_permissions,
+    disallow_claude_bash_pattern, has_antigravity_rtk_hook, has_codex_rtk_hook,
+    has_copilot_ide_rtk_hook, has_copilot_rtk_hook, has_cursor_rtk_hook,
+    has_cursor_rtk_permissions, has_droid_rtk_hook, has_grok_rtk_hook,
+    install_antigravity_rtk_hook, install_codex_rtk_hook, install_copilot_ide_rtk_hook_safe,
+    install_copilot_rtk_hook_safe, install_cursor_rtk_hook, install_droid_rtk_hook,
+    install_grok_codegraph_session_hook, install_grok_rtk_hook, omp_agent_dir_resolved,
+    pi_agent_dir_resolved, remove_antigravity_entry, remove_antigravity_rtk_hook,
+    remove_codex_rtk_hook, remove_copilot_ide_rtk_hook_safe, remove_copilot_rtk_hook_safe,
+    remove_cursor_rtk_hook, remove_cursor_rtk_permissions, remove_droid_rtk_hook,
+    remove_grok_codegraph_session_hook, remove_grok_rtk_hook,
+};
 use crate::core::{Channel, DynError, RunOpts, ToolManifest};
 use crate::util::exec::run_cmd;
-use crate::util::jsonc::{try_parse_jsonc, stringify_json, OrderedMap, Value};
-use crate::util::paths::*;
+use crate::util::instructions::{cursor_project_rule_content, install_cursor_project_rules};
+use crate::util::jsonc::{stringify_json, try_parse_jsonc, OrderedMap, Value};
+use crate::util::paths::{
+    claude_code_paths, cline_paths_resolved, cursor_paths_resolved, ensure_dir, exists, home,
+    is_win, kilo_paths_resolved, opencode_paths_resolved, persisted_tokless_command,
+    prepend_process_path, read_file_safe, resolve_rtk_bin, temp_dir, tokless_persisted_abs,
+    which, write_file_atomic,
+};
+use super::copilot_transaction::with_copilot_transaction;
+use super::helpers::{
+    has_owner, is_test, kilo_has_owner, kilo_remove_owner, kilo_write_owner, remove_owner_safe,
+    sync_copilot_ide_instructions_safe, write_owner,
+};
 
 pub fn rtk_asset_for_platform() -> &'static str {
     let arch = if cfg!(target_arch = "aarch64") {
@@ -40,7 +63,7 @@ pub fn rtk_asset_for_platform() -> &'static str {
 }
 
 pub fn rtk_ensure_installed(opts: &RunOpts) -> Result<bool, DynError> {
-    if env::var("TOKLESS_TEST").as_deref() == Ok("1") {
+    if is_test() {
         let shim_dir = Path::new(&temp_dir()).join("tokless-test-rtk");
         let _ = fs::create_dir_all(&shim_dir);
         let shim_path = shim_dir.join(if is_win() { "rtk.bat" } else { "rtk" });
@@ -73,24 +96,28 @@ pub fn rtk_ensure_installed(opts: &RunOpts) -> Result<bool, DynError> {
     }
 
     if !is_win() && !which("curl").is_empty() && !which("sh").is_empty() {
-        let res = run_cmd("sh", &["-c", "curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/master/install.sh | sh"], &[]);
+        let res = run_cmd(
+            "sh",
+            &["-c", "curl -fsSL https://raw.githubusercontent.com/Navegos/rtk/master/install.sh | sh"],
+            &[],
+        );
         if res.code == 0 {
             return Ok(true);
         }
     }
 
     if !which("cargo").is_empty() {
-        let res = run_cmd("cargo", &["install", "--git", "https://github.com/rtk-ai/rtk"], &[]);
+        let res = run_cmd("cargo", &["install", "--git", "https://github.com/Navegos/rtk"], &[]);
         if res.code == 0 {
             return Ok(true);
         }
     }
 
-    Err("Cannot install rtk on this platform. See https://github.com/rtk-ai/rtk for manual install.".into())
+    Err("Cannot install rtk on this platform. See https://github.com/Navegos/rtk for manual install.".into())
 }
 
 fn rtk_install_prebuilt(asset: &str, opts: &RunOpts) -> bool {
-    let url = format!("https://github.com/rtk-ai/rtk/releases/latest/download/{}", asset);
+    let url = format!("https://github.com/Navegos/rtk/releases/latest/download/{}", asset);
     let dest = Path::new(&home()).join(".local").join("bin");
     let _ = fs::create_dir_all(&dest);
 
@@ -103,7 +130,11 @@ fn rtk_install_prebuilt(asset: &str, opts: &RunOpts) -> bool {
         let zip_dest = format!("{}\\rtk.zip", temp);
         let ps = format!(
             "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri '{}' -OutFile '{}'; Expand-Archive -Force -Path '{}' -DestinationPath '{}'; Remove-Item '{}'",
-            url, zip_dest, zip_dest, dest.to_string_lossy(), zip_dest
+            url,
+            zip_dest,
+            zip_dest,
+            dest.to_string_lossy(),
+            zip_dest
         );
         let res = run_cmd("powershell", &["-NoProfile", "-Command", &ps], &[]);
         if res.code != 0 {
@@ -173,16 +204,29 @@ export default function (pi: ExtensionAPI) {
 "#;
 
 fn omp_rtk_extension_path() -> String {
-    Path::new(&omp_agent_dir_resolved()).join("extensions").join("tokless-rtk.ts").to_string_lossy().to_string()
+    Path::new(&omp_agent_dir_resolved())
+        .join("extensions")
+        .join("tokless-rtk.ts")
+        .to_string_lossy()
+        .to_string()
 }
 
-fn write_omp_rtk_extension() -> bool {
+pub fn write_omp_rtk_extension() -> bool {
     let p = omp_rtk_extension_path();
     let _ = ensure_dir(Path::new(&p).parent().unwrap_or(Path::new("")));
     let exe = tokless_persisted_abs();
     let quoted_exe = format!("{:?}", exe);
     let content = OMP_RTK_EXTENSION.replace("%TOKLESS%", &quoted_exe);
-    write_file(&p, &content).is_ok()
+    write_file_atomic(&p, &content).is_ok()
+}
+
+pub fn omp_rtk_extension_valid() -> bool {
+    let p = omp_rtk_extension_path();
+    if let Some(raw) = read_file_safe(&p) {
+        raw.contains("TOKLESS") && raw.contains("rtk-hook") && raw.contains("omp")
+    } else {
+        false
+    }
 }
 
 // --- Kilo Plugin ---
@@ -210,7 +254,17 @@ export default server
 "#;
 
 fn kilo_rtk_path() -> String {
-    Path::new(&kilo_paths_resolved().plugins_dir).join("rtk.ts").to_string_lossy().to_string()
+    Path::new(&kilo_paths_resolved().plugins_dir)
+        .join("rtk.ts")
+        .to_string_lossy()
+        .to_string()
+}
+
+fn kilo_rtk_backup_path() -> String {
+    Path::new(&kilo_paths_resolved().plugins_dir)
+        .join("rtk.ts.tokless-backup")
+        .to_string_lossy()
+        .to_string()
 }
 
 fn kilo_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
@@ -219,19 +273,38 @@ fn kilo_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
     }
     let p = kilo_rtk_path();
     let _ = ensure_dir(Path::new(&p).parent().unwrap_or(Path::new("")));
+    if let Some(existing) = read_file_safe(&p) {
+        if !existing.contains("tokless-kilo-rtk-v1") {
+            let _ = write_file_atomic(&kilo_rtk_backup_path(), &existing);
+        }
+    }
     let exe = tokless_persisted_abs();
     let quoted = format!("{:?}", exe);
     let content = KILO_RTK_PLUGIN.replace("%RTK%", &quoted);
-    write_file(&p, &content)?;
-    Ok(true)
+    write_file_atomic(&p, &content)?;
+    let _ = kilo_write_owner("rtk");
+    Ok(kilo_rtk_verify())
 }
 
 fn kilo_rtk_unwire(_opts: &RunOpts) -> Result<bool, DynError> {
     let p = kilo_rtk_path();
-    if exists(&p) {
+    let backup = kilo_rtk_backup_path();
+    if let Some(orig) = read_file_safe(&backup) {
+        let _ = write_file_atomic(&p, &orig);
+        let _ = fs::remove_file(&backup);
+    } else if exists(&p) {
         let _ = fs::remove_file(&p);
     }
+    let _ = kilo_remove_owner("rtk");
     Ok(true)
+}
+
+fn kilo_rtk_verify() -> bool {
+    let p = kilo_rtk_path();
+    let plugin_ok = read_file_safe(&p)
+        .map(|r| r.contains("tokless-kilo-rtk-v1") && r.contains("rtk-rewrite"))
+        .unwrap_or(false);
+    plugin_ok && kilo_has_owner("rtk")
 }
 
 // --- Cline Hook ---
@@ -239,7 +312,14 @@ const CLINE_RTK_MARKER: &str = "tokless-cline-rtk-v1";
 
 fn cline_rtk_hook_path() -> String {
     let name = if is_win() { "PreToolUse.cjs" } else { "PreToolUse" };
-    Path::new(&cline_paths_resolved().hooks_dir).join(name).to_string_lossy().to_string()
+    Path::new(&cline_paths_resolved().hooks_dir)
+        .join(name)
+        .to_string_lossy()
+        .to_string()
+}
+
+fn cline_rtk_backup_path() -> String {
+    format!("{}.tokless-backup", cline_rtk_hook_path())
 }
 
 fn cline_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
@@ -248,6 +328,11 @@ fn cline_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
     }
     let p = cline_rtk_hook_path();
     let _ = ensure_dir(Path::new(&p).parent().unwrap_or(Path::new("")));
+    if let Some(existing) = read_file_safe(&p) {
+        if !existing.contains(CLINE_RTK_MARKER) {
+            let _ = write_file_atomic(&cline_rtk_backup_path(), &existing);
+        }
+    }
     let exe = tokless_persisted_abs();
     let content = if is_win() {
         format!(
@@ -257,16 +342,39 @@ fn cline_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
     } else {
         format!("#!/bin/sh\n# {}\nexec {:?} rtk-hook cline\n", CLINE_RTK_MARKER, exe)
     };
-    write_file(&p, &content)?;
-    Ok(true)
+    write_file_atomic(&p, &content)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = fs::metadata(&p) {
+            let mut perms = meta.permissions();
+            perms.set_mode(0o755);
+            let _ = fs::set_permissions(&p, perms);
+        }
+    }
+    let _ = write_owner("cline", "rtk");
+    Ok(cline_rtk_verify())
 }
 
 fn cline_rtk_unwire(_opts: &RunOpts) -> Result<bool, DynError> {
     let p = cline_rtk_hook_path();
-    if exists(&p) {
+    let backup = cline_rtk_backup_path();
+    if let Some(orig) = read_file_safe(&backup) {
+        let _ = write_file_atomic(&p, &orig);
+        let _ = fs::remove_file(&backup);
+    } else if exists(&p) {
         let _ = fs::remove_file(&p);
     }
+    remove_owner_safe("cline", "rtk")?;
     Ok(true)
+}
+
+fn cline_rtk_verify() -> bool {
+    let p = cline_rtk_hook_path();
+    let hook_ok = read_file_safe(&p)
+        .map(|r| r.contains(CLINE_RTK_MARKER) && r.contains("rtk-hook") && r.contains("cline"))
+        .unwrap_or(false);
+    hook_ok && has_owner("cline", "rtk")
 }
 
 // --- Pi Extension ---
@@ -287,16 +395,37 @@ export default function (pi: any) {
 }
 "#;
 
+fn pi_rtk_path() -> String {
+    Path::new(&pi_agent_dir_resolved())
+        .join("extensions")
+        .join("rtk.ts")
+        .to_string_lossy()
+        .to_string()
+}
+
+pub fn normalize_pi_rtk_extension(raw: &str) -> String {
+    raw.replace("\r\n", "\n")
+}
+
 fn pi_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
     if opts.dry_run {
         return Ok(true);
     }
-    let p = Path::new(&pi_agent_dir_resolved()).join("extensions").join("rtk.ts").to_string_lossy().to_string();
+    let p = pi_rtk_path();
     let _ = ensure_dir(Path::new(&p).parent().unwrap_or(Path::new("")));
     let exe = tokless_persisted_abs();
     let content = PI_RTK_EXTENSION.replace("%TOKLESS%", &format!("{:?}", exe));
-    write_file(&p, &content)?;
-    Ok(true)
+    write_file_atomic(&p, &content)?;
+    let _ = write_owner("pi", "rtk");
+    Ok(pi_rtk_verify())
+}
+
+fn pi_rtk_verify() -> bool {
+    let p = pi_rtk_path();
+    let ext_ok = read_file_safe(&p)
+        .map(|r| r.contains("TOKLESS_BIN") && r.contains("rtk-rewrite"))
+        .unwrap_or(false);
+    ext_ok && has_owner("pi", "rtk")
 }
 
 // --- OpenCode Plugin ---
@@ -324,19 +453,111 @@ export const ToklessRtkPlugin = async () => ({
 export default ToklessRtkPlugin
 "#;
 
+fn opencode_rtk_path() -> String {
+    Path::new(&opencode_paths_resolved().plugins_dir)
+        .join("tokless-rtk.ts")
+        .to_string_lossy()
+        .to_string()
+}
+
+pub fn opencode_rtk_plugin_valid() -> bool {
+    let p = opencode_rtk_path();
+    read_file_safe(&p)
+        .map(|r| r.contains("TOKLESS_BIN") && r.contains("rtk-rewrite"))
+        .unwrap_or(false)
+}
+
 fn opencode_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
     if opts.dry_run {
         return Ok(true);
     }
-    let p = Path::new(&opencode_paths_resolved().plugins_dir).join("tokless-rtk.ts").to_string_lossy().to_string();
+    let p = opencode_rtk_path();
     let _ = ensure_dir(Path::new(&p).parent().unwrap_or(Path::new("")));
     let exe = tokless_persisted_abs();
     let content = OPENCODE_RTK_PLUGIN.replace("%TOKLESS%", &format!("{:?}", exe));
-    write_file(&p, &content)?;
-    Ok(true)
+    write_file_atomic(&p, &content)?;
+    let _ = write_owner("opencode", "rtk");
+    Ok(opencode_rtk_plugin_valid() && has_owner("opencode", "rtk"))
 }
 
 // --- Claude PreToolUse Hook ---
+
+pub fn remove_claude_rtk_hook_group(groups: Vec<Value>) -> Vec<Value> {
+    let mut out = Vec::new();
+    for g in groups {
+        let gm = match g {
+            Value::Object(m) => m,
+            other => {
+                out.push(other);
+                continue;
+            }
+        };
+        let is_bash = gm.get("matcher").and_then(|v| v.as_str()) == Some("Bash");
+        if is_bash {
+            let has_rtk = gm
+                .get("hooks")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter().any(|h| {
+                        h.as_object()
+                            .and_then(|hm| hm.get("command"))
+                            .and_then(|c| c.as_str())
+                            .map(|s| s.contains("rtk"))
+                            .unwrap_or(false)
+                    })
+                })
+                .unwrap_or(false);
+            if has_rtk {
+                continue;
+            }
+        }
+        out.push(Value::Object(gm));
+    }
+    out
+}
+
+pub fn override_claude_rtk_hook(cmd: &str) -> Result<(), DynError> {
+    let cp = claude_code_paths();
+    let _ = ensure_dir(&cp.dir);
+    let raw = read_file_safe(&cp.settings).unwrap_or_default();
+    let mut cfg = match try_parse_jsonc(&raw) {
+        Some(Value::Object(m)) => m,
+        _ => OrderedMap::new(),
+    };
+
+    if !matches!(cfg.get("hooks"), Some(Value::Object(_))) {
+        cfg.insert("hooks".into(), Value::Object(OrderedMap::new()));
+    }
+    let hooks = match cfg.get_mut("hooks") {
+        Some(Value::Object(m)) => m,
+        _ => unreachable!(),
+    };
+
+    let existing = match hooks.get("PreToolUse") {
+        Some(Value::Array(a)) => a.clone(),
+        _ => Vec::new(),
+    };
+    let mut pre_tool_use = remove_claude_rtk_hook_group(existing);
+
+    let mut gm = OrderedMap::new();
+    gm.insert("matcher".into(), Value::String("Bash".into()));
+    let mut hm = OrderedMap::new();
+    hm.insert("type".into(), Value::String("command".into()));
+    hm.insert("command".into(), Value::String(cmd.to_string()));
+    gm.insert("hooks".into(), Value::Array(vec![Value::Object(hm)]));
+    pre_tool_use.push(Value::Object(gm));
+
+    hooks.insert("PreToolUse".into(), Value::Array(pre_tool_use));
+    write_file_atomic(&cp.settings, &stringify_json(&Value::Object(cfg)))?;
+    Ok(())
+}
+
+pub fn claude_rtk_hook_managed() -> bool {
+    let cp = claude_code_paths();
+    let raw = read_file_safe(&cp.settings).unwrap_or_default();
+    raw.contains("rtk-hook") && raw.contains("claude")
+}
+
 fn claude_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
     if opts.dry_run {
         return Ok(true);
@@ -346,211 +567,328 @@ fn claude_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
         return Err("No tokless executable found".into());
     }
     let cmd = persisted_tokless_command(&exe, &["rtk-hook", "claude"]);
-    let cp = claude_code_paths();
-    let _ = ensure_dir(&cp.dir);
-    let raw = read_file_safe(&cp.settings).unwrap_or_default();
-    let mut cfg = match try_parse_jsonc(&raw) {
-        Some(Value::Object(m)) => m,
-        _ => OrderedMap::new(),
-    };
-
-    let hooks = match cfg.get_mut("hooks") {
-        Some(Value::Object(m)) => m,
-        _ => {
-            cfg.insert("hooks".into(), Value::Object(OrderedMap::new()));
-            match cfg.get_mut("hooks") {
-                Some(Value::Object(m)) => m,
-                _ => unreachable!(),
-            }
-        }
-    };
-
-    let mut pre_tool_use = match hooks.get("PreToolUse") {
-        Some(Value::Array(a)) => a.clone(),
-        _ => Vec::new(),
-    };
-
-    let mut managed = false;
-    for group in &mut pre_tool_use {
-        if let Value::Object(gm) = group {
-            if let Some(Value::String(m)) = gm.get("matcher") {
-                if m == "Bash" {
-                    if let Some(Value::Array(hook_arr)) = gm.get_mut("hooks") {
-                        for h in hook_arr {
-                            if let Value::Object(hm) = h {
-                                hm.insert("command".into(), Value::String(cmd.clone()));
-                                managed = true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if !managed {
-        let mut gm = OrderedMap::new();
-        gm.insert("matcher".into(), Value::String("Bash".into()));
-        let mut hm = OrderedMap::new();
-        hm.insert("type".into(), Value::String("command".into()));
-        hm.insert("command".into(), Value::String(cmd));
-        gm.insert("hooks".into(), Value::Array(vec![Value::Object(hm)]));
-        pre_tool_use.push(Value::Object(gm));
-    }
-
-    hooks.insert("PreToolUse".into(), Value::Array(pre_tool_use));
-    write_file(&cp.settings, &stringify_json(&Value::Object(cfg)))?;
+    override_claude_rtk_hook(&cmd)?;
     allow_claude_bash_pattern("Bash(rtk *)");
-    Ok(true)
+    let _ = write_owner("claude", "rtk");
+    Ok(claude_rtk_hook_managed() && has_owner("claude", "rtk"))
 }
 
 fn claude_rtk_unwire(_opts: &RunOpts) -> Result<bool, DynError> {
     let cp = claude_code_paths();
-    let raw = match read_file_safe(&cp.settings) {
-        Some(r) => r,
-        None => return Ok(true),
-    };
-    let mut cfg = match try_parse_jsonc(&raw) {
-        Some(Value::Object(m)) => m,
-        _ => return Ok(true),
-    };
-    if let Some(Value::Object(hooks)) = cfg.get_mut("hooks") {
-        if let Some(Value::Array(pre_tool_use)) = hooks.get_mut("PreToolUse") {
-            pre_tool_use.retain(|group| {
-                if let Value::Object(gm) = group {
-                    if let Some(Value::String(m)) = gm.get("matcher") {
-                        return m != "Bash";
+    if let Some(raw) = read_file_safe(&cp.settings) {
+        if let Some(Value::Object(mut cfg)) = try_parse_jsonc(&raw) {
+            if let Some(Value::Object(hooks)) = cfg.get_mut("hooks") {
+                if let Some(Value::Array(pre)) = hooks.get("PreToolUse").cloned() {
+                    let filtered = remove_claude_rtk_hook_group(pre);
+                    if filtered.is_empty() {
+                        hooks.remove("PreToolUse");
+                    } else {
+                        hooks.insert("PreToolUse".into(), Value::Array(filtered));
                     }
                 }
-                true
-            });
+            }
+            let _ = write_file_atomic(&cp.settings, &stringify_json(&Value::Object(cfg)));
         }
     }
-    let _ = write_file(&cp.settings, &stringify_json(&Value::Object(cfg)));
     disallow_claude_bash_pattern("Bash(rtk *)");
+    remove_owner_safe("claude", "rtk")?;
     Ok(true)
 }
 
 pub fn build_rtk() -> ToolManifest {
     let mut tool = ToolManifest::new("rtk", "RTK");
     tool.description = "Command output compression and formatting utility.".into();
-    tool.homepage = "https://github.com/rtk-ai/rtk".into();
+    tool.homepage = "https://github.com/Navegos/rtk".into();
     tool.install_hint = "Prebuilt binary from GitHub releases (no Rust required).".into();
     tool.channel = Channel::GitHub;
     tool.install = Some(Arc::new(move |opts| rtk_ensure_installed(opts)));
 
-    // Wiring for agents
+    // Claude
     tool.wire_for.insert("claude".into(), Arc::new(|opts| claude_rtk_wire(opts)));
     tool.unwire_for.insert("claude".into(), Arc::new(|opts| claude_rtk_unwire(opts)));
-    tool.verify_for.insert("claude".into(), Arc::new(|| {
-        let cp = claude_code_paths();
-        let raw = read_file_safe(&cp.settings).unwrap_or_default();
-        Some(raw.contains("rtk-hook") && raw.contains("claude"))
-    }));
+    tool.verify_for.insert(
+        "claude".into(),
+        Arc::new(|| Some(claude_rtk_hook_managed() && has_owner("claude", "rtk"))),
+    );
 
+    // OpenCode
     tool.wire_for.insert("opencode".into(), Arc::new(|opts| opencode_rtk_wire(opts)));
-    tool.unwire_for.insert("opencode".into(), Arc::new(|_opts| {
-        let p = Path::new(&opencode_paths_resolved().plugins_dir).join("tokless-rtk.ts").to_string_lossy().to_string();
-        if exists(&p) { let _ = fs::remove_file(&p); }
-        Ok(true)
-    }));
-    tool.verify_for.insert("opencode".into(), Arc::new(|| {
-        let p = Path::new(&opencode_paths_resolved().plugins_dir).join("tokless-rtk.ts").to_string_lossy().to_string();
-        Some(exists(&p))
-    }));
+    tool.unwire_for.insert(
+        "opencode".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let p = opencode_rtk_path();
+            if exists(&p) {
+                let _ = fs::remove_file(&p);
+            }
+            remove_owner_safe("opencode", "rtk")?;
+            Ok(true)
+        }),
+    );
+    tool.verify_for.insert(
+        "opencode".into(),
+        Arc::new(|| Some(opencode_rtk_plugin_valid() && has_owner("opencode", "rtk"))),
+    );
 
-    tool.wire_for.insert("codex".into(), Arc::new(|_opts| Ok(install_codex_rtk_hook())));
-    tool.unwire_for.insert("codex".into(), Arc::new(|_opts| { remove_codex_rtk_hook(); Ok(true) }));
-    tool.verify_for.insert("codex".into(), Arc::new(|| Some(has_codex_rtk_hook())));
+    // Codex
+    tool.wire_for.insert(
+        "codex".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let ok = install_codex_rtk_hook();
+            let _ = write_owner("codex", "rtk");
+            Ok(ok && has_owner("codex", "rtk"))
+        }),
+    );
+    tool.unwire_for.insert(
+        "codex".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            remove_codex_rtk_hook();
+            remove_owner_safe("codex", "rtk")?;
+            Ok(true)
+        }),
+    );
+    tool.verify_for.insert(
+        "codex".into(),
+        Arc::new(|| Some(has_codex_rtk_hook() && has_owner("codex", "rtk"))),
+    );
 
-    tool.wire_for.insert("cursor".into(), Arc::new(|opts| {
-        if opts.dry_run { return Ok(true); }
-        Ok(install_cursor_rtk_hook() && configure_cursor_rtk_permissions())
-    }));
-    tool.unwire_for.insert("cursor".into(), Arc::new(|_opts| {
-        remove_cursor_rtk_hook();
-        remove_cursor_rtk_permissions();
-        Ok(true)
-    }));
-    tool.verify_for.insert("cursor".into(), Arc::new(|| Some(has_cursor_rtk_hook() && has_cursor_rtk_permissions())));
+    // Cursor
+    tool.wire_for.insert(
+        "cursor".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let _ = install_cursor_project_rules(".", false);
+            Ok(install_cursor_rtk_hook() && configure_cursor_rtk_permissions())
+        }),
+    );
+    tool.unwire_for.insert(
+        "cursor".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            remove_cursor_rtk_hook();
+            remove_cursor_rtk_permissions();
+            let p = Path::new(&cursor_paths_resolved().rules_dir).join("rtk.mdc");
+            if p.exists() {
+                let _ = fs::remove_file(p);
+            }
+            Ok(true)
+        }),
+    );
+    tool.verify_for.insert(
+        "cursor".into(),
+        Arc::new(|| {
+            let rules_p = Path::new(&cursor_paths_resolved().rules_dir)
+                .join("rtk.mdc")
+                .to_string_lossy()
+                .to_string();
+            let rules_ok = if let Some(raw) = read_file_safe(&rules_p) {
+                let expected = cursor_project_rule_content("rtk");
+                !expected.is_empty() && raw.replace("\r\n", "\n") == expected.replace("\r\n", "\n")
+            } else {
+                true
+            };
+            Some(has_cursor_rtk_hook() && has_cursor_rtk_permissions() && rules_ok)
+        }),
+    );
 
-    tool.wire_for.insert("antigravity".into(), Arc::new(|opts| {
-        if opts.dry_run { return Ok(true); }
-        Ok(install_antigravity_rtk_hook())
-    }));
-    tool.unwire_for.insert("antigravity".into(), Arc::new(|_opts| {
-        remove_antigravity_rtk_hook();
-        remove_antigravity_entry("command(rtk)");
-        remove_antigravity_entry("command(rtk )");
-        Ok(true)
-    }));
-    tool.verify_for.insert("antigravity".into(), Arc::new(|| Some(has_antigravity_rtk_hook())));
+    // Antigravity
+    tool.wire_for.insert(
+        "antigravity".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let ok = install_antigravity_rtk_hook();
+            allow_antigravity_entry("command(rtk)");
+            allow_antigravity_entry("command(rtk )");
+            let _ = write_owner("antigravity", "rtk");
+            Ok(ok && has_owner("antigravity", "rtk"))
+        }),
+    );
+    tool.unwire_for.insert(
+        "antigravity".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            remove_antigravity_rtk_hook();
+            remove_antigravity_entry("command(rtk)");
+            remove_antigravity_entry("command(rtk )");
+            remove_owner_safe("antigravity", "rtk")?;
+            Ok(true)
+        }),
+    );
+    tool.verify_for.insert(
+        "antigravity".into(),
+        Arc::new(|| Some(has_antigravity_rtk_hook() && has_owner("antigravity", "rtk"))),
+    );
 
-    tool.wire_for.insert("copilot".into(), Arc::new(|opts| {
-        if opts.dry_run { return Ok(true); }
-        install_copilot_rtk_hook_safe()?;
-        install_copilot_ide_rtk_hook_safe()?;
-        Ok(has_copilot_rtk_hook() && has_copilot_ide_rtk_hook())
-    }));
-    tool.unwire_for.insert("copilot".into(), Arc::new(|_opts| {
-        remove_copilot_rtk_hook_safe()?;
-        remove_copilot_ide_rtk_hook_safe()?;
-        Ok(true)
-    }));
-    tool.verify_for.insert("copilot".into(), Arc::new(|| Some(has_copilot_rtk_hook() && has_copilot_ide_rtk_hook())));
+    // Copilot
+    tool.wire_for.insert(
+        "copilot".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            with_copilot_transaction(&[], || {
+                install_copilot_rtk_hook_safe()?;
+                install_copilot_ide_rtk_hook_safe()?;
+                if !write_owner("copilot", "rtk") {
+                    return Err("failed to write copilot rtk instructions".into());
+                }
+                sync_copilot_ide_instructions_safe()?;
+                Ok(has_copilot_rtk_hook() && has_copilot_ide_rtk_hook() && has_owner("copilot", "rtk"))
+            })
+        }),
+    );
+    tool.unwire_for.insert(
+        "copilot".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            with_copilot_transaction(&[], || {
+                remove_copilot_rtk_hook_safe()?;
+                remove_copilot_ide_rtk_hook_safe()?;
+                remove_owner_safe("copilot", "rtk")?;
+                sync_copilot_ide_instructions_safe()?;
+                Ok(true)
+            })
+        }),
+    );
+    tool.verify_for.insert(
+        "copilot".into(),
+        Arc::new(|| Some(has_copilot_rtk_hook() && has_copilot_ide_rtk_hook() && has_owner("copilot", "rtk"))),
+    );
 
-    tool.wire_for.insert("droid".into(), Arc::new(|opts| {
-        if opts.dry_run { return Ok(true); }
-        Ok(install_droid_rtk_hook())
-    }));
-    tool.unwire_for.insert("droid".into(), Arc::new(|_opts| { remove_droid_rtk_hook(); Ok(true) }));
-    tool.verify_for.insert("droid".into(), Arc::new(|| Some(has_droid_rtk_hook())));
+    // Droid
+    tool.wire_for.insert(
+        "droid".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let ok = install_droid_rtk_hook();
+            let _ = write_owner("droid", "rtk");
+            Ok(ok && has_owner("droid", "rtk"))
+        }),
+    );
+    tool.unwire_for.insert(
+        "droid".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            remove_droid_rtk_hook();
+            remove_owner_safe("droid", "rtk")?;
+            Ok(true)
+        }),
+    );
+    tool.verify_for.insert(
+        "droid".into(),
+        Arc::new(|| Some(has_droid_rtk_hook() && has_owner("droid", "rtk"))),
+    );
 
+    // Pi
     tool.wire_for.insert("pi".into(), Arc::new(|opts| pi_rtk_wire(opts)));
-    tool.unwire_for.insert("pi".into(), Arc::new(|_opts| {
-        let p = Path::new(&pi_agent_dir_resolved()).join("extensions").join("rtk.ts").to_string_lossy().to_string();
-        if exists(&p) { let _ = fs::remove_file(&p); }
-        Ok(true)
-    }));
-    tool.verify_for.insert("pi".into(), Arc::new(|| Some(has_pi_rtk_extension())));
+    tool.unwire_for.insert(
+        "pi".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let p = pi_rtk_path();
+            if exists(&p) {
+                let _ = fs::remove_file(&p);
+            }
+            remove_owner_safe("pi", "rtk")?;
+            Ok(true)
+        }),
+    );
+    tool.verify_for.insert("pi".into(), Arc::new(|| Some(pi_rtk_verify())));
 
-    tool.wire_for.insert("omp".into(), Arc::new(|opts| {
-        if opts.dry_run { return Ok(true); }
-        Ok(write_omp_rtk_extension())
-    }));
-    tool.unwire_for.insert("omp".into(), Arc::new(|_opts| {
-        let p = omp_rtk_extension_path();
-        if exists(&p) { let _ = fs::remove_file(&p); }
-        Ok(true)
-    }));
-    tool.verify_for.insert("omp".into(), Arc::new(|| Some(has_omp_rtk_extension())));
+    // OMP
+    tool.wire_for.insert(
+        "omp".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let ok = write_omp_rtk_extension();
+            let _ = write_owner("omp", "rtk");
+            Ok(ok && has_owner("omp", "rtk"))
+        }),
+    );
+    tool.unwire_for.insert(
+        "omp".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let p = omp_rtk_extension_path();
+            if exists(&p) {
+                let _ = fs::remove_file(&p);
+            }
+            remove_owner_safe("omp", "rtk")?;
+            Ok(true)
+        }),
+    );
+    tool.verify_for.insert(
+        "omp".into(),
+        Arc::new(|| Some(omp_rtk_extension_valid() && has_owner("omp", "rtk"))),
+    );
 
+    // Kilo
     tool.wire_for.insert("kilo".into(), Arc::new(|opts| kilo_rtk_wire(opts)));
     tool.unwire_for.insert("kilo".into(), Arc::new(|opts| kilo_rtk_unwire(opts)));
-    tool.verify_for.insert("kilo".into(), Arc::new(|| {
-        let p = kilo_rtk_path();
-        Some(exists(&p))
-    }));
+    tool.verify_for.insert("kilo".into(), Arc::new(|| Some(kilo_rtk_verify())));
 
+    // Cline
     tool.wire_for.insert("cline".into(), Arc::new(|opts| cline_rtk_wire(opts)));
     tool.unwire_for.insert("cline".into(), Arc::new(|opts| cline_rtk_unwire(opts)));
-    tool.verify_for.insert("cline".into(), Arc::new(|| {
-        let p = cline_rtk_hook_path();
-        Some(exists(&p))
-    }));
+    tool.verify_for.insert("cline".into(), Arc::new(|| Some(cline_rtk_verify())));
 
-    tool.wire_for.insert("grok".into(), Arc::new(|opts| {
-        if opts.dry_run { return Ok(true); }
-        install_grok_rtk_hook()?;
-        install_grok_codegraph_session_hook()?;
-        Ok(has_grok_rtk_hook() && has_grok_codegraph_session_hook())
-    }));
-    tool.unwire_for.insert("grok".into(), Arc::new(|_opts| {
-        remove_grok_rtk_hook();
-        remove_grok_codegraph_session_hook();
-        Ok(true)
-    }));
-    tool.verify_for.insert("grok".into(), Arc::new(|| Some(has_grok_rtk_hook())));
+    // Grok
+    tool.wire_for.insert(
+        "grok".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            install_grok_rtk_hook()?;
+            install_grok_codegraph_session_hook()?;
+            let _ = write_owner("grok", "rtk");
+            Ok(has_grok_rtk_hook() && has_owner("grok", "rtk"))
+        }),
+    );
+    tool.unwire_for.insert(
+        "grok".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            remove_grok_rtk_hook();
+            remove_grok_codegraph_session_hook();
+            remove_owner_safe("grok", "rtk")?;
+            Ok(true)
+        }),
+    );
+    tool.verify_for.insert(
+        "grok".into(),
+        Arc::new(|| Some(has_grok_rtk_hook() && has_owner("grok", "rtk"))),
+    );
 
     tool
 }

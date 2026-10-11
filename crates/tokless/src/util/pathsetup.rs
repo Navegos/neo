@@ -90,7 +90,7 @@ pub fn ensure_persistent_path() -> Vec<String> {
     }
 }
 
-fn persist_windows_path_dirs(dirs: &[String]) -> Vec<String> {
+pub fn persist_windows_path_dirs(dirs: &[String]) -> Vec<String> {
     if dirs.is_empty() {
         return vec![];
     }

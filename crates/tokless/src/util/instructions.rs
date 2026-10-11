@@ -22,6 +22,7 @@ pub fn section_header_for_owner(owner: &str) -> &'static str {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CursorProjectRuleSpec {
     pub filename: &'static str,
     pub description: &'static str,
@@ -61,7 +62,39 @@ pub const CURSOR_PROJECT_RULE_SPECS: &[CursorProjectRuleSpec] = &[
     },
 ];
 
-pub fn cursor_project_rule_content(spec: &CursorProjectRuleSpec) -> String {
+pub fn cursor_project_rule_specs() -> Vec<CursorProjectRuleSpec> {
+    CURSOR_PROJECT_RULE_SPECS.to_vec()
+}
+
+pub trait AsCursorRuleSpec {
+    fn resolve_spec(&self) -> Option<CursorProjectRuleSpec>;
+}
+
+impl AsCursorRuleSpec for CursorProjectRuleSpec {
+    fn resolve_spec(&self) -> Option<CursorProjectRuleSpec> {
+        Some(*self)
+    }
+}
+
+impl AsCursorRuleSpec for &CursorProjectRuleSpec {
+    fn resolve_spec(&self) -> Option<CursorProjectRuleSpec> {
+        Some(**self)
+    }
+}
+
+impl AsCursorRuleSpec for &str {
+    fn resolve_spec(&self) -> Option<CursorProjectRuleSpec> {
+        CURSOR_PROJECT_RULE_SPECS
+            .iter()
+            .find(|s| s.owner == *self || s.filename == *self)
+            .copied()
+    }
+}
+
+pub fn cursor_project_rule_content(spec: impl AsCursorRuleSpec) -> String {
+    let Some(spec) = spec.resolve_spec() else {
+        return String::new();
+    };
     format!(
         "---\ndescription: {}\nalwaysApply: true\n---\n{}\n",
         spec.description,
@@ -69,25 +102,31 @@ pub fn cursor_project_rule_content(spec: &CursorProjectRuleSpec) -> String {
     )
 }
 
-pub fn install_cursor_project_rules(workspace: &str, dry_run: bool) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+pub fn install_cursor_project_rules(
+    workspace: &str,
+    dry_run: bool,
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     if workspace.is_empty() {
         return Err("Cursor project rules require non-empty workspace".into());
     }
     let ws_path = Path::new(workspace);
-    if !ws_path.is_dir() {
+    let meta = std::fs::metadata(ws_path)
+        .map_err(|e| format!("stat Cursor workspace: {}", e))?;
+    if !meta.is_dir() {
         return Err(format!("Cursor workspace is not a directory: {}", workspace).into());
     }
     if dry_run {
         return Ok(true);
     }
     let rules_dir = ws_path.join(".cursor").join("rules");
-    ensure_dir(&rules_dir)?;
+    ensure_dir(&rules_dir).map_err(|e| format!("create Cursor rules directory: {}", e))?;
     for spec in CURSOR_PROJECT_RULE_SPECS {
         let path = rules_dir.join(spec.filename);
         if path.exists() {
             continue;
         }
-        std::fs::write(&path, cursor_project_rule_content(spec))?;
+        std::fs::write(&path, cursor_project_rule_content(spec))
+            .map_err(|e| format!("write Cursor rule {}: {}", spec.filename, e))?;
     }
     Ok(true)
 }
@@ -100,10 +139,11 @@ fn normalized_agent_instructions() -> String {
 
 pub fn instruction_index_section() -> String {
     let body = normalized_agent_instructions();
-    if let Some(idx) = body.find("\n## ") {
-        body[..idx].trim_end().to_string()
+    let trimmed = body.trim_end_matches('\n');
+    if let Some(idx) = trimmed.find("\n## ") {
+        trimmed[..idx].to_string()
     } else {
-        body.trim_end().to_string()
+        trimmed.to_string()
     }
 }
 
@@ -113,30 +153,35 @@ pub fn instruction_section(owner: &str) -> String {
         return String::new();
     }
     let body = normalized_agent_instructions();
-    let start_pos = match body.find(marker) {
+    let trimmed = body.trim_end_matches('\n');
+    let start_pos = match trimmed.find(marker) {
         Some(pos) => pos,
         None => return String::new(),
     };
     let start = if start_pos > 0 {
-        body[..start_pos].rfind('\n').map(|p| p + 1).unwrap_or(0)
+        trimmed[..start_pos].rfind('\n').map(|p| p + 1).unwrap_or(0)
     } else {
         0
     };
-    let rest = &body[start..];
+    let rest = &trimmed[start..];
     if let Some(idx) = rest[1..].find("\n## ") {
-        rest[..idx + 1].trim_end().to_string()
+        rest[..idx + 1].trim_end_matches('\n').to_string()
     } else {
-        rest.trim_end().to_string()
+        rest.trim_end_matches('\n').to_string()
     }
 }
 
-pub fn section_present(body: &str, owner: &str) -> bool {
+pub fn section_markers(owner: &str) -> Vec<&'static str> {
     let marker = section_header_for_owner(owner);
-    if !marker.is_empty() && body.contains(marker) {
-        return true;
+    if marker.is_empty() {
+        return Vec::new();
     }
     let legacy: &[&str] = match owner {
-        "principles" => &["## 1. Principles", "## Principles (craft) →", "## Principles (craft)"],
+        "principles" => &[
+            "## 1. Principles",
+            "## Principles (craft) →",
+            "## Principles (craft)",
+        ],
         "caveman" => &[
             "## 2. Response Style",
             "## Response Style",
@@ -156,7 +201,12 @@ pub fn section_present(body: &str, owner: &str) -> bool {
             "## Lazy Ladder (ponytail)",
             "## Build Discipline (ponytail)",
         ],
-        "codegraph" => &["## 4. Code Search", "## Codegraph", "## Codegraph — MUST USE FOR CODE", "## Code Index (codegraph)"],
+        "codegraph" => &[
+            "## 4. Code Search",
+            "## Codegraph",
+            "## Codegraph — MUST USE FOR CODE",
+            "## Code Index (codegraph)",
+        ],
         "context-mode" => &[
             "## 5. Context Control",
             "## Context Tools",
@@ -165,7 +215,13 @@ pub fn section_present(body: &str, owner: &str) -> bool {
         ],
         _ => &[],
     };
-    for m in legacy {
+    let mut out = vec![marker];
+    out.extend_from_slice(legacy);
+    out
+}
+
+pub fn section_present(body: &str, owner: &str) -> bool {
+    for m in section_markers(owner) {
         if body.contains(m) {
             return true;
         }
@@ -189,7 +245,7 @@ pub fn tokless_agent_body(owners: &[&str]) -> String {
             out.push_str("\n\n");
         }
     }
-    out.trim_end().to_string()
+    out.trim_end_matches('\n').to_string()
 }
 
 pub fn tokenize_body(body: &str) -> Vec<String> {
@@ -201,4 +257,3 @@ pub fn tokenize_body(body: &str) -> Vec<String> {
     }
     out
 }
-

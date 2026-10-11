@@ -1,22 +1,28 @@
 use std::sync::Arc;
 use crate::core::{Channel, ToolManifest};
-use super::helpers::{has_owner, remove_owner, write_owner};
+use crate::util::instructions::{cursor_project_rule_content, install_cursor_project_rules};
+use crate::util::paths::{cursor_paths_resolved, read_file_safe};
+use super::copilot_transaction::with_copilot_transaction;
+use super::helpers::{
+    has_owner, kilo_has_owner, kilo_remove_owner, kilo_write_owner, remove_owner_safe,
+    sync_copilot_ide_instructions_safe, write_owner,
+};
 
 pub fn build_ponytail() -> ToolManifest {
     let mut tool = ToolManifest::new("ponytail", "Ponytail");
     tool.description = "Minimal-code rules: reuse first, avoid speculative work.".into();
-    tool.homepage = "https://github.com/DietrichGebert/ponytail".into();
+    tool.homepage = "https://github.com/Navegos/ponytail".into();
     tool.install_hint = "Instruction-only — no install needed.".into();
     tool.channel = Channel::GitHub;
     tool.not_trackable = true;
     tool.instruction_only = true;
     tool.install = Some(Arc::new(|_opts| Ok(true)));
 
-    let agents = [
-        "claude", "opencode", "codex", "antigravity", "copilot", "droid", "grok", "pi", "omp", "kilo", "cline",
+    let standard_agents = [
+        "claude", "opencode", "codex", "antigravity", "droid", "grok", "pi", "omp", "cline",
     ];
 
-    for agent_id in agents {
+    for agent_id in standard_agents {
         let ag = agent_id.to_string();
         let ag_w = ag.clone();
         tool.wire_for.insert(
@@ -25,7 +31,9 @@ pub fn build_ponytail() -> ToolManifest {
                 if opts.dry_run {
                     return Ok(true);
                 }
-                write_owner(&ag_w, "ponytail");
+                if !write_owner(&ag_w, "ponytail") {
+                    return Err(format!("failed to write ponytail instructions for {}", ag_w).into());
+                }
                 Ok(has_owner(&ag_w, "ponytail"))
             }),
         );
@@ -37,7 +45,7 @@ pub fn build_ponytail() -> ToolManifest {
                 if opts.dry_run {
                     return Ok(true);
                 }
-                remove_owner(&ag_u, "ponytail");
+                remove_owner_safe(&ag_u, "ponytail")?;
                 Ok(true)
             }),
         );
@@ -49,6 +57,106 @@ pub fn build_ponytail() -> ToolManifest {
         );
     }
 
+    // Copilot
+    tool.wire_for.insert(
+        "copilot".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            with_copilot_transaction(&[], || {
+                if !write_owner("copilot", "ponytail") {
+                    return Err("failed to write copilot ponytail instructions".into());
+                }
+                sync_copilot_ide_instructions_safe()?;
+                Ok(has_owner("copilot", "ponytail"))
+            })
+        }),
+    );
+    tool.unwire_for.insert(
+        "copilot".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            with_copilot_transaction(&[], || {
+                remove_owner_safe("copilot", "ponytail")?;
+                sync_copilot_ide_instructions_safe()?;
+                Ok(true)
+            })
+        }),
+    );
+    tool.verify_for.insert(
+        "copilot".into(),
+        Arc::new(|| Some(has_owner("copilot", "ponytail"))),
+    );
+
+    // Kilo
+    tool.wire_for.insert(
+        "kilo".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            if !kilo_write_owner("ponytail") {
+                return Err("failed to write kilo ponytail instructions".into());
+            }
+            Ok(kilo_has_owner("ponytail"))
+        }),
+    );
+    tool.unwire_for.insert(
+        "kilo".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            Ok(kilo_remove_owner("ponytail"))
+        }),
+    );
+    tool.verify_for.insert(
+        "kilo".into(),
+        Arc::new(|| Some(kilo_has_owner("ponytail"))),
+    );
+
+    // Cursor
+    tool.wire_for.insert(
+        "cursor".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let _ = install_cursor_project_rules(".", false);
+            Ok(true)
+        }),
+    );
+    tool.unwire_for.insert(
+        "cursor".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let p = std::path::Path::new(&cursor_paths_resolved().rules_dir).join("ponytail.mdc");
+            if p.exists() {
+                let _ = std::fs::remove_file(p);
+            }
+            Ok(true)
+        }),
+    );
+    tool.verify_for.insert(
+        "cursor".into(),
+        Arc::new(|| {
+            let p = std::path::Path::new(&cursor_paths_resolved().rules_dir)
+                .join("ponytail.mdc")
+                .to_string_lossy()
+                .to_string();
+            if let Some(raw) = read_file_safe(&p) {
+                let expected = cursor_project_rule_content("ponytail");
+                Some(!expected.is_empty() && raw.replace("\r\n", "\n") == expected.replace("\r\n", "\n"))
+            } else {
+                Some(true)
+            }
+        }),
+    );
+
     tool
 }
-

@@ -1,14 +1,21 @@
 use std::collections::HashMap;
 use std::env;
+use std::sync::Arc;
+
+use crate::agents::{install_cursor_project_rules_hook, snapshot_cursor_project_rules_hook};
 use crate::commands::helpers::*;
+use crate::commands::index::{find_project_dir, looks_like_project};
 use crate::commands::selfupdate::maybe_self_update;
-use crate::core::{get_agent, list_agents, list_tools, RunOpts};
-use crate::tools::projectmem::ensure_projectmem_project;
+use crate::core::{get_agent, list_agents, list_tools, AgentManifest, RunOpts, ToolManifest};
+use crate::tools::ensure_instruction_separators;
+use crate::tools::projectmem::{ensure_projectmem_project, refresh_projectmem_rule_files};
 use crate::util::colors::*;
 use crate::util::deps::ensure_deps;
+use crate::util::instructions::install_cursor_project_rules;
 use crate::util::logger::L;
 use crate::util::paths::{self_heal_path, tokless_persisted_abs};
-use crate::util::progress::NewRootSectionProgress;
+use crate::util::progress::{tree_close, tree_corner, tree_leaf, NewRootSectionProgress};
+use crate::util::prompt::{is_interactive, multi_select, MultiSelectOption};
 
 pub fn run_init(mut opts: InitOptions) -> i32 {
     crate::util::logger::set_quiet(!opts.verbose);
@@ -26,9 +33,90 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
         return 1;
     }
 
+    let all_agents = list_agents();
+    let mut installed_ids = HashMap::new();
+    for a in &all_agents {
+        let d = a.detect();
+        if d.installed {
+            installed_ids.insert(a.id.clone(), d.source);
+        }
+    }
+
+    let requested: Vec<String> = if let Some(ref req) = opts.agents {
+        req.clone()
+    } else {
+        let mut auto = Vec::new();
+        for a in &all_agents {
+            if installed_ids.contains_key(&a.id) {
+                auto.push(a.id.clone());
+            }
+        }
+        if auto.is_empty() {
+            crate::util::logger::set_quiet(false);
+            L.raw("");
+            L.raw(&format!(
+                "  {} No compatible agents detected — nothing to wire.",
+                C.yellow(Sym::WARN)
+            ));
+            L.raw(&format!(
+                "  {} {}",
+                C.gray("Install an agent, then re-run tokless; or select one explicitly: "),
+                C.cyan("tokless --agents claude,opencode,codex")
+            ));
+            L.raw("");
+            return 0;
+        }
+        if !opts.yes && is_interactive() && env::var("TOKLESS_INSTALLER_RUN").as_deref() != Ok("1") {
+            let options: Vec<MultiSelectOption> = all_agents
+                .iter()
+                .filter(|a| installed_ids.contains_key(&a.id))
+                .map(|a| MultiSelectOption {
+                    value: a.id.clone(),
+                    label: a.label.clone(),
+                    hint: installed_ids.get(&a.id).cloned().unwrap_or_default(),
+                    selected: true,
+                    ..Default::default()
+                })
+                .collect();
+            let sel = multi_select("Select agents to equip:", &options);
+            if !sel.is_empty() {
+                sel
+            } else {
+                L.raw(&format!("  {}", C.gray("Cancelled.")));
+                return 0;
+            }
+        } else {
+            auto
+        }
+    };
+
     let all_tools = list_tools();
-    let tools = if let Some(ref selected) = opts.tools {
-        all_tools.into_iter().filter(|t| selected.contains(&t.id)).collect()
+    let tools: Vec<Arc<ToolManifest>> = if let Some(ref selected) = opts.tools {
+        all_tools
+            .into_iter()
+            .filter(|t| selected.contains(&t.id))
+            .collect()
+    } else if !opts.yes && is_interactive() && env::var("TOKLESS_INSTALLER_RUN").as_deref() != Ok("1") {
+        let options: Vec<MultiSelectOption> = all_tools
+            .iter()
+            .map(|t| MultiSelectOption {
+                value: t.id.clone(),
+                label: t.label.clone(),
+                hint: t.description.clone(),
+                selected: true,
+                ..Default::default()
+            })
+            .collect();
+        let sel = multi_select("Select tools to enable:", &options);
+        if !sel.is_empty() {
+            all_tools
+                .into_iter()
+                .filter(|t| sel.contains(&t.id))
+                .collect()
+        } else {
+            L.raw(&format!("  {}", C.gray("Cancelled.")));
+            return 0;
+        }
     } else {
         all_tools
     };
@@ -51,14 +139,16 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
     };
 
     let install_tools: Vec<_> = tools.iter().filter(|t| !t.instruction_only).collect();
-    let mut tool_bar = NewRootSectionProgress::new("Tools");
+    let tool_bar = NewRootSectionProgress::new("Tools");
     tool_bar.start(install_tools.len());
 
     let mut install_logs = HashMap::new();
+    let mut failed_tools = HashMap::new();
     for tool in &install_tools {
         tool_bar.begin(&tool.label);
         if tool_needs_node(tool) && !node_ok {
             tool_bar.fail("needs Node.js — https://nodejs.org/en/download");
+            failed_tools.insert(tool.id.clone(), true);
             continue;
         }
         let ro = RunOpts {
@@ -75,11 +165,13 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
                 Ok(false) => {
                     tool_bar.fail("install failed");
                     install_logs.insert(tool.label.clone(), "install returned false".into());
+                    failed_tools.insert(tool.id.clone(), true);
                 }
                 Err(e) => {
                     let err_str = e.to_string();
-                    tool_bar.fail(&first_line(&err_str));
+                    tool_bar.fail(first_line(&err_str));
                     install_logs.insert(tool.label.clone(), err_str);
+                    failed_tools.insert(tool.id.clone(), true);
                 }
             }
         } else {
@@ -91,49 +183,35 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
 
     if !opts.dry_run {
         self_heal_path();
+        bust_version_cache_file();
     }
 
-    let all_agents = list_agents();
-    let mut installed_ids = HashMap::new();
-    for a in &all_agents {
-        let d = a.detect();
-        if d.installed {
-            installed_ids.insert(a.id.clone(), d.source);
-        }
-    }
-
-    let requested: Vec<String> = if let Some(ref req) = opts.agents {
-        req.clone()
-    } else {
-        // Auto-select detected agents that match at least one tool
-        let mut auto = Vec::new();
-        for a in &all_agents {
-            if installed_ids.contains_key(&a.id) {
-                auto.push(a.id.clone());
-            }
-        }
-        if auto.is_empty() {
-            crate::util::logger::set_quiet(false);
-            L.raw("");
-            L.raw(&format!("  {} No compatible agents detected — nothing to wire.", C.yellow(Sym::WARN)));
-            L.raw(&format!("  {} {}", C.gray("Install an agent, then re-run tokless; or select one explicitly: "), C.cyan("tokless --agents claude,opencode,codex")));
-            L.raw("");
-            return 0;
-        }
-        auto
-    };
-
-    let mut wire_bar = NewRootSectionProgress::new("Agents");
+    let wire_bar = NewRootSectionProgress::new("Agents");
     wire_bar.start(requested.len());
 
+    let mut equipped_agents = Vec::new();
+    let mut wire_failures = 0usize;
+
     for agent_id in &requested {
-        let label = get_agent(agent_id).map(|a| a.label.clone()).unwrap_or_else(|| agent_id.clone());
+        let label = get_agent(agent_id)
+            .map(|a| a.label.clone())
+            .unwrap_or_else(|| agent_id.clone());
         wire_bar.begin(&label);
+
+        let cursor_snap = if agent_id == "cursor" && !opts.dry_run {
+            snapshot_cursor_project_rules_hook().ok()
+        } else {
+            None
+        };
 
         let mut wired_any = false;
         let mut wire_err: Option<String> = None;
+        let mut newly_wired: Vec<Arc<ToolManifest>> = Vec::new();
 
         for tool in &tools {
+            if failed_tools.contains_key(&tool.id) {
+                continue;
+            }
             if let Some(ref wire_fn) = tool.wire_for.get(agent_id) {
                 let ro = RunOpts {
                     dry_run: opts.dry_run,
@@ -143,6 +221,7 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
                 match wire_fn(&ro) {
                     Ok(true) => {
                         wired_any = true;
+                        newly_wired.push(tool.clone());
                     }
                     Ok(false) => {}
                     Err(e) => {
@@ -153,23 +232,104 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
             }
         }
 
+        if agent_id == "cursor" && wire_err.is_none() && !opts.dry_run {
+            let _ = install_cursor_project_rules(".", false);
+            let _ = install_cursor_project_rules_hook();
+        }
+
         if let Some(err) = wire_err {
-            wire_bar.fail(&first_line(&err));
-        } else if wired_any {
-            wire_bar.complete("wired");
+            wire_failures += 1;
+            if !opts.dry_run {
+                for t in newly_wired.into_iter().rev() {
+                    if let Some(ref unwire_fn) = t.unwire_for.get(agent_id) {
+                        let ro = RunOpts {
+                            dry_run: false,
+                            agent: agent_id.clone(),
+                            ..Default::default()
+                        };
+                        let _ = unwire_fn(&ro);
+                    }
+                }
+                if let Some(snap) = cursor_snap {
+                    let _ = snap.restore();
+                }
+            }
+            wire_bar.fail(first_line(&err));
         } else {
-            wire_bar.complete("up to date");
+            if !opts.dry_run {
+                ensure_instruction_separators(agent_id);
+            }
+            if let Some(ag) = get_agent(agent_id) {
+                equipped_agents.push(ag);
+            }
+            if wired_any {
+                wire_bar.complete("wired");
+            } else {
+                wire_bar.complete("up to date");
+            }
         }
     }
     wire_bar.done("");
 
-    // Seed projectmem if project exists
-    if let Ok(cwd) = env::current_dir() {
-        let root = cwd.to_string_lossy().to_string();
-        let _ = ensure_projectmem_project(&root);
+    if !opts.dry_run && tools.iter().any(|t| t.id == "projectmem") {
+        projectmem_seed_project(&opts);
+    }
+
+    if !equipped_agents.is_empty() && !opts.upgrade {
+        print_equipped_agent_tree(&equipped_agents, &tools);
     }
 
     print_repo_footer(true);
     L.raw("");
-    0
+    if wire_failures > 0 || !failed_tools.is_empty() {
+        1
+    } else {
+        0
+    }
+}
+
+pub fn init_agent_fully_wired(agent_id: &str, tools: &[Arc<ToolManifest>]) -> bool {
+    for tool in tools {
+        if let Some(ref verify_fn) = tool.verify_for.get(agent_id) {
+            if verify_fn() == Some(false) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+pub fn projectmem_seed_project(opts: &InitOptions) {
+    if opts.dry_run {
+        return;
+    }
+    if let Ok(cwd) = env::current_dir() {
+        let cwd_str = cwd.to_string_lossy().to_string();
+        let root = find_project_dir(&cwd_str);
+        if looks_like_project(&root) {
+            let _ = ensure_projectmem_project(&root);
+            refresh_projectmem_rule_files(&root);
+        }
+    }
+}
+
+pub fn print_equipped_agent_tree(
+    agents: &[Arc<AgentManifest>],
+    tools: &[Arc<ToolManifest>],
+) {
+    if agents.is_empty() {
+        return;
+    }
+    let tool_names: Vec<String> = tools.iter().map(|t| t.id.clone()).collect();
+    let summary = join_comma(&tool_names);
+    tree_corner("Equipped");
+    for a in agents {
+        tree_leaf(&format!(
+            "{} {} {}",
+            C.green(Sym::CHECK),
+            paint_name(&pad_end(&a.label, 16)),
+            C.gray(&summary)
+        ));
+    }
+    tree_close();
 }

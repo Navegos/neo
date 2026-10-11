@@ -1,4 +1,8 @@
+use std::collections::hash_map::RandomState;
 use std::collections::{HashMap, HashSet};
+use std::hash::{BuildHasher, Hasher};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 pub const ROUTING_STATE_VERSION: i32 = 1;
@@ -11,6 +15,7 @@ pub const ROUTING_STATE_STOPPED: &str = "stopped";
 pub const ROUTING_STATE_DEGRADED: &str = "degraded";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(deny_unknown_fields)]
 pub struct RoutingState {
     pub version: i32,
     pub generation: u64,
@@ -26,6 +31,7 @@ pub struct RoutingState {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(deny_unknown_fields)]
 pub struct RouteBinding {
     pub id: String,
     pub token: String,
@@ -49,6 +55,7 @@ fn is_zero_u64(n: &u64) -> bool {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(deny_unknown_fields)]
 pub struct LaneBinding {
     pub id: String,
     pub instance_nonce: String,
@@ -62,16 +69,23 @@ pub struct LaneBinding {
     pub ready: bool,
 }
 
+static TOKEN_COUNTER: AtomicU64 = AtomicU64::new(1);
+
 pub fn new_routing_token() -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     let mut b = [0u8; 32];
-    use std::time::SystemTime;
-    let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?.as_nanos();
-    for (i, byte) in b.iter_mut().enumerate() {
-        let v = (now.wrapping_add((i as u128).wrapping_mul(0x9e3779b97f4a7c15))) ^ ((i as u128) << 32);
-        *byte = (v ^ (v >> 8) ^ (v >> 16)) as u8;
+    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
+    for chunk_idx in 0..4 {
+        let seq = TOKEN_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let rs = RandomState::new();
+        let mut hasher = rs.build_hasher();
+        hasher.write_u128(now);
+        hasher.write_u64(seq);
+        hasher.write_usize(chunk_idx);
+        let val = hasher.finish().to_le_bytes();
+        b[chunk_idx * 8..(chunk_idx + 1) * 8].copy_from_slice(&val);
     }
-    // Encode with unpadded base64url
-    let mut s = String::new();
+
+    let mut s = String::with_capacity(43);
     const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut buf: u32 = 0;
     let mut bits = 0;
@@ -93,13 +107,37 @@ pub fn valid_routing_id(val: &str) -> bool {
     if val.is_empty() || val.len() > 256 {
         return false;
     }
-    val.chars().all(|c| {
-        c == '.' || c == '-' || c == '_' || c == ':' || c.is_ascii_alphanumeric()
-    })
+    val.chars()
+        .all(|c| c == '.' || c == '-' || c == '_' || c == ':' || c.is_ascii_alphanumeric())
+}
+
+fn b64url_val(c: u8) -> Option<u8> {
+    match c {
+        b'A'..=b'Z' => Some(c - b'A'),
+        b'a'..=b'z' => Some(c - b'a' + 26),
+        b'0'..=b'9' => Some(c - b'0' + 52),
+        b'-' => Some(62),
+        b'_' => Some(63),
+        _ => None,
+    }
 }
 
 pub fn valid_routing_token(val: &str) -> bool {
-    val.len() == 43 && val.chars().all(|c| c == '-' || c == '_' || c.is_ascii_alphanumeric())
+    if val.len() != 43 {
+        return false;
+    }
+    let bytes = val.as_bytes();
+    for &b in bytes {
+        if b64url_val(b).is_none() {
+            return false;
+        }
+    }
+    // 32 bytes = 256 bits; 42 * 6 = 252 bits, leaving 4 bits in the 43rd char (bottom 2 bits must be 0 in strict mode)
+    if let Some(last) = b64url_val(bytes[42]) {
+        (last & 0b11) == 0
+    } else {
+        false
+    }
 }
 
 pub fn valid_config_fingerprint(val: &str) -> bool {
@@ -107,34 +145,50 @@ pub fn valid_config_fingerprint(val: &str) -> bool {
 }
 
 pub fn valid_byok_protocol(protocol: &str) -> bool {
-    matches!(protocol, "openai-chat" | "openai-responses" | "anthropic-messages")
+    matches!(
+        protocol,
+        "openai-chat" | "openai-responses" | "anthropic-messages"
+    )
 }
 
 pub fn valid_loopback_listener(listener: &str, port: i32) -> bool {
-    if let Some((host, p_str)) = listener.rsplit_once(':') {
-        let clean_host = host.trim_matches(['[', ']']);
-        if (clean_host == "127.0.0.1" || clean_host == "::1") && p_str == port.to_string() && !listener.contains('/') {
-            return true;
-        }
+    if port <= 0 || port > 65535 || listener.contains('/') {
+        return false;
     }
-    false
+    listener == format!("127.0.0.1:{}", port) || listener == format!("[::1]:{}", port)
 }
 
-pub fn validate_routing_state(state: &RoutingState) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub fn validate_routing_state(
+    state: &RoutingState,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     match state.state.as_str() {
         ROUTING_STATE_ABSENT => {
-            if state.version != 0 || state.generation != 0 || state.previous_generation != 0 || !state.coordinator_nonce.is_empty() || !state.commit_nonce.is_empty() || !state.routes.is_empty() || !state.lanes.is_empty() {
+            if state.version != 0
+                || state.generation != 0
+                || state.previous_generation != 0
+                || !state.coordinator_nonce.is_empty()
+                || !state.commit_nonce.is_empty()
+                || !state.routes.is_empty()
+                || !state.lanes.is_empty()
+            {
                 return Err("absent routing state must be empty".into());
             }
             return Ok(());
         }
-        ROUTING_STATE_PREPARING | ROUTING_STATE_COMMITTED | ROUTING_STATE_REVOKING | ROUTING_STATE_STOPPED | ROUTING_STATE_DEGRADED => {}
+        ROUTING_STATE_PREPARING
+        | ROUTING_STATE_COMMITTED
+        | ROUTING_STATE_REVOKING
+        | ROUTING_STATE_STOPPED
+        | ROUTING_STATE_DEGRADED => {}
         _ => return Err(format!("invalid routing state {:?}", state.state).into()),
     }
     if state.version != ROUTING_STATE_VERSION {
         return Err(format!("unsupported routing state version {}", state.version).into());
     }
-    if state.generation == 0 || state.previous_generation > state.generation || !valid_routing_id(&state.coordinator_nonce) {
+    if state.generation == 0
+        || state.previous_generation > state.generation
+        || !valid_routing_id(&state.coordinator_nonce)
+    {
         return Err("invalid routing state generation or coordinator".into());
     }
     if state.state == ROUTING_STATE_COMMITTED && !valid_routing_id(&state.commit_nonce) {
@@ -143,7 +197,9 @@ pub fn validate_routing_state(state: &RoutingState) -> Result<(), Box<dyn std::e
     if state.state != ROUTING_STATE_COMMITTED && !state.commit_nonce.is_empty() {
         return Err("non-committed routing state has commit nonce".into());
     }
-    if state.state == ROUTING_STATE_COMMITTED && (state.routes.is_empty() || state.lanes.is_empty()) {
+    if state.state == ROUTING_STATE_COMMITTED
+        && (state.routes.is_empty() || state.lanes.is_empty())
+    {
         return Err("committed routing state is empty".into());
     }
 
@@ -159,21 +215,36 @@ pub fn validate_routing_state(state: &RoutingState) -> Result<(), Box<dyn std::e
         if lanes.contains_key(lane.id.as_str()) {
             return Err(format!("duplicate lane {:?}", lane.id).into());
         }
-        if !valid_routing_id(&lane.provider_instance_id) || !valid_routing_id(&lane.upstream_id) || !valid_byok_protocol(&lane.protocol) || lane.coordinator_nonce != state.coordinator_nonce {
+        if !valid_routing_id(&lane.provider_instance_id)
+            || !valid_routing_id(&lane.upstream_id)
+            || !valid_byok_protocol(&lane.protocol)
+            || lane.coordinator_nonce != state.coordinator_nonce
+        {
             return Err(format!("lane {:?} has invalid backend identity", lane.id).into());
         }
-        if lane.generation != state.generation || lane.port <= 0 || lane.port > 65535 || !valid_loopback_listener(&lane.listener, lane.port) {
+        if lane.generation != state.generation
+            || lane.port <= 0
+            || lane.port > 65535
+            || !valid_loopback_listener(&lane.listener, lane.port)
+        {
             return Err(format!("lane {:?} has invalid generation or listener", lane.id).into());
         }
         if ports.contains(&lane.port) {
             return Err(format!("duplicate lane port {}", lane.port).into());
         }
-        let backend = format!("{}\0{}\0{}", lane.provider_instance_id, lane.protocol, lane.upstream_id);
+        let backend = format!(
+            "{}\0{}\0{}",
+            lane.provider_instance_id, lane.protocol, lane.upstream_id
+        );
         if backends.contains(&backend) {
             return Err(format!("duplicate lane backend {:?}", lane.provider_instance_id).into());
         }
         if lane_providers.contains(lane.provider_instance_id.as_str()) {
-            return Err(format!("duplicate lane provider instance {:?}", lane.provider_instance_id).into());
+            return Err(format!(
+                "duplicate lane provider instance {:?}",
+                lane.provider_instance_id
+            )
+            .into());
         }
         ports.insert(lane.port);
         backends.insert(backend);
@@ -210,14 +281,17 @@ pub fn validate_routing_state(state: &RoutingState) -> Result<(), Box<dyn std::e
         if route.generation != state.generation {
             return Err(format!("route {:?} has stale generation", route.id).into());
         }
-        if route.revoked && (route.revoked_generation == 0 || route.revoked_generation > state.generation)
+        if route.revoked
+            && (route.revoked_generation == 0 || route.revoked_generation > state.generation)
             || !route.revoked && route.revoked_generation != 0
         {
             return Err(format!("route {:?} has invalid revocation state", route.id).into());
         }
         let lane = match lanes.get(route.lane_id.as_str()) {
             Some(&l) => l,
-            None => return Err(format!("route {:?} does not bind exactly to lane", route.id).into()),
+            None => {
+                return Err(format!("route {:?} does not bind exactly to lane", route.id).into())
+            }
         };
         if lane.instance_nonce != route.lane_instance_nonce
             || lane.coordinator_nonce != route.coordinator_nonce
@@ -228,10 +302,16 @@ pub fn validate_routing_state(state: &RoutingState) -> Result<(), Box<dyn std::e
             return Err(format!("route {:?} does not bind exactly to lane", route.id).into());
         }
         if providers.contains(route.provider_instance_id.as_str()) {
-            return Err(format!("duplicate provider instance {:?}", route.provider_instance_id).into());
+            return Err(format!(
+                "duplicate provider instance {:?}",
+                route.provider_instance_id
+            )
+            .into());
         }
         if state.state == ROUTING_STATE_COMMITTED && (route.revoked || !lane.ready) {
-            return Err(format!("committed route {:?} is revoked or lane is not ready", route.id).into());
+            return Err(
+                format!("committed route {:?} is revoked or lane is not ready", route.id).into(),
+            );
         }
         if state.state != ROUTING_STATE_COMMITTED && !route.revoked {
             return Err(format!("non-committed route {:?} is active", route.id).into());
@@ -247,7 +327,8 @@ pub fn validate_routing_state_transition(
     previous: &RoutingState,
     next: &RoutingState,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    validate_routing_state(previous)?;
+    validate_routing_state(previous)
+        .map_err(|e| format!("invalid previous routing state: {}", e))?;
     validate_routing_state(next)?;
     if previous.state == ROUTING_STATE_ABSENT {
         if next.previous_generation != 0 || next.state != ROUTING_STATE_PREPARING {
@@ -263,26 +344,120 @@ pub fn validate_routing_state_transition(
     }
 
     let allowed = match previous.state.as_str() {
-        ROUTING_STATE_PREPARING => &[ROUTING_STATE_COMMITTED, ROUTING_STATE_DEGRADED, ROUTING_STATE_STOPPED][..],
-        ROUTING_STATE_COMMITTED => &[ROUTING_STATE_PREPARING, ROUTING_STATE_REVOKING, ROUTING_STATE_DEGRADED, ROUTING_STATE_STOPPED][..],
-        ROUTING_STATE_REVOKING => &[ROUTING_STATE_STOPPED, ROUTING_STATE_PREPARING, ROUTING_STATE_DEGRADED][..],
+        ROUTING_STATE_PREPARING => {
+            &[ROUTING_STATE_COMMITTED, ROUTING_STATE_DEGRADED, ROUTING_STATE_STOPPED][..]
+        }
+        ROUTING_STATE_COMMITTED => &[
+            ROUTING_STATE_PREPARING,
+            ROUTING_STATE_REVOKING,
+            ROUTING_STATE_DEGRADED,
+            ROUTING_STATE_STOPPED,
+        ][..],
+        ROUTING_STATE_REVOKING => {
+            &[ROUTING_STATE_STOPPED, ROUTING_STATE_PREPARING, ROUTING_STATE_DEGRADED][..]
+        }
         ROUTING_STATE_DEGRADED => &[ROUTING_STATE_PREPARING, ROUTING_STATE_STOPPED][..],
         ROUTING_STATE_STOPPED => &[ROUTING_STATE_PREPARING][..],
         _ => &[][..],
     };
     if !allowed.contains(&next.state.as_str()) {
-        return Err(format!("invalid routing state transition {:?} to {:?}", previous.state, next.state).into());
+        return Err(format!(
+            "invalid routing state transition {:?} to {:?}",
+            previous.state, next.state
+        )
+        .into());
     }
     Ok(())
 }
 
-pub fn parse_routing_state(raw: &str) -> Result<RoutingState, Box<dyn std::error::Error + Send + Sync>> {
+pub(crate) fn validate_no_duplicate_json_keys(
+    raw: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    struct NoDupValue;
+
+    impl<'de> serde::de::Deserialize<'de> for NoDupValue {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::de::Deserializer<'de>,
+        {
+            struct Visitor;
+            impl<'de> serde::de::Visitor<'de> for Visitor {
+                type Value = NoDupValue;
+                fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    f.write_str("any valid JSON value without duplicate object keys")
+                }
+                fn visit_bool<E>(self, _: bool) -> Result<Self::Value, E> {
+                    Ok(NoDupValue)
+                }
+                fn visit_i64<E>(self, _: i64) -> Result<Self::Value, E> {
+                    Ok(NoDupValue)
+                }
+                fn visit_u64<E>(self, _: u64) -> Result<Self::Value, E> {
+                    Ok(NoDupValue)
+                }
+                fn visit_f64<E>(self, _: f64) -> Result<Self::Value, E> {
+                    Ok(NoDupValue)
+                }
+                fn visit_str<E>(self, _: &str) -> Result<Self::Value, E> {
+                    Ok(NoDupValue)
+                }
+                fn visit_string<E>(self, _: String) -> Result<Self::Value, E> {
+                    Ok(NoDupValue)
+                }
+                fn visit_unit<E>(self) -> Result<Self::Value, E> {
+                    Ok(NoDupValue)
+                }
+                fn visit_none<E>(self) -> Result<Self::Value, E> {
+                    Ok(NoDupValue)
+                }
+                fn visit_some<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
+                where
+                    D: serde::de::Deserializer<'de>,
+                {
+                    serde::de::Deserialize::deserialize(deserializer)
+                }
+                fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+                where
+                    A: serde::de::SeqAccess<'de>,
+                {
+                    while seq.next_element::<NoDupValue>()?.is_some() {}
+                    Ok(NoDupValue)
+                }
+                fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+                where
+                    A: serde::de::MapAccess<'de>,
+                {
+                    let mut keys = HashSet::new();
+                    while let Some((k, _)) = map.next_entry::<String, NoDupValue>()? {
+                        if !keys.insert(k) {
+                            return Err(serde::de::Error::custom(
+                                "duplicate or invalid JSON object key",
+                            ));
+                        }
+                    }
+                    Ok(NoDupValue)
+                }
+            }
+            deserializer.deserialize_any(Visitor)
+        }
+    }
+
+    let _: NoDupValue = serde_json::from_str(raw)?;
+    Ok(())
+}
+
+pub fn parse_routing_state(
+    raw: &str,
+) -> Result<RoutingState, Box<dyn std::error::Error + Send + Sync>> {
+    validate_no_duplicate_json_keys(raw)?;
     let state: RoutingState = serde_json::from_str(raw)?;
     validate_routing_state(&state)?;
     Ok(state)
 }
 
-pub fn encode_routing_state(state: &RoutingState) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+pub fn encode_routing_state(
+    state: &RoutingState,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     validate_routing_state(state)?;
     Ok(serde_json::to_string(state)?)
 }

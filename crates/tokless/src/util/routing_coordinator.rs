@@ -2,15 +2,27 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use chrono::DateTime;
 use tokio::sync::watch;
 
 use super::routing_plan::{RouteRequest, RouteSelection, RoutingSnapshot};
 use super::routing_state::{new_routing_token, LaneBinding, RoutingState};
 use super::routing_store::{
     claim_routing_coordinator, create_routing_lease, lease_live, lease_matches_state,
-    read_routing_state, release_routing_coordinator, release_routing_leases,
-    renew_routing_ownership, routing_coordinator_owned, RoutingLease,
+    read_routing_state, release_routing_coordinator, release_routing_lease,
+    release_routing_leases, renew_routing_ownership, routing_coordinator_owned,
+    same_routing_lease, RoutingLease,
 };
+
+fn lease_expires_after(a: &RoutingLease, b: &RoutingLease) -> bool {
+    match (
+        DateTime::parse_from_rfc3339(&a.expires_at),
+        DateTime::parse_from_rfc3339(&b.expires_at),
+    ) {
+        (Ok(ea), Ok(eb)) => ea > eb,
+        _ => false,
+    }
+}
 
 pub struct RoutingCoordinator {
     pub nonce: String,
@@ -53,14 +65,14 @@ impl RoutingCoordinator {
             shutdown_tx,
         });
 
-        // Spawn heartbeat
         let heartbeat_active = active.clone();
         let heartbeat_leases = leases.clone();
         let heartbeat_nonce = nonce.clone();
         let heartbeat_owner = owner.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(std::cmp::max(ttl / 3, Duration::from_millis(50)));
+            let mut interval =
+                tokio::time::interval(std::cmp::max(ttl / 3, Duration::from_millis(1)));
             loop {
                 tokio::select! {
                     _ = interval.tick() => {
@@ -96,12 +108,19 @@ impl RoutingCoordinator {
         Ok(coord)
     }
 
+    pub fn nonce(&self) -> &str {
+        &self.nonce
+    }
+
     pub fn current(&self) -> Option<RoutingSnapshot> {
         let guard = self.snapshot.read().unwrap();
         guard.clone()
     }
 
-    pub fn publish(&self, state: RoutingState) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub fn publish(
+        &self,
+        state: RoutingState,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if !self.active.load(Ordering::Relaxed) {
             return Err("coordinator is fenced".into());
         }
@@ -121,7 +140,10 @@ impl RoutingCoordinator {
         Ok(())
     }
 
-    pub fn authorize(&self, selection: &RouteSelection) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub fn authorize(
+        &self,
+        selection: &RouteSelection,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         if !self.active.load(Ordering::Relaxed) {
             return Err("coordinator is fenced".into());
         }
@@ -130,7 +152,9 @@ impl RoutingCoordinator {
             return Err("routing lease is stale".into());
         }
         let guard = self.leases.read().unwrap();
-        let lease = guard.get(&selection.lane_id).ok_or("routing lease is unavailable")?;
+        let lease = guard
+            .get(&selection.lane_id)
+            .ok_or("routing lease is unavailable")?;
         if lease.coordinator_nonce != self.nonce
             || lease.generation != selection.generation
             || lease.listener != selection.listener
@@ -141,10 +165,24 @@ impl RoutingCoordinator {
         {
             return Err("routing lease is unavailable".into());
         }
+        if !self.active.load(Ordering::Relaxed) {
+            return Err("coordinator is fenced".into());
+        }
         Ok(())
     }
 
-    pub fn resolve_and_authorize(&self, request: RouteRequest) -> Result<RouteSelection, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn authorize_request(
+        &self,
+        request: RouteRequest,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let _ = self.resolve_and_authorize(request)?;
+        Ok(())
+    }
+
+    pub fn resolve_and_authorize(
+        &self,
+        request: RouteRequest,
+    ) -> Result<RouteSelection, Box<dyn std::error::Error + Send + Sync>> {
         let snap = self.current().ok_or("routing snapshot unavailable")?;
         let mut selection = snap.resolve_request(request, |sel| {
             let guard = self.leases.read().unwrap();
@@ -167,17 +205,88 @@ impl RoutingCoordinator {
         Ok(selection)
     }
 
-    pub fn acquire(&self, state: &RoutingState, lane: &LaneBinding) -> Result<RoutingLease, Box<dyn std::error::Error + Send + Sync>> {
+    pub fn acquire(
+        &self,
+        state: &RoutingState,
+        lane: &LaneBinding,
+    ) -> Result<RoutingLease, Box<dyn std::error::Error + Send + Sync>> {
         if !self.active.load(Ordering::Relaxed) {
             return Err("coordinator is fenced".into());
         }
         if state.coordinator_nonce != self.nonce {
             return Err("routing state coordinator mismatch".into());
         }
-        let lease = create_routing_lease(state, lane, self.lease_ttl, &self.nonce, &self.owner)?;
+        let lease =
+            create_routing_lease(state, lane, self.lease_ttl, &self.nonce, &self.owner)?;
         let mut guard = self.leases.write().unwrap();
-        guard.insert(lease.lane_id.clone(), lease.clone());
+        let should_insert = match guard.get(&lease.lane_id) {
+            Some(existing) => lease_expires_after(&lease, existing),
+            None => true,
+        };
+        if should_insert {
+            guard.insert(lease.lane_id.clone(), lease.clone());
+        }
         Ok(lease)
+    }
+
+    pub fn renew(
+        &self,
+        lease: &RoutingLease,
+    ) -> Result<RoutingLease, Box<dyn std::error::Error + Send + Sync>> {
+        if !self.active.load(Ordering::Relaxed) {
+            return Err("coordinator is fenced".into());
+        }
+        {
+            let guard = self.leases.read().unwrap();
+            match guard.get(&lease.lane_id) {
+                Some(owned)
+                    if same_routing_lease(owned, lease)
+                        && lease.coordinator_nonce == self.nonce => {}
+                _ => return Err("coordinator does not own lease".into()),
+            }
+        }
+        let renewed = renew_routing_ownership(
+            &self.nonce,
+            &self.owner,
+            self.lease_ttl,
+            Some(std::slice::from_ref(lease)),
+        )?;
+        for current in renewed {
+            if current.lane_id == lease.lane_id {
+                let mut guard = self.leases.write().unwrap();
+                let should_insert = match guard.get(&lease.lane_id) {
+                    Some(existing) => lease_expires_after(&current, existing),
+                    None => true,
+                };
+                if should_insert {
+                    guard.insert(lease.lane_id.clone(), current.clone());
+                }
+                return Ok(current);
+            }
+        }
+        Err("routing lease is unavailable".into())
+    }
+
+    pub fn release(
+        &self,
+        lease: &RoutingLease,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        if !self.active.load(Ordering::Relaxed) {
+            return Err("coordinator is fenced".into());
+        }
+        {
+            let guard = self.leases.read().unwrap();
+            match guard.get(&lease.lane_id) {
+                Some(owned)
+                    if same_routing_lease(owned, lease)
+                        && lease.coordinator_nonce == self.nonce => {}
+                _ => return Err("coordinator does not own lease".into()),
+            }
+        }
+        release_routing_lease(lease, &self.nonce, &self.owner)?;
+        let mut guard = self.leases.write().unwrap();
+        guard.remove(&lease.lane_id);
+        Ok(())
     }
 
     pub fn close(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -194,4 +303,3 @@ impl RoutingCoordinator {
         l_res.and(c_res)
     }
 }
-

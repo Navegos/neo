@@ -2,6 +2,8 @@ pub mod byok;
 pub mod colors;
 pub mod deps;
 pub mod exec;
+pub mod gitwin;
+pub mod grok;
 pub mod headroom;
 pub mod headroom_proxy;
 pub mod install;
@@ -10,6 +12,8 @@ pub mod isatty;
 pub mod jsonc;
 pub mod logger;
 pub mod mcpspawn;
+pub mod nodelinux;
+pub mod nodewin;
 pub mod npminstall;
 pub mod paths;
 pub mod pathsetup;
@@ -27,9 +31,57 @@ pub mod uv;
 pub mod version;
 pub mod versions;
 
-pub use colors::{C, SYM};
+pub use byok::*;
+pub use colors::{
+    colors_enabled, glyphs_enabled, interactive_tty, pick, rule, running_inside_claude_code,
+    set_vt_ready, stdin_is_tty, stdout_ansi, stdout_is_tty, vt_ready, Colors, Sym, Symbols, C,
+    SYM,
+};
+pub use deps::{detect_runtimes, pick_js_runner, report_runtimes, RuntimeReport};
+pub use exec::*;
+pub use gitwin::*;
+pub use grok::*;
+pub use headroom::{
+    headroom_bin, headroom_env, headroom_installed, headroom_installed_version,
+    headroom_paths_resolved, headroom_uv_bootstrap_env, HeadroomPaths,
+};
+pub use headroom_proxy::*;
 pub use install::*;
-pub use logger::L;
+pub use instructions::*;
+pub use isatty::is_terminal;
+pub use jsonc::*;
+pub use logger::{quiet, set_quiet, set_verbose, with_quiet, Logger, L};
+pub use mcpspawn::*;
+pub use nodelinux::*;
+pub use nodewin::*;
+pub use npminstall::*;
+pub use paths::{
+    antigravity_paths_resolved, claude_code_paths, clear_home_override, clear_write_file_override,
+    cline_paths_resolved, codex_paths_resolved, copilot_paths_resolved, copy_dir_merge,
+    cursor_global_mcp_path, cursor_paths_resolved, ensure_dir, exists, home,
+    is_go_test_executable, is_test_executable, is_win, kilo_paths_resolved,
+    opencode_paths_resolved, persisted_tokless_command, read_file_safe, set_home_override,
+    set_write_file_override, sh_quote, split_command, stable_executable, temp_dir, tokless_abs,
+    tokless_abs_strict, tokless_data_dir, tokless_persisted_abs, which, write_file,
+    write_file_atomic, write_file_mode, AntigravityPaths, ClaudePaths, ClinePaths, CodexPaths,
+    CopilotPaths, CursorPaths, KiloPaths, OpenCodePaths, IS_WIN,
+};
 pub use pathsetup::*;
+pub use preflight::*;
+pub use progress::{
+    capture_logs, erase_styled_line, new_progress, new_root_section_progress,
+    new_section_progress, pad_end, tree_close, tree_corner, tree_corner_styled, tree_footer,
+    tree_leaf, tree_stem, tree_top, visible_len, with_silenced_logs, NewProgress,
+    NewRootSectionProgress, NewSectionProgress, Progress, RootSectionProgress, SectionProgress,
+};
+pub use projectmem::*;
+pub use prompt::*;
+pub use routing_coordinator::*;
+pub use routing_lock::*;
+pub use routing_plan::*;
+pub use routing_state::*;
+pub use routing_store::*;
+pub use toml::*;
+pub use uv::*;
 pub use version::tokless_version;
-
+pub use versions::*;

@@ -86,7 +86,7 @@ fn help_text() -> String {
         cy("tokless uninstall"),
         cy("tokless proxy"),
         C.bold("Flags:"),
-        C.gray("Docs: https://github.com/HoangP8/tokless")
+        C.gray("Docs: https://github.com/Navegos/neo/#tokless")
     )
 }
 

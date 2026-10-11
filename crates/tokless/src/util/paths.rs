@@ -3,23 +3,39 @@ use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 
 static HOME_OVERRIDE: RwLock<Option<String>> = RwLock::new(None);
-static WRITE_FILE_OVERRIDE: RwLock<Option<Box<dyn Fn(&str, &str) -> std::io::Result<()> + Send + Sync>>> = RwLock::new(None);
+static WRITE_FILE_OVERRIDE: RwLock<
+    Option<Box<dyn Fn(&str, &str) -> std::io::Result<()> + Send + Sync>>,
+> = RwLock::new(None);
 
 pub const IS_WIN: bool = cfg!(windows);
-pub fn is_win() -> bool { IS_WIN }
-pub fn temp_dir() -> String { std::env::temp_dir().to_string_lossy().to_string() }
+pub fn is_win() -> bool {
+    IS_WIN
+}
+pub fn temp_dir() -> String {
+    std::env::temp_dir().to_string_lossy().to_string()
+}
 
 pub use crate::util::exec::{
-    prepend_process_path, resolve_codegraph_bin, resolve_node_binary, resolve_npm_binary,
-    resolve_rtk_bin, run_cmd,
+    find_binary, prepend_process_path, resolve_bun_binary, resolve_codegraph_bin,
+    resolve_node_binary, resolve_npm_binary, resolve_rtk_bin, rtk_install_dirs, run_cmd,
+    which_any,
 };
 pub use crate::util::pathsetup::{
-    ensure_persistent_path, ensure_process_path, expected_bin_dirs, self_heal_path,
+    ensure_persistent_path, ensure_process_path, expected_bin_dirs, persist_windows_path_dirs,
+    self_heal_path,
+};
+pub use crate::util::preflight::{
+    is_windows_mount, is_wsl, windows_cursor_home_from_wsl, windows_home_from_wsl,
 };
 
 pub fn set_home_override(p: impl Into<String>) {
     let mut guard = HOME_OVERRIDE.write().unwrap();
-    *guard = Some(p.into());
+    let s = p.into();
+    if s.is_empty() {
+        *guard = None;
+    } else {
+        *guard = Some(s);
+    }
 }
 
 pub fn clear_home_override() {
@@ -35,13 +51,23 @@ where
     *guard = Some(Box::new(f));
 }
 
+pub fn clear_write_file_override() {
+    let mut guard = WRITE_FILE_OVERRIDE.write().unwrap();
+    *guard = None;
+}
+
 pub fn home() -> String {
     if let Some(ref h) = *HOME_OVERRIDE.read().unwrap() {
-        return h.clone();
+        if !h.is_empty() {
+            return h.clone();
+        }
     }
     if IS_WIN {
         if let Some(dir) = dirs::home_dir() {
-            return dir.to_string_lossy().to_string();
+            let s = dir.to_string_lossy().to_string();
+            if !s.is_empty() {
+                return s;
+            }
         }
     }
     if let Ok(h) = std::env::var("HOME") {
@@ -71,7 +97,9 @@ pub fn split_command(cmd: &str) -> Vec<String> {
         if r == '\\' && i + 1 < chars.len() {
             let next = chars[i + 1];
             if (in_double && (next == '"' || next == '\\'))
-                || (!in_single && !in_double && (next == '"' || next == '\'' || next == ' ' || next == '\t'))
+                || (!in_single
+                    && !in_double
+                    && (next == '"' || next == '\'' || next == ' ' || next == '\t'))
             {
                 token.push(next);
                 i += 2;
@@ -141,22 +169,49 @@ pub fn persisted_tokless_command(exe: &str, args: &[&str]) -> String {
 
 pub fn tokless_data_dir() -> String {
     if let Some(ref h) = *HOME_OVERRIDE.read().unwrap() {
-        if IS_WIN {
-            return Path::new(h).join("AppData").join("Local").join("tokless").to_string_lossy().to_string();
+        if !h.is_empty() {
+            if IS_WIN {
+                return Path::new(h)
+                    .join("AppData")
+                    .join("Local")
+                    .join("tokless")
+                    .to_string_lossy()
+                    .to_string();
+            }
+            return Path::new(h)
+                .join(".local")
+                .join("share")
+                .join("tokless")
+                .to_string_lossy()
+                .to_string();
         }
-        return Path::new(h).join(".local").join("share").join("tokless").to_string_lossy().to_string();
     }
     if IS_WIN {
-        let base = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| {
-            Path::new(&home()).join("AppData").join("Local").to_string_lossy().to_string()
-        });
+        let base = std::env::var("LOCALAPPDATA")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| {
+                Path::new(&home())
+                    .join("AppData")
+                    .join("Local")
+                    .to_string_lossy()
+                    .to_string()
+            });
         return Path::new(&base).join("tokless").to_string_lossy().to_string();
     }
-    Path::new(&home()).join(".local").join("share").join("tokless").to_string_lossy().to_string()
+    Path::new(&home())
+        .join(".local")
+        .join("share")
+        .join("tokless")
+        .to_string_lossy()
+        .to_string()
 }
 
 pub fn install_marker_path() -> String {
-    Path::new(&tokless_data_dir()).join("install.json").to_string_lossy().to_string()
+    Path::new(&tokless_data_dir())
+        .join("install.json")
+        .to_string_lossy()
+        .to_string()
 }
 
 pub fn exists(p: impl AsRef<Path>) -> bool {
@@ -177,9 +232,14 @@ pub fn write_file_atomic(p: impl AsRef<Path>, content: &str) -> std::io::Result<
         return f(&p.to_string_lossy(), content);
     }
     if let Some(parent) = p.parent() {
-        ensure_dir(parent)?;
+        if !parent.as_os_str().is_empty() {
+            ensure_dir(parent)?;
+        }
     }
-    let parent = p.parent().unwrap_or_else(|| Path::new("."));
+    let parent = p
+        .parent()
+        .filter(|d| !d.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
     let mut temp = tempfile::Builder::new()
         .prefix(".tokless-write-")
         .tempfile_in(parent)?;
@@ -192,27 +252,72 @@ pub fn write_file_atomic(p: impl AsRef<Path>, content: &str) -> std::io::Result<
 }
 
 pub fn write_file(p: impl AsRef<Path>, content: &str) -> std::io::Result<()> {
+    let p = p.as_ref();
+    if let Some(ref f) = *WRITE_FILE_OVERRIDE.read().unwrap() {
+        return f(&p.to_string_lossy(), content);
+    }
+    if let Ok(meta) = std::fs::symlink_metadata(p) {
+        if meta.file_type().is_symlink() {
+            return std::fs::write(p, content);
+        }
+    }
     write_file_atomic(p, content)
 }
 
+pub fn write_file_mode(p: impl AsRef<Path>, content: &str, _mode: u32) -> std::io::Result<()> {
+    let p = p.as_ref();
+    write_file(p, content)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = std::fs::metadata(p) {
+            let mut perms = meta.permissions();
+            perms.set_mode(_mode);
+            let _ = std::fs::set_permissions(p, perms);
+        }
+    }
+    Ok(())
+}
+
 pub fn which(bin: &str) -> String {
-    which::which(bin).map(|p| p.to_string_lossy().to_string()).unwrap_or_default()
+    which::which(bin)
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default()
 }
 
 pub fn stable_executable(path: &str) -> bool {
-    if path.is_empty() {
+    if path.is_empty() || path.trim() != path {
+        return false;
+    }
+    if path
+        .chars()
+        .any(|r| r.is_control() || (r.is_whitespace() && r != ' '))
+    {
         return false;
     }
     let p = Path::new(path);
-    if !p.is_absolute() || !p.is_file() {
+    if !p.is_absolute() {
+        return false;
+    }
+    let Ok(meta) = std::fs::symlink_metadata(p) else {
+        return false;
+    };
+    if !meta.file_type().is_file() {
         return false;
     }
     if IS_WIN {
-        let ext = p.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-        let pathext = std::env::var("PATHEXT").unwrap_or_else(|_| ".EXE;.CMD;.BAT;.COM".to_string());
+        let ext = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        let pathext = std::env::var("PATHEXT")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| ".EXE;.CMD;.BAT;.COM".to_string());
         for candidate in pathext.split(';') {
             let clean = candidate.trim().trim_start_matches('.').to_lowercase();
-            if ext == clean {
+            if !clean.is_empty() && ext == clean {
                 return true;
             }
         }
@@ -221,16 +326,26 @@ pub fn stable_executable(path: &str) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if let Ok(meta) = p.metadata() {
-            return meta.permissions().mode() & 0o111 != 0;
-        }
+        return meta.permissions().mode() & 0o111 != 0;
     }
+    #[cfg(not(unix))]
     true
 }
 
 pub fn is_test_executable(exe: &str) -> bool {
-    let base = Path::new(exe).file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
-    base.contains("test") || base.contains("deps") || exe.contains("deps")
+    let base = Path::new(exe)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    base.contains("test")
+        || base.contains("deps")
+        || exe.contains("deps")
+        || exe.contains("go-build")
+}
+
+pub fn is_go_test_executable(exe: &str) -> bool {
+    is_test_executable(exe)
 }
 
 pub fn tokless_abs() -> String {
@@ -280,12 +395,26 @@ pub fn tokless_persisted_abs() -> String {
         }
     }
     let mut known = vec![
-        Path::new(&home()).join(".local").join("bin").join("tokless").to_string_lossy().to_string()
+        Path::new(&home())
+            .join(".local")
+            .join("bin")
+            .join("tokless")
+            .to_string_lossy()
+            .to_string(),
     ];
     if IS_WIN {
         known.clear();
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            known.push(Path::new(&local).join("Programs").join("tokless").join("tokless.exe").to_string_lossy().to_string());
+            if !local.is_empty() {
+                known.push(
+                    Path::new(&local)
+                        .join("Programs")
+                        .join("tokless")
+                        .join("tokless.exe")
+                        .to_string_lossy()
+                        .to_string(),
+                );
+            }
         }
     } else {
         known.push("/usr/local/bin/tokless".to_string());
@@ -314,7 +443,7 @@ fn which_tokless_or_bare() -> String {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct InstallRecord {
     #[serde(default)]
     pub method: String,
@@ -337,15 +466,21 @@ pub struct ClaudePaths {
 
 pub fn claude_code_paths() -> ClaudePaths {
     let h = home();
-    let dir = std::env::var("CLAUDE_CONFIG_DIR").unwrap_or_else(|_| {
-        Path::new(&h).join(".claude").to_string_lossy().to_string()
-    });
-    let global_json = Path::new(&h).join(".claude.json").to_string_lossy().to_string();
+    let (dir, global_json) = match std::env::var("CLAUDE_CONFIG_DIR") {
+        Ok(d) if !d.is_empty() => {
+            let gj = Path::new(&d).join(".claude.json").to_string_lossy().to_string();
+            (d, gj)
+        }
+        _ => (
+            Path::new(&h).join(".claude").to_string_lossy().to_string(),
+            Path::new(&h).join(".claude.json").to_string_lossy().to_string(),
+        ),
+    };
     ClaudePaths {
-        dir: dir.clone(),
         settings: Path::new(&dir).join("settings.json").to_string_lossy().to_string(),
-        global_json,
         instructions: Path::new(&dir).join("CLAUDE.md").to_string_lossy().to_string(),
+        dir,
+        global_json,
     }
 }
 
@@ -368,7 +503,11 @@ fn opencode_config_dir() -> String {
             return Path::new(&x).join("opencode").to_string_lossy().to_string();
         }
     }
-    Path::new(&home()).join(".config").join("opencode").to_string_lossy().to_string()
+    Path::new(&home())
+        .join(".config")
+        .join("opencode")
+        .to_string_lossy()
+        .to_string()
 }
 
 pub fn opencode_paths_resolved() -> OpenCodePaths {
@@ -382,6 +521,13 @@ pub fn opencode_paths_resolved() -> OpenCodePaths {
     if let Ok(custom) = std::env::var("OPENCODE_CONFIG") {
         if !custom.is_empty() {
             config = custom;
+        } else {
+            for c in candidates {
+                if exists(&c) {
+                    config = c;
+                    break;
+                }
+            }
         }
     } else {
         for c in candidates {
@@ -392,18 +538,23 @@ pub fn opencode_paths_resolved() -> OpenCodePaths {
         }
     }
     OpenCodePaths {
-        dir: dir.clone(),
-        config,
         instructions: Path::new(&dir).join("AGENTS.md").to_string_lossy().to_string(),
         plugins_dir: Path::new(&dir).join("plugins").to_string_lossy().to_string(),
         rules_dir: Path::new(&dir).join("rules").to_string_lossy().to_string(),
+        dir,
+        config,
     }
+}
+
+pub fn open_code_paths_resolved() -> OpenCodePaths {
+    opencode_paths_resolved()
 }
 
 pub struct KiloPaths {
     pub dir: String,
     pub config: String,
     pub plugins_dir: String,
+    pub instructions: String,
 }
 
 pub fn kilo_paths_resolved() -> KiloPaths {
@@ -413,14 +564,27 @@ pub fn kilo_paths_resolved() -> KiloPaths {
     }
     if dir.is_empty() {
         if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
-            dir = Path::new(&x).join("kilo").to_string_lossy().to_string();
-        } else {
-            dir = Path::new(&home()).join(".config").join("kilo").to_string_lossy().to_string();
+            if !x.is_empty() {
+                dir = Path::new(&x).join("kilo").to_string_lossy().to_string();
+            }
+        }
+        if dir.is_empty() {
+            dir = Path::new(&home())
+                .join(".config")
+                .join("kilo")
+                .to_string_lossy()
+                .to_string();
+        }
+    }
+    if !Path::new(&dir).is_absolute() {
+        if let Ok(cwd) = std::env::current_dir() {
+            dir = cwd.join(&dir).to_string_lossy().to_string();
         }
     }
     KiloPaths {
         config: Path::new(&dir).join("kilo.jsonc").to_string_lossy().to_string(),
         plugins_dir: Path::new(&dir).join("plugin").to_string_lossy().to_string(),
+        instructions: Path::new(&dir).join("AGENTS.md").to_string_lossy().to_string(),
         dir,
     }
 }
@@ -442,6 +606,11 @@ pub fn cline_paths_resolved() -> ClinePaths {
     if dir.is_empty() {
         dir = Path::new(&home()).join(".cline").to_string_lossy().to_string();
     }
+    if !Path::new(&dir).is_absolute() {
+        if let Ok(cwd) = std::env::current_dir() {
+            dir = cwd.join(&dir).to_string_lossy().to_string();
+        }
+    }
     let mut data_dir = std::env::var("CLINE_DATA_DIR").unwrap_or_default();
     if data_dir.starts_with("~/") {
         data_dir = Path::new(&home()).join(&data_dir[2..]).to_string_lossy().to_string();
@@ -454,16 +623,20 @@ pub fn cline_paths_resolved() -> ClinePaths {
         mcp_config = Path::new(&home()).join(&mcp_config[2..]).to_string_lossy().to_string();
     }
     if mcp_config.is_empty() {
-        mcp_config = Path::new(&data_dir).join("settings").join("cline_mcp_settings.json").to_string_lossy().to_string();
+        mcp_config = Path::new(&data_dir)
+            .join("settings")
+            .join("cline_mcp_settings.json")
+            .to_string_lossy()
+            .to_string();
     }
     let rules_dir = Path::new(&dir).join("rules").to_string_lossy().to_string();
     ClinePaths {
-        dir: dir.clone(),
+        hooks_dir: Path::new(&dir).join("hooks").to_string_lossy().to_string(),
+        instructions: Path::new(&rules_dir).join("AGENTS.md").to_string_lossy().to_string(),
+        dir,
         data_dir,
         mcp_config,
-        hooks_dir: Path::new(&dir).join("hooks").to_string_lossy().to_string(),
-        rules_dir: rules_dir.clone(),
-        instructions: Path::new(&rules_dir).join("AGENTS.md").to_string_lossy().to_string(),
+        rules_dir,
     }
 }
 
@@ -474,9 +647,10 @@ pub struct CodexPaths {
 }
 
 pub fn codex_paths_resolved() -> CodexPaths {
-    let dir = std::env::var("CODEX_HOME").unwrap_or_else(|_| {
-        Path::new(&home()).join(".codex").to_string_lossy().to_string()
-    });
+    let dir = std::env::var("CODEX_HOME")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| Path::new(&home()).join(".codex").to_string_lossy().to_string());
     CodexPaths {
         config: Path::new(&dir).join("config.toml").to_string_lossy().to_string(),
         instructions: Path::new(&dir).join("AGENTS.md").to_string_lossy().to_string(),
@@ -487,6 +661,7 @@ pub fn codex_paths_resolved() -> CodexPaths {
 pub struct AntigravityPaths {
     pub dir: String,
     pub mcp_config: String,
+    pub mcp_config_ide: String,
     pub mcp_config_cli: String,
     pub settings: String,
     pub instructions: String,
@@ -495,9 +670,15 @@ pub struct AntigravityPaths {
 pub fn antigravity_paths_resolved() -> AntigravityPaths {
     let gemini = Path::new(&home()).join(".gemini").to_string_lossy().to_string();
     let dir = Path::new(&gemini).join("antigravity").to_string_lossy().to_string();
+    let mcp_config = Path::new(&dir).join("mcp_config.json").to_string_lossy().to_string();
     AntigravityPaths {
-        mcp_config: Path::new(&dir).join("mcp_config.json").to_string_lossy().to_string(),
-        mcp_config_cli: Path::new(&gemini).join("config").join("mcp_config.json").to_string_lossy().to_string(),
+        mcp_config: mcp_config.clone(),
+        mcp_config_ide: mcp_config,
+        mcp_config_cli: Path::new(&gemini)
+            .join("config")
+            .join("mcp_config.json")
+            .to_string_lossy()
+            .to_string(),
         settings: Path::new(&gemini).join("settings.json").to_string_lossy().to_string(),
         instructions: Path::new(&gemini).join("GEMINI.md").to_string_lossy().to_string(),
         dir,
@@ -516,8 +697,11 @@ pub fn copilot_paths_resolved() -> CopilotPaths {
     let mut dir = std::env::var("COPILOT_HOME").unwrap_or_default();
     if dir.is_empty() {
         if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
-            dir = Path::new(&x).join("copilot").to_string_lossy().to_string();
-        } else {
+            if !x.is_empty() {
+                dir = Path::new(&x).join("copilot").to_string_lossy().to_string();
+            }
+        }
+        if dir.is_empty() {
             dir = Path::new(&home()).join(".copilot").to_string_lossy().to_string();
         }
     }
@@ -525,7 +709,10 @@ pub fn copilot_paths_resolved() -> CopilotPaths {
         mcp_config: Path::new(&dir).join("mcp-config.json").to_string_lossy().to_string(),
         settings: Path::new(&dir).join("settings.json").to_string_lossy().to_string(),
         hooks_dir: Path::new(&dir).join("hooks").to_string_lossy().to_string(),
-        instructions: Path::new(&dir).join("copilot-instructions.md").to_string_lossy().to_string(),
+        instructions: Path::new(&dir)
+            .join("copilot-instructions.md")
+            .to_string_lossy()
+            .to_string(),
         dir,
     }
 }
@@ -533,25 +720,112 @@ pub fn copilot_paths_resolved() -> CopilotPaths {
 pub struct CursorPaths {
     pub dir: String,
     pub mcp_config: String,
+    pub rules_dir: String,
+    pub cli_config: String,
 }
 
 pub fn cursor_paths_resolved() -> CursorPaths {
     let mut dir = Path::new(&home()).join(".cursor").to_string_lossy().to_string();
     if !IS_WIN && std::env::consts::OS != "macos" {
         if let Ok(env) = std::env::var("CURSOR_CONFIG_DIR") {
-            dir = env;
+            if !env.is_empty() {
+                dir = env;
+            }
         } else if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
-            dir = Path::new(&x).join("cursor").to_string_lossy().to_string();
+            if !x.is_empty() {
+                dir = Path::new(&x).join("cursor").to_string_lossy().to_string();
+            }
         }
     }
     CursorPaths {
         mcp_config: Path::new(&dir).join("mcp.json").to_string_lossy().to_string(),
+        rules_dir: Path::new(&dir).join("rules").to_string_lossy().to_string(),
+        cli_config: Path::new(&dir).join("cli-config.json").to_string_lossy().to_string(),
         dir,
     }
 }
 
 pub fn cursor_global_mcp_path() -> String {
     cursor_paths_resolved().mcp_config
+}
+
+pub struct GrokPaths {
+    pub dir: String,
+    pub config: String,
+    pub bin: String,
+    pub install_dir: String,
+}
+
+pub fn grok_paths_resolved() -> GrokPaths {
+    let dir = std::env::var("GROK_HOME")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| Path::new(&home()).join(".grok").to_string_lossy().to_string());
+    let install_dir = Path::new(&home()).join(".local").join("bin").to_string_lossy().to_string();
+    let bin_name = if IS_WIN { "grok.exe" } else { "grok" };
+    GrokPaths {
+        config: Path::new(&dir).join("config.toml").to_string_lossy().to_string(),
+        bin: Path::new(&install_dir).join(bin_name).to_string_lossy().to_string(),
+        install_dir,
+        dir,
+    }
+}
+
+pub struct OmpPaths {
+    pub dir: String,
+    pub agent_dir: String,
+    pub config: String,
+    pub rtk_extension: String,
+}
+
+pub fn omp_paths_resolved() -> OmpPaths {
+    let dir = Path::new(&home()).join(".omp").to_string_lossy().to_string();
+    let agent_dir = std::env::var("OMP_CODING_AGENT_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .or_else(|| {
+            std::env::var("PI_CODING_AGENT_DIR")
+                .ok()
+                .filter(|s| !s.is_empty())
+        })
+        .unwrap_or_else(|| Path::new(&dir).join("agent").to_string_lossy().to_string());
+    OmpPaths {
+        config: Path::new(&agent_dir).join("mcp.json").to_string_lossy().to_string(),
+        rtk_extension: Path::new(&agent_dir)
+            .join("extensions")
+            .join("tokless-rtk.ts")
+            .to_string_lossy()
+            .to_string(),
+        agent_dir,
+        dir,
+    }
+}
+
+pub struct PiPaths {
+    pub dir: String,
+    pub agent_dir: String,
+    pub settings: String,
+    pub mcp_config: String,
+    pub rtk_extension: String,
+}
+
+pub fn pi_paths_resolved() -> PiPaths {
+    let dir = Path::new(&home()).join(".pi").to_string_lossy().to_string();
+    let agent_dir = std::env::var("PI_CODING_AGENT_DIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| Path::new(&dir).join("agent").to_string_lossy().to_string());
+    PiPaths {
+        settings: Path::new(&agent_dir).join("settings.json").to_string_lossy().to_string(),
+        mcp_config: Path::new(&agent_dir).join("mcp.json").to_string_lossy().to_string(),
+        rtk_extension: Path::new(&agent_dir)
+            .join("extensions")
+            .join("rtk.ts")
+            .to_string_lossy()
+            .to_string(),
+        agent_dir,
+        dir,
+    }
 }
 
 pub fn copy_dir_merge(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {

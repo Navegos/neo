@@ -2,6 +2,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 static VT_READY: AtomicBool = AtomicBool::new(true);
 
+pub fn vt_ready() -> bool {
+    VT_READY.load(Ordering::Relaxed)
+}
+
+pub fn set_vt_ready(ready: bool) {
+    VT_READY.store(ready, Ordering::Relaxed);
+}
+
 pub fn stdout_is_tty() -> bool {
     crossterm::tty::IsTty::is_tty(&std::io::stdout())
 }
@@ -11,7 +19,7 @@ pub fn stdin_is_tty() -> bool {
 }
 
 pub fn stdout_ansi() -> bool {
-    stdout_is_tty() && VT_READY.load(Ordering::Relaxed)
+    stdout_is_tty() && vt_ready()
 }
 
 pub fn running_inside_claude_code() -> bool {
@@ -25,8 +33,8 @@ pub fn interactive_tty() -> bool {
 
 pub fn colors_enabled() -> bool {
     stdout_is_tty()
-        && VT_READY.load(Ordering::Relaxed)
-        && std::env::var("NO_COLOR").is_err()
+        && vt_ready()
+        && std::env::var("NO_COLOR").map(|v| v.is_empty()).unwrap_or(true)
         && std::env::var("TERM").unwrap_or_default() != "dumb"
 }
 
@@ -53,6 +61,7 @@ impl Colors {
     pub fn dim(&self, s: &str) -> String { wrap(2, 22, s) }
     pub fn italic(&self, s: &str) -> String { wrap(3, 23, s) }
     pub fn underline(&self, s: &str) -> String { wrap(4, 24, s) }
+    pub fn inverse(&self, s: &str) -> String { wrap(7, 27, s) }
     pub fn red(&self, s: &str) -> String { wrap(31, 39, s) }
     pub fn green(&self, s: &str) -> String { wrap(32, 39, s) }
     pub fn yellow(&self, s: &str) -> String { wrap(33, 39, s) }
@@ -70,10 +79,10 @@ fn legacy_win_console() -> bool {
     if !cfg!(windows) {
         return false;
     }
-    std::env::var("WT_SESSION").is_err()
-        && std::env::var("TERM_PROGRAM").is_err()
+    std::env::var("WT_SESSION").unwrap_or_default().is_empty()
+        && std::env::var("TERM_PROGRAM").unwrap_or_default().is_empty()
         && std::env::var("ConEmuANSI").unwrap_or_default() != "ON"
-        && std::env::var("TERM").is_err()
+        && std::env::var("TERM").unwrap_or_default().is_empty()
 }
 
 pub fn glyphs_enabled() -> bool {
@@ -112,9 +121,13 @@ impl Sym {
     pub const INFO: &'static str = "ℹ";
     pub const BULLET: &'static str = "•";
     pub const CROSS: &'static str = "✖";
+    pub const ARROW: &'static str = "›";
+    pub const SELECTED: &'static str = "◉";
+    pub const UNSELECTED: &'static str = "◯";
+    pub const DISABLED: &'static str = "·";
+    pub const POINTER: &'static str = "❯";
 }
 
 pub fn rule(width: usize) -> String {
     pick("─", "-").repeat(width)
 }
-

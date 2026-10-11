@@ -1,6 +1,6 @@
 # projectmem - neo
 
-_Last updated: 2026-10-06_
+_Last updated: 2026-10-11_
 
 ## Project purpose
 --------------------------------------------------------------------------------
@@ -15,6 +15,8 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 
 ## Notes
 - start of Neo
+- New feature: feat: add routing store and ownership management [crates/tokless/src/agents/hooks.rs]
+- Completed 100% Go-to-Rust conversion of inspect-vault/tokless into crates/tokless across util, headroom, agents, tools, and commands (zero compiler warnings, 17/17 unit tests passing). [crates/tokless/src]
 
 ## Key files
 - `.editorconfig`
@@ -22,6 +24,14 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - `.gitignore`
 - `LICENSE`
 - `README.md`
+- `crates/tokless/src/agents/hooks.rs`
+- `Cargo.toml`
+- `crates/.gitkeep`
+- `crates/tokless/Cargo.toml`
+- `crates/tokless/src/agents/mod.rs`
+- `crates/tokless/src/agents/proxy_agent.rs`
+- `crates/tokless/src/agents/proxy_protocol.rs`
+- `crates/tokless/src/commands/codex_perm_hook.rs`
 
 ## Open questions
 - None logged yet.

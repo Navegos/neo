@@ -17,9 +17,21 @@ impl From<&str> for TomlValue {
     }
 }
 
+impl From<&String> for TomlValue {
+    fn from(s: &String) -> Self {
+        TomlValue::String(s.clone())
+    }
+}
+
 impl From<String> for TomlValue {
     fn from(s: String) -> Self {
         TomlValue::String(s)
+    }
+}
+
+impl From<&[String]> for TomlValue {
+    fn from(v: &[String]) -> Self {
+        TomlValue::Array(v.to_vec())
     }
 }
 

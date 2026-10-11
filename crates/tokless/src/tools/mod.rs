@@ -1,24 +1,31 @@
+pub mod autoindex;
 pub mod caveman;
 pub mod codegraph;
 pub mod contextmode;
+pub mod copilot_transaction;
 pub mod headroom;
 pub mod helpers;
 pub mod ponytail;
 pub mod principles;
 pub mod projectmem;
 pub mod rtk;
+pub mod separators;
+pub mod tokless_block;
 
 use crate::core::register_tool;
 
+pub use autoindex::*;
 pub use caveman::*;
 pub use codegraph::*;
 pub use contextmode::*;
+pub use copilot_transaction::*;
 pub use headroom::*;
 pub use helpers::*;
 pub use ponytail::*;
 pub use principles::*;
 pub use projectmem::*;
 pub use rtk::*;
+pub use separators::*;
 
 pub fn register() {
     register_tool(build_rtk());
@@ -30,4 +37,3 @@ pub fn register() {
     register_tool(build_headroom());
     register_tool(build_projectmem());
 }
-

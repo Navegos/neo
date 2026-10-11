@@ -1,5 +1,5 @@
 use std::env;
-use crate::commands::doctor_probe::{probe_agent_runtime, RuntimeIssue};
+use crate::commands::doctor_probe::{format_runtime_issues, probe_agent_runtime, RuntimeIssue};
 use crate::commands::helpers::*;
 use crate::core::{list_agents, list_tools, ToolManifest};
 use crate::util::colors::*;
@@ -61,23 +61,7 @@ pub fn run_doctor(offline: bool) -> i32 {
                 continue;
             }
             if let Some(info) = v.get(&tool.id) {
-                let name = paint_name(&pad_end(&tool.id, 14));
-                let installed = if let Some(ref inst) = info.installed {
-                    paint_ver(&pad_end(&format!("v{}", inst), 10))
-                } else {
-                    C.dim(&pad_end("not on PATH", 10))
-                };
-                let latest = if let Some(ref lat) = info.latest {
-                    paint_ver(&pad_end(&format!("v{}", lat), 10))
-                } else {
-                    C.dim(&pad_end("?", 10))
-                };
-                let mark = if info.installed.is_some() && info.latest.is_some() {
-                    C.green(Sym::CHECK)
-                } else {
-                    C.gray(Sym::BULLET)
-                };
-                tree_leaf(&format!("{} {} {} {} {}", mark, name, installed, paint_arrow(), latest));
+                tree_leaf(&tool_version_display_line(&tool.id, Some(info), false));
             }
         }
         tree_close();
@@ -108,16 +92,40 @@ fn doctor_missing_tools(tools: &[std::sync::Arc<ToolManifest>], agent_id: &str) 
 fn doctor_summary_line(r: &AgentReport) -> String {
     let name = paint_name(&pad_end(&r.label, 16));
     if !r.installed {
-        return format!("{}{} {}", C.gray(&format!("{} ", Sym::BULLET)), C.dim(&pad_end(&r.label, 16)), C.gray("not installed"));
+        return format!(
+            "{}{} {}",
+            C.gray(&format!("{} ", Sym::BULLET)),
+            C.dim(&pad_end(&r.label, 16)),
+            C.gray("not installed")
+        );
     }
     if r.wired {
         format!("{} {} {}", C.green(Sym::CHECK), name, C.green("all tools wired"))
     } else if !r.runtime.is_empty() && r.missing.is_empty() {
-        format!("{} {} {}", C.yellow(Sym::WARN), name, C.yellow(&format!("runtime: {}", crate::commands::doctor_probe::format_runtime_issues(&r.runtime))))
+        format!(
+            "{} {} {}",
+            C.yellow(Sym::WARN),
+            name,
+            C.yellow(&format!("runtime: {}", format_runtime_issues(&r.runtime)))
+        )
     } else if !r.runtime.is_empty() {
-        format!("{} {} {}", C.yellow(Sym::WARN), name, C.yellow(&format!("missing: {}; runtime: {}", r.missing.join(", "), crate::commands::doctor_probe::format_runtime_issues(&r.runtime))))
+        format!(
+            "{} {} {}",
+            C.yellow(Sym::WARN),
+            name,
+            C.yellow(&format!(
+                "missing: {}; runtime: {}",
+                r.missing.join(", "),
+                format_runtime_issues(&r.runtime)
+            ))
+        )
     } else {
-        format!("{} {} {}", C.yellow(Sym::WARN), name, C.yellow(&format!("missing: {}", r.missing.join(", "))))
+        format!(
+            "{} {} {}",
+            C.yellow(Sym::WARN),
+            name,
+            C.yellow(&format!("missing: {}", r.missing.join(", ")))
+        )
     }
 }
 
@@ -136,7 +144,11 @@ fn doctor_status_lines(outdated: i32, broken: usize, installed_agents: usize) ->
             lines.push(status_kv(
                 &C.yellow(Sym::WARN),
                 "tools",
-                &format!("{} — run {}", C.yellow(&format!("{} available", plural(outdated as usize))), paint_cmd("tokless update")),
+                &format!(
+                    "{} — run {}",
+                    C.yellow(&format!("{} available", plural(outdated as usize))),
+                    paint_cmd("tokless update")
+                ),
             ));
         } else {
             lines.push(status_kv(
@@ -151,7 +163,11 @@ fn doctor_status_lines(outdated: i32, broken: usize, installed_agents: usize) ->
         lines.push(status_kv(
             &C.yellow(Sym::WARN),
             "agents",
-            &format!("{} — run {}", C.yellow(&format!("{} incomplete", broken)), paint_cmd("tokless")),
+            &format!(
+                "{} — run {}",
+                C.yellow(&format!("{} incomplete", broken)),
+                paint_cmd("tokless")
+            ),
         ));
     } else if installed_agents > 0 {
         lines.push(status_kv(

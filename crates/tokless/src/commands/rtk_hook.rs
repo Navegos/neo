@@ -1,8 +1,10 @@
 use std::env;
-use std::io::{self, Read};
+use std::fs::OpenOptions;
+use std::io::{self, Read, Write};
 use std::path::Path;
 use std::process::Command;
-use crate::util::jsonc::{try_parse_jsonc, stringify_json, OrderedMap, Value};
+
+use crate::util::jsonc::{stringify_json, try_parse_jsonc, OrderedMap, Value};
 use crate::util::paths::resolve_rtk_bin;
 
 pub fn run_rtk_rewrite() -> i32 {
@@ -21,6 +23,17 @@ pub fn run_rtk_rewrite() -> i32 {
     }
     println!("{}", out);
     0
+}
+
+pub fn is_already_rtk(cmd_line: &str) -> bool {
+    command_uses_rtk(cmd_line)
+}
+
+pub fn rtk_rewrite_if_needed(cmd_line: &str) -> (String, bool) {
+    if is_already_rtk(cmd_line) {
+        return (cmd_line.to_string(), false);
+    }
+    rtk_rewrite(cmd_line)
 }
 
 pub fn rtk_rewrite(cmd_line: &str) -> (String, bool) {
@@ -59,13 +72,11 @@ fn has_shell_pipe(line: &str) -> bool {
     false
 }
 
-fn rtk_unsafe_find(cmd_line: &str) -> bool {
+pub fn rtk_unsafe_find(cmd_line: &str) -> bool {
     let unsupported = [
-        "-not", "!", "-or", "-o", "-and", "-a",
-        "-exec", "-execdir", "-delete", "-print0",
-        "-newer", "-perm", "-size", "-mtime", "-mmin",
-        "-atime", "-amin", "-ctime", "-cmin", "-empty",
-        "-link", "-regex", "-iregex",
+        "-not", "!", "-or", "-o", "-and", "-a", "-exec", "-execdir", "-delete", "-print0",
+        "-newer", "-perm", "-size", "-mtime", "-mmin", "-atime", "-amin", "-ctime", "-cmin",
+        "-empty", "-link", "-regex", "-iregex",
     ];
     for part in shell_command_segments(cmd_line) {
         let tokens = shell_tokens(&part);
@@ -175,13 +186,57 @@ pub fn command_uses_rtk(cmd_line: &str) -> bool {
         }
         let first = trimmed.split_whitespace().next().unwrap_or("");
         let unquoted = first.trim_matches(|c| c == '"' || c == '\'');
-        let bin = Path::new(unquoted).file_name().and_then(|f| f.to_str()).unwrap_or("");
+        let bin = Path::new(unquoted)
+            .file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or("");
         let lower = bin.to_lowercase();
         if lower == "rtk" || lower == "rtk.exe" {
             return true;
         }
     }
     false
+}
+
+pub fn cline_rewrite_commands(cmd_line: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for seg in shell_command_segments(cmd_line) {
+        let (rewritten, changed) = rtk_rewrite(&seg);
+        if changed && !rewritten.is_empty() {
+            out.push(rewritten);
+        }
+    }
+    out
+}
+
+pub fn copilot_rtk_trace(stage: &str, cmd_line: &str, rewritten: &str, changed: bool) {
+    if let Ok(trace_path) = env::var("TOKLESS_COPILOT_RTK_TRACE") {
+        if !trace_path.is_empty() {
+            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&trace_path) {
+                let entry = serde_json::json!({
+                    "stage": stage,
+                    "command": cmd_line,
+                    "rewritten": rewritten,
+                    "changed": changed,
+                });
+                let _ = writeln!(f, "{}", entry);
+            }
+        }
+    }
+}
+
+pub fn copilot_rtk_post(raw: &str) -> i32 {
+    if let Some(cfg) = try_parse_jsonc(raw) {
+        let cmd_line = cfg
+            .get("tool_input")
+            .or_else(|| cfg.get("toolInput"))
+            .and_then(|v| v.as_object())
+            .and_then(|m| m.get("command"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        copilot_rtk_trace("postToolUse", cmd_line, "", false);
+    }
+    0
 }
 
 // --- Agent-specific hook entry points ---
@@ -229,6 +284,14 @@ pub fn run_rtk_hook() -> i32 {
     resp.insert("overwrite".into(), Value::Object(args.clone()));
     println!("{}", stringify_json(&Value::Object(resp)));
     0
+}
+
+pub fn run_rtk_hook_claude() -> i32 {
+    run_rtk_hook_codex()
+}
+
+pub fn run_rtk_hook_omp() -> i32 {
+    run_rtk_hook_codex()
 }
 
 pub fn run_rtk_hook_codex() -> i32 {
@@ -411,9 +474,17 @@ pub fn run_rtk_hook_grok() -> i32 {
         Some(c) => c,
         None => return 0,
     };
-    let tool_name = cfg.get("toolName").or_else(|| cfg.get("tool_name")).and_then(|v| {
-        if let Value::String(s) = v { Some(s.as_str()) } else { None }
-    }).unwrap_or("");
+    let tool_name = cfg
+        .get("toolName")
+        .or_else(|| cfg.get("tool_name"))
+        .and_then(|v| {
+            if let Value::String(s) = v {
+                Some(s.as_str())
+            } else {
+                None
+            }
+        })
+        .unwrap_or("");
 
     let is_shell = tool_name.eq_ignore_ascii_case("run_terminal_cmd")
         || tool_name.eq_ignore_ascii_case("run_terminal_command")
@@ -460,17 +531,32 @@ pub fn run_rtk_hook_copilot() -> i32 {
         None => return 0,
     };
 
-    let tool_name = cfg.get("tool_name").or_else(|| cfg.get("toolName")).and_then(|v| {
-        if let Value::String(s) = v { Some(s.as_str()) } else { None }
-    }).unwrap_or("");
+    let tool_name = cfg
+        .get("tool_name")
+        .or_else(|| cfg.get("toolName"))
+        .and_then(|v| {
+            if let Value::String(s) = v {
+                Some(s.as_str())
+            } else {
+                None
+            }
+        })
+        .unwrap_or("");
 
     let lower = tool_name.to_lowercase();
-    let is_shell = lower == "bash" || lower == "shell" || lower == "powershell" || lower == "runterminalcommand";
+    let is_shell = lower == "bash"
+        || lower == "shell"
+        || lower == "powershell"
+        || lower == "runterminalcommand";
     if !is_shell {
         return 0;
     }
 
-    let tool_input = match cfg.get("tool_input").or_else(|| cfg.get("toolInput")).or_else(|| cfg.get("toolArgs")) {
+    let tool_input = match cfg
+        .get("tool_input")
+        .or_else(|| cfg.get("toolInput"))
+        .or_else(|| cfg.get("toolArgs"))
+    {
         Some(Value::Object(m)) => m,
         _ => return 0,
     };
@@ -480,10 +566,15 @@ pub fn run_rtk_hook_copilot() -> i32 {
     };
 
     let (new_cmd, changed) = rtk_rewrite(&cmd_line);
+    copilot_rtk_trace("preToolUse", &cmd_line, &new_cmd, changed);
+
     let mut out_body = OrderedMap::new();
     out_body.insert("hookEventName".into(), Value::String("PreToolUse".into()));
     out_body.insert("permissionDecision".into(), Value::String("allow".into()));
-    out_body.insert("permissionDecisionReason".into(), Value::String("RTK auto-approved".into()));
+    out_body.insert(
+        "permissionDecisionReason".into(),
+        Value::String("RTK auto-approved".into()),
+    );
 
     if changed {
         let mut updated = tool_input.clone();

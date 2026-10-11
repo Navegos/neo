@@ -1,7 +1,10 @@
 use super::routing_state::{
-    valid_byok_protocol, valid_routing_id, valid_routing_token, validate_routing_state, RoutingState, ROUTING_STATE_COMMITTED,
+    valid_byok_protocol, valid_routing_id, valid_routing_token, validate_routing_state,
+    RoutingState, ROUTING_STATE_COMMITTED,
 };
-use super::routing_store::{lease_live, lease_matches_state, validate_routing_lease, RoutingLease};
+use super::routing_store::{
+    lease_live, lease_matches_state, validate_routing_lease, RoutingLease,
+};
 
 #[derive(Debug, Clone)]
 pub struct RoutingSnapshot {
@@ -29,7 +32,10 @@ impl RoutingSnapshot {
         if request.method != "POST" {
             return Err("route method not allowed".into());
         }
-        if !request.raw_query.is_empty() || !request.raw_path.is_empty() || request.path.contains('%') {
+        if !request.raw_query.is_empty()
+            || !request.raw_path.is_empty()
+            || request.path.contains('%')
+        {
             return Err("non-canonical route path".into());
         }
         if !route_path_for_protocol(&request.protocol, &request.path) {
@@ -62,7 +68,9 @@ impl RoutingSnapshot {
             {
                 return false;
             }
-            ownership(sel)
+            let mut with_nonce = sel.clone();
+            with_nonce.lease_nonce = lease.lease_nonce.clone();
+            ownership(&with_nonce)
         })?;
         selection.lease_nonce = lease.lease_nonce.clone();
         Ok(selection)
@@ -79,7 +87,7 @@ pub struct RouteRequest {
     pub raw_query: String,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RouteSelection {
     pub route_id: String,
     pub lane_id: String,
@@ -105,12 +113,27 @@ pub fn route_path_for_protocol(protocol: &str, path: &str) -> bool {
     route_protocol_for_path(path) == Some(protocol)
 }
 
+pub fn route_protocol_path(protocol: &str, path: &str) -> bool {
+    route_path_for_protocol(protocol, path)
+}
+
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff = 0u8;
+    for (&x, &y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
 pub fn resolve_route(
     state: &RoutingState,
     credential: &str,
     protocol: &str,
 ) -> Result<RouteSelection, Box<dyn std::error::Error + Send + Sync>> {
-    validate_routing_state(state)?;
+    validate_routing_state(state).map_err(|e| format!("invalid routing state: {}", e))?;
     if state.state != ROUTING_STATE_COMMITTED {
         return Err("routing state is not committed".into());
     }
@@ -128,7 +151,7 @@ pub fn resolve_route(
     }
 
     for route in &state.routes {
-        if route.id != id || route.token != token {
+        if route.id != id || !constant_time_eq(route.token.as_bytes(), token.as_bytes()) {
             continue;
         }
         if route.revoked || route.generation != state.generation || route.protocol != protocol {

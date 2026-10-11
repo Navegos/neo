@@ -1,13 +1,18 @@
 use std::collections::HashMap;
 use std::env;
+use std::fs;
+use std::path::Path;
+
 use crate::core::ToolManifest;
 use crate::util::colors::*;
 use crate::util::logger::L;
-use crate::util::progress::{tree_corner, tree_leaf, tree_close, tree_footer, rule};
-use crate::util::versions::{installed_version_for, latest_version_for};
+use crate::util::progress::{rule, tree_close, tree_corner, tree_footer, tree_leaf};
+use crate::util::versions::{
+    installed_version_for, latest_version_for, semver_compare, version_cache_path, VersionInfo,
+};
 
-pub const REPO_URL: &str = "https://github.com/HoangP8/tokless";
-pub const ISSUES_URL: &str = "https://github.com/HoangP8/tokless/issues";
+pub const REPO_URL: &str = "https://github.com/Navegos/neo";
+pub const ISSUES_URL: &str = "https://github.com/Navegos/neo/issues";
 
 #[derive(Default, Clone, Debug)]
 pub struct InitOptions {
@@ -20,6 +25,13 @@ pub struct InitOptions {
     pub upgrade: bool,
 }
 
+pub fn bust_version_cache_file() {
+    let p = version_cache_path();
+    if !p.is_empty() && Path::new(&p).exists() {
+        let _ = fs::remove_file(&p);
+    }
+}
+
 pub fn tool_version_note(tool: &ToolManifest) -> String {
     if let Some(v) = installed_version_for(&tool.id) {
         return format!("v{}", v);
@@ -28,6 +40,72 @@ pub fn tool_version_note(tool: &ToolManifest) -> String {
         return format!("v{}", v);
     }
     String::new()
+}
+
+pub fn tool_version_outdated(info: Option<&VersionInfo>) -> bool {
+    if let Some(info) = info {
+        if let (Some(inst), Some(lat)) = (&info.installed, &info.latest) {
+            return semver_compare(inst, lat) < 0;
+        }
+    }
+    false
+}
+
+pub fn tool_version_display_line(
+    tool_id: &str,
+    info: Option<&VersionInfo>,
+    upgrade_mode: bool,
+) -> String {
+    let name = paint_name(&pad_end(tool_id, 14));
+    let installed = if let Some(info) = info {
+        if let Some(ref inst) = info.installed {
+            paint_ver(&pad_end(&format!("v{}", inst), 10))
+        } else {
+            C.dim(&pad_end("not on PATH", 10))
+        }
+    } else {
+        C.dim(&pad_end("not on PATH", 10))
+    };
+
+    let latest = if let Some(info) = info {
+        if let Some(ref lat) = info.latest {
+            paint_ver(&pad_end(&format!("v{}", lat), 10))
+        } else {
+            C.dim(&pad_end("?", 10))
+        }
+    } else {
+        C.dim(&pad_end("?", 10))
+    };
+
+    let mut mark = C.gray(Sym::BULLET);
+    let mut suffix = String::new();
+
+    if let Some(info) = info {
+        if let (Some(inst), Some(lat)) = (&info.installed, &info.latest) {
+            if semver_compare(inst, lat) < 0 {
+                mark = C.yellow("↑");
+                if upgrade_mode {
+                    suffix = C.yellow(" → upgrade");
+                }
+            } else {
+                mark = C.green(Sym::CHECK);
+                if upgrade_mode {
+                    suffix = C.green(" (up to date)");
+                }
+            }
+        } else if info.installed.is_none() && info.latest.is_some() {
+            if upgrade_mode {
+                mark = C.yellow("+");
+                suffix = C.yellow(" → install");
+            }
+        } else if upgrade_mode {
+            suffix = C.dim(" (latest unknown)");
+        }
+    } else if upgrade_mode {
+        suffix = C.dim(" (latest unknown)");
+    }
+
+    format!("{} {} {} {} {}{}", mark, name, installed, paint_arrow(), latest, suffix)
 }
 
 pub fn tool_needs_node(tool: &ToolManifest) -> bool {
@@ -106,13 +184,7 @@ pub fn strip_ansi(s: &str) -> String {
     out
 }
 
-pub fn pad_end(s: &str, n: usize) -> String {
-    if s.len() >= n {
-        s.to_string()
-    } else {
-        format!("{}{}", s, " ".repeat(n - s.len()))
-    }
-}
+pub use crate::util::progress::pad_end;
 
 pub fn cmd_header(cmd: &str, subtitle: &str) {
     L.raw("");
@@ -135,12 +207,24 @@ pub fn tree_status(lines: &[String]) {
     tree_close();
 }
 
-pub fn paint_ver(v: &str) -> String { C.soft(v) }
-pub fn paint_name(s: &str) -> String { C.bold(s) }
-pub fn paint_path(s: &str) -> String { C.gray(s) }
-pub fn paint_key(s: &str) -> String { C.cyan(s) }
-pub fn paint_cmd(s: &str) -> String { C.bold(&C.cyan(s)) }
-pub fn paint_arrow() -> String { C.dim("→") }
+pub fn paint_ver(v: &str) -> String {
+    C.soft(v)
+}
+pub fn paint_name(s: &str) -> String {
+    C.bold(s)
+}
+pub fn paint_path(s: &str) -> String {
+    C.gray(s)
+}
+pub fn paint_key(s: &str) -> String {
+    C.cyan(s)
+}
+pub fn paint_cmd(s: &str) -> String {
+    C.bold(&C.cyan(s))
+}
+pub fn paint_arrow() -> String {
+    C.dim("→")
+}
 
 pub fn status_ok(msg: &str) -> String {
     format!("{} {}", C.green(Sym::CHECK), C.green(msg))
@@ -164,17 +248,32 @@ pub fn print_repo_footer(tree: bool) {
     }
     if tree {
         tree_footer(52);
-        L.raw(&format!("  {} {}", C.gray("If tokless helps, please star it here: "), C.cyan(REPO_URL)));
-        L.raw(&format!("  {} {}", C.gray("If you hit any issue or have ideas, please raise it here: "), C.cyan(ISSUES_URL)));
+        L.raw(&format!(
+            "  {} {}",
+            C.gray("If tokless helps, please star it here: "),
+            C.cyan(REPO_URL)
+        ));
+        L.raw(&format!(
+            "  {} {}",
+            C.gray("If you hit any issue or have ideas, please raise it here: "),
+            C.cyan(ISSUES_URL)
+        ));
         return;
     }
     L.raw("");
     L.raw(&C.gray(&rule(52)));
-    L.raw(&format!("  {} {}", C.gray("If tokless helps, please star it here: "), C.cyan(REPO_URL)));
-    L.raw(&format!("  {} {}", C.gray("If you hit any issue or have ideas, please raise it here: "), C.cyan(ISSUES_URL)));
+    L.raw(&format!(
+        "  {} {}",
+        C.gray("If tokless helps, please star it here: "),
+        C.cyan(REPO_URL)
+    ));
+    L.raw(&format!(
+        "  {} {}",
+        C.gray("If you hit any issue or have ideas, please raise it here: "),
+        C.cyan(ISSUES_URL)
+    ));
 }
 
 pub fn stdout_tty() -> bool {
     crate::util::isatty::stdout_is_tty()
 }
-

@@ -1,6 +1,9 @@
-use std::path::Path;
-use super::paths::{exists, tokless_data_dir, IS_WIN};
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 use super::exec::{run, RunOptions};
+use super::mcpspawn::{pick_mcp_spawn, McpSpawn};
+use super::paths::{exists, tokless_data_dir, IS_WIN};
+use super::versions::semver_compare;
 
 pub struct HeadroomPaths {
     pub root: String,
@@ -53,6 +56,10 @@ pub fn headroom_uv_bootstrap_env() -> Vec<(String, String)> {
     env
 }
 
+pub fn mcp_spawn_for(tool_id: &str) -> McpSpawn {
+    pick_mcp_spawn(tool_id, &[])
+}
+
 pub fn headroom_installed() -> bool {
     let b = headroom_bin();
     exists(&b) && Path::new(&b).is_file()
@@ -62,13 +69,22 @@ pub fn headroom_installed_version() -> Option<String> {
     if let Some(v) = headroom_dist_info_version() {
         return Some(v);
     }
-    let res = run(&headroom_bin(), &["--version"], RunOptions { capture: true, ..Default::default() });
+    let res = run(
+        &headroom_bin(),
+        &["--version"],
+        RunOptions {
+            capture: true,
+            timeout: Some(Duration::from_secs(10)),
+            ..Default::default()
+        },
+    );
     if res.code != 0 {
         return None;
     }
     if let Some((_, ver)) = res.stdout.trim().split_once("version ") {
-        if !ver.is_empty() {
-            return Some(ver.trim().to_string());
+        let trimmed = ver.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
         }
     }
     None
@@ -76,10 +92,22 @@ pub fn headroom_installed_version() -> Option<String> {
 
 fn headroom_dist_info_version() -> Option<String> {
     let p = headroom_paths_resolved();
-    let site_dirs = [
-        Path::new(&p.tools).join("headroom-ai").join("Lib").join("site-packages"),
-        Path::new(&p.tools).join("headroom-ai").join("lib"),
+    let mut site_dirs: Vec<PathBuf> = vec![
+        Path::new(&p.tools)
+            .join("headroom-ai")
+            .join("Lib")
+            .join("site-packages"),
     ];
+    let lib_dir = Path::new(&p.tools).join("headroom-ai").join("lib");
+    if let Ok(entries) = std::fs::read_dir(&lib_dir) {
+        for e in entries.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name.starts_with("python") {
+                site_dirs.push(e.path().join("site-packages"));
+            }
+        }
+    }
+    let mut best: Option<String> = None;
     for site in &site_dirs {
         if let Ok(entries) = std::fs::read_dir(site) {
             for e in entries.flatten() {
@@ -90,11 +118,23 @@ fn headroom_dist_info_version() -> Option<String> {
                         .trim_end_matches(".dist-info")
                         .to_string();
                     if !ver.is_empty() {
-                        return Some(ver);
+                        match &best {
+                            None => best = Some(ver),
+                            Some(cur) if semver_compare(&ver, cur) > 0 => best = Some(ver),
+                            _ => {}
+                        }
                     }
                 }
             }
         }
     }
-    None
+    best
+}
+
+pub fn ensure_headroom(upgrade: bool) -> Result<bool, String> {
+    crate::headroom::ensure_installed(crate::core::RunOpts {
+        upgrade,
+        ..Default::default()
+    })
+    .map_err(|e| e.to_string())
 }
