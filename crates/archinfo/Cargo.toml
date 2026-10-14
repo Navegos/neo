@@ -1,0 +1,37 @@
+[package]
+name = "archinfo"
+version = "1.0.5"
+edition = "2024"
+authors = ["Copyright (c) 2026 Navegos. @DevelVitorF"]
+description = "High-performance CPU features detection, architecture mapping, and compiler ISA configuration tool"
+license = "Apache-2.0"
+repository = "https://github.com/Navegos/archinfo"
+readme = "README.md"
+
+[dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+clap = { version = "4.6.7", features = ["derive"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_System_Threading",
+    "Win32_System_Memory",
+    "Win32_System_Diagnostics_Debug",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.189"
+
+[lib]
+name = "archinfo"
+path = "src/lib.rs"
+crate-type = ["lib"]
+
+[[bin]]
+name = "archinfo"
+path = "src/main.rs"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1"
+

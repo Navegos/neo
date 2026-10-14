@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/tokless/src/util/install.rs
+// created: 2026-10-06
+// lastModified: 2026-10-14
+
 use std::path::Path;
 use super::paths::{ensure_dir, home, read_file_safe, tokless_abs, tokless_abs_strict, tokless_data_dir, write_file, IS_WIN};
 

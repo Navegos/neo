@@ -1,0 +1,30 @@
+{
+  "name": "ninja",
+  "version": "1.12.1",
+  "category": "tool",
+  "target_level": "system",
+  "description": "Small build system with a focus on speed",
+  "targets": {
+    "x86_64-pc-windows-msvc": {
+      "source": {
+        "type": "binary",
+        "url": "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-win.zip",
+        "sha256": "4ff07ae5103bf705c5ecfb06fa48232924ba95cf232b694b7c62c3e41d8e1f57"
+      },
+      "env_exports": {
+        "PATH": ["bin"]
+      }
+    },
+    "x86_64-unknown-linux-gnu": {
+      "source": {
+        "type": "binary",
+        "url": "https://github.com/ninja-build/ninja/releases/download/v1.12.1/ninja-linux.zip",
+        "sha256": "8ee9484b7260cf77864c09d66063fb519eec81cb2be01df82531aa96c40e53cf"
+      },
+      "env_exports": {
+        "PATH": ["bin"]
+      }
+    }
+  }
+}
+

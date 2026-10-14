@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/tokless/src/tools/principles.rs
+// created: 2026-10-05
+// lastModified: 2026-10-14
+
 use std::sync::Arc;
 use crate::core::{Channel, ToolManifest};
 use crate::util::instructions::{cursor_project_rule_content, install_cursor_project_rules};

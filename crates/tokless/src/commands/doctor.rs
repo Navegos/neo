@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/tokless/src/commands/doctor.rs
+// created: 2026-10-05
+// lastModified: 2026-10-14
+
 use std::env;
 use crate::commands::doctor_probe::{format_runtime_issues, probe_agent_runtime, RuntimeIssue};
 use crate::commands::helpers::*;

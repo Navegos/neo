@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/tokless/src/util/deps.rs
+// created: 2026-10-05
+// lastModified: 2026-10-14
+
 use super::paths::which;
 use super::logger::L;
 pub use super::preflight::ensure_deps;

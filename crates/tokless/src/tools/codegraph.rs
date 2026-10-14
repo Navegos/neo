@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/tokless/src/tools/codegraph.rs
+// created: 2026-10-05
+// lastModified: 2026-10-14
+
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -509,7 +516,7 @@ pub fn build_codegraph() -> ToolManifest {
     let mut tool = ToolManifest::new("codegraph", "CodeGraph");
     tool.description = "Indexed code graph for source, call paths, and impact.".into();
     tool.homepage = "https://github.com/Navegos/codegraph".into();
-    tool.install_hint = "npm install -g @navegos/codegraph".into();
+    tool.install_hint = "npm install -g @colbymchenry/codegraph".into();
     tool.channel = Channel::Npm;
     tool.needs_node = true;
     tool.min_node_major = 18;

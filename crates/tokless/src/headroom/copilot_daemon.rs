@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/tokless/src/headroom/copilot_daemon.rs
+// created: 2026-10-11
+// lastModified: 2026-10-14
+
 use std::fs::OpenOptions;
 use std::path::Path;
 use std::process::{Command, Stdio};

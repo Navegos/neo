@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/tokless/src/util/routing_plan.rs
+// created: 2026-10-05
+// lastModified: 2026-10-14
+
 use super::routing_state::{
     valid_byok_protocol, valid_routing_id, valid_routing_token, validate_routing_state,
     RoutingState, ROUTING_STATE_COMMITTED,

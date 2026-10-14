@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/tokless/src/tools/separators.rs
+// created: 2026-10-11
+// lastModified: 2026-10-14
+
 use crate::util::instructions::{section_header_for_owner, TOKLESS_OWNERS};
 use crate::util::paths::{read_file_safe, write_file_atomic};
 use super::tokless_block::{instruction_path, kilo_instructions_path};

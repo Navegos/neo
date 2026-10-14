@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/tokless/src/tools/contextmode.rs
+// created: 2026-10-05
+// lastModified: 2026-10-14
+
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
@@ -363,7 +370,7 @@ pub fn build_context_mode() -> ToolManifest {
     let mut tool = ToolManifest::new("context-mode", "Context Mode");
     tool.description = "Sandboxed context tools with session memory and focused analysis.".into();
     tool.homepage = "https://github.com/Navegos/context-mode".into();
-    tool.install_hint = "npm install -g @navegos/context-mode".into();
+    tool.install_hint = "npm install -g context-mode".into();
     tool.channel = Channel::Npm;
     tool.needs_node = true;
     tool.min_node_major = 18;

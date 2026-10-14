@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/tokless/src/util/pathsetup.rs
+// created: 2026-10-06
+// lastModified: 2026-10-14
+
 use std::path::Path;
 use super::paths::{home, exists, IS_WIN};
 use super::exec::{run, RunOptions};

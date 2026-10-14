@@ -1,0 +1,263 @@
+name: ArchInfo Multi-Platform Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux Matrix
+          - os: ubuntu-26.04
+            target: x86_64-unknown-linux-gnu
+            archive_name: archinfo-{version}-linux-x86_64.tar.zst
+          - os: ubuntu-26.04-arm
+            target: aarch64-unknown-linux-gnu
+            archive_name: archinfo-{version}-linux-aarch64.tar.zst
+          - os: ubuntu-24.04-riscv
+            target: riscv64gc-unknown-linux-gnu
+            archive_name: archinfo-{version}-linux-riscv64.tar.zst
+
+          # Windows Matrix
+          - os: windows-2025-vs2026
+            target: x86_64-pc-windows-msvc
+            archive_name: archinfo-{version}-windows-x86_64.tar.zst
+          - os: windows-11-vs2026-arm
+            target: aarch64-pc-windows-msvc
+            archive_name: archinfo-{version}-windows-aarch64.tar.zst
+
+          # macOS Matrix
+          - os: xcode-27
+            target: aarch64-apple-darwin
+            archive_name: archinfo-{version}-macos-aarch64.tar.zst
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+
+      - name: Extract Cargo Version
+        id: archive
+        shell: bash
+        run: |
+          VERSION=$(sed -E -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' Cargo.toml | head -n 1 | tr -d '\r')
+          ARCHIVE_NAME=$(echo "${{ matrix.archive_name }}" | sed "s/{version}/$VERSION/")
+          echo "archive_name=${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
+
+      # Sets up the appropriate native Rust toolchain
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Automatically optimizes actions runners by storing and restoring compiler caches
+      - name: Setup Rust Cache
+        uses: swatinem/rust-cache@v2
+        continue-on-error: true
+        with:
+          key: ${{ matrix.target }}
+
+      # Ensure zstd and compression tools are available across platforms
+      - name: Install Dependencies (Linux)
+        if: startsWith(matrix.os, 'ubuntu-')
+        run: |
+          sudo apt-get update && sudo apt-get install -y zstd
+
+      - name: Install Dependencies (macOS)
+        if: startsWith(matrix.os, 'xcode') || startsWith(matrix.os, 'macos')
+        run: |
+          which zstd || brew install zstd
+
+      - name: Install Dependencies (Windows)
+        if: startsWith(matrix.os, 'windows-')
+        uses: msys2/setup-msys2@v2
+        continue-on-error: true
+        with:
+          install: zstd tar
+
+      - name: Compile ArchInfo Binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      # Grabs executable, staging docs, and compresses using Zstandard
+      - name: Package and Compress Asset
+        shell: bash
+        env:
+          ARCHIVE_NAME: ${{ steps.archive.outputs.archive_name }}
+        run: |
+          # 1. Create a clean temporary staging directory
+          mkdir -p dist
+          
+          # 2. Copy the binary based on OS naming constraints
+          if [[ "${{ matrix.os }}" == windows-* ]]; then
+            cp target/${{ matrix.target }}/release/archinfo.exe ./dist/archinfo.exe
+          else
+            cp target/${{ matrix.target }}/release/archinfo ./dist/archinfo
+          fi
+
+          # 3. Include license and documentation
+          cp LICENSE README.md ./dist/ 2>/dev/null || true
+          
+          # 4. Compress using tar with zstd compression engine (-a enables auto-compression by extension)
+          if [[ "${{ matrix.os }}" == windows-* ]]; then
+            if [ -d "/c/msys64/usr/bin" ]; then
+              export PATH="/c/msys64/usr/bin:$PATH"
+            fi
+            if command -v tar.exe >/dev/null 2>&1; then
+              tar.exe -acvf "$ARCHIVE_NAME" -C dist .
+            else
+              tar -acvf "$ARCHIVE_NAME" -C dist .
+            fi
+          else
+            tar -acvf "$ARCHIVE_NAME" -C dist .
+          fi
+
+          # 5. Generate SHA256 checksum
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$ARCHIVE_NAME" > "${ARCHIVE_NAME}.sha256"
+          else
+            shasum -a 256 "$ARCHIVE_NAME" > "${ARCHIVE_NAME}.sha256"
+          fi
+
+      # Upload compiled assets as temporary build artifacts
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: artifacts-${{ matrix.target }}
+          path: |
+            ${{ steps.archive.outputs.archive_name }}
+            ${{ steps.archive.outputs.archive_name }}.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Generate Structured Release Notes
+        shell: bash
+        run: |
+          python3 - << 'EOF'
+          import subprocess
+          import os
+          import re
+
+          repo = os.environ.get("GITHUB_REPOSITORY", "")
+          tag = os.environ.get("GITHUB_REF_NAME", "HEAD")
+
+          try:
+              prev_tag = subprocess.check_output(
+                  ["git", "describe", "--tags", "--abbrev=0", f"{tag}^"],
+                  stderr=subprocess.DEVNULL,
+                  text=True
+              ).strip()
+              commit_range = f"{prev_tag}..{tag}"
+              header_info = f"## What's Changed in `{tag}` (since `{prev_tag}`)\n\n"
+          except Exception:
+              commit_range = tag
+              header_info = f"## What's Changed in `{tag}`\n\n"
+
+          log_format = "%h%x1f%s%x1f%an"
+          try:
+              output = subprocess.check_output(
+                  ["git", "log", commit_range, f"--pretty=format:{log_format}"],
+                  text=True
+              ).strip()
+          except Exception:
+              output = ""
+
+          categories = {
+              "Features": (r"^(feat)(\(.*?\))?!?:", []),
+              "Bug Fixes": (r"^(fix)(\(.*?\))?!?:", []),
+              "Performance Improvements": (r"^(perf)(\(.*?\))?!?:", []),
+              "Refactor & Maintenance": (r"^(chore|refactor|build|ci|test|style)(\(.*?\))?!?:", []),
+              "Documentation": (r"^(docs)(\(.*?\))?!?:", []),
+              "Other Changes": (None, []),
+          }
+
+          if output:
+              for line in output.split("\n"):
+                  parts = line.split("\x1f")
+                  if len(parts) < 2:
+                      continue
+                  h, s = parts[0], parts[1]
+                  commit_link = f"[{h}](https://github.com/{repo}/commit/{h})" if repo else h
+                  entry = f"- {s} ({commit_link})"
+                  
+                  matched = False
+                  for cat, (pattern, entries) in categories.items():
+                      if pattern and re.search(pattern, s, re.IGNORECASE):
+                          entries.append(entry)
+                          matched = True
+                          break
+                  if not matched:
+                      categories["Other Changes"][1].append(entry)
+
+          notes = [header_info]
+          non_empty = [cat for cat, (_, entries) in categories.items() if entries]
+
+          if non_empty == ["Other Changes"]:
+              notes.append("### Changes\n\n")
+              for e in categories["Other Changes"][1]:
+                  notes.append(f"{e}\n")
+              notes.append("\n")
+          elif non_empty:
+              for cat in non_empty:
+                  notes.append(f"### {cat}\n\n")
+                  for e in categories[cat][1]:
+                      notes.append(f"{e}\n")
+                  notes.append("\n")
+          else:
+              notes.append("No commit changes recorded for this release.\n")
+
+          with open("release_notes.md", "w", encoding="utf-8") as f:
+              f.writelines(notes)
+          EOF
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: artifacts-*
+          merge-multiple: true
+          path: release-assets
+
+      # Sets up native Rust toolchain for crate packaging and publishing
+      - name: Install Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # Package archinfo crate and include .crate archive in the release assets
+      - name: Package ArchInfo Crate
+        run: |
+          cargo package --allow-dirty
+          cp target/package/*.crate release-assets/
+
+      # Creates GitHub Release with structured release notes
+      - name: Upload Binaries and Crate to GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: release-assets/*
+          body_path: release_notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Publish archinfo crate to crates.io
+      - name: Publish ArchInfo Crate to Crates.io
+        run: cargo publish --allow-dirty
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+

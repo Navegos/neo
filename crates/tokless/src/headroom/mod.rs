@@ -1,3 +1,10 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/tokless/src/headroom/mod.rs
+// created: 2026-10-05
+// lastModified: 2026-10-14
+
 pub mod autostart;
 pub mod byok_gateway;
 pub mod cloudcode_patch;
