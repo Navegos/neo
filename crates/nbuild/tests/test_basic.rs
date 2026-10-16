@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 // project: neo
-// file: crates/neo-build/tests/test_basic.rs
+// file: crates/nbuild/tests/test_basic.rs
 // created: 2026-10-14
-// lastModified: 2026-10-14
+// lastModified: 2026-10-15
 
 use std::path::Path;
 use nbuild::core::{CatalogRegistry, NeoConfig, PkgMeta, PlatformGroup, TargetInfo, TargetTriple};
@@ -80,11 +80,148 @@ fn test_pkg_meta_serialization() {
 fn test_catalog_loading() {
     let mut registry = CatalogRegistry::new();
     registry.add_search_path("catalog");
+    registry.add_search_path("crates/nbuild/catalog");
     let _ = registry.load_all();
 
     if let Some(ninja) = registry.get("ninja") {
         assert_eq!(ninja.name, "ninja");
         assert_eq!(ninja.category, "tool");
+        assert_eq!(ninja.get_remote_repo(), Some("ninja-build/ninja"));
+        assert!(ninja.get_releases_url().is_some());
     }
 }
+
+#[test]
+fn test_github_release_matching() {
+    use nbuild::core::forge::{GitHubAsset, GitHubRelease};
+
+    let rel = GitHubRelease {
+        tag_name: "v3.30.5".to_string(),
+        name: Some("CMake 3.30.5".to_string()),
+        published_at: Some("2024-10-01T00:00:00Z".to_string()),
+        target_commitish: Some("master".to_string()),
+        assets: vec![
+            GitHubAsset {
+                name: "cmake-3.30.5-windows-x86_64.zip".to_string(),
+                browser_download_url: "https://example.com/cmake.zip".to_string(),
+                size: 45000000,
+                content_type: None,
+            },
+            GitHubAsset {
+                name: "cmake-3.30.5-linux-x86_64.tar.gz".to_string(),
+                browser_download_url: "https://example.com/cmake.tar.gz".to_string(),
+                size: 48000000,
+                content_type: None,
+            },
+        ],
+    };
+
+    assert_eq!(rel.clean_version(), "3.30.5");
+
+    let win_asset = rel.find_asset("windows", "x86_64").expect("Windows asset should match");
+    assert_eq!(win_asset.name, "cmake-3.30.5-windows-x86_64.zip");
+
+    let linux_asset = rel.find_asset("linux", "x86_64").expect("Linux asset should match");
+    assert_eq!(linux_asset.name, "cmake-3.30.5-linux-x86_64.tar.gz");
+}
+
+#[test]
+fn test_forge_detection_and_validation() {
+    use nbuild::core::forge::{ForgeClient, ForgeType};
+
+    assert_eq!(ForgeType::detect("Kitware/CMake"), ForgeType::GitHub);
+    assert_eq!(ForgeType::detect("https://github.com/Kitware/CMake.git"), ForgeType::GitHub);
+    assert_eq!(ForgeType::detect("https://gitlab.com/libeigen/eigen.git"), ForgeType::GitLab);
+    assert_eq!(ForgeType::detect("gitlab:libeigen/eigen"), ForgeType::GitLab);
+    assert_eq!(ForgeType::detect("https://codeberg.org/forgejo/forgejo.git"), ForgeType::Codeberg);
+    assert_eq!(ForgeType::detect("https://bitbucket.org/workspace/repo.git"), ForgeType::Bitbucket);
+    assert_eq!(ForgeType::detect("https://launchpad.net/bzr"), ForgeType::Launchpad);
+    assert_eq!(ForgeType::detect("lp:bzr"), ForgeType::Launchpad);
+    assert_eq!(ForgeType::detect("https://git.kernel.org/pub/scm/linux.git"), ForgeType::GenericGit);
+    assert_eq!(ForgeType::detect("git@custom.internal:team/repo.git"), ForgeType::GenericGit);
+
+    assert!(ForgeClient::validate_url("https://github.com/Kitware/CMake").is_ok());
+    assert!(ForgeClient::validate_url("git@gitlab.com:user/repo.git").is_ok());
+    assert!(ForgeClient::validate_url("ssh://git@custom.com/repo.git").is_ok());
+
+    assert!(ForgeClient::validate_url("file:///etc/passwd").is_err());
+    assert!(ForgeClient::validate_url("ftp://internal.vault/secret").is_err());
+}
+
+#[test]
+fn test_compression_format_ranking_and_stem_matching() {
+    use nbuild::core::forge::{strip_archive_extension, CompressionFormat, GitHubAsset, GitHubRelease};
+
+    assert_eq!(strip_archive_extension("cmake-3.30.5-windows-x86_64.zip"), "cmake-3.30.5-windows-x86_64");
+    assert_eq!(strip_archive_extension("ninja-linux.tar.gz"), "ninja-linux");
+    assert_eq!(strip_archive_extension("llvm-project.tar.xz"), "llvm-project");
+    assert_eq!(strip_archive_extension("package.tar.zst"), "package");
+    assert_eq!(strip_archive_extension("data.tar.bz2"), "data");
+    assert_eq!(strip_archive_extension("bundle.7z"), "bundle");
+    assert_eq!(strip_archive_extension("archive.rar"), "archive");
+
+    assert_eq!(CompressionFormat::from_filename("tool.tar.zst"), CompressionFormat::TarZst);
+    assert_eq!(CompressionFormat::from_filename("tool.tar.xz"), CompressionFormat::TarXz);
+    assert_eq!(CompressionFormat::from_filename("tool.zip"), CompressionFormat::Zip);
+    assert_eq!(CompressionFormat::from_filename("tool.7z"), CompressionFormat::SevenZip);
+    assert_eq!(CompressionFormat::from_filename("tool.tar.gz"), CompressionFormat::TarGz);
+    assert_eq!(CompressionFormat::from_filename("tool.tar.bz2"), CompressionFormat::TarBz2);
+    assert_eq!(CompressionFormat::from_filename("tool.rar"), CompressionFormat::Rar);
+
+    // Multi-compression release test:
+    let rel = GitHubRelease {
+        tag_name: "v3.31.0".to_string(),
+        name: Some("CMake 3.31.0".to_string()),
+        published_at: None,
+        target_commitish: None,
+        assets: vec![
+            GitHubAsset {
+                name: "cmake-3.31.0-windows-x86_64.tar.gz".to_string(),
+                browser_download_url: "https://example.com/win.tar.gz".to_string(),
+                size: 40000000,
+                content_type: None,
+            },
+            GitHubAsset {
+                name: "cmake-3.31.0-windows-x86_64.zip".to_string(),
+                browser_download_url: "https://example.com/win.zip".to_string(),
+                size: 35000000,
+                content_type: None,
+            },
+            GitHubAsset {
+                name: "cmake-3.31.0-windows-x86_64.zip.sha256".to_string(),
+                browser_download_url: "https://example.com/win.zip.sha256".to_string(),
+                size: 64,
+                content_type: None,
+            },
+            GitHubAsset {
+                name: "cmake-3.31.0-linux-x86_64.tar.gz".to_string(),
+                browser_download_url: "https://example.com/linux.tar.gz".to_string(),
+                size: 45000000,
+                content_type: None,
+            },
+            GitHubAsset {
+                name: "cmake-3.31.0-linux-x86_64.tar.zst".to_string(),
+                browser_download_url: "https://example.com/linux.tar.zst".to_string(),
+                size: 30000000,
+                content_type: None,
+            },
+        ],
+    };
+
+    // On Windows, .zip has higher score than .tar.gz (and .sha256 is ignored)
+    let win_hints = vec!["windows-x86_64".to_string()];
+    let win_match = rel.find_asset_with_hints("windows", "x86_64", Some(&win_hints)).unwrap();
+    assert_eq!(win_match.name, "cmake-3.31.0-windows-x86_64.zip");
+
+    // On Linux, .tar.zst has higher score than .tar.gz
+    let linux_hints = vec!["linux-x86_64".to_string()];
+    let linux_match = rel.find_asset_with_hints("linux", "x86_64", Some(&linux_hints)).unwrap();
+    assert_eq!(linux_match.name, "cmake-3.31.0-linux-x86_64.tar.zst");
+
+    // Even if old hint had .tar.gz, stem matching matches .tar.zst when it's better:
+    let old_linux_hints = vec!["cmake-3.31.0-linux-x86_64.tar.gz".to_string()];
+    let linux_match2 = rel.find_asset_with_hints("linux", "x86_64", Some(&old_linux_hints)).unwrap();
+    assert!(linux_match2.name.contains("linux-x86_64"));
+}
+
 

@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 // project: neo
-// file: crates/neo-build/src/agent/mod.rs
+// file: crates/nbuild/src/agent/mod.rs
 // created: 2026-10-14
-// lastModified: 2026-10-14
+// lastModified: 2026-10-15
 
 use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};

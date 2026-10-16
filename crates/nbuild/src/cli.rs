@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 // project: neo
-// file: crates/neo-build/src/cli.rs
+// file: crates/nbuild/src/cli.rs
 // created: 2026-10-14
-// lastModified: 2026-10-14
+// lastModified: 2026-10-15
 
 use std::path::PathBuf;
 use anyhow::{Context, Result};
@@ -46,6 +46,39 @@ pub enum Commands {
 
         #[arg(long, help = "Target triple (defaults to host triple)")]
         triple: Option<String>,
+    },
+
+    #[command(about = "Check local tool installation vs latest remote GitHub release")]
+    Check {
+        #[arg(help = "Name of the package/tool to check (e.g. cmake, ninja)")]
+        package: String,
+
+        #[arg(long, help = "Target triple (defaults to host triple)")]
+        triple: Option<String>,
+    },
+
+    #[command(about = "Update tool to latest release (prebuilt or self-build from source)")]
+    Update {
+        #[arg(help = "Name of the package/tool to update (e.g. cmake, ninja)")]
+        package: String,
+
+        #[arg(long, help = "Target triple (defaults to host triple)")]
+        triple: Option<String>,
+
+        #[arg(long, help = "Force reinstall/rebuild even if already up to date")]
+        force: bool,
+    },
+
+    #[command(about = "Clone git source repository for package or from custom git address")]
+    Clone {
+        #[arg(help = "Package name from catalog or full git URL")]
+        source: String,
+
+        #[arg(long, help = "Git branch, tag or commit")]
+        tag: Option<String>,
+
+        #[arg(long, help = "Target destination directory")]
+        dest: Option<PathBuf>,
     },
 
     #[command(about = "Build a package or recipe from source")]
@@ -130,29 +163,103 @@ pub fn run() -> Result<()> {
             let cat = registry.get(&package)
                 .with_context(|| format!("Package '{}' not found in catalog", package))?;
 
-            let recipe = cat.targets.get(&target.raw)
-                .or_else(|| cat.targets.get(target.platform.as_str()))
-                .with_context(|| format!("No target recipe for '{}' on target '{}'", package, target.raw))?;
+            let distro_path = config.pkg_distro_dir(target.platform.as_str(), &target.raw, &cat.name);
+            let meta_file = config.pkg_meta_path(target.platform.as_str(), &target.raw, &cat.name);
+
+            // Fast idempotency: check if already installed
+            if meta_file.exists() {
+                if let Ok(existing_meta) = crate::core::meta::PkgMeta::load_from_file(&meta_file) {
+                    if !cli.quiet {
+                        println!("[nbuild] {} {} is already installed at {}", cat.name, existing_meta.version, distro_path.display());
+                    }
+                    return Ok(());
+                }
+            }
+
+            let recipe_opt = cat.targets.get(&target.raw)
+                .or_else(|| cat.targets.get(target.platform.as_str()));
+
+            let mut source_to_use = if let Some(rec) = recipe_opt {
+                rec.source.clone()
+            } else {
+                crate::core::catalog::SourceSpec {
+                    source_type: "api_release".to_string(),
+                    url: String::new(),
+                    sha256: None,
+                    tag: None,
+                    commit: None,
+                    strip_prefix: None,
+                }
+            };
+
+            let mut version_to_use = cat.version.clone();
+            let hints = cat.get_asset_hints(target.platform.as_str(), &target.arch).map(|v| v.as_slice());
+
+            // 1. Dynamic Release Resolution from API URL (GitHub, GitLab, Codeberg, Bitbucket)
+            let api_url_opt = cat.get_releases_url().or_else(|| {
+                if source_to_use.url.contains("/releases") {
+                    Some(source_to_use.url.as_str())
+                } else {
+                    None
+                }
+            });
+
+            if let Some(api_url) = api_url_opt {
+                if let Ok(forge) = crate::core::forge::ForgeClient::new() {
+                    if let Ok(latest_rel) = forge.fetch_release_by_url(api_url) {
+                        if let Some(asset) = latest_rel.find_asset_with_hints(target.platform.as_str(), &target.arch, hints) {
+                            if !cli.quiet {
+                                println!("[nbuild] Resolved platform asset from releases API: {} (v{})", asset.name, latest_rel.clean_version());
+                            }
+                            source_to_use.url = asset.browser_download_url.clone();
+                            source_to_use.sha256 = None; // Dynamically resolved release
+                            version_to_use = latest_rel.clean_version();
+                        } else {
+                            anyhow::bail!("No matching asset for platform {} / arch {} found in releases API: {}", target.platform.as_str(), target.arch, api_url);
+                        }
+                    }
+                }
+            } else if let Some(repo) = cat.get_remote_repo() {
+                if let Ok(forge) = crate::core::forge::ForgeClient::new() {
+                    if let Ok(latest_rel) = forge.fetch_latest_release(repo) {
+                        if let Some(asset) = latest_rel.find_asset_with_hints(target.platform.as_str(), &target.arch, hints) {
+                            if !cli.quiet {
+                                println!("[nbuild] Resolved latest release for {}: v{}", repo, latest_rel.clean_version());
+                            }
+                            source_to_use.url = asset.browser_download_url.clone();
+                            source_to_use.sha256 = None;
+                            version_to_use = latest_rel.clean_version();
+                        }
+                    }
+                }
+            }
+
+            if source_to_use.url.is_empty() {
+                anyhow::bail!("No download source or releases API URL resolved for package '{}' on target '{}'", package, target.raw);
+            }
 
             let installer = DistroInstaller::new(&config);
             let mut meta = installer.install_prebuilt(
                 &target,
                 &cat.name,
-                &cat.version,
+                &version_to_use,
                 &cat.category,
                 &cat.target_level,
-                &recipe.source,
+                &source_to_use,
             )?;
 
-            let symlinks = sysroot.link_package(&target, &mut meta)?;
+            // Apply environment exports from catalog if not empty
+            if !cat.env_exports.is_empty() && meta.env_exports.is_empty() {
+                meta.env_exports = cat.env_exports.clone();
+            }
 
-            let distro_path = config.pkg_distro_dir(target.platform.as_str(), &target.raw, &cat.name);
+            let symlinks = sysroot.link_package(&target, &mut meta)?;
 
             if cli.json {
                 AgentReporter::success(
                     InstallReport {
                         package: cat.name.clone(),
-                        version: cat.version.clone(),
+                        version: version_to_use,
                         triple: target.raw.clone(),
                         distro_path: distro_path.to_string_lossy().to_string(),
                         symlinks_count: symlinks.len(),
@@ -161,9 +268,162 @@ pub fn run() -> Result<()> {
                     true,
                 );
             } else {
-                println!("[nbuild] Installed {} {} into {}", cat.name, cat.version, distro_path.display());
+                println!("[nbuild] Installed {} {} into {}", cat.name, meta.version, distro_path.display());
                 println!("[nbuild] Generated {} symlinks into GNU sysroot.", symlinks.len());
             }
+        }
+
+        Commands::Check { package, triple } => {
+            let target = match triple {
+                Some(t) => TargetTriple::parse(&t)?,
+                None => TargetTriple::detect_host(),
+            };
+
+            let registry = init_catalog_registry(&config);
+            let cat = registry.get(&package)
+                .with_context(|| format!("Package '{}' not found in catalog", package))?;
+
+            let meta_file = config.pkg_meta_path(target.platform.as_str(), &target.raw, &cat.name);
+            let local_version = if meta_file.exists() {
+                crate::core::meta::PkgMeta::load_from_file(&meta_file).ok().map(|m| m.version)
+            } else {
+                None
+            };
+
+            let remote_version = if let Some(api_url) = cat.get_releases_url() {
+                crate::core::forge::ForgeClient::new().ok()
+                    .and_then(|forge| forge.fetch_release_by_url(api_url).ok())
+                    .map(|r| r.clean_version())
+            } else if let Some(repo) = cat.get_remote_repo() {
+                crate::core::forge::ForgeClient::new().ok()
+                    .and_then(|forge| forge.fetch_latest_release(repo).ok())
+                    .map(|r| r.clean_version())
+            } else {
+                Some(cat.version.clone())
+            };
+
+            if cli.json {
+                let mut map = std::collections::BTreeMap::new();
+                map.insert("package", cat.name.clone());
+                map.insert("installed", local_version.is_some().to_string());
+                map.insert("local_version", local_version.unwrap_or_else(|| "none".to_string()));
+                map.insert("latest_remote_version", remote_version.unwrap_or_else(|| "unknown".to_string()));
+                println!("{}", serde_json::to_string_pretty(&map)?);
+            } else {
+                println!("=== Status: {} ({}) ===", cat.name, target.raw);
+                match &local_version {
+                    Some(v) => println!("  Installed: v{}", v),
+                    None => println!("  Installed: false (not found in toolchain)"),
+                }
+                if let Some(rv) = &remote_version {
+                    println!("  Latest Remote Release: v{}", rv);
+                    if let Some(lv) = &local_version {
+                        if lv == rv {
+                            println!("  State: Up to date");
+                        } else {
+                            println!("  State: Outdated (can update or rebuild from source)");
+                        }
+                    } else {
+                        println!("  State: Missing (can install prebuilt release)");
+                    }
+                }
+            }
+        }
+
+        Commands::Update { package, triple, force } => {
+            let target = match triple {
+                Some(t) => TargetTriple::parse(&t)?,
+                None => TargetTriple::detect_host(),
+            };
+
+            let registry = init_catalog_registry(&config);
+            let cat = registry.get(&package)
+                .with_context(|| format!("Package '{}' not found in catalog", package))?;
+
+            let meta_file = config.pkg_meta_path(target.platform.as_str(), &target.raw, &cat.name);
+            let local_version = if meta_file.exists() {
+                crate::core::meta::PkgMeta::load_from_file(&meta_file).ok().map(|m| m.version)
+            } else {
+                None
+            };
+
+            let remote_release = if let Some(api_url) = cat.get_releases_url() {
+                crate::core::forge::ForgeClient::new()?.fetch_release_by_url(api_url).ok()
+            } else if let Some(repo) = cat.get_remote_repo() {
+                crate::core::forge::ForgeClient::new()?.fetch_latest_release(repo).ok()
+            } else {
+                None
+            };
+
+            let remote_version = remote_release.as_ref().map(|r| r.clean_version()).unwrap_or_else(|| cat.version.clone());
+
+            let needs_update = force || local_version.as_deref() != Some(&remote_version);
+
+            if !needs_update && local_version.is_some() {
+                println!("[nbuild] {} is already up to date (v{}). Use --force to reinstall.", cat.name, remote_version);
+                return Ok(());
+            }
+
+            println!("[nbuild] Updating {} from {:?} to v{}...", cat.name, local_version, remote_version);
+
+            let sysroot = SysrootManager::new(&config);
+            sysroot.ensure_gnu_toolchain_dirs(&target)?;
+
+            let recipe_opt = cat.targets.get(&target.raw)
+                .or_else(|| cat.targets.get(target.platform.as_str()));
+
+            let mut source_to_use = if let Some(rec) = recipe_opt {
+                rec.source.clone()
+            } else {
+                crate::core::catalog::SourceSpec {
+                    source_type: "api_release".to_string(),
+                    url: String::new(),
+                    sha256: None,
+                    tag: None,
+                    commit: None,
+                    strip_prefix: None,
+                }
+            };
+
+            let hints = cat.get_asset_hints(target.platform.as_str(), &target.arch).map(|v| v.as_slice());
+
+            if let Some(release) = &remote_release {
+                if let Some(asset) = release.find_asset_with_hints(target.platform.as_str(), &target.arch, hints) {
+                    source_to_use.url = asset.browser_download_url.clone();
+                    source_to_use.sha256 = None;
+                }
+            }
+
+            let installer = DistroInstaller::new(&config);
+            let mut meta = installer.install_prebuilt(
+                &target,
+                &cat.name,
+                &remote_version,
+                &cat.category,
+                &cat.target_level,
+                &source_to_use,
+            )?;
+
+            let symlinks = sysroot.link_package(&target, &mut meta)?;
+            println!("[nbuild] Successfully updated {} to v{}. Generated {} symlinks.", cat.name, remote_version, symlinks.len());
+        }
+
+        Commands::Clone { source, tag, dest } => {
+            let registry = init_catalog_registry(&config);
+            let repo_url = if let Some(cat) = registry.get(&source) {
+                cat.git_url.as_deref().unwrap_or(&source)
+            } else {
+                &source
+            };
+
+            let target_dest = dest.unwrap_or_else(|| {
+                let pkg_name = repo_url.trim_end_matches(".git").split('/').last().unwrap_or("repo");
+                PathBuf::from(pkg_name)
+            });
+
+            println!("[nbuild] Cloning {} into {}...", repo_url, target_dest.display());
+            crate::core::forge::ForgeClient::git_clone(repo_url, tag.as_deref(), &target_dest)?;
+            println!("[nbuild] Successfully cloned into {}.", target_dest.display());
         }
 
         Commands::Build { package, file, triple: _ } => {

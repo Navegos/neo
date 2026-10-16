@@ -1,0 +1,24 @@
+{
+  "name": "zlib",
+  "category": "library",
+  "target_level": "user",
+  "description": "A massively spiffy yet delicately unobtrusive compression library",
+  "remote_repo": "madler/zlib",
+  "releases_url": "https://api.github.com/repos/madler/zlib/releases/latest",
+  "git_url": "https://github.com/madler/zlib.git",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["zlib", "windows", ".zip"]
+    },
+    "linux": {
+      "x86_64": ["zlib", "linux", ".tar.gz"]
+    }
+  },
+  "env_exports": {
+    "ZLIB_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"],
+    "PATH": ["bin"]
+  }
+}
+

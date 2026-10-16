@@ -1,6 +1,6 @@
 # projectmem - neo
 
-_Last updated: 2026-10-14_
+_Last updated: 2026-10-15_
 
 ## Project purpose
 --------------------------------------------------------------------------------
@@ -12,6 +12,8 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 ## Decisions
 - Port tokless Go codebase from inspect-vault/tokless to Rust in crates/tokless [crates/tokless]
 - Go tokless ported to Rust in crates/tokless with zero compiler warnings and 17 unit tests passing [crates/tokless]
+- Implement nbuild toolchain manager using dynamic releases API endpoints and asset hint matching for packages (cmake, ninja, llvm, zlib, libpng) [crates/nbuild]
+- Implement multi-compression format ranking and stem hint resilience for *.tar.gz, *.tar.xz, *.tar.zst, *.zip, *.bz2, *.rar, *.7z with bsdtar and 7z fallback extraction [crates/nbuild]
 
 ## Notes
 - start of Neo

@@ -1,32 +1,27 @@
 {
   "name": "cmake",
-  "version": "3.30.5",
   "category": "tool",
   "target_level": "system",
   "description": "Cross-platform family of tools designed to build, test and package software",
-  "targets": {
-    "x86_64-pc-windows-msvc": {
-      "source": {
-        "type": "binary",
-        "url": "https://github.com/Kitware/CMake/releases/download/v3.30.5/cmake-3.30.5-windows-x86_64.zip",
-        "sha256": "4490f84896feea36dfcba5ea1766ff7c92b2d0752119101c69fcad8242278457",
-        "strip_prefix": "cmake-3.30.5-windows-x86_64"
-      },
-      "env_exports": {
-        "PATH": ["bin"]
-      }
+  "remote_repo": "Kitware/CMake",
+  "releases_url": "https://api.github.com/repos/Kitware/CMake/releases/latest",
+  "git_url": "https://github.com/Kitware/CMake.git",
+  "binary_subpath": "bin/cmake.exe",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["windows-x86_64", "win64-x64"],
+      "aarch64": ["windows-arm64"]
     },
-    "x86_64-unknown-linux-gnu": {
-      "source": {
-        "type": "binary",
-        "url": "https://github.com/Kitware/CMake/releases/download/v3.30.5/cmake-3.30.5-linux-x86_64.tar.gz",
-        "sha256": "9a38f71aa5a3bc337894a821e2518f8fae77c5c0d12e8fb7a3dc17bf5b302c31",
-        "strip_prefix": "cmake-3.30.5-linux-x86_64"
-      },
-      "env_exports": {
-        "PATH": ["bin"]
-      }
+    "linux": {
+      "x86_64": ["linux-x86_64"],
+      "aarch64": ["linux-aarch64"]
+    },
+    "apple": {
+      "aarch64": ["macos-universal", "macos-arm64"],
+      "x86_64": ["macos-universal", "macos-x86_64"]
     }
+  },
+  "env_exports": {
+    "PATH": ["bin"]
   }
 }
-

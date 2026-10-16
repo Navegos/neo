@@ -10,10 +10,6 @@ default-run = "nbuild"
 name = "nbuild"
 path = "src/bin/nbuild.rs"
 
-[[bin]]
-name = "neo-build"
-path = "src/bin/neo-build.rs"
-
 [dependencies]
 archinfo = { path = "../archinfo" }
 tokio = { version = "1", features = ["full"] }

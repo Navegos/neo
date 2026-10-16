@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 // project: neo
-// file: crates/neo-build/src/core/catalog.rs
+// file: crates/nbuild/src/core/catalog.rs
 // created: 2026-10-14
-// lastModified: 2026-10-14
+// lastModified: 2026-10-15
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -51,9 +51,14 @@ pub struct PlatformRecipe {
     pub env_exports: BTreeMap<String, Vec<String>>,
 }
 
+fn default_version() -> String {
+    "latest".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageCatalog {
     pub name: String,
+    #[serde(default = "default_version")]
     pub version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rawversion: Option<String>,
@@ -68,12 +73,45 @@ pub struct PackageCatalog {
     /// "system" (puts in triple root) | "user" (puts in triple/usr)
     pub target_level: String,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub releases_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_repo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_repo: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binary_subpath: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asset_hints: Option<BTreeMap<String, BTreeMap<String, Vec<String>>>>,
+
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub env_exports: BTreeMap<String, Vec<String>>,
+
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dependencies: Vec<String>,
 
     /// Map of target triple or platform name -> PlatformRecipe
     #[serde(default)]
     pub targets: BTreeMap<String, PlatformRecipe>,
+}
+
+impl PackageCatalog {
+    pub fn get_remote_repo(&self) -> Option<&str> {
+        self.remote_repo.as_deref().or(self.github_repo.as_deref())
+    }
+
+    pub fn get_releases_url(&self) -> Option<&str> {
+        self.releases_url.as_deref()
+    }
+
+    pub fn get_asset_hints(&self, platform: &str, arch: &str) -> Option<&Vec<String>> {
+        self.asset_hints.as_ref()
+            .and_then(|p| p.get(platform))
+            .and_then(|a| a.get(arch))
+    }
 }
 
 pub struct CatalogRegistry {
@@ -114,12 +152,22 @@ impl CatalogRegistry {
                 self.load_dir(&path)?;
             } else if let Some(ext) = path.extension() {
                 if ext == "json" {
-                    if let Ok(cat) = Self::load_file(&path) {
-                        self.catalogs.insert(cat.name.clone(), cat);
+                    match Self::load_file(&path) {
+                        Ok(cat) => {
+                            self.catalogs.insert(cat.name.clone(), cat);
+                        }
+                        Err(e) => {
+                            eprintln!("[-] Warning: Failed to parse catalog {}: {:#}", path.display(), e);
+                        }
                     }
                 } else if ext == "yaml" || ext == "yml" {
-                    if let Ok(cat) = Self::load_yaml_file(&path) {
-                        self.catalogs.insert(cat.name.clone(), cat);
+                    match Self::load_yaml_file(&path) {
+                        Ok(cat) => {
+                            self.catalogs.insert(cat.name.clone(), cat);
+                        }
+                        Err(e) => {
+                            eprintln!("[-] Warning: Failed to parse catalog {}: {:#}", path.display(), e);
+                        }
                     }
                 }
             }

@@ -1,0 +1,25 @@
+{
+  "name": "libpng",
+  "category": "library",
+  "target_level": "user",
+  "description": "Official PNG reference library",
+  "remote_repo": "pnggroup/libpng",
+  "releases_url": "https://api.github.com/repos/pnggroup/libpng/releases/latest",
+  "git_url": "https://github.com/pnggroup/libpng.git",
+  "dependencies": ["zlib"],
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["libpng", ".zip", "tar.xz"]
+    },
+    "linux": {
+      "x86_64": ["libpng", ".tar.xz", ".tar.gz"]
+    }
+  },
+  "env_exports": {
+    "LIBPNG_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"],
+    "PATH": ["bin"]
+  }
+}
+
