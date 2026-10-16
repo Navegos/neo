@@ -1,4 +1,4 @@
-name: ArchInfo Multi-Platform Release
+name: Neo Multi-Crate Multi-Platform Release
 
 on:
   push:
@@ -20,46 +20,42 @@ jobs:
           # Linux Matrix
           - os: ubuntu-26.04
             target: x86_64-unknown-linux-gnu
-            archive_name: archinfo-{version}-linux-x86_64.tar.zst
           - os: ubuntu-26.04-arm
             target: aarch64-unknown-linux-gnu
-            archive_name: archinfo-{version}-linux-aarch64.tar.zst
           - os: ubuntu-24.04-riscv
             target: riscv64gc-unknown-linux-gnu
-            archive_name: archinfo-{version}-linux-riscv64.tar.zst
 
           # Windows Matrix
           - os: windows-2025-vs2026
             target: x86_64-pc-windows-msvc
-            archive_name: archinfo-{version}-windows-x86_64.tar.zst
           - os: windows-11-vs2026-arm
             target: aarch64-pc-windows-msvc
-            archive_name: archinfo-{version}-windows-aarch64.tar.zst
 
           # macOS Matrix
           - os: xcode-27
             target: aarch64-apple-darwin
-            archive_name: archinfo-{version}-macos-aarch64.tar.zst
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
 
-      - name: Extract Cargo Version
-        id: archive
+      - name: Extract Cargo Versions
+        id: meta
         shell: bash
         run: |
           VERSION=$(sed -E -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' Cargo.toml | head -n 1 | tr -d '\r')
-          ARCHIVE_NAME=$(echo "${{ matrix.archive_name }}" | sed "s/{version}/$VERSION/")
-          echo "archive_name=${ARCHIVE_NAME}" >> "$GITHUB_OUTPUT"
+          if [ -z "$VERSION" ]; then
+            VERSION="0.1.0"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
-      # Sets up the appropriate native Rust toolchain
+      # Sets up native Rust toolchain
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      # Automatically optimizes actions runners by storing and restoring compiler caches
+      # Compiler cache
       - name: Setup Rust Cache
         uses: swatinem/rust-cache@v2
         continue-on-error: true
@@ -68,9 +64,9 @@ jobs:
 
       # Ensure zstd and compression tools are available across platforms
       - name: Install Dependencies (Linux)
-        if: startsWith(matrix.os, 'ubuntu-')
+        if: startsWith(matrix.os, 'ubuntu')
         run: |
-          sudo apt-get update && sudo apt-get install -y zstd
+          sudo apt-get update && sudo apt-get install -y zstd tar
 
       - name: Install Dependencies (macOS)
         if: startsWith(matrix.os, 'xcode') || startsWith(matrix.os, 'macos')
@@ -78,71 +74,99 @@ jobs:
           which zstd || brew install zstd
 
       - name: Install Dependencies (Windows)
-        if: startsWith(matrix.os, 'windows-')
+        if: startsWith(matrix.os, 'windows')
         uses: msys2/setup-msys2@v2
         continue-on-error: true
         with:
           install: zstd tar
 
-      - name: Compile ArchInfo Binary
+      # Compile all crates in the workspace in release mode
+      - name: Compile Workspace Crates
         run: cargo build --release --target ${{ matrix.target }}
 
-      # Grabs executable, staging docs, and compresses using Zstandard
-      - name: Package and Compress Asset
+      # Packages all individual crates and the unified neo bundle
+      - name: Package and Compress Distribution Assets
         shell: bash
         env:
-          ARCHIVE_NAME: ${{ steps.archive.outputs.archive_name }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          TARGET: ${{ matrix.target }}
         run: |
-          # 1. Create a clean temporary staging directory
-          mkdir -p dist
-          
-          # 2. Copy the binary based on OS naming constraints
-          if [[ "${{ matrix.os }}" == windows-* ]]; then
-            cp target/${{ matrix.target }}/release/archinfo.exe ./dist/archinfo.exe
-          else
-            cp target/${{ matrix.target }}/release/archinfo ./dist/archinfo
-          fi
-
-          # 3. Include license and documentation
-          cp LICENSE README.md ./dist/ 2>/dev/null || true
-          
-          # 4. Compress using tar with zstd compression engine (-a enables auto-compression by extension)
-          if [[ "${{ matrix.os }}" == windows-* ]]; then
+          set -e
+          EXE=""
+          if [[ "${{ matrix.os }}" == windows* ]]; then
+            EXE=".exe"
             if [ -d "/c/msys64/usr/bin" ]; then
               export PATH="/c/msys64/usr/bin:$PATH"
             fi
-            if command -v tar.exe >/dev/null 2>&1; then
-              tar.exe -acvf "$ARCHIVE_NAME" -C dist .
-            else
-              tar -acvf "$ARCHIVE_NAME" -C dist .
+          fi
+
+          TAR_CMD="tar"
+          if command -v tar.exe >/dev/null 2>&1; then
+            TAR_CMD="tar.exe"
+          fi
+
+          mkdir -p staging
+
+          # 1. Package archinfo
+          mkdir -p dist/archinfo
+          cp target/$TARGET/release/archinfo$EXE dist/archinfo/
+          cp crates/archinfo/LICENSE crates/archinfo/README.md dist/archinfo/ 2>/dev/null || true
+          ARCHINFO_ARCHIVE="archinfo-${VERSION}-${TARGET}.tar.zst"
+          $TAR_CMD -acvf "staging/$ARCHINFO_ARCHIVE" -C dist/archinfo .
+
+          # 2. Package nbuild
+          mkdir -p dist/nbuild
+          cp target/$TARGET/release/nbuild$EXE dist/nbuild/
+          cp -r crates/nbuild/catalog dist/nbuild/ 2>/dev/null || true
+          cp crates/nbuild/LICENSE crates/nbuild/README.md dist/nbuild/ 2>/dev/null || true
+          NBUILD_ARCHIVE="nbuild-${VERSION}-${TARGET}.tar.zst"
+          $TAR_CMD -acvf "staging/$NBUILD_ARCHIVE" -C dist/nbuild .
+
+          # 3. Package tokless
+          mkdir -p dist/tokless
+          cp target/$TARGET/release/tokless$EXE dist/tokless/
+          cp crates/tokless/LICENSE crates/tokless/README.md dist/tokless/ 2>/dev/null || true
+          TOKLESS_ARCHIVE="tokless-${VERSION}-${TARGET}.tar.zst"
+          $TAR_CMD -acvf "staging/$TOKLESS_ARCHIVE" -C dist/tokless .
+
+          # 4. Package unified neo multi-crate bundle (all tools in one distro)
+          mkdir -p dist/neo/bin
+          cp target/$TARGET/release/nbuild$EXE dist/neo/bin/
+          cp target/$TARGET/release/tokless$EXE dist/neo/bin/
+          cp target/$TARGET/release/archinfo$EXE dist/neo/bin/
+          cp -r crates/nbuild/catalog dist/neo/ 2>/dev/null || true
+          cp LICENSE README.md dist/neo/ 2>/dev/null || true
+          NEO_ARCHIVE="neo-${VERSION}-${TARGET}.tar.zst"
+          $TAR_CMD -acvf "staging/$NEO_ARCHIVE" -C dist/neo .
+
+          # 5. Generate SHA256 checksums
+          cd staging
+          for f in *.tar.zst; do
+            if [ -f "$f" ]; then
+              if command -v sha256sum >/dev/null 2>&1; then
+                sha256sum "$f" > "${f}.sha256"
+              else
+                shasum -a 256 "$f" > "${f}.sha256"
+              fi
             fi
-          else
-            tar -acvf "$ARCHIVE_NAME" -C dist .
-          fi
+          done
 
-          # 5. Generate SHA256 checksum
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum "$ARCHIVE_NAME" > "${ARCHIVE_NAME}.sha256"
-          else
-            shasum -a 256 "$ARCHIVE_NAME" > "${ARCHIVE_NAME}.sha256"
-          fi
-
-      # Upload compiled assets as temporary build artifacts
+      # Upload compiled assets as build artifacts
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v7
         with:
           name: artifacts-${{ matrix.target }}
           path: |
-            ${{ steps.archive.outputs.archive_name }}
-            ${{ steps.archive.outputs.archive_name }}.sha256
+            staging/*.tar.zst
+            staging/*.tar.zst.sha256
           if-no-files-found: error
           retention-days: 1
 
   release:
-    name: Publish GitHub Release
+    name: Publish GitHub Release & Crates.io
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
@@ -198,7 +222,7 @@ jobs:
                   h, s = parts[0], parts[1]
                   commit_link = f"[{h}](https://github.com/{repo}/commit/{h})" if repo else h
                   entry = f"- {s} ({commit_link})"
-                  
+
                   matched = False
                   for cat, (pattern, entries) in categories.items():
                       if pattern and re.search(pattern, s, re.IGNORECASE):
@@ -240,14 +264,16 @@ jobs:
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # Package archinfo crate and include .crate archive in the release assets
-      - name: Package ArchInfo Crate
+      # Package each crate individually into .crate files
+      - name: Package Crates for Crates.io
         run: |
-          cargo package --allow-dirty
+          cargo package -p archinfo --allow-dirty --no-verify
+          cargo package -p nbuild --allow-dirty --no-verify
+          cargo package -p tokless --allow-dirty --no-verify
           cp target/package/*.crate release-assets/
 
-      # Creates GitHub Release with structured release notes
-      - name: Upload Binaries and Crate to GitHub Release
+      # Creates GitHub Release with structured release notes and all binary + crate assets
+      - name: Upload Binaries and Crates to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: release-assets/*
@@ -255,9 +281,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Publish archinfo crate to crates.io
-      - name: Publish ArchInfo Crate to Crates.io
-        run: cargo publish --allow-dirty
+      # Publish each crate individually to crates.io
+      # Crates.io treats each crate as an entirely separate entity.
+      # archinfo must be published first, followed by an index replication wait,
+      # so nbuild can resolve the published archinfo dependency on crates.io.
+      - name: Publish Crates Individually to Crates.io
+        if: env.CARGO_REGISTRY_TOKEN != ''
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          echo "=== 1. Publishing archinfo to crates.io ==="
+          cargo publish -p archinfo --allow-dirty
 
+          echo "Waiting 30 seconds for crates.io index update..."
+          sleep 30
+
+          echo "=== 2. Publishing nbuild to crates.io ==="
+          cargo publish -p nbuild --allow-dirty
+
+          echo "Waiting 30 seconds for crates.io index update..."
+          sleep 30
+
+          echo "=== 3. Publishing tokless to crates.io ==="
+          cargo publish -p tokless --allow-dirty

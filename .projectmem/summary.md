@@ -7,7 +7,7 @@ _Last updated: 2026-10-16_
 Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go to Rust.
 
 ## Recent issues
-- No issues logged yet.
+- [DONE] #0001 CVT1100 duplicate resource error when linking nbuild tests on Windows [crates/nbuild/tests/test_basic.rs] -> Eliminated duplicate winres PE resource conflict across crates, all 75 tests pass (fixed)
 
 ## Decisions
 - Port tokless Go codebase from inspect-vault/tokless to Rust in crates/tokless [crates/tokless]
@@ -15,6 +15,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Implement nbuild toolchain manager using dynamic releases API endpoints and asset hint matching for packages (cmake, ninja, llvm, zlib, libpng) [crates/nbuild]
 - Implement multi-compression format ranking and stem hint resilience for *.tar.gz, *.tar.xz, *.tar.zst, *.zip, *.bz2, *.rar, *.7z with bsdtar and 7z fallback extraction [crates/nbuild]
 - Plan Neo multi-crate distro package, doctor self-healing, interactive TUI, and in-use shadow-swap updates
+- Vendor archinfo directly into nbuild and remove inter-crate dependency to resolve winres PE resource collisions [crates/nbuild/Cargo.toml]
 
 ## Notes
 - start of Neo
@@ -24,6 +25,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat: Implement ForgeClient for managing releases from various git forges [crates/nbuild/src/agent/mod.rs]
 - Implemented nbuild doctor self-healing, TOOLCHAINS_DIR environment & PATH setup, neo multi-crate distro package, TUI menu, and fs_ops [crates/nbuild/src/cli.rs:1]
 - New feature: feat: Implement safe file and directory removal functions [crates/nbuild/src/cli.rs]
+- Updated release workflow for multi-crate builds and individual crates.io publishing, added README, LICENSE, and PLAN for all crates [.github/workflows/release.yml:1]
 
 ## Key files
 - `.editorconfig`

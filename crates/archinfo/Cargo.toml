@@ -1,17 +1,21 @@
 [package]
-name = "archinfo"
-version = "1.0.5"
-edition = "2024"
-authors = ["Copyright (c) 2026 Navegos. @DevelVitorF"]
-description = "High-performance CPU features detection, architecture mapping, and compiler ISA configuration tool"
-license = "Apache-2.0"
-repository = "https://github.com/Navegos/archinfo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage = "https://github.com/Navegos/neo/blob/main/crates/archinfo/README.md"
 readme = "README.md"
+description = "High-performance CPU features detection, architecture mapping, and compiler ISA configuration tool"
+name = "archinfo"
+default-run = "archinfo"
+keywords = ["toolchain", "sysroot", "compiler", "ai-agents", "build-system"]
+categories = ["development-tools", "command-line-utilities"]
 
 [dependencies]
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.151"
-clap = { version = "4.6.7", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+clap = { version = "4.6.7", features = ["derive", "cargo"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = [
@@ -21,7 +25,10 @@ windows-sys = { version = "0.61.2", features = [
 ] }
 
 [target.'cfg(unix)'.dependencies]
-libc = "0.2.189"
+libc = "0.2.191"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1.12"
 
 [lib]
 name = "archinfo"
@@ -31,7 +38,4 @@ crate-type = ["lib"]
 [[bin]]
 name = "archinfo"
 path = "src/main.rs"
-
-[target.'cfg(windows)'.build-dependencies]
-winres = "0.1"
 

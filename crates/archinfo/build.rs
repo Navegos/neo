@@ -3,10 +3,10 @@
 // project: neo
 // file: crates/archinfo/build.rs
 // created: 2026-10-14
-// lastModified: 2026-10-14
+// lastModified: 2026-10-16
 
 fn main() {
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let major: u64 = env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or(0);
         let minor: u64 = env!("CARGO_PKG_VERSION_MINOR").parse().unwrap_or(0);
@@ -23,7 +23,7 @@ fn main() {
         res.set("LegalCopyright", "Copyright (c) 2026 Navegos. @DevelVitorF");
         res.set("LegalTrademarks", "");
         res.set("OriginalFilename", "archinfo.exe");
-        res.set("ProductName", "ArchInfo");
+        res.set("ProductName", "archinfo");
         res.set("ProductVersion", &format!("{major}.{minor}.{patch}.0"));
         res.set("PrivateBuild", "");
         res.set("SpecialBuild", "");
@@ -35,5 +35,5 @@ fn main() {
             std::process::exit(1);
         }
     }
+    println!("cargo:rerun-if-changed=build.rs");
 }
-

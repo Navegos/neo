@@ -6,6 +6,7 @@
 // lastModified: 2026-10-16
 
 pub mod agent;
+pub mod archinfo;
 pub mod builders;
 pub mod cli;
 pub mod core;

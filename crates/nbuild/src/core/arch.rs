@@ -3,10 +3,10 @@
 // project: neo
 // file: crates/nbuild/src/core/arch.rs
 // created: 2026-10-14
-// lastModified: 2026-10-15
+// lastModified: 2026-10-16
 
 use anyhow::{bail, Result};
-use archinfo::CPUFeatures;
+use crate::archinfo::CPUFeatures;
 
 /// Canonical platform group name for filesystem paths
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

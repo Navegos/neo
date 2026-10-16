@@ -1,31 +1,46 @@
 [package]
-name = "nbuild"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Universal toolchain manager, local workflow runner, and package engine for AI agents"
+repository.workspace = true
+authors.workspace = true
+homepage = "https://github.com/Navegos/neo/blob/main/crates/nbuild/README.md"
+readme = "README.md"
+description = "Universal toolchain manager, local workflow runner, and package engine for AI coding agents"
+name = "nbuild"
 default-run = "nbuild"
+keywords = ["toolchain", "sysroot", "compiler", "ai-agents", "build-system"]
+categories = ["development-tools", "command-line-utilities"]
+
+[dependencies]
+tokio = { version = "1.53.3", features = ["full"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["preserve_order"] }
+serde_yaml = "0.9.33"
+clap = { version = "4.6.7", features = ["derive", "cargo"] }
+anyhow = "1.0.104"
+reqwest = { version = "0.13.5", features = ["json", "blocking", "stream"] }
+sha2 = "0.11.1"
+hex = "0.4.3"
+zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
+tar = "0.4.46"
+flate2 = "1.1.10"
+which = "8.0.6"
+chrono = { version = "0.4.45", features = ["serde"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+    "Win32_System_Threading",
+    "Win32_System_Memory",
+    "Win32_System_Diagnostics_Debug",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.191"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1.12"
 
 [[bin]]
 name = "nbuild"
 path = "src/bin/nbuild.rs"
-
-[dependencies]
-archinfo = { path = "../archinfo" }
-tokio = { version = "1", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0", features = ["preserve_order"] }
-serde_yaml = "0.9"
-clap = { version = "4", features = ["derive", "cargo"] }
-anyhow = "1.0"
-reqwest = { version = "0.12", features = ["json", "blocking", "stream"] }
-sha2 = "0.10"
-hex = "0.4"
-zip = { version = "2", default-features = false, features = ["deflate"] }
-tar = "0.4"
-flate2 = "1.0"
-which = "6"
-chrono = { version = "0.4", features = ["serde"] }
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
