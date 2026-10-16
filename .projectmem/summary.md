@@ -23,6 +23,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: Add SPDX license headers and metadata to source files [crates/archinfo/build.rs]
 - New feature: feat: Implement ForgeClient for managing releases from various git forges [crates/nbuild/src/agent/mod.rs]
 - Implemented nbuild doctor self-healing, TOOLCHAINS_DIR environment & PATH setup, neo multi-crate distro package, TUI menu, and fs_ops [crates/nbuild/src/cli.rs:1]
+- New feature: feat: Implement safe file and directory removal functions [crates/nbuild/src/cli.rs]
 
 ## Key files
 - `.editorconfig`
