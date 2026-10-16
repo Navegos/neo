@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/nbuild/src/cli.rs
 // created: 2026-10-14
-// lastModified: 2026-10-15
+// lastModified: 2026-10-16
 
 use std::path::PathBuf;
 use anyhow::{Context, Result};
@@ -11,7 +11,8 @@ use clap::{Parser, Subcommand};
 
 use crate::agent::{AgentReporter, InstallReport};
 use crate::core::{
-    CatalogRegistry, DistroInstaller, NeoConfig, SysrootManager, TargetTriple,
+    CatalogRegistry, DistroInstaller, Doctor, EnvManager, FsFilter, FsOps, NeoConfig,
+    SysrootManager, TargetTriple,
 };
 use crate::pipeline::Workflow;
 
@@ -28,7 +29,7 @@ pub struct Cli {
     pub quiet: bool,
 
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -125,6 +126,105 @@ pub enum Commands {
         #[arg(help = "Path to workflow YAML file")]
         workflow_file: PathBuf,
     },
+
+    #[command(about = "Self-diagnosis and self-healing: verify structure, repair links, heal packages, run smoke tests")]
+    Doctor {
+        #[arg(long, help = "Automatically heal broken links, packages, and environment without prompting")]
+        heal: bool,
+
+        #[arg(long, help = "Run brief smoke test to verify functionality")]
+        brief_test: bool,
+
+        #[arg(long, help = "Target triple (defaults to host triple)")]
+        triple: Option<String>,
+    },
+
+    #[command(about = "Check and configure TOOLCHAINS_DIR and user PATH environment variables")]
+    EnvSetup {
+        #[arg(long, help = "Explicit directory path for TOOLCHAINS_DIR")]
+        dir: Option<PathBuf>,
+
+        #[arg(long, help = "Run non-interactively using default path")]
+        non_interactive: bool,
+    },
+
+    #[command(about = "Built-in file and directory operations (search, copy, move, rename, delete, mkdir, touch)")]
+    Fs {
+        #[command(subcommand)]
+        op: FsCommands,
+    },
+
+    #[command(about = "Interactive CLI menu for toolchain status, self-healing, packages, and tools")]
+    Menu,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum FsCommands {
+    #[command(about = "Search for files and directories matching pattern")]
+    Search {
+        #[arg(help = "Search pattern or substring (e.g. *.dll, lib*, cmake)")]
+        pattern: String,
+
+        #[arg(short, long, help = "Root directory to search (defaults to current dir)")]
+        dir: Option<PathBuf>,
+
+        #[arg(short, long, help = "Filter type: all | file | dir")]
+        filter: Option<String>,
+    },
+
+    #[command(about = "Copy file or directory")]
+    Copy {
+        #[arg(help = "Source path")]
+        src: PathBuf,
+
+        #[arg(help = "Destination path")]
+        dest: PathBuf,
+
+        #[arg(short, long, help = "Recursive copy for directories")]
+        recursive: bool,
+    },
+
+    #[command(about = "Move file or directory")]
+    Move {
+        #[arg(help = "Source path")]
+        src: PathBuf,
+
+        #[arg(help = "Destination path")]
+        dest: PathBuf,
+    },
+
+    #[command(about = "Rename file or directory")]
+    Rename {
+        #[arg(help = "Source path")]
+        src: PathBuf,
+
+        #[arg(help = "New file or directory name")]
+        new_name: String,
+    },
+
+    #[command(about = "Delete file or directory")]
+    Delete {
+        #[arg(help = "Target path to delete")]
+        path: PathBuf,
+
+        #[arg(short, long, help = "Recursive deletion for directories")]
+        recursive: bool,
+
+        #[arg(short, long, help = "Force deletion")]
+        force: bool,
+    },
+
+    #[command(about = "Create directory recursively (mkdir -p)")]
+    Mkdir {
+        #[arg(help = "Directory path to create")]
+        dir: PathBuf,
+    },
+
+    #[command(about = "Create empty file or touch existing file")]
+    Touch {
+        #[arg(help = "File path to touch")]
+        file: PathBuf,
+    },
 }
 
 pub fn run() -> Result<()> {
@@ -135,7 +235,25 @@ pub fn run() -> Result<()> {
         config = config.with_toolchains_dir(dir);
     }
 
-    match cli.command {
+    let host_triple = TargetTriple::detect_host();
+
+    let (is_canonical, _current_exe, canonical_bin) = Doctor::check_topology(&config, &host_triple);
+    if !is_canonical && !cli.quiet && !matches!(cli.command, Some(Commands::Doctor { .. })) {
+        eprintln!("[WARN] nbuild is not running from canonical toolchain directory structure.");
+        eprintln!("[WARN] Expected: {}", canonical_bin.display());
+        eprintln!("[WARN] Run 'nbuild doctor --heal' to install into distro/neo and heal environment.");
+    }
+
+    let command = match cli.command {
+        Some(cmd) => cmd,
+        None => Commands::Menu,
+    };
+
+    match command {
+        Commands::Menu => {
+            run_interactive_menu(config)?;
+        }
+
         Commands::Init { dir } => {
             if let Some(d) = dir {
                 config = config.with_toolchains_dir(d);
@@ -150,6 +268,7 @@ pub fn run() -> Result<()> {
         }
 
         Commands::Get { package, triple } => {
+            let package = if package == "nbuild" { "neo".to_string() } else { package };
             let target = match triple {
                 Some(t) => TargetTriple::parse(&t)?,
                 None => TargetTriple::detect_host(),
@@ -274,6 +393,7 @@ pub fn run() -> Result<()> {
         }
 
         Commands::Check { package, triple } => {
+            let package = if package == "nbuild" { "neo".to_string() } else { package };
             let target = match triple {
                 Some(t) => TargetTriple::parse(&t)?,
                 None => TargetTriple::detect_host(),
@@ -331,6 +451,7 @@ pub fn run() -> Result<()> {
         }
 
         Commands::Update { package, triple, force } => {
+            let package = if package == "nbuild" { "neo".to_string() } else { package };
             let target = match triple {
                 Some(t) => TargetTriple::parse(&t)?,
                 None => TargetTriple::detect_host(),
@@ -491,6 +612,243 @@ pub fn run() -> Result<()> {
         Commands::Run { workflow_file } => {
             let wf = Workflow::load_from_file(&workflow_file)?;
             wf.run_local(&config, cli.quiet)?;
+        }
+
+        Commands::Doctor { heal, brief_test, triple } => {
+            let target = match triple {
+                Some(t) => TargetTriple::parse(&t)?,
+                None => TargetTriple::detect_host(),
+            };
+            println!("=== Neo System Doctor ===");
+            let report = Doctor::run_doctor(&mut config, &target, heal)?;
+            println!("  Directory Structure: {}", report.topology_msg);
+            println!("  Broken Links:        Found {}, Repaired {}", report.broken_links_found, report.broken_links_repaired);
+            println!("  Package Integrity:   Found {} corrupted, Repaired {}", report.broken_packages_found, report.broken_packages_repaired);
+            println!("  TOOLCHAINS_DIR Env:  {}", if report.env_toolchains_ok { "Configured" } else { "MISSING" });
+            println!("  Host PATH:           {}", if report.env_path_ok { "Configured ($TOOLCHAINS_DIR/usr/bin)" } else { "MISSING" });
+            if brief_test || report.smoke_test_ok {
+                println!("  Smoke Test:          {}", if report.smoke_test_ok { "PASSED (OK to use)" } else { "FAILED" });
+            }
+        }
+
+        Commands::EnvSetup { dir, non_interactive } => {
+            if let Some(d) = dir {
+                println!("[nbuild] Setting TOOLCHAINS_DIR to: {}", d.display());
+                EnvManager::persist_toolchains_dir(&d)?;
+                let cfg = NeoConfig::new().with_toolchains_dir(d);
+                let healed = EnvManager::heal_path_env(&cfg)?;
+                if healed {
+                    println!("[nbuild] Added {} to user PATH.", cfg.host_usr_bin().display());
+                }
+            } else {
+                let _ = EnvManager::ensure_environment(!non_interactive)?;
+            }
+        }
+
+        Commands::Fs { op } => match op {
+            FsCommands::Search { pattern, dir, filter } => {
+                let search_dir = dir.unwrap_or_else(|| PathBuf::from("."));
+                let f = match filter.as_deref() {
+                    Some("file") => FsFilter::File,
+                    Some("dir") => FsFilter::Dir,
+                    _ => FsFilter::All,
+                };
+                let matches = FsOps::search(&search_dir, &pattern, f)?;
+                if cli.json {
+                    let list: Vec<String> = matches.iter().map(|p| p.to_string_lossy().to_string()).collect();
+                    println!("{}", serde_json::to_string_pretty(&list)?);
+                } else {
+                    println!("[nbuild fs] Found {} items matching '{}':", matches.len(), pattern);
+                    for m in matches {
+                        println!("  {}", m.display());
+                    }
+                }
+            }
+            FsCommands::Copy { src, dest, recursive } => {
+                FsOps::copy(&src, &dest, recursive)?;
+                println!("[nbuild fs] Copied {} -> {}", src.display(), dest.display());
+            }
+            FsCommands::Move { src, dest } => {
+                FsOps::move_path(&src, &dest)?;
+                println!("[nbuild fs] Moved {} -> {}", src.display(), dest.display());
+            }
+            FsCommands::Rename { src, new_name } => {
+                let dest = FsOps::rename(&src, &new_name)?;
+                println!("[nbuild fs] Renamed {} -> {}", src.display(), dest.display());
+            }
+            FsCommands::Delete { path, recursive, force } => {
+                FsOps::delete(&path, recursive, force)?;
+                println!("[nbuild fs] Deleted {}", path.display());
+            }
+            FsCommands::Mkdir { dir } => {
+                FsOps::mkdir(&dir)?;
+                println!("[nbuild fs] Created directory {}", dir.display());
+            }
+            FsCommands::Touch { file } => {
+                FsOps::touch(&file)?;
+                println!("[nbuild fs] Created/touched {}", file.display());
+            }
+        },
+    }
+
+    Ok(())
+}
+
+fn run_interactive_menu(mut config: NeoConfig) -> Result<()> {
+    use std::io::{stdin, stdout, Write};
+    let host_triple = TargetTriple::detect_host();
+
+    loop {
+        let (is_canonical, _current, _canonical_bin) = Doctor::check_topology(&config, &host_triple);
+        let has_toolchains = EnvManager::get_toolchains_dir_env().is_some();
+        let in_path = EnvManager::is_usr_bin_in_path(&config);
+
+        println!("\n========================================================");
+        println!("       neo - Toolchain Manager & Agent Proxy (nbuild)   ");
+        println!("========================================================");
+        println!("  TOOLCHAINS_DIR: {} [{}]", config.toolchains_dir.display(), if has_toolchains { "OK" } else { "NOT SET" });
+        println!("  Host Usr Bin:   {} [{}]", config.host_usr_bin().display(), if in_path { "IN PATH" } else { "MISSING FROM PATH" });
+        println!("  Host Triple:    {}", host_triple.raw);
+        println!("  Topology:       {}", if is_canonical { "Canonical (distro/neo/bin)" } else { "External (Not in distro/neo/bin)" });
+        println!("--------------------------------------------------------");
+        println!("  1. System Doctor & Self-Heal (repair links, packages, test)");
+        println!("  2. Environment Setup (configure TOOLCHAINS_DIR & PATH)");
+        println!("  3. Install / Update Neo (nbuild, tokless, companion tools)");
+        println!("  4. Manage Packages (cmake, ninja, llvm, zlib, libpng, ...)");
+        println!("  5. File Operations (search, copy, move, rename, delete, mkdir)");
+        println!("  6. Run Workflow Pipeline");
+        println!("  0. Exit");
+        println!("--------------------------------------------------------");
+        print!("  Select an option [0-6]: ");
+        let _ = stdout().flush();
+
+        let mut input = String::new();
+        if stdin().read_line(&mut input).is_err() {
+            break;
+        }
+
+        match input.trim() {
+            "1" => {
+                println!("\n[Doctor] Running diagnostic & self-healing suite...");
+                let report = Doctor::run_doctor(&mut config, &host_triple, true)?;
+                println!("  Topology:            {}", report.topology_msg);
+                println!("  Broken links healed: {}/{}", report.broken_links_repaired, report.broken_links_found);
+                println!("  Packages repaired:   {}/{}", report.broken_packages_repaired, report.broken_packages_found);
+                println!("  Environment:         TOOLCHAINS_DIR: {}, PATH: {}", report.env_toolchains_ok, report.env_path_ok);
+                println!("  Smoke test:          {}", if report.smoke_test_ok { "PASSED (OK to use)" } else { "FAILED" });
+            }
+            "2" => {
+                println!("\n[Environment] Configuring TOOLCHAINS_DIR and PATH...");
+                match EnvManager::ensure_environment(true) {
+                    Ok(new_cfg) => {
+                        config = new_cfg;
+                        println!("[Environment] Configuration updated successfully.");
+                    }
+                    Err(e) => eprintln!("[Environment] Error: {e}"),
+                }
+            }
+            "3" => {
+                println!("\n[Neo] Installing / Updating Neo package from release...");
+                let registry = init_catalog_registry(&config);
+                if let Some(cat) = registry.get("neo") {
+                    let installer = DistroInstaller::new(&config);
+                    let sysroot = SysrootManager::new(&config);
+                    let _ = sysroot.ensure_gnu_toolchain_dirs(&host_triple);
+                    let distro_path = config.pkg_distro_dir(host_triple.platform.as_str(), &host_triple.raw, "neo");
+                    if let Some(releases_url) = cat.get_releases_url() {
+                        if let Ok(forge) = crate::core::forge::ForgeClient::new() {
+                            if let Ok(release) = forge.fetch_release_by_url(releases_url) {
+                                println!("Latest Neo release: v{}", release.clean_version());
+                                let hints = cat.get_asset_hints(host_triple.platform.as_str(), &host_triple.arch).map(|v| v.as_slice());
+                                if let Some(asset) = release.find_asset_with_hints(host_triple.platform.as_str(), &host_triple.arch, hints) {
+                                    let source = crate::core::catalog::SourceSpec {
+                                        source_type: "api_release".to_string(),
+                                        url: asset.browser_download_url.clone(),
+                                        sha256: None,
+                                        tag: Some(release.tag_name.clone()),
+                                        commit: None,
+                                        strip_prefix: None,
+                                    };
+                                    if let Ok(mut meta) = installer.install_prebuilt(&host_triple, "neo", &release.clean_version(), &cat.category, &cat.target_level, &source) {
+                                        let _ = sysroot.link_package(&host_triple, &mut meta);
+                                        println!("[Neo] Updated successfully to {}", distro_path.display());
+                                    }
+                                } else {
+                                    println!("[Neo] No matching release asset found for platform. Self-installing local binary...");
+                                    let _ = Doctor::self_install(&config, &host_triple);
+                                }
+                            } else {
+                                println!("[Neo] Forge query failed. Self-installing local binary...");
+                                let _ = Doctor::self_install(&config, &host_triple);
+                            }
+                        }
+                    } else {
+                        let _ = Doctor::self_install(&config, &host_triple);
+                    }
+                }
+            }
+            "4" => {
+                let registry = init_catalog_registry(&config);
+                println!("\n[Catalog Packages]");
+                for cat in registry.list() {
+                    let installed = config.pkg_meta_path(host_triple.platform.as_str(), &host_triple.raw, &cat.name).exists();
+                    println!("  - {:<10} {:<10} [{}]", cat.name, cat.category, if installed { "INSTALLED" } else { "AVAILABLE" });
+                }
+            }
+            "5" => {
+                println!("\n[File Operations]");
+                println!("  1. Search");
+                println!("  2. Create Directory (mkdir)");
+                println!("  3. Back");
+                print!("  Choice: ");
+                let _ = stdout().flush();
+                let mut f_in = String::new();
+                let _ = stdin().read_line(&mut f_in);
+                match f_in.trim() {
+                    "1" => {
+                        print!("  Pattern to search: ");
+                        let _ = stdout().flush();
+                        let mut pat = String::new();
+                        let _ = stdin().read_line(&mut pat);
+                        let results = FsOps::search(".", pat.trim(), FsFilter::All).unwrap_or_default();
+                        println!("  Found {} matches:", results.len());
+                        for r in results.iter().take(20) {
+                            println!("    {}", r.display());
+                        }
+                    }
+                    "2" => {
+                        print!("  Directory path to create: ");
+                        let _ = stdout().flush();
+                        let mut dir_in = String::new();
+                        let _ = stdin().read_line(&mut dir_in);
+                        if let Err(e) = FsOps::mkdir(dir_in.trim()) {
+                            eprintln!("  Error: {e}");
+                        } else {
+                            println!("  Directory created.");
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            "6" => {
+                print!("  Enter workflow YAML file path: ");
+                let _ = stdout().flush();
+                let mut wf_path = String::new();
+                let _ = stdin().read_line(&mut wf_path);
+                let p = PathBuf::from(wf_path.trim());
+                if p.exists() {
+                    match Workflow::load_from_file(&p) {
+                        Ok(wf) => {
+                            let _ = wf.run_local(&config, false);
+                        }
+                        Err(e) => eprintln!("  Workflow load error: {e}"),
+                    }
+                } else {
+                    println!("  File does not exist: {}", p.display());
+                }
+            }
+            "0" | "q" | "exit" => break,
+            _ => println!("  Invalid selection. Please choose 0-6."),
         }
     }
 

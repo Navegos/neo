@@ -1,6 +1,6 @@
 # projectmem - neo
 
-_Last updated: 2026-10-15_
+_Last updated: 2026-10-16_
 
 ## Project purpose
 --------------------------------------------------------------------------------
@@ -14,12 +14,15 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Go tokless ported to Rust in crates/tokless with zero compiler warnings and 17 unit tests passing [crates/tokless]
 - Implement nbuild toolchain manager using dynamic releases API endpoints and asset hint matching for packages (cmake, ninja, llvm, zlib, libpng) [crates/nbuild]
 - Implement multi-compression format ranking and stem hint resilience for *.tar.gz, *.tar.xz, *.tar.zst, *.zip, *.bz2, *.rar, *.7z with bsdtar and 7z fallback extraction [crates/nbuild]
+- Plan Neo multi-crate distro package, doctor self-healing, interactive TUI, and in-use shadow-swap updates
 
 ## Notes
 - start of Neo
 - New feature: feat: add routing store and ownership management [crates/tokless/src/agents/hooks.rs]
 - Completed 100% Go-to-Rust conversion of inspect-vault/tokless into crates/tokless across util, headroom, agents, tools, and commands (zero compiler warnings, 17/17 unit tests passing). [crates/tokless/src]
 - New feature: Add SPDX license headers and metadata to source files [crates/archinfo/build.rs]
+- New feature: feat: Implement ForgeClient for managing releases from various git forges [crates/nbuild/src/agent/mod.rs]
+- Implemented nbuild doctor self-healing, TOOLCHAINS_DIR environment & PATH setup, neo multi-crate distro package, TUI menu, and fs_ops [crates/nbuild/src/cli.rs:1]
 
 ## Key files
 - `.editorconfig`

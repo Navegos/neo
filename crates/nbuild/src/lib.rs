@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/nbuild/src/lib.rs
 // created: 2026-10-14
-// lastModified: 2026-10-15
+// lastModified: 2026-10-16
 
 pub mod agent;
 pub mod builders;
@@ -12,9 +12,9 @@ pub mod core;
 pub mod pipeline;
 
 pub use core::{
-    CatalogRegistry, DistroInstaller, ForgeClient, ForgeType, GitHubClient, GitHubRelease,
-    LinkEngine, NeoConfig, PackageCatalog, PkgMeta, PlatformGroup, RemoteAsset, RemoteRelease,
-    SysrootManager, TargetTriple, ToolLifecycleStrategy,
+    CatalogRegistry, DistroInstaller, Doctor, DoctorReport, EnvManager, ForgeClient, ForgeType,
+    FsFilter, FsOps, GitHubClient, GitHubRelease, LinkEngine, NeoConfig, PackageCatalog, PkgMeta,
+    PlatformGroup, RemoteAsset, RemoteRelease, SysrootManager, TargetTriple, ToolLifecycleStrategy,
 };
 pub use pipeline::Workflow;
 

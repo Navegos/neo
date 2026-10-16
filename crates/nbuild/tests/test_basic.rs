@@ -224,4 +224,77 @@ fn test_compression_format_ranking_and_stem_matching() {
     assert!(linux_match2.name.contains("linux-x86_64"));
 }
 
+#[test]
+fn test_neo_catalog_loading() {
+    let mut reg = CatalogRegistry::new();
+    reg.add_search_path("catalog");
+    reg.add_search_path("crates/nbuild/catalog");
+    reg.load_all().unwrap();
+
+    let neo = reg.get("neo").expect("neo package catalog should be loaded");
+    assert_eq!(neo.name, "neo");
+    assert_eq!(
+        neo.get_releases_url(),
+        Some("https://api.github.com/repos/Navegos/neo/releases/latest")
+    );
+    let hints = neo.get_asset_hints("windows", "x86_64");
+    assert!(hints.is_some());
+    assert!(hints.unwrap().contains(&"neo-x86_64-pc-windows-msvc".to_string()));
+}
+
+#[test]
+fn test_fs_ops_lifecycle() {
+    use nbuild::core::{FsFilter, FsOps};
+    let test_dir = std::env::temp_dir().join("nbuild_test_fs_ops");
+    let _ = FsOps::delete(&test_dir, true, true);
+
+    // 1. Mkdir
+    FsOps::mkdir(&test_dir).unwrap();
+    assert!(test_dir.exists());
+
+    // 2. Touch
+    let subfile = test_dir.join("sample.txt");
+    FsOps::touch(&subfile).unwrap();
+    assert!(subfile.exists());
+
+    // 3. Search
+    let results = FsOps::search(&test_dir, "*.txt", FsFilter::File).unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0], subfile);
+
+    // 4. Copy
+    let copied = test_dir.join("sample_copied.txt");
+    FsOps::copy(&subfile, &copied, false).unwrap();
+    assert!(copied.exists());
+
+    // 5. Rename
+    let renamed = FsOps::rename(&copied, "sample_renamed.txt").unwrap();
+    assert!(renamed.exists());
+    assert!(!copied.exists());
+
+    // 6. Move
+    let subfolder = test_dir.join("nested");
+    FsOps::mkdir(&subfolder).unwrap();
+    let moved_dest = subfolder.join("sample_renamed.txt");
+    FsOps::move_path(&renamed, &moved_dest).unwrap();
+    assert!(moved_dest.exists());
+    assert!(!renamed.exists());
+
+    // 7. Delete
+    FsOps::delete(&test_dir, true, true).unwrap();
+    assert!(!test_dir.exists());
+}
+
+#[test]
+fn test_doctor_topology_check() {
+    use nbuild::core::{Doctor, NeoConfig, TargetTriple};
+    let host = TargetTriple::detect_host();
+    let cfg = NeoConfig::new().with_toolchains_dir(r"C:\fake\toolchains");
+    let (is_canonical, _current, canonical_bin) = Doctor::check_topology(&cfg, &host);
+    assert!(!is_canonical);
+    assert!(canonical_bin.to_string_lossy().contains("distro"));
+    assert!(canonical_bin.to_string_lossy().contains("neo"));
+}
+
+
 

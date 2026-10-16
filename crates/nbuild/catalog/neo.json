@@ -1,0 +1,28 @@
+{
+  "name": "neo",
+  "category": "tool",
+  "target_level": "system",
+  "description": "Unified AI coding agent toolchain & proxy (nbuild, archinfo, tokless)",
+  "remote_repo": "Navegos/neo",
+  "releases_url": "https://api.github.com/repos/Navegos/neo/releases/latest",
+  "git_url": "https://github.com/Navegos/neo.git",
+  "binary_subpath": "bin/nbuild.exe",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["neo-x86_64-pc-windows-msvc", "neo-windows-x86_64", "neo-windows"],
+      "aarch64": ["neo-aarch64-pc-windows-msvc", "neo-windows-arm64"]
+    },
+    "linux": {
+      "x86_64": ["neo-x86_64-unknown-linux-gnu", "neo-linux-x86_64", "neo-linux"],
+      "aarch64": ["neo-aarch64-unknown-linux-gnu", "neo-linux-aarch64"]
+    },
+    "apple": {
+      "aarch64": ["neo-aarch64-apple-darwin", "neo-macos-arm64", "neo-darwin-arm64"],
+      "x86_64": ["neo-x86_64-apple-darwin", "neo-macos-x86_64"]
+    }
+  },
+  "env_exports": {
+    "PATH": ["bin"]
+  }
+}
+

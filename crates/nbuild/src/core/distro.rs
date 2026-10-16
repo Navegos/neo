@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/nbuild/src/core/distro.rs
 // created: 2026-10-14
-// lastModified: 2026-10-15
+// lastModified: 2026-10-16
 
 use std::fs::{self, File};
 use std::io::{self, Read};
@@ -357,6 +357,74 @@ impl<'a> DistroInstaller<'a> {
         }
     }
 
+    /// Safely remove a file, or rename it if locked by a running process on Windows
+    pub fn safe_remove_file(path: &Path) {
+        if !path.exists() && !path.is_symlink() {
+            return;
+        }
+
+        // Clear read-only if set
+        if let Ok(m) = fs::metadata(path) {
+            let mut p = m.permissions();
+            if p.readonly() {
+                p.set_readonly(false);
+                let _ = fs::set_permissions(path, p);
+            }
+        }
+
+        if fs::remove_file(path).is_err() {
+            // File is locked (e.g. running binary). Rename it so new file can take its place!
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            let renamed = path.with_extension(format!("old.{}.tmp", timestamp));
+            let _ = fs::rename(path, &renamed);
+        }
+    }
+
+    /// Safely remove directory tree, renaming locked files
+    pub fn safe_remove_tree(dir: &Path) -> Result<()> {
+        if !dir.exists() {
+            return Ok(());
+        }
+
+        for entry in fs::read_dir(dir)?.flatten() {
+            let p = entry.path();
+            if p.is_dir() && !p.is_symlink() {
+                let _ = Self::safe_remove_tree(&p);
+                let _ = fs::remove_dir(&p);
+            } else {
+                Self::safe_remove_file(&p);
+            }
+        }
+
+        let _ = fs::remove_dir(dir);
+        Ok(())
+    }
+
+    /// Delete existing package files cleanly before update, handling in-use binary locking
+    pub fn clean_existing_package(target_dir: &Path, meta_path: &Path) -> Result<()> {
+        if !target_dir.exists() {
+            return Ok(());
+        }
+
+        // 1. If pkg_meta.json exists, read installed_files and delete them
+        if meta_path.exists() {
+            if let Ok(meta) = PkgMeta::load_from_file(meta_path) {
+                for rec in meta.installed_files {
+                    let file_path = target_dir.join(&rec.path);
+                    Self::safe_remove_file(&file_path);
+                }
+            }
+            Self::safe_remove_file(meta_path);
+        }
+
+        // 2. Safe recursive removal of remaining items
+        Self::safe_remove_tree(target_dir)?;
+        Ok(())
+    }
+
     /// Install a prebuilt source specification into distro/<pkg_name>
     pub fn install_prebuilt(
         &self,
@@ -369,11 +437,10 @@ impl<'a> DistroInstaller<'a> {
     ) -> Result<PkgMeta> {
         let platform_str = triple.platform.as_str();
         let target_dir = self.config.pkg_distro_dir(platform_str, &triple.raw, name);
+        let meta_path = self.config.pkg_meta_path(platform_str, &triple.raw, name);
 
-        // Clean existing dir if reinstalling
-        if target_dir.exists() {
-            let _ = fs::remove_dir_all(&target_dir);
-        }
+        // Delete old package files first, handling in-use binaries safely
+        Self::clean_existing_package(&target_dir, &meta_path)?;
         fs::create_dir_all(&target_dir)?;
 
         let bytes = self.download(&source.url, source.sha256.as_deref())?;

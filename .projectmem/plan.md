@@ -22,10 +22,22 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
 - [x] Directory topology engine ($TOOLCHAINS_DIR/<platform>/<target-triple>/distro/<pkg>)
 - [x] GNU Sysroot & Host active (`usr/bin`, `usr/include`, `usr/lib`) symlink engine with collision guards
 - [x] `pkg_meta.json` schema and persistence (origins, versions, installed files, hashes, link mappings)
-- [x] JSON Catalog loader (`catalog/*.json`) with multi-path resolution
+- [x] JSON/YAML Catalog loader (`catalog/*.json`) with multi-path resolution and schema validation
 - [x] Local GitHub Actions-style workflow runner (`pipeline::Workflow`)
-- [ ] Expand JSON catalog recipes (port remaining `inspect-vault/buildtools/shell` tools & recipes)
-- [ ] Implement source build engine with configure/build/install cycle for C/C++ libraries (CMake, Ninja, Meson, Make)
+- [x] Multi-forge remote engine (`core::forge`) supporting GitHub, GitLab, Codeberg/Gitea, Bitbucket, Launchpad, and generic Git
+- [x] Dynamic API release discovery (`releases_url`) eliminating hardcoded binary release URLs
+- [x] Compression format awareness & platform-specific scoring (`*.tar.gz`, `*.tar.xz`, `*.tar.zst`, `*.zip`, `*.bz2`, `*.rar`, `*.7z`)
+- [x] Stem hint resilience (`strip_archive_extension`) making hints immune to upstream archive format changes
+- [x] Universal unpacker (`DistroInstaller::unpack_archive`) with bsdtar and 7z fallback, prefix stripping, and wrapper flattening
+- [x] Catalog recipes added: `cmake`, `ninja`, `llvm`, `zlib`, `libpng`
+- [x] Neo Distro Package & Multi-Stage Release: `https://api.github.com/repos/Navegos/neo/releases/latest` packaging all crates (`nbuild`, `tokless`, tools) into `$TOOLCHAINS_DIR/<platform>/<triple>/distro/neo/` with synchronized multi-tool updates
+- [x] Self-Diagnosis, Doctor & Self-Healing (`nbuild doctor`, `--heal`): verify install topology, warn user if outside structure, auto-install self to distro, heal broken symlinks, repair corrupted package files, run smoke tests
+- [x] Environment Topology & PATH Self-Healing: detect `TOOLCHAINS_DIR`, interactively prompt user if missing and set in environment, auto-heal user `PATH` with `$TOOLCHAINS_DIR/usr/bin`, create base folders
+- [x] Interactive CLI Menu & TUI System: menu-driven interface (`nbuild menu` / `nbuild -i`) for system doctor, environment setup, package manager, and file operations
+- [x] Built-in File & Directory Operations (`core::fs_ops`): CLI and programmatic search, copy, move, rename, delete, and mkdir
+- [x] Clean Package Updates & In-Use Self-Update Resilience: delete old package files before update extraction; Windows shadow-swap (rename running `.exe` -> `.old`, install new, self-spawn) to bypass binary file locking
+- [ ] Expand JSON catalog recipes (port remaining `inspect-vault/buildtools/shell` tools & libraries: `openssl`, `zstd`, `lzma`, `brotli`, `cares`, `ccache`, `hwloc`, `jom`, `libdeflate`, `libexpat`, `libjpeg`, `libtiff`, `libuv`, `libwebp`, `libxml2`, `lz4`, `onetbb`, `pkgconf`, `protobuf`, `cuda`, `msmpi`, `nasm`, `python`, `qt`)
+- [ ] Implement source build engine with configure/build/install cycle for C/C++ libraries (CMake, Ninja, Meson, Make, NMake/Jom)
 - [ ] Add remote worker management (`nbuild remote add`, self-bootstrap via SSH/WinRM)
 - [ ] Add NativeLink (`inspect-vault/nativelink`) remote cache & execution integration
 - [ ] Add Buck2 (`inspect-vault/buck2`) build system adapter
@@ -44,5 +56,10 @@ _Move completed plans here so the top stays about the future._
 - [x] Port `internal/commands` and CLI entrypoint `tokless` binary
 - [x] Verify test suite & CLI execution (17/17 tests passing)
 
-### nbuild
-- [x] Foundation of `nbuild` and `archinfo` in workspace with 4 unit tests passing
+### nbuild — Milestone 1 (Foundation, Sysroot, Multi-Forge & Universal Extraction)
+- [x] Foundation of `nbuild` and `archinfo` in workspace
+- [x] Multi-forge API client with URL security validation
+- [x] Dynamic release asset resolution with platform/arch matching
+- [x] Stem-based hint resilience for format changes across releases
+- [x] Universal unpacking engine (`*.tar.gz`, `*.tar.xz`, `*.tar.zst`, `*.zip`, `*.bz2`, `*.rar`, `*.7z`)
+- [x] Workspace verification (72 tests passing across 12 test suites)
