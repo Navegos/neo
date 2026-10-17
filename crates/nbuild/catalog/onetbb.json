@@ -1,0 +1,24 @@
+{
+  "name": "onetbb",
+  "category": "library",
+  "target_level": "user",
+  "description": "oneAPI Threading Building Blocks (oneTBB) for parallel task scheduling",
+  "remote_repo": "oneapi-src/oneTBB",
+  "releases_url": "https://api.github.com/repos/oneapi-src/oneTBB/releases/latest",
+  "git_url": "https://github.com/oneapi-src/oneTBB.git",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["win.zip", "windows"]
+    },
+    "linux": {
+      "x86_64": ["lin.tgz", "linux"]
+    }
+  },
+  "env_exports": {
+    "TBB_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"],
+    "PATH": ["bin"]
+  }
+}
+

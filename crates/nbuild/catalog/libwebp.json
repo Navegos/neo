@@ -1,0 +1,29 @@
+{
+  "name": "libwebp",
+  "category": "library",
+  "target_level": "user",
+  "description": "WebP image format encoder and decoder library",
+  "remote_repo": "webmproject/libwebp",
+  "releases_url": "https://api.github.com/repos/webmproject/libwebp/releases/latest",
+  "git_url": "https://chromium.googlesource.com/webm/libwebp",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["windows-x64.zip", "windows-x64", "win64"]
+    },
+    "linux": {
+      "x86_64": ["linux-x86-64.tar.gz", "linux-x86-64"],
+      "aarch64": ["linux-aarch64.tar.gz", "linux-aarch64"]
+    },
+    "apple": {
+      "aarch64": ["mac-arm64.tar.gz", "mac-arm64"],
+      "x86_64": ["mac-x86-64.tar.gz", "mac-x86-64"]
+    }
+  },
+  "env_exports": {
+    "WEBP_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"],
+    "PATH": ["bin"]
+  }
+}
+

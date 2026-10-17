@@ -1,0 +1,25 @@
+{
+  "name": "libjpeg",
+  "category": "library",
+  "target_level": "user",
+  "description": "libjpeg-turbo SIMD-accelerated JPEG codec library",
+  "remote_repo": "libjpeg-turbo/libjpeg-turbo",
+  "releases_url": "https://api.github.com/repos/libjpeg-turbo/libjpeg-turbo/releases/latest",
+  "git_url": "https://github.com/libjpeg-turbo/libjpeg-turbo.git",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["vc64.exe", "win64", "windows-x86_64"],
+      "aarch64": ["arm64", "windows-arm64"]
+    },
+    "linux": {
+      "x86_64": ["tar.gz"]
+    }
+  },
+  "env_exports": {
+    "JPEG_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"],
+    "PATH": ["bin"]
+  }
+}
+

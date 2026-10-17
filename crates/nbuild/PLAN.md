@@ -324,11 +324,12 @@ Trait `BuildEngine` in `src/builders/mod.rs` with adapters for:
   - `core::catalog`: JSON/YAML catalog registry with multi-path loader.
   - `cli`: Subcommands `init`, `get`, `check`, `update`, `clone`, `build`, `list`, `env`, `link`, `run`.
 - **Active Catalog Manifests (`catalog/*.json`)**:
-  - `cmake.json`: Kitware/CMake dynamic releases API (`v4.4.4` live verified).
-  - `ninja.json`: ninja-build/ninja dynamic releases API (`v1.13.2` live verified).
-  - `llvm.json`: llvm/llvm-project dynamic releases API (`v23.1.3` live verified).
-  - `zlib.json`: madler/zlib dynamic releases API.
-  - `libpng.json`: pnggroup/libpng dynamic releases API + zlib dependency.
+  - Compilers & Toolchains: `llvm.json`, `nasm.json`, `cuda.json`
+  - Build Systems & Generators: `cmake.json`, `ninja.json`, `jom.json`
+  - Caching & Tools: `ccache.json`, `sccache.json`, `pkgconf.json`, `protobuf.json`, `git.json`, `python.json`, `neo.json`
+  - Compression & Archiving: `zlib.json`, `zstd.json`, `lz4.json`, `lzma.json`, `brotli.json`, `bzip2.json`, `libdeflate.json`
+  - Image & Data Formats: `libpng.json`, `libjpeg.json`, `libtiff.json`, `libwebp.json`, `libexpat.json`, `libxml2.json`
+  - Core Runtimes & Frameworks: `openssl.json`, `libuv.json`, `cares.json`, `hwloc.json`, `onetbb.json`, `msmpi.json`, `qt.json`
 - **Verification**:
-  - 72/72 tests passing across all workspace crates.
+  - All workspace crate unit and integration tests passing; 33 catalog packages verified with `nbuild list`.
 

@@ -1,0 +1,27 @@
+{
+  "name": "ccache",
+  "category": "tool",
+  "target_level": "system",
+  "description": "Fast compiler cache for C and C++",
+  "remote_repo": "ccache/ccache",
+  "releases_url": "https://api.github.com/repos/ccache/ccache/releases/latest",
+  "git_url": "https://github.com/ccache/ccache.git",
+  "binary_subpath": "bin/ccache.exe",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["windows-x86_64.zip", "windows-x86_64"]
+    },
+    "linux": {
+      "x86_64": ["linux-x86_64.tar.xz", "linux-x86_64"],
+      "aarch64": ["linux-aarch64.tar.xz", "linux-aarch64"]
+    },
+    "apple": {
+      "aarch64": ["darwin", "macos"],
+      "x86_64": ["darwin", "macos"]
+    }
+  },
+  "env_exports": {
+    "PATH": ["bin"]
+  }
+}
+

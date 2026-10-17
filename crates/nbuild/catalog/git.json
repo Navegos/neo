@@ -1,0 +1,19 @@
+{
+  "name": "git",
+  "category": "tool",
+  "target_level": "system",
+  "description": "Fast, scalable, distributed revision control system",
+  "remote_repo": "git-for-windows/git",
+  "releases_url": "https://api.github.com/repos/git-for-windows/git/releases/latest",
+  "git_url": "https://github.com/git/git.git",
+  "binary_subpath": "bin/git.exe",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["MinGit", "64-bit.zip", "PortableGit"]
+    }
+  },
+  "env_exports": {
+    "PATH": ["cmd", "bin"]
+  }
+}
+

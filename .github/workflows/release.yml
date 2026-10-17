@@ -282,9 +282,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Publish each crate individually to crates.io
-      # Crates.io treats each crate as an entirely separate entity.
-      # archinfo must be published first, followed by an index replication wait,
-      # so nbuild can resolve the published archinfo dependency on crates.io.
       - name: Publish Crates Individually to Crates.io
         if: env.CARGO_REGISTRY_TOKEN != ''
         env:
@@ -293,14 +290,8 @@ jobs:
           echo "=== 1. Publishing archinfo to crates.io ==="
           cargo publish -p archinfo --allow-dirty
 
-          echo "Waiting 30 seconds for crates.io index update..."
-          sleep 30
-
           echo "=== 2. Publishing nbuild to crates.io ==="
           cargo publish -p nbuild --allow-dirty
-
-          echo "Waiting 30 seconds for crates.io index update..."
-          sleep 30
 
           echo "=== 3. Publishing tokless to crates.io ==="
           cargo publish -p tokless --allow-dirty

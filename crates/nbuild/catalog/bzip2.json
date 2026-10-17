@@ -1,0 +1,14 @@
+{
+  "name": "bzip2",
+  "category": "library",
+  "target_level": "user",
+  "description": "High-quality data compression library (libbz2)",
+  "remote_repo": "libarchive/bzip2",
+  "git_url": "https://gitlab.com/bzip2/bzip2.git",
+  "env_exports": {
+    "BZIP2_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"]
+  }
+}
+

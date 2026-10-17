@@ -1,0 +1,19 @@
+{
+  "name": "jom",
+  "category": "tool",
+  "target_level": "system",
+  "description": "Parallel build executor for nmake makefiles",
+  "remote_repo": "qt-creator/jom",
+  "releases_url": "https://api.github.com/repos/qt-creator/jom/releases/latest",
+  "git_url": "https://code.qt.io/qt-creator/jom.git",
+  "binary_subpath": "bin/jom.exe",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["jom.zip", "jom_"]
+    }
+  },
+  "env_exports": {
+    "PATH": ["bin"]
+  }
+}
+

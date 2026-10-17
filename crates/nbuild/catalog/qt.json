@@ -1,0 +1,16 @@
+{
+  "name": "qt",
+  "category": "sdk",
+  "target_level": "system",
+  "description": "Qt cross-platform application and UI development framework",
+  "remote_repo": "qt/qt5",
+  "git_url": "https://code.qt.io/qt/qt5.git",
+  "binary_subpath": "bin/qmake.exe",
+  "env_exports": {
+    "QTDIR": ["."],
+    "PATH": ["bin"],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"]
+  }
+}
+

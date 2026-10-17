@@ -1,0 +1,23 @@
+{
+  "name": "libexpat",
+  "category": "library",
+  "target_level": "user",
+  "description": "Fast stream-oriented XML 1.0 parser library in C",
+  "remote_repo": "libexpat/libexpat",
+  "releases_url": "https://api.github.com/repos/libexpat/libexpat/releases/latest",
+  "git_url": "https://github.com/libexpat/libexpat.git",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["win64", "windows-x86_64"]
+    },
+    "linux": {
+      "x86_64": ["tar.gz", "tar.xz"]
+    }
+  },
+  "env_exports": {
+    "EXPAT_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"]
+  }
+}
+

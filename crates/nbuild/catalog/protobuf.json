@@ -1,0 +1,29 @@
+{
+  "name": "protobuf",
+  "category": "tool",
+  "target_level": "system",
+  "description": "Google Protocol Buffers data serialization library and protoc compiler",
+  "remote_repo": "protocolbuffers/protobuf",
+  "releases_url": "https://api.github.com/repos/protocolbuffers/protobuf/releases/latest",
+  "git_url": "https://github.com/protocolbuffers/protobuf.git",
+  "binary_subpath": "bin/protoc.exe",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["win64.zip"]
+    },
+    "linux": {
+      "x86_64": ["linux-x86_64.zip"],
+      "aarch64": ["linux-aarch_64.zip"]
+    },
+    "apple": {
+      "aarch64": ["osx-aarch_64.zip"],
+      "x86_64": ["osx-x86_64.zip"]
+    }
+  },
+  "env_exports": {
+    "PROTOBUF_ROOT": ["."],
+    "PATH": ["bin"],
+    "INCLUDE": ["include"]
+  }
+}
+

@@ -1,0 +1,20 @@
+{
+  "name": "python",
+  "category": "tool",
+  "target_level": "system",
+  "description": "Python embeddable runtime environment & standard libraries",
+  "remote_repo": "python/cpython",
+  "git_url": "https://github.com/python/cpython.git",
+  "binary_subpath": "bin/python.exe",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["embed-amd64.zip", "amd64.zip"],
+      "aarch64": ["embed-arm64.zip", "arm64.zip"]
+    }
+  },
+  "env_exports": {
+    "PATH": ["bin", "Scripts"],
+    "PYTHON_ROOT": ["."]
+  }
+}
+

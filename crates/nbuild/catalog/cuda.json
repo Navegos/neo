@@ -1,0 +1,16 @@
+{
+  "name": "cuda",
+  "category": "sdk",
+  "target_level": "system",
+  "description": "NVIDIA CUDA Toolkit (compiler drivers, nvcc, headers, and libraries)",
+  "remote_repo": "NVIDIA/cuda-samples",
+  "git_url": "https://github.com/NVIDIA/cuda-samples.git",
+  "binary_subpath": "bin/nvcc.exe",
+  "env_exports": {
+    "CUDA_PATH": ["."],
+    "PATH": ["bin"],
+    "INCLUDE": ["include"],
+    "LIB": ["lib/x64"]
+  }
+}
+

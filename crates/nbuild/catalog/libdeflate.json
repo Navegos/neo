@@ -1,0 +1,25 @@
+{
+  "name": "libdeflate",
+  "category": "library",
+  "target_level": "user",
+  "description": "Heavily optimized whole-buffer DEFLATE, zlib, and gzip compression library",
+  "remote_repo": "ebiggers/libdeflate",
+  "releases_url": "https://api.github.com/repos/ebiggers/libdeflate/releases/latest",
+  "git_url": "https://github.com/ebiggers/libdeflate.git",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["windows-x86_64.zip", "windows-x86_64"],
+      "aarch64": ["windows-arm64.zip", "windows-arm64"]
+    },
+    "linux": {
+      "x86_64": ["tar.gz"]
+    }
+  },
+  "env_exports": {
+    "LIBDEFLATE_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"],
+    "PATH": ["bin"]
+  }
+}
+

@@ -1,0 +1,22 @@
+{
+  "name": "pkgconf",
+  "category": "tool",
+  "target_level": "system",
+  "description": "Package compiler and linker configuration tool (pkg-config replacement)",
+  "remote_repo": "pkgconf/pkgconf",
+  "releases_url": "https://api.github.com/repos/pkgconf/pkgconf/releases/latest",
+  "git_url": "https://github.com/pkgconf/pkgconf.git",
+  "binary_subpath": "bin/pkgconf.exe",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["windows-x86_64", "win64", "x86_64"]
+    },
+    "linux": {
+      "x86_64": ["tar.xz", "tar.gz"]
+    }
+  },
+  "env_exports": {
+    "PATH": ["bin"]
+  }
+}
+

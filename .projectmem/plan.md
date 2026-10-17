@@ -36,7 +36,7 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
 - [x] Interactive CLI Menu & TUI System: menu-driven interface (`nbuild menu` / `nbuild -i`) for system doctor, environment setup, package manager, and file operations
 - [x] Built-in File & Directory Operations (`core::fs_ops`): CLI and programmatic search, copy, move, rename, delete, and mkdir
 - [x] Clean Package Updates & In-Use Self-Update Resilience: delete old package files before update extraction; Windows shadow-swap (rename running `.exe` -> `.old`, install new, self-spawn) to bypass binary file locking
-- [ ] Expand JSON catalog recipes (port remaining `inspect-vault/buildtools/shell` tools & libraries: `openssl`, `zstd`, `lzma`, `brotli`, `cares`, `ccache`, `hwloc`, `jom`, `libdeflate`, `libexpat`, `libjpeg`, `libtiff`, `libuv`, `libwebp`, `libxml2`, `lz4`, `onetbb`, `pkgconf`, `protobuf`, `cuda`, `msmpi`, `nasm`, `python`, `qt`)
+- [x] Expand JSON catalog recipes (port remaining `inspect-vault/buildtools/shell` tools & libraries: `openssl`, `zstd`, `lzma`, `brotli`, `cares`, `ccache`, `hwloc`, `jom`, `libdeflate`, `libexpat`, `libjpeg`, `libtiff`, `libuv`, `libwebp`, `libxml2`, `lz4`, `onetbb`, `pkgconf`, `protobuf`, `cuda`, `msmpi`, `nasm`, `python`, `qt`, `git`, `sccache`, `bzip2`)
 - [ ] Implement source build engine with configure/build/install cycle for C/C++ libraries (CMake, Ninja, Meson, Make, NMake/Jom)
 - [ ] Add remote worker management (`nbuild remote add`, self-bootstrap via SSH/WinRM)
 - [ ] Add NativeLink (`inspect-vault/nativelink`) remote cache & execution integration

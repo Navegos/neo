@@ -1,0 +1,27 @@
+{
+  "name": "sccache",
+  "category": "tool",
+  "target_level": "system",
+  "description": "Shared compiler cache with cloud storage backends (S3, GCS, Redis, Memcached)",
+  "remote_repo": "mozilla/sccache",
+  "releases_url": "https://api.github.com/repos/mozilla/sccache/releases/latest",
+  "git_url": "https://github.com/mozilla/sccache.git",
+  "binary_subpath": "bin/sccache.exe",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["x86_64-pc-windows-msvc.zip", "windows"]
+    },
+    "linux": {
+      "x86_64": ["x86_64-unknown-linux-musl.tar.gz", "linux"],
+      "aarch64": ["aarch64-unknown-linux-musl.tar.gz"]
+    },
+    "apple": {
+      "aarch64": ["aarch64-apple-darwin.tar.gz"],
+      "x86_64": ["x86_64-apple-darwin.tar.gz"]
+    }
+  },
+  "env_exports": {
+    "PATH": ["bin"]
+  }
+}
+

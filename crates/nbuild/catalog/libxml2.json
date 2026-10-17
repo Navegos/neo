@@ -1,0 +1,24 @@
+{
+  "name": "libxml2",
+  "category": "library",
+  "target_level": "user",
+  "description": "XML C parser and toolkit designed for portability and performance",
+  "remote_repo": "GNOME/libxml2",
+  "releases_url": "https://api.github.com/repos/GNOME/libxml2/releases/latest",
+  "git_url": "https://gitlab.gnome.org/GNOME/libxml2.git",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["win64", "windows-x86_64"]
+    },
+    "linux": {
+      "x86_64": ["tar.xz", "tar.gz"]
+    }
+  },
+  "env_exports": {
+    "LIBXML2_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"],
+    "PATH": ["bin"]
+  }
+}
+

@@ -26,6 +26,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Implemented nbuild doctor self-healing, TOOLCHAINS_DIR environment & PATH setup, neo multi-crate distro package, TUI menu, and fs_ops [crates/nbuild/src/cli.rs:1]
 - New feature: feat: Implement safe file and directory removal functions [crates/nbuild/src/cli.rs]
 - Updated release workflow for multi-crate builds and individual crates.io publishing, added README, LICENSE, and PLAN for all crates [.github/workflows/release.yml:1]
+- New feature: feat(tokless): Implement core functionality for headroom proxy and token optimization [crates/archinfo/build.rs]
 
 ## Key files
 - `.editorconfig`

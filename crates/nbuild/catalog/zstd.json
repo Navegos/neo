@@ -1,0 +1,30 @@
+{
+  "name": "zstd",
+  "category": "library",
+  "target_level": "user",
+  "description": "Zstandard - Fast real-time compression algorithm",
+  "remote_repo": "facebook/zstd",
+  "releases_url": "https://api.github.com/repos/facebook/zstd/releases/latest",
+  "git_url": "https://github.com/facebook/zstd.git",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["zstd-v", "win64", "windows"],
+      "aarch64": ["zstd-v", "win-arm64"]
+    },
+    "linux": {
+      "x86_64": ["zstd-v", "linux-x86_64"],
+      "aarch64": ["zstd-v", "linux-aarch64"]
+    },
+    "apple": {
+      "aarch64": ["zstd-v", "macos"],
+      "x86_64": ["zstd-v", "macos"]
+    }
+  },
+  "env_exports": {
+    "ZSTD_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"],
+    "PATH": ["bin"]
+  }
+}
+

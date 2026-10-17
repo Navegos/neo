@@ -1,0 +1,25 @@
+{
+  "name": "libtiff",
+  "category": "library",
+  "target_level": "user",
+  "description": "Tag Image File Format (TIFF) reference library and tools",
+  "remote_repo": "libsdl-org/libtiff",
+  "releases_url": "https://api.github.com/repos/libsdl-org/libtiff/releases/latest",
+  "git_url": "https://gitlab.com/libtiff/libtiff.git",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["win64", "windows", "x86_64"]
+    },
+    "linux": {
+      "x86_64": ["tar.gz", "tar.xz"]
+    }
+  },
+  "dependencies": ["zlib", "libjpeg", "zstd"],
+  "env_exports": {
+    "TIFF_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"],
+    "PATH": ["bin"]
+  }
+}
+

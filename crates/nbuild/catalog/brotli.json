@@ -1,0 +1,22 @@
+{
+  "name": "brotli",
+  "category": "library",
+  "target_level": "user",
+  "description": "Generic-purpose lossless compression algorithm and library",
+  "remote_repo": "google/brotli",
+  "releases_url": "https://api.github.com/repos/google/brotli/releases/latest",
+  "git_url": "https://github.com/google/brotli.git",
+  "asset_hints": {
+    "windows": {
+      "x86_64": ["x64-windows-dynamic", "windows-dynamic"],
+      "aarch64": ["arm64-windows-dynamic", "windows-dynamic"]
+    }
+  },
+  "env_exports": {
+    "BROTLI_ROOT": ["."],
+    "INCLUDE": ["include"],
+    "LIB": ["lib"],
+    "PATH": ["bin"]
+  }
+}
+
