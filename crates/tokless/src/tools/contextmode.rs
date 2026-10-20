@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/contextmode.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::fs;
 use std::path::Path;
@@ -20,6 +20,7 @@ use crate::util::paths::{
     prepend_process_path, read_file_safe, temp_dir, which, write_file_atomic,
 };
 use super::copilot_transaction::with_copilot_transaction;
+use super::mcp_dispatch::{mcp_configure, mcp_has, mcp_remove};
 use super::helpers::{
     allow_claude_mcp_server, cursor_mcp_path, disallow_claude_mcp_server, droid_mcp_path,
     grok_mcp_path, has_antigravity_mcp, has_array_mcp_entry, has_codex_mcp_entry, has_copilot_mcp,
@@ -194,6 +195,12 @@ pub fn ctx_configure_mcp(agent: &str, opts: &RunOpts) -> Result<bool, DynError> 
             }
             Ok(true)
         }
+        "opencode2" | "amp" | "kimi" | "zcode" | "dsh" => {
+            if !mcp_configure(agent, "context-mode") {
+                return Err(format!("failed to configure context-mode MCP for {}", agent).into());
+            }
+            Ok(true)
+        }
         _ => Ok(false),
     }
 }
@@ -254,6 +261,9 @@ pub fn ctx_verify(agent: &str) -> bool {
         "cline" => {
             has_mcp_entry_at_file(&cline_paths_resolved().mcp_config, "mcpServers", "context-mode", None)
                 && has_owner("cline", "context-mode")
+        }
+        "opencode2" | "amp" | "kimi" | "zcode" | "dsh" => {
+            mcp_has(agent, "context-mode", false) && has_owner(agent, "context-mode")
         }
         _ => false,
     }
@@ -361,6 +371,10 @@ pub fn ctx_unwire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
             remove_json_mcp_entry(&cline_paths_resolved().mcp_config, "mcpServers", "context-mode");
             remove_owner_safe("cline", "context-mode")?;
         }
+        "opencode2" | "amp" | "kimi" | "zcode" | "dsh" => {
+            mcp_remove(agent, "context-mode");
+            remove_owner_safe(agent, "context-mode")?;
+        }
         _ => {}
     }
     Ok(true)
@@ -377,7 +391,8 @@ pub fn build_context_mode() -> ToolManifest {
     tool.install = Some(Arc::new(|opts| ctx_ensure_installed(opts)));
 
     let agents = [
-        "claude", "opencode", "codex", "antigravity", "copilot", "droid", "grok", "pi", "omp", "kilo", "cline", "cursor",
+        "claude", "opencode", "opencode2", "codex", "antigravity", "copilot", "droid", "grok",
+        "pi", "omp", "kilo", "cline", "cursor", "amp", "kimi", "zcode", "dsh",
     ];
 
     for agent_id in agents {
@@ -403,6 +418,12 @@ pub fn build_context_mode() -> ToolManifest {
                 }
                 Some(ctx_verify(&ag_v))
             }),
+        );
+
+        let ag_a = ag.clone();
+        tool.wired_any_for.insert(
+            ag.clone(),
+            Arc::new(move || Some(mcp_has(&ag_a, "context-mode", true))),
         );
     }
 

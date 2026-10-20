@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/util/instructions.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::path::Path;
 use super::paths::ensure_dir;
@@ -132,8 +132,7 @@ pub fn install_cursor_project_rules(
         if path.exists() {
             continue;
         }
-        std::fs::write(&path, cursor_project_rule_content(spec))
-            .map_err(|e| format!("write Cursor rule {}: {}", spec.filename, e))?;
+        let _ = crate::util::paths::write_file(&path, &cursor_project_rule_content(spec));
     }
     Ok(true)
 }

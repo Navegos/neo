@@ -468,3 +468,51 @@ pub fn encode_routing_state(
     validate_routing_state(state)?;
     Ok(serde_json::to_string(state)?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_no_duplicate_json_keys() {
+        let valid = r#"{"a": 1, "b": 2}"#;
+        assert!(validate_no_duplicate_json_keys(valid).is_ok());
+
+        let dup = r#"{"a": 1, "a": 2}"#;
+        assert!(validate_no_duplicate_json_keys(dup).is_err());
+    }
+
+    #[test]
+    fn test_valid_byok_protocols() {
+        assert!(valid_byok_protocol("openai-chat"));
+        assert!(valid_byok_protocol("anthropic-messages"));
+        assert!(!valid_byok_protocol("unknown-proto"));
+    }
+
+    #[test]
+    fn test_routing_state_transitions() {
+        let prev_absent = RoutingState {
+            state: ROUTING_STATE_ABSENT.to_string(),
+            ..Default::default()
+        };
+        let next_prep = RoutingState {
+            version: ROUTING_STATE_VERSION,
+            generation: 1,
+            previous_generation: 0,
+            state: ROUTING_STATE_PREPARING.to_string(),
+            coordinator_nonce: "coord_1".to_string(),
+            ..Default::default()
+        };
+        assert!(validate_routing_state_transition(&prev_absent, &next_prep).is_ok());
+
+        let bad_next = RoutingState {
+            version: ROUTING_STATE_VERSION,
+            generation: 1,
+            previous_generation: 1,
+            state: ROUTING_STATE_COMMITTED.to_string(),
+            coordinator_nonce: "coord_1".to_string(),
+            ..Default::default()
+        };
+        assert!(validate_routing_state_transition(&prev_absent, &bad_next).is_err());
+    }
+}

@@ -16,6 +16,7 @@ pub mod fs_ops;
 pub mod meta;
 pub mod symlink;
 pub mod sysroot;
+pub mod vcpkg;
 
 pub use arch::{PlatformGroup, TargetTriple};
 pub use catalog::{CatalogRegistry, PackageCatalog, PlatformRecipe};
@@ -28,4 +29,5 @@ pub use fs_ops::{FsFilter, FsOps};
 pub use meta::{PkgMeta, TargetInfo};
 pub use symlink::{LinkEngine, LinkStatus};
 pub use sysroot::SysrootManager;
+pub use vcpkg::{VcpkgInstance, VcpkgManager};
 

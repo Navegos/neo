@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/projectmem.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::env;
 use std::fs;
@@ -27,6 +27,7 @@ use crate::util::projectmem::{
     ensure_projectmem, projectmem_bin, projectmem_installed, projectmem_mcp_bin,
 };
 use super::copilot_transaction::with_copilot_transaction;
+use super::mcp_dispatch::{mcp_configure, mcp_has, mcp_remove};
 use super::helpers::{
     allow_claude_mcp_server, cursor_mcp_path, disallow_claude_mcp_server, droid_mcp_path,
     grok_mcp_path, has_antigravity_mcp, has_array_mcp_entry, has_codex_mcp_entry, has_copilot_mcp,
@@ -608,6 +609,12 @@ pub fn projectmem_configure_mcp(agent: &str, opts: &RunOpts) -> Result<bool, Dyn
             }
             Ok(true)
         }
+        "opencode2" | "amp" | "kimi" | "zcode" | "dsh" => {
+            if !mcp_configure(agent, "projectmem") {
+                return Err(format!("failed to configure projectmem MCP for {}", agent).into());
+            }
+            Ok(true)
+        }
         _ => Ok(false),
     }
 }
@@ -668,6 +675,9 @@ pub fn projectmem_verify(agent: &str) -> bool {
         "cline" => {
             has_mcp_entry_at_file(&cline_paths_resolved().mcp_config, "mcpServers", "projectmem", None)
                 && has_owner("cline", "projectmem")
+        }
+        "opencode2" | "amp" | "kimi" | "zcode" | "dsh" => {
+            mcp_has(agent, "projectmem", false) && has_owner(agent, "projectmem")
         }
         _ => false,
     }
@@ -772,6 +782,10 @@ pub fn projectmem_unwire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> 
             remove_json_mcp_entry(&cline_paths_resolved().mcp_config, "mcpServers", "projectmem");
             remove_owner_safe("cline", "projectmem")?;
         }
+        "opencode2" | "amp" | "kimi" | "zcode" | "dsh" => {
+            mcp_remove(agent, "projectmem");
+            remove_owner_safe(agent, "projectmem")?;
+        }
         _ => {}
     }
     Ok(true)
@@ -802,7 +816,8 @@ pub fn build_projectmem() -> ToolManifest {
     tool.index_project = Some(Arc::new(|dir, opts| projectmem_index_project(dir, opts)));
 
     let agents = [
-        "claude", "opencode", "codex", "antigravity", "copilot", "droid", "grok", "pi", "omp", "kilo", "cline", "cursor",
+        "claude", "opencode", "opencode2", "codex", "antigravity", "copilot", "droid", "grok",
+        "pi", "omp", "kilo", "cline", "cursor", "amp", "kimi", "zcode", "dsh",
     ];
 
     for agent_id in agents {
@@ -828,6 +843,12 @@ pub fn build_projectmem() -> ToolManifest {
                 }
                 Some(projectmem_verify(&ag_v))
             }),
+        );
+
+        let ag_a = ag.clone();
+        tool.wired_any_for.insert(
+            ag.clone(),
+            Arc::new(move || Some(mcp_has(&ag_a, "projectmem", true))),
         );
     }
 

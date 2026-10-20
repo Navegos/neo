@@ -10,6 +10,7 @@ use std::path::Path;
 use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 
+use crate::agents::json_args_eq;
 use crate::agents::proxy_protocol::proxy_endpoint_for;
 use crate::util::byok::{
     byok_route_header, byok_route_protocol, delete_byok_route as util_delete_byok_route,
@@ -582,6 +583,38 @@ pub fn remove_claude_mcp(tool_id: &str) -> bool {
     }
     disallow_claude_mcp_tool(tool_id);
     removed
+}
+
+pub fn claude_mcp_present(tool_id: &str) -> bool {
+    let p = claude_code_paths();
+    let Some(raw) = read_file_safe(&p.global_json) else {
+        return false;
+    };
+    let Some(Value::Object(cfg)) = try_parse_jsonc(&raw) else {
+        return false;
+    };
+    cfg.get("mcpServers").and_then(|v| v.as_object()).is_some_and(|m| m.contains_key(tool_id))
+}
+
+pub fn claude_mcp_has(tool_id: &str, command: &[String]) -> bool {
+    let p = claude_code_paths();
+    let Some(raw) = read_file_safe(&p.global_json) else {
+        return false;
+    };
+    let Some(Value::Object(cfg)) = try_parse_jsonc(&raw) else {
+        return false;
+    };
+    let Some(servers) = cfg.get("mcpServers").and_then(|v| v.as_object()) else {
+        return false;
+    };
+    let Some(entry) = servers.get(tool_id).and_then(|v| v.as_object()) else {
+        return false;
+    };
+    if command.is_empty() {
+        return true;
+    }
+    let cmd = entry.get("command").and_then(|v| v.as_str());
+    cmd == Some(&command[0]) && json_args_eq(entry.get("args"), &command[1..])
 }
 
 // --- Claude headroom HTTP proxy & BYOK ---

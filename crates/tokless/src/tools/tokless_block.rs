@@ -3,29 +3,31 @@
 // project: neo
 // file: crates/tokless/src/tools/tokless_block.rs
 // created: 2026-10-11
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use regex::Regex;
 
-use crate::agents::{omp_agent_dir_resolved, pi_agent_dir_resolved};
+use crate::agents::{dsh_instructions_file, omp_agent_dir_resolved, pi_agent_dir_resolved};
 use crate::util::instructions::{
     instruction_index_section, instruction_section, section_header_for_owner, section_present,
     TOKLESS_OWNERS,
 };
 use crate::util::jsonc::{stringify_json, try_parse_jsonc, Value};
 use crate::util::paths::{
-    antigravity_paths_resolved, claude_code_paths, cline_paths_resolved, codex_paths_resolved,
-    copilot_paths_resolved, ensure_dir, exists, home, kilo_paths_resolved,
-    opencode_paths_resolved, read_file_safe, write_file_atomic,
+    amp_paths_resolved, antigravity_paths_resolved, claude_code_paths, cline_paths_resolved,
+    codex_paths_resolved, copilot_paths_resolved, ensure_dir, exists, home, kilo_paths_resolved,
+    kimi_paths_resolved, opencode_paths_resolved, opencode_paths_v2, read_file_safe,
+    write_file_atomic, zcode_paths_resolved,
 };
 
 pub fn instruction_path(agent: &str) -> String {
     match agent {
         "claude" => claude_code_paths().instructions,
         "opencode" => opencode_paths_resolved().instructions,
+        "opencode2" => opencode_paths_v2().instructions,
         "codex" => codex_paths_resolved().instructions,
         "antigravity" => antigravity_paths_resolved().instructions,
         "copilot" => copilot_paths_resolved().instructions,
@@ -42,6 +44,10 @@ pub fn instruction_path(agent: &str) -> String {
         }
         "kilo" => kilo_instructions_path(),
         "cline" => cline_paths_resolved().instructions,
+        "kimi" => kimi_paths_resolved().instructions,
+        "zcode" => zcode_paths_resolved().instructions,
+        "dsh" => dsh_instructions_file(),
+        "amp" => amp_paths_resolved().instructions,
         _ => String::new(),
     }
 }

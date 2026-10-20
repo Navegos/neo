@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/disable.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::fs;
 use std::path::Path;
@@ -30,11 +30,25 @@ pub fn pick_agents(
     if let Some(req) = requested {
         return (req.clone(), false);
     }
-    let detected: Vec<Arc<AgentManifest>> = all_agents
-        .iter()
-        .filter(|a| a.detect().installed)
-        .cloned()
-        .collect();
+    let detected: Vec<Arc<AgentManifest>> = std::thread::scope(|s| {
+        let mut handles = Vec::with_capacity(all_agents.len());
+        for a in all_agents {
+            handles.push(s.spawn(move || {
+                if a.detect().installed {
+                    Some(a.clone())
+                } else {
+                    None
+                }
+            }));
+        }
+        let mut res = Vec::new();
+        for h in handles {
+            if let Ok(Some(a)) = h.join() {
+                res.push(a);
+            }
+        }
+        res
+    });
     if detected.is_empty() {
         return (all_agents.iter().map(|a| a.id.clone()).collect(), false);
     }

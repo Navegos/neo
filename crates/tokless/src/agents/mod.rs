@@ -5,16 +5,21 @@
 // created: 2026-10-05
 // lastModified: 2026-10-14
 
+pub mod amp;
 pub mod antigravity;
+pub mod byok_providers;
 pub mod claude;
 pub mod cline;
 pub mod codex;
 pub mod copilot;
 pub mod cursor;
 pub mod droid;
+pub mod dsh;
 pub mod grok;
 pub mod hooks;
 pub mod kilo;
+pub mod kimi;
+pub mod mcp_adapters;
 pub mod omp;
 pub mod opencode;
 pub mod pi;
@@ -23,17 +28,23 @@ pub mod proxy_detection;
 pub mod proxy_protocol;
 pub mod proxy_provider;
 pub mod vscode;
+pub mod zcode;
 
+pub use amp::*;
 pub use antigravity::*;
+pub use byok_providers::*;
 pub use claude::*;
 pub use cline::*;
 pub use codex::*;
 pub use copilot::*;
 pub use cursor::*;
 pub use droid::*;
+pub use dsh::*;
 pub use grok::*;
 pub use hooks::CursorHookSnapshot;
 pub use kilo::*;
+pub use kimi::*;
+pub use mcp_adapters::*;
 pub use omp::*;
 pub use opencode::*;
 pub use pi::*;
@@ -42,6 +53,7 @@ pub use proxy_detection::*;
 pub use proxy_protocol::*;
 pub use proxy_provider::*;
 pub use vscode::*;
+pub use zcode::*;
 
 use std::sync::Arc;
 use crate::core::{register_agent, AgentManifest};
@@ -116,6 +128,7 @@ pub fn droid_manifest() -> AgentManifest {
 pub fn register() {
     register_agent(claude_manifest());
     register_agent(opencode_manifest());
+    register_agent(opencode2_manifest());
     register_agent(codex_manifest());
     register_agent(cursor_manifest());
     register_agent(antigravity_manifest());
@@ -126,4 +139,42 @@ pub fn register() {
     register_agent(omp_manifest());
     register_agent(pi_manifest());
     register_agent(cline_manifest());
+    register_agent(kimi_manifest());
+    register_agent(zcode_manifest());
+    register_agent(dsh_manifest());
+    register_agent(amp_manifest());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::get_agent;
+
+    #[test]
+    fn test_phase1_agents_registered() {
+        register();
+
+        for id in ["amp", "dsh", "kimi", "zcode", "opencode", "opencode2"] {
+            let agent = get_agent(id);
+            assert!(agent.is_some(), "Agent {} must be registered", id);
+            let a = agent.unwrap();
+            assert_eq!(a.id, id);
+            assert!(!a.label.is_empty());
+            assert!(!a.cli_bin.is_empty());
+            assert!(a.config_dir.is_some());
+        }
+
+        for id in ["amp", "dsh", "kimi", "zcode"] {
+            assert!(proxy_spec_for(id).is_some(), "Proxy spec for {} must exist", id);
+        }
+
+        let rules = amp_rtk_rules(&["git".to_string(), "cargo".to_string()]);
+        assert_eq!(rules, vec!["rtk git *", "rtk cargo *"]);
+
+        assert_eq!(kimi_provider_protocol("openai"), "openai-completions");
+        assert_eq!(kimi_provider_protocol("openai-responses"), "openai-responses");
+        assert_eq!(zcode_provider_protocol("openai-chat-completions"), "openai-completions");
+        assert_eq!(zcode_provider_protocol("anthropic-messages"), "anthropic-messages");
+        assert_eq!(dsh_provider_protocol("openai"), "openai-completions");
+    }
 }

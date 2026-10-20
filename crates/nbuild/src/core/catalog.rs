@@ -90,6 +90,17 @@ pub struct PackageCatalog {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub env_exports: BTreeMap<String, Vec<String>>,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub manager: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vcpkg_port: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vcpkg_headers: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vcpkg_libs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vcpkg_tools: Vec<String>,
+
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dependencies: Vec<String>,
 
@@ -111,6 +122,14 @@ impl PackageCatalog {
         self.asset_hints.as_ref()
             .and_then(|p| p.get(platform))
             .and_then(|a| a.get(arch))
+    }
+
+    pub fn is_vcpkg(&self) -> bool {
+        self.manager.as_deref() == Some("vcpkg")
+            || self.targets.values().any(|t| {
+                t.source.source_type == "vcpkg"
+                    || t.build.as_ref().map_or(false, |b| b.builder == "vcpkg")
+            })
     }
 }
 

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/agents/opencode.rs
 // created: 2026-10-11
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::fs;
 use std::path::Path;
@@ -147,8 +147,112 @@ pub fn opencode_manifest() -> AgentManifest {
     }
 }
 
-pub fn configure_opencode_mcp(tool_id: &str) -> (bool, String) {
-    let p = paths::opencode_paths_resolved().config;
+pub fn opencode_known_bin_dirs() -> Vec<String> {
+    let mut dirs = vec![
+        Path::new(&paths::home()).join(".opencode").join("bin").to_string_lossy().to_string(),
+        Path::new(&paths::home()).join(".opencode2").join("bin").to_string_lossy().to_string(),
+    ];
+    for name in ["opencode", "opencode2"] {
+        let p = paths::find_binary::<&str>(name, &[]);
+        if !p.is_empty() {
+            if let Some(parent) = Path::new(&p).parent() {
+                dirs.push(parent.to_string_lossy().to_string());
+            }
+        }
+    }
+    dirs.push(Path::new(&paths::home()).join(".local").join("bin").to_string_lossy().to_string());
+    if paths::IS_WIN {
+        dirs.push(Path::new(&paths::home()).join("scoop").join("shims").to_string_lossy().to_string());
+        if let Ok(pd) = std::env::var("ProgramData") {
+            if !pd.is_empty() {
+                dirs.push(Path::new(&pd).join("chocolatey").join("bin").to_string_lossy().to_string());
+            }
+        }
+    }
+    dirs
+}
+
+pub fn open_code_major_version(bin: &str) -> i32 {
+    let output = match std::process::Command::new(bin).arg("--version").output() {
+        Ok(o) => o,
+        Err(_) => return 0,
+    };
+    let text = String::from_utf8_lossy(&output.stdout);
+    let re = regex::Regex::new(r"(?:^|\s)v?(\d+)\.").unwrap();
+    if let Some(caps) = re.captures(text.trim()) {
+        if let Some(m) = caps.get(1) {
+            if let Ok(major) = m.as_str().parse::<i32>() {
+                return major;
+            }
+        }
+    }
+    0
+}
+
+pub fn open_code_binary_paths() -> Vec<String> {
+    let mut out = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let mut add = |p: String| {
+        if !p.is_empty() && !seen.contains(&p) {
+            seen.insert(p.clone());
+            out.push(p);
+        }
+    };
+    let names = if paths::IS_WIN {
+        &["opencode2.exe", "opencode.exe", "opencode2", "opencode"][..]
+    } else {
+        &["opencode2", "opencode"][..]
+    };
+    for dir in opencode_known_bin_dirs() {
+        for &name in names {
+            add(Path::new(&dir).join(name).to_string_lossy().to_string());
+        }
+    }
+    for &name in &["opencode2", "opencode"] {
+        add(paths::find_binary::<&str>(name, &[]));
+    }
+    out
+}
+
+pub fn open_code_installed_majors() -> Vec<i32> {
+    let mut majors = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for bin in open_code_binary_paths() {
+        let major = open_code_major_version(&bin);
+        if major != 0 && !seen.contains(&major) {
+            seen.insert(major);
+            majors.push(major);
+        }
+    }
+    majors
+}
+
+pub fn opencode2_manifest() -> AgentManifest {
+    AgentManifest {
+        id: "opencode2".to_string(),
+        label: "OpenCode v2".to_string(),
+        homepage: "https://anomalyco.github.io/opencode/".to_string(),
+        cli_bin: "opencode2".to_string(),
+        config_dir: Some(Arc::new(|| paths::opencode_paths_v2().dir)),
+        detect: Some(Arc::new(|| {
+            for major in open_code_installed_majors() {
+                if major == 2 {
+                    return crate::core::Detection {
+                        installed: true,
+                        source: "cli".to_string(),
+                    };
+                }
+            }
+            crate::core::Detection {
+                installed: false,
+                source: String::new(),
+            }
+        })),
+    }
+}
+
+pub fn configure_opencode_mcp_at(p: &str, tool_id: &str) -> (bool, String) {
+    let p = p.to_string();
     let raw_opt = paths::read_file_safe(&p);
     let exists = raw_opt.is_some();
     if !exists && paths::exists(&p) {
@@ -199,9 +303,16 @@ pub fn configure_opencode_mcp(tool_id: &str) -> (bool, String) {
     (true, p)
 }
 
-pub fn remove_opencode_mcp(tool_id: &str) -> bool {
-    let p = paths::opencode_paths_resolved().config;
-    let Some(raw) = paths::read_file_safe(&p) else {
+pub fn configure_opencode_mcp(tool_id: &str) -> (bool, String) {
+    configure_opencode_mcp_at(&paths::opencode_paths_resolved().config, tool_id)
+}
+
+pub fn configure_opencode_mcp_v2(tool_id: &str) -> (bool, String) {
+    configure_opencode_mcp_at(&paths::opencode_paths_v2().config, tool_id)
+}
+
+pub fn remove_opencode_mcp_at(p: &str, tool_id: &str) -> bool {
+    let Some(raw) = paths::read_file_safe(p) else {
         return false;
     };
     if has_jsonc_comments(&raw) {
@@ -224,18 +335,33 @@ pub fn remove_opencode_mcp(tool_id: &str) -> bool {
         cfg.shift_remove("mcp");
     }
     let next = stringify_json(&Value::Object(cfg));
-    paths::write_file_atomic(&p, &next).is_ok()
+    paths::write_file_atomic(p, &next).is_ok()
 }
 
-pub fn opencode_mcp_has(tool_id: &str) -> bool {
-    let p = paths::opencode_paths_resolved().config;
-    let Some(raw) = paths::read_file_safe(&p) else {
+pub fn remove_opencode_mcp(tool_id: &str) -> bool {
+    remove_opencode_mcp_at(&paths::opencode_paths_resolved().config, tool_id)
+}
+
+pub fn remove_opencode_mcp_v2(tool_id: &str) -> bool {
+    remove_opencode_mcp_at(&paths::opencode_paths_v2().config, tool_id)
+}
+
+pub fn opencode_mcp_has_at(p: &str, tool_id: &str) -> bool {
+    let Some(raw) = paths::read_file_safe(p) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
         return false;
     };
     json_map_child(&cfg, "mcp").is_some_and(|m| m.contains_key(tool_id))
+}
+
+pub fn opencode_mcp_has(tool_id: &str) -> bool {
+    opencode_mcp_has_at(&paths::opencode_paths_resolved().config, tool_id)
+}
+
+pub fn opencode2_mcp_has(tool_id: &str) -> bool {
+    opencode_mcp_has_at(&paths::opencode_paths_v2().config, tool_id)
 }
 
 fn opencode_mcp_desired(tool_id: &str) -> OrderedMap {

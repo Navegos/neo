@@ -141,4 +141,34 @@ impl TargetTriple {
     pub fn detect_host_cpu_features() -> CPUFeatures {
         CPUFeatures::detect_host()
     }
+
+    /// Map target triple to corresponding vcpkg triplet
+    pub fn to_vcpkg_triplet(&self) -> String {
+        match self.platform {
+            PlatformGroup::Windows => {
+                if self.arch == "aarch64" || self.arch == "arm64" {
+                    "arm64-windows".to_string()
+                } else if self.arch == "i686" || self.arch == "x86" {
+                    "x86-windows".to_string()
+                } else {
+                    "x64-windows".to_string()
+                }
+            }
+            PlatformGroup::Linux => {
+                if self.arch == "aarch64" || self.arch == "arm64" {
+                    "arm64-linux".to_string()
+                } else {
+                    "x64-linux".to_string()
+                }
+            }
+            PlatformGroup::Apple => {
+                if self.arch == "aarch64" || self.arch == "arm64" {
+                    "arm64-osx".to_string()
+                } else {
+                    "x64-osx".to_string()
+                }
+            }
+            _ => format!("{}-{}", self.arch, self.platform.as_str()),
+        }
+    }
 }

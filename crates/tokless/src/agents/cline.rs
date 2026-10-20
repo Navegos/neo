@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/agents/cline.rs
 // created: 2026-10-11
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -440,7 +440,7 @@ fn cline_managed_mcp_entry(v: &Value, command: &[String]) -> bool {
 
 // --- Cline Proxy ---
 
-fn cline_providers_file() -> String {
+pub fn cline_providers_file() -> String {
     Path::new(&paths::cline_paths_resolved().data_dir)
         .join("settings")
         .join("providers.json")

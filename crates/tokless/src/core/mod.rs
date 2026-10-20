@@ -8,6 +8,9 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+pub mod mcp;
+pub use mcp::*;
+
 pub type DynError = Box<dyn std::error::Error + Send + Sync>;
 
 #[derive(Clone, Default)]

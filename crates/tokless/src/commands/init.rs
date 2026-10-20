@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/init.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::collections::HashMap;
 use std::env;
@@ -21,6 +21,7 @@ use crate::util::deps::ensure_deps;
 use crate::util::instructions::install_cursor_project_rules;
 use crate::util::logger::L;
 use crate::util::paths::{self_heal_path, tokless_persisted_abs};
+use crate::util::selection::save_selection;
 use crate::util::progress::{tree_close, tree_corner, tree_leaf, NewRootSectionProgress};
 use crate::util::prompt::{is_interactive, multi_select, MultiSelectOption};
 
@@ -41,13 +42,26 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
     }
 
     let all_agents = list_agents();
-    let mut installed_ids = HashMap::new();
-    for a in &all_agents {
-        let d = a.detect();
-        if d.installed {
-            installed_ids.insert(a.id.clone(), d.source);
+    let installed_ids: HashMap<String, String> = std::thread::scope(|s| {
+        let mut handles = Vec::with_capacity(all_agents.len());
+        for a in &all_agents {
+            handles.push(s.spawn(move || {
+                let d = a.detect();
+                if d.installed {
+                    Some((a.id.clone(), d.source))
+                } else {
+                    None
+                }
+            }));
         }
-    }
+        let mut map = HashMap::with_capacity(all_agents.len());
+        for h in handles {
+            if let Ok(Some((id, src))) = h.join() {
+                map.insert(id, src);
+            }
+        }
+        map
+    });
 
     let requested: Vec<String> = if let Some(ref req) = opts.agents {
         req.clone()
@@ -98,7 +112,9 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
     };
 
     let all_tools = list_tools();
+    let mut selection_mode = "full";
     let tools: Vec<Arc<ToolManifest>> = if let Some(ref selected) = opts.tools {
+        selection_mode = "selected";
         all_tools
             .into_iter()
             .filter(|t| selected.contains(&t.id))
@@ -116,6 +132,9 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
             .collect();
         let sel = multi_select("Select tools to enable:", &options);
         if !sel.is_empty() {
+            if sel.len() != all_tools.len() {
+                selection_mode = "selected";
+            }
             all_tools
                 .into_iter()
                 .filter(|t| sel.contains(&t.id))
@@ -291,8 +310,25 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
     if wire_failures > 0 || !failed_tools.is_empty() {
         1
     } else {
+        save_selection_if_needed(selection_mode, &tools, opts.dry_run);
         0
     }
+}
+
+pub fn save_selection_if_needed(mode: &str, tools: &[Arc<ToolManifest>], dry_run: bool) -> String {
+    if dry_run {
+        return mode.to_string();
+    }
+    let all_tools = list_tools();
+    let (actual_mode, tool_ids) = if mode == "full" || tools.len() == all_tools.len() {
+        ("full", Vec::new())
+    } else {
+        ("selected", tools.iter().map(|t| t.id.clone()).collect())
+    };
+    if let Err(e) = save_selection(actual_mode, &tool_ids) {
+        L.err(&format!("cannot persist tool selection: {}", e));
+    }
+    actual_mode.to_string()
 }
 
 pub fn init_agent_fully_wired(agent_id: &str, tools: &[Arc<ToolManifest>]) -> bool {

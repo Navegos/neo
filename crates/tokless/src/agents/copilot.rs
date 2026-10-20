@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/agents/copilot.rs
 // created: 2026-10-11
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -1404,7 +1404,7 @@ pub fn copilot_provider_config_path() -> String {
         .into_owned()
 }
 
-fn copilot_config_path() -> String {
+pub fn copilot_config_path() -> String {
     copilot_provider_config_path()
 }
 

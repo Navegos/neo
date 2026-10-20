@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/util/mod.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 pub mod byok;
 pub mod colors;
@@ -33,6 +33,8 @@ pub mod routing_lock;
 pub mod routing_plan;
 pub mod routing_state;
 pub mod routing_store;
+pub mod rtk_commands;
+pub mod selection;
 pub mod toml;
 pub mod uv;
 pub mod version;
@@ -63,15 +65,16 @@ pub use nodelinux::*;
 pub use nodewin::*;
 pub use npminstall::*;
 pub use paths::{
-    antigravity_paths_resolved, claude_code_paths, clear_home_override, clear_write_file_override,
-    cline_paths_resolved, codex_paths_resolved, copilot_paths_resolved, copy_dir_merge,
-    cursor_global_mcp_path, cursor_paths_resolved, ensure_dir, exists, home,
-    is_go_test_executable, is_test_executable, is_win, kilo_paths_resolved,
-    opencode_paths_resolved, persisted_tokless_command, read_file_safe, set_home_override,
-    set_write_file_override, sh_quote, split_command, stable_executable, temp_dir, tokless_abs,
-    tokless_abs_strict, tokless_data_dir, tokless_persisted_abs, which, write_file,
-    write_file_atomic, write_file_mode, AntigravityPaths, ClaudePaths, ClinePaths, CodexPaths,
-    CopilotPaths, CursorPaths, KiloPaths, OpenCodePaths, IS_WIN,
+    amp_paths_resolved, antigravity_paths_resolved, claude_code_paths, clear_home_override,
+    clear_write_file_override, cline_paths_resolved, codex_paths_resolved, copilot_paths_resolved,
+    copy_dir_merge, cursor_global_mcp_path, cursor_paths_resolved, ensure_dir, exists, home,
+    is_go_test_executable, is_test_executable, is_win, kilo_paths_resolved, kimi_paths_resolved,
+    open_code_paths_resolved, opencode_config_dir_v2, opencode_paths_resolved, opencode_paths_v2,
+    persisted_tokless_command, read_file_safe, set_home_override, set_write_file_override,
+    sh_quote, split_command, stable_executable, temp_dir, tokless_abs, tokless_abs_strict,
+    tokless_data_dir, tokless_persisted_abs, which, write_file, write_file_atomic,
+    write_file_mode, zcode_paths_resolved, AmpPaths, AntigravityPaths, ClaudePaths, ClinePaths,
+    CodexPaths, CopilotPaths, CursorPaths, KiloPaths, KimiPaths, OpenCodePaths, ZcodePaths, IS_WIN,
 };
 pub use pathsetup::*;
 pub use preflight::*;
@@ -88,6 +91,8 @@ pub use routing_lock::*;
 pub use routing_plan::*;
 pub use routing_state::*;
 pub use routing_store::*;
+pub use rtk_commands::*;
+pub use selection::*;
 pub use toml::*;
 pub use uv::*;
 pub use version::tokless_version;

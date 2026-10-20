@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/principles.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::sync::Arc;
 use crate::core::{Channel, ToolManifest};
@@ -26,7 +26,8 @@ pub fn build_principles() -> ToolManifest {
     tool.install = Some(Arc::new(|_opts| Ok(true)));
 
     let standard_agents = [
-        "claude", "opencode", "codex", "antigravity", "droid", "grok", "pi", "omp", "cline",
+        "claude", "opencode", "opencode2", "codex", "antigravity", "droid", "grok", "pi", "omp",
+        "cline", "amp", "kimi", "zcode", "dsh",
     ];
 
     for agent_id in standard_agents {

@@ -150,6 +150,15 @@ impl<'a> SysrootManager<'a> {
                     dest: dest_target.to_string_lossy().to_string(),
                     symlink_type: "header".to_string(),
                 });
+
+                if host_compat {
+                    let host_dest_target = host_usr.join("include").join(&file_name);
+                    if file_path.is_dir() {
+                        let _ = LinkEngine::link_dir(&file_path, &host_dest_target);
+                    } else {
+                        let _ = LinkEngine::link_file(&file_path, &host_dest_target, false);
+                    }
+                }
             }
         }
 
@@ -176,6 +185,11 @@ impl<'a> SysrootManager<'a> {
                             dest: dest_target.to_string_lossy().to_string(),
                             symlink_type: "lib".to_string(),
                         });
+
+                        if host_compat {
+                            let host_dest_target = host_usr.join("lib").join(&file_name);
+                            let _ = LinkEngine::link_file(&file_path, &host_dest_target, false);
+                        }
                     }
                 }
             }
@@ -207,6 +221,15 @@ impl<'a> SysrootManager<'a> {
                     dest: dest_target.to_string_lossy().to_string(),
                     symlink_type: "share".to_string(),
                 });
+
+                if host_compat {
+                    let host_dest_target = host_usr.join("share").join(&file_name);
+                    if file_path.is_dir() {
+                        let _ = LinkEngine::link_dir(&file_path, &host_dest_target);
+                    } else {
+                        let _ = LinkEngine::link_file(&file_path, &host_dest_target, false);
+                    }
+                }
             }
         }
 

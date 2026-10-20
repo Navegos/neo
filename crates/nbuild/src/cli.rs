@@ -295,6 +295,29 @@ pub fn run() -> Result<()> {
                 }
             }
 
+            if cat.is_vcpkg() {
+                let vcpkg = crate::core::VcpkgManager::new();
+                let mut meta = vcpkg.install_package(&config, &target, cat)?;
+                let symlinks = sysroot.link_package(&target, &mut meta)?;
+                if !cli.quiet {
+                    println!("[nbuild] Successfully provisioned {} v{} from vcpkg. Created {} symlinks.", cat.name, meta.version, symlinks.len());
+                }
+                if cli.json {
+                    AgentReporter::success(
+                        InstallReport {
+                            package: cat.name.clone(),
+                            version: meta.version.clone(),
+                            triple: target.raw.clone(),
+                            distro_path: distro_path.to_string_lossy().to_string(),
+                            symlinks_count: symlinks.len(),
+                            env_exports: meta.env_exports,
+                        },
+                        true,
+                    );
+                }
+                return Ok(());
+            }
+
             let recipe_opt = cat.targets.get(&target.raw)
                 .or_else(|| cat.targets.get(target.platform.as_str()));
 
@@ -489,6 +512,14 @@ pub fn run() -> Result<()> {
 
             let sysroot = SysrootManager::new(&config);
             sysroot.ensure_gnu_toolchain_dirs(&target)?;
+
+            if cat.is_vcpkg() {
+                let vcpkg = crate::core::VcpkgManager::new();
+                let mut meta = vcpkg.install_package(&config, &target, cat)?;
+                let symlinks = sysroot.link_package(&target, &mut meta)?;
+                println!("[nbuild] Successfully updated {} to v{}. Generated {} symlinks.", cat.name, meta.version, symlinks.len());
+                return Ok(());
+            }
 
             let recipe_opt = cat.targets.get(&target.raw)
                 .or_else(|| cat.targets.get(target.platform.as_str()));

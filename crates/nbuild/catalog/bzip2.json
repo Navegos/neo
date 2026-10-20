@@ -2,13 +2,39 @@
   "name": "bzip2",
   "category": "library",
   "target_level": "user",
-  "description": "High-quality data compression library (libbz2)",
-  "remote_repo": "libarchive/bzip2",
-  "git_url": "https://gitlab.com/bzip2/bzip2.git",
+  "description": "High-quality data compression library and tools (libbz2, bzip2)",
+  "remote_repo": "microsoft/vcpkg",
+  "git_url": "https://github.com/microsoft/vcpkg.git",
+  "dependencies": ["vcpkg"],
+  "manager": "vcpkg",
+  "vcpkg_port": "bzip2[tool]",
+  "vcpkg_headers": ["bzlib.h"],
+  "vcpkg_libs": ["bz2"],
+  "vcpkg_tools": ["bzip2", "bzip2recover"],
+  "targets": {
+    "windows": {
+      "source": {
+        "type": "vcpkg",
+        "url": "bzip2[tool]"
+      },
+      "build": {
+        "builder": "vcpkg"
+      }
+    },
+    "linux": {
+      "source": {
+        "type": "vcpkg",
+        "url": "bzip2[tool]"
+      },
+      "build": {
+        "builder": "vcpkg"
+      }
+    }
+  },
   "env_exports": {
     "BZIP2_ROOT": ["."],
     "INCLUDE": ["include"],
-    "LIB": ["lib"]
+    "LIB": ["lib"],
+    "PATH": ["bin"]
   }
 }
-

@@ -29,7 +29,7 @@ crates/tokless/src/
 - **Watchdog & Process Identity**: Monitors agent daemon processes, automatic resurrection on failure, and health watchdog.
 
 ### 2. Supported Agent Profiles (`src/agents`)
-Native configuration, automatic hook injection, and proxy protocol handling for 12 AI coding agents:
+Native configuration, automatic hook injection, and proxy protocol handling for 17 AI coding agents:
 1. **Antigravity** (Google AGY CLI & IDE)
 2. **Claude Code** (Anthropic CLI)
 3. **Cline** (VS Code / JetBrains extension)
@@ -40,8 +40,13 @@ Native configuration, automatic hook injection, and proxy protocol handling for 
 8. **Grok** (xAI Grok agent)
 9. **Kilo** (Kilo code assistant)
 10. **OMP** (Open Multi-Agent Platform)
-11. **OpenCode** (Open-source agent runner)
-12. **Pi** (Pi agent rust harness)
+11. **OpenCode** (Open-source agent runner v1)
+12. **OpenCode2** (Open-source agent runner v2)
+13. **Pi** (Pi agent rust harness)
+14. **Amp** (Amp agent)
+15. **Kimi Code** (Kimi Code agent)
+16. **ZCode** (ZCode agent)
+17. **DeepSeek Harness** (`dsh`)
 
 ### 3. Token Compression & Headroom Tools (`src/tools`)
 - **RTK (Runtime Token Kernel)**: Condenses CLI command output, strips redundant build noise, pagination traces, and whitespace while preserving essential error lines and exit codes.

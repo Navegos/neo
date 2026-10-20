@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/util/routing_plan.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use super::routing_state::{
     valid_byok_protocol, valid_routing_id, valid_routing_token, validate_routing_state,
@@ -28,9 +28,9 @@ impl RoutingSnapshot {
         self.state.generation
     }
 
-    pub fn resolve_request<F>(
+    pub fn resolve_request_ref<F>(
         &self,
-        request: RouteRequest,
+        request: &RouteRequest,
         ownership: F,
     ) -> Result<RouteSelection, Box<dyn std::error::Error + Send + Sync>>
     where
@@ -55,6 +55,17 @@ impl RoutingSnapshot {
         Ok(selection)
     }
 
+    pub fn resolve_request<F>(
+        &self,
+        request: RouteRequest,
+        ownership: F,
+    ) -> Result<RouteSelection, Box<dyn std::error::Error + Send + Sync>>
+    where
+        F: FnOnce(&RouteSelection) -> bool,
+    {
+        self.resolve_request_ref(&request, ownership)
+    }
+
     pub fn resolve_request_with_lease<F>(
         &self,
         request: RouteRequest,
@@ -68,7 +79,7 @@ impl RoutingSnapshot {
         if !lease_live(lease, chrono::Utc::now()) {
             return Err("routing lease is unavailable".into());
         }
-        let mut selection = self.resolve_request(request, |sel| {
+        let mut selection = self.resolve_request_ref(&request, |sel| {
             if !lease_matches_state(lease, &self.state)
                 || lease.lane_id != sel.lane_id
                 || lease.listener != sel.listener
@@ -190,4 +201,74 @@ pub fn resolve_route(
         return Err("route lane is unavailable".into());
     }
     Err("unknown route credential".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::util::routing_state::{LaneBinding, RouteBinding, ROUTING_STATE_COMMITTED, ROUTING_STATE_VERSION};
+    use std::time::Instant;
+
+    #[test]
+    fn test_benchmark_routing_snapshot_resolve() {
+        use crate::util::routing_state::new_routing_token;
+        let tok = new_routing_token().expect("token");
+        let route = RouteBinding {
+            id: "route_test".to_string(),
+            token: tok.clone(),
+            profile_id: "prof_1".to_string(),
+            surface_id: "surf_1".to_string(),
+            provider_instance_id: "prov_1".to_string(),
+            protocol: "openai-chat".to_string(),
+            lane_id: "lane_1".to_string(),
+            lane_instance_nonce: "nonce_lane".to_string(),
+            coordinator_nonce: "nonce_coord".to_string(),
+            upstream_id: "up_1".to_string(),
+            config_fingerprint: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_string(),
+            generation: 1,
+            revoked: false,
+            revoked_generation: 0,
+        };
+        let lane = LaneBinding {
+            id: "lane_1".to_string(),
+            instance_nonce: "nonce_lane".to_string(),
+            coordinator_nonce: "nonce_coord".to_string(),
+            provider_instance_id: "prov_1".to_string(),
+            protocol: "openai-chat".to_string(),
+            upstream_id: "up_1".to_string(),
+            port: 19890,
+            listener: "127.0.0.1:19890".to_string(),
+            generation: 1,
+            ready: true,
+        };
+        let state = RoutingState {
+            version: ROUTING_STATE_VERSION,
+            generation: 1,
+            previous_generation: 0,
+            state: ROUTING_STATE_COMMITTED.to_string(),
+            coordinator_nonce: "nonce_coord".to_string(),
+            commit_nonce: "nonce_commit".to_string(),
+            routes: vec![route],
+            lanes: vec![lane],
+        };
+
+        let snapshot = RoutingSnapshot::new(state).expect("valid snapshot");
+        let start = Instant::now();
+        let iterations = 10_000;
+        let cred = format!("route_test.{}", tok);
+        for _ in 0..iterations {
+            let req = RouteRequest {
+                credential: cred.clone(),
+                protocol: "openai-chat".to_string(),
+                method: "POST".to_string(),
+                path: "/v1/chat/completions".to_string(),
+                raw_path: String::new(),
+                raw_query: String::new(),
+            };
+            let sel = snapshot.resolve_request(req, |_| true);
+            assert!(sel.is_ok());
+        }
+        let elapsed = start.elapsed();
+        assert!(elapsed.as_millis() < 500, "Resolution took too long: {:?}", elapsed);
+    }
 }

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/agents/proxy_provider.rs
 // created: 2026-10-11
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -173,7 +173,8 @@ pub fn proxy_route_stash_lock() -> String {
 #[cfg(windows)]
 pub fn proxy_process_alive(pid: u32) -> bool {
     const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
-    const STILL_ACTIVE: u32 = 259;
+    const SYNCHRONIZE: u32 = 0x00100000;
+    const WAIT_TIMEOUT: u32 = 258;
 
     #[link(name = "kernel32")]
     unsafe extern "system" {
@@ -182,19 +183,18 @@ pub fn proxy_process_alive(pid: u32) -> bool {
             bInheritHandle: i32,
             dwProcessId: u32,
         ) -> *mut std::ffi::c_void;
-        fn GetExitCodeProcess(hProcess: *mut std::ffi::c_void, lpExitCode: *mut u32) -> i32;
+        fn WaitForSingleObject(hHandle: *mut std::ffi::c_void, dwMilliseconds: u32) -> u32;
         fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
     }
 
     unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, 0, pid);
         if handle.is_null() {
             return false;
         }
-        let mut code: u32 = 0;
-        let ret = GetExitCodeProcess(handle, &mut code as *mut u32);
+        let wait_res = WaitForSingleObject(handle, 0);
         let _ = CloseHandle(handle);
-        ret != 0 && code == STILL_ACTIVE
+        wait_res == WAIT_TIMEOUT
     }
 }
 
@@ -365,6 +365,23 @@ pub fn save_proxy_route_stash(
 
 pub fn load_proxy_route_stash(agent: &str) -> HashMap<String, ProxyRouteStashEntry> {
     load_proxy_route_stash_locked(agent)
+}
+
+pub const BYOK_ROUTE_HEADER_KEY: &str = "X-Tokless-Route";
+
+pub fn byok_route_header_key() -> &'static str {
+    BYOK_ROUTE_HEADER_KEY
+}
+
+pub fn route_upstream_to_base_url(upstream: &str, api: &str) -> String {
+    let mut u = upstream.trim().trim_end_matches('/').to_string();
+    if u.is_empty() {
+        return String::new();
+    }
+    if (api == "openai-completions" || api == "openai-responses") && !u.to_ascii_lowercase().ends_with("/v1") {
+        u.push_str("/v1");
+    }
+    u
 }
 
 pub fn normalized_headroom_upstream(base_url: &str, api: &str) -> String {

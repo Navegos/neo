@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/rtk.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::env;
 use std::fs;
@@ -28,10 +28,10 @@ use crate::util::exec::run_cmd;
 use crate::util::instructions::{cursor_project_rule_content, install_cursor_project_rules};
 use crate::util::jsonc::{stringify_json, try_parse_jsonc, OrderedMap, Value};
 use crate::util::paths::{
-    claude_code_paths, cline_paths_resolved, cursor_paths_resolved, ensure_dir, exists, home,
-    is_win, kilo_paths_resolved, opencode_paths_resolved, persisted_tokless_command,
-    prepend_process_path, read_file_safe, resolve_rtk_bin, temp_dir, tokless_persisted_abs,
-    which, write_file_atomic,
+    amp_paths_resolved, claude_code_paths, cline_paths_resolved, cursor_paths_resolved, ensure_dir,
+    exists, home, is_win, kilo_paths_resolved, opencode_paths_resolved, persisted_tokless_command,
+    prepend_process_path, read_file_safe, resolve_rtk_bin, temp_dir, tokless_persisted_abs, which,
+    write_file_atomic, zcode_paths_resolved,
 };
 use super::copilot_transaction::with_copilot_transaction;
 use super::helpers::{
@@ -487,6 +487,294 @@ fn opencode_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
     Ok(opencode_rtk_plugin_valid() && has_owner("opencode", "rtk"))
 }
 
+// --- Amp RTK Plugin ---
+
+const AMP_RTK_PLUGIN: &str = r#"// tokless-rtk
+const TOKLESS_BIN = %TOKLESS%
+
+export default function (amp: any) {
+  amp.on("tool.call", async (event: any) => {
+    const cmd = amp.helpers?.shellCommandFromToolCall?.(event)
+    const command = typeof cmd === "string" ? cmd : cmd?.command
+    if (typeof command !== "string" || command.length === 0) return
+    try {
+      const { spawnSync } = await import("node:child_process")
+      const r = spawnSync(TOKLESS_BIN, ["rtk-rewrite", "--", command], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+      if (r.status !== 0 || typeof r.stdout !== "string") return
+      const rewritten = r.stdout.trim()
+      if (!rewritten || rewritten === command) return
+      const key = typeof event.input?.cmd === "string" ? "cmd" : "command"
+      return { action: "modify", input: { ...event.input, [key]: rewritten } }
+    } catch {}
+  })
+}
+"#;
+
+pub fn amp_rtk_plugin_path() -> String {
+    Path::new(&amp_paths_resolved().dir)
+        .join("plugins")
+        .join("tokless-rtk.ts")
+        .to_string_lossy()
+        .to_string()
+}
+
+pub fn amp_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
+    if opts.dry_run {
+        return Ok(true);
+    }
+    let exe = tokless_persisted_abs();
+    if exe.is_empty() {
+        return Ok(false);
+    }
+    let p = amp_rtk_plugin_path();
+    let quoted_exe = stringify_json(&Value::String(exe));
+    let want = AMP_RTK_PLUGIN.replace("%TOKLESS%", &quoted_exe);
+    if let Some(raw) = read_file_safe(&p) {
+        if raw != want && !raw.starts_with("// tokless-rtk") {
+            return Ok(false);
+        }
+    }
+    if let Some(parent) = Path::new(&p).parent() {
+        ensure_dir(parent)?;
+    }
+    write_file_atomic(&p, &want)?;
+    Ok(amp_rtk_verify())
+}
+
+pub fn amp_rtk_verify() -> bool {
+    let p = amp_rtk_plugin_path();
+    let exe = tokless_persisted_abs();
+    let quoted_exe = stringify_json(&Value::String(exe));
+    let want = AMP_RTK_PLUGIN.replace("%TOKLESS%", &quoted_exe);
+    read_file_safe(&p).map(|r| r == want).unwrap_or(false)
+}
+
+pub fn amp_rtk_unwire() -> Result<bool, DynError> {
+    let p = amp_rtk_plugin_path();
+    if let Some(raw) = read_file_safe(&p) {
+        let exe = tokless_persisted_abs();
+        let quoted_exe = stringify_json(&Value::String(exe));
+        let want = AMP_RTK_PLUGIN.replace("%TOKLESS%", &quoted_exe);
+        if raw == want || raw.starts_with("// tokless-rtk") {
+            let _ = fs::remove_file(&p);
+        }
+    }
+    crate::agents::amp::remove_amp_rtk_permissions();
+    Ok(true)
+}
+
+// --- ZCode RTK PreToolUse Hook ---
+
+fn zcode_rtk_hook_managed(hook: &OrderedMap) -> bool {
+    let Some(Value::Array(arr)) = hook.get("args") else {
+        return false;
+    };
+    if arr.len() != 2 {
+        return false;
+    }
+    let a = arr.get(0).and_then(|v| v.as_str());
+    let b = arr.get(1).and_then(|v| v.as_str());
+    let cmd = hook.get("command").and_then(|v| v.as_str());
+    if a != Some("rtk-hook") || b != Some("zcode") || cmd.is_none() {
+        return false;
+    }
+    let base = Path::new(cmd.unwrap())
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    base == "tokless"
+}
+
+pub fn zcode_wire_rtk(opts: &RunOpts) -> Result<bool, DynError> {
+    if opts.dry_run {
+        return Ok(true);
+    }
+    let exe = tokless_persisted_abs();
+    if exe.is_empty() {
+        return Ok(false);
+    }
+    let p = zcode_paths_resolved().config;
+    let mut cfg = read_file_safe(&p)
+        .and_then(|raw| try_parse_jsonc(&raw))
+        .and_then(|v| match v {
+            Value::Object(m) => Some(m),
+            _ => None,
+        })
+        .unwrap_or_default();
+
+    let hooks_val = cfg.entry("hooks".to_string()).or_insert_with(|| Value::Object(OrderedMap::new()));
+    let hooks = match hooks_val {
+        Value::Object(m) => m,
+        _ => return Ok(false),
+    };
+    hooks.insert("enabled".to_string(), Value::Bool(true));
+
+    let events_val = hooks.entry("events".to_string()).or_insert_with(|| Value::Object(OrderedMap::new()));
+    let events = match events_val {
+        Value::Object(m) => m,
+        _ => return Ok(false),
+    };
+
+    let pre_val = events.entry("PreToolUse".to_string()).or_insert_with(|| Value::Array(Vec::new()));
+    let arr = match pre_val {
+        Value::Array(a) => a,
+        _ => return Ok(false),
+    };
+
+    let mut managed = false;
+    for group_val in arr.iter_mut() {
+        if let Value::Object(group) = group_val {
+            if group.get("matcher").and_then(|v| v.as_str()) != Some("Bash") {
+                continue;
+            }
+            if let Some(Value::Array(hook_arr)) = group.get_mut("hooks") {
+                for hook_val in hook_arr.iter_mut() {
+                    if let Value::Object(hook) = hook_val {
+                        if zcode_rtk_hook_managed(hook) {
+                            hook.insert("type".to_string(), Value::String("process".to_string()));
+                            hook.insert("command".to_string(), Value::String(exe.clone()));
+                            hook.insert(
+                                "args".to_string(),
+                                Value::Array(vec![
+                                    Value::String("rtk-hook".to_string()),
+                                    Value::String("zcode".to_string()),
+                                ]),
+                            );
+                            hook.insert("enabled".to_string(), Value::Bool(true));
+                            hook.insert("timeoutMs".to_string(), Value::Number(10000.into()));
+                            managed = true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if !managed {
+        let mut hook = OrderedMap::new();
+        hook.insert("type".to_string(), Value::String("process".to_string()));
+        hook.insert("command".to_string(), Value::String(exe));
+        hook.insert(
+            "args".to_string(),
+            Value::Array(vec![
+                Value::String("rtk-hook".to_string()),
+                Value::String("zcode".to_string()),
+            ]),
+        );
+        hook.insert("enabled".to_string(), Value::Bool(true));
+        hook.insert("timeoutMs".to_string(), Value::Number(10000.into()));
+
+        let mut group = OrderedMap::new();
+        group.insert("matcher".to_string(), Value::String("Bash".to_string()));
+        group.insert("hooks".to_string(), Value::Array(vec![Value::Object(hook)]));
+
+        arr.push(Value::Object(group));
+    }
+
+    if let Some(parent) = Path::new(&p).parent() {
+        ensure_dir(parent)?;
+    }
+    write_file_atomic(&p, &stringify_json(&Value::Object(cfg)))?;
+    Ok(zcode_rtk_verify())
+}
+
+pub fn zcode_unwire_rtk() -> Result<bool, DynError> {
+    let p = zcode_paths_resolved().config;
+    let Some(raw) = read_file_safe(&p) else {
+        return Ok(true);
+    };
+    let Some(Value::Object(mut cfg)) = try_parse_jsonc(&raw) else {
+        return Ok(false);
+    };
+    let Some(Value::Object(mut hooks)) = cfg.remove("hooks") else {
+        return Ok(true);
+    };
+    let Some(Value::Object(mut events)) = hooks.remove("events") else {
+        cfg.insert("hooks".to_string(), Value::Object(hooks));
+        return Ok(true);
+    };
+    if let Some(Value::Array(arr)) = events.remove("PreToolUse") {
+        let mut kept_groups = Vec::new();
+        for group_val in arr {
+            if let Value::Object(mut group) = group_val {
+                if let Some(Value::Array(hook_arr)) = group.remove("hooks") {
+                    let kept_hooks: Vec<Value> = hook_arr
+                        .into_iter()
+                        .filter(|h| match h {
+                            Value::Object(m) => !zcode_rtk_hook_managed(m),
+                            _ => true,
+                        })
+                        .collect();
+                    if !kept_hooks.is_empty() {
+                        group.insert("hooks".to_string(), Value::Array(kept_hooks));
+                        kept_groups.push(Value::Object(group));
+                    }
+                } else {
+                    kept_groups.push(Value::Object(group));
+                }
+            } else {
+                kept_groups.push(group_val);
+            }
+        }
+        if !kept_groups.is_empty() {
+            events.insert("PreToolUse".to_string(), Value::Array(kept_groups));
+        }
+    }
+    if !events.is_empty() {
+        hooks.insert("events".to_string(), Value::Object(events));
+    }
+    if !hooks.is_empty() && (hooks.len() > 1 || !hooks.contains_key("enabled")) {
+        cfg.insert("hooks".to_string(), Value::Object(hooks));
+    }
+    write_file_atomic(&p, &stringify_json(&Value::Object(cfg)))?;
+    Ok(true)
+}
+
+pub fn zcode_rtk_verify() -> bool {
+    let p = zcode_paths_resolved().config;
+    let Some(raw) = read_file_safe(&p) else {
+        return false;
+    };
+    let Some(Value::Object(cfg)) = try_parse_jsonc(&raw) else {
+        return false;
+    };
+    let Some(Value::Object(hooks)) = cfg.get("hooks") else {
+        return false;
+    };
+    if hooks.get("enabled").and_then(|v| v.as_bool()) != Some(true) {
+        return false;
+    }
+    let Some(Value::Object(events)) = hooks.get("events") else {
+        return false;
+    };
+    let Some(Value::Array(pre)) = events.get("PreToolUse") else {
+        return false;
+    };
+    for group in pre {
+        if let Value::Object(g) = group {
+            if g.get("matcher").and_then(|v| v.as_str()) != Some("Bash") {
+                continue;
+            }
+            if let Some(Value::Array(hook_arr)) = g.get("hooks") {
+                for hook in hook_arr {
+                    if let Value::Object(h) = hook {
+                        if let Some(Value::Array(args)) = h.get("args") {
+                            if args.len() == 2
+                                && args[0].as_str() == Some("rtk-hook")
+                                && args[1].as_str() == Some("zcode")
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 // --- Claude PreToolUse Hook ---
 
 pub fn remove_claude_rtk_hook_group(groups: Vec<Value>) -> Vec<Value> {
@@ -896,6 +1184,46 @@ pub fn build_rtk() -> ToolManifest {
         "grok".into(),
         Arc::new(|| Some(has_grok_rtk_hook() && has_owner("grok", "rtk"))),
     );
+
+    // Amp
+    tool.wire_for.insert("amp".into(), Arc::new(|opts| amp_rtk_wire(opts)));
+    tool.unwire_for.insert("amp".into(), Arc::new(|_opts| amp_rtk_unwire()));
+    tool.verify_for.insert("amp".into(), Arc::new(|| Some(amp_rtk_verify())));
+
+    // Dsh
+    tool.wire_for.insert(
+        "dsh".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let exe = tokless_persisted_abs();
+            let (changed, _, err) = crate::agents::dsh::configure_dsh_rtk(&exe);
+            if let Some(e) = err {
+                return Err(e.into());
+            }
+            Ok(changed || crate::agents::dsh::dsh_rtk_wired())
+        }),
+    );
+    tool.unwire_for.insert(
+        "dsh".into(),
+        Arc::new(|opts| {
+            if opts.dry_run {
+                return Ok(true);
+            }
+            let _ = crate::agents::dsh::remove_dsh_rtk();
+            Ok(true)
+        }),
+    );
+    tool.verify_for.insert(
+        "dsh".into(),
+        Arc::new(|| Some(crate::agents::dsh::dsh_rtk_wired())),
+    );
+
+    // ZCode
+    tool.wire_for.insert("zcode".into(), Arc::new(|opts| zcode_wire_rtk(opts)));
+    tool.unwire_for.insert("zcode".into(), Arc::new(|_opts| zcode_unwire_rtk()));
+    tool.verify_for.insert("zcode".into(), Arc::new(|| Some(zcode_rtk_verify())));
 
     tool
 }

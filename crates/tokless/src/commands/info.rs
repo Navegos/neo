@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/info.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::env;
 use crate::commands::helpers::*;
@@ -28,22 +28,39 @@ pub fn run_info() -> i32 {
     tree_close();
 
     tree_corner("Agents");
-    let mut n_agents = 0;
-    for agent in list_agents() {
-        if !agent.detect().installed {
-            continue;
-        }
-        n_agents += 1;
-        let dir = if let Some(ref cf) = agent.config_dir {
-            tilde_path(&cf())
-        } else {
-            String::new()
-        };
-        let path_str = if !dir.is_empty() { paint_path(&dir) } else { C.dim("—") };
-        tree_leaf(&format!("{} {} {}", C.green(Sym::CHECK), paint_name(&pad_end(&agent.label, 16)), path_str));
-    }
-    if n_agents == 0 {
+    let all_agents = list_agents();
+    let detected_agents: Vec<(std::sync::Arc<crate::core::AgentManifest>, String)> =
+        std::thread::scope(|s| {
+            let mut handles = Vec::with_capacity(all_agents.len());
+            for agent in &all_agents {
+                handles.push(s.spawn(move || {
+                    if !agent.detect().installed {
+                        return None;
+                    }
+                    let dir = if let Some(ref cf) = agent.config_dir {
+                        tilde_path(&cf())
+                    } else {
+                        String::new()
+                    };
+                    Some((agent.clone(), dir))
+                }));
+            }
+            let mut res = Vec::new();
+            for h in handles {
+                if let Ok(Some(item)) = h.join() {
+                    res.push(item);
+                }
+            }
+            res
+        });
+
+    if detected_agents.is_empty() {
         tree_leaf(&C.dim("none detected on this machine"));
+    } else {
+        for (agent, dir) in &detected_agents {
+            let path_str = if !dir.is_empty() { paint_path(dir) } else { C.dim("—") };
+            tree_leaf(&format!("{} {} {}", C.green(Sym::CHECK), paint_name(&pad_end(&agent.label, 16)), path_str));
+        }
     }
     tree_close();
 

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/mcp_proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::collections::HashSet;
 use std::io::{self, BufRead, BufReader, Read, Write};
@@ -128,8 +128,14 @@ pub fn run_mcp_proxy(
 }
 
 fn run_unbounded_proxy(child: &mut Child) -> i32 {
-    let mut child_in = child.stdin.take().unwrap();
-    let mut child_out = child.stdout.take().unwrap();
+    let mut child_in = match child.stdin.take() {
+        Some(cin) => cin,
+        None => return 1,
+    };
+    let mut child_out = match child.stdout.take() {
+        Some(cout) => cout,
+        None => return 1,
+    };
 
     let t1 = std::thread::spawn(move || {
         let mut stdin = io::stdin();
@@ -173,32 +179,30 @@ pub fn read_mcp_message<R: BufRead>(reader: &mut R) -> io::Result<Option<(Vec<u8
         Some(l) => l,
         None => return Ok(None),
     };
-    let line_str = String::from_utf8_lossy(&line);
-    let parts: Vec<&str> = line_str.splitn(2, ':').collect();
-    if !parts[0].eq_ignore_ascii_case("Content-Length") {
-        return Ok(Some((line, McpFraming::NdJson)));
-    }
-    if parts.len() != 2 {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid Content-Length header"));
-    }
-    let length: usize = parts[1].trim().parse().map_err(|_| {
-        io::Error::new(io::ErrorKind::InvalidData, "invalid Content-Length")
-    })?;
-    if length > MAX_MCP_MESSAGE_SIZE {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid Content-Length"));
-    }
-    loop {
-        let header = match read_mcp_line(reader)? {
-            Some(h) => h,
-            None => return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF in header")),
-        };
-        if header.is_empty() {
-            break;
+    if line.len() >= 15 && line[..15].eq_ignore_ascii_case(b"Content-Length:") {
+        let len_str = std::str::from_utf8(&line[15..])
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "invalid Content-Length"))?
+            .trim();
+        let length: usize = len_str.parse().map_err(|_| {
+            io::Error::new(io::ErrorKind::InvalidData, "invalid Content-Length")
+        })?;
+        if length > MAX_MCP_MESSAGE_SIZE {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "invalid Content-Length"));
         }
+        loop {
+            let header = match read_mcp_line(reader)? {
+                Some(h) => h,
+                None => return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "unexpected EOF in header")),
+            };
+            if header.is_empty() {
+                break;
+            }
+        }
+        let mut message = vec![0u8; length];
+        reader.read_exact(&mut message)?;
+        return Ok(Some((message, McpFraming::ContentLength)));
     }
-    let mut message = vec![0u8; length];
-    reader.read_exact(&mut message)?;
-    Ok(Some((message, McpFraming::ContentLength)))
+    Ok(Some((line, McpFraming::NdJson)))
 }
 
 fn read_mcp_line<R: BufRead>(reader: &mut R) -> io::Result<Option<Vec<u8>>> {
@@ -457,8 +461,14 @@ pub fn rewrite_mcp_instructions(line: &[u8], instructions: &str) -> Option<Vec<u
 }
 
 fn run_bounded_mcp_proxy(child: &mut Child, allowed: &[&str], is_projectmem: bool) -> i32 {
-    let mut child_in = child.stdin.take().unwrap();
-    let child_out = child.stdout.take().unwrap();
+    let mut child_in = match child.stdin.take() {
+        Some(cin) => cin,
+        None => return 1,
+    };
+    let child_out = match child.stdout.take() {
+        Some(cout) => cout,
+        None => return 1,
+    };
 
     let list_ids = Arc::new(RwLock::new(McpRequestIDs {
         init_ids: HashSet::new(),
@@ -466,7 +476,8 @@ fn run_bounded_mcp_proxy(child: &mut Child, allowed: &[&str], is_projectmem: boo
     let locked_output = Arc::new(McpLockedWriter::new(io::stdout()));
 
     let allowed_vec: Vec<String> = allowed.iter().map(|s| s.to_string()).collect();
-    let allowed_for_in = allowed_vec.clone();
+    let allowed_set: HashSet<String> = allowed.iter().map(|s| s.to_string()).collect();
+    let allowed_set_in = allowed_set.clone();
     let ids_in = list_ids.clone();
     let out_for_in = locked_output.clone();
 
@@ -502,7 +513,7 @@ fn run_bounded_mcp_proxy(child: &mut Child, allowed: &[&str], is_projectmem: boo
                             .and_then(|p| p.get("name"))
                             .and_then(|n| n.as_str())
                             .unwrap_or("");
-                        if !allowed_for_in.contains(&tool_name.to_string()) {
+                        if !allowed_set_in.contains(tool_name) {
                             let _ = out_for_in.write_mcp_message(
                                 framing,
                                 &mcp_tool_denied_response(id_val, tool_name),
@@ -542,16 +553,18 @@ fn run_bounded_mcp_proxy(child: &mut Child, allowed: &[&str], is_projectmem: boo
             Err(_) => break,
         };
 
-        if let Ok(Value::Object(map)) = serde_json::from_slice::<Value>(&message) {
-            if let Some(result) = map.get("result") {
-                if result.get("tools").is_some() {
-                    message = filter_mcp_tools_response(&message, &allowed_refs);
-                }
-                if is_projectmem {
-                    if let Some(id) = map.get("id").and_then(canonical_mcp_id) {
-                        if ids_out.read().unwrap().init_ids.contains(&id) {
-                            if let Some(rewritten) = rewrite_mcp_instructions(&message, PROJECTMEM_MCP_INSTRUCTIONS) {
-                                message = rewritten;
+        if message.windows(8).any(|w| w == b"\"result\"") {
+            if let Ok(Value::Object(map)) = serde_json::from_slice::<Value>(&message) {
+                if let Some(result) = map.get("result") {
+                    if result.get("tools").is_some() {
+                        message = filter_mcp_tools_response(&message, &allowed_refs);
+                    }
+                    if is_projectmem {
+                        if let Some(id) = map.get("id").and_then(canonical_mcp_id) {
+                            if ids_out.read().unwrap().init_ids.contains(&id) {
+                                if let Some(rewritten) = rewrite_mcp_instructions(&message, PROJECTMEM_MCP_INSTRUCTIONS) {
+                                    message = rewritten;
+                                }
                             }
                         }
                     }

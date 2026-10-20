@@ -3,32 +3,39 @@
 // project: neo
 // file: crates/tokless/src/agents/proxy_agent.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
+
+use std::path::Path;
 
 use crate::core::get_agent;
+use crate::util::paths;
 use crate::util::which;
 
+use super::amp::{amp_rtk_permissions_wired, configure_amp_rtk_permissions_auto, remove_amp_rtk_permissions};
 use super::antigravity::{
     antigravity_proxy_wired, configure_antigravity_proxy, remove_antigravity_proxy,
 };
 use super::claude::{claude_proxy_wired, configure_claude_proxy, remove_claude_proxy};
-use super::cline::{cline_proxy_wired, configure_cline_proxy, remove_cline_proxy};
+use super::cline::{cline_providers_file, cline_proxy_wired, configure_cline_proxy, remove_cline_proxy};
 use super::codex::{codex_proxy_wired, configure_codex_proxy, remove_codex_proxy};
 use super::copilot::{
-    configure_copilot_all_proxy, configure_copilot_proxy, copilot_proxy_wired,
-    remove_copilot_proxy,
+    configure_copilot_all_proxy, configure_copilot_proxy, copilot_config_path,
+    copilot_proxy_wired, remove_copilot_proxy,
 };
-use super::droid::{configure_droid_proxy, droid_proxy_wired, remove_droid_proxy};
+use super::droid::{configure_droid_proxy, droid_proxy_wired, droid_settings_file, remove_droid_proxy};
+use super::dsh::{configure_dsh_proxy, dsh_patch_file, dsh_proxy_wired, remove_dsh_proxy};
 use super::grok::{
     grok_proxy_applicable, grok_proxy_wired, remove_grok_proxy_checked,
 };
 use super::kilo::{configure_kilo_proxy, kilo_proxy_wired, remove_kilo_proxy};
-use super::omp::{configure_omp_proxy, omp_proxy_wired, remove_omp_proxy};
+use super::kimi::{configure_kimi_proxy, kimi_proxy_wired, remove_kimi_proxy};
+use super::omp::{configure_omp_proxy, omp_models_file, omp_proxy_wired, remove_omp_proxy};
 use super::opencode::{
     configure_open_code_proxy, open_code_proxy_satisfied, open_code_proxy_wired,
     remove_open_code_proxy,
 };
-use super::pi::{configure_pi_proxy, pi_proxy_wired, remove_pi_proxy};
+use super::pi::{configure_pi_proxy, pi_models_file, pi_proxy_wired, remove_pi_proxy};
+use super::zcode::{configure_zcode_proxy, remove_zcode_proxy, zcode_provider_config_path, zcode_proxy_wired};
 
 pub use super::proxy_detection::{
     detect_all_proxies, detect_proxy, proxy_capabilities, proxy_capability_for, proxy_state_label,
@@ -90,6 +97,26 @@ pub const PROXY_AGENT_SPECS: &[ProxyAgentSpec] = &[
         wire_kind: ProxyWireKind::ManagedRoute,
     },
     ProxyAgentSpec {
+        id: "kimi",
+        protocol: ProxyProtocol::OpenAICompatible,
+        wire_kind: ProxyWireKind::AdditiveProvider,
+    },
+    ProxyAgentSpec {
+        id: "zcode",
+        protocol: ProxyProtocol::OpenAICompatible,
+        wire_kind: ProxyWireKind::AdditiveProvider,
+    },
+    ProxyAgentSpec {
+        id: "dsh",
+        protocol: ProxyProtocol::OpenAICompatible,
+        wire_kind: ProxyWireKind::AdditiveProvider,
+    },
+    ProxyAgentSpec {
+        id: "amp",
+        protocol: ProxyProtocol::OpenAICompatible,
+        wire_kind: ProxyWireKind::Manual,
+    },
+    ProxyAgentSpec {
         id: "cursor",
         protocol: ProxyProtocol::None,
         wire_kind: ProxyWireKind::Manual,
@@ -136,7 +163,7 @@ pub fn proxy_agent_applicable(id: &str) -> bool {
 }
 
 pub fn proxy_agent_uses_headroom(id: &str) -> bool {
-    id != "grok" && id != "cursor"
+    id != "grok" && id != "cursor" && id != "amp"
 }
 
 pub fn configure_proxy_agent_with_path(id: &str) -> (bool, String) {
@@ -154,13 +181,17 @@ pub fn configure_proxy_agent_with_path(id: &str) -> (bool, String) {
             (changed, file)
         }
         "cline" => configure_cline_proxy(),
+        "kimi" => configure_kimi_proxy(),
+        "zcode" => configure_zcode_proxy(),
+        "dsh" => configure_dsh_proxy(),
+        "amp" => configure_amp_rtk_permissions_auto(),
         "antigravity" => configure_antigravity_proxy(),
         _ => (false, String::new()),
     }
 }
 
 pub fn configure_proxy_agent(id: &str) -> bool {
-    if id == "grok" || id == "cursor" {
+    if id == "grok" || id == "cursor" || id == "amp" {
         return false;
     }
     if proxy_spec_for(id).is_none() {
@@ -194,6 +225,10 @@ pub fn remove_proxy_agent_checked(id: &str) -> Result<bool, String> {
         "droid" => remove_droid_proxy(),
         "copilot" => remove_copilot_proxy(),
         "cline" => remove_cline_proxy(),
+        "kimi" => remove_kimi_proxy(),
+        "zcode" => remove_zcode_proxy(),
+        "dsh" => remove_dsh_proxy(),
+        "amp" => remove_amp_rtk_permissions(),
         "antigravity" => remove_antigravity_proxy(),
         _ => false,
     };
@@ -211,8 +246,47 @@ pub fn proxy_agent_wired(id: &str) -> bool {
         "droid" => droid_proxy_wired(),
         "copilot" => copilot_proxy_wired(),
         "cline" => cline_proxy_wired(),
+        "kimi" => kimi_proxy_wired(),
+        "zcode" => zcode_proxy_wired(),
+        "dsh" => dsh_proxy_wired(),
+        "amp" => amp_rtk_permissions_wired(),
         "grok" => grok_proxy_wired(),
         "antigravity" => antigravity_proxy_wired(),
         _ => false,
+    }
+}
+
+pub fn proxy_agent_config_files(id: &str) -> Vec<String> {
+    match id {
+        "claude" => vec![paths::claude_code_paths().settings],
+        "omp" => vec![omp_models_file()],
+        "codex" => vec![paths::codex_paths_resolved().config],
+        "opencode" => {
+            let dir = paths::opencode_paths_resolved().dir;
+            vec![
+                Path::new(&dir).join("config.json").to_string_lossy().to_string(),
+                Path::new(&dir).join("opencode.json").to_string_lossy().to_string(),
+                Path::new(&dir).join("opencode.jsonc").to_string_lossy().to_string(),
+            ]
+        }
+        "kilo" => {
+            let dir = paths::kilo_paths_resolved().dir;
+            vec![
+                Path::new(&dir).join("config.json").to_string_lossy().to_string(),
+                Path::new(&dir).join("kilo.json").to_string_lossy().to_string(),
+                Path::new(&dir).join("kilo.jsonc").to_string_lossy().to_string(),
+                Path::new(&dir).join("opencode.json").to_string_lossy().to_string(),
+                Path::new(&dir).join("opencode.jsonc").to_string_lossy().to_string(),
+            ]
+        }
+        "pi" => vec![pi_models_file()],
+        "droid" => vec![droid_settings_file()],
+        "copilot" => vec![copilot_config_path()],
+        "cline" => vec![cline_providers_file()],
+        "kimi" => vec![paths::kimi_paths_resolved().config],
+        "zcode" => vec![zcode_provider_config_path()],
+        "dsh" => vec![dsh_patch_file()],
+        "amp" => vec![paths::amp_paths_resolved().config],
+        _ => Vec::new(),
     }
 }

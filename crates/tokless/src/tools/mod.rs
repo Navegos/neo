@@ -12,6 +12,7 @@ pub mod contextmode;
 pub mod copilot_transaction;
 pub mod headroom;
 pub mod helpers;
+pub mod mcp_dispatch;
 pub mod ponytail;
 pub mod principles;
 pub mod projectmem;
@@ -28,6 +29,7 @@ pub use contextmode::*;
 pub use copilot_transaction::*;
 pub use headroom::*;
 pub use helpers::*;
+pub use mcp_dispatch::*;
 pub use ponytail::*;
 pub use principles::*;
 pub use projectmem::*;
@@ -43,4 +45,51 @@ pub fn register() {
     register_tool(build_context_mode());
     register_tool(build_headroom());
     register_tool(build_projectmem());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_phase3_tools_agent_coverage() {
+        let tools = [
+            build_rtk(),
+            build_caveman(),
+            build_ponytail(),
+            build_principles(),
+            build_codegraph(),
+            build_context_mode(),
+            build_projectmem(),
+        ];
+
+        let phase1_agents = ["amp", "kimi", "zcode", "dsh", "opencode2"];
+
+        for tool in tools {
+            for agent in phase1_agents {
+                if tool.id == "rtk" && (agent == "kimi" || agent == "opencode2") {
+                    // Kimi uses pure BYOK/instructions; opencode2 uses opencode rtk plugin
+                    continue;
+                }
+                assert!(
+                    tool.wire_for.contains_key(agent),
+                    "tool {} missing wire_for agent {}",
+                    tool.id,
+                    agent
+                );
+                assert!(
+                    tool.unwire_for.contains_key(agent),
+                    "tool {} missing unwire_for agent {}",
+                    tool.id,
+                    agent
+                );
+                assert!(
+                    tool.verify_for.contains_key(agent),
+                    "tool {} missing verify_for agent {}",
+                    tool.id,
+                    agent
+                );
+            }
+        }
+    }
 }

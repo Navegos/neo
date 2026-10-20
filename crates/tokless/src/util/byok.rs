@@ -293,6 +293,20 @@ pub fn read_byok_route(id: &str) -> Option<BYOKRoute> {
     read_byok_routes().ok()?.into_iter().find(|r| r.id == id)
 }
 
+pub fn byok_routes_for(agent_id: &str) -> Vec<BYOKRoute> {
+    let _guard = BYOK_REGISTRY_LOCK.lock().unwrap();
+    let raw = match std::fs::read_to_string(byok_routes_path()) {
+        Ok(s) => s,
+        Err(_) => return Vec::new(),
+    };
+    let routes = match parse_byok_routes(&raw) {
+        Ok(r) => r,
+        Err(_) => return Vec::new(),
+    };
+    let prefix = format!("{}:", agent_id);
+    routes.into_iter().filter(|r| r.id.starts_with(&prefix)).collect()
+}
+
 pub fn delete_byok_route(id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let _guard = BYOK_REGISTRY_LOCK.lock().unwrap();
     with_byok_registry_lock(|| {
@@ -307,4 +321,38 @@ pub fn delete_byok_route(id: &str) -> Result<(), Box<dyn std::error::Error + Sen
         write_file_atomic(path, &content)?;
         Ok(())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_byok_id() {
+        assert!(valid_byok_id("claude.default"));
+        assert!(valid_byok_id("kimi:chat"));
+        assert!(valid_byok_id("zcode_route-1"));
+        assert!(!valid_byok_id(""));
+        assert!(!valid_byok_id("route with space"));
+    }
+
+    #[test]
+    fn test_valid_byok_upstream() {
+        assert!(valid_byok_upstream("https://api.anthropic.com"));
+        assert!(valid_byok_upstream("http://localhost:8080"));
+        assert!(!valid_byok_upstream("ftp://example.com"));
+        assert!(!valid_byok_upstream("invalid-url"));
+        assert!(!valid_byok_upstream("https://user:pass@api.anthropic.com"));
+    }
+
+    #[test]
+    fn test_byok_route_header() {
+        let route = BYOKRoute {
+            id: "claude".to_string(),
+            token: "tok_123".to_string(),
+            protocol: "anthropic-messages".to_string(),
+            upstream: "https://api.anthropic.com".to_string(),
+        };
+        assert_eq!(byok_route_header(&route), "claude.tok_123");
+    }
 }

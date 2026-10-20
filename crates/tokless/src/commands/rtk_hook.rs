@@ -594,3 +594,77 @@ pub fn run_rtk_hook_copilot() -> i32 {
     println!("{}", stringify_json(&Value::Object(resp)));
     0
 }
+
+fn is_bash_like_tool_name(name: &str) -> bool {
+    matches!(name.trim().to_lowercase().as_str(), "bash" | "shell")
+}
+
+fn command_has_raw_git(cmd_line: &str) -> bool {
+    for seg in shell_command_segments(cmd_line) {
+        let trimmed = seg.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let first = trimmed.split_whitespace().next().unwrap_or("");
+        let unquoted = first.trim_matches(|c| c == '"' || c == '\'');
+        let bin = Path::new(unquoted)
+            .file_stem()
+            .and_then(|f| f.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+        if bin == "rtk" {
+            continue;
+        }
+        if bin == "git" {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn run_rtk_hook_dsh() -> i32 {
+    let mut input = Vec::new();
+    if io::stdin().read_to_end(&mut input).is_err() || input.is_empty() {
+        return 0;
+    }
+    let raw = String::from_utf8_lossy(&input);
+    let cfg = match try_parse_jsonc(&raw) {
+        Some(c) => c,
+        None => return 0,
+    };
+    let tool_name = match cfg.get("tool_name").and_then(|v| v.as_str()) {
+        Some(s) => s,
+        None => return 0,
+    };
+    if !is_bash_like_tool_name(tool_name) {
+        return 0;
+    }
+    let tool_input = match cfg.get("tool_input").and_then(|v| v.as_object()) {
+        Some(m) => m,
+        None => return 0,
+    };
+    let cmd_line = match tool_input.get("command").and_then(|v| v.as_str()) {
+        Some(s) => s,
+        None => return 0,
+    };
+    if cmd_line.is_empty() || !command_has_raw_git(cmd_line) {
+        return 0;
+    }
+
+    let mut hook_out = OrderedMap::new();
+    hook_out.insert("hookEventName".into(), Value::String("PreToolUse".into()));
+    hook_out.insert("permissionDecision".into(), Value::String("deny".into()));
+    hook_out.insert(
+        "permissionDecisionReason".into(),
+        Value::String("raw git is filtered by tokless: use `rtk git ...` instead".into()),
+    );
+
+    let mut resp = OrderedMap::new();
+    resp.insert("hookSpecificOutput".into(), Value::Object(hook_out));
+    println!("{}", stringify_json(&Value::Object(resp)));
+    0
+}
+
+pub fn run_rtk_hook_cmd_kimi() -> i32 {
+    run_rtk_hook_dsh()
+}

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/util/versions.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -78,7 +78,7 @@ pub fn save_cache(m: &HashMap<String, VersionInfo>) {
         map: m.clone(),
     };
     if let Ok(json) = serde_json::to_string_pretty(&obj) {
-        let _ = std::fs::write(p, json);
+        let _ = crate::util::paths::write_file(p, &json);
     }
 }
 

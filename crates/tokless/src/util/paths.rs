@@ -557,6 +557,64 @@ pub fn open_code_paths_resolved() -> OpenCodePaths {
     opencode_paths_resolved()
 }
 
+pub fn opencode_config_dir_v2() -> String {
+    let v1_dir = opencode_config_dir();
+    let v1_path = Path::new(&v1_dir);
+    let v2_name = format!("{}2", v1_path.file_name().and_then(|n| n.to_str()).unwrap_or("opencode"));
+    let mut v2_dir = v1_path.parent().map(|p| p.join(&v2_name)).unwrap_or_else(|| Path::new(&v2_name).to_path_buf()).to_string_lossy().to_string();
+    if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
+        if !x.is_empty() {
+            v2_dir = Path::new(&x).join("opencode2").to_string_lossy().to_string();
+        }
+    }
+    let legacy_dir = Path::new(&home()).join(".opencode2").to_string_lossy().to_string();
+    for dir in [&v1_dir, &v2_dir, &legacy_dir] {
+        for name in ["opencode2.jsonc", "opencode2.json", "opencode2.config.json"] {
+            if exists(Path::new(dir).join(name).to_string_lossy().as_ref()) {
+                return dir.clone();
+            }
+        }
+    }
+    for dir in [&v1_dir, &v2_dir, &legacy_dir] {
+        for name in ["opencode.jsonc", "opencode.json", "config.json"] {
+            if exists(Path::new(dir).join(name).to_string_lossy().as_ref()) {
+                return dir.clone();
+            }
+        }
+        if dir == &v2_dir && exists(dir) {
+            return dir.clone();
+        }
+    }
+    v1_dir
+}
+
+pub fn opencode_paths_v2() -> OpenCodePaths {
+    let dir = opencode_config_dir_v2();
+    let candidates = [
+        "opencode2.jsonc",
+        "opencode2.json",
+        "opencode2.config.json",
+        "opencode.jsonc",
+        "opencode.json",
+        "config.json",
+    ];
+    let mut config = Path::new(&dir).join("opencode.jsonc").to_string_lossy().to_string();
+    for name in candidates {
+        let candidate = Path::new(&dir).join(name).to_string_lossy().to_string();
+        if exists(&candidate) {
+            config = candidate;
+            break;
+        }
+    }
+    OpenCodePaths {
+        instructions: Path::new(&dir).join("AGENTS.md").to_string_lossy().to_string(),
+        plugins_dir: Path::new(&dir).join("plugins").to_string_lossy().to_string(),
+        rules_dir: Path::new(&dir).join("rules").to_string_lossy().to_string(),
+        dir,
+        config,
+    }
+}
+
 pub struct KiloPaths {
     pub dir: String,
     pub config: String,
@@ -831,6 +889,73 @@ pub fn pi_paths_resolved() -> PiPaths {
             .to_string_lossy()
             .to_string(),
         agent_dir,
+        dir,
+    }
+}
+
+pub struct ZcodePaths {
+    pub dir: String,
+    pub config: String,
+    pub instructions: String,
+    pub mcp_config: String,
+}
+
+pub fn zcode_paths_resolved() -> ZcodePaths {
+    let mut home_val = std::env::var("ZCODE_DIST_HOME").unwrap_or_default();
+    if home_val.starts_with("~/") {
+        home_val = Path::new(&home()).join(&home_val[2..]).to_string_lossy().to_string();
+    }
+    if home_val.is_empty() {
+        home_val = Path::new(&home()).join(".zcode").join("runtime").to_string_lossy().to_string();
+    }
+    ZcodePaths {
+        dir: home_val,
+        config: Path::new(&home()).join(".zcode").join("cli").join("config.json").to_string_lossy().to_string(),
+        instructions: Path::new(&home()).join(".zcode").join("AGENTS.md").to_string_lossy().to_string(),
+        mcp_config: Path::new(&home()).join(".zcode").join("cli").join("config.json").to_string_lossy().to_string(),
+    }
+}
+
+pub struct KimiPaths {
+    pub dir: String,
+    pub config: String,
+    pub instructions: String,
+    pub mcp_config: String,
+}
+
+pub fn kimi_paths_resolved() -> KimiPaths {
+    let mut home_val = std::env::var("KIMI_CODE_HOME").unwrap_or_default();
+    if home_val.starts_with("~/") {
+        home_val = Path::new(&home()).join(&home_val[2..]).to_string_lossy().to_string();
+    }
+    if home_val.is_empty() {
+        home_val = Path::new(&home()).join(".kimi-code").to_string_lossy().to_string();
+    }
+    KimiPaths {
+        config: Path::new(&home_val).join("config.toml").to_string_lossy().to_string(),
+        instructions: Path::new(&home_val).join("AGENTS.md").to_string_lossy().to_string(),
+        mcp_config: Path::new(&home_val).join("mcp.json").to_string_lossy().to_string(),
+        dir: home_val,
+    }
+}
+
+pub struct AmpPaths {
+    pub dir: String,
+    pub config: String,
+    pub instructions: String,
+}
+
+pub fn amp_paths_resolved() -> AmpPaths {
+    let mut dir = std::env::var("AMP_CONFIG_DIR").unwrap_or_default();
+    if dir.starts_with("~/") {
+        dir = Path::new(&home()).join(&dir[2..]).to_string_lossy().to_string();
+    }
+    if dir.is_empty() {
+        dir = Path::new(&home()).join(".config").join("amp").to_string_lossy().to_string();
+    }
+    AmpPaths {
+        config: Path::new(&dir).join("settings.json").to_string_lossy().to_string(),
+        instructions: Path::new(&dir).join("AGENTS.md").to_string_lossy().to_string(),
         dir,
     }
 }

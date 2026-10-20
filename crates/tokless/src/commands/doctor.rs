@@ -3,10 +3,11 @@
 // project: neo
 // file: crates/tokless/src/commands/doctor.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::env;
 use crate::commands::doctor_probe::{format_runtime_issues, probe_agent_runtime, RuntimeIssue};
+use crate::commands::doctor_stats::doctor_tool_stats;
 use crate::commands::helpers::*;
 use crate::core::{list_agents, list_tools, ToolManifest};
 use crate::util::colors::*;
@@ -14,35 +15,71 @@ use crate::util::logger::L;
 use crate::util::progress::*;
 use crate::util::versions::*;
 
+#[derive(Clone, serde::Serialize)]
 struct AgentReport {
     label: String,
     installed: bool,
     wired: bool,
     missing: Vec<String>,
+    #[serde(skip_serializing)]
     runtime: Vec<RuntimeIssue>,
 }
 
-pub fn run_doctor(offline: bool) -> i32 {
-    cmd_header("doctor", "quick health check");
-
+pub fn run_doctor(offline: bool, json_output: bool) -> i32 {
     let tools = list_tools();
-    let mut reports = Vec::new();
+    let all_agents = list_agents();
+    let mut reports_opt: Vec<Option<AgentReport>> = vec![None; all_agents.len()];
 
-    for agent in list_agents() {
-        if !agent.detect().installed {
-            continue;
+    std::thread::scope(|s| {
+        let mut handles = Vec::with_capacity(all_agents.len());
+        for agent in &all_agents {
+            let tools_ref = &tools;
+            handles.push(s.spawn(move || {
+                if !agent.detect().installed {
+                    return None;
+                }
+                let missing = doctor_missing_tools(tools_ref, &agent.id);
+                let runtime = probe_agent_runtime(&agent.id);
+                let wired = missing.is_empty() && runtime.is_empty();
+                Some(AgentReport {
+                    label: agent.label.clone(),
+                    installed: true,
+                    wired,
+                    missing,
+                    runtime,
+                })
+            }));
         }
-        let missing = doctor_missing_tools(&tools, &agent.id);
-        let runtime = probe_agent_runtime(&agent.id);
-        let wired = missing.is_empty() && runtime.is_empty();
-        reports.push(AgentReport {
-            label: agent.label.clone(),
-            installed: true,
-            wired,
-            missing,
-            runtime,
-        });
+        for (i, handle) in handles.into_iter().enumerate() {
+            if let Ok(res) = handle.join() {
+                reports_opt[i] = res;
+            }
+        }
+    });
+
+    let reports: Vec<AgentReport> = reports_opt.into_iter().flatten().collect();
+    let cwd = env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| ".".into());
+    let tool_stats = doctor_tool_stats(&cwd, true);
+
+    if json_output {
+        #[derive(serde::Serialize)]
+        struct DoctorJson<'a> {
+            agents: &'a [AgentReport],
+            stats: &'a std::collections::HashMap<String, Vec<String>>,
+        }
+        let doc = DoctorJson {
+            agents: &reports,
+            stats: &tool_stats,
+        };
+        if let Ok(out) = serde_json::to_string_pretty(&doc) {
+            println!("{}", out);
+            return 0;
+        }
     }
+
+    cmd_header("doctor", "quick health check");
 
     tree_top("Agents");
     if reports.is_empty() {
@@ -73,6 +110,22 @@ pub fn run_doctor(offline: bool) -> i32 {
         }
         tree_close();
     }
+
+    tree_corner("Stats");
+    if tool_stats.is_empty() {
+        tree_leaf(&C.dim("no installed tools with local stats"));
+    } else {
+        let tool_ids = ["headroom", "projectmem", "rtk", "codegraph", "context-mode"];
+        for id in tool_ids {
+            if let Some(rows) = tool_stats.get(id) {
+                tree_leaf(&format!("{}:", paint_name(id)));
+                for row in rows {
+                    tree_leaf(&format!("  {}", row));
+                }
+            }
+        }
+    }
+    tree_close();
 
     let status_lines = doctor_status_lines(outdated, broken, installed_agents);
     tree_status(&status_lines);

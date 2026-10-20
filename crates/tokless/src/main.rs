@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-20
 
 use std::collections::HashMap;
 use std::env;
@@ -15,8 +15,8 @@ use tokless::commands::{
     run_cursor_project_rules_hook, run_disable, run_doctor, run_grok_session_start_hook,
     run_index, run_info, run_init, run_mcp, run_projectmem_hook, run_proxy_down,
     run_proxy_status, run_proxy_up, run_rtk_hook, run_rtk_hook_cline, run_rtk_hook_codex,
-    run_rtk_hook_copilot, run_rtk_hook_cursor, run_rtk_hook_droid, run_rtk_hook_grok,
-    run_rtk_rewrite, run_self_update, run_uninstall, run_update, InitOptions,
+    run_rtk_hook_copilot, run_rtk_hook_cursor, run_rtk_hook_droid, run_rtk_hook_dsh,
+    run_rtk_hook_grok, run_rtk_rewrite, run_self_update, run_uninstall, run_update, InitOptions,
 };
 
 use tokless::core::{agent_ids, tool_ids};
@@ -70,7 +70,7 @@ fn parse_args(argv: &[String]) -> ParsedArgs {
 fn help_text() -> String {
     let cy = |s: &str| C.cyan(s);
     format!(
-        "{} — token-saving for AI coding agents (Claude Code, OpenCode, Codex, Antigravity, GitHub Copilot, Factory Droid, Grok, Pi, Oh My Pi, Cline)\n\n\
+        "{} — token-saving for AI coding agents (Claude Code, OpenCode, Codex, Antigravity, GitHub Copilot, Cursor, Factory Droid, Grok, Pi, OMP, Kilo, Cline, Amp, Kimi, ZCode, DSH)\n\n\
         {}\n  {}              Install + wire everything (default; safe to re-run)\n\
           {}       Update the tokless CLI, then show version diff and upgrade tools\n\
           {}       Show what's wired up; warn about anything broken\n\
@@ -78,7 +78,7 @@ fn help_text() -> String {
           {}        Build per-project indexes (codegraph) in the current dir\n\
           {}    Remove everything tokless ever touched\n\
           {}      Manage the headroom HTTP proxy: up|down|status\n\n\
-        {}\n  --agents <list>     Limit to a subset: claude,opencode,codex,antigravity,copilot,droid,grok,pi,omp,kilo,cline,cursor\n\
+        {}\n  --agents <list>     Limit to a subset: claude,opencode,opencode2,codex,antigravity,copilot,cursor,droid,grok,pi,omp,kilo,cline,amp,kimi,zcode,dsh\n\
           --tools <list>      Limit to a subset: rtk,caveman,ponytail,codegraph,context-mode,headroom,projectmem\n\
           --dry-run           Show what would change without writing anything\n\
           --verbose           Show every step\n\n\
@@ -277,7 +277,8 @@ fn run() -> i32 {
     if args.len() >= 3 && args[1] == "rtk-hook" {
         return match args[2].as_str() {
             "agy" => run_rtk_hook(),
-            "codex" | "claude" | "omp" => run_rtk_hook_codex(),
+            "codex" | "claude" | "omp" | "zcode" => run_rtk_hook_codex(),
+            "dsh" | "cmd" | "kimi" => run_rtk_hook_dsh(),
             "copilot" => run_rtk_hook_copilot(),
             "droid" => run_rtk_hook_droid(),
             "cline" => run_rtk_hook_cline(),
@@ -352,7 +353,8 @@ fn run() -> i32 {
     match command {
         "init" => run_init(opts),
         "update" => run_update(opts),
-        "doctor" => run_doctor(p.bools.get("offline") == Some(&true)),
+        "doctor" => run_doctor(p.bools.get("offline") == Some(&true), p.bools.get("json") == Some(&true)),
+        "stats" => run_doctor(true, true),
         "info" => run_info(),
         "index" => run_index(opts, p.bools.get("auto") == Some(&true)),
         "disable" => run_disable(opts),
