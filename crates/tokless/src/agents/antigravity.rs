@@ -3,7 +3,7 @@
 // project: tokless
 // file: crates/tokless/src/agents/antigravity.rs
 // created: 2026-10-11
-// lastModified: 2026-10-14
+// lastModified: 2026-10-27
 
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
@@ -1390,7 +1390,7 @@ fn remove_antigravity_ide() -> bool {
         return false;
     };
     let Some(raw) = paths::read_file_safe(&state.path) else {
-        return fs::remove_file(antigravity_ide_state_file()).is_ok();
+        return paths::remove_file_retry(antigravity_ide_state_file()).is_ok();
     };
     if has_jsonc_comments(&raw) {
         return false;
@@ -1412,7 +1412,7 @@ fn remove_antigravity_ide() -> bool {
         cfg.shift_remove(ANTIGRAVITY_IDE_ENDPOINT_KEY);
     }
     if cfg.is_empty() {
-        if let Err(err) = fs::remove_file(&state.path)
+        if let Err(err) = paths::remove_file_retry(&state.path)
             && err.kind() != std::io::ErrorKind::NotFound
         {
             return false;
@@ -1420,7 +1420,7 @@ fn remove_antigravity_ide() -> bool {
     } else if paths::write_file(&state.path, &stringify_json(&Value::Object(cfg))).is_err() {
         return false;
     }
-    fs::remove_file(antigravity_ide_state_file()).is_ok()
+    paths::remove_file_retry(antigravity_ide_state_file()).is_ok()
 }
 
 pub fn antigravity_ide_proxy_wired() -> bool {
@@ -1948,7 +1948,7 @@ pub fn antigravity_proxy_session_ready() -> bool {
 }
 
 fn remove_file_if_exists(path: &str) -> bool {
-    if paths::exists(path) && fs::remove_file(path).is_err() {
+    if paths::exists(path) && paths::remove_file_retry(path).is_err() {
         return false;
     }
     true
@@ -2269,7 +2269,7 @@ fn remove_antigravity_shim() -> bool {
             return false;
         }
         if paths::exists(&vendor)
-            || fs::remove_file(&bin).is_err()
+            || paths::remove_file_retry(&bin).is_err()
             || fs::rename(&real, &vendor).is_err()
         {
             return false;
@@ -2285,7 +2285,7 @@ fn remove_antigravity_shim() -> bool {
             return false;
         }
     }
-    fs::remove_file(antigravity_shim_state_file()).is_ok()
+    paths::remove_file_retry(antigravity_shim_state_file()).is_ok()
 }
 
 pub fn antigravity_shim_wired() -> bool {

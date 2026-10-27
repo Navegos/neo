@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/util/versions.rs
 // created: 2026-10-05
-// lastModified: 2026-10-20
+// lastModified: 2026-10-27
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -220,6 +220,7 @@ pub fn npm_installed_version(pkg: &str) -> Option<String> {
             &["ls", "-g", "--depth=0", "--json", pkg],
             RunOptions {
                 capture: true,
+                timeout: Some(std::time::Duration::from_secs(2)),
                 ..Default::default()
             },
         );
@@ -501,7 +502,7 @@ pub fn npm_pkg_dir(pkg: &str) -> String {
 
 fn fetch_latest_for(id: &str) -> Option<String> {
     match id {
-        "rtk" => github_latest_release("rtk-ai/rtk"),
+        "rtk" => github_latest_release("Navegos/rtk").or_else(|| github_latest_release("rtk-ai/rtk")),
         "codegraph" => npm_latest("@colbymchenry/codegraph"),
         "context-mode" => npm_latest("context-mode"),
         "tokless" => npm_latest("tokless"),

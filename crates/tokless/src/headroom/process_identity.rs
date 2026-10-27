@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/headroom/process_identity.rs
 // created: 2026-10-11
-// lastModified: 2026-10-14
+// lastModified: 2026-10-27
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -259,15 +259,15 @@ fn identify_process_darwin(
         return Err(std::io::Error::last_os_error().into());
     }
     buf.truncate(size);
-    let Some(argv) = darwin_proc_args(&buf) else {
-        return Err("incomplete process identity".into());
-    };
-    if argv.len() < 2 {
+    let (exec_path, argv) = darwin_proc_args(&buf).ok_or("incomplete process identity")?;
+    if start.is_empty() || argv.is_empty() {
         return Err("incomplete process identity".into());
     }
-    let executable = std::fs::canonicalize(&argv[0])?
-        .to_string_lossy()
-        .to_string();
+    let exe_src = if !exec_path.is_empty() { &exec_path } else { &argv[0] };
+    if exe_src.is_empty() {
+        return Err("incomplete process identity".into());
+    }
+    let executable = normalized_executable(exe_src)?;
     Ok(ProcessIdentityInfo {
         executable,
         args: argv[1..].to_vec(),
@@ -275,7 +275,7 @@ fn identify_process_darwin(
     })
 }
 
-pub fn darwin_proc_args(data: &[u8]) -> Option<Vec<String>> {
+pub fn darwin_proc_args(data: &[u8]) -> Option<(String, Vec<String>)> {
     if data.len() < 4 {
         return None;
     }
@@ -283,36 +283,23 @@ pub fn darwin_proc_args(data: &[u8]) -> Option<Vec<String>> {
     if argc < 1 || argc > (1 << 16) || argc > data.len() - 4 {
         return None;
     }
-    let mut rem = &data[4..];
-    let read_next = |rem: &mut &[u8]| -> String {
-        if rem.is_empty() {
-            return String::new();
-        }
-        let i = rem.iter().position(|&b| b == 0).unwrap_or(rem.len());
-        let v = String::from_utf8_lossy(&rem[..i]).to_string();
-        if i < rem.len() {
-            *rem = &rem[i + 1..];
-        } else {
-            *rem = &[];
-        }
-        v
-    };
-    let mut args = Vec::with_capacity(argc);
-    let executable = read_next(&mut rem);
-    if !executable.is_empty() {
-        args.push(executable);
+    let mut rest = &data[4..];
+    let i = rest.iter().position(|&b| b == 0)?;
+    let exec_path = String::from_utf8_lossy(&rest[..i]).to_string();
+    rest = &rest[i + 1..];
+    while !rest.is_empty() && rest[0] == 0 {
+        rest = &rest[1..];
     }
-    while args.len() < argc {
-        if rem.is_empty() {
+    let mut argv = Vec::with_capacity(argc);
+    while argv.len() < argc {
+        if rest.is_empty() {
             return None;
         }
-        if rem[0] == 0 {
-            rem = &rem[1..];
-            continue;
-        }
-        args.push(read_next(&mut rem));
+        let j = rest.iter().position(|&b| b == 0)?;
+        argv.push(String::from_utf8_lossy(&rest[..j]).to_string());
+        rest = &rest[j + 1..];
     }
-    Some(args)
+    Some((exec_path, argv))
 }
 
 #[cfg(windows)]

@@ -10,7 +10,9 @@ use std::fs;
 use std::path::Path;
 use regex::Regex;
 
-use crate::agents::{dsh_instructions_file, omp_agent_dir_resolved, pi_agent_dir_resolved};
+use crate::agents::{
+    dsh_instructions_file, grok_instructions_file, omp_agent_dir_resolved, pi_agent_dir_resolved,
+};
 use crate::util::instructions::{
     instruction_index_section, instruction_section, section_header_for_owner, section_present,
     TOKLESS_OWNERS,
@@ -34,14 +36,7 @@ pub fn instruction_path(agent: &str) -> String {
         "droid" => Path::new(&home()).join(".factory").join("AGENTS.md").to_string_lossy().to_string(),
         "pi" => Path::new(&pi_agent_dir_resolved()).join("AGENTS.md").to_string_lossy().to_string(),
         "omp" => Path::new(&omp_agent_dir_resolved()).join("AGENTS.md").to_string_lossy().to_string(),
-        "grok" => {
-            if let Ok(custom) = std::env::var("GROK_HOME") {
-                if !custom.is_empty() {
-                    return Path::new(&custom).join("GROK.md").to_string_lossy().to_string();
-                }
-            }
-            Path::new(&home()).join(".grok").join("GROK.md").to_string_lossy().to_string()
-        }
+        "grok" => grok_instructions_file(),
         "kilo" => kilo_instructions_path(),
         "cline" => cline_paths_resolved().instructions,
         "kimi" => kimi_paths_resolved().instructions,
@@ -53,7 +48,7 @@ pub fn instruction_path(agent: &str) -> String {
 }
 
 pub fn kilo_instructions_path() -> String {
-    Path::new(&kilo_paths_resolved().dir).join("AGENTS.md").to_string_lossy().to_string()
+    kilo_paths_resolved().instructions
 }
 
 /// Cleans up legacy per-tool instruction files/config entries from older Tokless versions.

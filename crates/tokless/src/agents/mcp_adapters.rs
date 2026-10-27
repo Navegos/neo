@@ -426,6 +426,143 @@ fn build_mcp_request(agent_id: &str, tool_id: &str, opts: &[McpOption]) -> McpRe
     req
 }
 
+fn codex_mcp_section(tool_id: &str) -> String {
+    if tool_id == "context-mode" {
+        "mcp_servers.context_mode".to_string()
+    } else {
+        format!("mcp_servers.{tool_id}")
+    }
+}
+
+fn codex_mcp_block(raw: &str, tool_id: &str) -> Option<String> {
+    if let Some(text) = crate::util::toml::block_text(raw, &codex_mcp_section(tool_id)) {
+        return Some(text);
+    }
+    if tool_id == "context-mode" {
+        return crate::util::toml::block_text(raw, "mcp_servers.context-mode");
+    }
+    None
+}
+
+fn codex_mcp_present(tool_id: &str) -> bool {
+    let Some(raw) = read_file_safe(&codex_paths_resolved().config) else {
+        return false;
+    };
+    codex_mcp_block(&raw, tool_id).is_some()
+}
+
+fn strip_codex_toml_comment(value: &str) -> &str {
+    let bytes = value.as_bytes();
+    let mut in_basic = false;
+    let mut in_literal = false;
+    let mut escaped = false;
+    for (i, &c) in bytes.iter().enumerate() {
+        if in_basic {
+            if escaped {
+                escaped = false;
+            } else if c == b'\\' {
+                escaped = true;
+            } else if c == b'"' {
+                in_basic = false;
+            }
+            continue;
+        }
+        if in_literal {
+            if c == b'\'' {
+                in_literal = false;
+            }
+            continue;
+        }
+        match c {
+            b'"' => in_basic = true,
+            b'\'' => in_literal = true,
+            b'#' => return value[..i].trim_end_matches([' ', '\t']),
+            _ => {}
+        }
+    }
+    value
+}
+
+fn parse_codex_mcp_block(text: &str) -> (String, Vec<String>) {
+    let mut command = String::new();
+    let mut args = Vec::new();
+    for line in text.split('\n') {
+        let t = line.trim();
+        if t.is_empty() || t.starts_with('#') {
+            continue;
+        }
+        let Some((k, v)) = t.split_once('=') else {
+            continue;
+        };
+        let key = k.trim();
+        let val = strip_codex_toml_comment(v.trim());
+        match key {
+            "command" => {
+                if let Ok(s) = serde_json::from_str::<String>(val) {
+                    command = s;
+                } else if let Some(s) = val.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')) {
+                    command = s.to_string();
+                }
+            }
+            "args" => {
+                if val.starts_with('[') && val.ends_with(']') {
+                    if let Ok(parsed) = serde_json::from_str::<Vec<String>>(val) {
+                        args = parsed;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    (command, args)
+}
+
+fn codex_mcp_has(tool_id: &str, command: &[String]) -> bool {
+    if command.is_empty() {
+        return false;
+    }
+    let Some(raw) = read_file_safe(&codex_paths_resolved().config) else {
+        return false;
+    };
+    let Some(text) = codex_mcp_block(&raw, tool_id) else {
+        return false;
+    };
+    let (cmd, args) = parse_codex_mcp_block(&text);
+    cmd == command[0] && args == command[1..]
+}
+
+fn remove_codex_mcp_blocks(raw: &str, tool_id: &str) -> String {
+    let mut next = crate::util::toml::remove_block(raw, &codex_mcp_section(tool_id));
+    if tool_id == "context-mode" {
+        next = crate::util::toml::remove_block(&next, "mcp_servers.context-mode");
+    }
+    next
+}
+
+fn grok_mcp_present(tool_id: &str) -> bool {
+    let Some(raw) = read_file_safe(&grok_config_file()) else {
+        return false;
+    };
+    let Some(body) = crate::util::toml::block_text(&raw, &format!("mcp_servers.{tool_id}")) else {
+        return false;
+    };
+    let mut has_cmd = false;
+    for line in body.split('\n') {
+        let t = line.trim();
+        if let Some((k, v)) = t.split_once('=') {
+            let key = k.trim();
+            let val = v.trim();
+            if key == "command" && !val.is_empty() {
+                has_cmd = true;
+            }
+            if (key == "enabled" && val == "false") || (key == "disabled" && val == "true") {
+                return false;
+            }
+        }
+    }
+    has_cmd
+}
+
 pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
     match id {
         "amp" => Some(Arc::new(FnAgentMcpAdapter {
@@ -479,7 +616,19 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
                 let changed = remove_opencode_mcp(&req.tool_id);
                 McpReply { changed, file: opencode_paths_resolved().config, err: None }
             }),
-            has: Arc::new(|req| opencode_mcp_has(&req.tool_id)),
+            has: Arc::new(|req| {
+                let Some(raw) = read_file_safe(&opencode_paths_resolved().config) else {
+                    return false;
+                };
+                let Some(cfg) = try_parse_jsonc(&raw) else {
+                    return false;
+                };
+                if req.any_shape {
+                    open_code_mcp_has(&cfg, &req.tool_id)
+                } else {
+                    open_code_mcp_matches(&cfg, &req.tool_id, &req.command)
+                }
+            }),
         })),
         "opencode2" => Some(Arc::new(FnAgentMcpAdapter {
             id: "opencode2".to_string(),
@@ -491,7 +640,19 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
                 let changed = remove_opencode_mcp_v2(&req.tool_id);
                 McpReply { changed, file: opencode_paths_v2().config, err: None }
             }),
-            has: Arc::new(|req| opencode2_mcp_has(&req.tool_id)),
+            has: Arc::new(|req| {
+                let Some(raw) = read_file_safe(&opencode_paths_v2().config) else {
+                    return false;
+                };
+                let Some(cfg) = try_parse_jsonc(&raw) else {
+                    return false;
+                };
+                if req.any_shape {
+                    open_code_mcp_has(&cfg, &req.tool_id)
+                } else {
+                    open_code_mcp_matches(&cfg, &req.tool_id, &req.command)
+                }
+            }),
         })),
         "codex" => Some(Arc::new(FnAgentMcpAdapter {
             id: "codex".to_string(),
@@ -501,27 +662,56 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
             }),
             remove: Arc::new(|req| {
                 let p = codex_paths_resolved().config;
-                let raw = read_file_safe(&p).unwrap_or_default();
-                let next = crate::util::toml::remove_block(&raw, &format!("mcp_servers.{}", req.tool_id));
-                let changed = write_file(&p, &next).is_ok();
-                McpReply { changed, file: p, err: None }
+                let Some(raw) = read_file_safe(&p) else {
+                    return McpReply { changed: false, file: p, err: None };
+                };
+                let next = remove_codex_mcp_blocks(&raw, &req.tool_id);
+                if next == raw {
+                    return McpReply { changed: false, file: p, err: None };
+                }
+                match write_file(&p, &next) {
+                    Ok(()) => McpReply { changed: true, file: p, err: None },
+                    Err(e) => McpReply { changed: false, file: p, err: Some(e.to_string()) },
+                }
             }),
             has: Arc::new(|req| {
-                let p = codex_paths_resolved().config;
-                read_file_safe(&p).map(|r| r.contains(&format!("mcp_servers.{}", req.tool_id))).unwrap_or(false)
+                if !req.any_shape
+                    && req.tool_id == "context-mode"
+                    && read_file_safe(&codex_paths_resolved().config)
+                        .is_some_and(|r| r.contains("[mcp_servers.context-mode]"))
+                {
+                    return false;
+                }
+                if req.any_shape {
+                    codex_mcp_present(&req.tool_id)
+                } else {
+                    codex_mcp_has(&req.tool_id, &req.command)
+                }
             }),
         })),
         "cursor" => Some(Arc::new(FnAgentMcpAdapter {
             id: "cursor".to_string(),
             configure: Arc::new(|req| {
-                let (changed, file) = configure_cursor_mcp(&req.tool_id);
+                let (mut changed, file) = configure_cursor_mcp(&req.tool_id);
+                if configure_cursor_mcp_permissions(&req.tool_id) {
+                    changed = true;
+                }
                 McpReply { changed, file, err: None }
             }),
             remove: Arc::new(|req| {
-                let changed = remove_cursor_mcp(&req.tool_id);
+                let mut changed = remove_cursor_mcp(&req.tool_id);
+                if remove_cursor_mcp_permissions(&req.tool_id) {
+                    changed = true;
+                }
                 McpReply { changed, file: cursor_global_mcp_path(), err: None }
             }),
-            has: Arc::new(|req| cursor_mcp_has(&req.tool_id)),
+            has: Arc::new(|req| {
+                if req.any_shape {
+                    cursor_mcp_has(&req.tool_id)
+                } else {
+                    cursor_mcp_has(&req.tool_id) && has_cursor_mcp_permissions(&req.tool_id)
+                }
+            }),
         })),
         "antigravity" => Some(Arc::new(FnAgentMcpAdapter {
             id: "antigravity".to_string(),
@@ -617,6 +807,9 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
                 }
             }),
             has: Arc::new(|req| {
+                if req.any_shape {
+                    return grok_mcp_present(&req.tool_id);
+                }
                 match req.tool_id.as_str() {
                     "codegraph" => grok_mcp_has("codegraph"),
                     "context-mode" => grok_context_mode_mcp_has(),

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/init.rs
 // created: 2026-10-05
-// lastModified: 2026-10-20
+// lastModified: 2026-10-27
 
 use std::collections::HashMap;
 use std::env;
@@ -143,6 +143,16 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
             L.raw(&format!("  {}", C.gray("Cancelled.")));
             return 0;
         }
+    } else if let Some(saved) = crate::util::selection::load_selection() {
+        if saved.mode == "selected" && !saved.tools.is_empty() {
+            selection_mode = "selected";
+            all_tools
+                .into_iter()
+                .filter(|t| saved.tools.contains(&t.id))
+                .collect()
+        } else {
+            all_tools
+        }
     } else {
         all_tools
     };
@@ -218,11 +228,10 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
     let mut equipped_agents = Vec::new();
     let mut wire_failures = 0usize;
 
-    for agent_id in &requested {
+    let wire_single_agent = |agent_id: &str| -> (String, String, bool, Option<String>) {
         let label = get_agent(agent_id)
             .map(|a| a.label.clone())
-            .unwrap_or_else(|| agent_id.clone());
-        wire_bar.begin(&label);
+            .unwrap_or_else(|| agent_id.to_string());
 
         let cursor_snap = if agent_id == "cursor" && !opts.dry_run {
             snapshot_cursor_project_rules_hook().ok()
@@ -241,7 +250,7 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
             if let Some(ref wire_fn) = tool.wire_for.get(agent_id) {
                 let ro = RunOpts {
                     dry_run: opts.dry_run,
-                    agent: agent_id.clone(),
+                    agent: agent_id.to_string(),
                     ..Default::default()
                 };
                 match wire_fn(&ro) {
@@ -263,14 +272,13 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
             let _ = install_cursor_project_rules_hook();
         }
 
-        if let Some(err) = wire_err {
-            wire_failures += 1;
+        if let Some(ref err) = wire_err {
             if !opts.dry_run {
                 for t in newly_wired.into_iter().rev() {
                     if let Some(ref unwire_fn) = t.unwire_for.get(agent_id) {
                         let ro = RunOpts {
                             dry_run: false,
-                            agent: agent_id.clone(),
+                            agent: agent_id.to_string(),
                             ..Default::default()
                         };
                         let _ = unwire_fn(&ro);
@@ -280,12 +288,53 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
                     let _ = snap.restore();
                 }
             }
-            wire_bar.fail(first_line(&err));
+            (agent_id.to_string(), label, wired_any, Some(err.clone()))
         } else {
             if !opts.dry_run {
                 ensure_instruction_separators(agent_id);
+                let all_tools_ref = list_tools();
+                for t in &all_tools_ref {
+                    if !tools.iter().any(|st| st.id == t.id) && !t.instruction_only {
+                        if let Some(ref unwire_fn) = t.unwire_for.get(agent_id) {
+                            let ro = RunOpts {
+                                dry_run: false,
+                                agent: agent_id.to_string(),
+                                ..Default::default()
+                            };
+                            let _ = unwire_fn(&ro);
+                        }
+                    }
+                }
             }
-            if let Some(ag) = get_agent(agent_id) {
+            (agent_id.to_string(), label, wired_any, None)
+        }
+    };
+
+    let results: Vec<(String, String, bool, Option<String>)> = if opts.parallel || opts.jobs > 1 {
+        std::thread::scope(|s| {
+            let mut handles = Vec::with_capacity(requested.len());
+            for agent_id in &requested {
+                handles.push(s.spawn(|| wire_single_agent(agent_id)));
+            }
+            let mut res = Vec::with_capacity(requested.len());
+            for h in handles {
+                if let Ok(r) = h.join() {
+                    res.push(r);
+                }
+            }
+            res
+        })
+    } else {
+        requested.iter().map(|id| wire_single_agent(id)).collect()
+    };
+
+    for (agent_id, label, wired_any, wire_err) in results {
+        wire_bar.begin(&label);
+        if let Some(err) = wire_err {
+            wire_failures += 1;
+            wire_bar.fail(first_line(&err));
+        } else {
+            if let Some(ag) = get_agent(&agent_id) {
                 equipped_agents.push(ag);
             }
             if wired_any {

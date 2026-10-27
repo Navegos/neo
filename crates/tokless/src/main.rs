@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-10-20
+// lastModified: 2026-10-27
 
 use std::collections::HashMap;
 use std::env;
@@ -12,11 +12,12 @@ use std::process;
 use tokless::agents;
 use tokless::commands::{
     proxy_agent_ids, run_codegraph_index_hook, run_codex_perm_hook,
-    run_cursor_project_rules_hook, run_disable, run_doctor, run_grok_session_start_hook,
-    run_index, run_info, run_init, run_mcp, run_projectmem_hook, run_proxy_down,
-    run_proxy_status, run_proxy_up, run_rtk_hook, run_rtk_hook_cline, run_rtk_hook_codex,
-    run_rtk_hook_copilot, run_rtk_hook_cursor, run_rtk_hook_droid, run_rtk_hook_dsh,
-    run_rtk_hook_grok, run_rtk_rewrite, run_self_update, run_uninstall, run_update, InitOptions,
+    run_cursor_project_rules_hook, run_daemon_cli, run_disable, run_doctor,
+    run_grok_session_start_hook, run_index, run_info, run_init, run_mcp, run_prime,
+    run_projectmem_hook, run_proxy_down, run_proxy_status, run_proxy_up, run_rtk_hook,
+    run_rtk_hook_cline, run_rtk_hook_codex, run_rtk_hook_copilot, run_rtk_hook_cursor,
+    run_rtk_hook_droid, run_rtk_hook_dsh, run_rtk_hook_grok, run_rtk_rewrite, run_self_update,
+    run_top, run_uninstall, run_update, run_gain, InitOptions, PrimeOptions,
 };
 
 use tokless::core::{agent_ids, tool_ids};
@@ -57,6 +58,15 @@ fn parse_args(argv: &[String]) -> ParsedArgs {
             } else {
                 p.bools.insert(key.to_string(), true);
             }
+        } else if a.starts_with("-j") {
+            if a.len() > 2 {
+                p.flags.insert("jobs".to_string(), a[2..].to_string());
+            } else if i + 1 < argv.len() && !argv[i + 1].starts_with('-') {
+                p.flags.insert("jobs".to_string(), argv[i + 1].clone());
+                i += 1;
+            } else {
+                p.bools.insert("parallel".to_string(), true);
+            }
         } else if a.starts_with('-') && a.len() == 2 {
             p.bools.insert(a[1..].to_string(), true);
         } else if p.cmd.is_empty() {
@@ -74,12 +84,17 @@ fn help_text() -> String {
         {}\n  {}              Install + wire everything (default; safe to re-run)\n\
           {}       Update the tokless CLI, then show version diff and upgrade tools\n\
           {}       Show what's wired up; warn about anything broken\n\
+          {}         Display token savings dashboard across tools\n\
+          {}          Live interactive terminal monitor for proxies and agents\n\
+          {}        Generate unified context primer for AI agent sessions\n\
+          {}       Manage background proxy supervisor: start|stop|status\n\
           {}         Show how tokless was installed, plus paths and config locations\n\
           {}        Build per-project indexes (codegraph) in the current dir\n\
           {}    Remove everything tokless ever touched\n\
           {}      Manage the headroom HTTP proxy: up|down|status\n\n\
         {}\n  --agents <list>     Limit to a subset: claude,opencode,opencode2,codex,antigravity,copilot,cursor,droid,grok,pi,omp,kilo,cline,amp,kimi,zcode,dsh\n\
           --tools <list>      Limit to a subset: rtk,caveman,ponytail,codegraph,context-mode,headroom,projectmem\n\
+          -j, --jobs <n>      Number of parallel threads for agent wiring\n\
           --dry-run           Show what would change without writing anything\n\
           --verbose           Show every step\n\n\
         {}",
@@ -88,6 +103,10 @@ fn help_text() -> String {
         cy("tokless"),
         cy("tokless update"),
         cy("tokless doctor"),
+        cy("tokless gain"),
+        cy("tokless top"),
+        cy("tokless prime"),
+        cy("tokless daemon"),
         cy("tokless info"),
         cy("tokless index"),
         cy("tokless uninstall"),
@@ -308,6 +327,9 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "proxy" {
         return run_proxy_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "daemon" {
+        return run_daemon_cli(&args[2..]);
+    }
 
     let p = parse_args(&args[1..]);
     if p.bools.get("verbose") == Some(&true) {
@@ -340,6 +362,8 @@ fn run() -> i32 {
     };
 
     let command = if p.cmd.is_empty() { "init" } else { p.cmd.as_str() };
+    let jobs = p.flags.get("jobs").and_then(|s| s.parse::<usize>().ok()).unwrap_or(0);
+    let parallel = p.bools.get("parallel") == Some(&true) || jobs > 1;
     let opts = InitOptions {
         agents: agent_list,
         tools: tool_list,
@@ -347,6 +371,8 @@ fn run() -> i32 {
         yes: p.bools.get("yes") == Some(&true),
         dry_run: p.bools.get("dry-run") == Some(&true) || p.bools.get("dryrun") == Some(&true),
         verbose: p.bools.get("verbose") == Some(&true),
+        jobs,
+        parallel,
         ..Default::default()
     };
 
@@ -355,11 +381,19 @@ fn run() -> i32 {
         "update" => run_update(opts),
         "doctor" => run_doctor(p.bools.get("offline") == Some(&true), p.bools.get("json") == Some(&true)),
         "stats" => run_doctor(true, true),
+        "gain" => run_gain(),
+        "top" => run_top(p.bools.get("once") == Some(&true) || p.bools.get("1") == Some(&true)),
+        "prime" => run_prime(PrimeOptions {
+            copy: p.bools.get("copy") == Some(&true) || p.bools.get("c") == Some(&true),
+            json: p.bools.get("json") == Some(&true),
+            output_file: p.flags.get("output").or_else(|| p.flags.get("o")).cloned(),
+        }),
+        "daemon" => run_daemon_cli(&args[2..]),
         "info" => run_info(),
         "index" => run_index(opts, p.bools.get("auto") == Some(&true)),
         "disable" => run_disable(opts),
         "uninstall" => run_uninstall(opts),
-        "self-update" => run_self_update(),
+        "self-update" => run_self_update(p.bools.get("check") == Some(&true)),
         _ => {
             println!("{}", help_text());
             L.err(&format!("Unknown command: {}", command));

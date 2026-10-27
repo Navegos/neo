@@ -431,10 +431,10 @@ sgl-kernel/csrc/**/*_musa/
 .fortify
 
 # Ignore temporary external repository files
-inspect-vault/**
+inspect-vault/
 
 # Ignore inspect-files
-/inspect-files/**
+inspect-files/
 
 # Ignore Github
 .github/context-mode/

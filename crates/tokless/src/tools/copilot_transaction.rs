@@ -64,6 +64,8 @@ pub fn copilot_transaction_paths(extra_paths: &[String]) -> Vec<String> {
         p.settings,
         p.mcp_config,
         p.instructions,
+        Path::new(&p.dir).join("permissions-config.json").to_string_lossy().to_string(),
+        Path::new(&p.hooks_dir).join("context-mode.json").to_string_lossy().to_string(),
         Path::new(&p.hooks_dir).join("tokless-rtk.json").to_string_lossy().to_string(),
         Path::new(&p.hooks_dir).join("tokless-codegraph-index.json").to_string_lossy().to_string(),
         copilot_shim_digest_path(),
@@ -74,6 +76,7 @@ pub fn copilot_transaction_paths(extra_paths: &[String]) -> Vec<String> {
         raw.push(r.join(".vscode").join("mcp.json").to_string_lossy().to_string());
         raw.push(r.join(".vscode").join("settings.json").to_string_lossy().to_string());
         raw.push(r.join(".github").join("copilot-instructions.md").to_string_lossy().to_string());
+        raw.push(r.join(".github").join("hooks").join("context-mode.json").to_string_lossy().to_string());
         raw.push(r.join(".github").join("hooks").join("tokless-rtk.json").to_string_lossy().to_string());
         raw.push(r.join(".github").join("hooks").join("tokless-codegraph-index.json").to_string_lossy().to_string());
     }

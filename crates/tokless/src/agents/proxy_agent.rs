@@ -8,12 +8,15 @@
 use std::path::Path;
 
 use crate::core::get_agent;
+use crate::util::headroom::headroom_installed;
+use crate::util::headroom_proxy::{proxy_routing_enabled, proxy_routing_preference_set};
 use crate::util::paths;
 use crate::util::which;
 
 use super::amp::{amp_rtk_permissions_wired, configure_amp_rtk_permissions_auto, remove_amp_rtk_permissions};
 use super::antigravity::{
-    antigravity_proxy_wired, configure_antigravity_proxy, remove_antigravity_proxy,
+    antigravity_global_settings_file, antigravity_proxy_wired, configure_antigravity_proxy,
+    remove_antigravity_proxy,
 };
 use super::claude::{claude_proxy_wired, configure_claude_proxy, remove_claude_proxy};
 use super::cline::{cline_providers_file, cline_proxy_wired, configure_cline_proxy, remove_cline_proxy};
@@ -31,8 +34,9 @@ use super::kilo::{configure_kilo_proxy, kilo_proxy_wired, remove_kilo_proxy};
 use super::kimi::{configure_kimi_proxy, kimi_proxy_wired, remove_kimi_proxy};
 use super::omp::{configure_omp_proxy, omp_models_file, omp_proxy_wired, remove_omp_proxy};
 use super::opencode::{
-    configure_open_code_proxy, open_code_proxy_satisfied, open_code_proxy_wired,
-    remove_open_code_proxy,
+    configure_open_code_proxy, configure_open_code_proxy_v2, open_code_config_files,
+    open_code_proxy_satisfied, open_code_proxy_v2_wired, open_code_proxy_wired,
+    open_code_v2_config_files, remove_open_code_proxy, remove_open_code_proxy_v2,
 };
 use super::pi::{configure_pi_proxy, pi_models_file, pi_proxy_wired, remove_pi_proxy};
 use super::zcode::{configure_zcode_proxy, remove_zcode_proxy, zcode_provider_config_path, zcode_proxy_wired};
@@ -68,6 +72,11 @@ pub const PROXY_AGENT_SPECS: &[ProxyAgentSpec] = &[
     },
     ProxyAgentSpec {
         id: "opencode",
+        protocol: ProxyProtocol::OpenAICompatible,
+        wire_kind: ProxyWireKind::AdditiveProvider,
+    },
+    ProxyAgentSpec {
+        id: "opencode2",
         protocol: ProxyProtocol::OpenAICompatible,
         wire_kind: ProxyWireKind::AdditiveProvider,
     },
@@ -172,6 +181,7 @@ pub fn configure_proxy_agent_with_path(id: &str) -> (bool, String) {
         "omp" => configure_omp_proxy(),
         "codex" => configure_codex_proxy(),
         "opencode" => configure_open_code_proxy(),
+        "opencode2" => configure_open_code_proxy_v2(),
         "kilo" => configure_kilo_proxy(),
         "pi" => configure_pi_proxy(),
         "droid" => configure_droid_proxy(),
@@ -220,6 +230,7 @@ pub fn remove_proxy_agent_checked(id: &str) -> Result<bool, String> {
         "omp" => remove_omp_proxy(),
         "codex" => remove_codex_proxy(),
         "opencode" => remove_open_code_proxy(),
+        "opencode2" => remove_open_code_proxy_v2(),
         "kilo" => remove_kilo_proxy(),
         "pi" => remove_pi_proxy(),
         "droid" => remove_droid_proxy(),
@@ -241,6 +252,7 @@ pub fn proxy_agent_wired(id: &str) -> bool {
         "omp" => omp_proxy_wired(),
         "codex" => codex_proxy_wired(),
         "opencode" => open_code_proxy_wired(),
+        "opencode2" => open_code_proxy_v2_wired(),
         "kilo" => kilo_proxy_wired(),
         "pi" => pi_proxy_wired(),
         "droid" => droid_proxy_wired(),
@@ -261,14 +273,8 @@ pub fn proxy_agent_config_files(id: &str) -> Vec<String> {
         "claude" => vec![paths::claude_code_paths().settings],
         "omp" => vec![omp_models_file()],
         "codex" => vec![paths::codex_paths_resolved().config],
-        "opencode" => {
-            let dir = paths::opencode_paths_resolved().dir;
-            vec![
-                Path::new(&dir).join("config.json").to_string_lossy().to_string(),
-                Path::new(&dir).join("opencode.json").to_string_lossy().to_string(),
-                Path::new(&dir).join("opencode.jsonc").to_string_lossy().to_string(),
-            ]
-        }
+        "opencode" => open_code_config_files(),
+        "opencode2" => open_code_v2_config_files(),
         "kilo" => {
             let dir = paths::kilo_paths_resolved().dir;
             vec![
@@ -287,6 +293,54 @@ pub fn proxy_agent_config_files(id: &str) -> Vec<String> {
         "zcode" => vec![zcode_provider_config_path()],
         "dsh" => vec![dsh_patch_file()],
         "amp" => vec![paths::amp_paths_resolved().config],
+        "antigravity" => vec![antigravity_global_settings_file()],
         _ => Vec::new(),
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProxyReadiness {
+    Ready,
+    InstallMissing,
+    AgentUnwired,
+    RoutingDisabled,
+    Manual,
+    ByokExcluded,
+    NotApplicable,
+}
+
+pub fn proxy_readiness_for(id: &str) -> ProxyReadiness {
+    if let Some(spec) = proxy_spec_for(id)
+        && spec.wire_kind == ProxyWireKind::Manual
+    {
+        return ProxyReadiness::Manual;
+    }
+    if id == "grok" {
+        return ProxyReadiness::ByokExcluded;
+    }
+    if proxy_spec_for(id).is_none() {
+        return ProxyReadiness::NotApplicable;
+    }
+    if !proxy_agent_applicable(id) {
+        return ProxyReadiness::NotApplicable;
+    }
+    if proxy_routing_preference_set() && !proxy_routing_enabled() {
+        return ProxyReadiness::RoutingDisabled;
+    }
+    if !proxy_agent_uses_headroom(id) {
+        return ProxyReadiness::ByokExcluded;
+    }
+    if !headroom_installed() {
+        return ProxyReadiness::InstallMissing;
+    }
+    if id == "opencode" {
+        if !open_code_proxy_satisfied() {
+            return ProxyReadiness::AgentUnwired;
+        }
+        return ProxyReadiness::Ready;
+    }
+    if !proxy_agent_wired(id) {
+        return ProxyReadiness::AgentUnwired;
+    }
+    ProxyReadiness::Ready
 }

@@ -9,8 +9,8 @@ use std::fs;
 use std::path::Path;
 use crate::util::jsonc::{stringify_json, try_parse_jsonc, Value};
 use crate::util::paths::{
-    claude_code_paths, codex_paths_resolved, home, opencode_paths_resolved, read_file_safe,
-    write_file_atomic,
+    claude_code_paths, codex_paths_resolved, home, opencode_paths_resolved, opencode_paths_v2,
+    read_file_safe, windows_home_from_wsl, write_file_atomic,
 };
 
 /// Removes legacy SessionStart auto-index hooks from earlier Tokless versions.
@@ -19,6 +19,7 @@ pub fn unwire_auto_index(agent: &str) {
         "claude" => unwire_claude_auto_index(),
         "codex" => unwire_codex_auto_index(),
         "opencode" => unwire_opencode_auto_index(),
+        "opencode2" => unwire_opencode_v2_auto_index(),
         "antigravity" => unwire_gemini_auto_index(),
         _ => {}
     }
@@ -50,6 +51,9 @@ pub fn unwire_claude_auto_index() {
         hooks.remove("SessionStart");
     } else {
         hooks.insert("SessionStart".into(), Value::Array(filtered));
+    }
+    if hooks.is_empty() {
+        cfg.remove("hooks");
     }
     let _ = write_file_atomic(&p.settings, &stringify_json(&Value::Object(cfg)));
 }
@@ -84,13 +88,48 @@ pub fn unwire_codex_auto_index() {
     } else {
         hooks.insert("SessionStart".into(), Value::Array(filtered));
     }
-    let _ = write_file_atomic(&p, &stringify_json(&Value::Object(cfg)));
+    if hooks.is_empty() {
+        let _ = fs::remove_file(&p);
+    } else {
+        let _ = write_file_atomic(&p, &stringify_json(&Value::Object(cfg)));
+    }
+}
+
+pub fn opencode_auto_index_path() -> String {
+    Path::new(&opencode_paths_resolved().dir)
+        .join("plugins")
+        .join("tokless-codegraph-init.js")
+        .to_string_lossy()
+        .to_string()
+}
+
+pub fn opencode_v2_auto_index_path() -> String {
+    Path::new(&opencode_paths_v2().plugins_dir)
+        .join("tokless-codegraph-init.js")
+        .to_string_lossy()
+        .to_string()
+}
+
+pub fn unwire_opencode_v2_auto_index() {
+    let _ = fs::remove_file(opencode_v2_auto_index_path());
 }
 
 pub fn unwire_opencode_auto_index() {
-    let p = Path::new(&opencode_paths_resolved().plugins_dir).join("tokless-index.ts");
-    if p.exists() {
-        let _ = fs::remove_file(p);
+    let _ = fs::remove_file(opencode_auto_index_path());
+    let _ = fs::remove_file(opencode_v2_auto_index_path());
+    let legacy = Path::new(&opencode_paths_resolved().plugins_dir).join("tokless-index.ts");
+    if legacy.exists() {
+        let _ = fs::remove_file(legacy);
+    }
+    let win = windows_home_from_wsl();
+    if !win.is_empty() {
+        let _ = fs::remove_file(
+            Path::new(&win)
+                .join(".config")
+                .join("opencode")
+                .join("plugins")
+                .join("tokless-codegraph-init.js"),
+        );
     }
 }
 
@@ -124,6 +163,9 @@ pub fn unwire_gemini_auto_index() {
         hooks.remove("SessionStart");
     } else {
         hooks.insert("SessionStart".into(), Value::Array(filtered));
+    }
+    if hooks.is_empty() {
+        cfg.remove("hooks");
     }
     let _ = write_file_atomic(&p, &stringify_json(&Value::Object(cfg)));
 }

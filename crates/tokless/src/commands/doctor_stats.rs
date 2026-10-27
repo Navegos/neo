@@ -499,6 +499,50 @@ pub fn process_alive(pid: u32) -> bool {
     crate::agents::proxy_provider::proxy_process_alive(pid)
 }
 
+pub fn run_gain() -> i32 {
+    crate::commands::helpers::cmd_header("gain", "token savings dashboard across tools");
+
+    let rtk_bin = which("rtk");
+    if !rtk_bin.is_empty() {
+        crate::util::progress::tree_top("RTK Savings");
+        if let Some(out) = run_doctor_command(Duration::from_secs(4), &rtk_bin, &["gain"]) {
+            for line in out.lines() {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() && !trimmed.starts_with("[warn]") {
+                    crate::util::progress::tree_leaf(trimmed);
+                }
+            }
+        } else {
+            crate::util::progress::tree_leaf(&C.dim("no tracking data yet"));
+        }
+        crate::util::progress::tree_close();
+    }
+
+    let cwd = std::env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| ".".into());
+    let stats = doctor_tool_stats(&cwd, true);
+
+    if let Some(hr) = stats.get("headroom") {
+        crate::util::progress::tree_corner("Headroom Cache");
+        for row in hr {
+            crate::util::progress::tree_leaf(row);
+        }
+        crate::util::progress::tree_close();
+    }
+
+    if let Some(pjm) = stats.get("projectmem") {
+        crate::util::progress::tree_corner("ProjectMem");
+        for row in pjm {
+            crate::util::progress::tree_leaf(row);
+        }
+        crate::util::progress::tree_close();
+    }
+
+    crate::commands::helpers::print_repo_footer(true);
+    0
+}
+
 #[cfg(unix)]
 pub fn process_alive(pid: u32) -> bool {
     if pid == 0 {

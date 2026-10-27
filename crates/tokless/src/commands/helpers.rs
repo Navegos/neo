@@ -30,6 +30,8 @@ pub struct InitOptions {
     pub yes: bool,
     pub verbose: bool,
     pub upgrade: bool,
+    pub jobs: usize,
+    pub parallel: bool,
 }
 
 pub fn bust_version_cache_file() {

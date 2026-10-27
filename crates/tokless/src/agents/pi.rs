@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/agents/pi.rs
 // created: 2026-10-11
-// lastModified: 2026-10-14
+// lastModified: 2026-10-27
 
 use std::fs;
 use std::path::Path;
@@ -14,7 +14,7 @@ use crate::util::byok::{BYOKRoute, read_byok_routes};
 use crate::util::exec::{RunOptions, run};
 use crate::util::jsonc::{OrderedMap, Value, has_jsonc_comments, stringify_json};
 use crate::util::logger::L;
-use crate::util::mcpspawn::{mcp_spawn_for, pick_mcp_spawn, wrap_auto_index};
+use crate::util::mcpspawn::{pick_mcp_spawn, wrap_auto_index};
 use crate::util::paths;
 
 use super::proxy_detection::{ProxyConfigState, classify_pi_models_json_proxy};
@@ -242,18 +242,40 @@ pub fn pi_purge_codegraph_packages() -> usize {
 }
 
 pub fn pi_remove_mcp_adapter() -> bool {
-    let p = paths::pi_paths_resolved().mcp_config;
-    if let Some(raw) = paths::read_file_safe(&p)
-        && let Some(cfg) = try_parse_jsonc(&raw)
-        && json_map_child(&cfg, "mcpServers").is_some_and(|sm| !sm.is_empty())
-    {
-        return false;
+    if !pi_source_has(PI_SRC_MCP_ADAPTER) {
+        return true;
     }
     pi_remove_source(PI_SRC_MCP_ADAPTER)
 }
 
+fn pi_strip_adapter_fields(cfg: &mut OrderedMap) {
+    if let Some(Value::Object(sm)) = cfg.get_mut("settings") {
+        for k in ["toolPrefix", "idleTimeout", "directTools"] {
+            sm.shift_remove(k);
+        }
+        if sm.is_empty() {
+            cfg.shift_remove("settings");
+        }
+    }
+    if let Some(Value::Object(sm)) = cfg.get_mut("mcpServers") {
+        let keys: Vec<String> = sm.keys().cloned().collect();
+        for k in keys {
+            if let Some(Value::Object(em)) = sm.get_mut(&k) {
+                em.shift_remove("lifecycle");
+                em.shift_remove("directTools");
+            }
+        }
+    }
+}
+
 pub fn configure_pi_mcp(tool_id: &str) -> (bool, String) {
+    if tool_id == "headroom" {
+        return (false, paths::pi_paths_resolved().mcp_config);
+    }
     let p = paths::pi_paths_resolved().mcp_config;
+    if let Some(parent) = Path::new(&p).parent() {
+        let _ = paths::ensure_dir(parent);
+    }
     let raw_opt = paths::read_file_safe(&p);
     let exists = raw_opt.is_some();
     if !exists && paths::exists(&p) {
@@ -271,6 +293,7 @@ pub fn configure_pi_mcp(tool_id: &str) -> (bool, String) {
         };
         c
     };
+    pi_strip_adapter_fields(&mut cfg);
     if cfg.get("mcpServers").is_some_and(|v| !v.is_object()) {
         return (false, p);
     }
@@ -281,7 +304,6 @@ pub fn configure_pi_mcp(tool_id: &str) -> (bool, String) {
     let servers = json_map_child_mut(&mut cfg, "mcpServers").unwrap();
     if let Some(existing) = servers.get(tool_id) {
         if json_equal(existing, &desired) {
-            let _ = pi_install_source(PI_SRC_MCP_ADAPTER);
             return (false, p);
         }
         if !pi_mcp_managed(tool_id, existing) {
@@ -290,11 +312,13 @@ pub fn configure_pi_mcp(tool_id: &str) -> (bool, String) {
     }
     servers.insert(tool_id.to_string(), desired);
     let next = stringify_json(&Value::Object(cfg));
-    if paths::write_file_atomic(&p, &next).is_err() {
-        return (false, p);
+    if next != raw {
+        if paths::write_file_atomic(&p, &next).is_err() {
+            return (false, p);
+        }
+        return (true, p);
     }
-    let _ = pi_install_source(PI_SRC_MCP_ADAPTER);
-    (true, p)
+    (false, p)
 }
 
 pub fn remove_pi_mcp(tool_id: &str) -> bool {
@@ -318,15 +342,8 @@ pub fn remove_pi_mcp(tool_id: &str) -> bool {
         return false;
     }
     servers.shift_remove(tool_id);
-    if servers.is_empty() {
-        cfg.shift_remove("mcpServers");
-    }
     let next = stringify_json(&Value::Object(cfg));
-    let ok = paths::write_file_atomic(&p, &next).is_ok();
-    if ok {
-        let _ = pi_remove_mcp_adapter();
-    }
-    ok
+    paths::write_file_atomic(&p, &next).is_ok()
 }
 
 pub fn pi_mcp_bounded(tool_id: &str) -> bool {
@@ -343,7 +360,19 @@ pub fn pi_mcp_bounded(tool_id: &str) -> bool {
     let Some(existing) = servers.get(tool_id) else {
         return false;
     };
-    pi_mcp_managed(tool_id, existing) && pi_source_has(PI_SRC_MCP_ADAPTER)
+    let Some(em) = existing.as_object() else {
+        return false;
+    };
+    let spawn = if tool_id == "codegraph" {
+        wrap_auto_index("pi", pick_mcp_spawn("codegraph", &["serve", "--mcp"]))
+    } else {
+        pick_mcp_spawn(tool_id, &[])
+    };
+    em.get("command").and_then(|v| v.as_str()) == Some(spawn.command.as_str())
+        && json_args_eq(em.get("args"), &spawn.args)
+        && em.get("exposure").and_then(|v| v.as_str()) == Some("direct")
+        && !em.contains_key("lifecycle")
+        && !em.contains_key("directTools")
 }
 
 pub fn pi_projectmem_mcp_bounded() -> bool {
@@ -365,7 +394,7 @@ fn pi_mcp_desired(tool_id: &str) -> OrderedMap {
     let spawn = if tool_id == "codegraph" {
         wrap_auto_index("pi", pick_mcp_spawn("codegraph", &["serve", "--mcp"]))
     } else {
-        mcp_spawn_for(tool_id)
+        pick_mcp_spawn(tool_id, &[])
     };
     let mut entry = OrderedMap::new();
     entry.insert("command".to_string(), Value::String(spawn.command));
@@ -375,8 +404,7 @@ fn pi_mcp_desired(tool_id: &str) -> OrderedMap {
             Value::Array(strings_to_values(&spawn.args)),
         );
     }
-    entry.insert("lifecycle".to_string(), Value::String("lazy".to_string()));
-    entry.insert("directTools".to_string(), Value::Bool(true));
+    entry.insert("exposure".to_string(), Value::String("direct".to_string()));
     entry
 }
 
@@ -387,10 +415,9 @@ fn pi_mcp_managed(tool_id: &str, existing: &Value) -> bool {
     let spawn = if tool_id == "codegraph" {
         wrap_auto_index("pi", pick_mcp_spawn("codegraph", &["serve", "--mcp"]))
     } else {
-        mcp_spawn_for(tool_id)
+        pick_mcp_spawn(tool_id, &[])
     };
     em.get("command").and_then(|v| v.as_str()) == Some(spawn.command.as_str())
-        && json_args_eq(em.get("args"), &spawn.args)
 }
 
 // --- pi_proxy.go ---

@@ -1,6 +1,6 @@
 # projectmem - neo
 
-_Last updated: 2026-10-20_
+_Last updated: 2026-10-27_
 
 ## Project purpose
 --------------------------------------------------------------------------------
@@ -8,8 +8,17 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 
 ## Recent issues
 - [OPEN] #0002 Completed Phase 1 Performance & Memory Optimizations: scoped thread concurrent agent detection, zero-copy byte slice MCP frame scanning, and borrowed RouteRequest fast routing pass (open)
+- [DONE] #0012 Commands doctor/init/proxy parity gaps: doctor missing per-agent tool/proxy/instruction rows and proxy port checks; init missing excluded-tool unwire and persisted selection load [crates/tokless/src/commands/doctor.rs] -> Implemented doctor per-agent tool rows and Ports overview, init excluded tools unwire and selection persistence, proxy lifecycle lock and rollback transaction (fixed)
+- [DONE] #0011 OpenCode v1/v2 proxy & BYOK parity missing: ConfigureOpenCodeProxyV2, RemoveOpenCodeProxyV2, OpenCodeProxyV2Wired, retrieve tool stash, and proxy_agent opencode2 spec [crates/tokless/src/agents/opencode.rs] -> Verified and integrated OpenCode v1 and v2 proxy and BYOK parity with complete specs and stash handling (fixed)
+- [DONE] #0010 MCP adapters and opencode v2 regressions: opencode2 MCP writes v1 root shape instead of mcp.servers, codex MCP block parser missing, cursor MCP permissions missing [crates/tokless/src/agents/mcp_adapters.rs] -> Verified and wired MCP adapters for opencode2 with mcp.servers, codex TOML block parser, and cursor MCP permissions (fixed)
+- [DONE] #0009 ProjectMem tool missing pjm context + intent sections + global gotchas, kilo/opencode2 extensions, before_agent_start/transform hooks, and git worktree post-commit hook [crates/tokless/src/tools/projectmem.rs] -> Projectmem tool equipped with session push, kilo/opencode2 extensions, and rule files refresh (fixed)
+- [DONE] #0008 CodeGraph tool missing antigravity/droid/pi hooks and package purge, status --json health check, codegraph init vs index --quiet, and opencode autoindexjs unwire [crates/tokless/src/tools/codegraph.rs] -> CodeGraph tool equipped with hooks for antigravity, droid, pi, and opencode/opencode2 autoindex unwiring (fixed)
+- [DONE] #0007 Context-Mode tool missing minNode=22, opencode cache postinstall, codex 7-event & workspace cleanup, and agent-specific hooks for droid/antigravity/copilot/pi/cursor [crates/tokless/src/tools/contextmode.rs] -> Context-mode tool equipped with minNode 22 check, opencode cache postinstall, and codex 7-event/workspace cleanup (fixed)
+- [DONE] #0006 Headroom tool verify_for always returns Some(true), missing 7 agents in build_headroom, and missing proxy_readiness_for and lifecycle lock wiring [crates/tokless/src/tools/headroom.rs] -> Headroom tool wired for all 17 agents with proxy_readiness_for check and lifecycle locks (fixed)
+- [DONE] #0005 RTK hook cline/copilot/codex regressions: copilot unconditionally allows non-rtk commands, missing post-tool hook, cline ignores toolName/commands array [crates/tokless/src/commands/rtk_hook.rs] -> Fixed OrderedMap type mismatches in rtk_hook parse and tests using try_parse_jsonc_map (fixed)
+- [DONE] #0004 RTK tool missing opencode2 wiring, amp permission wiring, rtk_location_for, pi extension normalization, and kilo/cline foreign backup parity [crates/tokless/src/tools/rtk.rs] -> Fixed OpenCode BYOK fields, stale v2 path read, and RTK location in kilo and rtk.rs (fixed)
 - [DONE] #0003 Process alive check on Windows falsely flags dead processes with exit code 259 (STILL_ACTIVE) as running [crates/tokless/src/agents/proxy_provider.rs:174] -> Use WaitForSingleObject with 0 timeout on Windows handle to detect still running processes without still_active 259 false-positives; eliminate unwrap in mcp_proxy; atomic write_file for instructions and versions (fixed)
-- [DONE] #0001 CVT1100 duplicate resource error when linking nbuild tests on Windows [crates/nbuild/tests/test_basic.rs] -> Eliminated duplicate winres PE resource conflict across crates, all 75 tests pass (fixed)
+- ...and 1 older fixed issue not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
 - Port tokless Go codebase from inspect-vault/tokless to Rust in crates/tokless [crates/tokless]
@@ -21,10 +30,10 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Ported missing agents (amp, dsh, kimi, zcode, opencode2) and BYOK providers from Go to Rust in crates/tokless
 - Plan approved: Hardening (Windows Job Object orphan process prevention, Stale Routing Lock PID reclamation) and Features (tokless doctor --json / tokless stats command, Prompt Cache Warmth Gauge)
 - Implemented Hardening & Bug Prevention (Windows detached process flags, Stale Routing Lock PID cleanup) and Features (tokless doctor --json, tokless stats alias, Prompt Cache Warmth Gauge) with 93 passing workspace tests
+- Approved and executing Phases 1-3: Go Parity Hardening (doctor tree, init excluded-tool unwire, proxy lifecycle/rollback, RTK resolver), Optimizations, and Features
+- Implementing approved 5 features: 1. Parallel agent wiring engine (tokless init -j), 2. Live terminal monitor (tokless top), 3. Proxy daemon supervisor (tokless daemon), 4. Context primer (tokless prime), 5. In-place self-updater (tokless self-update)
 
 ## Notes
-- New feature: feat: Implement ForgeClient for managing releases from various git forges [crates/nbuild/src/agent/mod.rs]
-- Implemented nbuild doctor self-healing, TOOLCHAINS_DIR environment & PATH setup, neo multi-crate distro package, TUI menu, and fs_ops [crates/nbuild/src/cli.rs:1]
 - New feature: feat: Implement safe file and directory removal functions [crates/nbuild/src/cli.rs]
 - Updated release workflow for multi-crate builds and individual crates.io publishing, added README, LICENSE, and PLAN for all crates [.github/workflows/release.yml:1]
 - New feature: feat(tokless): Implement core functionality for headroom proxy and token optimization [crates/archinfo/build.rs]
@@ -33,6 +42,8 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 3 complete: Ported and verified tool harnesses (contextmode, codegraph, projectmem, rtk, caveman, ponytail, principles) for all missing agents with zero compiler warnings and 23 tests passing
 - Phase 4 complete: Ported doctor_stats, background process management, and process_alive with zero compiler warnings and 27 passing tests
 - Completed full port of tokless Go codebase to Rust (Phases 1-5): all 17 agents supported, MCP adapters, selection store, tool harnesses, doctor stats, process alive, 33 unit tests passing, zero warnings
+- New feature: feat: Enhance tokless functionality with new agents and routing features [crates/nbuild/src/cli.rs]
+- Completed all 5 plans: 1. Parallel agent engine (tokless init -j/--jobs), 2. Live terminal monitor (tokless top), 3. Proxy daemon supervisor (tokless daemon), 4. Context primer (tokless prime), 5. In-place self-updater with atomic Windows rename and --check (tokless self-update)
 
 ## Key files
 - `.editorconfig`

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/doctor.rs
 // created: 2026-10-05
-// lastModified: 2026-10-20
+// lastModified: 2026-10-27
 
 use std::env;
 use crate::commands::doctor_probe::{format_runtime_issues, probe_agent_runtime, RuntimeIssue};
@@ -13,14 +13,17 @@ use crate::core::{list_agents, list_tools, ToolManifest};
 use crate::util::colors::*;
 use crate::util::logger::L;
 use crate::util::progress::*;
+use crate::util::selection::is_tool_selected;
 use crate::util::versions::*;
 
 #[derive(Clone, serde::Serialize)]
 struct AgentReport {
+    id: String,
     label: String,
     installed: bool,
     wired: bool,
     missing: Vec<String>,
+    tool_rows: Vec<String>,
     #[serde(skip_serializing)]
     runtime: Vec<RuntimeIssue>,
 }
@@ -41,11 +44,24 @@ pub fn run_doctor(offline: bool, json_output: bool) -> i32 {
                 let missing = doctor_missing_tools(tools_ref, &agent.id);
                 let runtime = probe_agent_runtime(&agent.id);
                 let wired = missing.is_empty() && runtime.is_empty();
+                let mut tool_rows = Vec::new();
+                for t in tools_ref {
+                    if t.instruction_only || !is_tool_selected(&t.id) {
+                        continue;
+                    }
+                    if let Some(ref verify) = t.verify_for.get(&agent.id) {
+                        let ok = verify().unwrap_or(false);
+                        let mark = if ok { C.green(Sym::CHECK) } else { C.red("x") };
+                        tool_rows.push(format!("  {} {}", mark, t.label));
+                    }
+                }
                 Some(AgentReport {
+                    id: agent.id.clone(),
                     label: agent.label.clone(),
                     installed: true,
                     wired,
                     missing,
+                    tool_rows,
                     runtime,
                 })
             }));
@@ -87,9 +103,23 @@ pub fn run_doctor(offline: bool, json_output: bool) -> i32 {
     } else {
         for r in &reports {
             tree_leaf(&doctor_summary_line(r));
+            if !r.wired {
+                for tr in &r.tool_rows {
+                    tree_leaf(&C.dim(tr));
+                }
+            }
         }
     }
     tree_close();
+
+    let port_rows = doctor_proxy_ports(&reports);
+    if !port_rows.is_empty() {
+        tree_corner("Ports");
+        for p in port_rows {
+            tree_leaf(&p);
+        }
+        tree_close();
+    }
 
     let broken = reports.iter().filter(|r| !r.wired).count();
     let installed_agents = reports.len();
@@ -134,10 +164,58 @@ pub fn run_doctor(offline: bool, json_output: bool) -> i32 {
     0
 }
 
+fn doctor_proxy_ports(reports: &[AgentReport]) -> Vec<String> {
+    let mut ports = Vec::new();
+    let main_port = crate::util::headroom_proxy::headroom_proxy_port();
+    let main_running = crate::headroom::proxy_running();
+    let main_status = if main_running {
+        C.green("running")
+    } else {
+        C.gray("stopped")
+    };
+    ports.push(format!(
+        "{} Headroom proxy (127.0.0.1:{}) â€” {}",
+        if main_running { C.green(Sym::CHECK) } else { C.gray(Sym::BULLET) },
+        main_port,
+        main_status
+    ));
+
+    let byok_routes = crate::util::byok::read_byok_routes().unwrap_or_default();
+    if !byok_routes.is_empty() {
+        let gw_port = crate::util::byok::byok_gateway_port();
+        ports.push(format!(
+            "{} BYOK gateway (127.0.0.1:{}) â€” {}",
+            C.green(Sym::CHECK),
+            gw_port,
+            C.green(&format!("{} routes active", byok_routes.len()))
+        ));
+    }
+
+    for r in reports {
+        if r.id == "copilot" && crate::agents::copilot::copilot_proxy_wired() {
+            ports.push(format!(
+                "{} Copilot proxy (127.0.0.1:{}) â€” {}",
+                C.green(Sym::CHECK),
+                crate::agents::copilot::copilot_proxy_port(),
+                C.green("wired")
+            ));
+        }
+        if r.id == "grok" && crate::agents::grok::grok_oauth_proxy_wired() {
+            ports.push(format!(
+                "{} Grok OAuth proxy (127.0.0.1:{}) â€” {}",
+                C.green(Sym::CHECK),
+                crate::util::grok::grok_oauth_proxy_port(),
+                C.green("wired")
+            ));
+        }
+    }
+    ports
+}
+
 fn doctor_missing_tools(tools: &[std::sync::Arc<ToolManifest>], agent_id: &str) -> Vec<String> {
     let mut missing = Vec::new();
     for tool in tools {
-        if tool.instruction_only {
+        if tool.instruction_only || !is_tool_selected(&tool.id) {
             continue;
         }
         if let Some(ref verify) = tool.verify_for.get(agent_id) {

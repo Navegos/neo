@@ -13,7 +13,7 @@ use serde_json::Value;
 
 use crate::util::{
     claude_code_paths, codex_paths_resolved, has_block, has_jsonc_comments, home,
-    opencode_paths_resolved, stringify_json,
+    kimi_paths_resolved, opencode_paths_resolved, opencode_paths_v2, stringify_json,
 };
 
 use super::antigravity::{
@@ -23,10 +23,15 @@ use super::antigravity::{
 use super::cline::detect_cline_proxy;
 use super::copilot::detect_copilot_proxy;
 use super::droid::droid_proxy_wired;
+use super::dsh::{dsh_patch_file, dsh_proxy_wired};
 use super::grok::detect_grok_proxy;
 use super::kilo::{kilo_proxy_wired, kilo_transport_plugin_target};
+use super::kimi::kimi_proxy_wired;
 use super::omp::{omp_models_file, omp_proxy_wired, omp_yaml_headroom_managed, omp_yaml_scan};
-use super::opencode::{open_code_proxy_provider_block_for, open_code_proxy_wired};
+use super::opencode::{
+    open_code_proxy_endpoint_for, open_code_proxy_provider_block_for, open_code_proxy_v2_wired,
+    open_code_proxy_wired, open_code_v2_provider_base_and_key, open_code_v2_proxy_endpoint,
+};
 use super::codex::codex_proxy_wired;
 use super::pi::{pi_models_file, pi_proxy_provider_entry, pi_proxy_wired, PI_PROXY_PROVIDER};
 use super::proxy_agent::PROXY_AGENT_SPECS;
@@ -36,6 +41,7 @@ use super::proxy_protocol::{
 use super::proxy_provider::{
     json_equal, provider_spec_active, proxy_wire_model, try_parse_jsonc_map, ProxyRouteStashEntry,
 };
+use super::zcode::{zcode_provider_config_path, zcode_proxy_base, zcode_proxy_wired};
 
 pub const PROXY_CACHE_POLICY: &str =
     "cache mode preserves provider-prefix cache; semantic response cache disabled";
@@ -186,6 +192,13 @@ fn build_capability(id: &str, protocol: ProxyProtocol, wire_kind: ProxyWireKind)
             "~/.config/opencode/opencode.json + plugins/tokless-headroom.js",
             "Installs a managed fetch-wrapper transport plugin and additive headroom provider.",
         ),
+        "opencode2" => (
+            "provider-mirror",
+            true,
+            true,
+            "~/.config/opencode2/opencode.json",
+            "Mirrors native and v1-shape BYOK providers into OpenCode v2 providers map through Headroom.",
+        ),
         "kilo" => (
             "transport-plugin",
             true,
@@ -227,6 +240,34 @@ fn build_capability(id: &str, protocol: ProxyProtocol, wire_kind: ProxyWireKind)
             false,
             "~/.cline/data/globalState.json",
             "Routes existing OpenAI-compatible BYOK configuration through Headroom.",
+        ),
+        "kimi" => (
+            "byok-provider-stash",
+            true,
+            false,
+            "~/.kimi/config.toml",
+            "Routes OpenAI-compatible providers in config.toml through Headroom.",
+        ),
+        "zcode" => (
+            "byok-provider-stash",
+            true,
+            false,
+            "~/.zcode/v2/provider_config.json",
+            "Routes OpenAI-compatible provider rules in provider_config.json through Headroom.",
+        ),
+        "dsh" => (
+            "byok-provider-stash",
+            true,
+            false,
+            "~/.dsh/cordis.patch.yml",
+            "Routes llm-pi-ai providers in cordis.patch.yml through Headroom.",
+        ),
+        "amp" => (
+            "manual",
+            true,
+            false,
+            "~/.config/amp/settings.json",
+            "Manual provider endpoint configuration; RTK permissions managed separately.",
         ),
         "cursor" => (
             "manual",
@@ -384,6 +425,16 @@ pub fn detect_proxy(id: &str) -> ProxyDetection {
                 &desired,
             )
         }
+        "opencode2" => {
+            if open_code_proxy_v2_wired() {
+                return proxy_detection(
+                    id,
+                    "managed provider mirror points at the proxy endpoint",
+                    ProxyState::ProxyStateManaged,
+                );
+            }
+            detect_open_code_v2_native_proxy(&cap)
+        }
         "kilo" => {
             if kilo_proxy_wired() {
                 return proxy_detection(
@@ -440,7 +491,10 @@ pub fn detect_proxy(id: &str) -> ProxyDetection {
         "grok" => detect_grok_proxy(&cap),
         "copilot" => detect_copilot_proxy(&cap),
         "cline" => detect_cline_proxy(&cap),
-        "cursor" => proxy_detection(
+        "kimi" => detect_kimi_proxy(&cap),
+        "zcode" => detect_zcode_proxy(&cap),
+        "dsh" => detect_dsh_proxy(&cap),
+        "cursor" | "amp" => proxy_detection(
             id,
             "manual configuration not observable",
             ProxyState::ProxyStateUnknown,
@@ -655,6 +709,231 @@ fn detect_provider_proxy(
     proxy_detection(
         &cap.id,
         "reserved provider slot not configured",
+        ProxyState::ProxyStateNativeUnconfigured,
+    )
+}
+
+fn detect_open_code_v2_native_proxy(cap: &ProxyCapability) -> ProxyDetection {
+    let path = opencode_paths_v2().config;
+    let raw = match fs::read_to_string(&path) {
+        Ok(r) => r,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return proxy_detection(&cap.id, "config file absent", ProxyState::ProxyStateAbsent);
+        }
+        Err(_) => {
+            return proxy_detection(
+                &cap.id,
+                "config file unreadable",
+                ProxyState::ProxyStateUnreadable,
+            );
+        }
+    };
+    if has_jsonc_comments(&raw) {
+        return proxy_detection(
+            &cap.id,
+            "comment-bearing config not safely inspectable",
+            ProxyState::ProxyStateUnreadable,
+        );
+    }
+    let Some(cfg) = try_parse_jsonc_map(&raw) else {
+        return proxy_detection(
+            &cap.id,
+            "config file unreadable",
+            ProxyState::ProxyStateUnreadable,
+        );
+    };
+    let Some(providers_val) = cfg.get("providers") else {
+        let spec = provider_spec_active();
+        let desired = Value::Object(open_code_proxy_provider_block_for(
+            &proxy_endpoint_for(&cap.id),
+            &spec,
+        ));
+        return detect_provider_proxy(cap, Path::new(&path), "provider", &spec.key, &desired);
+    };
+    let Some(providers) = providers_val.as_object() else {
+        return proxy_detection(
+            &cap.id,
+            "documented provider slot unreadable",
+            ProxyState::ProxyStateUnreadable,
+        );
+    };
+    if providers.is_empty() {
+        return proxy_detection(
+            &cap.id,
+            "native provider map is empty",
+            ProxyState::ProxyStateNativeUnconfigured,
+        );
+    }
+    let endpoint = open_code_proxy_endpoint_for(&cap.id);
+    for (_, val) in providers {
+        if let Some(entry) = val.as_object() {
+            let (base, _) = open_code_v2_provider_base_and_key(entry);
+            if open_code_v2_proxy_endpoint(&base, &endpoint) {
+                return proxy_detection(
+                    &cap.id,
+                    "native provider points at a proxy endpoint",
+                    ProxyState::ProxyStateConflict,
+                );
+            }
+        }
+    }
+    proxy_detection(
+        &cap.id,
+        "foreign native provider present; managed mirror absent",
+        ProxyState::ProxyStateNativeUnconfigured,
+    )
+}
+
+fn detect_kimi_proxy(cap: &ProxyCapability) -> ProxyDetection {
+    if kimi_proxy_wired() {
+        return proxy_detection(
+            &cap.id,
+            "native OpenAI-compatible providers routed through Headroom",
+            ProxyState::ProxyStateManaged,
+        );
+    }
+    let path = kimi_paths_resolved().config;
+    let raw = match fs::read_to_string(&path) {
+        Ok(r) => r,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return proxy_detection(&cap.id, "config absent", ProxyState::ProxyStateAbsent);
+        }
+        Err(_) => {
+            return proxy_detection(&cap.id, "config unreadable", ProxyState::ProxyStateUnreadable);
+        }
+    };
+    if raw.trim().is_empty() {
+        return proxy_detection(
+            &cap.id,
+            "config empty",
+            ProxyState::ProxyStateNativeUnconfigured,
+        );
+    }
+    let ep = proxy_endpoint_for("kimi");
+    let gw = crate::util::byok::byok_gateway_endpoint();
+    if raw.contains(&ep) || raw.contains(&gw) {
+        return proxy_detection(
+            &cap.id,
+            "provider points at BYOK gateway without a verified stash",
+            ProxyState::ProxyStateConflict,
+        );
+    }
+    proxy_detection(
+        &cap.id,
+        "OpenAI-compatible provider not routed through BYOK gateway",
+        ProxyState::ProxyStateNativeUnconfigured,
+    )
+}
+
+fn detect_zcode_proxy(cap: &ProxyCapability) -> ProxyDetection {
+    if zcode_proxy_wired() {
+        return proxy_detection(
+            &cap.id,
+            "native OpenAI-compatible providers routed through Headroom",
+            ProxyState::ProxyStateManaged,
+        );
+    }
+    let path = zcode_provider_config_path();
+    let raw = match fs::read_to_string(&path) {
+        Ok(r) => r,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return proxy_detection(&cap.id, "config absent", ProxyState::ProxyStateAbsent);
+        }
+        Err(_) => {
+            return proxy_detection(&cap.id, "config unreadable", ProxyState::ProxyStateUnreadable);
+        }
+    };
+    if raw.trim().is_empty() {
+        return proxy_detection(
+            &cap.id,
+            "config empty",
+            ProxyState::ProxyStateNativeUnconfigured,
+        );
+    }
+    if has_jsonc_comments(&raw) {
+        return proxy_detection(
+            &cap.id,
+            "comment-bearing config not safely inspectable",
+            ProxyState::ProxyStateUnreadable,
+        );
+    }
+    if let Some(cfg) = try_parse_jsonc_map(&raw)
+        && let Some(rules) = cfg
+            .get("config")
+            .and_then(|c| c.get("providerConfigRules"))
+            .and_then(|r| r.get("providerRules"))
+            .and_then(|pr| pr.as_array())
+    {
+        for r in rules {
+            if let Some(api) = r
+                .as_object()
+                .and_then(|o| o.get("config"))
+                .and_then(|c| c.get("api"))
+                .and_then(|a| a.as_object())
+            {
+                let base = api
+                    .get("baseURL")
+                    .or_else(|| api.get("baseUrl"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if zcode_proxy_base(base) {
+                    return proxy_detection(
+                        &cap.id,
+                        "provider points at BYOK gateway without a verified stash",
+                        ProxyState::ProxyStateConflict,
+                    );
+                }
+            }
+        }
+    }
+    proxy_detection(
+        &cap.id,
+        "provider not routed through Headroom",
+        ProxyState::ProxyStateNativeUnconfigured,
+    )
+}
+
+fn detect_dsh_proxy(cap: &ProxyCapability) -> ProxyDetection {
+    if dsh_proxy_wired() {
+        return proxy_detection(
+            &cap.id,
+            "native OpenAI-compatible providers routed through Headroom",
+            ProxyState::ProxyStateManaged,
+        );
+    }
+    let path = dsh_patch_file();
+    let raw = match fs::read_to_string(&path) {
+        Ok(r) => r,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return proxy_detection(&cap.id, "cordis patch absent", ProxyState::ProxyStateAbsent);
+        }
+        Err(_) => {
+            return proxy_detection(
+                &cap.id,
+                "cordis patch unreadable",
+                ProxyState::ProxyStateUnreadable,
+            );
+        }
+    };
+    if raw.trim().is_empty() {
+        return proxy_detection(
+            &cap.id,
+            "cordis patch empty",
+            ProxyState::ProxyStateNativeUnconfigured,
+        );
+    }
+    let ep = proxy_endpoint_for("dsh");
+    let gw = crate::util::byok::byok_gateway_endpoint();
+    if raw.contains(&ep) || raw.contains(&gw) {
+        return proxy_detection(
+            &cap.id,
+            "provider points at BYOK gateway without a verified stash",
+            ProxyState::ProxyStateConflict,
+        );
+    }
+    proxy_detection(
+        &cap.id,
+        "provider not routed through Headroom",
         ProxyState::ProxyStateNativeUnconfigured,
     )
 }

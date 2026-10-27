@@ -409,6 +409,9 @@ pub fn scrub_hidden_tool_names(tool: &Value, own_name: &str, hidden: &[String]) 
 }
 
 pub fn filter_mcp_tools_response(line: &[u8], allowed_tools: &[&str]) -> Vec<u8> {
+    if !line.windows(5).any(|w| w == b"tools") {
+        return line.to_vec();
+    }
     let mut response: Value = match serde_json::from_slice(line) {
         Ok(v) => v,
         Err(_) => return line.to_vec(),

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/selfupdate.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-27
 
 use std::env;
 use std::fs;
@@ -51,7 +51,8 @@ pub fn tokless_release_asset() -> &'static str {
     }
 }
 
-pub fn run_self_update() -> i32 {
+pub fn run_self_update(check_only: bool) -> i32 {
+    cleanup_old_executables();
     let local = tokless_version();
     let latest = fetch_latest_release_tag();
     if latest.is_empty() {
@@ -63,7 +64,16 @@ pub fn run_self_update() -> i32 {
         L.raw(&format!(
             "  {} tokless {}",
             C.green(Sym::CHECK),
-            C.gray(&format!("v{}", local))
+            C.gray(&format!("v{} (up to date)", local))
+        ));
+        return 0;
+    }
+    if check_only {
+        L.raw(&format!(
+            "  {} Update available: {} -> {}",
+            C.yellow(Sym::WARN),
+            C.gray(&format!("v{}", local)),
+            C.green(&format!("v{}", latest))
         ));
         return 0;
     }
@@ -78,6 +88,17 @@ pub fn run_self_update() -> i32 {
         0
     } else {
         1
+    }
+}
+
+pub fn cleanup_old_executables() {
+    let current_exe = tokless_abs_strict();
+    if current_exe.is_empty() {
+        return;
+    }
+    let old = format!("{}.old", current_exe);
+    if Path::new(&old).exists() {
+        let _ = fs::remove_file(&old);
     }
 }
 
@@ -199,11 +220,83 @@ pub fn self_update_unix_direct(latest: &str) -> bool {
     ok
 }
 
+pub fn self_update_windows_direct(latest: &str) -> bool {
+    let current_exe = tokless_abs_strict();
+    if current_exe.is_empty() {
+        return false;
+    }
+    let asset = tokless_release_asset();
+    if asset.is_empty() {
+        return false;
+    }
+    let tag = if latest.starts_with('v') {
+        latest.to_string()
+    } else {
+        format!("v{}", latest)
+    };
+    let url = format!(
+        "https://github.com/Navegos/neo/releases/download/{}/{}",
+        tag, asset
+    );
+    let tmp_dir = Path::new(&temp_dir()).join(format!("tokless-selfupdate-{}", std::process::id()));
+    let _ = fs::create_dir_all(&tmp_dir);
+    let zip_path = tmp_dir.join(asset);
+    let zip_str = zip_path.to_string_lossy().to_string();
+
+    let dl_ok = if !which("curl").is_empty() {
+        run_cmd("curl", &["-fsSL", "-o", &zip_str, &url], &[]).code == 0
+    } else {
+        let ps_cmd = format!("Invoke-WebRequest -Uri '{}' -OutFile '{}'", url, zip_str);
+        run_cmd("powershell", &["-NoProfile", "-Command", &ps_cmd], &[]).code == 0
+    };
+    if !dl_ok {
+        let _ = fs::remove_dir_all(&tmp_dir);
+        return false;
+    }
+
+    let tmp_str = tmp_dir.to_string_lossy().to_string();
+    let expand_ok = if !which("tar").is_empty() {
+        run_cmd("tar", &["-xf", &zip_str, "-C", &tmp_str], &[]).code == 0
+    } else {
+        let ps_expand = format!("Expand-Archive -Path '{}' -DestinationPath '{}' -Force", zip_str, tmp_str);
+        run_cmd("powershell", &["-NoProfile", "-Command", &ps_expand], &[]).code == 0
+    };
+    if !expand_ok {
+        let _ = fs::remove_dir_all(&tmp_dir);
+        return false;
+    }
+
+    let extracted = tmp_dir.join("tokless.exe");
+    if !extracted.is_file() {
+        let _ = fs::remove_dir_all(&tmp_dir);
+        return false;
+    }
+
+    let old_exe = format!("{}.old", current_exe);
+    let _ = fs::remove_file(&old_exe);
+    if fs::rename(&current_exe, &old_exe).is_err() {
+        let _ = fs::remove_dir_all(&tmp_dir);
+        return false;
+    }
+    if fs::copy(&extracted, &current_exe).is_err() {
+        let _ = fs::rename(&old_exe, &current_exe);
+        let _ = fs::remove_dir_all(&tmp_dir);
+        return false;
+    }
+    let _ = fs::remove_file(&old_exe);
+    let _ = fs::remove_dir_all(&tmp_dir);
+    true
+}
+
 pub fn run_self_update_to(latest: &str) -> bool {
     if env::var("TOKLESS_TEST").as_deref() == Ok("1") {
         return true;
     }
-    if !is_win() && self_update_unix_direct(latest) {
+    if is_win() {
+        if self_update_windows_direct(latest) {
+            return true;
+        }
+    } else if self_update_unix_direct(latest) {
         return true;
     }
     if is_win() {

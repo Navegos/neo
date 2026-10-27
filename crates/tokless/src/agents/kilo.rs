@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/agents/kilo.rs
 // created: 2026-10-11
-// lastModified: 2026-10-14
+// lastModified: 2026-10-27
 
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -472,10 +472,13 @@ pub fn discover_kilo_byok() -> Vec<OpenCodeBYOK> {
             id: id.clone(),
             file: file.clone(),
             base_url: base,
-            api_key: key,
+            api_key: key.clone(),
+            raw_api_key: key,
             npm,
             protocol,
             route_header,
+            native: false,
+            name: String::new(),
         });
     }
     out

@@ -67,8 +67,8 @@ mod tests {
 
         for tool in tools {
             for agent in phase1_agents {
-                if tool.id == "rtk" && (agent == "kimi" || agent == "opencode2") {
-                    // Kimi uses pure BYOK/instructions; opencode2 uses opencode rtk plugin
+                if tool.id == "rtk" && agent == "kimi" {
+                    // Kimi uses pure BYOK/instructions
                     continue;
                 }
                 assert!(

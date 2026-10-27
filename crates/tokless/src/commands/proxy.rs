@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-27
 
 use std::collections::HashSet;
 
@@ -19,7 +19,7 @@ use crate::headroom::autostart::{
     disable_proxy_autostart, enable_proxy_autostart, proxy_autostart_enabled, start_proxy,
     stop_proxy,
 };
-use crate::headroom::proxy::{proxy_port, proxy_running};
+use crate::headroom::proxy::{acquire_proxy_lifecycle_lock, proxy_port, proxy_running};
 use crate::util::colors::*;
 use crate::util::headroom_proxy::set_proxy_routing_enabled;
 use crate::util::logger::L;
@@ -117,6 +117,14 @@ pub fn run_proxy_up(opts: InitOptions) -> i32 {
         return 0;
     }
 
+    let _lifecycle_lock = match acquire_proxy_lifecycle_lock() {
+        Ok(l) => l,
+        Err(e) => {
+            L.err(&format!("proxy lifecycle lock: {}", e));
+            return 1;
+        }
+    };
+
     let needs_headroom = targets.iter().any(|id| proxy_agent_uses_headroom(id));
     if needs_headroom {
         if let Err(e) = start_proxy() {
@@ -163,6 +171,12 @@ pub fn run_proxy_up(opts: InitOptions) -> i32 {
                 paint_name(&pad_end(&label, 16)),
                 C.yellow("could not route")
             ));
+            for prev in configured.iter().rev() {
+                let _ = remove_proxy_agent(prev);
+            }
+            tree_close();
+            L.err(&format!("failed to configure proxy for {}", id));
+            return 1;
         }
     }
     tree_close();
@@ -202,6 +216,14 @@ pub fn run_proxy_down(opts: InitOptions) -> i32 {
         L.raw("");
         return 0;
     }
+
+    let _lifecycle_lock = match acquire_proxy_lifecycle_lock() {
+        Ok(l) => l,
+        Err(e) => {
+            L.err(&format!("proxy lifecycle lock: {}", e));
+            return 1;
+        }
+    };
 
     tree_top("Agents");
     for id in &targets {

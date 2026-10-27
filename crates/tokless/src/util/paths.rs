@@ -233,6 +233,24 @@ pub fn read_file_safe(p: impl AsRef<Path>) -> Option<String> {
     std::fs::read_to_string(p).ok()
 }
 
+pub fn remove_file_retry(p: impl AsRef<Path>) -> std::io::Result<()> {
+    let p = p.as_ref();
+    let mut err = match std::fs::remove_file(p) {
+        Ok(()) => return Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => e,
+    };
+    for _ in 0..5 {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        match std::fs::remove_file(p) {
+            Ok(()) => return Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(e) => err = e,
+        }
+    }
+    Err(err)
+}
+
 pub fn write_file_atomic(p: impl AsRef<Path>, content: &str) -> std::io::Result<()> {
     let p = p.as_ref();
     if let Some(ref f) = *WRITE_FILE_OVERRIDE.read().unwrap() {
