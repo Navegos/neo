@@ -44,6 +44,11 @@ pub fn rtk_rewrite(cmd_line: &str) -> (String, bool) {
     if cmd_line.is_empty() || rtk_unsafe_find(cmd_line) || has_shell_pipe(cmd_line) {
         return (String::new(), false);
     }
+    let (native_rewritten, changed) = crate::rtk::rtk_rewrite(cmd_line);
+    if changed && !native_rewritten.is_empty() {
+        return (native_rewritten, true);
+    }
+
     let rtk_path = resolve_rtk_bin();
     if rtk_path.is_empty() {
         return (String::new(), false);

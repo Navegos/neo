@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/runmcp.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-27
 
 use std::env;
 use std::io::{self, Read};
@@ -20,9 +20,7 @@ use crate::tools::projectmem::{
     ensure_projectmem_project, projectmem_session_text, refresh_projectmem_rule_files,
 };
 use crate::util::jsonc::{stringify_json, OrderedMap, Value};
-use crate::util::logger::L;
-use crate::util::paths::{ensure_process_path, prepend_process_path, which};
-use crate::util::projectmem::projectmem_mcp_bin;
+use crate::util::paths::{ensure_process_path, prepend_process_path};
 
 pub fn projectmem_root(workspace: &str) -> String {
     let base = if !workspace.is_empty() && workspace != "${workspaceFolder}" {
@@ -136,20 +134,20 @@ pub fn run_mcp(argv: &[String]) -> i32 {
         actual_cmd_args = inject_codegraph_path(&actual_cmd_args, &root);
     }
 
-    let mut env_vars = Vec::new();
-    if tool == "projectmem" {
-        if which("pjm-mcp").is_empty() && projectmem_mcp_bin().is_empty() {
-            L.err("projectmem: pjm-mcp not found; install with: uv tool install projectmem");
-            return 1;
-        }
+    let is_projectmem = actual_cmd_args.iter().any(|a| a.contains("projectmem") || a.contains("pjm-mcp")) || tool == "projectmem";
+    if is_projectmem {
         let root = projectmem_root(&workspace);
         if looks_like_project(&root) {
             let _ = ensure_projectmem_project(&root);
             refresh_projectmem_rule_files(&root);
         }
-        env_vars.push(("PROJECTMEM_ROOT".into(), root));
+        unsafe {
+            std::env::set_var("PROJECTMEM_ROOT", &root);
+        }
+        return crate::projectmem::mcp::run_mcp_server();
     }
 
+    let env_vars = Vec::new();
     ensure_proxy_for_agent(&agent);
 
     let bin_path = actual_cmd_args[0].clone();

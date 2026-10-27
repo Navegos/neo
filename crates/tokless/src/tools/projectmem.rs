@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/projectmem.rs
 // created: 2026-10-05
-// lastModified: 2026-10-20
+// lastModified: 2026-10-27
 
 use std::env;
 use std::fs;
@@ -19,13 +19,10 @@ use crate::util::jsonc::{stringify_json, try_parse_jsonc, OrderedMap, Value};
 use crate::util::mcpspawn::{wrap_bounded_tool, McpSpawn};
 use crate::util::paths::{
     claude_code_paths, cline_paths_resolved, codex_paths_resolved, copilot_paths_resolved,
-    cursor_paths_resolved, ensure_dir, exists, home, is_win, kilo_paths_resolved,
-    opencode_paths_resolved, prepend_process_path, read_file_safe, temp_dir,
-    tokless_persisted_abs, write_file_atomic,
+    cursor_paths_resolved, ensure_dir, exists, home, kilo_paths_resolved,
+    opencode_paths_resolved, read_file_safe, tokless_persisted_abs, write_file_atomic,
 };
-use crate::util::projectmem::{
-    ensure_projectmem, projectmem_bin, projectmem_installed, projectmem_mcp_bin,
-};
+use crate::util::projectmem::{projectmem_bin, projectmem_installed, projectmem_mcp_bin};
 use super::copilot_transaction::with_copilot_transaction;
 use super::mcp_dispatch::{mcp_configure, mcp_has, mcp_remove};
 use super::helpers::{
@@ -48,33 +45,6 @@ pub const PROJECTMEM_SECTION_LIMIT: usize = 2000;
 pub const PROJECTMEM_SESSION_LIMIT: usize = 8000;
 
 pub fn projectmem_ensure_installed(opts: &RunOpts) -> Result<bool, DynError> {
-    if is_test() {
-        let shim_dir = Path::new(&temp_dir()).join("tokless-test-projectmem");
-        let _ = fs::create_dir_all(&shim_dir);
-        for name in ["pjm", "pjm-mcp"] {
-            let p = shim_dir.join(if is_win() { format!("{}.bat", name) } else { name.to_string() });
-            let _ = fs::write(&p, if is_win() { "@echo 0.1.0" } else { "#!/bin/sh\necho 0.1.0\n" });
-        }
-        prepend_process_path(&shim_dir.to_string_lossy());
-        return Ok(true);
-    }
-
-    if let Some(ref report) = opts.report {
-        report("checking", 0.1);
-    }
-    if projectmem_installed() && !opts.upgrade {
-        if let Some(ref report) = opts.report {
-            report("already installed", 1.0);
-        }
-        return Ok(true);
-    }
-    if opts.dry_run {
-        return Ok(true);
-    }
-    if let Some(ref report) = opts.report {
-        report(if opts.upgrade { "upgrading" } else { "installing" }, 0.3);
-    }
-    ensure_projectmem(opts.upgrade).map_err(|e| -> DynError { e.into() })?;
     if let Some(ref report) = opts.report {
         report("ready", 1.0);
     }
@@ -91,42 +61,8 @@ pub fn ensure_projectmem_project(root: &str) -> Result<(), String> {
         projectmem_git_exclude(root);
         return Ok(());
     }
-    let _ = ensure_dir(&pm_dir);
-    let bin = projectmem_bin();
-    if !bin.is_empty() && !is_test() {
-        let purpose = projectmem_seed_purpose(root);
-        let _ = run(
-            &bin,
-            &["init", "--purpose", &purpose],
-            RunOptions {
-                capture: true,
-                quiet: true,
-                cwd: Some(root.to_string()),
-                timeout: Some(Duration::from_secs(10)),
-                ..Default::default()
-            },
-        );
-    }
-    let summary_p = pm_dir.join("summary.md");
-    if !summary_p.exists() {
-        let purpose = projectmem_seed_purpose(root);
-        let _ = write_file_atomic(
-            &summary_p,
-            &format!("# Project Summary\n\nPurpose: {}\n", purpose),
-        );
-    }
-    let map_p = pm_dir.join("PROJECT_MAP.md");
-    if !map_p.exists() {
-        let _ = write_file_atomic(&map_p, "# Project Map\n\nKey files and architecture notes.\n");
-    }
-    let plan_p = pm_dir.join("plan.md");
-    if !plan_p.exists() {
-        let _ = write_file_atomic(&plan_p, "# Plan\n");
-    }
-    let events_p = pm_dir.join("events.jsonl");
-    if !events_p.exists() {
-        let _ = write_file_atomic(&events_p, "");
-    }
+    let purpose = projectmem_seed_purpose(root);
+    crate::projectmem::store::initialize(Some(Path::new(root)), Some(&purpose))?;
     projectmem_git_exclude(root);
     Ok(())
 }
@@ -191,9 +127,16 @@ pub fn run_pjm(root: &str, args: &[&str]) -> String {
     if bin.is_empty() {
         return String::new();
     }
+    let full_args: Vec<&str> = if bin.ends_with("tokless") || bin.ends_with("tokless.exe") {
+        let mut v = vec!["mem"];
+        v.extend_from_slice(args);
+        v
+    } else {
+        args.to_vec()
+    };
     let res = run(
         &bin,
-        args,
+        &full_args,
         RunOptions {
             capture: true,
             quiet: true,
@@ -521,14 +464,16 @@ pub fn projectmem_configure_mcp(agent: &str, opts: &RunOpts) -> Result<bool, Dyn
         return Ok(true);
     }
     let mcp_bin = projectmem_mcp_bin();
-    let bin = if !mcp_bin.is_empty() {
-        mcp_bin
+    let (bin, args) = if mcp_bin.ends_with("tokless") || mcp_bin.ends_with("tokless.exe") {
+        (mcp_bin, vec!["mem".to_string(), "mcp".to_string()])
+    } else if !mcp_bin.is_empty() {
+        (mcp_bin, Vec::new())
     } else {
-        "pjm-mcp".to_string()
+        ("tokless".to_string(), vec!["mem".to_string(), "mcp".to_string()])
     };
     let raw_spawn = McpSpawn {
         command: bin,
-        args: Vec::new(),
+        args,
     };
     let spawn = wrap_bounded_tool("projectmem", raw_spawn);
 

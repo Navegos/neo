@@ -14,7 +14,7 @@ use tokless::commands::{
     proxy_agent_ids, run_codegraph_index_hook, run_codex_perm_hook,
     run_cursor_project_rules_hook, run_daemon_cli, run_disable, run_doctor,
     run_grok_session_start_hook, run_index, run_info, run_init, run_mcp, run_prime,
-    run_projectmem_hook, run_proxy_down, run_proxy_status, run_proxy_up, run_rtk_hook,
+    run_projectmem_hook, run_proxy_down, run_proxy_status, run_proxy_up, run_rtk_cli, run_rtk_hook,
     run_rtk_hook_cline, run_rtk_hook_codex, run_rtk_hook_copilot, run_rtk_hook_cursor,
     run_rtk_hook_droid, run_rtk_hook_dsh, run_rtk_hook_grok, run_rtk_rewrite, run_self_update,
     run_top, run_uninstall, run_update, run_gain, InitOptions, PrimeOptions,
@@ -91,6 +91,7 @@ fn help_text() -> String {
           {}         Show how tokless was installed, plus paths and config locations\n\
           {}        Build per-project indexes (codegraph) in the current dir\n\
           {}    Remove everything tokless ever touched\n\
+          {}          Manage project memory, failure prevention, and MCP server\n\
           {}      Manage the headroom HTTP proxy: up|down|status\n\n\
         {}\n  --agents <list>     Limit to a subset: claude,opencode,opencode2,codex,antigravity,copilot,cursor,droid,grok,pi,omp,kilo,cline,amp,kimi,zcode,dsh\n\
           --tools <list>      Limit to a subset: rtk,caveman,ponytail,codegraph,context-mode,headroom,projectmem\n\
@@ -110,6 +111,7 @@ fn help_text() -> String {
         cy("tokless info"),
         cy("tokless index"),
         cy("tokless uninstall"),
+        cy("tokless mem"),
         cy("tokless proxy"),
         C.bold("Flags:"),
         C.gray("Docs: https://github.com/Navegos/neo/#tokless")
@@ -172,6 +174,7 @@ fn is_session_boot_arg(args: &[String]) -> bool {
         [cmd, ..] if cmd == "run-mcp" || cmd == "rtk-hook" || cmd == "grok-hook" || cmd == "codex-perm"
             || cmd == "agy-hook" || cmd == "cursor-hook" || cmd == "copilot-hook" => true,
         [a, b, ..] if a == "rtk" && b == "hook" => true,
+        [a, b, ..] if a == "mem" && b == "mcp" => true,
         _ => false,
     }
 }
@@ -312,8 +315,11 @@ fn run() -> i32 {
     if args.len() >= 3 && args[1] == "grok-hook" && args[2] == "session-start" {
         return run_grok_session_start_hook();
     }
-    if args.len() >= 4 && args[1] == "rtk" && args[2] == "hook" && args[3] == "cursor" {
-        return run_rtk_hook_cursor();
+    if args.len() >= 2 && args[1] == "rtk" {
+        if args.len() >= 4 && args[2] == "hook" && args[3] == "cursor" {
+            return run_rtk_hook_cursor();
+        }
+        return run_rtk_cli(&args[2..]);
     }
     if args.len() >= 3 && args[1] == "codex-perm" && args[2] == "codex" {
         return run_codex_perm_hook();
@@ -329,6 +335,9 @@ fn run() -> i32 {
     }
     if args.len() >= 2 && args[1] == "daemon" {
         return run_daemon_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "mem" {
+        return tokless::projectmem::run_mem_cli(&args[2..]);
     }
 
     let p = parse_args(&args[1..]);
@@ -393,6 +402,8 @@ fn run() -> i32 {
         "index" => run_index(opts, p.bools.get("auto") == Some(&true)),
         "disable" => run_disable(opts),
         "uninstall" => run_uninstall(opts),
+        "rtk" => run_rtk_cli(&args[2..]),
+        "mem" => tokless::projectmem::run_mem_cli(&args[2..]),
         "self-update" => run_self_update(p.bools.get("check") == Some(&true)),
         _ => {
             println!("{}", help_text());

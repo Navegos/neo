@@ -32,6 +32,9 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Implemented Hardening & Bug Prevention (Windows detached process flags, Stale Routing Lock PID cleanup) and Features (tokless doctor --json, tokless stats alias, Prompt Cache Warmth Gauge) with 93 passing workspace tests
 - Approved and executing Phases 1-3: Go Parity Hardening (doctor tree, init excluded-tool unwire, proxy lifecycle/rollback, RTK resolver), Optimizations, and Features
 - Implementing approved 5 features: 1. Parallel agent wiring engine (tokless init -j), 2. Live terminal monitor (tokless top), 3. Proxy daemon supervisor (tokless daemon), 4. Context primer (tokless prime), 5. In-place self-updater (tokless self-update)
+- Refactor: Refactor instruction path handling and improve JSONC comment stripping [crates/tokless/src/agents/antigravity.rs]
+- Executed Phase 1: Full port and embed neo\inspect-vault\rtk into crates/tokless/src/rtk with 100+ filters and zero-allocation ANSI stripper [crates/tokless/src/rtk]
+- Phase 2 complete: Ported Python projectmem to pure Rust in crates/tokless/src/projectmem with schema, store locking, redaction, summary generator, precheck, heatmap, in-process MCP server, and tokless mem CLI with zero warnings and 86 passing tests [crates/tokless/src/projectmem]
 
 ## Notes
 - New feature: feat: Implement safe file and directory removal functions [crates/nbuild/src/cli.rs]

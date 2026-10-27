@@ -47,6 +47,11 @@ pub fn rtk_commands_from_help(help: &str) -> Vec<String> {
 }
 
 pub fn rtk_commands() -> Result<Vec<String>, String> {
+    let embedded: Vec<String> = crate::rtk::list_supported_commands().into_iter().map(String::from).collect();
+    if !embedded.is_empty() {
+        return Ok(embedded);
+    }
+
     let mut bin = resolve_rtk_bin();
     if bin.is_empty() {
         bin = which("rtk");
