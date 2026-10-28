@@ -137,6 +137,12 @@ pub fn pick_mcp_spawn(bin: &str, extra_args: &[&str]) -> McpSpawn {
             });
         }
         return wrap_bounded_tool("projectmem", spawn);
+    } else if bin == "icm" {
+        let spawn = wrap_cmd_shim(McpSpawn {
+            command: "icm-mcp".to_string(),
+            args: extra_vec,
+        });
+        return wrap_bounded_tool("icm", spawn);
     } else {
         let p = which(bin);
         if !p.is_empty() {

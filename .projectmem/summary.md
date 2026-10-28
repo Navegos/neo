@@ -20,8 +20,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 4 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...4 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Plan Neo multi-crate distro package, doctor self-healing, interactive TUI, and in-use shadow-swap updates
+- ...5 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Vendor archinfo directly into nbuild and remove inter-crate dependency to resolve winres PE resource collisions [crates/nbuild/Cargo.toml]
 - Ported missing agents (amp, dsh, kimi, zcode, opencode2) and BYOK providers from Go to Rust in crates/tokless
 - Plan approved: Hardening (Windows Job Object orphan process prevention, Stale Routing Lock PID reclamation) and Features (tokless doctor --json / tokless stats command, Prompt Cache Warmth Gauge)
@@ -36,9 +35,9 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Execute Phase 5: Port and embed codegraph into crates/tokless/src/codegraph with tree-sitter, ignore walker, petgraph AST blast-radius, incremental cache, and in-process MCP server
 - Phase 5 complete: Ported codegraph to pure Rust in crates/tokless/src/codegraph with tree-sitter parsers, ignore walker, petgraph AST call-graph/blast-radius, incremental SQLite cache, in-process MCP server, and tokless graph CLI with zero compiler warnings and 135 passing tests
 - Phase 6: Ported headroom to native Rust in crates/tokless/src/headroom with native HTTP/SSE proxy, lossless log deduplication, AST code compression, JSON pruner, 1024-token cache alignment, dynamic memory governor, unified BYOK gateway, dropped Python headroom-py, 172 passing tests [crates/tokless/src/headroom]
+- Phase 7 complete: Verified all 17 agent harnesses, in-process MCP multiplexer, unified tokless CLI subcommands, proxy streaming compression, and token benchmarks with 241 passed workspace tests and zero compiler warnings [crates/tokless/tests/phase7_system_verification.rs]
 
 ## Notes
-- New feature: feat: Update release workflow and add new catalog entries [crates/nbuild/catalog/brotli.json]
 - gotcha: tokless agents mcp_adapters supports 17 agents dispatching to core McpAdapter and selection store
 - Phase 3 complete: Ported and verified tool harnesses (contextmode, codegraph, projectmem, rtk, caveman, ponytail, principles) for all missing agents with zero compiler warnings and 23 tests passing
 - Phase 4 complete: Ported doctor_stats, background process management, and process_alive with zero compiler warnings and 27 passing tests
@@ -48,6 +47,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat: add comprehensive test filtering for various test frameworks [crates/tokless/build.rs]
 - New feature: feat: add context mode with sandbox execution and security features [crates/tokless/src/commands/runmcp.rs]
 - New feature: feat(icm): implement in-memory ICM store with CRUD operations and FTS5 support [crates/tokless/src/aimemory/handoff.rs]
+- New feature: feat: Introduce content compression module with unified detection and compression for code, JSON, and logs [crates/tokless/src/headroom/adaptive_mem.rs]
 
 ## Key files
 - `.editorconfig`

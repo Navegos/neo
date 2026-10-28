@@ -359,6 +359,20 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
             println!("{}", res);
             0
         }
+        "help" | "--help" | "-h" => {
+            println!("Usage: tokless graph <command> [options]");
+            println!("Commands:");
+            println!("  index      Build/update AST call-graph index");
+            println!("  status     Show index statistics");
+            println!("  files      List indexed files");
+            println!("  search     Search symbols by name");
+            println!("  callers    Find callers of a symbol");
+            println!("  callees    Find callees called by a symbol");
+            println!("  impact     Compute blast-radius of modifying a symbol");
+            println!("  explore    Semantic and call-path code explorer");
+            println!("  mcp        Run in-process MCP server");
+            0
+        }
         _ => {
             eprintln!(
                 "Unknown graph command '{}'. Available: index, status, files, search, callers, callees, impact, explore, mcp",

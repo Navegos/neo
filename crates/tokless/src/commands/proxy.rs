@@ -316,3 +316,97 @@ pub fn run_proxy_status(opts: InitOptions) -> i32 {
     L.raw("");
     0
 }
+
+pub fn proxy_help_text() -> String {
+    let cy = |s: &str| C.cyan(s);
+    format!(
+        "{} — headroom HTTP-proxy daemon (cache mode)\n\n\
+        {}\n  {}       Start local Headroom and route agents through it\n\
+          {}     Restore Tokless-owned routing and stop Headroom\n\
+          {}   Show daemon + per-agent wiring state\n\n\
+        {}\n  Native agent settings are changed; shell startup files are not.\n\
+          Existing OAuth/BYOK settings are preserved where supported.\n\
+          If you edit a managed setting, down refuses to overwrite it.\n\n\
+          down --agents <list> leaves shared Headroom running for other agents.\n\
+        {}\n  --agents <list>    Limit to: claude,codex,opencode,omp,kilo,pi,droid,grok,copilot,cline,cursor,antigravity (default: all; --agent alias)\n\
+          --dry-run          Show what would be wired without changing anything\n\
+          --help             Show this help\n",
+        C.bold(&cy("tokless proxy")),
+        C.bold("Usage:"),
+        cy("tokless proxy up"),
+        cy("tokless proxy down"),
+        cy("tokless proxy status"),
+        C.bold("Safety:"),
+        C.bold("Flags:")
+    )
+}
+
+pub fn run_proxy_cli(argv: &[String]) -> i32 {
+    let mut cmd = String::new();
+    let mut dry_run = false;
+    let mut verbose = false;
+    let mut help = false;
+    let mut agents_opt: Option<Vec<String>> = None;
+    let mut i = 0;
+    while i < argv.len() {
+        let a = &argv[i];
+        if a == "--help" || a == "-h" || a == "help" {
+            help = true;
+        } else if a == "--dry-run" || a == "--dryrun" {
+            dry_run = true;
+        } else if a == "--verbose" {
+            verbose = true;
+        } else if (a == "--agents" || a == "--agent") && i + 1 < argv.len() {
+            let raw = &argv[i + 1];
+            let list: Vec<String> = raw
+                .split(',')
+                .map(|s| s.trim().to_lowercase())
+                .filter(|s| !s.is_empty())
+                .collect();
+            agents_opt = Some(list);
+            i += 1;
+        } else if a.starts_with("--agents=") || a.starts_with("--agent=") {
+            let raw = a.split_once('=').unwrap().1;
+            let list: Vec<String> = raw
+                .split(',')
+                .map(|s| s.trim().to_lowercase())
+                .filter(|s| !s.is_empty())
+                .collect();
+            agents_opt = Some(list);
+        } else if cmd.is_empty() && !a.starts_with('-') {
+            cmd = a.clone();
+        }
+        i += 1;
+    }
+
+    if help || cmd == "help" {
+        println!("{}", proxy_help_text());
+        return 0;
+    }
+
+    let opts = InitOptions {
+        agents: agents_opt,
+        dry_run,
+        verbose,
+        ..Default::default()
+    };
+
+    match cmd.as_str() {
+        "up" => run_proxy_up(opts),
+        "down" => run_proxy_down(opts),
+        "status" | "" => run_proxy_status(opts),
+        "serve" => {
+            if let Err(e) = crate::headroom::proxy::run_proxy_foreground() {
+                L.err(&e.to_string());
+                1
+            } else {
+                0
+            }
+        }
+        _ => {
+            L.err(&format!("Unknown proxy subcommand: {}", cmd));
+            println!("{}", proxy_help_text());
+            1
+        }
+    }
+}

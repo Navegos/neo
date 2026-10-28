@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-10-27
+// lastModified: 2026-10-28
 
 use std::collections::HashMap;
 use std::env;
@@ -11,10 +11,10 @@ use std::process;
 
 use tokless::agents;
 use tokless::commands::{
-    proxy_agent_ids, run_codegraph_index_hook, run_codex_perm_hook,
+    run_codegraph_index_hook, run_codex_perm_hook,
     run_cursor_project_rules_hook, run_daemon_cli, run_disable, run_doctor,
     run_grok_session_start_hook, run_index, run_info, run_init, run_mcp, run_prime,
-    run_projectmem_hook, run_proxy_down, run_proxy_status, run_proxy_up, run_rtk_cli, run_rtk_hook,
+    run_projectmem_hook, run_proxy_cli, run_rtk_cli, run_rtk_hook,
     run_rtk_hook_cline, run_rtk_hook_codex, run_rtk_hook_copilot, run_rtk_hook_cursor,
     run_rtk_hook_droid, run_rtk_hook_dsh, run_rtk_hook_grok, run_rtk_rewrite, run_self_update,
     run_top, run_uninstall, run_update, run_gain, InitOptions, PrimeOptions,
@@ -122,30 +122,6 @@ fn help_text() -> String {
     )
 }
 
-fn proxy_help_text() -> String {
-    let cy = |s: &str| C.cyan(s);
-    format!(
-        "{} — headroom HTTP-proxy daemon (cache mode)\n\n\
-        {}\n  {}       Start local Headroom and route agents through it\n\
-          {}     Restore Tokless-owned routing and stop Headroom\n\
-          {}   Show daemon + per-agent wiring state\n\n\
-        {}\n  Native agent settings are changed; shell startup files are not.\n\
-          Existing OAuth/BYOK settings are preserved where supported.\n\
-          If you edit a managed setting, down refuses to overwrite it.\n\n\
-          down --agents <list> leaves shared Headroom running for other agents.\n\
-        {}\n  --agents <list>    Limit to: claude,codex,opencode,omp,kilo,pi,droid,grok,copilot,cline,cursor,antigravity (default: all; --agent alias)\n\
-          --dry-run          Show what would be wired without changing anything\n\
-          --help             Show this help\n",
-        C.bold(&cy("tokless proxy")),
-        C.bold("Usage:"),
-        cy("tokless proxy up"),
-        cy("tokless proxy down"),
-        cy("tokless proxy status"),
-        C.bold("Safety:"),
-        C.bold("Flags:")
-    )
-}
-
 fn parse_list(raw: Option<&String>, allowed: &[String]) -> Result<Option<Vec<String>>, String> {
     let s = match raw {
         Some(s) if !s.is_empty() => s,
@@ -182,49 +158,6 @@ fn is_session_boot_arg(args: &[String]) -> bool {
         [a, b, ..] if a == "ctx" && b == "mcp" => true,
         [a, b, ..] if a == "graph" && b == "mcp" => true,
         _ => false,
-    }
-}
-
-fn run_proxy_cli(argv: &[String]) -> i32 {
-    let p = parse_args(argv);
-    if p.bools.get("verbose") == Some(&true) {
-        set_verbose(true);
-    }
-    if p.bools.get("help") == Some(&true) || p.bools.get("h") == Some(&true) || p.cmd == "help" {
-        println!("{}", proxy_help_text());
-        return 0;
-    }
-    let agent_raw = p.flags.get("agents").or_else(|| p.flags.get("agent"));
-    let agent_list = match parse_list(agent_raw, &proxy_agent_ids()) {
-        Ok(l) => l,
-        Err(e) => {
-            L.err(&e);
-            return 2;
-        }
-    };
-    let opts = InitOptions {
-        agents: agent_list,
-        dry_run: p.bools.get("dry-run") == Some(&true) || p.bools.get("dryrun") == Some(&true),
-        verbose: p.bools.get("verbose") == Some(&true),
-        ..Default::default()
-    };
-    match p.cmd.as_str() {
-        "up" => run_proxy_up(opts),
-        "down" => run_proxy_down(opts),
-        "status" => run_proxy_status(opts),
-        "serve" | "" if p.flags.contains_key("port") => {
-            if let Err(e) = run_proxy_foreground() {
-                L.err(&e.to_string());
-                1
-            } else {
-                0
-            }
-        }
-        _ => {
-            L.err(&format!("Unknown proxy subcommand: {}", p.cmd));
-            println!("{}", proxy_help_text());
-            1
-        }
     }
 }
 

@@ -135,6 +135,11 @@ pub const PROXY_AGENT_SPECS: &[ProxyAgentSpec] = &[
         protocol: ProxyProtocol::GeminiNative,
         wire_kind: ProxyWireKind::ManagedRoute,
     },
+    ProxyAgentSpec {
+        id: "grok",
+        protocol: ProxyProtocol::OpenAICompatible,
+        wire_kind: ProxyWireKind::AdditiveProvider,
+    },
 ];
 
 pub fn proxy_spec_for(id: &str) -> Option<&'static ProxyAgentSpec> {
