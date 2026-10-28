@@ -93,6 +93,7 @@ fn help_text() -> String {
           {}    Remove everything tokless ever touched\n\
           {}          Manage project memory, failure prevention, and MCP server\n\
           {}          Isolated sandbox execution and SQLite FTS5 knowledge base\n\
+          {}        Tree-sitter AST call-graph, blast-radius, and code explorer\n\
           {}      Manage the headroom HTTP proxy: up|down|status\n\n\
         {}\n  --agents <list>     Limit to a subset: claude,opencode,opencode2,codex,antigravity,copilot,cursor,droid,grok,pi,omp,kilo,cline,amp,kimi,zcode,dsh\n\
           --tools <list>      Limit to a subset: rtk,caveman,ponytail,codegraph,context-mode,headroom,projectmem\n\
@@ -114,6 +115,7 @@ fn help_text() -> String {
         cy("tokless uninstall"),
         cy("tokless mem"),
         cy("tokless ctx"),
+        cy("tokless graph"),
         cy("tokless proxy"),
         C.bold("Flags:"),
         C.gray("Docs: https://github.com/Navegos/neo/#tokless")
@@ -178,6 +180,7 @@ fn is_session_boot_arg(args: &[String]) -> bool {
         [a, b, ..] if a == "rtk" && b == "hook" => true,
         [a, b, ..] if a == "mem" && b == "mcp" => true,
         [a, b, ..] if a == "ctx" && b == "mcp" => true,
+        [a, b, ..] if a == "graph" && b == "mcp" => true,
         _ => false,
     }
 }
@@ -345,6 +348,9 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "ctx" {
         return tokless::contextmode::run_ctx_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "graph" {
+        return tokless::codegraph::run_graph_cli(&args[2..]);
+    }
 
     let p = parse_args(&args[1..]);
     if p.bools.get("verbose") == Some(&true) {
@@ -411,6 +417,7 @@ fn run() -> i32 {
         "rtk" => run_rtk_cli(&args[2..]),
         "mem" => tokless::projectmem::run_mem_cli(&args[2..]),
         "ctx" => tokless::contextmode::run_ctx_cli(&args[2..]),
+        "graph" => tokless::codegraph::run_graph_cli(&args[2..]),
         "self-update" => run_self_update(p.bools.get("check") == Some(&true)),
         _ => {
             println!("{}", help_text());

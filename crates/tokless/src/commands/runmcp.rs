@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/runmcp.rs
 // created: 2026-10-05
-// lastModified: 2026-10-27
+// lastModified: 2026-10-28
 
 use std::env;
 use std::io::{self, Read};
@@ -121,7 +121,7 @@ pub fn run_mcp(argv: &[String]) -> i32 {
         }
     }
 
-    let mut actual_cmd_args: Vec<String> = cmd_args.to_vec();
+    let actual_cmd_args: Vec<String> = cmd_args.to_vec();
 
     let is_codegraph = codegraph_mcp_command(&actual_cmd_args) || tool == "codegraph";
     if is_codegraph {
@@ -131,7 +131,10 @@ pub fn run_mcp(argv: &[String]) -> i32 {
             let _ = ensure_projectmem_project(&root);
             refresh_projectmem_rule_files(&root);
         }
-        actual_cmd_args = inject_codegraph_path(&actual_cmd_args, &root);
+        unsafe {
+            std::env::set_var("CODEGRAPH_PROJECT_DIR", &root);
+        }
+        return crate::codegraph::mcp::run_mcp_server();
     }
 
     let is_projectmem = actual_cmd_args.iter().any(|a| a.contains("projectmem") || a.contains("pjm-mcp")) || tool == "projectmem";
@@ -154,6 +157,15 @@ pub fn run_mcp(argv: &[String]) -> i32 {
             std::env::set_var("CONTEXT_MODE_PROJECT_DIR", &root);
         }
         return crate::contextmode::mcp::run_mcp_server();
+    }
+
+    let is_icm = actual_cmd_args.iter().any(|a| a.contains("icm") || a.contains("icm-mcp")) || tool == "icm";
+    if is_icm {
+        let root = projectmem_root(&workspace);
+        unsafe {
+            std::env::set_var("PROJECTMEM_ROOT", &root);
+        }
+        return crate::icm::mcp::run_mcp_server();
     }
 
     let env_vars = Vec::new();

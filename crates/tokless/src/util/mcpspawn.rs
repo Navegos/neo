@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/util/mcpspawn.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-28
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Write};
@@ -15,7 +15,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::exec::{resolve_codegraph_bin, run, RunOptions};
+use super::exec::{run, RunOptions};
 use super::paths::{tokless_persisted_abs, which, IS_WIN};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -109,16 +109,12 @@ pub fn wrap_bounded_tool(tool_id: &str, s: McpSpawn) -> McpSpawn {
     }
 }
 
-pub fn pick_codegraph_spawn(extra_args: &[&str]) -> Option<McpSpawn> {
-    let p = resolve_codegraph_bin();
-    if !p.is_empty() {
-        let spawn = McpSpawn {
-            command: spawn_command("codegraph", &p),
-            args: extra_args.iter().map(|s| s.to_string()).collect(),
-        };
-        return Some(wrap_cmd_shim(spawn));
-    }
-    None
+pub fn pick_codegraph_spawn(_extra_args: &[&str]) -> Option<McpSpawn> {
+    let self_cmd = tokless_run_mcp_command();
+    Some(McpSpawn {
+        command: self_cmd,
+        args: vec!["graph".into(), "mcp".into()],
+    })
 }
 
 pub fn pick_mcp_spawn(bin: &str, extra_args: &[&str]) -> McpSpawn {

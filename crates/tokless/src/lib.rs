@@ -14,4 +14,7 @@ pub mod commands;
 pub mod rtk;
 pub mod projectmem;
 pub mod contextmode;
+pub mod icm;
+pub mod aimemory;
+pub mod codegraph;
 

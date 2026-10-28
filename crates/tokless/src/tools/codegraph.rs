@@ -3,24 +3,21 @@
 // project: neo
 // file: crates/tokless/src/tools/codegraph.rs
 // created: 2026-10-05
-// lastModified: 2026-10-20
+// lastModified: 2026-10-28
 
 use std::env;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::agents::{install_grok_codegraph_session_hook, pi_agent_dir_resolved, remove_grok_codegraph_session_hook};
 use crate::core::{Channel, DynError, RunOpts, ToolManifest};
-use crate::util::exec::{resolve_codegraph_bin, run, RunOptions};
 use crate::util::instructions::{cursor_project_rule_content, install_cursor_project_rules};
 use crate::util::mcpspawn::{pick_codegraph_spawn, wrap_auto_index};
-use crate::util::npminstall::{node_major, node_too_old_hint, npm_install_global};
 use crate::util::paths::{
     claude_code_paths, cline_paths_resolved, cursor_paths_resolved, ensure_dir, exists,
-    is_win, kilo_paths_resolved, opencode_paths_resolved, prepend_process_path, read_file_safe,
-    temp_dir, tokless_persisted_abs, which, write_file_atomic,
+    kilo_paths_resolved, opencode_paths_resolved, read_file_safe,
+    tokless_persisted_abs, write_file_atomic,
 };
 use super::autoindex::unwire_auto_index;
 use super::copilot_transaction::with_copilot_transaction;
@@ -33,7 +30,7 @@ use super::helpers::{
     has_cursor_codegraph_index_hook, has_cursor_codegraph_permissions, has_mcp_entry_at_file,
     has_owner, install_codex_codegraph_index_hook, install_codex_perm_hook,
     install_copilot_codegraph_index_hook_safe, install_copilot_ide_codegraph_index_hook_safe,
-    install_cursor_codegraph_index_hook, is_test, kilo_has_owner, kilo_remove_owner,
+    install_cursor_codegraph_index_hook, kilo_has_owner, kilo_remove_owner,
     kilo_write_owner, omp_mcp_path, pi_ensure_mcp_adapter, pi_mcp_adapter_ready, pi_mcp_path,
     pi_remove_mcp_adapter, remove_antigravity_mcp, remove_array_mcp_entry,
     remove_codex_codegraph_index_hook, remove_codex_mcp_entry, remove_codex_perm_hook,
@@ -44,44 +41,11 @@ use super::helpers::{
     upsert_codex_mcp_entry, upsert_copilot_mcp_safe, upsert_json_mcp_entry, write_owner,
 };
 
-pub fn codegraph_ensure_installed(opts: &RunOpts) -> Result<bool, DynError> {
-    if is_test() {
-        let shim_dir = Path::new(&temp_dir()).join("tokless-test-codegraph");
-        let _ = fs::create_dir_all(&shim_dir);
-        let shim_path = shim_dir.join(if is_win() { "codegraph.cmd" } else { "codegraph" });
-        let _ = fs::write(&shim_path, if is_win() { "@echo 0.2.1" } else { "#!/bin/sh\necho 0.2.1\n" });
-        prepend_process_path(&shim_dir.to_string_lossy());
-        return Ok(true);
-    }
-    codegraph_real_install(opts)
+pub fn codegraph_ensure_installed(_opts: &RunOpts) -> Result<bool, DynError> {
+    Ok(true)
 }
 
-pub fn codegraph_real_install(opts: &RunOpts) -> Result<bool, DynError> {
-    if let Some(ref report) = opts.report {
-        report("checking", 0.1);
-    }
-    let major = node_major();
-    if major < 18 {
-        return Err(node_too_old_hint(18).into());
-    }
-    if !resolve_codegraph_bin().is_empty() && !opts.upgrade {
-        if let Some(ref report) = opts.report {
-            report("already installed", 1.0);
-        }
-        return Ok(true);
-    }
-    if opts.dry_run {
-        return Ok(true);
-    }
-    if let Some(ref report) = opts.report {
-        report(if opts.upgrade { "upgrading" } else { "installing" }, 0.3);
-    }
-    if !npm_install_global("@colbymchenry/codegraph") {
-        return Err("failed to install @colbymchenry/codegraph".into());
-    }
-    if let Some(ref report) = opts.report {
-        report("ready", 1.0);
-    }
+pub fn codegraph_real_install(_opts: &RunOpts) -> Result<bool, DynError> {
     Ok(true)
 }
 
@@ -305,53 +269,15 @@ pub fn codegraph_index_healthy(dir: &str) -> bool {
 }
 
 pub fn run_codegraph_index(dir: &str) -> Result<bool, DynError> {
-    let git_check = run(
-        "git",
-        &["ls-files"],
-        RunOptions {
-            capture: true,
-            quiet: true,
-            cwd: Some(dir.to_string()),
-            timeout: Some(Duration::from_secs(10)),
-            ..Default::default()
-        },
-    );
-    if git_check.code == 0 {
-        let count = git_check.stdout.lines().filter(|l| !l.trim().is_empty()).count();
-        if count > 0 && count <= 5 {
-            return Ok(true);
-        }
-    }
-
-    let spawn = match pick_codegraph_spawn(&["index", dir]) {
-        Some(s) => s,
-        None => return Ok(false),
-    };
-    let args_refs: Vec<&str> = spawn.args.iter().map(|s| s.as_str()).collect();
-    let res = run(
-        &spawn.command,
-        &args_refs,
-        RunOptions {
-            capture: true,
-            quiet: true,
-            cwd: Some(dir.to_string()),
-            timeout: Some(Duration::from_secs(60)),
-            ..Default::default()
-        },
-    );
-    if res.code == 0 || has_codegraph_index(dir) {
-        Ok(true)
-    } else {
-        Ok(false)
-    }
+    let mut cg = crate::codegraph::CodeGraph::open(Path::new(dir))?;
+    let _ = cg.ensure_indexed()?;
+    Ok(true)
 }
 
 pub fn rebuild_codegraph_index(dir: &str) -> Result<bool, DynError> {
-    let cg_dir = Path::new(dir).join(".codegraph");
-    if cg_dir.exists() {
-        let _ = fs::remove_dir_all(&cg_dir);
-    }
-    run_codegraph_index(dir)
+    let mut cg = crate::codegraph::CodeGraph::open(Path::new(dir))?;
+    let _ = cg.index_force()?;
+    Ok(true)
 }
 
 pub fn ensure_codegraph_index(dir: &str, opts: &RunOpts) -> Result<bool, DynError> {
@@ -528,12 +454,12 @@ pub fn codegraph_unwire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
 
 pub fn build_codegraph() -> ToolManifest {
     let mut tool = ToolManifest::new("codegraph", "CodeGraph");
-    tool.description = "Indexed code graph for source, call paths, and impact.".into();
-    tool.homepage = "https://github.com/Navegos/codegraph".into();
-    tool.install_hint = "npm install -g @colbymchenry/codegraph".into();
-    tool.channel = Channel::Npm;
-    tool.needs_node = true;
-    tool.min_node_major = 18;
+    tool.description = "Native indexed code graph for source, call paths, and impact.".into();
+    tool.homepage = "https://github.com/Navegos/neo".into();
+    tool.install_hint = "Native embedded in tokless".into();
+    tool.channel = Channel::Binary;
+    tool.needs_node = false;
+    tool.min_node_major = 0;
     tool.install = Some(Arc::new(|opts| codegraph_ensure_installed(opts)));
     tool.index_ready = Some(Arc::new(|| {
         let cwd = env::current_dir()
@@ -566,9 +492,6 @@ pub fn build_codegraph() -> ToolManifest {
         tool.verify_for.insert(
             ag.clone(),
             Arc::new(move || {
-                if !is_test() && resolve_codegraph_bin().is_empty() && which("npx").is_empty() {
-                    return Some(false);
-                }
                 Some(codegraph_verify(&ag_v))
             }),
         );
