@@ -212,6 +212,14 @@ fn run_proxy_cli(argv: &[String]) -> i32 {
         "up" => run_proxy_up(opts),
         "down" => run_proxy_down(opts),
         "status" => run_proxy_status(opts),
+        "serve" | "" if p.flags.contains_key("port") => {
+            if let Err(e) = run_proxy_foreground() {
+                L.err(&e.to_string());
+                1
+            } else {
+                0
+            }
+        }
         _ => {
             L.err(&format!("Unknown proxy subcommand: {}", p.cmd));
             println!("{}", proxy_help_text());

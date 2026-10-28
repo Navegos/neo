@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/headroom/proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-28
 
 use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions};
@@ -426,10 +426,20 @@ pub fn headroom_allowed_base_urls_checked() -> Result<String, Box<dyn std::error
 }
 
 pub fn resolve_headroom_bin() -> String {
+    let t = crate::util::paths::tokless_abs();
+    if !t.is_empty() && exists(&t) {
+        return t;
+    }
+    if let Ok(cur) = std::env::current_exe() {
+        let s = cur.to_string_lossy().to_string();
+        if exists(&s) {
+            return s;
+        }
+    }
     if headroom_installed() {
         return headroom_bin();
     }
-    which("headroom")
+    which("tokless")
 }
 
 pub fn proxy_live_z(port: u16) -> bool {
@@ -458,9 +468,11 @@ fn proxy_live_z_for_port_timeout(port: u16, timeout: Duration) -> bool {
     struct LiveResp {
         #[serde(default)]
         service: String,
+        #[serde(default)]
+        status: String,
     }
     resp.json::<LiveResp>()
-        .map(|l| l.service == "headroom-proxy")
+        .map(|l| l.service == "headroom-proxy" || l.service == "tokless-headroom-native" || l.status == "ok")
         .unwrap_or(false)
 }
 
@@ -485,24 +497,127 @@ pub fn run_proxy_foreground() -> Result<(), Box<dyn std::error::Error + Send + S
     if !proxy_routing_enabled() {
         return Ok(());
     }
-    let bin = resolve_headroom_bin();
-    if bin.is_empty() {
-        return Err("headroom binary not found — install headroom first (run `tokless`)".into());
-    }
     let port = proxy_port_from_runtime();
-    let args = proxy_args_from_runtime(port);
     if read_proxy_runtime().is_none() {
         persist_proxy_runtime(port)
             .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { format!("headroom proxy runtime record: {}", e).into() })?;
     }
-    if let Err(err) = run_headroom_foreground(&bin, &args) {
-        let _ = clear_proxy_runtime();
-        return Err(err);
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    rt.block_on(run_native_headroom_proxy(port))
+}
+
+pub async fn run_native_headroom_proxy(port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use tokio::net::TcpListener;
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let listener = TcpListener::bind(addr).await?;
+    L.info(&format!("headroom native proxy listening on http://127.0.0.1:{}", port));
+
+    loop {
+        match listener.accept().await {
+            Ok((stream, _)) => {
+                tokio::spawn(async move {
+                    let _ = serve_headroom_connection(stream).await;
+                });
+            }
+            Err(_) => break,
+        }
     }
     Ok(())
 }
 
-fn run_headroom_foreground(
+async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let Some(mut req) = super::byok_gateway::read_http_request(&mut stream).await? else {
+        return Ok(());
+    };
+
+    let (path, _, _) = super::byok_gateway::split_uri_path_and_query(&req.raw_uri);
+
+    // Health/live checks
+    if path == "/livez" || path == "/healthz" || path == "/readyz" {
+        let body = br#"{"service":"headroom-proxy","status":"ok"}"#;
+        super::byok_gateway::write_http_response(&mut stream, 200, "OK", &[("Content-Type".to_string(), "application/json".to_string())], body).await?;
+        return Ok(());
+    }
+
+    // Check BYOK routing header or path
+    let has_byok_header = req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(super::byok_gateway::BYOK_ROUTE_HEADER));
+    if has_byok_header || path.starts_with("/byok/") {
+        let (status, headers, body) = super::byok_gateway::handle_byok_gateway_request(
+            &req.method,
+            &req.raw_uri,
+            &req.headers,
+            &req.body,
+            None,
+        ).await;
+        super::byok_gateway::write_http_response(&mut stream, status, super::byok_gateway::status_reason(status), &headers, &body).await?;
+        return Ok(());
+    }
+
+    // Identify target URL based on route
+    let (anthropic_url, openai_url) = real_upstream_urls();
+    let (gemini_url, _) = proxy_upstream_gemini_urls();
+
+    let target_base = if path.starts_with("/v1/messages") {
+        anthropic_url
+    } else if path.starts_with("/v1beta") || path.contains("gemini") {
+        if !gemini_url.is_empty() { gemini_url } else { openai_url }
+    } else {
+        openai_url
+    };
+
+    // Preprocessing on POST JSON requests
+    if req.method.eq_ignore_ascii_case("POST") && !req.body.is_empty() {
+        if let Ok(mut json_val) = serde_json::from_slice::<serde_json::Value>(&req.body) {
+            // 1. Dynamic Memory Governor (scaling L0 vs L1 vs L2 based on headroom)
+            super::adaptive_mem::inject_adaptive_memory(&mut json_val);
+
+            // 2. 1024-token prompt cache alignment
+            if path.starts_with("/v1/messages") {
+                super::cache_align::auto_place_anthropic_cache_control(&mut json_val);
+            }
+            super::cache_align::stabilize_cache_keys(&mut json_val);
+
+            // 3. Compress conversation messages (logs, code, and JSON in tool outputs)
+            if let Some(serde_json::Value::Array(messages)) = json_val.get_mut("messages") {
+                for msg in messages {
+                    if let Some(serde_json::Value::String(content)) = msg.get_mut("content") {
+                        if content.len() > 120 {
+                            *content = super::compression::compress_content(content, None);
+                        }
+                    } else if let Some(serde_json::Value::Array(blocks)) = msg.get_mut("content") {
+                        for block in blocks {
+                            if let Some(serde_json::Value::String(text)) = block.get_mut("text") {
+                                if text.len() > 120 {
+                                    *text = super::compression::compress_content(text, None);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Ok(serialized) = serde_json::to_vec(&json_val) {
+                req.body = serialized;
+            }
+        }
+    }
+
+    // Forward to upstream target
+    let (status, headers, body) = super::byok_gateway::forward_to_byok_target(
+        &target_base,
+        &req.method,
+        &path,
+        &req.headers,
+        &req.body,
+    ).await;
+
+    super::byok_gateway::write_http_response(&mut stream, status, super::byok_gateway::status_reason(status), &headers, &body).await?;
+    Ok(())
+}
+
+pub fn run_headroom_foreground(
     bin: &str,
     args: &[String],
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

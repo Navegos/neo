@@ -3,11 +3,9 @@
 // project: neo
 // file: crates/tokless/src/util/headroom.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-28
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
-use super::exec::{run, RunOptions};
 use super::mcpspawn::{pick_mcp_spawn, McpSpawn};
 use super::paths::{exists, tokless_data_dir, IS_WIN};
 use super::versions::semver_compare;
@@ -36,11 +34,25 @@ pub fn headroom_paths_resolved() -> HeadroomPaths {
 
 pub fn headroom_bin() -> String {
     let p = Path::new(&headroom_paths_resolved().bin).join("headroom");
-    if IS_WIN {
+    let full = if IS_WIN {
         format!("{}.exe", p.to_string_lossy())
     } else {
         p.to_string_lossy().to_string()
+    };
+    if exists(&full) && Path::new(&full).is_file() {
+        return full;
     }
+    let tokless = crate::util::paths::tokless_abs();
+    if !tokless.is_empty() && exists(&tokless) {
+        return tokless;
+    }
+    if let Ok(cur) = std::env::current_exe() {
+        let cur_str = cur.to_string_lossy().to_string();
+        if exists(&cur_str) {
+            return cur_str;
+        }
+    }
+    full
 }
 
 pub fn headroom_env() -> Vec<(String, String)> {
@@ -68,33 +80,15 @@ pub fn mcp_spawn_for(tool_id: &str) -> McpSpawn {
 }
 
 pub fn headroom_installed() -> bool {
-    let b = headroom_bin();
-    exists(&b) && Path::new(&b).is_file()
+    // Native Rust headroom engine is fully embedded directly in tokless
+    true
 }
 
 pub fn headroom_installed_version() -> Option<String> {
     if let Some(v) = headroom_dist_info_version() {
         return Some(v);
     }
-    let res = run(
-        &headroom_bin(),
-        &["--version"],
-        RunOptions {
-            capture: true,
-            timeout: Some(Duration::from_secs(10)),
-            ..Default::default()
-        },
-    );
-    if res.code != 0 {
-        return None;
-    }
-    if let Some((_, ver)) = res.stdout.trim().split_once("version ") {
-        let trimmed = ver.trim();
-        if !trimmed.is_empty() {
-            return Some(trimmed.to_string());
-        }
-    }
-    None
+    Some(crate::util::version::tokless_version().to_string())
 }
 
 fn headroom_dist_info_version() -> Option<String> {

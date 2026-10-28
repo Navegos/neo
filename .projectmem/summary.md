@@ -7,6 +7,7 @@ _Last updated: 2026-10-28_
 Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go to Rust.
 
 ## Recent issues
+- [DONE] #0014 Phase 6: Port and deep integrate headroom into crates/tokless/src/headroom [crates/tokless/src/headroom] -> Phase 6 complete: Ported and deeply integrated headroom into pure Rust in crates/tokless/src/headroom with native reverse proxy, log deduplication, AST code compression, JSON pruner, 1024-token prompt cache alignment, dynamic memory governor, dropped Python headroom-py, zero compiler warnings, 172 passing tests [crates/tokless/src/headroom] (fixed)
 - [DONE] #0013 ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint on memories.summary_hash [crates/tokless/src/icm/store.rs:77] -> Add UNIQUE constraint directly on summary_hash column in memories table (fixed)
 - [DONE] #0012 Commands doctor/init/proxy parity gaps: doctor missing per-agent tool/proxy/instruction rows and proxy port checks; init missing excluded-tool unwire and persisted selection load [crates/tokless/src/commands/doctor.rs] -> Implemented doctor per-agent tool rows and Ports overview, init excluded tools unwire and selection persistence, proxy lifecycle lock and rollback transaction (fixed)
 - [DONE] #0011 OpenCode v1/v2 proxy & BYOK parity missing: ConfigureOpenCodeProxyV2, RemoveOpenCodeProxyV2, OpenCodeProxyV2Wired, retrieve tool stash, and proxy_agent opencode2 spec [crates/tokless/src/agents/opencode.rs] -> Verified and integrated OpenCode v1 and v2 proxy and BYOK parity with complete specs and stash handling (fixed)
@@ -16,12 +17,10 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - [DONE] #0007 Context-Mode tool missing minNode=22, opencode cache postinstall, codex 7-event & workspace cleanup, and agent-specific hooks for droid/antigravity/copilot/pi/cursor [crates/tokless/src/tools/contextmode.rs] -> Context-mode tool equipped with minNode 22 check, opencode cache postinstall, and codex 7-event/workspace cleanup (fixed)
 - [DONE] #0006 Headroom tool verify_for always returns Some(true), missing 7 agents in build_headroom, and missing proxy_readiness_for and lifecycle lock wiring [crates/tokless/src/tools/headroom.rs] -> Headroom tool wired for all 17 agents with proxy_readiness_for check and lifecycle locks (fixed)
 - [DONE] #0005 RTK hook cline/copilot/codex regressions: copilot unconditionally allows non-rtk commands, missing post-tool hook, cline ignores toolName/commands array [crates/tokless/src/commands/rtk_hook.rs] -> Fixed OrderedMap type mismatches in rtk_hook parse and tests using try_parse_jsonc_map (fixed)
-- [DONE] #0004 RTK tool missing opencode2 wiring, amp permission wiring, rtk_location_for, pi extension normalization, and kilo/cline foreign backup parity [crates/tokless/src/tools/rtk.rs] -> Fixed OpenCode BYOK fields, stale v2 path read, and RTK location in kilo and rtk.rs (fixed)
-- ...and 3 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 4 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...3 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Implement multi-compression format ranking and stem hint resilience for *.tar.gz, *.tar.xz, *.tar.zst, *.zip, *.bz2, *.rar, *.7z with bsdtar and 7z fallback extraction [crates/nbuild]
+- ...4 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Plan Neo multi-crate distro package, doctor self-healing, interactive TUI, and in-use shadow-swap updates
 - Vendor archinfo directly into nbuild and remove inter-crate dependency to resolve winres PE resource collisions [crates/nbuild/Cargo.toml]
 - Ported missing agents (amp, dsh, kimi, zcode, opencode2) and BYOK providers from Go to Rust in crates/tokless
@@ -36,9 +35,9 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Complete Phase 4: Port and embed ICM SQLite FTS5 BM25 store and ai-memory tiered claim-once state machine into tokless with zero warnings and 104 passing tests
 - Execute Phase 5: Port and embed codegraph into crates/tokless/src/codegraph with tree-sitter, ignore walker, petgraph AST blast-radius, incremental cache, and in-process MCP server
 - Phase 5 complete: Ported codegraph to pure Rust in crates/tokless/src/codegraph with tree-sitter parsers, ignore walker, petgraph AST call-graph/blast-radius, incremental SQLite cache, in-process MCP server, and tokless graph CLI with zero compiler warnings and 135 passing tests
+- Phase 6: Ported headroom to native Rust in crates/tokless/src/headroom with native HTTP/SSE proxy, lossless log deduplication, AST code compression, JSON pruner, 1024-token cache alignment, dynamic memory governor, unified BYOK gateway, dropped Python headroom-py, 172 passing tests [crates/tokless/src/headroom]
 
 ## Notes
-- New feature: feat(tokless): Implement core functionality for headroom proxy and token optimization [crates/archinfo/build.rs]
 - New feature: feat: Update release workflow and add new catalog entries [crates/nbuild/catalog/brotli.json]
 - gotcha: tokless agents mcp_adapters supports 17 agents dispatching to core McpAdapter and selection store
 - Phase 3 complete: Ported and verified tool harnesses (contextmode, codegraph, projectmem, rtk, caveman, ponytail, principles) for all missing agents with zero compiler warnings and 23 tests passing
@@ -48,6 +47,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Completed all 5 plans: 1. Parallel agent engine (tokless init -j/--jobs), 2. Live terminal monitor (tokless top), 3. Proxy daemon supervisor (tokless daemon), 4. Context primer (tokless prime), 5. In-place self-updater with atomic Windows rename and --check (tokless self-update)
 - New feature: feat: add comprehensive test filtering for various test frameworks [crates/tokless/build.rs]
 - New feature: feat: add context mode with sandbox execution and security features [crates/tokless/src/commands/runmcp.rs]
+- New feature: feat(icm): implement in-memory ICM store with CRUD operations and FTS5 support [crates/tokless/src/aimemory/handoff.rs]
 
 ## Key files
 - `.editorconfig`

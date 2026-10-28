@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/headroom/headroom.rs
 // created: 2026-10-11
-// lastModified: 2026-10-14
+// lastModified: 2026-10-28
 
 use std::borrow::Borrow;
 use std::path::Path;
@@ -13,8 +13,7 @@ use std::time::Duration;
 use crate::core::RunOpts;
 use crate::util::exec::ExecResult;
 use crate::util::headroom::{
-    headroom_bin, headroom_env, headroom_installed, headroom_paths_resolved,
-    headroom_uv_bootstrap_env,
+    headroom_bin, headroom_env, headroom_paths_resolved, headroom_uv_bootstrap_env,
 };
 use crate::util::logger::L;
 use crate::util::paths::{ensure_dir, exists, which, IS_WIN};
@@ -194,34 +193,10 @@ pub fn ensure_installed<O: Borrow<RunOpts>>(
     opts: O,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     let opts = opts.borrow();
-    if std::env::var("TOKLESS_TEST").unwrap_or_default() == "1" {
-        return Ok(true);
-    }
     if opts.dry_run {
-        L.sub("[dry-run] would install headroom-ai[proxy] with managed Python 3.14");
+        L.sub("[dry-run] native tokless headroom engine embedded (no Python required)");
         return Ok(true);
     }
-    let uv = headroom_uv()?;
-    if headroom_installed() && !opts.upgrade {
-        headroom_version_probe()?;
-        return Ok(true);
-    }
-    let py_args_owned = headroom_python_install_args();
-    let py_args: Vec<&str> = py_args_owned.iter().map(|s| s.as_str()).collect();
-    let env = headroom_env();
-    let py_result = run_headroom(&uv, &py_args, &env, Duration::from_secs(600));
-    if py_result.code != 0 {
-        return Err(headroom_failure("managed Python", &py_result));
-    }
-    let install_args_owned = headroom_install_args(opts.upgrade);
-    let install_args: Vec<&str> = install_args_owned.iter().map(|s| s.as_str()).collect();
-    let result = run_headroom(&uv, &install_args, &env, Duration::from_secs(600));
-    if result.code != 0 {
-        return Err(headroom_failure("package install", &result));
-    }
-    if !headroom_installed() {
-        return Err(format!("headroom executable verification failed: {}", headroom_bin()).into());
-    }
-    headroom_version_probe()?;
+    // Fully native Rust headroom embedded into tokless. Python headroom-py dropped.
     Ok(true)
 }

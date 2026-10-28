@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/headroom/byok_gateway.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-28
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -905,14 +905,14 @@ pub async fn run_byok_gateway_serve() -> Result<(), Box<dyn std::error::Error + 
 // HTTP Server & Upstream Forwarding with Responses API Compatibility
 // ---------------------------------------------------------------------------
 
-struct ParsedHttpRequest {
-    method: String,
-    raw_uri: String,
-    headers: Vec<(String, String)>,
-    body: Vec<u8>,
+pub(crate) struct ParsedHttpRequest {
+    pub(crate) method: String,
+    pub(crate) raw_uri: String,
+    pub(crate) headers: Vec<(String, String)>,
+    pub(crate) body: Vec<u8>,
 }
 
-async fn read_http_request(
+pub(crate) async fn read_http_request(
     stream: &mut TcpStream,
 ) -> Result<Option<ParsedHttpRequest>, Box<dyn std::error::Error + Send + Sync>> {
     let mut buf = Vec::with_capacity(4096);
@@ -976,7 +976,7 @@ async fn read_http_request(
     }))
 }
 
-async fn write_http_response(
+pub(crate) async fn write_http_response(
     stream: &mut TcpStream,
     status: u16,
     reason: &str,
@@ -1004,7 +1004,7 @@ async fn write_http_response(
     Ok(())
 }
 
-fn status_reason(status: u16) -> &'static str {
+pub(crate) fn status_reason(status: u16) -> &'static str {
     match status {
         200 => "OK",
         201 => "Created",
@@ -1022,7 +1022,7 @@ fn status_reason(status: u16) -> &'static str {
     }
 }
 
-fn split_uri_path_and_query(raw_uri: &str) -> (String, String, String) {
+pub(crate) fn split_uri_path_and_query(raw_uri: &str) -> (String, String, String) {
     // Strip scheme://host if absolute URI in request line
     let path_and_query = if let Some(idx) = raw_uri.find("://") {
         let after_scheme = &raw_uri[idx + 3..];
