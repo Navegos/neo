@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/contextmode.rs
 // created: 2026-10-05
-// lastModified: 2026-10-20
+// lastModified: 2026-10-28
 
 use std::fs;
 use std::path::Path;
@@ -28,14 +28,11 @@ use crate::util::instructions::section_header_for_owner;
 use crate::util::jsonc::{stringify_json, try_parse_jsonc, OrderedMap, Value};
 use crate::util::logger::L;
 use crate::util::mcpspawn::pick_mcp_spawn;
-use crate::util::npminstall::{node_major, node_too_old_hint, npm_install_global};
 use crate::util::paths::{
-    claude_code_paths, codex_paths_resolved, ensure_dir, exists, home, is_win,
-    opencode_paths_resolved, opencode_paths_v2, prepend_process_path, read_file_safe, temp_dir,
+    claude_code_paths, codex_paths_resolved, ensure_dir, exists, home,
+    opencode_paths_resolved, opencode_paths_v2, read_file_safe,
     which, write_file, write_file_atomic,
 };
-use crate::util::preflight::{install_node_for_tools, node_age_already_checked};
-use crate::util::prompt::confirm;
 use crate::util::toml::remove_block;
 use super::copilot_transaction::with_copilot_transaction;
 use super::helpers::{
@@ -52,64 +49,6 @@ pub fn plugin_is_context_mode(entry: &str) -> bool {
 }
 
 pub fn ctx_ensure_installed(opts: &RunOpts) -> Result<bool, DynError> {
-    if is_test() {
-        let shim_dir = Path::new(&temp_dir()).join("tokless-test-context-mode");
-        let _ = fs::create_dir_all(&shim_dir);
-        let shim_path = shim_dir.join(if is_win() { "context-mode.cmd" } else { "context-mode" });
-        let _ = fs::write(&shim_path, if is_win() { "@echo 1.0.0" } else { "#!/bin/sh\necho 1.0.0\n" });
-        prepend_process_path(&shim_dir.to_string_lossy());
-        return Ok(true);
-    }
-
-    if opts.dry_run {
-        L.sub("[dry-run] would: npm install -g context-mode@latest (cache-skew-resistant)");
-        return Ok(true);
-    }
-
-    if let Some(ref report) = opts.report {
-        report("checking", 0.1);
-    }
-    if !which("context-mode").is_empty() && !opts.upgrade {
-        if let Some(ref report) = opts.report {
-            report("already installed", 1.0);
-        }
-        return Ok(true);
-    }
-
-    if !node_age_already_checked() {
-        let maj = node_major();
-        if maj > 0 && maj < CONTEXT_MODE_MIN_NODE {
-            L.warn(&format!(
-                "Node.js v{} is too old for context-mode (need v{}+).",
-                maj, CONTEXT_MODE_MIN_NODE
-            ));
-            if confirm("Upgrade Node.js now? (y/n)", true) {
-                if !install_node_for_tools() {
-                    L.err(&format!(
-                        "couldn't upgrade Node.js. context-mode needs v{}+.",
-                        CONTEXT_MODE_MIN_NODE
-                    ));
-                    L.sub("Manual: https://nodejs.org/en/download");
-                    return Ok(false);
-                }
-            } else {
-                L.sub("Skipping. context-mode may fail to install.");
-            }
-        }
-    }
-
-    if let Some(ref report) = opts.report {
-        report("npm install -g", 0.4);
-    }
-    if !npm_install_global("context-mode") {
-        L.err("context-mode install failed across all strategies (npm + tarball fallback).");
-        L.sub("Each attempt was logged above. Common causes: old Node, no build tools, or a registry mirror.");
-        let hint = node_too_old_hint(CONTEXT_MODE_MIN_NODE);
-        if !hint.is_empty() {
-            L.sub(&hint);
-        }
-        return Ok(false);
-    }
     if let Some(ref report) = opts.report {
         report("ready", 1.0);
     }
@@ -878,10 +817,10 @@ pub fn build_context_mode() -> ToolManifest {
     tool.description =
         "Routes long context off-thread to a sandbox, keeping the agent's window small.".into();
     tool.homepage = "https://github.com/mksglu/context-mode".into();
-    tool.install_hint = "npm i -g context-mode".into();
-    tool.channel = Channel::Npm;
-    tool.needs_node = true;
-    tool.min_node_major = CONTEXT_MODE_MIN_NODE;
+    tool.install_hint = "tokless init".into();
+    tool.channel = Channel::Cargo;
+    tool.needs_node = false;
+    tool.min_node_major = 0;
     tool.install = Some(Arc::new(|opts| ctx_ensure_installed(opts)));
 
     let agents = [

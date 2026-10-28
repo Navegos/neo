@@ -1,13 +1,12 @@
 # projectmem - neo
 
-_Last updated: 2026-10-27_
+_Last updated: 2026-10-28_
 
 ## Project purpose
 --------------------------------------------------------------------------------
 Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go to Rust.
 
 ## Recent issues
-- [OPEN] #0002 Completed Phase 1 Performance & Memory Optimizations: scoped thread concurrent agent detection, zero-copy byte slice MCP frame scanning, and borrowed RouteRequest fast routing pass (open)
 - [DONE] #0012 Commands doctor/init/proxy parity gaps: doctor missing per-agent tool/proxy/instruction rows and proxy port checks; init missing excluded-tool unwire and persisted selection load [crates/tokless/src/commands/doctor.rs] -> Implemented doctor per-agent tool rows and Ports overview, init excluded tools unwire and selection persistence, proxy lifecycle lock and rollback transaction (fixed)
 - [DONE] #0011 OpenCode v1/v2 proxy & BYOK parity missing: ConfigureOpenCodeProxyV2, RemoveOpenCodeProxyV2, OpenCodeProxyV2Wired, retrieve tool stash, and proxy_agent opencode2 spec [crates/tokless/src/agents/opencode.rs] -> Verified and integrated OpenCode v1 and v2 proxy and BYOK parity with complete specs and stash handling (fixed)
 - [DONE] #0010 MCP adapters and opencode v2 regressions: opencode2 MCP writes v1 root shape instead of mcp.servers, codex MCP block parser missing, cursor MCP permissions missing [crates/tokless/src/agents/mcp_adapters.rs] -> Verified and wired MCP adapters for opencode2 with mcp.servers, codex TOML block parser, and cursor MCP permissions (fixed)
@@ -18,7 +17,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - [DONE] #0005 RTK hook cline/copilot/codex regressions: copilot unconditionally allows non-rtk commands, missing post-tool hook, cline ignores toolName/commands array [crates/tokless/src/commands/rtk_hook.rs] -> Fixed OrderedMap type mismatches in rtk_hook parse and tests using try_parse_jsonc_map (fixed)
 - [DONE] #0004 RTK tool missing opencode2 wiring, amp permission wiring, rtk_location_for, pi extension normalization, and kilo/cline foreign backup parity [crates/tokless/src/tools/rtk.rs] -> Fixed OpenCode BYOK fields, stale v2 path read, and RTK location in kilo and rtk.rs (fixed)
 - [DONE] #0003 Process alive check on Windows falsely flags dead processes with exit code 259 (STILL_ACTIVE) as running [crates/tokless/src/agents/proxy_provider.rs:174] -> Use WaitForSingleObject with 0 timeout on Windows handle to detect still running processes without still_active 259 false-positives; eliminate unwrap in mcp_proxy; atomic write_file for instructions and versions (fixed)
-- ...and 1 older fixed issue not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 2 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
 - Port tokless Go codebase from inspect-vault/tokless to Rust in crates/tokless [crates/tokless]
@@ -35,9 +34,9 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Refactor: Refactor instruction path handling and improve JSONC comment stripping [crates/tokless/src/agents/antigravity.rs]
 - Executed Phase 1: Full port and embed neo\inspect-vault\rtk into crates/tokless/src/rtk with 100+ filters and zero-allocation ANSI stripper [crates/tokless/src/rtk]
 - Phase 2 complete: Ported Python projectmem to pure Rust in crates/tokless/src/projectmem with schema, store locking, redaction, summary generator, precheck, heatmap, in-process MCP server, and tokless mem CLI with zero warnings and 86 passing tests [crates/tokless/src/projectmem]
+- Execute Phase 3: Port TypeScript context-mode to pure Rust in crates/tokless/src/contextmode with rusqlite FTS5, sandbox runner, RTK filtering, and in-process MCP server
 
 ## Notes
-- New feature: feat: Implement safe file and directory removal functions [crates/nbuild/src/cli.rs]
 - Updated release workflow for multi-crate builds and individual crates.io publishing, added README, LICENSE, and PLAN for all crates [.github/workflows/release.yml:1]
 - New feature: feat(tokless): Implement core functionality for headroom proxy and token optimization [crates/archinfo/build.rs]
 - New feature: feat: Update release workflow and add new catalog entries [crates/nbuild/catalog/brotli.json]
@@ -47,6 +46,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Completed full port of tokless Go codebase to Rust (Phases 1-5): all 17 agents supported, MCP adapters, selection store, tool harnesses, doctor stats, process alive, 33 unit tests passing, zero warnings
 - New feature: feat: Enhance tokless functionality with new agents and routing features [crates/nbuild/src/cli.rs]
 - Completed all 5 plans: 1. Parallel agent engine (tokless init -j/--jobs), 2. Live terminal monitor (tokless top), 3. Proxy daemon supervisor (tokless daemon), 4. Context primer (tokless prime), 5. In-place self-updater with atomic Windows rename and --check (tokless self-update)
+- New feature: feat: add comprehensive test filtering for various test frameworks [crates/tokless/build.rs]
 
 ## Key files
 - `.editorconfig`

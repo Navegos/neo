@@ -13,4 +13,5 @@ pub mod tools;
 pub mod commands;
 pub mod rtk;
 pub mod projectmem;
+pub mod contextmode;
 
