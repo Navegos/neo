@@ -6,6 +6,7 @@
 // lastModified: 2026-10-14
 
 pub mod codex_perm_hook;
+pub mod ctx;
 pub mod daemon;
 pub mod disable;
 pub mod doctor;
@@ -26,6 +27,7 @@ pub mod top;
 pub mod update;
 
 pub use codex_perm_hook::*;
+pub use ctx::*;
 pub use daemon::*;
 pub use disable::*;
 pub use doctor::*;

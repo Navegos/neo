@@ -397,6 +397,24 @@ impl ContextMcpServer {
                 return denied;
             }
 
+            if full_path.is_dir() {
+                let mut store = match self.store.lock() {
+                    Ok(s) => s,
+                    Err(e) => return format!("Store lock error: {}", e),
+                };
+                return match store.index_directory(&full_path, 200, 5, Some(source_label)) {
+                    Ok(ir) => format!(
+                        "Indexed directory '{}': {} files, {} chunks, {} bytes{}",
+                        ir.root,
+                        ir.files_indexed,
+                        ir.total_chunks,
+                        ir.total_bytes,
+                        if ir.capped { " (capped at 200 files)" } else { "" }
+                    ),
+                    Err(e) => format!("Directory index error: {}", e),
+                };
+            }
+
             match fs::read_to_string(&full_path) {
                 Ok(s) => s,
                 Err(e) => return format!("Failed to read file '{}': {}", full_path.display(), e),

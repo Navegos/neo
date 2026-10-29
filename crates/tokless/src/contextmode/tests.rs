@@ -305,4 +305,56 @@ mod tests {
         let purge_out = server.execute_tool("ctx_purge", &json!({}));
         assert!(purge_out.contains("Successfully purged"));
     }
+
+    #[test]
+    fn test_fts_index_directory() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+
+        let sub = root.join("docs");
+        std::fs::create_dir_all(&sub).unwrap();
+
+        std::fs::write(root.join("README.md"), "# Project Root\n\nMain README contents.").unwrap();
+        std::fs::write(sub.join("guide.md"), "# User Guide\n\nComprehensive setup guide instructions.").unwrap();
+        std::fs::write(sub.join("data.json"), "{\"app\": \"tokless\", \"mode\": \"context\"}").unwrap();
+
+        let mut store = ContentStore::open_in_memory().unwrap();
+        let dir_res = store.index_directory(root, 50, 5, Some("my-repo")).unwrap();
+
+        assert_eq!(dir_res.files_indexed, 3);
+        assert!(!dir_res.capped);
+
+        let search_res = store.search(&SearchOptions {
+            query: "setup guide".to_string(),
+            limit: 5,
+            source: None,
+            content_type: None,
+            session_id: None,
+        }).unwrap();
+
+        assert!(!search_res.is_empty());
+        assert!(search_res[0].content.contains("setup guide"));
+    }
+
+    #[test]
+    fn test_ctx_cli_eval_and_doctor() {
+        let doctor_code = super::super::cli::run_ctx_cli(&["doctor".to_string()]);
+        assert_eq!(doctor_code, 0);
+
+        let stats_code = super::super::cli::run_ctx_cli(&["stats".to_string()]);
+        assert_eq!(stats_code, 0);
+
+        let eval_code = if cfg!(windows) {
+            super::super::cli::run_ctx_cli(&["eval".to_string(), "Write-Output 'ctx-cli-ok'".to_string()])
+        } else {
+            super::super::cli::run_ctx_cli(&["eval".to_string(), "echo 'ctx-cli-ok'".to_string()])
+        };
+        assert_eq!(eval_code, 0);
+    }
+
+    #[test]
+    fn test_fetcher_async_instance() {
+        let fetcher = super::super::fetch::WebFetcher::new();
+        let _ = fetcher.async_client();
+    }
 }

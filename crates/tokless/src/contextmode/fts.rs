@@ -7,6 +7,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
+use ignore::WalkBuilder;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -47,6 +48,22 @@ pub struct IndexResult {
     pub code_chunks: usize,
     pub total_bytes: usize,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DirectoryIndexResult {
+    pub root: String,
+    pub files_indexed: usize,
+    pub total_chunks: usize,
+    pub total_bytes: usize,
+    pub capped: bool,
+    pub errors: Vec<String>,
+}
+
+pub const DEFAULT_INDEX_EXTENSIONS: &[&str] = &[
+    "md", "markdown", "txt", "json", "yaml", "yml", "toml",
+    "ts", "tsx", "js", "jsx", "mjs", "cjs", "py", "rs", "go",
+    "sh", "bash", "ps1", "c", "cpp", "h", "hpp", "html", "css",
+];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchResult {
@@ -708,6 +725,138 @@ impl ContentStore {
             out.push(r);
         }
         Ok(out)
+    }
+
+    pub fn index_directory(
+        &mut self,
+        root: &Path,
+        max_files: usize,
+        max_depth: usize,
+        label_prefix: Option<&str>,
+    ) -> Result<DirectoryIndexResult, rusqlite::Error> {
+        let abs_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+        let root_str = abs_root.to_string_lossy().to_string();
+
+        let walker = WalkBuilder::new(&abs_root)
+            .standard_filters(true)
+            .hidden(true)
+            .parents(true)
+            .git_ignore(true)
+            .git_global(true)
+            .git_exclude(true)
+            .max_depth(Some(max_depth))
+            .filter_entry(|entry| {
+                let name = entry.file_name().to_string_lossy();
+                if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+                    if name == ".git"
+                        || name == "node_modules"
+                        || name == "target"
+                        || name == ".codegraph"
+                        || name == ".projectmem"
+                        || name == ".tokless"
+                        || name == "dist"
+                        || name == "build"
+                        || name == "vendor"
+                        || name == "__pycache__"
+                        || name == ".venv"
+                        || name == "venv"
+                    {
+                        return false;
+                    }
+                }
+                true
+            })
+            .build();
+
+        let mut files_indexed = 0;
+        let mut total_chunks = 0;
+        let mut total_bytes = 0;
+        let mut capped = false;
+        let mut errors = Vec::new();
+
+        for entry_res in walker {
+            if files_indexed >= max_files {
+                capped = true;
+                break;
+            }
+
+            let entry = match entry_res {
+                Ok(e) => e,
+                Err(err) => {
+                    errors.push(err.to_string());
+                    continue;
+                }
+            };
+
+            if !entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+                continue;
+            }
+
+            let path = entry.path();
+            if super::security::check_path_deny(path).is_some() {
+                continue;
+            }
+
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+
+            if !DEFAULT_INDEX_EXTENSIONS.contains(&ext.as_str()) {
+                continue;
+            }
+
+            if let Ok(meta) = std::fs::metadata(path) {
+                if meta.len() > 2 * 1024 * 1024 {
+                    continue;
+                }
+            }
+
+            let content = match std::fs::read_to_string(path) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+
+            let rel_path = path
+                .strip_prefix(&abs_root)
+                .map(|p| p.to_string_lossy().to_string().replace('\\', "/"))
+                .unwrap_or_else(|_| path.to_string_lossy().to_string().replace('\\', "/"));
+
+            let label = if let Some(prefix) = label_prefix {
+                format!("{}/{}", prefix.trim_end_matches('/'), rel_path)
+            } else {
+                rel_path
+            };
+
+            let ctype = if ext == "json" {
+                "json"
+            } else if ext == "md" || ext == "markdown" {
+                "markdown"
+            } else {
+                "prose"
+            };
+
+            match self.index(&content, &label, Some(ctype), None) {
+                Ok(ir) => {
+                    files_indexed += 1;
+                    total_chunks += ir.total_chunks;
+                    total_bytes += ir.total_bytes;
+                }
+                Err(e) => {
+                    errors.push(format!("{}: {}", label, e));
+                }
+            }
+        }
+
+        Ok(DirectoryIndexResult {
+            root: root_str,
+            files_indexed,
+            total_chunks,
+            total_bytes,
+            capped,
+            errors,
+        })
     }
 
     pub fn purge_all(&mut self) -> Result<usize, rusqlite::Error> {

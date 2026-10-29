@@ -206,6 +206,7 @@ pub fn html_to_markdown(html: &str) -> String {
 
 pub struct WebFetcher {
     client: reqwest::blocking::Client,
+    async_client: reqwest::Client,
 }
 
 impl Default for WebFetcher {
@@ -220,7 +221,45 @@ impl WebFetcher {
             .timeout(Duration::from_secs(30))
             .build()
             .unwrap_or_else(|_| reqwest::blocking::Client::new());
-        Self { client }
+        let async_client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+        Self { client, async_client }
+    }
+
+    pub fn async_client(&self) -> &reqwest::Client {
+        &self.async_client
+    }
+
+    pub async fn fetch_url_async(&self, target_url: &str) -> Result<(String, String), String> {
+        ssrf_guard(target_url)?;
+
+        let resp = self
+            .async_client
+            .get(target_url)
+            .header(USER_AGENT, "Mozilla/5.0 (compatible; tokless-contextmode/1.0)")
+            .send()
+            .await
+            .map_err(|e| format!("HTTP async request failed: {}", e))?;
+
+        if !resp.status().is_success() {
+            return Err(format!("HTTP error status: {}", resp.status()));
+        }
+
+        let content_type = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+
+        let raw_body = resp
+            .text()
+            .await
+            .map_err(|e| format!("Failed to read response body: {}", e))?;
+
+        Ok((raw_body, content_type))
     }
 
     pub fn fetch_one(
@@ -530,5 +569,110 @@ impl WebFetcher {
         }
 
         results.into_iter().flatten().collect()
+    }
+
+    pub async fn fetch_one_async(
+        &self,
+        store: &mut ContentStore,
+        req: &FetchRequest,
+        force: bool,
+        ttl_ms: Option<u64>,
+    ) -> FetchOneOutcome {
+        let target_url = &req.url;
+        if let Err(e) = ssrf_guard(target_url) {
+            return FetchOneOutcome::Error {
+                url: target_url.clone(),
+                error: e,
+            };
+        }
+
+        let cache_key = compose_fetch_cache_key(req.source.as_deref(), target_url);
+        let effective_ttl = ttl_ms.unwrap_or(DEFAULT_FETCH_TTL_MS);
+
+        if !force && effective_ttl > 0 {
+            if let Some(meta) = store.get_source_meta(&cache_key) {
+                if let Ok(parsed_time) = chrono::DateTime::parse_from_rfc3339(&format!("{}Z", meta.indexed_at.replace(' ', "T"))) {
+                    let now = chrono::Utc::now();
+                    let age_ms = (now - parsed_time.to_utc()).num_milliseconds();
+                    if age_ms >= 0 && (age_ms as u64) < effective_ttl {
+                        let age_min = age_ms / (60 * 1000);
+                        let age_hours = age_min / 60;
+                        let age_str = if age_hours > 0 {
+                            format!("{}h ago", age_hours)
+                        } else if age_min > 0 {
+                            format!("{}m ago", age_min)
+                        } else {
+                            "just now".to_string()
+                        };
+                        let ttl_str = format!("{}h", effective_ttl / (3600 * 1000));
+                        let estimated_bytes = meta.chunk_count * 1600;
+                        record_cache_hit(estimated_bytes);
+
+                        return FetchOneOutcome::Cached {
+                            label: meta.label,
+                            chunk_count: meta.chunk_count,
+                            age_str,
+                            ttl_str,
+                        };
+                    }
+                }
+            }
+        }
+
+        record_cache_miss();
+
+        let (raw_body, content_type_header) = match self.fetch_url_async(target_url).await {
+            Ok(res) => res,
+            Err(e) => {
+                return FetchOneOutcome::Error {
+                    url: target_url.clone(),
+                    error: e,
+                };
+            }
+        };
+
+        if raw_body.trim().is_empty() {
+            return FetchOneOutcome::Error {
+                url: target_url.clone(),
+                error: "Empty response body".to_string(),
+            };
+        }
+
+        let is_json = content_type_header.contains("application/json") || raw_body.trim_start().starts_with('{') || raw_body.trim_start().starts_with('[');
+        let is_html = content_type_header.contains("text/html") || raw_body.contains("<html") || raw_body.contains("<!DOCTYPE");
+
+        let (processed_content, ctype) = if is_json {
+            (raw_body, Some("json"))
+        } else if is_html {
+            (html_to_markdown(&raw_body), Some("markdown"))
+        } else {
+            (raw_body, Some("prose"))
+        };
+
+        let total_bytes = processed_content.len();
+        let preview = if processed_content.len() > FETCH_PREVIEW_LIMIT {
+            let mut cut = processed_content.chars().take(FETCH_PREVIEW_LIMIT).collect::<String>();
+            cut.push_str("\n\n... [truncated — use ctx_search() for full content]");
+            cut
+        } else {
+            processed_content.clone()
+        };
+
+        let index_res = match store.index(&processed_content, &cache_key, ctype, None) {
+            Ok(ir) => ir,
+            Err(e) => {
+                return FetchOneOutcome::Error {
+                    url: target_url.clone(),
+                    error: format!("Failed to index content: {}", e),
+                };
+            }
+        };
+
+        FetchOneOutcome::Fetched {
+            label: index_res.label,
+            total_chunks: index_res.total_chunks,
+            total_bytes,
+            preview,
+        }
     }
 }

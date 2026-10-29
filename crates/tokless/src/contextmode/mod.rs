@@ -19,7 +19,10 @@ mod tests;
 pub use cli::run_ctx_cli;
 pub use fetch::{html_to_markdown, ssrf_guard, WebFetcher};
 pub use filter::{filter_and_pipe_rtk, process_sandbox_output, slice_lines};
-pub use fts::{chunk_json, chunk_markdown, chunk_plain_text, ContentStore, IndexResult, SearchOptions, SearchResult};
+pub use fts::{
+    chunk_json, chunk_markdown, chunk_plain_text, ContentStore, DirectoryIndexResult,
+    IndexResult, SearchOptions, SearchResult, DEFAULT_INDEX_EXTENSIONS,
+};
 pub use mcp::{run_mcp_server, ContextMcpServer};
 pub use sandbox::{detect_runtimes, ExecRequest, ExecResult, PolyglotSandbox};
 pub use stats::{get_stats, ContextStats};
