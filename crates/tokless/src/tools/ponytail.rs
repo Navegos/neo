@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/ponytail.rs
 // created: 2026-10-05
-// lastModified: 2026-10-20
+// lastModified: 2026-10-29
 
 use std::sync::Arc;
 use crate::core::{Channel, ToolManifest};
@@ -18,9 +18,9 @@ use super::helpers::{
 pub fn build_ponytail() -> ToolManifest {
     let mut tool = ToolManifest::new("ponytail", "Ponytail");
     tool.description = "Minimal-code rules: reuse first, avoid speculative work.".into();
-    tool.homepage = "https://github.com/Navegos/ponytail".into();
-    tool.install_hint = "Instruction-only — no install needed.".into();
-    tool.channel = Channel::GitHub;
+    tool.homepage = "in-tree".into();
+    tool.install_hint = "Instruction-only — distributed inside tokless binary.".into();
+    tool.channel = Channel::Binary;
     tool.not_trackable = true;
     tool.instruction_only = true;
     tool.install = Some(Arc::new(|_opts| Ok(true)));

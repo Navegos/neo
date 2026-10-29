@@ -20,8 +20,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 4 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...9 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Approved and executing Phases 1-3: Go Parity Hardening (doctor tree, init excluded-tool unwire, proxy lifecycle/rollback, RTK resolver), Optimizations, and Features
+- ...10 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Implementing approved 5 features: 1. Parallel agent wiring engine (tokless init -j), 2. Live terminal monitor (tokless top), 3. Proxy daemon supervisor (tokless daemon), 4. Context primer (tokless prime), 5. In-place self-updater (tokless self-update)
 - Refactor: Refactor instruction path handling and improve JSONC comment stripping [crates/tokless/src/agents/antigravity.rs]
 - Executed Phase 1: Full port and embed neo\inspect-vault\rtk into crates/tokless/src/rtk with 100+ filters and zero-allocation ANSI stripper [crates/tokless/src/rtk]
@@ -36,10 +35,9 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 3 complete: Port Context-Mode to pure Rust in crates/tokless/src/contextmode with rusqlite FTS5 BM25 search, recursive directory indexing, async reqwest fetcher, sandbox subprocess runner with RTK output filtering, and tokless ctx <eval|search|index> CLI [crates/tokless/src/contextmode]
 - Phase 4: Embedded ICM SQLite FTS5 BM25 memory store and ai-memory claim-once multi-agent handoff state machine across 17+ agents with progressive L0/L1/L2 disclosure and zero LLM token spend [crates/tokless/src/icm/store.rs:1]
 - Phase 5: Ported CodeGraph to pure safe Rust engine in crates/tokless/src/codegraph with embedded Tree-sitter parsers, petgraph blast-radius engine, incremental SQLite cache, in-process MCP server, projectmem coordinate auto-resolution, and tokless graph CLI [crates/tokless/src/codegraph/mod.rs:1]
+- Phase 6: In-tree rules and skills integration with compile-time include_str! assets for Karpathy principles, Caveman, and Ponytail, eliminating external clone links [crates/tokless/src/rules/]
 
 ## Notes
-- New feature: feat: Enhance tokless functionality with new agents and routing features [crates/nbuild/src/cli.rs]
-- Completed all 5 plans: 1. Parallel agent engine (tokless init -j/--jobs), 2. Live terminal monitor (tokless top), 3. Proxy daemon supervisor (tokless daemon), 4. Context primer (tokless prime), 5. In-place self-updater with atomic Windows rename and --check (tokless self-update)
 - New feature: feat: add comprehensive test filtering for various test frameworks [crates/tokless/build.rs]
 - New feature: feat: add context mode with sandbox execution and security features [crates/tokless/src/commands/runmcp.rs]
 - New feature: feat(icm): implement in-memory ICM store with CRUD operations and FTS5 support [crates/tokless/src/aimemory/handoff.rs]
@@ -48,6 +46,8 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat: update project summaries, add CLI test issues, enhance command tracking, and improve redaction functionality [crates/tokless/src/projectmem/cli.rs]
 - New feature: feat: implement directory indexing, enhance CLI commands, and add async fetch capabilities [crates/tokless/src/commands/ctx.rs]
 - New feature: feat: enhance ICM with multi-agent handoff capabilities, including offer, claim, resolve, and cancel functionalities; ad [crates/tokless/src/aimemory/handoff.rs]
+- New feature: feat: enhance projectmem functionality with auto-resolve location features, improve location parsing, and add new tests [crates/tokless/src/codegraph/mcp.rs]
+- Phase 6 complete: In-tree rules & skills integration with embedded markdown assets via include_str! (principles, caveman, ponytail), zero external repo clone links, patch/inject helpers for CLAUDE.md, .cursor/rules/, AGENTS.md, 222 tests passing with 0 warnings [crates/tokless/src/rules/mod.rs:1]
 
 ## Key files
 - `.editorconfig`

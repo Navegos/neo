@@ -17,4 +17,5 @@ pub mod contextmode;
 pub mod icm;
 pub mod aimemory;
 pub mod codegraph;
+pub mod rules;
 
