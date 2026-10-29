@@ -37,6 +37,11 @@ impl IcmStore {
         Ok(store)
     }
 
+    pub fn open_default() -> Result<Self, rusqlite::Error> {
+        let path = crate::icm::mcp::resolve_icm_db_path();
+        Self::open(path)
+    }
+
     pub fn open_in_memory() -> Result<Self, rusqlite::Error> {
         let conn = Connection::open_in_memory()?;
         let mut store = Self {
@@ -427,6 +432,65 @@ impl IcmStore {
             facts.push(r?);
         }
         Ok(facts)
+    }
+
+    /// Syncs ProjectMem events into SQLite memory and fact tables with 0 LLM token spend.
+    pub fn sync_from_projectmem(&mut self, events: &[crate::projectmem::schema::Event]) -> Result<usize, rusqlite::Error> {
+        let mut count = 0;
+        let now = Utc::now().to_rfc3339();
+
+        for ev in events {
+            let (topic, importance, weight) = match ev.event_type.as_str() {
+                "decision" => ("decision", Importance::High, 1.8),
+                "fix" => ("fix", Importance::High, 1.6),
+                "note" => {
+                    if ev.summary.to_lowercase().starts_with("gotcha") {
+                        ("gotcha", Importance::Critical, 2.0)
+                    } else {
+                        ("note", Importance::Medium, 1.0)
+                    }
+                }
+                "issue" => ("issue", Importance::Medium, 1.2),
+                "attempt" => ("attempt", Importance::Low, 0.8),
+                _ => ("general", Importance::Low, 0.5),
+            };
+
+            let hash = compute_summary_hash(topic, &ev.summary);
+            let mem_id = format!("mem_pjm_{}", &hash[..8]);
+
+            let keywords = vec![
+                topic.to_string(),
+                ev.event_type.clone(),
+            ];
+
+            let mem = Memory {
+                id: mem_id,
+                created_at: if ev.timestamp.is_empty() { now.clone() } else { ev.timestamp.clone() },
+                updated_at: now.clone(),
+                last_accessed: now.clone(),
+                access_count: 0,
+                weight,
+                topic: topic.to_string(),
+                summary: ev.summary.clone(),
+                raw_excerpt: ev.location.clone(),
+                keywords,
+                importance,
+                source_type: "projectmem".to_string(),
+                source_data: None,
+                related_ids: ev.issue_id.clone().into_iter().collect(),
+                summary_hash: Some(hash),
+            };
+
+            if self.insert_or_update_memory(&mem).is_ok() {
+                count += 1;
+            }
+
+            if ev.event_type == "decision" {
+                let _ = self.set_fact("architecture", &format!("decision_{}", &ev.id), &ev.summary, "projectmem");
+            }
+        }
+
+        Ok(count)
     }
 
     // Sessions and Transcripts

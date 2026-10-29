@@ -20,8 +20,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 4 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...7 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Plan approved: Hardening (Windows Job Object orphan process prevention, Stale Routing Lock PID reclamation) and Features (tokless doctor --json / tokless stats command, Prompt Cache Warmth Gauge)
+- ...8 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Implemented Hardening & Bug Prevention (Windows detached process flags, Stale Routing Lock PID cleanup) and Features (tokless doctor --json, tokless stats alias, Prompt Cache Warmth Gauge) with 93 passing workspace tests
 - Approved and executing Phases 1-3: Go Parity Hardening (doctor tree, init excluded-tool unwire, proxy lifecycle/rollback, RTK resolver), Optimizations, and Features
 - Implementing approved 5 features: 1. Parallel agent wiring engine (tokless init -j), 2. Live terminal monitor (tokless top), 3. Proxy daemon supervisor (tokless daemon), 4. Context primer (tokless prime), 5. In-place self-updater (tokless self-update)
@@ -36,9 +35,9 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 7 complete: Verified all 17 agent harnesses, in-process MCP multiplexer, unified tokless CLI subcommands, proxy streaming compression, and token benchmarks with 241 passed workspace tests and zero compiler warnings [crates/tokless/tests/phase7_system_verification.rs]
 - Port ProjectMem to pure safe Rust in crates/tokless/src/projectmem/ with LockFileEx, fcntl, README generator, zero-alloc redaction, RTK trace connector, and tokless mem CLI
 - Phase 3 complete: Port Context-Mode to pure Rust in crates/tokless/src/contextmode with rusqlite FTS5 BM25 search, recursive directory indexing, async reqwest fetcher, sandbox subprocess runner with RTK output filtering, and tokless ctx <eval|search|index> CLI [crates/tokless/src/contextmode]
+- Phase 4: Embedded ICM SQLite FTS5 BM25 memory store and ai-memory claim-once multi-agent handoff state machine across 17+ agents with progressive L0/L1/L2 disclosure and zero LLM token spend [crates/tokless/src/icm/store.rs:1]
 
 ## Notes
-- Phase 4 complete: Ported doctor_stats, background process management, and process_alive with zero compiler warnings and 27 passing tests
 - Completed full port of tokless Go codebase to Rust (Phases 1-5): all 17 agents supported, MCP adapters, selection store, tool harnesses, doctor stats, process alive, 33 unit tests passing, zero warnings
 - New feature: feat: Enhance tokless functionality with new agents and routing features [crates/nbuild/src/cli.rs]
 - Completed all 5 plans: 1. Parallel agent engine (tokless init -j/--jobs), 2. Live terminal monitor (tokless top), 3. Proxy daemon supervisor (tokless daemon), 4. Context primer (tokless prime), 5. In-place self-updater with atomic Windows rename and --check (tokless self-update)
@@ -48,6 +47,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat: Introduce content compression module with unified detection and compression for code, JSON, and logs [crates/tokless/src/headroom/adaptive_mem.rs]
 - New feature: feat: add proxy agent specification for 'grok', enhance CLI help text, and implement system verification tests for all a [crates/tokless/src/agents/proxy_agent.rs]
 - New feature: feat: update project summaries, add CLI test issues, enhance command tracking, and improve redaction functionality [crates/tokless/src/projectmem/cli.rs]
+- New feature: feat: implement directory indexing, enhance CLI commands, and add async fetch capabilities [crates/tokless/src/commands/ctx.rs]
 
 ## Key files
 - `.editorconfig`

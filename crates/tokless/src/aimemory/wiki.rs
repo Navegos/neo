@@ -30,6 +30,10 @@ impl WikiStore {
         Self { root_dir: dir }
     }
 
+    pub fn open_default() -> Self {
+        Self::new(crate::aimemory::default_wiki_dir())
+    }
+
     fn page_path(&self, slug: &str) -> PathBuf {
         self.root_dir.join(format!("{}.md", slug))
     }

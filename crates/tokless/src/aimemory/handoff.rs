@@ -8,6 +8,46 @@ use std::path::{Path, PathBuf};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
+pub const SUPPORTED_AGENTS: &[&str] = &[
+    "claude",
+    "cursor",
+    "antigravity",
+    "codex",
+    "opencode",
+    "copilot",
+    "cline",
+    "amp",
+    "droid",
+    "dsh",
+    "grok",
+    "kilo",
+    "kimi",
+    "omp",
+    "pi",
+    "vscode",
+    "zcode",
+];
+
+pub fn normalize_agent_id(agent: &str) -> String {
+    let lower = agent.trim().to_lowercase();
+    match lower.as_str() {
+        "claude-code" | "anthropic" => "claude".to_string(),
+        "opencode2" | "open-code" => "opencode".to_string(),
+        "factory-droid" => "droid".to_string(),
+        "github-copilot" | "github" => "copilot".to_string(),
+        "agy" | "google-antigravity" => "antigravity".to_string(),
+        "kimi-code" => "kimi".to_string(),
+        "kiro-cli" => "kilo".to_string(),
+        "command-code" => "codex".to_string(),
+        other => other.to_string(),
+    }
+}
+
+pub fn is_supported_agent(agent: &str) -> bool {
+    let norm = normalize_agent_id(agent);
+    norm == "any" || SUPPORTED_AGENTS.contains(&norm.as_str())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum HandoffState {
@@ -70,6 +110,10 @@ impl HandoffStore {
         Self { base_dir: dir }
     }
 
+    pub fn open_default() -> Self {
+        Self::new(crate::aimemory::default_handoffs_dir())
+    }
+
     fn handoff_path(&self, id: &str) -> PathBuf {
         self.base_dir.join(format!("{}.json", id))
     }
@@ -78,12 +122,15 @@ impl HandoffStore {
         let now = Utc::now().to_rfc3339();
         let id = format!("handoff_{:x}", rand_u64());
 
+        let from_norm = normalize_agent_id(&input.from_agent);
+        let to_norm = input.to_agent.map(|t| normalize_agent_id(&t));
+
         let handoff = Handoff {
             id: id.clone(),
             title: input.title,
             task: input.task,
-            from_agent: input.from_agent,
-            to_agent: input.to_agent,
+            from_agent: from_norm,
+            to_agent: to_norm,
             claimed_by: None,
             state: HandoffState::Offered,
             active_files: input.active_files,
@@ -113,8 +160,11 @@ impl HandoffStore {
             ));
         }
 
+        let claim_agent = normalize_agent_id(agent);
+
         if let Some(ref target) = handoff.to_agent {
-            if !target.eq_ignore_ascii_case(agent) && target != "any" {
+            let target_norm = normalize_agent_id(target);
+            if target_norm != claim_agent && target_norm != "any" {
                 return Err(format!(
                     "cannot claim handoff '{}': designated for agent '{}', but claimed by '{}'",
                     id, target, agent
@@ -124,7 +174,7 @@ impl HandoffStore {
 
         let now = Utc::now().to_rfc3339();
         handoff.state = HandoffState::Claimed;
-        handoff.claimed_by = Some(agent.to_string());
+        handoff.claimed_by = Some(claim_agent);
         handoff.claimed_at = Some(now.clone());
         handoff.updated_at = now;
 
@@ -143,8 +193,11 @@ impl HandoffStore {
             ));
         }
 
+        let resolver_norm = normalize_agent_id(agent);
+
         if let Some(ref claimed) = handoff.claimed_by {
-            if !claimed.eq_ignore_ascii_case(agent) {
+            let claimed_norm = normalize_agent_id(claimed);
+            if claimed_norm != resolver_norm {
                 return Err(format!(
                     "cannot resolve handoff '{}': claimed by '{}', but resolver is '{}'",
                     id, claimed, agent
@@ -224,10 +277,37 @@ impl HandoffStore {
         Ok(list)
     }
 
+    pub fn pending_for_agent(&self, agent: &str) -> Result<Vec<Handoff>, String> {
+        let norm = normalize_agent_id(agent);
+        let active = self.list_active()?;
+        let filtered = active
+            .into_iter()
+            .filter(|h| {
+                if h.state == HandoffState::Offered {
+                    match h.to_agent.as_deref() {
+                        None => true,
+                        Some(t) => {
+                            let tn = normalize_agent_id(t);
+                            tn == "any" || tn == norm
+                        }
+                    }
+                } else if h.state == HandoffState::Claimed {
+                    h.claimed_by.as_deref().map(normalize_agent_id).as_deref() == Some(&norm)
+                } else {
+                    false
+                }
+            })
+            .collect();
+        Ok(filtered)
+    }
+
     fn save(&self, handoff: &Handoff) -> Result<(), String> {
         let path = self.handoff_path(&handoff.id);
+        let tmp_path = self.base_dir.join(format!("{}.tmp.{}", handoff.id, rand_u64()));
         let content = serde_json::to_string_pretty(handoff).map_err(|e| e.to_string())?;
-        fs::write(path, content).map_err(|e| e.to_string())
+        fs::write(&tmp_path, content).map_err(|e| e.to_string())?;
+        let _ = fs::remove_file(&path);
+        fs::rename(&tmp_path, &path).map_err(|e| e.to_string())
     }
 }
 

@@ -108,7 +108,75 @@ pub fn collect_memory_entries() -> Vec<TieredEntry> {
         }
     }
 
-    // 3. Fallback dummy entry if project has no memories yet
+    // 3. Check active multi-agent handoffs from aimemory
+    let handoffs_dir = crate::aimemory::default_handoffs_dir();
+    let handoff_store = crate::aimemory::HandoffStore::new(&handoffs_dir);
+    if let Ok(active_handoffs) = handoff_store.list_active() {
+        for h in active_handoffs.iter().take(3) {
+            let desc = format!("Handoff from {} to {}: {}", h.from_agent, h.to_agent.as_deref().unwrap_or("any"), h.task);
+            let full = format!(
+                "Task: {}\nFrom: {}\nTo: {}\nState: {}\nFiles: {}\nUnresolved: {}\nNext Steps: {}\nNotes: {}",
+                h.task,
+                h.from_agent,
+                h.to_agent.as_deref().unwrap_or("any"),
+                h.state.as_str(),
+                h.active_files.join(", "),
+                h.unresolved_issues.join(", "),
+                h.next_steps.join(", "),
+                h.context_notes.as_deref().unwrap_or("None")
+            );
+            entries.push(TieredEntry {
+                key: format!("handoff_{}", h.id),
+                title: format!("Active Handoff: {}", h.title),
+                abstract_text: Some(desc.clone()),
+                summary_text: Some(desc),
+                full_content: full,
+            });
+        }
+    }
+
+    // 4. Check facts and top memories from ICM SQLite store (.tokless/memory.db)
+    let icm_db_path = crate::icm::resolve_icm_db_path();
+    if icm_db_path.exists() {
+        if let Ok(icm_store) = crate::icm::IcmStore::open(&icm_db_path) {
+            if let Ok(facts) = icm_store.list_facts(None) {
+                for f in facts.iter().take(5) {
+                    let desc = format!("{}::{} = {}", f.entity, f.key, f.value);
+                    entries.push(TieredEntry {
+                        key: format!("fact_{}", f.id),
+                        title: format!("Fact: {}::{}", f.entity, f.key),
+                        abstract_text: Some(desc.clone()),
+                        summary_text: Some(desc.clone()),
+                        full_content: desc,
+                    });
+                }
+            }
+            if let Ok(hits) = icm_store.get_recent(5) {
+                for hit in hits {
+                    if hit.memory.importance == crate::icm::Importance::Critical || hit.memory.importance == crate::icm::Importance::High {
+                        entries.push(TieredEntry {
+                            key: format!("icm_{}", hit.memory.id),
+                            title: format!("Memory ({}): {}", hit.memory.topic, hit.memory.importance.as_str()),
+                            abstract_text: Some(hit.memory.summary.clone()),
+                            summary_text: Some(hit.memory.summary.clone()),
+                            full_content: hit.memory.raw_excerpt.unwrap_or(hit.memory.summary),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // 5. Check wiki pages from aimemory
+    let wiki_dir = crate::aimemory::default_wiki_dir();
+    let wiki_store = crate::aimemory::WikiStore::new(&wiki_dir);
+    if let Ok(wiki_entries) = wiki_store.to_tiered_entries() {
+        for w in wiki_entries.into_iter().take(3) {
+            entries.push(w);
+        }
+    }
+
+    // 6. Fallback dummy entry if project has no memories yet
     if entries.is_empty() {
         entries.push(TieredEntry {
             key: "tokless_governor".to_string(),

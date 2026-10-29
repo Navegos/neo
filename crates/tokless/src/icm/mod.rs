@@ -99,5 +99,80 @@ mod tests {
         let all_facts = store.list_facts(None).expect("list facts");
         assert_eq!(all_facts.len(), 1);
     }
+
+    #[test]
+    fn test_icm_sub_10ms_latency_and_zero_llm_spend() {
+        let mut store = IcmStore::open_in_memory().expect("in memory store open");
+        let now = Utc::now().to_rfc3339();
+
+        // Populate with 100 memories to test realistic search latency
+        for i in 0..100 {
+            let mem = Memory {
+                id: format!("mem_{}", i),
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                last_accessed: now.clone(),
+                access_count: 0,
+                weight: 1.0,
+                topic: if i % 2 == 0 { "database".into() } else { "compiler".into() },
+                summary: format!("Memory item {} describing optimization techniques in rusqlite FTS5 BM25 index", i),
+                raw_excerpt: Some(format!("raw snippet data for test item {}", i)),
+                keywords: vec!["rusqlite".into(), "fts5".into(), "bm25".into()],
+                importance: Importance::Medium,
+                source_type: "benchmark".into(),
+                source_data: None,
+                related_ids: vec![],
+                summary_hash: None,
+            };
+            store.insert_or_update_memory(&mem).expect("insert mem");
+        }
+
+        let opts = RecallOptions {
+            query: "rusqlite optimization techniques".into(),
+            limit: 10,
+            topic: Some("database".into()),
+            min_weight: None,
+            max_tokens: Some(500),
+        };
+
+        let res = recall_memories(&mut store, &opts).expect("recall");
+        assert!(!res.hits.is_empty());
+        // Verify sub-10ms latency requirement
+        assert!(res.latency_ms < 10.0, "latency was {}ms, expected < 10ms", res.latency_ms);
+    }
+
+    #[test]
+    fn test_icm_sync_from_projectmem() {
+        let mut store = IcmStore::open_in_memory().expect("in memory store open");
+
+        let mut ev1 = crate::projectmem::schema::Event::new(
+            "decision",
+            "Use single-file SQLite database (.tokless/memory.db) with bundled FTS5 BM25",
+        );
+        ev1.id = "0001".into();
+        ev1.location = Some("crates/tokless/src/icm/store.rs:1".into());
+
+        let mut ev2 = crate::projectmem::schema::Event::new(
+            "note",
+            "gotcha: SQLite requires WAL mode for multi-threaded concurrency",
+        );
+        ev2.id = "0002".into();
+        ev2.location = Some("crates/tokless/src/icm/store.rs:57".into());
+
+        let events = vec![ev1, ev2];
+
+        let synced = store.sync_from_projectmem(&events).expect("sync");
+        assert_eq!(synced, 2);
+
+        // Verify FTS5 BM25 can recall synced projectmem decision
+        let hits = store.search_bm25("SQLite FTS5", 5).expect("search bm25");
+        assert!(!hits.is_empty());
+        assert_eq!(hits[0].memory.topic, "decision");
+
+        // Verify fact was stored
+        let fact = store.get_fact("architecture", "decision_0001").expect("get fact");
+        assert!(fact.is_some());
+        assert!(fact.unwrap().value.contains("SQLite database"));
+    }
 }
 

@@ -9,6 +9,7 @@ use std::path::PathBuf;
 use chrono::Utc;
 use serde_json::{json, Value};
 
+use crate::aimemory::{HandoffStore, NewHandoff, WikiPage, WikiStore};
 use crate::icm::recall::{recall_memories, RecallOptions};
 use crate::icm::schema::{Importance, Memory};
 use crate::icm::store::{compute_summary_hash, IcmStore, DEFAULT_DB_FILENAME};
@@ -177,6 +178,106 @@ fn handle_mcp_request(store: &mut IcmStore, req: &Value) -> Option<Value> {
                             "type": "object",
                             "properties": {}
                         }
+                    },
+                    {
+                        "name": "memory_handoff_offer",
+                        "description": "Offer a context handoff to another AI coding agent (or any agent) across 17+ agents.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "title": { "type": "string", "description": "Short title of the handoff" },
+                                "task": { "type": "string", "description": "Goal or task description" },
+                                "from_agent": { "type": "string", "description": "Source agent CLI" },
+                                "to_agent": { "type": "string", "description": "Optional target agent (or 'any')" },
+                                "active_files": { "type": "array", "items": { "type": "string" }, "description": "Relevant files" },
+                                "unresolved_issues": { "type": "array", "items": { "type": "string" }, "description": "Open issues" },
+                                "next_steps": { "type": "array", "items": { "type": "string" }, "description": "Proposed next steps" },
+                                "context_notes": { "type": "string", "description": "Detailed notes or verification status" }
+                            },
+                            "required": ["title", "task", "from_agent"]
+                        }
+                    },
+                    {
+                        "name": "memory_handoff_claim",
+                        "description": "Claim-once atomic acceptance of an offered handoff by the receiving agent.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string", "description": "Handoff identifier" },
+                                "agent": { "type": "string", "description": "Accepting agent identifier" }
+                            },
+                            "required": ["id", "agent"]
+                        }
+                    },
+                    {
+                        "name": "memory_handoff_resolve",
+                        "description": "Mark a claimed handoff as resolved with optional resolution notes.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string", "description": "Handoff identifier" },
+                                "agent": { "type": "string", "description": "Resolving agent identifier" },
+                                "resolution_note": { "type": "string", "description": "Outcome and verification notes" }
+                            },
+                            "required": ["id", "agent"]
+                        }
+                    },
+                    {
+                        "name": "memory_handoff_cancel",
+                        "description": "Cancel an open handoff.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string", "description": "Handoff identifier" },
+                                "reason": { "type": "string", "description": "Cancellation reason" }
+                            },
+                            "required": ["id"]
+                        }
+                    },
+                    {
+                        "name": "memory_handoff_list",
+                        "description": "List active pending cross-agent handoffs, optionally filtered by agent.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "agent": { "type": "string", "description": "Optional agent identifier filter" }
+                            }
+                        }
+                    },
+                    {
+                        "name": "memory_wiki_read",
+                        "description": "Read an Open Knowledge Format (OKF v0.2) markdown wiki page.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "slug": { "type": "string", "description": "Page slug identifier" }
+                            },
+                            "required": ["slug"]
+                        }
+                    },
+                    {
+                        "name": "memory_wiki_write",
+                        "description": "Write or update an Open Knowledge Format (OKF v0.2) markdown wiki page.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "slug": { "type": "string", "description": "Page slug identifier" },
+                                "title": { "type": "string", "description": "Page title" },
+                                "body": { "type": "string", "description": "Page markdown body" },
+                                "abstract_text": { "type": "string", "description": "Brief abstract (L0)" },
+                                "summary_text": { "type": "string", "description": "Summary paragraph (L1)" },
+                                "tags": { "type": "array", "items": { "type": "string" }, "description": "Categorization tags" }
+                            },
+                            "required": ["slug", "title", "body"]
+                        }
+                    },
+                    {
+                        "name": "memory_wiki_list",
+                        "description": "List all wiki pages with titles, tags, and abstracts.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {}
+                        }
                     }
                 ]
             }
@@ -308,6 +409,110 @@ fn dispatch_tool(store: &mut IcmStore, name: &str, args: &Value) -> Result<Strin
         "icm_list_topics" => {
             let topics = store.list_topics().map_err(|e| e.to_string())?;
             serde_json::to_string_pretty(&topics).map_err(|e| e.to_string())
+        }
+        "memory_handoff_offer" => {
+            let title = args.get("title").and_then(|v| v.as_str()).ok_or("missing 'title'")?;
+            let task = args.get("task").and_then(|v| v.as_str()).ok_or("missing 'task'")?;
+            let from_agent = args.get("from_agent").and_then(|v| v.as_str()).ok_or("missing 'from_agent'")?;
+            let to_agent = args.get("to_agent").and_then(|v| v.as_str()).map(String::from);
+            let active_files = args.get("active_files")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            let unresolved_issues = args.get("unresolved_issues")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            let next_steps = args.get("next_steps")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+            let context_notes = args.get("context_notes").and_then(|v| v.as_str()).map(String::from);
+
+            let handoff_store = HandoffStore::open_default();
+            let handoff = handoff_store.offer(NewHandoff {
+                title: title.to_string(),
+                task: task.to_string(),
+                from_agent: from_agent.to_string(),
+                to_agent,
+                active_files,
+                unresolved_issues,
+                next_steps,
+                context_notes,
+            })?;
+
+            serde_json::to_string_pretty(&handoff).map_err(|e| e.to_string())
+        }
+        "memory_handoff_claim" => {
+            let id = args.get("id").and_then(|v| v.as_str()).ok_or("missing 'id'")?;
+            let agent = args.get("agent").and_then(|v| v.as_str()).ok_or("missing 'agent'")?;
+
+            let handoff_store = HandoffStore::open_default();
+            let claimed = handoff_store.claim(id, agent)?;
+            serde_json::to_string_pretty(&claimed).map_err(|e| e.to_string())
+        }
+        "memory_handoff_resolve" => {
+            let id = args.get("id").and_then(|v| v.as_str()).ok_or("missing 'id'")?;
+            let agent = args.get("agent").and_then(|v| v.as_str()).ok_or("missing 'agent'")?;
+            let resolution_note = args.get("resolution_note").and_then(|v| v.as_str());
+
+            let handoff_store = HandoffStore::open_default();
+            let resolved = handoff_store.resolve(id, agent, resolution_note)?;
+            serde_json::to_string_pretty(&resolved).map_err(|e| e.to_string())
+        }
+        "memory_handoff_cancel" => {
+            let id = args.get("id").and_then(|v| v.as_str()).ok_or("missing 'id'")?;
+            let reason = args.get("reason").and_then(|v| v.as_str());
+
+            let handoff_store = HandoffStore::open_default();
+            let cancelled = handoff_store.cancel(id, reason)?;
+            serde_json::to_string_pretty(&cancelled).map_err(|e| e.to_string())
+        }
+        "memory_handoff_list" => {
+            let agent = args.get("agent").and_then(|v| v.as_str());
+            let handoff_store = HandoffStore::open_default();
+            let list = match agent {
+                Some(a) => handoff_store.pending_for_agent(a)?,
+                None => handoff_store.list_active()?,
+            };
+            serde_json::to_string_pretty(&list).map_err(|e| e.to_string())
+        }
+        "memory_wiki_read" => {
+            let slug = args.get("slug").and_then(|v| v.as_str()).ok_or("missing 'slug'")?;
+            let wiki_store = WikiStore::open_default();
+            let page = wiki_store.read_page(slug)?;
+            match page {
+                Some(p) => serde_json::to_string_pretty(&p).map_err(|e| e.to_string()),
+                None => Ok(format!("Wiki page '{}' not found", slug)),
+            }
+        }
+        "memory_wiki_write" => {
+            let slug = args.get("slug").and_then(|v| v.as_str()).ok_or("missing 'slug'")?;
+            let title = args.get("title").and_then(|v| v.as_str()).ok_or("missing 'title'")?;
+            let body = args.get("body").and_then(|v| v.as_str()).ok_or("missing 'body'")?;
+            let abstract_text = args.get("abstract_text").and_then(|v| v.as_str()).map(String::from);
+            let summary_text = args.get("summary_text").and_then(|v| v.as_str()).map(String::from);
+            let tags = args.get("tags")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+
+            let wiki_store = WikiStore::open_default();
+            let page = WikiPage {
+                slug: slug.to_string(),
+                title: title.to_string(),
+                abstract_text,
+                summary_text,
+                tags,
+                body: body.to_string(),
+            };
+            wiki_store.write_page(&page)?;
+            Ok(format!("Wiki page '{}' written successfully", slug))
+        }
+        "memory_wiki_list" => {
+            let wiki_store = WikiStore::open_default();
+            let pages = wiki_store.list_pages()?;
+            serde_json::to_string_pretty(&pages).map_err(|e| e.to_string())
         }
         _ => Err(format!("Unknown tool: {}", name)),
     }
