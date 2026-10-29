@@ -4,6 +4,7 @@
 // file: crates/tokless/src/projectmem/redaction.rs
 // created: 2026-10-27
 
+use std::borrow::Cow;
 use std::env;
 use std::sync::LazyLock;
 use regex::Regex;
@@ -50,7 +51,7 @@ static PATTERNS: LazyLock<Vec<PatternDef>> = LazyLock::new(|| {
         },
         PatternDef {
             name: "bearer_token",
-            regex: Regex::new(r"\b[Bb]earer\s+[A-Za-z0-9._~+/=\-]{20,}").unwrap(),
+            regex: Regex::new(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=\-]{20,}").unwrap(),
         },
         PatternDef {
             name: "private_key",
@@ -64,9 +65,23 @@ pub fn is_redaction_enabled() -> bool {
     val != "1" && val != "true" && val != "yes"
 }
 
-pub fn redact(text: &str) -> (String, Vec<String>) {
+/// Zero-allocation secret redactor using Cow: borrows text directly if no secrets match.
+pub fn redact_cow<'a>(text: &'a str) -> (Cow<'a, str>, Vec<String>) {
     if text.is_empty() {
-        return (text.to_string(), Vec::new());
+        return (Cow::Borrowed(text), Vec::new());
+    }
+
+    // Quick check if any pattern matches before allocating
+    let mut any_match = false;
+    for p in PATTERNS.iter() {
+        if p.regex.is_match(text) {
+            any_match = true;
+            break;
+        }
+    }
+
+    if !any_match {
+        return (Cow::Borrowed(text), Vec::new());
     }
 
     let mut out = text.to_string();
@@ -83,7 +98,12 @@ pub fn redact(text: &str) -> (String, Vec<String>) {
         }
     }
 
-    (out, fired)
+    (Cow::Owned(out), fired)
+}
+
+pub fn redact(text: &str) -> (String, Vec<String>) {
+    let (cow, fired) = redact_cow(text);
+    (cow.into_owned(), fired)
 }
 
 pub fn redact_event_fields(event: &mut Event) -> Vec<String> {

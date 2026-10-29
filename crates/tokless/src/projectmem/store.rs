@@ -40,13 +40,24 @@ impl FileLock {
         #[cfg(windows)]
         {
             use std::os::windows::io::AsRawHandle;
-            use windows_sys::Win32::Storage::FileSystem::LockFile;
+            use windows_sys::Win32::Storage::FileSystem::{LockFileEx, LOCKFILE_EXCLUSIVE_LOCK};
+            use windows_sys::Win32::System::IO::OVERLAPPED;
 
             let handle = file.as_raw_handle() as windows_sys::Win32::Foundation::HANDLE;
             let start = Instant::now();
             let mut locked = false;
             while start.elapsed() < Duration::from_secs(5) {
-                let ok = unsafe { LockFile(handle, 0, 0, u32::MAX, u32::MAX) };
+                let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
+                let ok = unsafe {
+                    LockFileEx(
+                        handle,
+                        LOCKFILE_EXCLUSIVE_LOCK,
+                        0,
+                        u32::MAX,
+                        u32::MAX,
+                        &mut overlapped,
+                    )
+                };
                 if ok != 0 {
                     locked = true;
                     break;
@@ -59,8 +70,15 @@ impl FileLock {
         #[cfg(unix)]
         {
             use std::os::unix::io::AsRawFd;
+            let mut fl = libc::flock {
+                l_type: libc::F_WRLCK as libc::c_short,
+                l_whence: libc::SEEK_SET as libc::c_short,
+                l_start: 0,
+                l_len: 0,
+                l_pid: 0,
+            };
             unsafe {
-                libc::flock(file.as_raw_fd(), libc::LOCK_EX);
+                libc::fcntl(file.as_raw_fd(), libc::F_SETLKW, &mut fl);
             }
             Self { file }
         }
@@ -82,10 +100,12 @@ impl Drop for FileLock {
         {
             if self.locked {
                 use std::os::windows::io::AsRawHandle;
-                use windows_sys::Win32::Storage::FileSystem::UnlockFile;
+                use windows_sys::Win32::Storage::FileSystem::UnlockFileEx;
+                use windows_sys::Win32::System::IO::OVERLAPPED;
                 let handle = self.file.as_raw_handle() as windows_sys::Win32::Foundation::HANDLE;
+                let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
                 unsafe {
-                    UnlockFile(handle, 0, 0, u32::MAX, u32::MAX);
+                    UnlockFileEx(handle, 0, u32::MAX, u32::MAX, &mut overlapped);
                 }
             }
         }
@@ -93,8 +113,15 @@ impl Drop for FileLock {
         #[cfg(unix)]
         {
             use std::os::unix::io::AsRawFd;
+            let mut fl = libc::flock {
+                l_type: libc::F_UNLCK as libc::c_short,
+                l_whence: libc::SEEK_SET as libc::c_short,
+                l_start: 0,
+                l_len: 0,
+                l_pid: 0,
+            };
             unsafe {
-                libc::flock(self.file.as_raw_fd(), libc::LOCK_UN);
+                libc::fcntl(self.file.as_raw_fd(), libc::F_SETLK, &mut fl);
             }
         }
     }

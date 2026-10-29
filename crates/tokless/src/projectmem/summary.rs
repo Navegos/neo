@@ -74,6 +74,36 @@ pub fn extract_project_purpose_from_map(map_path: &Path) -> Option<String> {
     }
 }
 
+pub fn extract_project_purpose_from_readme(root: Option<&Path>) -> Option<String> {
+    let root_path = match root {
+        Some(r) => r.to_path_buf(),
+        None => std::env::current_dir().ok()?,
+    };
+
+    for name in ["README.md", "readme.md", "README.txt", "README"] {
+        let p = root_path.join(name);
+        if p.exists() {
+            if let Ok(content) = fs::read_to_string(&p) {
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty()
+                        || trimmed.starts_with('#')
+                        || trimmed.starts_with("![")
+                        || trimmed.starts_with("[!")
+                        || trimmed.starts_with("<")
+                        || looks_like_placeholder(trimmed)
+                    {
+                        continue;
+                    }
+                    let snippet: String = trimmed.chars().take(150).collect();
+                    return Some(snippet);
+                }
+            }
+        }
+    }
+    None
+}
+
 pub fn extract_project_purpose(summary: &str) -> Option<String> {
     let start = summary
         .find("## Project purpose")
@@ -383,7 +413,9 @@ pub fn regenerate_summary(root: Option<&Path>) -> Result<PathBuf, String> {
     let existing_content = fs::read_to_string(&sum_path).unwrap_or_default();
     let map_p = project_map_path(root).ok();
     let map_purpose = map_p.as_ref().and_then(|p| extract_project_purpose_from_map(p));
-    let purpose = map_purpose.or_else(|| extract_project_purpose(&existing_content));
+    let purpose = map_purpose
+        .or_else(|| extract_project_purpose(&existing_content))
+        .or_else(|| extract_project_purpose_from_readme(root));
 
     let project_name = root
         .and_then(|r| r.file_name())

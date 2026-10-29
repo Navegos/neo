@@ -112,6 +112,95 @@ pub fn location_to_file(location: Option<&str>) -> Option<String> {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Issue {
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Attempt {
+    pub summary: String,
+    pub outcome: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issue_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Fix {
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issue_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Decision {
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supersedes: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Note {
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+}
+
+impl From<Issue> for Event {
+    fn from(i: Issue) -> Self {
+        let mut ev = Event::new("issue", &i.summary);
+        ev.location = i.location;
+        ev
+    }
+}
+
+impl From<Attempt> for Event {
+    fn from(a: Attempt) -> Self {
+        let mut ev = Event::new("attempt", &a.summary);
+        ev.outcome = Some(a.outcome);
+        ev.issue_id = a.issue_id;
+        ev.location = a.location;
+        ev.command = a.command;
+        ev
+    }
+}
+
+impl From<Fix> for Event {
+    fn from(f: Fix) -> Self {
+        let mut ev = Event::new("fix", &f.summary);
+        ev.issue_id = f.issue_id;
+        ev.location = f.location;
+        ev
+    }
+}
+
+impl From<Decision> for Event {
+    fn from(d: Decision) -> Self {
+        let mut ev = Event::new("decision", &d.summary);
+        ev.supersedes = d.supersedes;
+        ev.location = d.location;
+        ev
+    }
+}
+
+impl From<Note> for Event {
+    fn from(n: Note) -> Self {
+        let mut ev = Event::new("note", &n.summary);
+        ev.location = n.location;
+        ev
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Event {
     #[serde(default = "default_event_id")]
     pub id: String,
@@ -166,6 +255,47 @@ impl Event {
             git_message: None,
             supersedes: None,
         }
+    }
+
+    pub fn issue(summary: &str, location: Option<&str>) -> Self {
+        let mut ev = Self::new("issue", summary);
+        ev.location = location.map(|s| s.to_string());
+        ev
+    }
+
+    pub fn attempt(
+        summary: &str,
+        outcome: &str,
+        issue_id: Option<&str>,
+        location: Option<&str>,
+        command: Option<&str>,
+    ) -> Self {
+        let mut ev = Self::new("attempt", summary);
+        ev.outcome = Some(outcome.to_string());
+        ev.issue_id = issue_id.map(|s| s.to_string());
+        ev.location = location.map(|s| s.to_string());
+        ev.command = command.map(|s| s.to_string());
+        ev
+    }
+
+    pub fn fix(summary: &str, issue_id: Option<&str>, location: Option<&str>) -> Self {
+        let mut ev = Self::new("fix", summary);
+        ev.issue_id = issue_id.map(|s| s.to_string());
+        ev.location = location.map(|s| s.to_string());
+        ev
+    }
+
+    pub fn decision(summary: &str, supersedes: Option<&str>, location: Option<&str>) -> Self {
+        let mut ev = Self::new("decision", summary);
+        ev.supersedes = supersedes.map(|s| s.to_string());
+        ev.location = location.map(|s| s.to_string());
+        ev
+    }
+
+    pub fn note(summary: &str, location: Option<&str>) -> Self {
+        let mut ev = Self::new("note", summary);
+        ev.location = location.map(|s| s.to_string());
+        ev
     }
 
     pub fn validate(&self) -> Result<(), String> {

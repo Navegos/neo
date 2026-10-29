@@ -232,6 +232,8 @@ pub fn tool_record_attempt(
     outcome: Option<&str>,
     location: Option<&str>,
     issue_id_arg: Option<&str>,
+    command: Option<&str>,
+    notes: Option<&str>,
 ) -> Result<String, String> {
     let events = read_events(Some(root))?;
     let mut target_issue_id: Option<String> = None;
@@ -266,19 +268,20 @@ pub fn tool_record_attempt(
     let iid = target_issue_id.unwrap();
     let out = outcome.unwrap_or("failed");
 
-    // RTK root cause extraction: refine summary if raw error output is provided
-    let final_summary = if out == "failed" {
-        if let Some(root_cause) = crate::rtk::extract_root_cause("", summary) {
+    // RTK root cause extraction: refine summary if raw error output or command is provided
+    let cmd_str = command.unwrap_or("");
+    let (final_summary, extracted_notes) = if out == "failed" {
+        if let Some(root_cause) = crate::rtk::extract_root_cause(cmd_str, summary) {
             if summary.lines().count() > 1 {
-                format!("Failed: {}", root_cause)
+                (format!("Failed: {}", root_cause), Some(summary.to_string()))
             } else {
-                summary.to_string()
+                (summary.to_string(), None)
             }
         } else {
-            summary.to_string()
+            (summary.to_string(), None)
         }
     } else {
-        summary.to_string()
+        (summary.to_string(), None)
     };
 
     let mut event = Event::new("attempt", &final_summary);
@@ -286,6 +289,8 @@ pub fn tool_record_attempt(
     event.outcome = Some(out.to_string());
     event.git_commit = get_git_commit(Some(root));
     event.location = location.map(|s| s.to_string());
+    event.command = command.map(|s| s.to_string());
+    event.notes = notes.map(|s| s.to_string()).or(extracted_notes);
 
     append_event(&mut event, Some(root))?;
     let _ = regenerate_summary(Some(root));
@@ -507,6 +512,8 @@ pub fn mcp_tools_list() -> Value {
                     "outcome": { "type": "string", "enum": ["worked", "failed", "partial"] },
                     "location": { "type": "string", "description": "Optional file path" },
                     "issue_id": { "type": "string", "description": "Optional issue ID" },
+                    "command": { "type": "string", "description": "Optional command executed (e.g. cargo test, pytest)" },
+                    "notes": { "type": "string", "description": "Optional failure trace or extra notes" },
                     "project": { "type": "string", "description": "Optional project root" }
                 },
                 "required": ["summary"]
@@ -613,7 +620,9 @@ pub fn execute_mcp_tool(name: &str, args: &Value) -> String {
             let outcome = args.get("outcome").and_then(|v| v.as_str());
             let loc = args.get("location").and_then(|v| v.as_str());
             let iid = args.get("issue_id").and_then(|v| v.as_str());
-            tool_record_attempt(&root, summary, outcome, loc, iid)
+            let cmd = args.get("command").and_then(|v| v.as_str());
+            let notes = args.get("notes").and_then(|v| v.as_str());
+            tool_record_attempt(&root, summary, outcome, loc, iid, cmd, notes)
                 .unwrap_or_else(|e| format!("projectmem tool error: {}", e))
         }
         "record_fix" => {
@@ -774,7 +783,7 @@ mod tests {
         let log_res = tool_log_issue(root, "Bug in MCP", Some("src/mcp.rs:10")).unwrap();
         assert!(log_res.contains("Logged issue #0001"));
 
-        let att_res = tool_record_attempt(root, "Tried buffer check", Some("failed"), None, None).unwrap();
+        let att_res = tool_record_attempt(root, "Tried buffer check", Some("failed"), None, None, None, None).unwrap();
         assert!(att_res.contains("Recorded failed attempt on #0001"));
 
         let fix_res = tool_record_fix(root, "Fixed buffer handling", None, None).unwrap();

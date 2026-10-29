@@ -18,7 +18,11 @@ pub use heatmap::{calculate_score, generate_heatmap, HeatmapResult, ScoreResult}
 pub use mcp::run_mcp_server;
 pub use precheck::run_precheck;
 pub use redaction::{is_redaction_enabled, redact, redact_event_fields};
-pub use schema::{Event, VALID_EVENT_TYPES, VALID_OUTCOMES};
+pub use schema::{
+    default_event_id, location_to_file, normalize_timestamp, resolve_event_ref, superseded_ids,
+    utc_now_iso, Attempt, Decision, Event, Fix, Issue, Note, VALID_CAPTURE_SOURCES,
+    VALID_CONFIDENCE_LEVELS, VALID_EVENT_TYPES, VALID_OUTCOMES,
+};
 pub use store::{
     append_event, discover_mem_dir, initialize, read_events, require_mem_dir,
 };

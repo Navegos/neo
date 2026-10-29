@@ -1,6 +1,6 @@
 # projectmem - neo
 
-_Last updated: 2026-10-28_
+_Last updated: 2026-10-29_
 
 ## Project purpose
 --------------------------------------------------------------------------------
@@ -20,8 +20,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 4 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...5 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Vendor archinfo directly into nbuild and remove inter-crate dependency to resolve winres PE resource collisions [crates/nbuild/Cargo.toml]
+- ...6 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Ported missing agents (amp, dsh, kimi, zcode, opencode2) and BYOK providers from Go to Rust in crates/tokless
 - Plan approved: Hardening (Windows Job Object orphan process prevention, Stale Routing Lock PID reclamation) and Features (tokless doctor --json / tokless stats command, Prompt Cache Warmth Gauge)
 - Implemented Hardening & Bug Prevention (Windows detached process flags, Stale Routing Lock PID cleanup) and Features (tokless doctor --json, tokless stats alias, Prompt Cache Warmth Gauge) with 93 passing workspace tests
@@ -36,6 +35,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 5 complete: Ported codegraph to pure Rust in crates/tokless/src/codegraph with tree-sitter parsers, ignore walker, petgraph AST call-graph/blast-radius, incremental SQLite cache, in-process MCP server, and tokless graph CLI with zero compiler warnings and 135 passing tests
 - Phase 6: Ported headroom to native Rust in crates/tokless/src/headroom with native HTTP/SSE proxy, lossless log deduplication, AST code compression, JSON pruner, 1024-token cache alignment, dynamic memory governor, unified BYOK gateway, dropped Python headroom-py, 172 passing tests [crates/tokless/src/headroom]
 - Phase 7 complete: Verified all 17 agent harnesses, in-process MCP multiplexer, unified tokless CLI subcommands, proxy streaming compression, and token benchmarks with 241 passed workspace tests and zero compiler warnings [crates/tokless/tests/phase7_system_verification.rs]
+- Port ProjectMem to pure safe Rust in crates/tokless/src/projectmem/ with LockFileEx, fcntl, README generator, zero-alloc redaction, RTK trace connector, and tokless mem CLI
 
 ## Notes
 - Phase 3 complete: Ported and verified tool harnesses (contextmode, codegraph, projectmem, rtk, caveman, ponytail, principles) for all missing agents with zero compiler warnings and 23 tests passing

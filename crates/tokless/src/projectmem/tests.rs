@@ -259,8 +259,17 @@ fn test_mcp_all_tools() {
     let log_msg = tool_log_issue(root, "MCP test issue", Some("src/test.rs:1")).unwrap();
     assert!(log_msg.contains("Logged issue #0001"));
 
-    // Record attempt
-    let att_msg = tool_record_attempt(root, "MCP test attempt", Some("failed"), Some("src/test.rs:1"), None).unwrap();
+    // Record attempt with command and notes
+    let att_msg = tool_record_attempt(
+        root,
+        "MCP test attempt",
+        Some("failed"),
+        Some("src/test.rs:1"),
+        None,
+        Some("cargo check"),
+        Some("trace: test failed"),
+    )
+    .unwrap();
     assert!(att_msg.contains("Recorded failed attempt on #0001"));
 
     // Precheck file
@@ -306,4 +315,205 @@ fn test_cli_execution_suite() {
     assert_eq!(run_mem_cli(&["init".into(), "--purpose".into(), "CLI test".into()]), 0);
     assert_eq!(run_mem_cli(&["help".into()]), 0);
     assert!(root.exists());
+}
+
+#[test]
+fn test_typed_models_and_constructors() {
+    let issue_item = Issue {
+        summary: "Null dereference in parser".into(),
+        location: Some("src/parser.rs:42".into()),
+    };
+    let ev_issue: Event = issue_item.into();
+    assert_eq!(ev_issue.event_type, "issue");
+    assert_eq!(ev_issue.summary, "Null dereference in parser");
+    assert_eq!(ev_issue.location, Some("src/parser.rs:42".into()));
+    assert!(ev_issue.validate().is_ok());
+
+    let attempt_item = Attempt {
+        summary: "Wrapped in Option check".into(),
+        outcome: "failed".into(),
+        issue_id: Some("0001".into()),
+        location: Some("src/parser.rs:42".into()),
+        command: Some("cargo test".into()),
+    };
+    let ev_attempt: Event = attempt_item.into();
+    assert_eq!(ev_attempt.event_type, "attempt");
+    assert_eq!(ev_attempt.outcome, Some("failed".into()));
+    assert_eq!(ev_attempt.command, Some("cargo test".into()));
+
+    let fix_item = Fix {
+        summary: "Used match guard".into(),
+        issue_id: Some("0001".into()),
+        location: Some("src/parser.rs:42".into()),
+    };
+    let ev_fix: Event = fix_item.into();
+    assert_eq!(ev_fix.event_type, "fix");
+
+    let decision_item = Decision {
+        summary: "Strict zero-allocation parser design".into(),
+        supersedes: Some("evt_1234".into()),
+        location: None,
+    };
+    let ev_decision: Event = decision_item.into();
+    assert_eq!(ev_decision.event_type, "decision");
+    assert_eq!(ev_decision.supersedes, Some("evt_1234".into()));
+
+    let note_item = Note {
+        summary: "gotcha: Windows CRLF line endings in parser".into(),
+        location: Some("src/parser.rs".into()),
+    };
+    let ev_note: Event = note_item.into();
+    assert_eq!(ev_note.event_type, "note");
+
+    let convenience_issue = Event::issue("Convenience issue", Some("src/lib.rs:10"));
+    assert_eq!(convenience_issue.event_type, "issue");
+
+    let convenience_attempt = Event::attempt("Convenience attempt", "worked", Some("0001"), None, Some("cargo build"));
+    assert_eq!(convenience_attempt.outcome, Some("worked".into()));
+
+    let convenience_fix = Event::fix("Convenience fix", Some("0001"), None);
+    assert_eq!(convenience_fix.event_type, "fix");
+
+    let convenience_decision = Event::decision("Convenience decision", None, None);
+    assert_eq!(convenience_decision.event_type, "decision");
+
+    let convenience_note = Event::note("Convenience note", None);
+    assert_eq!(convenience_note.event_type, "note");
+}
+
+#[test]
+fn test_zero_allocation_redaction() {
+    let clean = "This is a clean debugging note without any tokens or keys.";
+    let (cow, fired) = super::redaction::redact_cow(clean);
+    match cow {
+        std::borrow::Cow::Borrowed(b) => assert_eq!(b, clean),
+        std::borrow::Cow::Owned(_) => panic!("Expected Borrowed Cow for clean text!"),
+    }
+    assert!(fired.is_empty());
+
+    let dirty = "Key is sk-1234567890123456789012345678901234567890 here";
+    let (cow_dirty, fired_dirty) = super::redaction::redact_cow(dirty);
+    match cow_dirty {
+        std::borrow::Cow::Borrowed(_) => panic!("Expected Owned Cow for redacted text!"),
+        std::borrow::Cow::Owned(o) => assert!(o.contains("[REDACTED:openai_key]")),
+    }
+    assert_eq!(fired_dirty, vec!["openai_key"]);
+}
+
+#[test]
+fn test_extract_project_purpose_from_readme() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+
+    let readme_content = "# Test Project\n\nHigh-performance streaming engine for real-time analytics.\n\n## Installation\n";
+    std::fs::write(root.join("README.md"), readme_content).unwrap();
+
+    let purpose = extract_project_purpose_from_readme(Some(root));
+    assert_eq!(
+        purpose,
+        Some("High-performance streaming engine for real-time analytics.".to_string())
+    );
+}
+
+#[test]
+fn test_rtk_auto_populate_failure_trace() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), Some("RTK Auto-Trace Test")).unwrap();
+
+    let cargo_error_output = "\
+   Compiling my-crate v0.1.0\n\
+error[E0433]: failed to resolve: use of undeclared crate or module `foo`\n\
+ --> src/main.rs:2:5\n\
+  |\n\
+2 | use foo::bar;\n\
+  |     ^^^ use of undeclared crate or module `foo`\n\
+error: could not compile `my-crate`";
+
+    // Auto-creates parent issue and extracts root cause into summary while saving full trace in notes
+    let msg = tool_record_attempt(
+        root,
+        cargo_error_output,
+        Some("failed"),
+        Some("src/main.rs:2"),
+        None,
+        Some("cargo build"),
+        None,
+    )
+    .unwrap();
+
+    assert!(msg.contains("Recorded failed attempt on #0001"));
+    assert!(msg.contains("error[E0433]: failed to resolve"));
+
+    let events = read_events(Some(root)).unwrap();
+    assert_eq!(events.len(), 2); // Auto-created issue + attempt
+    let attempt_ev = &events[1];
+    assert_eq!(attempt_ev.event_type, "attempt");
+    assert!(attempt_ev.summary.contains("error[E0433]"));
+    assert_eq!(attempt_ev.command, Some("cargo build".to_string()));
+    assert!(attempt_ev.notes.as_ref().unwrap().contains("error: could not compile"));
+}
+
+#[test]
+fn test_cli_all_subcommands_end_to_end() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+
+    // Use PROJECTMEM_ROOT env so CLI routes directly to tmp dir
+    unsafe {
+        std::env::set_var("PROJECTMEM_ROOT", root.to_str().unwrap());
+    }
+
+    // 1. init
+    assert_eq!(run_mem_cli(&["init".into(), "--purpose".into(), "CLI E2E Test".into()]), 0);
+
+    // 2. log
+    assert_eq!(run_mem_cli(&["log".into(), "CLI test issue".into(), "--at".into(), "src/main.rs:1".into()]), 0);
+
+    // 3. attempt (with RTK root cause extraction)
+    let multiline_err = "running 1 test\ntest test_foo ... FAILED\nthread 'test_foo' panicked at 'assertion failed: left == right'\n";
+    assert_eq!(
+        run_mem_cli(&[
+            "attempt".into(),
+            multiline_err.into(),
+            "--failed".into(),
+            "--command".into(),
+            "cargo test".into(),
+            "--at".into(),
+            "src/main.rs:1".into(),
+        ]),
+        0
+    );
+
+    // 4. fix
+    assert_eq!(run_mem_cli(&["fix".into(), "Fixed assertion in test_foo".into()]), 0);
+
+    // 5. decision
+    assert_eq!(run_mem_cli(&["decision".into(), "Use assertion macros consistently".into()]), 0);
+
+    // 6. note
+    assert_eq!(run_mem_cli(&["note".into(), "gotcha: assertion orders".into()]), 0);
+
+    // 7. summary / show
+    assert_eq!(run_mem_cli(&["summary".into()]), 0);
+    assert_eq!(run_mem_cli(&["show".into()]), 0);
+
+    // 8. precheck
+    assert_eq!(run_mem_cli(&["precheck".into(), "--files".into(), "src/main.rs".into()]), 0);
+
+    // 9. stats / score / heatmap
+    assert_eq!(run_mem_cli(&["stats".into()]), 0);
+    assert_eq!(run_mem_cli(&["score".into()]), 0);
+    assert_eq!(run_mem_cli(&["heatmap".into()]), 0);
+
+    // 10. map / plan / instructions / search / regenerate
+    assert_eq!(run_mem_cli(&["map".into()]), 0);
+    assert_eq!(run_mem_cli(&["plan".into()]), 0);
+    assert_eq!(run_mem_cli(&["instructions".into()]), 0);
+    assert_eq!(run_mem_cli(&["search".into(), "assertion".into()]), 0);
+    assert_eq!(run_mem_cli(&["regenerate".into()]), 0);
+
+    unsafe {
+        std::env::remove_var("PROJECTMEM_ROOT");
+    }
 }

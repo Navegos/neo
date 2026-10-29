@@ -128,6 +128,7 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
             }
             let mut text = String::new();
             let mut location = None;
+            let mut command = None;
             let mut outcome = "failed";
             let mut issue_arg = None;
             let mut auto_issue = false;
@@ -148,6 +149,9 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
                     i += 1;
                 } else if rest[i] == "--at" && i + 1 < rest.len() {
                     location = Some(rest[i + 1].clone());
+                    i += 2;
+                } else if rest[i] == "--command" && i + 1 < rest.len() {
+                    command = Some(rest[i + 1].clone());
                     i += 2;
                 } else if rest[i] == "--issue" && i + 1 < rest.len() {
                     issue_arg = Some(rest[i + 1].clone());
@@ -196,6 +200,7 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
                 let mut auto_ev = Event::new("issue", &text);
                 auto_ev.issue_id = Some(new_id.clone());
                 auto_ev.location = location.clone();
+                auto_ev.command = command.clone();
                 auto_ev.git_commit = get_git_commit(None);
                 if let Err(e) = append_event(&mut auto_ev, None) {
                     eprintln!("Error creating parent issue: {}", e);
@@ -206,24 +211,27 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
             }
 
             let iid = issue_id.unwrap();
-            let final_text = if outcome == "failed" {
-                if let Some(cause) = crate::rtk::extract_root_cause("", &text) {
+            let cmd_str = command.as_deref().unwrap_or("");
+            let (final_text, extracted_notes) = if outcome == "failed" {
+                if let Some(cause) = crate::rtk::extract_root_cause(cmd_str, &text) {
                     if text.lines().count() > 1 {
-                        format!("Failed: {}", cause)
+                        (format!("Failed: {}", cause), Some(text.clone()))
                     } else {
-                        text
+                        (text.clone(), None)
                     }
                 } else {
-                    text
+                    (text.clone(), None)
                 }
             } else {
-                text
+                (text.clone(), None)
             };
 
             let mut event = Event::new("attempt", &final_text);
             event.issue_id = Some(iid.clone());
             event.outcome = Some(outcome.to_string());
             event.location = location;
+            event.command = command;
+            event.notes = extracted_notes;
             event.git_commit = get_git_commit(None);
 
             if let Err(e) = append_event(&mut event, None) {
