@@ -105,11 +105,16 @@ pub fn run_command_filtered(cmd_line: &str) -> std::io::Result<i32> {
 pub fn list_supported_commands() -> Vec<&'static str> {
     let mut cmds = vec![
         "git", "git status", "git diff", "git log", "git branch", "git add", "git commit", "git push", "git pull",
+        "gh", "glab",
         "cargo", "cargo build", "cargo check", "cargo clippy", "cargo test", "cargo nextest",
-        "tsc", "pytest", "vitest", "jest", "go", "go build", "go test", "go vet",
+        "tsc", "pytest", "vitest", "jest", "playwright", "ctest",
+        "go", "go build", "go test", "go vet",
         "dotnet", "dotnet build", "dotnet test",
-        "mvn", "gradle", "gradlew", "mypy", "ruff", "make",
-        "docker", "docker ps", "docker compose", "podman", "kubectl", "curl", "wget", "ls", "tree", "cat",
+        "mvn", "gradle", "gradlew",
+        "mypy", "ruff", "make", "eslint", "prettier",
+        "npm", "pnpm", "yarn", "bun", "deno", "pip", "uv",
+        "docker", "docker ps", "docker compose", "podman", "kubectl",
+        "curl", "wget", "ls", "tree", "cat", "find", "wc", "env", "psql", "aws",
     ];
 
     cmds.extend(list_filter_names());
@@ -135,7 +140,7 @@ mod tests {
     #[test]
     fn test_supported_commands_count() {
         let list = list_supported_commands();
-        assert!(list.len() >= 90);
+        assert!(list.len() >= 100);
     }
 }
 

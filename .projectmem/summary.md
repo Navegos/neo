@@ -38,7 +38,6 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 7 complete: Verified all 17 agent harnesses, in-process MCP multiplexer, unified tokless CLI subcommands, proxy streaming compression, and token benchmarks with 241 passed workspace tests and zero compiler warnings [crates/tokless/tests/phase7_system_verification.rs]
 
 ## Notes
-- gotcha: tokless agents mcp_adapters supports 17 agents dispatching to core McpAdapter and selection store
 - Phase 3 complete: Ported and verified tool harnesses (contextmode, codegraph, projectmem, rtk, caveman, ponytail, principles) for all missing agents with zero compiler warnings and 23 tests passing
 - Phase 4 complete: Ported doctor_stats, background process management, and process_alive with zero compiler warnings and 27 passing tests
 - Completed full port of tokless Go codebase to Rust (Phases 1-5): all 17 agents supported, MCP adapters, selection store, tool harnesses, doctor stats, process alive, 33 unit tests passing, zero warnings
@@ -48,6 +47,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat: add context mode with sandbox execution and security features [crates/tokless/src/commands/runmcp.rs]
 - New feature: feat(icm): implement in-memory ICM store with CRUD operations and FTS5 support [crates/tokless/src/aimemory/handoff.rs]
 - New feature: feat: Introduce content compression module with unified detection and compression for code, JSON, and logs [crates/tokless/src/headroom/adaptive_mem.rs]
+- New feature: feat: add proxy agent specification for 'grok', enhance CLI help text, and implement system verification tests for all a [crates/tokless/src/agents/proxy_agent.rs]
 
 ## Key files
 - `.editorconfig`

@@ -206,7 +206,21 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
             }
 
             let iid = issue_id.unwrap();
-            let mut event = Event::new("attempt", &text);
+            let final_text = if outcome == "failed" {
+                if let Some(cause) = crate::rtk::extract_root_cause("", &text) {
+                    if text.lines().count() > 1 {
+                        format!("Failed: {}", cause)
+                    } else {
+                        text
+                    }
+                } else {
+                    text
+                }
+            } else {
+                text
+            };
+
+            let mut event = Event::new("attempt", &final_text);
             event.issue_id = Some(iid.clone());
             event.outcome = Some(outcome.to_string());
             event.location = location;

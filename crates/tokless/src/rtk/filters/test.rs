@@ -35,6 +35,10 @@ pub fn filter_test(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> Str
         filter_rspec(&clean, exit_code)
     } else if bin == "phpunit" || bin == "pest" {
         filter_phpunit(&clean, exit_code)
+    } else if bin == "playwright" || (bin == "npx" && sub == "playwright") {
+        filter_playwright(&clean, exit_code)
+    } else if bin == "ctest" {
+        filter_ctest(&clean, exit_code)
     } else {
         clean
     }
@@ -337,9 +341,113 @@ pub fn filter_phpunit(raw: &str, exit_code: i32) -> String {
     }
 }
 
+/// Filter `playwright` test runner outputs.
+pub fn filter_playwright(raw: &str, exit_code: i32) -> String {
+    let mut passed = 0;
+    let mut failures = Vec::new();
+    let mut in_fail = false;
+    let mut summary = None;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("✓ ") || trimmed.starts_with("[pass]") {
+            passed += 1;
+            continue;
+        }
+        if trimmed.starts_with("✘ ") || trimmed.starts_with("✕ ") || trimmed.starts_with("Error: ") {
+            in_fail = true;
+            failures.push(line.to_string());
+            continue;
+        }
+        if trimmed.starts_with("Passed:") || trimmed.contains("passed (") || trimmed.contains("failed (") {
+            summary = Some(trimmed.to_string());
+            in_fail = false;
+            continue;
+        }
+        if in_fail {
+            failures.push(line.to_string());
+        }
+    }
+
+    if exit_code == 0 && failures.is_empty() {
+        if let Some(s) = summary {
+            format!("playwright: {}", s)
+        } else {
+            format!("playwright: {} tests passed", passed)
+        }
+    } else {
+        let mut out = Vec::new();
+        if !failures.is_empty() {
+            out.push(failures.join("\n"));
+        }
+        if let Some(s) = summary {
+            out.push(s);
+        } else {
+            out.push(format!("playwright: FAILED (exit code {})", exit_code));
+        }
+        out.join("\n")
+    }
+}
+
+/// Filter `ctest` CMake test runner outputs.
+pub fn filter_ctest(raw: &str, exit_code: i32) -> String {
+    let mut passed = 0;
+    let mut failed = Vec::new();
+    let mut summary = None;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.contains("...   Passed") {
+            passed += 1;
+        } else if trimmed.contains("***Failed") || trimmed.contains("***Exception") {
+            failed.push(trimmed.to_string());
+        } else if trimmed.contains("% tests passed,") {
+            summary = Some(trimmed.to_string());
+        }
+    }
+
+    if exit_code == 0 && failed.is_empty() {
+        if let Some(s) = summary {
+            format!("ctest: {}", s)
+        } else {
+            format!("ctest: {} passed", passed)
+        }
+    } else {
+        let mut out = Vec::new();
+        if !failed.is_empty() {
+            out.push("Failed tests:".to_string());
+            for f in failed {
+                out.push(format!("  {}", f));
+            }
+        }
+        if let Some(s) = summary {
+            out.push(s);
+        } else {
+            out.push(format!("ctest: FAILED (exit code {})", exit_code));
+        }
+        out.join("\n")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_filter_playwright() {
+        let raw = "✓ 1 test.spec.ts:12:1 › should load page\n✓ 2 test.spec.ts:25:1 › should submit form\n  2 passed (3.4s)\n";
+        let out = filter_playwright(raw, 0);
+        assert_eq!(out, "playwright: 2 passed (3.4s)");
+    }
+
+    #[test]
+    fn test_filter_ctest() {
+        let raw = "1/2 Test #1: TestA ....................   Passed    0.02 sec\n2/2 Test #2: TestB ....................***Failed    0.05 sec\n\n50% tests passed, 1 tests failed out of 2\n";
+        let out = filter_ctest(raw, 1);
+        assert!(out.contains("Failed tests:"));
+        assert!(out.contains("TestB"));
+        assert!(out.contains("50% tests passed"));
+    }
 
     #[test]
     fn test_filter_cargo_test_success() {

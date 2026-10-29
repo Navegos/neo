@@ -268,6 +268,199 @@ pub fn filter_git_ops(raw: &str, op: &str, exit_code: i32) -> String {
     }
 }
 
+/// Filter markdown body removing badges, HTML comments, and noisy formatting.
+pub fn filter_markdown_body(body: &str) -> String {
+    if body.is_empty() {
+        return String::new();
+    }
+
+    let mut out = Vec::new();
+    let mut in_code_block = false;
+
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
+            in_code_block = !in_code_block;
+            out.push(line);
+            continue;
+        }
+
+        if in_code_block {
+            out.push(line);
+            continue;
+        }
+
+        // HTML comments
+        if trimmed.starts_with("<!--") && trimmed.ends_with("-->") {
+            continue;
+        }
+        // Badge lines: [![...](...)](...)
+        if trimmed.starts_with("[![") && trimmed.ends_with(')') {
+            continue;
+        }
+        // Image-only lines: ![...](...)
+        if trimmed.starts_with("![") && trimmed.ends_with(')') {
+            continue;
+        }
+        // Horizontal rules: ---, ***, ___
+        if trimmed == "---" || trimmed == "***" || trimmed == "___" || trimmed == "------" {
+            continue;
+        }
+
+        out.push(line);
+    }
+
+    let joined = out.join("\n");
+    // Collapse 3+ newlines into 2
+    let mut collapsed = String::with_capacity(joined.len());
+    let mut newline_count = 0;
+    for c in joined.chars() {
+        if c == '\n' {
+            newline_count += 1;
+            if newline_count <= 2 {
+                collapsed.push(c);
+            }
+        } else {
+            newline_count = 0;
+            collapsed.push(c);
+        }
+    }
+
+    collapsed.trim().to_string()
+}
+
+/// Filter GitHub CLI (`gh`) PR checks output.
+pub fn filter_gh_pr_checks(stdout: &str) -> String {
+    let mut passed = 0;
+    let mut failed = 0;
+    let mut pending = 0;
+    let mut failed_checks = Vec::new();
+
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let lower = trimmed.to_lowercase();
+        if lower.contains("pass") || lower.contains("✓") || lower.contains("[ok]") {
+            passed += 1;
+        } else if lower.contains("fail") || lower.contains("✕") || lower.contains("error") {
+            failed += 1;
+            failed_checks.push(trimmed.to_string());
+        } else if lower.contains("pending") || lower.contains("in_progress") || lower.contains("queued") {
+            pending += 1;
+        }
+    }
+
+    let mut out = Vec::new();
+    out.push(format!("CI Checks: {} passed, {} failed, {} pending", passed, failed, pending));
+    if !failed_checks.is_empty() {
+        out.push("Failed checks:".to_string());
+        for check in failed_checks {
+            out.push(format!("  {}", check));
+        }
+    }
+
+    out.join("\n")
+}
+
+/// Filter tabular listings from `gh` or `glab` (PRs, issues, pipelines).
+pub fn filter_gh_tabular_list(stdout: &str) -> String {
+    let lines: Vec<&str> = stdout.lines().filter(|l| !l.trim().is_empty()).collect();
+    if lines.is_empty() {
+        return "No items found".to_string();
+    }
+
+    if lines.len() <= 25 {
+        return lines.join("\n");
+    }
+
+    let mut out: Vec<String> = lines.iter().take(25).map(|s| (*s).to_string()).collect();
+    out.push(format!("... [{} more items omitted by rtk]", lines.len() - 25));
+    out.join("\n")
+}
+
+/// Filter `gh run list` and `gh run view`.
+pub fn filter_gh_run_list(stdout: &str) -> String {
+    filter_gh_tabular_list(stdout)
+}
+
+/// Filter `gh run view` capturing failed step annotations and error output.
+pub fn filter_gh_run_view(stdout: &str) -> String {
+    let mut out = Vec::new();
+    let mut in_failure = false;
+
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("✓ ") {
+            continue;
+        }
+        if trimmed.starts_with("X ") || trimmed.starts_with("✕ ") || trimmed.contains("FAILED") {
+            in_failure = true;
+            out.push(trimmed.to_string());
+            continue;
+        }
+        if in_failure {
+            out.push(trimmed.to_string());
+            if trimmed.is_empty() {
+                in_failure = false;
+            }
+        }
+    }
+
+    if out.is_empty() {
+        filter_markdown_body(stdout)
+    } else {
+        out.join("\n")
+    }
+}
+
+/// Filter GitHub CLI (`gh`) command output.
+pub fn filter_gh(cmd: &str, stdout: &str, stderr: &str, _exit_code: i32) -> String {
+    let raw = if !stderr.is_empty() && stdout.is_empty() {
+        stderr
+    } else {
+        stdout
+    };
+    let clean = strip_ansi(raw);
+    let parts: Vec<&str> = cmd.split_whitespace().collect();
+    let subcommand = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
+    let action = parts.iter().skip(2).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
+
+    match (subcommand, action) {
+        ("pr", "checks") => filter_gh_pr_checks(&clean),
+        ("pr", "list") | ("issue", "list") => filter_gh_tabular_list(&clean),
+        ("pr", "view") | ("issue", "view") => filter_markdown_body(&clean),
+        ("run", "list") => filter_gh_run_list(&clean),
+        ("run", "view") => filter_gh_run_view(&clean),
+        _ => {
+            if clean.starts_with('{') || clean.starts_with('[') {
+                clean
+            } else {
+                filter_markdown_body(&clean)
+            }
+        }
+    }
+}
+
+/// Filter GitLab CLI (`glab`) command output.
+pub fn filter_glab(cmd: &str, stdout: &str, stderr: &str, _exit_code: i32) -> String {
+    let raw = if !stderr.is_empty() && stdout.is_empty() {
+        stderr
+    } else {
+        stdout
+    };
+    let clean = strip_ansi(raw);
+    let parts: Vec<&str> = cmd.split_whitespace().collect();
+    let subcommand = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
+
+    match subcommand {
+        "mr" | "issue" | "pipeline" => filter_gh_tabular_list(&clean),
+        _ => filter_markdown_body(&clean),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,6 +480,21 @@ mod tests {
         let raw = "diff --git a/Cargo.lock b/Cargo.lock\nindex 1234..5678 100644\n--- a/Cargo.lock\n+++ b/Cargo.lock\n@@ -1,3 +1,5 @@\n+line1\n+line2\n-line3\n";
         let out = filter_git_diff(raw);
         assert!(out.contains("[lockfile updated: Cargo.lock (+2 -1)]"));
+    }
+
+    #[test]
+    fn test_filter_markdown_body() {
+        let raw = "<!-- comment -->\n[![build](https://badge.svg)](link)\n# Title\n---\nBody text\n![img](image.png)\n";
+        let out = filter_markdown_body(raw);
+        assert_eq!(out, "# Title\nBody text");
+    }
+
+    #[test]
+    fn test_filter_gh_pr_checks() {
+        let raw = "build\tpass\thttps://ci/1\ntest\tfail\thttps://ci/2\nlint\tpending\thttps://ci/3\n";
+        let out = filter_gh_pr_checks(raw);
+        assert!(out.contains("CI Checks: 1 passed, 1 failed, 1 pending"));
+        assert!(out.contains("test\tfail\thttps://ci/2"));
     }
 }
 

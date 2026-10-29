@@ -28,6 +28,11 @@ pub fn filter_system(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> S
         "ls" | "dir" => filter_ls(&clean),
         "tree" => filter_tree(&clean),
         "cat" | "bat" | "head" | "tail" => filter_file_read(&clean, 100),
+        "find" => filter_find(&clean, exit_code),
+        "wc" => filter_wc(cmd, &clean, exit_code),
+        "env" => filter_env(&clean),
+        "psql" => filter_psql(&clean, exit_code),
+        "aws" => filter_aws(cmd, &clean, exit_code),
         _ => clean,
     }
 }
@@ -169,6 +174,151 @@ pub fn filter_file_read(content: &str, max_lines: usize) -> String {
     out.join("\n")
 }
 
+/// Filter `find` command output, grouping by directory and dropping permission errors.
+pub fn filter_find(raw: &str, _exit_code: i32) -> String {
+    let mut files = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.contains("Permission denied") || trimmed.contains("Operation not permitted") {
+            continue;
+        }
+        files.push(trimmed);
+    }
+
+    if files.is_empty() {
+        return "No files found".to_string();
+    }
+
+    if files.len() <= 60 {
+        return files.join("\n");
+    }
+
+    let mut out: Vec<String> = files.iter().take(60).map(|s| (*s).to_string()).collect();
+    out.push(format!("... [{} more files omitted by rtk]", files.len() - 60));
+    out.join("\n")
+}
+
+/// Filter `wc` word count outputs into compact notation.
+pub fn filter_wc(cmd: &str, raw: &str, _exit_code: i32) -> String {
+    let lines: Vec<&str> = raw.trim().lines().collect();
+    if lines.is_empty() {
+        return String::new();
+    }
+
+    let is_lines_only = cmd.contains("-l");
+    let is_words_only = cmd.contains("-w");
+    let is_bytes_only = cmd.contains("-c");
+
+    if lines.len() == 1 {
+        let parts: Vec<&str> = lines[0].split_whitespace().collect();
+        if is_lines_only || is_words_only || is_bytes_only {
+            return parts.first().copied().unwrap_or("0").to_string();
+        }
+        if parts.len() >= 3 {
+            return format!("{}L {}W {}B", parts[0], parts[1], parts[2]);
+        }
+        return lines[0].trim().to_string();
+    }
+
+    let mut out = Vec::new();
+    for line in lines {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 4 {
+            let label = parts[3..].join(" ");
+            out.push(format!("{:<6} {:<6} {:<8} {}", parts[0], parts[1], parts[2], label));
+        } else {
+            out.push(line.trim().to_string());
+        }
+    }
+    out.join("\n")
+}
+
+/// Filter `env` command output, masking sensitive tokens and formatting compactly.
+pub fn filter_env(raw: &str) -> String {
+    let mut vars = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if let Some((k, v)) = trimmed.split_once('=') {
+            let k_upper = k.to_uppercase();
+            let val = if k_upper.contains("KEY")
+                || k_upper.contains("SECRET")
+                || k_upper.contains("TOKEN")
+                || k_upper.contains("PASSWORD")
+                || k_upper.contains("AUTH")
+            {
+                "***REDACTED***"
+            } else if v.len() > 80 {
+                &v[..80]
+            } else {
+                v
+            };
+            vars.push(format!("{}={}", k, val));
+        } else {
+            vars.push(trimmed.to_string());
+        }
+    }
+
+    vars.sort();
+    vars.join("\n")
+}
+
+/// Filter PostgreSQL `psql` outputs.
+pub fn filter_psql(raw: &str, _exit_code: i32) -> String {
+    let mut out = Vec::new();
+    let mut data_rows = 0;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // Skip separator lines like +---+---+ or ----+----
+        if trimmed.chars().all(|c| c == '-' || c == '+' || c == '|' || c == ' ') {
+            continue;
+        }
+        // Skip row count footer e.g. (10 rows)
+        if trimmed.starts_with('(') && trimmed.ends_with("rows)") {
+            continue;
+        }
+
+        if trimmed.contains('|') {
+            data_rows += 1;
+            if data_rows <= 50 {
+                let cols: Vec<&str> = trimmed.split('|').map(|c| c.trim()).collect();
+                out.push(cols.join("\t"));
+            }
+        } else {
+            out.push(trimmed.to_string());
+        }
+    }
+
+    if data_rows > 50 {
+        out.push(format!("... [{} more rows omitted by rtk]", data_rows - 50));
+    }
+
+    out.join("\n")
+}
+
+/// Filter AWS CLI outputs.
+pub fn filter_aws(_cmd: &str, raw: &str, _exit_code: i32) -> String {
+    let mut out = Vec::new();
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.contains("\"NextToken\":") || trimmed.contains("\"PaginationToken\":") {
+            continue;
+        }
+        out.push(line);
+    }
+    out.join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,5 +335,22 @@ mod tests {
         let content = (0..50).map(|i| format!("line {}", i)).collect::<Vec<_>>().join("\n");
         let out = filter_file_read(&content, 10);
         assert!(out.contains("[... 40 more lines]"));
+    }
+
+    #[test]
+    fn test_filter_psql() {
+        let raw = " id | name  | role  \n----+-------+-------\n  1 | Alice | admin \n  2 | Bob   | user  \n(2 rows)\n";
+        let out = filter_psql(raw, 0);
+        assert_eq!(out, "id\tname\trole\n1\tAlice\tadmin\n2\tBob\tuser");
+    }
+
+    #[test]
+    fn test_filter_wc() {
+        let raw = "  12   34  567 foo.rs\n";
+        let out = filter_wc("wc foo.rs", raw, 0);
+        assert_eq!(out, "12L 34W 567B");
+
+        let out_l = filter_wc("wc -l foo.rs", raw, 0);
+        assert_eq!(out_l, "12");
     }
 }

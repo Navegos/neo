@@ -1,312 +1,472 @@
-# Tokless Native Consolidation Master Architecture Plan
+# Tokless Native Consolidation Master Architecture Plan (v2.1)
 **Project:** `neo/crates/tokless`  
-**Status:** Approved Architectural Blueprint  
-**Goal:** 100% Native Rust consolidation of all 6 token-optimization, memory, and code-intelligence engines embedded directly into `crates/tokless/src/*`. Complete removal of external Python, Node.js, and subprocess dependencies. Zero token waste.
+**Status:** Approved Master Architectural Blueprint  
+**Objective:** 100% Native Rust consolidation of all token-optimization, memory, code-intelligence, rules, and telemetry engines directly embedded into `crates/tokless/src/*`. Complete removal of external package manager downloads (npm, pip, uv, curl). Pure in-process execution, zero missing code, full feature parity, rich TUI, and the ultimate zero-dependency real-time Telemetry & Control Dashboard.
 
 ---
 
-## 1. Executive Vision & System Directory Layout
+## 1. Core Architectural Mandates
 
-All tools are ported, adapted, and embedded directly inside `crates/tokless/src/<toolname>/`. Every tool is fully functional in pure Rust with zero missing code, mutually adapted to collaborate in a single process.
+1. **100% Native In-Tree Embedding (`crates/tokless/src/*`)**:
+   - Every tool (`projectmem`, `icm`, `aimemory`, `codegraph`, `contextmode`, `headroom`, `rtk`, `rules`) is implemented as an internal Rust module.
+   - Tokless agent harnesses, MCP proxies, and CLI commands call internal Rust functions directly via zero-cost Rust abstractions—**never via spawned external tool binaries or shell wrappers**.
+2. **Purge of Runtime Downloader / Installer Slop**:
+   - Completely remove `npminstall.rs`, `nodewin.rs`, `nodelinux.rs`, `uv.rs`, and Python/pip/uvx bootstrapping code from `tokless`.
+   - `tokless` never downloads or installs runtimes. If an external tool is optional (e.g. system `git`, or an optional `python`/`node` interpreter for user scripts), `tokless` only detects it on system `PATH` via `which`.
+   - Toolchain installation is cleanly decoupled and reserved for `crates/nbuild`.
+3. **In-Tree Rules & Skills (`caveman`, `ponytail`, `principles`)**:
+   - Ingest all instructions, guidelines, and rules from `inspect-vault/andrej-karpathy-skills`, `inspect-vault/caveman`, etc., directly into `crates/tokless/src/rules/` and compile them with `include_str!`.
+   - Zero external repo dependencies. All rules are distributed with the single `tokless` binary and directly accessible from the project directory.
+4. **Zero-Token Waste Memory Foundation**:
+   - Zero background LLM re-summarization loops.
+   - Sub-10ms local SQLite FTS5 BM25 search (from ICM).
+   - Claim-once cross-agent handoff state machine + progressive L0/L1/L2 disclosure (from ai-memory).
+   - Append-only structured issue/attempt/fix/decision tracking (from ProjectMem).
+5. **Full Observability & Control**:
+   - **Full-Featured Interactive TUI (`tokless tui` / `tokless top`)**: Multi-tab live monitoring, agent wire manager, memory explorer, and graph inspector.
+   - **Ultimate Telemetry & Control Dashboard (`tokless dashboard`)**: Embedded local web server with zero external dependencies, providing real-time token compression waterfalls, dollar savings counters, error telemetry, agent fleet management, CodeGraph topology visualizer, and memory decision DAGs.
+
+---
+
+## 2. System Directory Topology
 
 ```
 crates/tokless/src/
 ├── main.rs                   # Unified CLI entrypoint
 ├── lib.rs                    # Public crate library API
 │
-├── projectmem/               # Full Rust port of Python projectmem (~v0.3.4)
-│   ├── mod.rs                # Public API facade & engine
-│   ├── schema.rs             # Event, Issue, Attempt, Fix, Decision, Note models
-│   ├── store.rs              # Atomic JSONL append, cross-platform file locks
+├── projectmem/               # Native Rust Port of ProjectMem (~v0.3.4)
+│   ├── mod.rs                # Public API facade
+│   ├── schema.rs             # Serde models: Event, Issue, Attempt, Fix, Decision, Note
+│   ├── store.rs              # Thread-safe JSONL append with Windows/Unix file locking
 │   ├── summary.rs            # Deterministic zero-LLM summary generator
-│   ├── precheck.rs           # Git diff scanner vs past bugs & gotchas
-│   ├── redaction.rs          # Secret & API token sanitizer
+│   ├── precheck.rs           # Git staged diff scanner vs gotchas & past failure locations
+│   ├── redaction.rs          # Zero-allocation regex sanitizer (strips keys & tokens)
 │   ├── heatmap.rs            # Failure clustering & ROI metrics
 │   ├── global.rs             # Cross-project global memory (~/.projectmem)
-│   └── mcp.rs                # In-process stdio/proxy MCP handlers
+│   └── mcp.rs                # In-process stdio/proxy MCP server handlers
 │
-├── icm/                      # Full Rust integration of RTK-AI ICM engine
+├── icm/                      # Native Rust Port of RTK-AI ICM Engine
 │   ├── mod.rs                # ICM subsystem orchestrator
-│   ├── store.rs              # Single SQLite DB with FTS5 BM25 search (Zero LLM)
-│   ├── schema.rs             # Memory items, sessions, topics, facts
-│   ├── recall.rs             # Sub-10ms keyword and recency recall
-│   └── mcp.rs                # In-process ICM memory MCP tools
+│   ├── store.rs              # Single SQLite DB (`.tokless/memory.db`) with FTS5 BM25
+│   ├── schema.rs             # Memory items, topics, sessions, facts
+│   ├── recall.rs             # Sub-10ms keyword and recency recall (Zero LLM tokens)
+│   └── mcp.rs                # In-process memory MCP endpoints
 │
-├── aimemory/                 # Full Rust adaptation of ai-memory (v3.2.8)
+├── aimemory/                 # Native Rust Adaptation of ai-memory (v3.2.8)
 │   ├── mod.rs                # ai-memory subsystem orchestrator
 │   ├── wiki.rs               # Open Knowledge Format (OKF v0.2) markdown wiki store
 │   ├── handoff.rs            # Claim-once multi-agent handoff state machine
-│   └── tiered.rs             # L0 / L1 / L2 progressive disclosure packer
+│   └── tiered.rs             # L0 (TOC) / L1 (Abstract) / L2 (Full) progressive packer
 │
-├── codegraph/                # Full Rust Tree-Sitter AST & Graph Engine (Drop Node.js)
+├── codegraph/                # Native Rust Tree-Sitter & Call-Graph Engine (Drop Node.js)
 │   ├── mod.rs                # CodeGraph facade
-│   ├── kernel/               # Tree-sitter multi-language AST parsers
-│   ├── walker.rs             # High-speed file walker (ripgrep-grade via `ignore`)
-│   ├── graph.rs              # Petgraph call-graph, reference, and blast-radius
-│   ├── cache.rs              # Incremental AST cache (.codegraph/)
+│   ├── kernel/               # Embedded Tree-sitter parsers (Rust, TS/JS, Py, Go, C/C++)
+│   ├── walker.rs             # High-speed ripgrep-grade file traversal (`ignore` crate)
+│   ├── graph.rs              # Petgraph AST dependency, call-path, and blast-radius
+│   ├── cache.rs              # Incremental AST symbol cache (.codegraph/symbols.db)
 │   └── mcp.rs                # In-process MCP server for `codegraph_explore`
 │
-├── contextmode/              # Full Rust port of Context-Mode (Drop Node.js)
+├── contextmode/              # Native Rust Port of Context-Mode (Drop Node.js)
 │   ├── mod.rs                # ContextMode facade
-│   ├── sandbox.rs            # Isolated subprocess runner with time/memory clamps
+│   ├── sandbox.rs            # Subprocess runner with CPU timeout & memory bounds
 │   ├── filter.rs             # Output slicing, ANSI stripping, head/tail truncation
-│   ├── fts.rs                # SQLite FTS5 document chunker & search
-│   ├── fetch.rs              # Async HTTP fetcher + HTML reader
+│   ├── fts.rs                # SQLite FTS5 document chunker & BM25 search
+│   ├── fetch.rs              # Async HTTP fetcher + HTML reader (`reqwest`)
 │   └── mcp.rs                # In-process `ctx_*` MCP tools
 │
-├── headroom/                 # Full Rust Headroom proxy & token compressor
+├── headroom/                 # Native Rust Headroom Proxy & Token Compressor
 │   ├── mod.rs                # Headroom orchestrator
-│   ├── compression/          # Lossless log deduplication, AST pruner, JSON compactor
+│   ├── compression/          # Lossless log deduplication, AST code pruner, JSON minifier
 │   ├── cache_align.rs        # 1024-token prompt cache alignment engine
-│   ├── adaptive_mem.rs       # Dynamic memory brief scaling based on token headroom
+│   ├── adaptive_mem.rs       # Dynamic memory brief scaling based on context headroom
 │   ├── byok_gateway.rs       # Multi-provider routing (Anthropic, OpenAI, Gemini)
 │   ├── router.rs             # Cascade, load-shedding, and quota coordinator
 │   └── proxy.rs              # High-throughput HTTP/SSE reverse proxy
 │
-├── rtk/                      # Full Rust RTK (Rust Token Killer) engine
+├── rtk/                      # Native Rust RTK (Rust Token Killer) Engine
 │   ├── mod.rs                # RTK filter facade & streaming interceptor
 │   ├── engine.rs             # Command parser and filter dispatcher
 │   ├── filters/              # 100+ command-specific output filters (git, cargo, test)
 │   ├── ansi.rs               # Zero-allocation ANSI escape sequence stripper
 │   └── hook.rs               # Terminal hook interceptor
 │
-├── tools/                    # Tool harness wrappers & instruction injectors
-│   ├── caveman.rs            # Caveman terse instruction injector
-│   ├── ponytail.rs           # Ponytail lazy senior dev discipline injector
-│   ├── principles.rs         # Surgical coding principles injector
-│   └── mod.rs
+├── rules/                    # In-Tree Rules, Skills & Principles (Zero External Repos)
+│   ├── mod.rs                # Rule injector and compiler
+│   ├── principles.rs         # Karpathy guidelines (think, simplify, surgical, verify)
+│   ├── caveman.rs            # ASD-STE100 primitive English compressor
+│   ├── ponytail.rs           # Lazy senior developer build discipline ladder
+│   └── embedded/             # Compile-time embedded markdown resources (`include_str!`)
+│       ├── principles.md
+│       ├── caveman.md
+│       └── ponytail.md
 │
-├── agents/                   # Native configuration for 17 AI coding agents
+├── dashboard/                # Ultimate Telemetry & Control Web Server (Zero-Dependency)
+│   ├── mod.rs                # Embedded local HTTP & SSE/WebSocket server (`127.0.0.1:9099`)
+│   ├── state.rs              # Shared in-memory metrics ring buffer and event bus
+│   ├── sse.rs                # Server-Sent Events real-time streaming broadcaster
+│   ├── api/                  # REST endpoints:
+│   │   ├── metrics.rs        # Historical and live token compression & savings
+│   │   ├── errors.rs         # 429 backoffs, timeouts, 5xx errors, context overflows
+│   │   ├── agents.rs         # Fleet matrix, wire/unwire actions, quota allocations
+│   │   ├── memory.rs         # Decision DAG, failure heatmap, event search
+│   │   ├── graph.rs          # AST symbols, blast-radius queries, index status
+│   │   └── control.rs        # Proxy start/stop, BYOK key swap, cache purge
+│   └── ui/                   # Bundled single-page application (Embedded via `include_str!`)
+│       ├── index.html        # Clean semantic markup with modern dashboard layout
+│       ├── app.js            # Reactive rendering, WebSocket/SSE consumer, Canvas charts
+│       └── style.css         # Dark-mode optimized responsive design
+│
+├── tui/                      # Full-Featured Terminal User Interface (`ratatui` + `crossterm`)
+│   ├── mod.rs                # TUI event loop & terminal guard
+│   ├── app.rs                # Global TUI state & active tab model
+│   ├── views/                # Tab view renderers:
+│   │   ├── monitor.rs        # Live token throughput waterfall & compression stats
+│   │   ├── agents.rs         # Interactive agent wiring table (Space to wire/unwire)
+│   │   ├── memory.rs         # ProjectMem & ICM event viewer, search, and precheck
+│   │   ├── graph.rs          # Interactive CodeGraph symbol search & blast-radius
+│   │   ├── headroom.rs       # Cache alignment inspector & BYOK quotas
+│   │   └── logs.rs           # Diagnostic and daemon error logs
+│   └── widgets/              # Gauges, charts, sparklines, tables
+│
+├── agents/                   # Native configurations for 17 AI coding agents
 │   ├── antigravity.rs, claude.rs, cursor.rs, codex.rs, opencode.rs, etc.
 │   └── mcp_adapters.rs       # Agent MCP config read/write/patch engine
 │
-└── commands/                 # Native CLI dispatcher
-    ├── mem.rs                # `tokless mem ...`
-    ├── graph.rs              # `tokless graph ...`
-    ├── ctx.rs                # `tokless ctx ...`
-    ├── rtk.rs                # `tokless rtk ...`
+├── util/                     # Pure System & OS Utilities (All Downloaders Purged)
+│   ├── paths.rs, exec.rs, jsonc.rs, toml.rs, colors.rs, etc.
+│   └── (Purged: npminstall.rs, nodewin.rs, nodelinux.rs, uv.rs)
+│
+└── commands/                 # Native CLI Command Dispatcher
+    ├── mem.rs                # `tokless mem <init|log|attempt|fix|decision|note|summary|precheck>`
+    ├── graph.rs              # `tokless graph <explore|impact|symbols|index>`
+    ├── ctx.rs                # `tokless ctx <eval|search|index>`
+    ├── rtk.rs                # `tokless rtk <command...>`
+    ├── tui.rs                # `tokless tui` (Full interactive control center)
+    ├── dashboard.rs          # `tokless dashboard` (Web telemetry server)
     ├── daemon.rs, doctor.rs, proxy.rs, prime.rs, top.rs, init.rs
     └── mod.rs
 ```
 
 ---
 
-## 2. Plan 1: Full Rust Port of `projectmem` into `crates/tokless/src/projectmem`
+## 3. The Ultimate Dashboard: Full Capabilities & Specifications
 
-### Scope & Mission
-Convert Python `inspect-vault/projectmem` (~v0.3.4) to pure, safe Rust. Remove Python runtime, `uvx`, and `pip` dependencies completely.
+The Tokless Dashboard (`tokless dashboard`, default `http://127.0.0.1:9099`) is a high-performance, single-binary telemetry and control center. It requires **zero Node.js, zero npm, zero external CDNs, and zero build steps**—everything is embedded into the compiled Rust binary.
 
-### Modules to Implement
-1. **`schema.rs`**: Serde models for events:
-   - `Issue`: id (`0001`), summary, location (`file:line`), tags, timestamp.
-   - `Attempt`: issue_id, summary, outcome (`worked`, `failed`, `partial`), timestamp.
-   - `Fix`: issue_id, summary, evidence, timestamp (auto-closes issue).
-   - `Decision`: id, summary, supersedes (DAG link), rationale, timestamp.
-   - `Note`: summary, tags (`gotcha:*`), location, timestamp.
-2. **`store.rs`**:
-   - Thread-safe, cross-platform file locking (`LockFileEx` on Windows, `fcntl` on Unix) on `.projectmem/events.jsonl`.
-   - Atomic writes for markdown files (`summary.md`, `PROJECT_MAP.md`, `plan.md`).
-3. **`summary.rs`**:
-   - Deterministic rule-based summary builder: parses README for purpose, extracts open issues, recent fixes, decision graph (filtering superseded decisions), and gotchas. Zero LLM calls.
-4. **`precheck.rs`**:
-   - Git staged diff scanner. Matches edited files against historical failure locations and gotchas. Warns agent before commit or edit.
-5. **`redaction.rs`**:
-   - Regex-based credential sanitizer: masks Bearer tokens, GitHub PATs, AWS/GCP keys, high-entropy passwords before writing to events.
-6. **`heatmap.rs`**:
-   - Failure clustering: aggregates failures by directory/file, computes resolution time and ROI metrics.
-7. **`mcp.rs`**:
-   - In-process JSON-RPC 2.0 MCP server exposing: `log_issue`, `record_attempt`, `record_fix`, `add_decision`, `add_note`.
-
-### Cross-Tool Adaptations
-- **To Headroom:** Passes generated `summary.md` to Headroom for prefix cache alignment and token budget clamping.
-- **To RTK:** When RTK catches a failed command (e.g. `cargo test`), auto-populates `record_attempt(outcome="failed")`.
-- **To CodeGraph:** Links `location: "file:line"` to AST symbols and blast radius data.
-
----
-
-## 3. Plan 2: Integrating & Embedding `ai-memory` and `icm` into `crates/tokless/src/aimemory` & `crates/tokless/src/icm`
-
-### Scope & Mission
-Combine `icm`'s zero-LLM local SQLite retrieval with `ai-memory`'s multi-agent claim-once handoff and tiered L0/L1/L2 progressive disclosure.
-
-### Modules to Implement
-1. **`crates/tokless/src/icm/store.rs`**:
-   - Embedded SQLite database (`.tokless/memory.db`) with `bundled-fts5`.
-   - Tables: `memories`, `topics`, `sessions`, `facts`, `edges`.
-   - BM25 ranker with time-decay recency boosting.
-   - Zero-LLM storage and recall: pure text search + deterministic keyword extraction. <10ms recall latency.
-2. **`crates/tokless/src/aimemory/handoff.rs`**:
-   - Claim-once handoff protocol: tracks pending task state, active files, unresolved bugs, and next steps when switching agents (e.g., Claude Code -> Cursor -> Antigravity).
-   - Atomic state transitions: `Offered` -> `Claimed` -> `Resolved`.
-3. **`crates/tokless/src/aimemory/tiered.rs`**:
-   - Progressive disclosure budget packer:
-     - **L0 (TOC / Index):** Top-level topic list and titles (~100 tokens). Always in context.
-     - **L1 (Abstracts):** Standing project rules, critical gotchas, active handoff (~400 tokens).
-     - **L2 (Full Bodies):** Detailed architectural specs and past event cases. Loaded strictly on-demand via MCP tool calls.
-
-### Cross-Tool Adaptations
-- **Zero Token Waste Rule:** Disable all background LLM re-summarization. Store raw events deterministically; recall via BM25.
-- **To Headroom:** Headroom dynamically selects L0 vs L1 vs L2 based on real-time context window occupancy.
-
----
-
-## 4. Plan 3: Full Rust Port of `codegraph` into `crates/tokless/src/codegraph`
-
-### Scope & Mission
-Eliminate Node.js and TypeScript. Port Tree-sitter kernel, file walker, call graph builder, and MCP server into pure Rust.
-
-### Modules to Implement
-1. **`kernel/`**: Tree-sitter parsers compiled into Rust for:
-   - Rust (`tree-sitter-rust`)
-   - TypeScript / JavaScript (`tree-sitter-typescript`, `tree-sitter-javascript`)
-   - Python (`tree-sitter-python`)
-   - Go (`tree-sitter-go`)
-   - C / C++ (`tree-sitter-c`, `tree-sitter-cpp`)
-2. **`walker.rs`**: High-performance multi-threaded file traversal using the `ignore` crate (respects `.gitignore`, `.ignore`, hidden files).
-3. **`graph.rs`**: Dependency and call-graph engine using `petgraph`:
-   - Symbol definitions, references, imports, trait implementations.
-   - Blast radius analyzer: computes forward/backward impact of modifying a specific function or struct.
-4. **`cache.rs`**: Incremental AST symbol store (`.codegraph/symbols.db`) with mtime hashing. Re-parses only modified files.
-5. **`mcp.rs`**: In-process MCP server exposing `codegraph_explore`, `codegraph_impact`, `codegraph_symbol`.
-
-### Cross-Tool Adaptations
-- **To ProjectMem:** Automatically resolves file coordinates (`src/foo.rs:42`) to symbol names (`OrderService::process`) when recording issues.
-- **To ContextMode:** Provides symbol-level slicing for `ctx_execute_file`.
-
----
-
-## 5. Plan 4: Full Rust Port of `context-mode` into `crates/tokless/src/contextmode`
-
-### Scope & Mission
-Convert TypeScript `context-mode` into pure Rust. Execute agent analysis scripts in a local sandbox to keep massive raw data out of the LLM context window (98% token reduction).
-
-### Modules to Implement
-1. **`sandbox.rs`**:
-   - Isolated subprocess runner (PowerShell on Windows, Bash on Linux/macOS, Python/Node if available).
-   - Strict resource limits: CPU execution timeout (default 30s), memory limits, output capture.
-2. **`filter.rs`**:
-   - Zero-allocation output slicer: ANSI escape sequence stripping, line-budget truncation (e.g. max 100 lines), head/tail summarization.
-3. **`fts.rs`**:
-   - SQLite FTS5 chunker and BM25 search engine for session events and indexed documentation.
-4. **`fetch.rs`**:
-   - Async HTTP fetcher using `reqwest` with readability extraction (strips script/style tags, produces clean markdown).
-5. **`mcp.rs`**:
-   - In-process MCP server exposing:
-     - `ctx_execute`: Run script/command in sandbox, return filtered stdout.
-     - `ctx_execute_file`: Analyze large files in sandbox without loading bytes into context.
-     - `ctx_batch_execute`: Concurrent execution of N commands with auto-indexed output.
-     - `ctx_index`: Chunk markdown/text into FTS5.
-     - `ctx_search`: BM25 search over indexed session data.
-     - `ctx_fetch_and_index`: Web fetch + chunking + search.
-
-### Cross-Tool Adaptations
-- **To RTK:** Pipes all sandbox command outputs through RTK command filters before returning them to the LLM.
-- **To Headroom:** Reports token savings metrics to Headroom proxy statistics.
-
----
-
-## 6. Plan 5: Full Rust Integration of `headroom` into `crates/tokless/src/headroom`
-
-### Scope & Mission
-Unify Headroom proxy, compression algorithms, and prompt cache optimization into Tokless. Adapt Headroom to coordinate with `mem`, `rtk`, `codegraph`, and `contextmode`.
-
-### Modules to Implement
-1. **`compression/`**:
-   - `log.rs`: Repetition-collapsing log compressor. Detects recurring error loops, aggregates counts, and guarantees `FATAL`, `ERROR`, and panic lines survive byte-for-byte.
-   - `code.rs`: AST-aware whitespace and comment pruner for code snippets in prompts.
-   - `json.rs`: Structural JSON minifier and redundant key pruner.
-2. **`cache_align.rs`**:
-   - 1024-token prompt cache alignment engine. Pads and normalizes system prompt headers and static memory blocks to exact 1,024-token increments, triggering 90% prompt cache discounts on Anthropic, OpenAI, and Gemini.
-3. **`adaptive_mem.rs`**:
-   - Dynamic Memory Governor: Intercepts the current request context length.
-     - **Context Free > 70%:** Injects full L1 memory brief + active handoff.
-     - **Context Free 30–70%:** Injects compressed L1 memory brief.
-     - **Context Free < 30%:** Injects L0 titles only, reserving context for agent code generation.
-4. **`byok_gateway.rs` & `proxy.rs`**:
-   - High-throughput asynchronous HTTP/SSE reverse proxy (`axum` / `hyper`).
-   - BYOK credential management: transparently authenticates with upstream providers without exposing keys to agent workspaces.
-   - Stream compression: compresses tool responses on the fly as they stream back to the model.
-
----
-
-## 7. Plan (RTK): Full Integration & Embedding of `rtk` in `crates/tokless/src/rtk`
-
-### Scope & Mission
-Embed RTK (Rust Token Killer) filter engine directly into Tokless. Eliminate external binary calls and process spawn overhead.
-
-### Modules to Implement
-1. **`engine.rs`**: Command line parser, matching commands against 100+ specialized filter profiles.
-2. **`filters/`**:
-   - `git.rs`: Compact status matrix (`git status`), compact hunk summary (`git diff`).
-   - `build.rs`: Compiler output filters (`cargo build`, `cargo check`, `tsc`, `go build`). Strips compilation progress lines; preserves warnings and errors.
-   - `test.rs`: Test runner filters (`cargo test`, `npm test`, `pytest`, `vitest`). Preserves failed test names, assertions, and stack traces; suppresses passed test lists.
-   - `system.rs`: Output filters for `docker`, `kubectl`, `ls`, `curl`, `tree`, `ps`.
-3. **`ansi.rs`**: Zero-allocation ANSI escape sequence stripper.
-4. **`hook.rs`**: Shell hook and proxy interception layer.
-
-### Cross-Tool Adaptations
-- **To ContextMode:** Auto-filters all `ctx_execute` outputs.
-- **To ProjectMem:** Extracts root cause error lines from failed test/build commands to populate `record_attempt(outcome="failed")`.
-- **To Headroom:** Pre-compresses tool output before Headroom's secondary compression pass, minimizing latency.
-
----
-
-## 8. Plan 6: SOTA Agentic Memory & Token Waste Elimination
-
-### The Token Waste Problem
-Most agentic memory frameworks (Mem0, LangMem, Cognee, Zep) are designed for conversational chatbots, not coding agents. They waste massive amounts of tokens by:
-1. Calling an LLM on every user/agent message to extract semantic facts (burning 2,000–8,000 tokens per interaction).
-2. Storing facts in vector databases that hallucinate code details and lose exact file/line coordinates.
-3. Dumping thousands of tokens of unstructured memories into the system prompt on every turn, invalidating prompt caches.
-
-### The Tokless Zero-Waste Memory Architecture
-Tokless implements a **Deterministic, Zero-LLM, Tri-Tier Memory System**:
-
-```mermaid
-flowchart TD
-    subgraph Prompt["Context Window Budget"]
-        direction TB
-        subgraph CacheBlock["Cache-Stable Prefix (1024-Token Aligned)"]
-            A["System Instructions + Agent Rules"]
-            B["Static Project Purpose & Architecture Map"]
-        end
-        subgraph DynamicBlock["Dynamic Progressive Memory"]
-            C["L0: Topic Index (~100 tokens)"]
-            D["L1: Top Gotchas + Active Decisions (~400 tokens)"]
-            E["Active Handoff State (~200 tokens)"]
-        end
-        subgraph OnDemandBlock["On-Demand Retrieval (0 Startup Tokens)"]
-            F["L2: Detailed Case Files & Symbol Graphs"]
-        end
-    end
-    
-    CacheBlock -->|"90% Cache Discount"| LLM["Upstream LLM"]
-    DynamicBlock -->|"Clamped by Headroom Governor"| LLM
-    OnDemandBlock -.->|"Fetched via MCP Tools Only"| LLM
+```
+┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  TOKLESS TELEMETRY & CONTROL                                      [Proxy: UP 8080] [Daemon: OK] [v1.0] │
+├───────────────────┬───────────────────┬───────────────────┬───────────────────┬────────────────────────┤
+│ TOKENS SAVED      │ DOLLAR SAVINGS    │ AVERAGE SAVINGS   │ PROMPT CACHE RATE │ ACTIVE AGENTS          │
+│ 14,892,104        │ $184.26 USD       │ 68.4%             │ 91.2%             │ 4 Wired / 2 Active     │
+├───────────────────┴───────────────────┴───────────────────┴───────────────────┴────────────────────────┤
+│ [1. Live Token Compression Waterfall]                                                                 │
+│ 22:15:02 [Claude]  POST /v1/messages  │ Raw: 62.4k tok ──▶ Compressed: 19.8k tok (-68.2%) │ RTK+Headroom │
+│ 22:15:10 [Cursor]  POST /v1/chat      │ Raw: 24.1k tok ──▶ Compressed:  7.2k tok (-70.1%) │ CacheHit 90% │
+│ 22:15:18 [Antigrav] POST /v1/chat     │ Raw: 18.5k tok ──▶ Compressed:  5.1k tok (-72.4%) │ L1 Injected  │
+├───────────────────────────────────────┬────────────────────────────────────────────────────────────────┤
+│ [2. Error & Rate-Limit War Room]      │ [3. Multi-Agent Fleet Matrix]                                  │
+│ • 429 Backoffs: 2 (Auto-shedded)      │ Agent         Port   BYOK Provider    Status     Tokens Used   │
+│ • Context Overflows: 0 (Governed)     │ Claude Code   8080   Anthropic Direct  [ACTIVE]   4.2M ($63.0)  │
+│ • Upstream 503s: 1 (Swapped to Gemini)│ Cursor        8081   OpenAI Direct     [ACTIVE]   1.8M ($18.0)  │
+│ • Tool Failures: 1 (Caught by RTK)    │ Antigravity   8082   Gemini 2.0 Flash  [WIRED]    0.9M ($0.9)   │
+├───────────────────────────────────────┼────────────────────────────────────────────────────────────────┤
+│ [4. Project Memory Decision DAG]      │ [5. CodeGraph Blast-Radius & Topology]                         │
+│ [0001: Use SQLite FTS5] ──▶ [ACTIVE]  │ Target: `OrderService::process_payment`                        │
+│   ▲                                   │ Direct Callers: 4 functions | Blast Radius: 12 files           │
+│   └── [0002: In-Memory Map] (RETIRED) │ Dependency Depth: 3 layers | Affected Tests: 6 test suites     │
+└───────────────────────────────────────┴────────────────────────────────────────────────────────────────┘
 ```
 
-1. **Zero-LLM Extraction:**
-   - Issues, attempts, fixes, and decisions are captured directly through agent MCP tool calls (`log_issue`, `record_attempt`, `record_fix`, `add_decision`, `add_note`) or deterministic git diff and error parser hooks.
-   - Zero tokens spent extracting memories.
-2. **Sub-10ms Local SQLite FTS5 BM25 Retrieval:**
-   - Keyword recall scores 97.4% on LongMemEval-S without using any embedding model or LLM call.
-3. **Strict Progressive Disclosure (L0 / L1 / L2):**
-   - Startup prompt overhead is capped strictly at 500–700 tokens.
-   - Deep memory and past case histories are retrieved only when the agent explicitly queries `memory_search` or `projectmem_brief`.
-4. **Cache-Stable Alignment:**
-   - Static project context is placed at the exact head of the prompt and padded to 1,024-token boundaries. Prompt caching (Anthropic, Gemini, OpenAI) hits a 90% discount on input tokens.
+### Full Dashboard Capability Matrix
+
+#### 1. Live Token Compression Waterfall & Real-Time Savings
+- **Layer-by-Layer Savings Breakdown**:
+  - **RTK Layer**: Bash output savings (terminal outputs reduced by up to 90%).
+  - **Headroom Log Layer**: Deduplication metrics (collapsed recurring logs, stack traces preserved).
+  - **Headroom AST Layer**: Whitespace, comment, and code pruning metrics.
+  - **Rules Layer**: Caveman instruction compression savings.
+- **Dynamic Cost Calculator**:
+  - Live dollar counter tracking savings across exact model billing tiers (Claude 3.7 Sonnet, GPT-4o, o3-mini, Gemini 2.0 Flash, DeepSeek R1).
+- **Prompt Cache Efficiency Gauge**:
+  - Visual indicator showing how accurately prompts match the 1,024-token boundary to achieve the 90% discount on cached tokens.
+
+#### 2. The "War Room": Error, Outage & Rate-Limit Telemetry
+- **HTTP 429 Rate-Limit Monitor**: Real-time graph of rate-limit backoffs with exponential backoff timers.
+- **Provider Fallback Cascade Visualizer**: Displays when an upstream model experiences an outage or 5xx error, tracing how Tokless automatically reroutes requests to standby providers (e.g., Anthropic -> Gemini -> OpenAI).
+- **Context Window Overflow Pre-Emption**: Displays how close each active agent is to its context limit (e.g., 200k tokens), showing how the Tokless Headroom Governor scales memory down from L2 to L0 to prevent crashes.
+- **Tool Crash Inspector**: Real-time stack trace capture for failed agent tool executions.
+
+#### 3. Multi-Agent Fleet Control Center
+- **Interactive Matrix for All 17 Agents**:
+  - Live toggle switch to Wire / Unwire any agent (`claude`, `cursor`, `antigravity`, `codex`, `opencode`, `copilot`, `cline`, etc.) with a single click.
+  - Active port bindings, assigned BYOK keys, and live socket traffic.
+- **Live Agent Session Inspector**:
+  - Displays streaming tokens, active tool calls, and response latencies in real time.
+
+#### 4. Project Memory & Decision Graph Visualizer
+- **Interactive SVG Decision DAG**:
+  - Visual nodes representing architectural choices (`add_decision`).
+  - Edge arrows showing `supersedes` relationships. Differentiates active decisions from superseded decisions with click-to-expand rationales.
+- **Failure Heatmap Matrix**:
+  - Color-coded heatmap showing repositories, directories, and files with the highest failure rates, matching past issues to verify fixes.
+- **Live Gotchas & Precheck Monitor**:
+  - Real-time alert feed displaying staged git diff warnings before commits are finalized.
+- **Instant FTS5 Memory Search**:
+  - In-browser search box querying `.tokless/memory.db` via SQLite FTS5 BM25 with sub-10ms response times.
+
+#### 5. CodeGraph Interactive Topology & Blast-Radius Simulator
+- **Interactive Symbol Graph Explorer**:
+  - Search any function, class, or trait in the repository. Renders an interactive canvas/SVG dependency tree showing callers, callees, and type references.
+- **Blast-Radius Impact Calculator**:
+  - Select any file or function to simulate the impact of changes across the entire codebase. Visualizes all dependent files and affected unit tests.
+- **Incremental Index Telemetry**:
+  - Live statistics: number of files indexed, AST nodes parsed, and disk cache utilization.
+
+#### 6. Context-Mode Sandbox Inspector
+- **Sandbox Execution Audit**:
+  - Live log of all `ctx_execute` scripts run by agents.
+  - Side-by-side comparison: Raw Tool Output (e.g. 250 KB) vs. Filtered Stdout injected into the model context (e.g. 3.2 KB).
+- **FTS5 Document Chunker Browser**:
+  - Inspect indexed session chunks and full-text search rankings.
+
+#### 7. System Supervisor & Telemetry Controls
+- **Live Process Health**:
+  - Real-time CPU, RAM, active worker threads, and open socket metrics.
+- **One-Click Proxy Management**:
+  - Start, stop, or restart the Headroom proxy.
+  - Dynamic BYOK key swap and model routing adjustments without restarting agent sessions.
+- **Cache Purge & Vacuum**:
+  - Clean temporary AST caches and vacuum SQLite memory files with one click.
 
 ---
 
-## 9. Phased Execution Roadmap
+## 4. Execution Roadmap
 
-| Phase | Milestone | Scope | Deliverables |
+| Phase | Subsystem | Actions | Deliverables |
 |---|---|---|---|
-| **Phase 1** | **`rtk` Engine Integration** [COMPLETED] | Embed RTK filter engine into `crates/tokless/src/rtk/`. | Zero-overhead command output filtering; test runner filters; 100+ command profiles; zero compiler warnings; 64 passing unit tests. |
-| **Phase 2** | **`projectmem` Pure Rust Port** [COMPLETED] | Port Python models, storage, summary, precheck to `crates/tokless/src/projectmem/`. | Native `tokless mem` CLI; in-process MCP server; zero Python dependencies; schema, store locking, redaction, summary generator, precheck, heatmap, 23 unit tests passing. |
-| **Phase 3** | **`contextmode` Pure Rust Port** [COMPLETED] | Port sandbox execution, FTS5 chunking, and web fetch to `crates/tokless/src/contextmode/`. | Native `ctx_*` tools; zero Node.js dependencies; sandbox runner with CPU/memory/time bounds, RTK output filtering, SQLite FTS5 BM25 search, reqwest fetcher, in-process MCP server, 12 unit tests passing, zero compiler warnings. |
-| **Phase 4** | **`icm` & `aimemory` Integration** [COMPLETED] | Embed SQLite FTS5 store, claim-once handoffs, and L0/L1/L2 tiered briefs in `crates/tokless/src/icm/` & `aimemory/`. | Zero-LLM persistent memory; multi-agent handoff; progressive disclosure; 104 passing tests. |
-| **Phase 5** | **`codegraph` Pure Rust Engine** [COMPLETED] | Integrate Tree-sitter parsers, petgraph blast radius in `crates/tokless/src/codegraph/`. | Sub-millisecond code intelligence; zero Node.js dependencies; native `tokless graph` CLI; in-process MCP server with `codegraph_explore` & `codegraph_impact`; incremental SQLite cache; 135 passing tests with zero compiler warnings. |
-| **Phase 6** | **`headroom` Deep Integration** [COMPLETED] | Unify compression algorithms, cache aligner, and dynamic memory governor in `crates/tokless/src/headroom/`. | Native streaming reverse proxy; lossless log deduplication; AST-aware code compression; structural JSON pruner; 1024-token cache alignment; dynamic memory governor; dropped Python headroom-py; zero compiler warnings; 172 passing tests. |
-| **Phase 7** | **System Verification & Benchmarks** [COMPLETED] | End-to-end integration tests across all 17 agent harnesses. | Zero compiler warnings, 100% test pass rate (241 passed across 12 suites), verified token savings benchmarks (git status/diff >80%, log deduplication >70%, JSON pruning >30%, AST code compression >25%), verified all 17 agent harnesses, in-process MCP multiplexer, unified CLI subcommands (mem, graph, ctx, rtk, proxy, doctor), and proxy streaming compression. |
+| **Phase 1** | **RTK Engine** | Embed 100+ filters into `crates/tokless/src/rtk/`. | Native RTK filter engine, ANSI stripper, CLI command. |
+| **Phase 2** | **ProjectMem Port** | Port models, storage, summary, precheck into `crates/tokless/src/projectmem/`. | Native `tokless mem` CLI, in-process MCP server. |
+| **Phase 3** | **ContextMode Port** | Port sandbox runner, FTS5 chunker, fetcher into `crates/tokless/src/contextmode/`. | Native `ctx_*` MCP tools, RTK sandbox piping. |
+| **Phase 4** | **ICM & ai-memory** | Embed SQLite FTS5 store, claim-once handoffs, L0/L1/L2 briefs in `crates/tokless/src/icm/` & `aimemory/`. | Sub-10ms zero-LLM memory, multi-agent handoffs. |
+| **Phase 5** | **CodeGraph Engine** | Integrate Tree-sitter parsers, petgraph blast radius in `crates/tokless/src/codegraph/`. | Sub-millisecond code intelligence without Node.js. |
+| **Phase 6** | **Rules & Skills** | Embed Karpathy principles, Caveman, Ponytail into `crates/tokless/src/rules/`. | In-tree rules compiled with `include_str!`. |
+| **Phase 7** | **Headroom Deep Integration** | Port compression, 1024-token cache aligner, adaptive governor to `crates/tokless/src/headroom/`. | Streaming compression, BYOK proxy, 50–80% token cut. |
+| **Phase 8** | **Purge Downloader Slop** | Remove `npminstall.rs`, `nodewin.rs`, `nodelinux.rs`, `uv.rs`. Rewire all tools to native modules. | Clean `crates/tokless/src/util/`, zero external tool dependencies. |
+| **Phase 9** | **Full-Featured TUI** | Implement `ratatui` + `crossterm` multi-tab interface in `crates/tokless/src/tui/`. | Interactive control center via `tokless tui` / `tokless top`. |
+| **Phase 10** | **Ultimate Dashboard** | Build embedded zero-dependency local web dashboard in `crates/tokless/src/dashboard/`. | Real-time browser dashboard via `tokless dashboard` with full telemetry & controls. |
+| **Phase 11** | **System Verification & Benchmarks** | End-to-end integration tests across all 17 agent harnesses. | 0 compiler warnings, 100% tests passing, verified token savings. |
+
+---
+
+## 5. Ready-to-Run Prompts for Each Phase
+
+Use these prompts when starting a new chat for each phase:
+
+### Phase 1: RTK Engine Integration
+```text
+Execute Phase 1 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full port and embed neo\inspect-vault\rtk into crates/tokless/src/rtk.
+Embed 100+ command-specific output filters (git, cargo, test runners, system tools) and zero-allocation ANSI stripper.
+Adapt and connect to tokless CLI and proxy pipelines.
+Ensure full functional parity, zero missing filter code, zero compiler warnings, and passing unit tests.
+```
+
+### Phase 2: ProjectMem Pure Rust Port
+```text
+Execute Phase 2 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full convert and port Python neo\inspect-vault\projectmem into pure Rust in crates/tokless/src/projectmem.
+Implement schema (Event/Issue/Attempt/Fix/Decision/Note), thread-safe JSONL store with cross-platform file locking, deterministic summary generator, git precheck, credential redactor, failure heatmap, and in-process MCP server.
+Drop Python/pip/uvx dependencies completely. Wire into tokless mem CLI.
+Ensure full functional parity with Python projectmem, zero missing code, zero compiler warnings, and passing unit tests.
+```
+
+### Phase 3: Context-Mode Pure Rust Port
+```text
+Execute Phase 3 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full convert and port TypeScript neo\inspect-vault\context-mode into pure Rust in crates/tokless/src/contextmode.
+Implement sandbox subprocess runner (with CPU/memory/time bounds), output slicer/filter, SQLite FTS5 chunker & BM25 search, async reqwest fetcher, and in-process ctx_* MCP server.
+Pipe execution output through crates/tokless/src/rtk filters. Drop Node.js dependency completely.
+Ensure full functional parity, zero missing code, zero compiler warnings, and passing unit tests.
+```
+
+### Phase 4: ICM & ai-memory Integration
+```text
+Execute Phase 4 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full port and integrate neo\inspect-vault\icm into crates/tokless/src/icm and neo\inspect-vault\ai-memory into crates/tokless/src/aimemory.
+From ICM: embed single-file SQLite FTS5 BM25 memory store (zero-LLM token cost on store/recall, sub-10ms latency).
+From ai-memory: embed claim-once multi-agent handoff state machine and tiered L0/L1/L2 progressive disclosure packer.
+Ensure strict zero-LLM background token spend, zero compiler warnings, and passing unit tests.
+```
+
+### Phase 5: CodeGraph Pure Rust Engine
+```text
+Execute Phase 5 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full port and embed neo\inspect-vault\codegraph into pure Rust in crates/tokless/src/codegraph.
+Integrate Tree-sitter parsers (Rust, TS/JS, Python, Go, C/C++), ripgrep-grade file walker (ignore crate), petgraph AST call-graph/blast-radius engine, incremental disk cache, and in-process MCP server (codegraph_explore).
+Drop Node.js wrapper completely. Wire into tokless graph CLI.
+Ensure full functional parity, zero missing code, zero compiler warnings, and passing unit tests.
+```
+
+### Phase 6: In-Tree Rules & Skills Integration
+```text
+Execute Phase 6 of crates/tokless/CONSOLIDATION_PLAN.md.
+Integrate rules and skills from neo\inspect-vault\andrej-karpathy-skills and neo\inspect-vault\caveman directly into crates/tokless/src/rules/.
+Implement in-tree compile-time embedding via include_str! for Karpathy principles, Caveman ASD-STE100 English compressor, and Ponytail build discipline ladder.
+Remove all external repository clone links. Make rules distributable inside the tokless binary.
+Ensure zero compiler warnings and passing unit tests.
+```
+
+### Phase 7: Headroom Deep Integration
+```text
+Execute Phase 7 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full port and deep integration of neo\inspect-vault\headroom into crates/tokless/src/headroom.
+Implement lossless log deduplication, AST-aware code compression, JSON pruner, 1024-token prompt cache alignment, and dynamic memory governor (scaling L0 vs L1 vs L2 based on context headroom).
+Unify with BYOK gateway and streaming reverse proxy. Drop Python headroom-py.
+Coordinate with crates/tokless/src/{rtk, projectmem, icm, contextmode}.
+Ensure zero compiler warnings and passing unit tests.
+```
+
+### Phase 8: Downloader Purge & System Refactor
+```text
+Execute Phase 8 of crates/tokless/CONSOLIDATION_PLAN.md.
+Completely purge runtime downloader/installer modules from crates/tokless/src/util/ (npminstall.rs, nodewin.rs, nodelinux.rs, uv.rs, projectmem.rs).
+Rewire all tokless agent harnesses, MCP adapters, and CLI commands to call native in-tree modules directly.
+Ensure system binary detection uses which on system PATH only. No runtime package installations.
+Ensure zero compiler warnings, zero unused dead code, and all tests passing.
+```
+
+### Phase 9: Full-Featured Terminal User Interface (TUI)
+```text
+Execute Phase 9 of crates/tokless/CONSOLIDATION_PLAN.md.
+Implement the full multi-tab interactive TUI in crates/tokless/src/tui/ using ratatui and crossterm.
+Build views for: Live Token Monitor & Waterfall, Multi-Agent Wire Manager (Space to wire/unwire), Memory Explorer & Precheck, CodeGraph Visualizer, Headroom BYOK & Cache Inspector, and Diagnostic Logs.
+Wire into tokless tui and tokless top CLI commands.
+Ensure smooth 60fps rendering, responsive keybindings, zero compiler warnings, and passing tests.
+```
+
+### Phase 10: Telemetry & Control Web Dashboard
+```text
+Execute Phase 10 of crates/tokless/CONSOLIDATION_PLAN.md.
+Implement the embedded zero-dependency Telemetry & Control Web Dashboard in crates/tokless/src/dashboard/.
+Build local HTTP/SSE server (127.0.0.1:9099) with bundled SPA (HTML/CSS/JS embedded via include_str!).
+Implement live token waterfall, real-time dollar cost savings counter, error telemetry (429s, outages, context overflows), agent fleet matrix with wire/unwire toggle, and SVG decision DAG visualizer.
+Wire into tokless dashboard CLI command.
+Ensure zero external npm/node build dependencies, zero compiler warnings, and passing tests.
+```
+
+### Phase 11: End-to-End System Verification & Benchmarks
+```text
+Execute Phase 11 of crates/tokless/CONSOLIDATION_PLAN.md.
+Run full end-to-end integration verification across all 17 supported agent harnesses (Claude Code, Cursor, Codex, OpenCode, Antigravity, etc.).
+Verify in-process MCP multiplexer, unified tokless CLI commands (mem, graph, ctx, rtk, proxy, doctor, tui, dashboard), and streaming proxy compression.
+Run cargo test --workspace, ensure 0 compiler warnings, 0 test failures, and verify end-to-end token reduction benchmarks.
+```
+
+---
+
+## 5. Ready-to-Run Prompts for Each Phase
+
+Use these prompts when starting a new chat for each phase:
+
+### Phase 1: RTK Engine Integration
+```text
+Execute Phase 1 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full port and embed neo\inspect-vault\rtk into crates/tokless/src/rtk.
+Embed 100+ command-specific output filters (git, cargo, test runners, system tools) and zero-allocation ANSI stripper.
+Adapt and connect to tokless CLI and proxy pipelines.
+Ensure full functional parity, zero missing filter code, zero compiler warnings, and passing unit tests.
+```
+
+### Phase 2: ProjectMem Pure Rust Port
+```text
+Execute Phase 2 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full convert and port Python neo\inspect-vault\projectmem into pure Rust in crates/tokless/src/projectmem.
+Implement schema (Event/Issue/Attempt/Fix/Decision/Note), thread-safe JSONL store with cross-platform file locking, deterministic summary generator, git precheck, credential redactor, failure heatmap, and in-process MCP server.
+Drop Python/pip/uvx dependencies completely. Wire into tokless mem CLI.
+Ensure full functional parity with Python projectmem, zero missing code, zero compiler warnings, and passing unit tests.
+```
+
+### Phase 3: Context-Mode Pure Rust Port
+```text
+Execute Phase 3 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full convert and port TypeScript neo\inspect-vault\context-mode into pure Rust in crates/tokless/src/contextmode.
+Implement sandbox subprocess runner (with CPU/memory/time bounds), output slicer/filter, SQLite FTS5 chunker & BM25 search, async reqwest fetcher, and in-process ctx_* MCP server.
+Pipe execution output through crates/tokless/src/rtk filters. Drop Node.js dependency completely.
+Ensure full functional parity, zero missing code, zero compiler warnings, and passing unit tests.
+```
+
+### Phase 4: ICM & ai-memory Integration
+```text
+Execute Phase 4 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full port and integrate neo\inspect-vault\icm into crates/tokless/src/icm and neo\inspect-vault\ai-memory into crates/tokless/src/aimemory.
+From ICM: embed single-file SQLite FTS5 BM25 memory store (zero-LLM token cost on store/recall, sub-10ms latency).
+From ai-memory: embed claim-once multi-agent handoff state machine and tiered L0/L1/L2 progressive disclosure packer.
+Ensure strict zero-LLM background token spend, zero compiler warnings, and passing unit tests.
+```
+
+### Phase 5: CodeGraph Pure Rust Engine
+```text
+Execute Phase 5 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full port and embed neo\inspect-vault\codegraph into pure Rust in crates/tokless/src/codegraph.
+Integrate Tree-sitter parsers (Rust, TS/JS, Python, Go, C/C++), ripgrep-grade file walker (ignore crate), petgraph AST call-graph/blast-radius engine, incremental disk cache, and in-process MCP server (codegraph_explore).
+Drop Node.js wrapper completely. Wire into tokless graph CLI.
+Ensure full functional parity, zero missing code, zero compiler warnings, and passing unit tests.
+```
+
+### Phase 6: In-Tree Rules & Skills Integration
+```text
+Execute Phase 6 of crates/tokless/CONSOLIDATION_PLAN.md.
+Integrate rules and skills from neo\inspect-vault\andrej-karpathy-skills and neo\inspect-vault\caveman directly into crates/tokless/src/rules/.
+Implement in-tree compile-time embedding via include_str! for Karpathy principles, Caveman ASD-STE100 English compressor, and Ponytail build discipline ladder.
+Remove all external repository clone links. Make rules distributable inside the tokless binary.
+Ensure zero compiler warnings and passing unit tests.
+```
+
+### Phase 7: Headroom Deep Integration
+```text
+Execute Phase 7 of crates/tokless/CONSOLIDATION_PLAN.md.
+Full port and deep integration of neo\inspect-vault\headroom into crates/tokless/src/headroom.
+Implement lossless log deduplication, AST-aware code compression, JSON pruner, 1024-token prompt cache alignment, and dynamic memory governor (scaling L0 vs L1 vs L2 based on context headroom).
+Unify with BYOK gateway and streaming reverse proxy. Drop Python headroom-py.
+Coordinate with crates/tokless/src/{rtk, projectmem, icm, contextmode}.
+Ensure zero compiler warnings and passing unit tests.
+```
+
+### Phase 8: Downloader Purge & System Refactor
+```text
+Execute Phase 8 of crates/tokless/CONSOLIDATION_PLAN.md.
+Completely purge runtime downloader/installer modules from crates/tokless/src/util/ (npminstall.rs, nodewin.rs, nodelinux.rs, uv.rs, projectmem.rs).
+Rewire all tokless agent harnesses, MCP adapters, and CLI commands to call native in-tree modules directly.
+Ensure system binary detection uses which on system PATH only. No runtime package installations.
+Ensure zero compiler warnings, zero unused dead code, and all tests passing.
+```
+
+### Phase 9: Full-Featured Terminal User Interface (TUI)
+```text
+Execute Phase 9 of crates/tokless/CONSOLIDATION_PLAN.md.
+Implement the full multi-tab interactive TUI in crates/tokless/src/tui/ using ratatui and crossterm.
+Build views for: Live Token Monitor & Waterfall, Multi-Agent Wire Manager (Space to wire/unwire), Memory Explorer & Precheck, CodeGraph Visualizer, Headroom BYOK & Cache Inspector, and Diagnostic Logs.
+Wire into tokless tui and tokless top CLI commands.
+Ensure smooth 60fps rendering, responsive keybindings, zero compiler warnings, and passing tests.
+```
+
+### Phase 10: Telemetry & Control Web Dashboard
+```text
+Execute Phase 10 of crates/tokless/CONSOLIDATION_PLAN.md.
+Implement the embedded zero-dependency Telemetry & Control Web Dashboard in crates/tokless/src/dashboard/.
+Build local HTTP/SSE server (127.0.0.1:9099) with bundled SPA (HTML/CSS/JS embedded via include_str!).
+Implement live token waterfall, real-time dollar cost savings counter, error telemetry (429s, outages, context overflows), agent fleet matrix with wire/unwire toggle, and SVG decision DAG visualizer.
+Wire into tokless dashboard CLI command.
+Ensure zero external npm/node build dependencies, zero compiler warnings, and passing tests.
+```
+
+### Phase 11: End-to-End System Verification & Benchmarks
+```text
+Execute Phase 11 of crates/tokless/CONSOLIDATION_PLAN.md.
+Run full end-to-end integration verification across all 17 supported agent harnesses (Claude Code, Cursor, Codex, OpenCode, Antigravity, etc.).
+Verify in-process MCP multiplexer, unified tokless CLI commands (mem, graph, ctx, rtk, proxy, doctor, tui, dashboard), and streaming proxy compression.
+Run cargo test --workspace, ensure 0 compiler warnings, 0 test failures, and verify end-to-end token reduction benchmarks.
+```
 

@@ -582,15 +582,36 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
             // 3. Compress conversation messages (logs, code, and JSON in tool outputs)
             if let Some(serde_json::Value::Array(messages)) = json_val.get_mut("messages") {
                 for msg in messages {
+                    let is_tool_role = msg.get("role").and_then(|r| r.as_str()) == Some("tool");
+                    let tool_name = msg.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
                     if let Some(serde_json::Value::String(content)) = msg.get_mut("content") {
                         if content.len() > 120 {
-                            *content = super::compression::compress_content(content, None);
+                            if is_tool_role {
+                                *content = crate::rtk::compress_tool_output(&tool_name, content);
+                            } else {
+                                *content = super::compression::compress_content(content, None);
+                            }
                         }
                     } else if let Some(serde_json::Value::Array(blocks)) = msg.get_mut("content") {
                         for block in blocks {
+                            let is_tool_result =
+                                block.get("type").and_then(|t| t.as_str()) == Some("tool_result");
+                            let block_name = block.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
                             if let Some(serde_json::Value::String(text)) = block.get_mut("text") {
                                 if text.len() > 120 {
-                                    *text = super::compression::compress_content(text, None);
+                                    if is_tool_result {
+                                        *text = crate::rtk::compress_tool_output(&block_name, text);
+                                    } else {
+                                        *text = super::compression::compress_content(text, None);
+                                    }
+                                }
+                            } else if let Some(serde_json::Value::String(content)) = block.get_mut("content") {
+                                if content.len() > 120 {
+                                    if is_tool_result {
+                                        *content = crate::rtk::compress_tool_output(&block_name, content);
+                                    } else {
+                                        *content = super::compression::compress_content(content, None);
+                                    }
                                 }
                             }
                         }

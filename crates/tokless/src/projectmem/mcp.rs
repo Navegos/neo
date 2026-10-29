@@ -266,7 +266,22 @@ pub fn tool_record_attempt(
     let iid = target_issue_id.unwrap();
     let out = outcome.unwrap_or("failed");
 
-    let mut event = Event::new("attempt", summary);
+    // RTK root cause extraction: refine summary if raw error output is provided
+    let final_summary = if out == "failed" {
+        if let Some(root_cause) = crate::rtk::extract_root_cause("", summary) {
+            if summary.lines().count() > 1 {
+                format!("Failed: {}", root_cause)
+            } else {
+                summary.to_string()
+            }
+        } else {
+            summary.to_string()
+        }
+    } else {
+        summary.to_string()
+    };
+
+    let mut event = Event::new("attempt", &final_summary);
     event.issue_id = Some(iid.clone());
     event.outcome = Some(out.to_string());
     event.git_commit = get_git_commit(Some(root));
@@ -276,7 +291,7 @@ pub fn tool_record_attempt(
     let _ = regenerate_summary(Some(root));
 
     let proj_name = root.file_name().and_then(|s| s.to_str()).unwrap_or("project");
-    Ok(format!("Recorded {} attempt on #{} → {}: {}", out, iid, proj_name, summary))
+    Ok(format!("Recorded {} attempt on #{} → {}: {}", out, iid, proj_name, final_summary))
 }
 
 pub fn tool_record_fix(

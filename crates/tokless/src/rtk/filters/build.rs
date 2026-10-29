@@ -32,6 +32,12 @@ pub fn filter_build(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> St
         "mypy" => filter_mypy(&clean, exit_code),
         "ruff" => filter_ruff(&clean, exit_code),
         "make" => filter_make(&clean, exit_code),
+        "npm" | "pnpm" | "yarn" | "bun" | "deno" | "npx" | "pnpx" | "bunx" => {
+            filter_npm_like(bin, cmd, &clean, exit_code)
+        }
+        "pip" | "uv" => filter_pip_uv(bin, cmd, &clean, exit_code),
+        "eslint" => filter_eslint(&clean, exit_code),
+        "prettier" => filter_prettier(&clean, exit_code),
         _ => clean,
     }
 }
@@ -335,9 +341,236 @@ pub fn filter_make(raw: &str, exit_code: i32) -> String {
     }
 }
 
+/// Filter Node/JS package runners (`npm`, `pnpm`, `yarn`, `bun`, `deno`, `npx`).
+pub fn filter_npm_like(bin: &str, _cmd: &str, raw: &str, exit_code: i32) -> String {
+    let mut out = Vec::new();
+    let mut added_line = None;
+    let mut error_lines = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if line.starts_with('>') && line.contains('@') {
+            continue;
+        }
+        if trimmed.starts_with("npm WARN") || trimmed.starts_with("npm notice") {
+            continue;
+        }
+        if trimmed.contains("found 0 vulnerabilities") || trimmed.starts_with("Run `npm audit`") {
+            continue;
+        }
+        if trimmed.contains("⸨") || trimmed.contains("⸩") || (trimmed.contains("...") && trimmed.len() < 12) {
+            continue;
+        }
+
+        if trimmed.starts_with("npm ERR!") || trimmed.starts_with("error ") || trimmed.starts_with("ERR_") {
+            error_lines.push(trimmed.to_string());
+            continue;
+        }
+
+        if trimmed.starts_with("added ")
+            || trimmed.starts_with("up to date")
+            || trimmed.starts_with("installed ")
+            || trimmed.starts_with("Packages: +")
+        {
+            added_line = Some(trimmed.to_string());
+            continue;
+        }
+
+        out.push(line);
+    }
+
+    if !error_lines.is_empty() {
+        return error_lines.join("\n");
+    }
+
+    if let Some(added) = added_line {
+        return format!("{}: {}", bin, added);
+    }
+
+    if out.is_empty() {
+        if exit_code == 0 {
+            format!("{}: ok", bin)
+        } else {
+            format!("{}: failed (exit code {})", bin, exit_code)
+        }
+    } else {
+        out.join("\n")
+    }
+}
+
+/// Filter Python package runners (`pip`, `uv`).
+pub fn filter_pip_uv(bin: &str, _cmd: &str, raw: &str, exit_code: i32) -> String {
+    let mut out = Vec::new();
+    let mut installed_line = None;
+    let mut error_lines = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if trimmed.starts_with("Collecting ")
+            || trimmed.starts_with("Using cached ")
+            || trimmed.starts_with("Downloading ")
+            || trimmed.starts_with("Requirement already satisfied")
+            || (trimmed.starts_with('[') && trimmed.contains('%') && trimmed.contains("kB/s"))
+            || (trimmed.starts_with('[') && trimmed.contains('━'))
+        {
+            continue;
+        }
+
+        if trimmed.starts_with("ERROR:") || trimmed.starts_with("error:") {
+            error_lines.push(trimmed.to_string());
+            continue;
+        }
+
+        if trimmed.starts_with("Successfully installed ")
+            || trimmed.starts_with("Successfully uninstalled ")
+            || trimmed.starts_with("Audited ")
+            || trimmed.starts_with("Resolved ")
+        {
+            installed_line = Some(trimmed.to_string());
+            continue;
+        }
+
+        out.push(line);
+    }
+
+    if !error_lines.is_empty() {
+        return error_lines.join("\n");
+    }
+
+    if let Some(inst) = installed_line {
+        return format!("{}: {}", bin, inst);
+    }
+
+    if out.is_empty() {
+        if exit_code == 0 {
+            format!("{}: ok", bin)
+        } else {
+            format!("{}: failed (exit code {})", bin, exit_code)
+        }
+    } else {
+        out.join("\n")
+    }
+}
+
+/// Filter `eslint` output grouping diagnostics by file and rule.
+pub fn filter_eslint(raw: &str, exit_code: i32) -> String {
+    let mut file_issues: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut total_errors = 0;
+    let mut total_warnings = 0;
+    let mut current_file = String::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if (line.starts_with('/') || line.contains(":\\") || line.contains(":/"))
+            && !line.contains("error")
+            && !line.contains("warning")
+        {
+            current_file = trimmed.to_string();
+            continue;
+        }
+
+        if trimmed.contains("error") || trimmed.contains("warning") {
+            let is_err = trimmed.contains("error");
+            if is_err {
+                total_errors += 1;
+            } else {
+                total_warnings += 1;
+            }
+            let file = if !current_file.is_empty() {
+                current_file.clone()
+            } else {
+                "issues".to_string()
+            };
+            file_issues.entry(file).or_default().push(trimmed.to_string());
+        }
+    }
+
+    if total_errors == 0 && total_warnings == 0 {
+        if exit_code == 0 {
+            "eslint: 0 issues".to_string()
+        } else {
+            raw.lines().take(20).collect::<Vec<&str>>().join("\n")
+        }
+    } else {
+        let mut out = vec![format!(
+            "eslint: {} errors, {} warnings in {} files",
+            total_errors,
+            total_warnings,
+            file_issues.len()
+        )];
+        for (file, issues) in file_issues {
+            out.push(format!("{}:", file));
+            for issue in issues.into_iter().take(10) {
+                out.push(format!("  {}", issue));
+            }
+        }
+        out.join("\n")
+    }
+}
+
+/// Filter `prettier` output: hides unchanged files, shows only formatted or error files.
+pub fn filter_prettier(raw: &str, exit_code: i32) -> String {
+    let mut formatted = Vec::new();
+    let mut errors = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.ends_with("[warn]") || trimmed.contains("Forgot to run Prettier?") {
+            formatted.push(trimmed.to_string());
+        } else if trimmed.contains("error") || trimmed.contains("SyntaxError") {
+            errors.push(trimmed.to_string());
+        }
+    }
+
+    if !errors.is_empty() {
+        return errors.join("\n");
+    }
+
+    if !formatted.is_empty() {
+        let mut out = vec![format!("prettier: {} files formatted or needing format", formatted.len())];
+        out.extend(formatted.into_iter().take(20));
+        return out.join("\n");
+    }
+
+    if exit_code == 0 {
+        "prettier: all files matched format".to_string()
+    } else {
+        raw.lines().take(20).collect::<Vec<&str>>().join("\n")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_filter_npm_like() {
+        let raw = "> project@1.0.0 build\nnpm WARN deprecated\nadded 142 packages in 1.4s\n";
+        let out = filter_npm_like("npm", "npm install", raw, 0);
+        assert_eq!(out, "npm: added 142 packages in 1.4s");
+    }
+
+    #[test]
+    fn test_filter_pip_uv() {
+        let raw = "Collecting requests\nDownloading requests.whl (50 kB)\nSuccessfully installed requests-2.31.0\n";
+        let out = filter_pip_uv("pip", "pip install requests", raw, 0);
+        assert_eq!(out, "pip: Successfully installed requests-2.31.0");
+    }
 
     #[test]
     fn test_filter_cargo_build_success() {
