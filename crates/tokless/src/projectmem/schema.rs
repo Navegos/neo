@@ -70,7 +70,16 @@ pub fn location_to_file(location: Option<&str>) -> Option<String> {
         return None;
     }
 
-    let mut loc = raw.to_string();
+    let base = if let Some(idx) = raw.find('(') {
+        raw[..idx].trim()
+    } else {
+        raw
+    };
+    if base.is_empty() {
+        return None;
+    }
+
+    let mut loc = base.to_string();
     let mut drive = String::new();
 
     // Check Windows drive letter: C:\ or C:/
@@ -109,6 +118,48 @@ pub fn location_to_file(location: Option<&str>) -> Option<String> {
     }
 
     None
+}
+
+pub fn parse_location_coordinate(location: &str) -> Option<(String, u32)> {
+    let raw = location.trim().trim_matches(|c| c == '"' || c == '\'');
+    if raw.is_empty() {
+        return None;
+    }
+    let base = if let Some(idx) = raw.find('(') {
+        raw[..idx].trim()
+    } else {
+        raw
+    };
+
+    let re = Regex::new(r"^(.*?):(\d+)(?::\d+)?$").ok()?;
+    let caps = re.captures(base)?;
+    let file = caps.get(1)?.as_str().trim().to_string();
+    let line: u32 = caps.get(2)?.as_str().parse().ok()?;
+    if file.is_empty() {
+        return None;
+    }
+    Some((file, line))
+}
+
+pub fn auto_resolve_location(root: &std::path::Path, location: &str) -> String {
+    let raw = location.trim();
+    if raw.is_empty() {
+        return raw.to_string();
+    }
+    if raw.contains('(') && raw.ends_with(')') {
+        return raw.to_string();
+    }
+    if let Some((file, line)) = parse_location_coordinate(raw) {
+        if let Some(sym) = crate::codegraph::resolve_coordinate(root, &file, line) {
+            return format!("{} ({})", raw, sym);
+        }
+    }
+    raw.to_string()
+}
+
+pub fn resolve_location_symbol(root: &std::path::Path, location: &str) -> Option<String> {
+    let (file, line) = parse_location_coordinate(location)?;
+    crate::codegraph::resolve_coordinate(root, &file, line)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -378,7 +429,9 @@ mod tests {
     fn test_location_to_file() {
         assert_eq!(location_to_file(Some("src/auth.py")), Some("src/auth.py".into()));
         assert_eq!(location_to_file(Some("src/auth.py:42")), Some("src/auth.py".into()));
+        assert_eq!(location_to_file(Some("src/auth.py:42 (AuthService::validate)")), Some("src/auth.py".into()));
         assert_eq!(location_to_file(Some("C:\\src\\foo.rs:10:5")), Some("C:\\src\\foo.rs".into()));
+        assert_eq!(location_to_file(Some("C:\\src\\foo.rs:10:5 (Foo::bar)")), Some("C:\\src\\foo.rs".into()));
         assert_eq!(location_to_file(Some("foo.rs")), Some("foo.rs".into()));
         assert_eq!(location_to_file(Some("AuthService.validate")), None);
         assert_eq!(location_to_file(Some("")), None);

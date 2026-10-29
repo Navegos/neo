@@ -127,9 +127,33 @@ impl CodeGraph {
 
 /// Cross-tool adaptation: maps file:line to enclosing symbol name (e.g. OrderService::process)
 pub fn resolve_coordinate(root: &Path, file_path: &str, line: u32) -> Option<String> {
-    let cg = CodeGraph::open(root).ok()?;
-    let node = cg.engine.resolve_coordinate(file_path, line)?;
-    Some(node.qualified_name.clone())
+    let mut cg = CodeGraph::open(root).ok()?;
+    let path = Path::new(file_path);
+    let rel = if path.is_absolute() {
+        path.strip_prefix(&cg.root)
+            .ok()
+            .map(|p| p.to_string_lossy().to_string())
+    } else {
+        Some(
+            file_path
+                .trim_start_matches("./")
+                .trim_start_matches(".\\")
+                .to_string(),
+        )
+    };
+    let rel_str = rel.as_deref().unwrap_or(file_path).replace('\\', "/");
+
+    if let Some(node) = cg.engine.resolve_coordinate(&rel_str, line) {
+        return Some(node.qualified_name.clone());
+    }
+
+    if cg.ensure_indexed().unwrap_or(false) {
+        if let Some(node) = cg.engine.resolve_coordinate(&rel_str, line) {
+            return Some(node.qualified_name.clone());
+        }
+    }
+
+    None
 }
 
 /// Cross-tool adaptation: provides symbol-level line slices for ctx_execute_file
@@ -153,6 +177,8 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
     let mut force = false;
     let mut depth = 2usize;
     let mut kind_filter: Option<String> = None;
+    let mut limit = 20usize;
+    let mut max_files = 5usize;
     let mut query = String::new();
 
     let mut idx = 0;
@@ -171,6 +197,16 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
             idx += 2;
         } else if arg == "--kind" && idx + 1 < rest.len() {
             kind_filter = Some(rest[idx + 1].clone());
+            idx += 2;
+        } else if (arg == "--limit" || arg == "-n") && idx + 1 < rest.len() {
+            if let Ok(l) = rest[idx + 1].parse::<usize>() {
+                limit = l;
+            }
+            idx += 2;
+        } else if arg == "--max-files" && idx + 1 < rest.len() {
+            if let Ok(m) = rest[idx + 1].parse::<usize>() {
+                max_files = m;
+            }
             idx += 2;
         } else if query.is_empty() && !arg.starts_with('-') {
             query = arg.clone();
@@ -237,20 +273,57 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
             }
             0
         }
-        "search" => {
+        "symbols" | "search" => {
+            let _ = cg.ensure_indexed();
+            if query.is_empty() || query == "*" {
+                let all_nodes = cg.cache.get_all_nodes();
+                let filtered: Vec<&SymbolNode> = all_nodes
+                    .iter()
+                    .filter(|n| n.kind != "file")
+                    .filter(|n| {
+                        if let Some(ref kf) = kind_filter {
+                            n.kind.eq_ignore_ascii_case(kf)
+                        } else {
+                            true
+                        }
+                    })
+                    .take(limit)
+                    .collect();
+
+                println!("AST Symbols ({} shown):", filtered.len());
+                for sym in filtered {
+                    let sig = sym.signature.as_deref().unwrap_or("");
+                    println!(
+                        "  {:<12} {:<30} {}:{} {}",
+                        sym.kind, sym.name, sym.file_path, sym.start_line, sig
+                    );
+                }
+            } else {
+                let results = cg.engine.search_symbols(&query, kind_filter.as_deref(), limit);
+                println!("Found {} symbols matching '{}':", results.len(), query);
+                for sym in results {
+                    let sig = sym.signature.as_deref().unwrap_or("");
+                    println!(
+                        "  {:<12} {:<30} {}:{} {}",
+                        sym.kind, sym.name, sym.file_path, sym.start_line, sig
+                    );
+                }
+            }
+            0
+        }
+        "symbol" | "node" => {
             if query.is_empty() {
-                eprintln!("Usage: tokless graph search <query> [--kind <kind>]");
+                eprintln!("Usage: tokless graph symbol <name_or_id>");
                 return 1;
             }
             let _ = cg.ensure_indexed();
-            let results = cg.engine.search_symbols(&query, kind_filter.as_deref(), 20);
-            println!("Found {} symbols matching '{}':", results.len(), query);
-            for sym in results {
-                println!(
-                    "  {:<12} {:<30} {}:{}",
-                    sym.kind, sym.name, sym.file_path, sym.start_line
-                );
-            }
+            let res = mcp::handle_node(
+                &cg,
+                &serde_json::json!({
+                    "symbol": query
+                }),
+            );
+            println!("{}", res);
             0
         }
         "callers" => {
@@ -345,7 +418,7 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
         }
         "explore" => {
             if query.is_empty() {
-                eprintln!("Usage: tokless graph explore <query>");
+                eprintln!("Usage: tokless graph explore <query> [--max-files <n>]");
                 return 1;
             }
             let _ = cg.ensure_indexed();
@@ -353,29 +426,29 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
                 &cg,
                 &serde_json::json!({
                     "query": query,
-                    "maxFiles": 5
+                    "maxFiles": max_files
                 }),
             );
             println!("{}", res);
             0
         }
         "help" | "--help" | "-h" => {
-            println!("Usage: tokless graph <command> [options]");
+            println!("Usage: tokless graph <explore|impact|symbols|index> [options]");
             println!("Commands:");
+            println!("  explore    Semantic and call-path code explorer");
+            println!("  impact     Compute blast-radius of modifying a symbol");
+            println!("  symbols    Search and list AST symbols (aliases: symbol, search)");
             println!("  index      Build/update AST call-graph index");
             println!("  status     Show index statistics");
             println!("  files      List indexed files");
-            println!("  search     Search symbols by name");
             println!("  callers    Find callers of a symbol");
             println!("  callees    Find callees called by a symbol");
-            println!("  impact     Compute blast-radius of modifying a symbol");
-            println!("  explore    Semantic and call-path code explorer");
             println!("  mcp        Run in-process MCP server");
             0
         }
         _ => {
             eprintln!(
-                "Unknown graph command '{}'. Available: index, status, files, search, callers, callees, impact, explore, mcp",
+                "Unknown graph command '{}'. Available: explore, impact, symbols, index, status, files, callers, callees, mcp",
                 subcmd
             );
             1

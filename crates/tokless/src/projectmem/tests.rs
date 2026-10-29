@@ -54,8 +54,10 @@ fn test_schema_models_and_resolution() {
 fn test_location_to_file_parsing() {
     assert_eq!(location_to_file(Some("src/core.rs")), Some("src/core.rs".into()));
     assert_eq!(location_to_file(Some("src/core.rs:120")), Some("src/core.rs".into()));
+    assert_eq!(location_to_file(Some("src/core.rs:120 (OrderService::process)")), Some("src/core.rs".into()));
     assert_eq!(location_to_file(Some("src/core.rs:120:15")), Some("src/core.rs".into()));
     assert_eq!(location_to_file(Some("C:\\project\\src\\main.py:45")), Some("C:\\project\\src\\main.py".into()));
+    assert_eq!(location_to_file(Some("C:\\project\\src\\main.py:45 (charge)")), Some("C:\\project\\src\\main.py".into()));
     assert_eq!(location_to_file(Some("D:/AI/neo/crates/tokless/Cargo.toml")), Some("D:/AI/neo/crates/tokless/Cargo.toml".into()));
     assert_eq!(location_to_file(Some("main.rs")), Some("main.rs".into()));
     assert_eq!(location_to_file(Some("app.py")), Some("app.py".into()));

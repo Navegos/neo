@@ -19,7 +19,8 @@ pub use mcp::run_mcp_server;
 pub use precheck::run_precheck;
 pub use redaction::{is_redaction_enabled, redact, redact_event_fields};
 pub use schema::{
-    default_event_id, location_to_file, normalize_timestamp, resolve_event_ref, superseded_ids,
+    auto_resolve_location, default_event_id, location_to_file, normalize_timestamp,
+    parse_location_coordinate, resolve_event_ref, resolve_location_symbol, superseded_ids,
     utc_now_iso, Attempt, Decision, Event, Fix, Issue, Note, VALID_CAPTURE_SOURCES,
     VALID_CONFIDENCE_LEVELS, VALID_EVENT_TYPES, VALID_OUTCOMES,
 };

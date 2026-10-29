@@ -40,7 +40,7 @@ pub fn run_mcp_server() -> i32 {
     0
 }
 
-fn handle_mcp_message(req: &Value) -> Option<Value> {
+pub fn handle_mcp_message(req: &Value) -> Option<Value> {
     let id = req.get("id").cloned();
     let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
 
@@ -95,6 +95,19 @@ fn handle_mcp_message(req: &Value) -> Option<Value> {
                             }
                         },
                         {
+                            "name": "codegraph_symbol",
+                            "description": "Inspect AST symbol definition: file, lines, docstring, kind, signature, callers, callees, and dependencies.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "symbol": { "type": "string", "description": "Symbol name or node id to inspect." },
+                                    "id": { "type": "string", "description": "Optional symbol id alias." },
+                                    "projectPath": { "type": "string", "description": "Optional project root path." }
+                                },
+                                "required": ["symbol"]
+                            }
+                        },
+                        {
                             "name": "codegraph_callers",
                             "description": "Finds all upstream functions and methods that call or reference a symbol.",
                             "inputSchema": {
@@ -139,6 +152,7 @@ fn handle_mcp_message(req: &Value) -> Option<Value> {
                                 "type": "object",
                                 "properties": {
                                     "id": { "type": "string", "description": "Symbol node id or exact name." },
+                                    "symbol": { "type": "string", "description": "Symbol name alias." },
                                     "projectPath": { "type": "string", "description": "Optional project root path." }
                                 },
                                 "required": ["id"]
@@ -199,10 +213,10 @@ fn handle_mcp_message(req: &Value) -> Option<Value> {
             let result = match tool_name {
                 "codegraph_explore" => handle_explore(&cg, &args),
                 "codegraph_impact" => handle_impact(&cg, &args),
+                "codegraph_symbol" | "codegraph_node" => handle_node(&cg, &args),
                 "codegraph_callers" => handle_callers(&cg, &args),
                 "codegraph_callees" => handle_callees(&cg, &args),
                 "codegraph_search" => handle_search(&cg, &args),
-                "codegraph_node" => handle_node(&cg, &args),
                 "codegraph_status" => handle_status(&cg),
                 "codegraph_files" => handle_files(&cg),
                 _ => format!("Unknown tool: {}", tool_name),
@@ -332,7 +346,7 @@ pub(crate) fn handle_explore(cg: &CodeGraph, args: &Value) -> String {
     out
 }
 
-fn handle_impact(cg: &CodeGraph, args: &Value) -> String {
+pub(crate) fn handle_impact(cg: &CodeGraph, args: &Value) -> String {
     let symbol = match args.get("symbol").and_then(|s| s.as_str()) {
         Some(s) if !s.trim().is_empty() => s.trim(),
         _ => return "Missing required 'symbol' argument.".into(),
@@ -408,7 +422,7 @@ fn handle_impact(cg: &CodeGraph, args: &Value) -> String {
     out
 }
 
-fn handle_callers(cg: &CodeGraph, args: &Value) -> String {
+pub(crate) fn handle_callers(cg: &CodeGraph, args: &Value) -> String {
     let symbol = match args.get("symbol").and_then(|s| s.as_str()) {
         Some(s) if !s.trim().is_empty() => s.trim(),
         _ => return "Missing required 'symbol' argument.".into(),
@@ -442,7 +456,7 @@ fn handle_callers(cg: &CodeGraph, args: &Value) -> String {
     out
 }
 
-fn handle_callees(cg: &CodeGraph, args: &Value) -> String {
+pub(crate) fn handle_callees(cg: &CodeGraph, args: &Value) -> String {
     let symbol = match args.get("symbol").and_then(|s| s.as_str()) {
         Some(s) if !s.trim().is_empty() => s.trim(),
         _ => return "Missing required 'symbol' argument.".into(),
@@ -476,7 +490,7 @@ fn handle_callees(cg: &CodeGraph, args: &Value) -> String {
     out
 }
 
-fn handle_search(cg: &CodeGraph, args: &Value) -> String {
+pub(crate) fn handle_search(cg: &CodeGraph, args: &Value) -> String {
     let query = match args.get("query").and_then(|q| q.as_str()) {
         Some(q) if !q.trim().is_empty() => q.trim(),
         _ => return "Missing required 'query' argument.".into(),
@@ -505,10 +519,14 @@ fn handle_search(cg: &CodeGraph, args: &Value) -> String {
     out
 }
 
-fn handle_node(cg: &CodeGraph, args: &Value) -> String {
-    let id_or_name = match args.get("id").and_then(|i| i.as_str()) {
+pub(crate) fn handle_node(cg: &CodeGraph, args: &Value) -> String {
+    let id_or_name = match args
+        .get("symbol")
+        .and_then(|s| s.as_str())
+        .or_else(|| args.get("id").and_then(|i| i.as_str()))
+    {
         Some(i) if !i.trim().is_empty() => i.trim(),
-        _ => return "Missing required 'id' argument.".into(),
+        _ => return "Missing required 'symbol' or 'id' argument.".into(),
     };
 
     let node = if let Some(n) = cg.engine.get_node(id_or_name) {
@@ -560,7 +578,7 @@ fn handle_node(cg: &CodeGraph, args: &Value) -> String {
     out
 }
 
-fn handle_status(cg: &CodeGraph) -> String {
+pub(crate) fn handle_status(cg: &CodeGraph) -> String {
     let stats = cg.cache.get_stats();
     format!(
         "# CodeGraph Status\n\
@@ -579,7 +597,7 @@ fn handle_status(cg: &CodeGraph) -> String {
     )
 }
 
-fn handle_files(cg: &CodeGraph) -> String {
+pub(crate) fn handle_files(cg: &CodeGraph) -> String {
     let files = cg.cache.get_indexed_files();
     let mut out = format!("# Indexed Files ({})\n\n", files.len());
     for (file, lang, sym_count) in files {

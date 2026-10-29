@@ -473,5 +473,221 @@ int main() {
         let indexed_again = cg.ensure_indexed().expect("second index");
         assert!(!indexed_again, "second pass should be a cache hit");
     }
+
+    #[test]
+    fn test_codegraph_mcp_explore_impact_symbol() {
+        use crate::codegraph::mcp::handle_mcp_message;
+        use serde_json::json;
+
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        let root_str = root.to_string_lossy().to_string();
+
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/service.rs"),
+            r#"
+pub struct PaymentGateway {
+    pub key: String,
+}
+
+impl PaymentGateway {
+    pub fn process_charge(&self, amount: u64) -> bool {
+        self.validate(amount)
+    }
+
+    fn validate(&self, amount: u64) -> bool {
+        amount > 0
+    }
+}
+"#,
+        )
+        .unwrap();
+
+        // 1. Check tools/list has codegraph_explore, codegraph_impact, codegraph_symbol
+        let list_req = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/list",
+            "params": {}
+        });
+        let list_resp = handle_mcp_message(&list_req).expect("tools/list response");
+        let tools = list_resp["result"]["tools"].as_array().expect("tools array");
+        let tool_names: Vec<&str> = tools
+            .iter()
+            .filter_map(|t| t["name"].as_str())
+            .collect();
+
+        assert!(tool_names.contains(&"codegraph_explore"));
+        assert!(tool_names.contains(&"codegraph_impact"));
+        assert!(tool_names.contains(&"codegraph_symbol"));
+
+        // 2. Call codegraph_explore
+        let explore_req = json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "name": "codegraph_explore",
+                "arguments": {
+                    "query": "PaymentGateway",
+                    "projectPath": root_str
+                }
+            }
+        });
+        let explore_resp = handle_mcp_message(&explore_req).expect("explore response");
+        let explore_text = explore_resp["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(explore_text.contains("PaymentGateway"));
+        assert!(explore_text.contains("process_charge"));
+
+        // 3. Call codegraph_impact
+        let impact_req = json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {
+                "name": "codegraph_impact",
+                "arguments": {
+                    "symbol": "PaymentGateway",
+                    "depth": 2,
+                    "projectPath": root_str
+                }
+            }
+        });
+        let impact_resp = handle_mcp_message(&impact_req).expect("impact response");
+        let impact_text = impact_resp["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(impact_text.contains("Blast Radius"));
+        assert!(impact_text.contains("PaymentGateway"));
+
+        // 4. Call codegraph_symbol
+        let symbol_req = json!({
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "tools/call",
+            "params": {
+                "name": "codegraph_symbol",
+                "arguments": {
+                    "symbol": "process_charge",
+                    "projectPath": root_str
+                }
+            }
+        });
+        let symbol_resp = handle_mcp_message(&symbol_req).expect("symbol response");
+        let symbol_text = symbol_resp["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(symbol_text.contains("Node: `process_charge`"));
+        assert!(symbol_text.contains("PaymentGateway::process_charge"));
+    }
+
+    #[test]
+    fn test_codegraph_cli_subcommands() {
+        use crate::codegraph::run_graph_cli;
+
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        let root_str = root.to_string_lossy().to_string();
+
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/lib.rs"),
+            "pub fn engine_init() -> bool { true }\npub fn engine_start() -> bool { engine_init() }\n",
+        )
+        .unwrap();
+
+        // 1. index
+        let code = run_graph_cli(&[
+            "index".into(),
+            "--root".into(),
+            root_str.clone(),
+            "--force".into(),
+        ]);
+        assert_eq!(code, 0);
+
+        // 2. status
+        let code = run_graph_cli(&[
+            "status".into(),
+            "--root".into(),
+            root_str.clone(),
+        ]);
+        assert_eq!(code, 0);
+
+        // 3. symbols (search / list)
+        let code = run_graph_cli(&[
+            "symbols".into(),
+            "engine".into(),
+            "--root".into(),
+            root_str.clone(),
+        ]);
+        assert_eq!(code, 0);
+
+        // 4. symbol (node inspect)
+        let code = run_graph_cli(&[
+            "symbol".into(),
+            "engine_init".into(),
+            "--root".into(),
+            root_str.clone(),
+        ]);
+        assert_eq!(code, 0);
+
+        // 5. explore
+        let code = run_graph_cli(&[
+            "explore".into(),
+            "engine".into(),
+            "--root".into(),
+            root_str.clone(),
+        ]);
+        assert_eq!(code, 0);
+
+        // 6. impact
+        let code = run_graph_cli(&[
+            "impact".into(),
+            "engine_init".into(),
+            "--root".into(),
+            root_str,
+        ]);
+        assert_eq!(code, 0);
+    }
+
+    #[test]
+    fn test_projectmem_auto_resolve_location_with_codegraph() {
+        use crate::codegraph::resolve_coordinate;
+        use crate::projectmem::{append_event, auto_resolve_location, initialize, read_events, Event};
+
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/auth.rs"),
+            "pub fn verify_token(token: &str) -> bool {\n    !token.is_empty()\n}\n",
+        )
+        .unwrap();
+
+        // Initialize and index CodeGraph
+        let mut cg = CodeGraph::open(root).expect("open codegraph");
+        cg.ensure_indexed().expect("index codegraph");
+
+        // Test direct resolve_coordinate
+        let resolved = resolve_coordinate(root, "src/auth.rs", 1);
+        assert_eq!(resolved, Some("verify_token".to_string()));
+
+        // Test auto_resolve_location helper
+        let enriched = auto_resolve_location(root, "src/auth.rs:1");
+        assert_eq!(enriched, "src/auth.rs:1 (verify_token)");
+
+        // Initialize ProjectMem in same project
+        let _ = initialize(Some(root), Some("Integration Test Project")).unwrap();
+
+        // Create and append an event with raw location coordinate "src/auth.rs:1"
+        let mut evt = Event::issue("Token validation vulnerability", Some("src/auth.rs:1"));
+        append_event(&mut evt, Some(root)).expect("append event");
+
+        // Verify stored event has auto-resolved AST symbol name
+        let events = read_events(Some(root)).expect("read events");
+        assert_eq!(events.len(), 1);
+        assert_eq!(
+            events[0].location.as_deref(),
+            Some("src/auth.rs:1 (verify_token)")
+        );
+    }
 }
 

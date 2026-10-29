@@ -15,7 +15,7 @@ use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use regex::Regex;
 
 use super::redaction::redact_event_fields;
-use super::schema::{normalize_timestamp, Event};
+use super::schema::{auto_resolve_location, normalize_timestamp, Event};
 
 pub const MEM_DIR: &str = ".projectmem";
 pub const SUMMARY_FILE: &str = "summary.md";
@@ -258,6 +258,19 @@ pub fn read_events(root: Option<&Path>) -> Result<Vec<Event>, String> {
 pub fn append_event(event: &mut Event, root: Option<&Path>) -> Result<(), String> {
     event.validate()?;
     let _ = redact_event_fields(event);
+
+    if let Some(ref loc) = event.location {
+        let mem_dir = discover_mem_dir(root);
+        let project_root = mem_dir
+            .as_deref()
+            .and_then(|p| p.parent())
+            .or(root)
+            .unwrap_or_else(|| Path::new("."));
+        let resolved = auto_resolve_location(project_root, loc);
+        if resolved != *loc {
+            event.location = Some(resolved);
+        }
+    }
 
     let path = events_path(root)?;
     let file = OpenOptions::new()
