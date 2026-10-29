@@ -578,6 +578,7 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
                 super::cache_align::auto_place_anthropic_cache_control(&mut json_val);
             }
             super::cache_align::stabilize_cache_keys(&mut json_val);
+            super::cache_align::align_system_prompt_to_1024(&mut json_val);
 
             // 3. Compress conversation messages (logs, code, and JSON in tool outputs)
             if let Some(serde_json::Value::Array(messages)) = json_val.get_mut("messages") {

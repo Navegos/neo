@@ -186,9 +186,84 @@ pub fn stabilize_cache_keys(body: &mut Value) {
     }
 }
 
+/// Pads and normalizes system headers to 1,024-token boundaries for 90% prompt cache discounts
+/// on Anthropic, OpenAI, and Gemini.
+pub fn align_system_prompt_to_1024(body: &mut Value) -> bool {
+    let Value::Object(map) = body else {
+        return false;
+    };
+
+    // Anthropic: "system" field
+    if let Some(sys_val) = map.get_mut("system") {
+        match sys_val {
+            Value::String(s) => {
+                if !s.contains("tokless:cache-align") {
+                    *s = align_to_1024_tokens(s);
+                    return true;
+                }
+            }
+            Value::Array(blocks) => {
+                if let Some(first_block) = blocks.first_mut() {
+                    if let Value::Object(block_map) = first_block {
+                        if let Some(Value::String(text)) = block_map.get_mut("text") {
+                            if !text.contains("tokless:cache-align") {
+                                *text = align_to_1024_tokens(text);
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // OpenAI / Gemini: system message in messages[0]
+    if let Some(Value::Array(messages)) = map.get_mut("messages") {
+        if let Some(first_msg) = messages.first_mut() {
+            let role = first_msg.get("role").and_then(|v| v.as_str()).unwrap_or("");
+            if role == "system" || role == "developer" {
+                if let Some(Value::String(content)) = first_msg.get_mut("content") {
+                    if !content.contains("tokless:cache-align") {
+                        *content = align_to_1024_tokens(content);
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_align_system_prompt_to_1024() {
+        let mut anthropic_req = json!({
+            "model": "claude-3-7-sonnet",
+            "system": "You are a helpful coding assistant.",
+            "messages": [{"role": "user", "content": "hi"}]
+        });
+        assert!(align_system_prompt_to_1024(&mut anthropic_req));
+        let sys = anthropic_req["system"].as_str().unwrap();
+        assert!(sys.contains("<!-- tokless:cache-align pad_tokens="));
+        assert!(estimate_tokens(sys) >= 1024);
+
+        let mut openai_req = json!({
+            "model": "gpt-4o",
+            "messages": [
+                {"role": "system", "content": "You are a specialized rust expert."},
+                {"role": "user", "content": "hi"}
+            ]
+        });
+        assert!(align_system_prompt_to_1024(&mut openai_req));
+        let open_sys = openai_req["messages"][0]["content"].as_str().unwrap();
+        assert!(open_sys.contains("<!-- tokless:cache-align pad_tokens="));
+        assert!(estimate_tokens(open_sys) >= 1024);
+    }
 
     #[test]
     fn test_align_to_1024_tokens_padding() {

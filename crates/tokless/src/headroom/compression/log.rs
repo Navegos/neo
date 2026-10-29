@@ -148,10 +148,19 @@ pub fn classify_line(line: &str) -> (LogLevel, bool, bool) {
         || t.starts_with("Traceback (most recent call last):");
 
     let is_error = t.starts_with("error[E")
-        || t.starts_with("error:")
+        || lower.starts_with("error:")
+        || lower.contains("error:")
+        || lower.contains("[error]")
+        || lower.contains("level=error")
+        || lower.starts_with("fatal:")
         || lower.contains("fatal:")
+        || lower.contains("[fatal]")
+        || lower.contains("level=fatal")
         || lower.contains("fatal error")
         || lower.starts_with("panic:")
+        || lower.contains("panic:")
+        || lower.contains("[panic]")
+        || lower.contains("level=panic")
         || lower.contains("panicked at")
         || lower.starts_with("npm err!")
         || lower.starts_with("e   ")
@@ -345,7 +354,7 @@ pub fn compress_logs(input: &str, config: &LogCompressorConfig) -> LogCompressio
         *stats.entry("runtime_frames_collapsed".to_string()).or_insert(0) += runtime_frames_count;
     }
 
-    // Apply global cap if requested, keeping head and tail
+    // Apply global cap if requested, keeping head, tail, and all critical error/fatal/panic lines
     if out_lines.len() > config.max_total_lines && config.max_total_lines > 20 {
         let keep_head = config.max_total_lines / 2;
         let keep_tail = config.max_total_lines - keep_head - 1;
@@ -353,7 +362,20 @@ pub fn compress_logs(input: &str, config: &LogCompressorConfig) -> LogCompressio
 
         let mut clamped = Vec::with_capacity(config.max_total_lines);
         clamped.extend_from_slice(&out_lines[..keep_head]);
+
+        // Invariant: Fatal/Error/Panic lines survive byte-for-byte even when capped
+        let mut critical_preserved = Vec::new();
+        for line in &out_lines[keep_head..out_lines.len() - keep_tail] {
+            let (level, _, _) = classify_line(line);
+            if level.is_critical() {
+                critical_preserved.push(line.clone());
+            }
+        }
+
         clamped.push(format!("      [... {} lines omitted by headroom log cap ...]", omitted));
+        for crit in critical_preserved {
+            clamped.push(crit);
+        }
         clamped.extend_from_slice(&out_lines[out_lines.len() - keep_tail..]);
         out_lines = clamped;
         *stats.entry("lines_clamped_by_cap".to_string()).or_insert(0) += omitted;
@@ -382,12 +404,37 @@ mod tests {
 
     #[test]
     fn test_fatal_and_panic_lines_survive_verbatim() {
-        let input = "Compiling app v0.1.0\nCompiling app v0.1.0\nCompiling app v0.1.0\nerror[E0425]: cannot find value `foo` in this scope\npanicked at 'explicit panic', src/main.rs:42:5\ntest result: FAILED. 1 failed; 0 passed";
+        let input = "Compiling app v0.1.0\nCompiling app v0.1.0\nCompiling app v0.1.0\nerror[E0425]: cannot find value `foo` in this scope\npanicked at 'explicit panic', src/main.rs:42:5\n[FATAL] core dumped\npanic: unhandled rejection\ntest result: FAILED. 1 failed; 0 passed";
         let res = compress_logs(input, &LogCompressorConfig::default());
         assert!(res.compressed.contains("error[E0425]: cannot find value `foo` in this scope"));
         assert!(res.compressed.contains("panicked at 'explicit panic', src/main.rs:42:5"));
+        assert!(res.compressed.contains("[FATAL] core dumped"));
+        assert!(res.compressed.contains("panic: unhandled rejection"));
         assert!(res.compressed.contains("test result: FAILED"));
         assert!(res.compressed.contains("[... repeated 2 times"));
+    }
+
+    #[test]
+    fn test_fatal_and_panic_survive_even_under_cap_clamping() {
+        let mut lines = Vec::new();
+        for i in 0..100 {
+            if i == 50 {
+                lines.push("FATAL: corrupted transaction ledger".to_string());
+            } else if i == 55 {
+                lines.push("panic: out of memory allocating heap".to_string());
+            } else {
+                lines.push(format!("normal debug log message line {}", i));
+            }
+        }
+        let input = lines.join("\n");
+        let cfg = LogCompressorConfig {
+            max_total_lines: 30,
+            ..Default::default()
+        };
+        let res = compress_logs(&input, &cfg);
+        assert!(res.compressed.contains("FATAL: corrupted transaction ledger"), "FATAL line must survive cap");
+        assert!(res.compressed.contains("panic: out of memory allocating heap"), "panic line must survive cap");
+        assert!(res.compressed.contains("lines omitted by headroom log cap"));
     }
 
     #[test]

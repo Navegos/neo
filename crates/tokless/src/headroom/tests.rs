@@ -346,6 +346,10 @@ ValueError: invalid ID parameter";
 
     #[test]
     fn test_tier_scaling_selection() {
+        let (tier_max, budget_max) = select_tier_for_headroom(0.96);
+        assert_eq!(tier_max, DisclosureTier::L2);
+        assert_eq!(budget_max, 1500);
+
         let (tier_high, budget_high) = select_tier_for_headroom(0.85);
         assert_eq!(tier_high, DisclosureTier::L1);
         assert_eq!(budget_high, 600);
@@ -361,10 +365,21 @@ ValueError: invalid ID parameter";
 
     #[test]
     fn test_build_adaptive_memory_brief() {
-        let (brief, tier) = build_adaptive_memory_brief(5_000, 200_000);
-        assert_eq!(tier, DisclosureTier::L1);
-        assert!(brief.contains("<!-- tokless:adaptive-mem-governor"));
-        assert!(brief.contains("tier=L1"));
+        // High headroom (> 92%) scales up to L2 (Full content)
+        let (brief_l2, tier_l2) = build_adaptive_memory_brief(5_000, 200_000);
+        assert_eq!(tier_l2, DisclosureTier::L2);
+        assert!(brief_l2.contains("<!-- tokless:adaptive-mem-governor"));
+        assert!(brief_l2.contains("tier=L2"));
+
+        // Moderate headroom (70%..=92%) scales to L1 (Abstracts)
+        let (brief_l1, tier_l1) = build_adaptive_memory_brief(40_000, 200_000);
+        assert_eq!(tier_l1, DisclosureTier::L1);
+        assert!(brief_l1.contains("tier=L1"));
+
+        // Low headroom (< 30%) scales to L0 (TOC)
+        let (brief_l0, tier_l0) = build_adaptive_memory_brief(180_000, 200_000);
+        assert_eq!(tier_l0, DisclosureTier::L0);
+        assert!(brief_l0.contains("tier=L0"));
     }
 
     #[test]

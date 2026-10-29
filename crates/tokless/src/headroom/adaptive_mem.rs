@@ -39,11 +39,14 @@ pub fn calculate_headroom(current_tokens: usize, max_context: usize) -> f32 {
 }
 
 /// Scales memory disclosure tier strictly based on headroom percentage:
-/// - Context Free > 70%: L1 full brief + active handoffs (~400-600 tokens)
+/// - Context Free > 92%: L2 full detail & raw history (~1500 tokens)
+/// - Context Free 70%..=92%: L1 full brief + active handoffs (~400-600 tokens)
 /// - Context Free 30%..=70%: L1 compressed (~200-300 tokens)
 /// - Context Free < 30%: L0 titles only (~50-100 tokens), reserving context for code generation
 pub fn select_tier_for_headroom(headroom_ratio: f32) -> (DisclosureTier, usize) {
-    if headroom_ratio > 0.70 {
+    if headroom_ratio > 0.92 {
+        (DisclosureTier::L2, 1500)
+    } else if headroom_ratio > 0.70 {
         (DisclosureTier::L1, 600)
     } else if headroom_ratio >= 0.30 {
         (DisclosureTier::L1, 300)
@@ -286,6 +289,11 @@ mod tests {
 
     #[test]
     fn test_headroom_and_tier_scaling() {
+        // 95% free context -> L2 full detail
+        let (tier0, budget0) = select_tier_for_headroom(0.95);
+        assert_eq!(tier0, DisclosureTier::L2);
+        assert_eq!(budget0, 1500);
+
         // 90% free context -> L1 full budget
         let (tier1, budget1) = select_tier_for_headroom(0.90);
         assert_eq!(tier1, DisclosureTier::L1);
