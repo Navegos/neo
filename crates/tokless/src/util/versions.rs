@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/util/versions.rs
 // created: 2026-10-05
-// lastModified: 2026-10-27
+// lastModified: 2026-10-30
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -13,12 +13,101 @@ use serde::{Deserialize, Serialize};
 
 use super::exec::{resolve_npm_binary, resolve_rtk_bin, run, RunOptions};
 use super::headroom::{headroom_bin, headroom_installed, headroom_installed_version};
-use super::npminstall::{
-    npm_prefix, npm_prefix_installed_version, npm_registry_base, url_query_escape,
-    user_local_npm_prefix,
-};
 use super::paths::{exists, home, IS_WIN};
-use super::projectmem::{projectmem_installed, projectmem_installed_version};
+use crate::tools::projectmem::{projectmem_installed, projectmem_installed_version};
+
+pub const DEFAULT_REGISTRY_URL: &str = "https://registry.npmjs.org/";
+
+pub(crate) fn url_query_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char);
+            }
+            b' ' => out.push('+'),
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
+}
+
+pub fn npm_registry_base() -> String {
+    let npm_bin = resolve_npm_binary();
+    if !npm_bin.is_empty() {
+        let r = run(
+            &npm_bin,
+            &["config", "get", "registry"],
+            RunOptions {
+                capture: true,
+                timeout: Some(Duration::from_secs(5)),
+                ..Default::default()
+            },
+        );
+        let mut v = r.stdout.trim().to_string();
+        if r.code == 0 && v.starts_with("http") {
+            if !v.ends_with('/') {
+                v.push('/');
+            }
+            return v;
+        }
+    }
+    DEFAULT_REGISTRY_URL.to_string()
+}
+
+pub fn user_local_npm_prefix() -> String {
+    for k in ["npm_config_prefix", "NPM_CONFIG_PREFIX"] {
+        if let Ok(v) = std::env::var(k) {
+            let trimmed = v.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+    }
+    Path::new(&home())
+        .join(".local")
+        .to_string_lossy()
+        .to_string()
+}
+
+pub fn npm_prefix_installed_version(prefix: &str, pkg: &str) -> Option<String> {
+    if prefix.is_empty() {
+        return None;
+    }
+    let pj = if IS_WIN {
+        Path::new(prefix)
+            .join("node_modules")
+            .join(pkg)
+            .join("package.json")
+    } else {
+        Path::new(prefix)
+            .join("lib")
+            .join("node_modules")
+            .join(pkg)
+            .join("package.json")
+    };
+    read_pkg_version(pj)
+}
+
+pub fn npm_prefix() -> String {
+    let npm_bin = resolve_npm_binary();
+    if npm_bin.is_empty() {
+        return String::new();
+    }
+    let r = run(
+        &npm_bin,
+        &["config", "get", "prefix"],
+        RunOptions {
+            capture: true,
+            timeout: Some(Duration::from_secs(5)),
+            ..Default::default()
+        },
+    );
+    if r.code != 0 {
+        return String::new();
+    }
+    r.stdout.trim().to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct VersionInfo {
@@ -333,7 +422,7 @@ fn gather_versions_impl(force: bool) -> HashMap<String, VersionInfo> {
             VersionInfo {
                 installed: Some("0.35.0".to_string()),
                 latest: None,
-                channel: "uv".to_string(),
+                channel: "binary".to_string(),
                 present: headroom_installed(),
             },
         );
@@ -390,7 +479,7 @@ fn gather_versions_impl(force: bool) -> HashMap<String, VersionInfo> {
         VersionInfo {
             installed: headroom_installed_version(),
             latest: latest.get("headroom").cloned().flatten(),
-            channel: "uv".to_string(),
+            channel: "binary".to_string(),
             present: headroom_installed(),
         },
     );
@@ -400,7 +489,7 @@ fn gather_versions_impl(force: bool) -> HashMap<String, VersionInfo> {
         VersionInfo {
             installed: projectmem_installed_version(),
             latest: None,
-            channel: "uv".to_string(),
+            channel: "binary".to_string(),
             present: projectmem_installed(),
         },
     );

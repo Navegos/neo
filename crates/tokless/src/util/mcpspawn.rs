@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/util/mcpspawn.rs
 // created: 2026-10-05
-// lastModified: 2026-10-28
+// lastModified: 2026-10-30
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Write};
@@ -125,56 +125,37 @@ pub fn pick_mcp_spawn(bin: &str, extra_args: &[&str]) -> McpSpawn {
             return spawn;
         }
     } else if bin == "projectmem" {
-        let mut spawn = wrap_cmd_shim(McpSpawn {
-            command: "pjm-mcp".to_string(),
-            args: extra_vec.clone(),
+        let spawn = wrap_cmd_shim(McpSpawn {
+            command: "projectmem".to_string(),
+            args: extra_vec,
         });
-        let p = which("pjm-mcp");
-        if !p.is_empty() {
-            spawn = wrap_cmd_shim(McpSpawn {
-                command: spawn_command("pjm-mcp", &p),
-                args: extra_vec,
-            });
-        }
         return wrap_bounded_tool("projectmem", spawn);
+    } else if bin == "context-mode" {
+        let spawn = wrap_cmd_shim(McpSpawn {
+            command: "context-mode".to_string(),
+            args: extra_vec,
+        });
+        return wrap_context_mode(spawn);
     } else if bin == "icm" {
         let spawn = wrap_cmd_shim(McpSpawn {
-            command: "icm-mcp".to_string(),
+            command: "icm".to_string(),
             args: extra_vec,
         });
         return wrap_bounded_tool("icm", spawn);
     } else {
         let p = which(bin);
         if !p.is_empty() {
-            let spawn = wrap_cmd_shim(McpSpawn {
+            return wrap_cmd_shim(McpSpawn {
                 command: spawn_command(bin, &p),
                 args: extra_vec,
             });
-            if bin == "context-mode" {
-                return wrap_context_mode(spawn);
-            }
-            return spawn;
         }
     }
 
-    let pkg = match bin {
-        "context-mode" => "context-mode",
-        "codegraph" => "@colbymchenry/codegraph",
-        _ => bin,
-    };
-
-    let mut args = vec!["--no-install".to_string(), pkg.to_string()];
-    args.extend(extra_vec);
-    let mut cmd = "npx".to_string();
-    let p = which("npx");
-    if !p.is_empty() {
-        cmd = spawn_command("npx", &p);
-    }
-    let spawn = wrap_cmd_shim(McpSpawn { command: cmd, args });
-    if bin == "context-mode" {
-        return wrap_context_mode(spawn);
-    }
-    spawn
+    wrap_cmd_shim(McpSpawn {
+        command: bin.to_string(),
+        args: extra_vec,
+    })
 }
 
 pub fn mcp_spawn_for(tool_id: &str) -> McpSpawn {

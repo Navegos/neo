@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/projectmem.rs
 // created: 2026-10-05
-// lastModified: 2026-10-27
+// lastModified: 2026-10-30
 
 use std::env;
 use std::fs;
@@ -20,9 +20,9 @@ use crate::util::mcpspawn::{wrap_bounded_tool, McpSpawn};
 use crate::util::paths::{
     claude_code_paths, cline_paths_resolved, codex_paths_resolved, copilot_paths_resolved,
     cursor_paths_resolved, ensure_dir, exists, home, kilo_paths_resolved,
-    opencode_paths_resolved, read_file_safe, tokless_persisted_abs, write_file_atomic,
+    opencode_paths_resolved, read_file_safe, tokless_persisted_abs, which, write_file_atomic,
+    IS_WIN,
 };
-use crate::util::projectmem::{projectmem_bin, projectmem_installed, projectmem_mcp_bin};
 use super::copilot_transaction::with_copilot_transaction;
 use super::mcp_dispatch::{mcp_configure, mcp_has, mcp_remove};
 use super::helpers::{
@@ -120,6 +120,56 @@ pub fn projectmem_git_exclude(root: &str) {
     }
     updated.push_str(".projectmem/\n");
     let _ = write_file_atomic(&exclude, &updated);
+}
+
+pub fn projectmem_bin() -> String {
+    let tok = tokless_persisted_abs();
+    if !tok.is_empty() && Path::new(&tok).is_file() {
+        return tok;
+    }
+    let p = which("tokless");
+    if !p.is_empty() {
+        return p;
+    }
+    let pj = which("pjm");
+    if !pj.is_empty() {
+        return pj;
+    }
+    let name = if IS_WIN { "pjm.exe" } else { "pjm" };
+    let cand = Path::new(&home()).join(".local").join("bin").join(name);
+    if cand.is_file() {
+        return cand.to_string_lossy().to_string();
+    }
+    "tokless".to_string()
+}
+
+pub fn projectmem_mcp_bin() -> String {
+    let tok = tokless_persisted_abs();
+    if !tok.is_empty() && Path::new(&tok).is_file() {
+        return tok;
+    }
+    let p = which("tokless");
+    if !p.is_empty() {
+        return p;
+    }
+    let pm = which("pjm-mcp");
+    if !pm.is_empty() {
+        return pm;
+    }
+    let name = if IS_WIN { "pjm-mcp.exe" } else { "pjm-mcp" };
+    let cand = Path::new(&home()).join(".local").join("bin").join(name);
+    if cand.is_file() {
+        return cand.to_string_lossy().to_string();
+    }
+    "tokless".to_string()
+}
+
+pub fn projectmem_installed() -> bool {
+    true
+}
+
+pub fn projectmem_installed_version() -> Option<String> {
+    Some("0.3.4".to_string())
 }
 
 pub fn run_pjm(root: &str, args: &[&str]) -> String {
@@ -749,8 +799,8 @@ pub fn build_projectmem() -> ToolManifest {
     let mut tool = ToolManifest::new("projectmem", "Project Memory");
     tool.description = "Cross-session persistent project memory in .projectmem/".into();
     tool.homepage = "https://github.com/Navegos/projectmem".into();
-    tool.install_hint = "uv tool install projectmem".into();
-    tool.channel = Channel::UV;
+    tool.install_hint = "Native embedded in tokless (tokless mem)".into();
+    tool.channel = Channel::Binary;
     tool.install = Some(Arc::new(|opts| projectmem_ensure_installed(opts)));
     tool.index_ready = Some(Arc::new(|| {
         let cwd = env::current_dir()

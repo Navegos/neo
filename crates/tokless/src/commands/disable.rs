@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/disable.rs
 // created: 2026-10-05
-// lastModified: 2026-10-20
+// lastModified: 2026-10-30
 
 use std::fs;
 use std::path::Path;
@@ -17,10 +17,9 @@ use crate::util::colors::*;
 use crate::util::exec::{rtk_install_dirs, run_cmd};
 use crate::util::headroom_proxy::set_proxy_routing_enabled;
 use crate::util::logger::L;
-use crate::util::paths::{is_win, resolve_npm_binary, resolve_rtk_bin};
+use crate::util::paths::{is_win, resolve_npm_binary, resolve_rtk_bin, which};
 use crate::util::progress::NewRootSectionProgress;
 use crate::util::prompt::{is_interactive, multi_select, MultiSelectOption};
-use crate::util::uv::resolve_uv;
 
 pub fn pick_agents(
     all_agents: &[Arc<AgentManifest>],
@@ -158,14 +157,14 @@ pub fn purge_binaries(tools: &[Arc<ToolManifest>], dry_run: bool) {
                 let _ = disable_proxy_autostart();
                 let _ = stop_proxy();
                 let _ = set_proxy_routing_enabled(false);
-                let uv = resolve_uv();
+                let uv = which("uv");
                 if !uv.is_empty() {
                     let _ = run_cmd(&uv, &["tool", "uninstall", "headroom-ai"], &[]);
                 }
                 bar.complete("removed");
             }
             "projectmem" => {
-                let uv = resolve_uv();
+                let uv = which("uv");
                 if !uv.is_empty() {
                     let _ = run_cmd(&uv, &["tool", "uninstall", "projectmem"], &[]);
                 }

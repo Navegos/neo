@@ -817,8 +817,8 @@ pub fn build_context_mode() -> ToolManifest {
     tool.description =
         "Routes long context off-thread to a sandbox, keeping the agent's window small.".into();
     tool.homepage = "https://github.com/mksglu/context-mode".into();
-    tool.install_hint = "tokless init".into();
-    tool.channel = Channel::Cargo;
+    tool.install_hint = "Native embedded in tokless (tokless ctx)".into();
+    tool.channel = Channel::Binary;
     tool.needs_node = false;
     tool.min_node_major = 0;
     tool.install = Some(Arc::new(|opts| ctx_ensure_installed(opts)));

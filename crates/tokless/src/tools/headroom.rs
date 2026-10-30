@@ -250,8 +250,8 @@ pub fn build_headroom() -> ToolManifest {
     let mut tool = ToolManifest::new("headroom", "Headroom");
     tool.description = "On-demand token compression proxy for large, self-contained text.".into();
     tool.homepage = "https://github.com/headroomlabs-ai/headroom".into();
-    tool.install_hint = "Tokless-managed uv tool: headroom-ai[proxy] (Python 3.14).".into();
-    tool.channel = Channel::UV;
+    tool.install_hint = "Native embedded in tokless proxy engine.".into();
+    tool.channel = Channel::Binary;
     tool.install = Some(Arc::new(|opts| headroom_ensure_installed(opts)));
 
     let agents = [

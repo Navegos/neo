@@ -3,13 +3,12 @@
 // project: neo
 // file: crates/tokless/src/util/mod.rs
 // created: 2026-10-05
-// lastModified: 2026-10-20
+// lastModified: 2026-10-30
 
 pub mod byok;
 pub mod colors;
 pub mod deps;
 pub mod exec;
-pub mod gitwin;
 pub mod grok;
 pub mod headroom;
 pub mod headroom_proxy;
@@ -19,14 +18,10 @@ pub mod isatty;
 pub mod jsonc;
 pub mod logger;
 pub mod mcpspawn;
-pub mod nodelinux;
-pub mod nodewin;
-pub mod npminstall;
 pub mod paths;
 pub mod pathsetup;
 pub mod preflight;
 pub mod progress;
-pub mod projectmem;
 pub mod prompt;
 pub mod routing_coordinator;
 pub mod routing_lock;
@@ -36,7 +31,6 @@ pub mod routing_store;
 pub mod rtk_commands;
 pub mod selection;
 pub mod toml;
-pub mod uv;
 pub mod version;
 pub mod versions;
 
@@ -48,11 +42,10 @@ pub use colors::{
 };
 pub use deps::{detect_runtimes, pick_js_runner, report_runtimes, RuntimeReport};
 pub use exec::*;
-pub use gitwin::*;
 pub use grok::*;
 pub use headroom::{
     headroom_bin, headroom_env, headroom_installed, headroom_installed_version,
-    headroom_paths_resolved, headroom_uv_bootstrap_env, HeadroomPaths,
+    headroom_paths_resolved, HeadroomPaths,
 };
 pub use headroom_proxy::*;
 pub use install::*;
@@ -61,9 +54,6 @@ pub use isatty::is_terminal;
 pub use jsonc::*;
 pub use logger::{quiet, set_quiet, set_verbose, with_quiet, Logger, L};
 pub use mcpspawn::*;
-pub use nodelinux::*;
-pub use nodewin::*;
-pub use npminstall::*;
 pub use paths::{
     amp_paths_resolved, antigravity_paths_resolved, claude_code_paths, clear_home_override,
     clear_write_file_override, cline_paths_resolved, codex_paths_resolved, copilot_paths_resolved,
@@ -84,7 +74,6 @@ pub use progress::{
     tree_leaf, tree_stem, tree_top, visible_len, with_silenced_logs, NewProgress,
     NewRootSectionProgress, NewSectionProgress, Progress, RootSectionProgress, SectionProgress,
 };
-pub use projectmem::*;
 pub use prompt::*;
 pub use routing_coordinator::*;
 pub use routing_lock::*;
@@ -94,6 +83,5 @@ pub use routing_store::*;
 pub use rtk_commands::*;
 pub use selection::*;
 pub use toml::*;
-pub use uv::*;
 pub use version::tokless_version;
 pub use versions::*;

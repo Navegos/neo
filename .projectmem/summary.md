@@ -1,6 +1,6 @@
 # projectmem - neo
 
-_Last updated: 2026-10-29_
+_Last updated: 2026-10-30_
 
 ## Project purpose
 --------------------------------------------------------------------------------
@@ -20,8 +20,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 5 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...11 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Refactor: Refactor instruction path handling and improve JSONC comment stripping [crates/tokless/src/agents/antigravity.rs]
+- ...12 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Executed Phase 1: Full port and embed neo\inspect-vault\rtk into crates/tokless/src/rtk with 100+ filters and zero-allocation ANSI stripper [crates/tokless/src/rtk]
 - Phase 2 complete: Ported Python projectmem to pure Rust in crates/tokless/src/projectmem with schema, store locking, redaction, summary generator, precheck, heatmap, in-process MCP server, and tokless mem CLI with zero warnings and 86 passing tests [crates/tokless/src/projectmem]
 - Execute Phase 3: Port TypeScript context-mode to pure Rust in crates/tokless/src/contextmode with rusqlite FTS5, sandbox runner, RTK filtering, and in-process MCP server
@@ -36,9 +35,9 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 5: Ported CodeGraph to pure safe Rust engine in crates/tokless/src/codegraph with embedded Tree-sitter parsers, petgraph blast-radius engine, incremental SQLite cache, in-process MCP server, projectmem coordinate auto-resolution, and tokless graph CLI [crates/tokless/src/codegraph/mod.rs:1]
 - Phase 6: In-tree rules and skills integration with compile-time include_str! assets for Karpathy principles, Caveman, and Ponytail, eliminating external clone links [crates/tokless/src/rules/]
 - Phase 7: Integrated pure Rust Headroom engine into crates/tokless/src/headroom/ with byte-for-byte critical log preservation, Tree-sitter code compression, structural JSON minification, 1024-token prompt cache alignment, adaptive L0/L1/L2 memory scaling, and BYOK reverse proxy. Dropped Python headroom-py completely.
+- Phase 8: Purged runtime downloaders (npminstall, nodewin, nodelinux, uv, projectmem, gitwin); rewired agent and tool harnesses to native in-tree Rust modules; enforced system detection policy via which::which; 0 compiler warnings, 224 tests passing [crates/tokless/src/util/mod.rs:1]
 
 ## Notes
-- New feature: feat: add context mode with sandbox execution and security features [crates/tokless/src/commands/runmcp.rs]
 - New feature: feat(icm): implement in-memory ICM store with CRUD operations and FTS5 support [crates/tokless/src/aimemory/handoff.rs]
 - New feature: feat: Introduce content compression module with unified detection and compression for code, JSON, and logs [crates/tokless/src/headroom/adaptive_mem.rs]
 - New feature: feat: add proxy agent specification for 'grok', enhance CLI help text, and implement system verification tests for all a [crates/tokless/src/agents/proxy_agent.rs]
@@ -48,6 +47,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat: enhance projectmem functionality with auto-resolve location features, improve location parsing, and add new tests [crates/tokless/src/codegraph/mcp.rs]
 - Phase 6 complete: In-tree rules & skills integration with embedded markdown assets via include_str! (principles, caveman, ponytail), zero external repo clone links, patch/inject helpers for CLAUDE.md, .cursor/rules/, AGENTS.md, 222 tests passing with 0 warnings [crates/tokless/src/rules/mod.rs:1]
 - New feature: Add embedded rules for coding guidelines: Caveman, Ponytail, and Principles [crates/tokless/src/lib.rs]
+- New feature: feat: implement Phase 7 headroom deep integration with compression, cache alignment, and adaptive memory governor; add s [crates/tokless/src/headroom/adaptive_mem.rs]
 
 ## Key files
 - `.editorconfig`

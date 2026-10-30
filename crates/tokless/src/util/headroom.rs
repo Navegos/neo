@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/util/headroom.rs
 // created: 2026-10-05
-// lastModified: 2026-10-28
+// lastModified: 2026-10-30
 
 use std::path::{Path, PathBuf};
 use super::mcpspawn::{pick_mcp_spawn, McpSpawn};
@@ -65,15 +65,6 @@ pub fn headroom_env() -> Vec<(String, String)> {
     ]
 }
 
-pub fn headroom_uv_bootstrap_env() -> Vec<(String, String)> {
-    let p = headroom_paths_resolved();
-    let mut env = headroom_env();
-    if let Some(uv_dir) = Path::new(&p.uv).parent() {
-        env.push(("UV_INSTALL_DIR".to_string(), uv_dir.to_string_lossy().to_string()));
-    }
-    env.push(("UV_NO_MODIFY_PATH".to_string(), "1".to_string()));
-    env
-}
 
 pub fn mcp_spawn_for(tool_id: &str) -> McpSpawn {
     pick_mcp_spawn(tool_id, &[])
