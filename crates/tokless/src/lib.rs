@@ -19,4 +19,5 @@ pub mod aimemory;
 pub mod codegraph;
 pub mod rules;
 pub mod tui;
+pub mod dashboard;
 

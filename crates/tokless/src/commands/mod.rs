@@ -8,6 +8,7 @@
 pub mod codex_perm_hook;
 pub mod ctx;
 pub mod daemon;
+pub mod dashboard;
 pub mod disable;
 pub mod doctor;
 pub mod doctor_probe;
@@ -30,6 +31,7 @@ pub mod update;
 pub use codex_perm_hook::*;
 pub use ctx::*;
 pub use daemon::*;
+pub use dashboard::*;
 pub use disable::*;
 pub use doctor::*;
 pub use doctor_probe::*;

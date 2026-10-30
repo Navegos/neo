@@ -87,6 +87,7 @@ fn help_text() -> String {
           {}         Display token savings dashboard across tools\n\
           {}          Live interactive terminal monitor for proxies and agents\n\
           {}          Full multi-tab interactive terminal control center\n\
+          {}    Embedded web telemetry & control cockpit (--port, --open)\n\
           {}        Generate unified context primer for AI agent sessions\n\
           {}       Manage background proxy supervisor: start|stop|status\n\
           {}         Show how tokless was installed, plus paths and config locations\n\
@@ -110,6 +111,7 @@ fn help_text() -> String {
         cy("tokless gain"),
         cy("tokless top"),
         cy("tokless tui"),
+        cy("tokless dashboard"),
         cy("tokless prime"),
         cy("tokless daemon"),
         cy("tokless info"),
@@ -297,6 +299,9 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "tui" {
         return run_tui_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "dashboard" {
+        return tokless::dashboard::run_dashboard_cli(&args[2..]);
+    }
 
     let p = parse_args(&args[1..]);
     if p.bools.get("verbose") == Some(&true) {
@@ -351,6 +356,7 @@ fn run() -> i32 {
         "gain" => run_gain(),
         "top" => run_top(p.bools.get("once") == Some(&true) || p.bools.get("1") == Some(&true)),
         "tui" => run_tui_cli(&args[2..]),
+        "dashboard" => tokless::dashboard::run_dashboard_cli(&args[2..]),
         "prime" => run_prime(PrimeOptions {
             copy: p.bools.get("copy") == Some(&true) || p.bools.get("c") == Some(&true),
             json: p.bools.get("json") == Some(&true),

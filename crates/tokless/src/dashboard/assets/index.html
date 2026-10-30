@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tokless // Telemetry & Control Cockpit</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="4" width="16" height="16" rx="2" />
+        <rect x="9" y="9" width="6" height="6" />
+        <path d="M9 1v3" /><path d="M15 1v3" /><path d="M9 20v3" /><path d="M15 20v3" />
+        <path d="M20 9h3" /><path d="M20 14h3" /><path d="M1 9h3" /><path d="M1 14h3" />
+      </svg>
+      <div class="brand-title">
+        tokless <span class="badge">Phase 10 Cockpit</span>
+      </div>
+    </div>
+
+    <div class="header-status">
+      <div id="sse-pill" class="status-pill online">
+        <div class="status-dot pulse"></div>
+        <span id="sse-text">LIVE SSE (9099)</span>
+      </div>
+
+      <div id="proxy-pill" class="status-pill online">
+        <div class="status-dot"></div>
+        <span id="proxy-text">PROXY :8787</span>
+      </div>
+
+      <div class="hero-counter">
+        <span class="hero-counter-label">Saved</span>
+        <span class="hero-counter-val" id="hero-usd-val">$0.00</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Nav Tabs -->
+  <nav class="tab-bar">
+    <button class="tab-btn active" data-tab="tab-waterfall">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+      Waterfall & Savings
+    </button>
+    <button class="tab-btn" data-tab="tab-warroom">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      The War Room
+    </button>
+    <button class="tab-btn" data-tab="tab-fleet">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+      Agent Fleet (17)
+    </button>
+    <button class="tab-btn" data-tab="tab-memory">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+      Memory Decision DAG
+    </button>
+    <button class="tab-btn" data-tab="tab-codegraph">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      CodeGraph Explorer
+    </button>
+    <button class="tab-btn" data-tab="tab-sandbox">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      Sandbox Inspector
+    </button>
+    <button class="tab-btn" data-tab="tab-system">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      System Controls
+    </button>
+  </nav>
+
+  <!-- Main Content -->
+  <main>
+
+    <!-- Tab 1: Waterfall & Token Savings -->
+    <section id="tab-waterfall" class="tab-pane active">
+      <div class="grid-stats">
+        <div class="stat-card">
+          <div class="stat-title">Lifetime Tokens Saved</div>
+          <div class="stat-val" id="stat-tokens-lifetime">0</div>
+          <div class="stat-sub" id="stat-tokens-today">+0 today (7d: 0)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Dollar Savings Counter</div>
+          <div class="stat-val" style="color: #34d399;" id="stat-cost-saved">$0.00</div>
+          <div class="stat-sub">Based on $3/$15 per 1M blended rates</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Reduction Ratio</div>
+          <div class="stat-val" style="color: var(--accent-cyan);" id="stat-compression-pct">0%</div>
+          <div class="stat-sub" id="stat-total-calls">0 calls processed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Prompt Cache Warmth</div>
+          <div class="stat-val" style="color: var(--accent-purple);" id="stat-cache-warmth">0%</div>
+          <div class="stat-sub">1024-token boundary aligned</div>
+        </div>
+      </div>
+
+      <!-- Layer Breakdown Cards -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Token Reduction Pipeline — Layer-by-Layer Breakdown</div>
+          <span class="badge badge-cyan">3-Stage Compression Engine</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+          <div style="background: #0f172a; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <strong style="color: var(--accent-cyan);">1. RTK Layer</strong>
+              <span class="badge badge-cyan" id="layer-rtk-share">38% Share</span>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+              Command output reduction, zero-alloc ANSI stripper, 100+ native CLI filters (cargo, git, npm, pytest).
+            </div>
+            <div style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-muted);" id="layer-rtk-saved">
+              Saved: 5,658,990 tokens
+            </div>
+          </div>
+
+          <div style="background: #0f172a; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <strong style="color: var(--accent-green);">2. Headroom Layer</strong>
+              <span class="badge badge-green" id="layer-headroom-share">42% Share</span>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+              AST-aware code compression, lossless log deduplication, JSON pruner, 1024 prompt cache boundary alignment.
+            </div>
+            <div style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-muted);" id="layer-headroom-saved">
+              Saved: 6,254,680 tokens
+            </div>
+          </div>
+
+          <div style="background: #0f172a; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+              <strong style="color: var(--accent-purple);">3. Caveman Layer</strong>
+              <span class="badge badge-purple" id="layer-caveman-share">20% Share</span>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+              ASD-STE100 Simplified Technical English prompt compression, redundant conversational filler stripper.
+            </div>
+            <div style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-muted);" id="layer-caveman-saved">
+              Saved: 2,978,434 tokens
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Waterfall Table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Live Token Savings Waterfall</div>
+          <button class="btn btn-primary" onclick="app.refreshWaterfall()">Refresh Stream</button>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Agent</th>
+                <th>Endpoint</th>
+                <th>Raw Tokens</th>
+                <th>Compressed</th>
+                <th>Savings</th>
+                <th>Pipeline Breakdown</th>
+                <th>Saved USD</th>
+              </tr>
+            </thead>
+            <tbody id="waterfall-tbody">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 2: The War Room -->
+    <section id="tab-warroom" class="tab-pane">
+      <div class="grid-stats">
+        <div class="stat-card">
+          <div class="stat-title">429 Rate-Limit Events</div>
+          <div class="stat-val" style="color: var(--accent-amber);" id="warroom-429-count">2</div>
+          <div class="stat-sub">Auto-throttled & backoff queued</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Upstream Outages Detected</div>
+          <div class="stat-val" style="color: var(--accent-green);" id="warroom-outage-count">0 Active</div>
+          <div class="stat-sub">All upstream APIs responding &lt; 300ms</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Cascade Failovers</div>
+          <div class="stat-val" style="color: var(--accent-cyan);" id="warroom-failover-count">1 Route Active</div>
+          <div class="stat-sub">Zero dropped user requests</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Context Overflow Warnings</div>
+          <div class="stat-val" style="color: var(--accent-red);" id="warroom-overflow-count">0</div>
+          <div class="stat-sub">Adaptive memory governor guarding &lt; 90%</div>
+        </div>
+      </div>
+
+      <!-- Fallback Cascade Visualizer -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Upstream Outage Fallback Cascade Visualizer</div>
+          <span class="badge badge-green">Self-Healing Cascade</span>
+        </div>
+        <div class="cascade-container" id="cascade-container">
+          <div class="cascade-step active">
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent-cyan); font-weight: 600;">L0: Primary</div>
+            <div style="font-weight: 700; margin: 0.25rem 0;">Direct Model Stream</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">Claude 3.7 / GPT-4o</div>
+            <div style="margin-top: 0.5rem;"><span class="badge badge-green">HEALTHY (210ms)</span></div>
+          </div>
+          <div class="cascade-arrow">➔</div>
+          <div class="cascade-step standby">
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent-amber); font-weight: 600;">L1: On 429 / Outage</div>
+            <div style="font-weight: 700; margin: 0.25rem 0;">BYOK Gateway Route</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">Local Port 8788 Upstream</div>
+            <div style="margin-top: 0.5rem;"><span class="badge badge-cyan">STANDBY READY</span></div>
+          </div>
+          <div class="cascade-arrow">➔</div>
+          <div class="cascade-step standby">
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent-purple); font-weight: 600;">L2: Extreme Failover</div>
+            <div style="font-weight: 700; margin: 0.25rem 0;">Local Degraded Cache</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">ICM SQLite & Prompt Cache</div>
+            <div style="margin-top: 0.5rem;"><span class="badge badge-purple">ONLINE</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Context Overflow Telemetry & Rate-Limit Monitor -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">HTTP 429 Rate-Limit Log</div>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Provider</th>
+                  <th>Status</th>
+                  <th>Backoff Delay</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="warroom-ratelimit-tbody">
+                <tr>
+                  <td>Anthropic API</td>
+                  <td><span class="badge badge-green">Normal (0)</span></td>
+                  <td>0s</td>
+                  <td>Direct stream</td>
+                </tr>
+                <tr>
+                  <td>OpenAI API</td>
+                  <td><span class="badge badge-green">Normal (0)</span></td>
+                  <td>0s</td>
+                  <td>Direct stream</td>
+                </tr>
+                <tr>
+                  <td>DeepSeek</td>
+                  <td><span class="badge badge-amber">1 Throttle</span></td>
+                  <td>1.8s</td>
+                  <td>Rerouted to BYOK lane</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Context Overflow Watchdog</div>
+          </div>
+          <div style="padding: 0.5rem 0;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.35rem;">
+              <span>Active Context Utilization</span>
+              <strong style="color: var(--accent-cyan);" id="context-used-pct">33.2% (42,500 / 128,000 tokens)</strong>
+            </div>
+            <div style="width: 100%; height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden; margin-bottom: 1rem;">
+              <div id="context-bar" style="width: 33.2%; height: 100%; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));"></div>
+            </div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">
+              Dynamic Memory Governor is set to trigger <strong>L1 Abstract Pruning</strong> if prompt length reaches 85% of model threshold.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 3: Multi-Agent Fleet Control -->
+    <section id="tab-fleet" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Multi-Agent Fleet Control (17 Harnesses)</div>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-success" onclick="app.wireAllAgents()">Wire All Installed</button>
+            <button class="btn btn-danger" onclick="app.unwireAllAgents()">Unwire All</button>
+            <button class="btn btn-primary" onclick="app.loadAgents()">Refresh Grid</button>
+          </div>
+        </div>
+        <div class="agent-grid" id="agent-fleet-grid">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 4: Memory Decision DAG -->
+    <section id="tab-memory" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Memory Decision DAG & Instant FTS5 Search</div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="text" id="memory-search-input" class="input-text" placeholder="Instant FTS5 search (e.g. proxy, tree-sitter)..." style="width: 280px;" oninput="app.searchMemory(this.value)">
+            <button class="btn btn-primary" onclick="app.loadMemory()">Reload Memory</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
+          Interactive DAG visualizer rendering decisions, supersedes arrows, and cross-session knowledge from <code>.projectmem/events.jsonl</code> &amp; ICM SQLite store.
+        </div>
+
+        <!-- Interactive SVG Canvas for DAG -->
+        <div class="svg-canvas" id="dag-canvas-container">
+          <svg id="dag-svg" width="100%" height="100%"></svg>
+        </div>
+      </div>
+
+      <!-- Failure Heatmap -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Subsystem Failure Heatmap</div>
+          <span class="badge badge-cyan">Cross-Tool Diagnostic Health</span>
+        </div>
+        <div class="heatmap-grid" id="heatmap-grid">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 5: CodeGraph Explorer -->
+    <section id="tab-codegraph" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">CodeGraph AST Topology & Blast-Radius Simulator</div>
+          <div style="display: flex; gap: 0.75rem; align-items: center;">
+            <label style="font-size: 0.8rem; color: var(--text-secondary);">Blast Radius Depth:</label>
+            <input type="range" id="blast-depth-slider" min="1" max="5" value="3" oninput="app.updateBlastDepth(this.value)">
+            <span id="blast-depth-val" class="badge badge-cyan">3</span>
+            <button class="btn btn-primary" onclick="app.loadCodeGraph()">Re-Index & Refresh</button>
+          </div>
+        </div>
+
+        <div class="split-view">
+          <div>
+            <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">Symbols in AST Index</div>
+            <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Kind</th>
+                    <th>File</th>
+                    <th>Simulate</th>
+                  </tr>
+                </thead>
+                <tbody id="codegraph-symbols-tbody">
+                  <!-- Rendered via JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">Simulated Blast Radius Impact</div>
+            <div id="blast-radius-details" style="background: #0f172a; border: 1px solid var(--border-color); border-radius: 6px; padding: 1rem; min-height: 380px;">
+              <div style="color: var(--text-muted); font-size: 0.85rem;">Select a symbol from the left to simulate call-graph ripple effect, upstream callers, and affected test suites.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 6: Context-Mode Sandbox Inspector -->
+    <section id="tab-sandbox" class="tab-pane">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Context-Mode Sandbox Inspector — Raw Output vs. Filtered Stdout</div>
+          <div style="display: flex; gap: 0.5rem;">
+            <select id="sandbox-preset-select" onchange="app.applySandboxPreset(this.value)">
+              <option value="cargo">Preset: Cargo Test Output (Verbose)</option>
+              <option value="git">Preset: Git Status & Diff</option>
+              <option value="npm">Preset: NPM Build & Warnings</option>
+              <option value="json">Preset: Large JSON Payload</option>
+            </select>
+            <button class="btn btn-primary" onclick="app.runSandboxFilter()">Apply RTK Filter</button>
+          </div>
+        </div>
+
+        <!-- Reduction Banner -->
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 0.75rem 1rem; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 1rem;">
+          <div style="display: flex; gap: 1.5rem; font-size: 0.85rem;">
+            <div>Raw: <strong id="raw-meta" style="color: var(--text-secondary);">0 lines (0 B)</strong></div>
+            <div>Filtered: <strong id="filtered-meta" style="color: var(--accent-cyan);">0 lines (0 B)</strong></div>
+          </div>
+          <div>
+            Token Reduction: <strong id="filter-savings-val" style="color: var(--accent-green); font-size: 1.1rem; font-family: var(--font-mono);">0%</strong>
+          </div>
+        </div>
+
+        <div class="split-view">
+          <div>
+            <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 0.25rem;">RAW CONSOLE OUTPUT</div>
+            <textarea id="raw-output-input" class="code-box" style="width: 100%; resize: vertical;" spellcheck="false"></textarea>
+          </div>
+          <div>
+            <div style="font-size: 0.8rem; font-weight: 600; color: var(--accent-cyan); margin-bottom: 0.25rem;">FILTERED STDOUT (CONTEXT READY)</div>
+            <div id="filtered-output-display" class="code-box"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab 7: System Controls -->
+    <section id="tab-system" class="tab-pane">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+        
+        <!-- Proxy Lifecycle -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Proxy Supervisor Control</div>
+            <span class="badge badge-green" id="sys-proxy-badge">RUNNING</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Headroom proxy routes traffic from wired agents, strips ANSI codes, compresses AST tokens, and caches completions.
+          </p>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-primary" onclick="app.systemProxyRestart()">Restart Proxy</button>
+            <button class="btn btn-danger" onclick="app.systemProxyStop()">Stop Proxy</button>
+          </div>
+        </div>
+
+        <!-- Cache Vacuum -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Cache Vacuum & Maintenance</div>
+            <span class="badge badge-cyan">STORAGE</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Vacuums SQLite WAL files, compacts CodeGraph indexes, purges expired context-mode blobs, and recalibrates 1024-token cache blocks.
+          </p>
+          <button class="btn btn-primary" onclick="app.systemCacheVacuum()">Run Cache Vacuum</button>
+          <div id="vacuum-result" style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--accent-green); font-family: var(--font-mono);"></div>
+        </div>
+
+        <!-- BYOK Key Switch -->
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="card-header">
+            <div class="card-title">BYOK Gateway Routes &amp; Key Switching</div>
+            <span class="badge badge-purple">:8788 VIRTUAL GATEWAY</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Switch upstream provider keys dynamically without interrupting active agent sessions.
+          </p>
+          <div class="table-container" style="margin-bottom: 1rem;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Route ID</th>
+                  <th>Protocol</th>
+                  <th>Upstream Target</th>
+                  <th>Token Prefix</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="byok-routes-tbody">
+                <!-- Rendered via JS -->
+              </tbody>
+            </table>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="text" id="byok-new-id" class="input-text" placeholder="Route ID (e.g. openai-prod)">
+            <select id="byok-new-proto">
+              <option value="openai-chat">openai-chat</option>
+              <option value="anthropic-messages">anthropic-messages</option>
+              <option value="openai-responses">openai-responses</option>
+            </select>
+            <input type="text" id="byok-new-upstream" class="input-text" placeholder="https://api.openai.com/v1" style="flex: 1;">
+            <button class="btn btn-success" onclick="app.addByokRoute()">Add / Switch Route</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Alerts Container -->
+  <div id="toast-container"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
+
