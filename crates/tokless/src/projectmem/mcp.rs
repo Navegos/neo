@@ -656,6 +656,81 @@ pub fn execute_mcp_tool(name: &str, args: &Value) -> String {
     }
 }
 
+pub fn handle_mcp_message(req: &Value) -> Option<Value> {
+    let id = req.get("id").cloned();
+    let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
+
+    match method {
+        "initialize" => Some(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "serverInfo": {
+                    "name": "projectmem",
+                    "version": "0.3.4"
+                },
+                "capabilities": {
+                    "tools": {}
+                },
+                "instructions": "You are connected to projectmem — a mandatory project memory + judgment layer."
+            }
+        })),
+        "notifications/initialized" => None,
+        "ping" => Some(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {}
+        })),
+        "tools/list" => Some(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "tools": mcp_tools_list()
+            }
+        })),
+        "tools/call" => {
+            let params = req.get("params");
+            let name = params
+                .and_then(|p| p.get("name"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            let args = params
+                .and_then(|p| p.get("arguments"))
+                .cloned()
+                .unwrap_or_else(|| json!({}));
+
+            let result_text = execute_mcp_tool(name, &args);
+            Some(json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": result_text
+                        }
+                    ]
+                }
+            }))
+        }
+        _ => {
+            if id.is_some() {
+                Some(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": {
+                        "code": -32601,
+                        "message": format!("Method not found: {}", method)
+                    }
+                }))
+            } else {
+                None
+            }
+        }
+    }
+}
+
 pub fn run_mcp_server() -> i32 {
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -682,78 +757,7 @@ pub fn run_mcp_server() -> i32 {
             }
         };
 
-        let id = req.get("id").cloned();
-        let method = req.get("method").and_then(|v| v.as_str()).unwrap_or("");
-
-        let resp: Option<Value> = match method {
-            "initialize" => Some(json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": {
-                    "protocolVersion": "2024-11-05",
-                    "serverInfo": {
-                        "name": "projectmem",
-                        "version": "0.3.4"
-                    },
-                    "capabilities": {
-                        "tools": {}
-                    },
-                    "instructions": "You are connected to projectmem — a mandatory project memory + judgment layer."
-                }
-            })),
-            "notifications/initialized" => None,
-            "ping" => Some(json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": {}
-            })),
-            "tools/list" => Some(json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": {
-                    "tools": mcp_tools_list()
-                }
-            })),
-            "tools/call" => {
-                let params = req.get("params");
-                let name = params
-                    .and_then(|p| p.get("name"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let args = params
-                    .and_then(|p| p.get("arguments"))
-                    .cloned()
-                    .unwrap_or_else(|| json!({}));
-
-                let result_text = execute_mcp_tool(name, &args);
-                Some(json!({
-                    "jsonrpc": "2.0",
-                    "id": id,
-                    "result": {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": result_text
-                            }
-                        ]
-                    }
-                }))
-            }
-            _ => {
-                if id.is_some() {
-                    Some(json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "error": {
-                            "code": -32601,
-                            "message": format!("Method not found: {}", method)
-                        }
-                    }))
-                } else {
-                    None
-                }
-            }
-        };
+        let resp = handle_mcp_message(&req);
 
         if let Some(r) = resp {
             if let Ok(serialized) = serde_json::to_string(&r) {

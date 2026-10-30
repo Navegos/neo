@@ -83,7 +83,7 @@ pub fn run_mcp_server() -> i32 {
     0
 }
 
-fn handle_mcp_request(store: &mut IcmStore, req: &Value) -> Option<Value> {
+pub fn handle_mcp_request(store: &mut IcmStore, req: &Value) -> Option<Value> {
     let id = req.get("id").cloned().unwrap_or(Value::Null);
     let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
 

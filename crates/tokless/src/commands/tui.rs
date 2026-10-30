@@ -6,6 +6,11 @@
 use crate::tui::run_tui_with_tab;
 
 pub fn run_tui_cli(argv: &[String]) -> i32 {
+    if argv.iter().any(|a| a == "--help" || a == "-h") {
+        println!("Usage: tokless tui [monitor|agents|memory|graph|headroom|logs]");
+        return 0;
+    }
+
     let initial_tab = match argv.first().map(|s| s.to_lowercase()).as_deref() {
         Some("1") | Some("monitor") | Some("top") => 0,
         Some("2") | Some("agents") | Some("fleet") | Some("wire") => 1,

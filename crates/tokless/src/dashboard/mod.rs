@@ -40,7 +40,10 @@ pub fn run_dashboard_cli(argv: &[String]) -> i32 {
     let mut i = 0;
     while i < argv.len() {
         let arg = &argv[i];
-        if arg == "--port" || arg == "-p" {
+        if arg == "--help" || arg == "-h" {
+            println!("Usage: tokless dashboard [--port <port>] [--open]");
+            return 0;
+        } else if arg == "--port" || arg == "-p" {
             if i + 1 < argv.len() {
                 if let Ok(p) = argv[i + 1].parse::<u16>() {
                     port = p;

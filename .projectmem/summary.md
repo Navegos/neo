@@ -20,8 +20,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 5 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...14 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Execute Phase 3: Port TypeScript context-mode to pure Rust in crates/tokless/src/contextmode with rusqlite FTS5, sandbox runner, RTK filtering, and in-process MCP server
+- ...15 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Complete Phase 4: Port and embed ICM SQLite FTS5 BM25 store and ai-memory tiered claim-once state machine into tokless with zero warnings and 104 passing tests
 - Execute Phase 5: Port and embed codegraph into crates/tokless/src/codegraph with tree-sitter, ignore walker, petgraph AST blast-radius, incremental cache, and in-process MCP server
 - Phase 5 complete: Ported codegraph to pure Rust in crates/tokless/src/codegraph with tree-sitter parsers, ignore walker, petgraph AST call-graph/blast-radius, incremental SQLite cache, in-process MCP server, and tokless graph CLI with zero compiler warnings and 135 passing tests
@@ -36,9 +35,9 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 8: Purged runtime downloaders (npminstall, nodewin, nodelinux, uv, projectmem, gitwin); rewired agent and tool harnesses to native in-tree Rust modules; enforced system detection policy via which::which; 0 compiler warnings, 224 tests passing [crates/tokless/src/util/mod.rs:1]
 - Phase 9: Implemented interactive multi-tab TUI in crates/tokless/src/tui using ratatui and crossterm with 6 views, 60fps rendering, live waterfall, agent wire manager, memory explorer, codegraph inspector, and headroom gauges [crates/tokless/src/tui/mod.rs]
 - Phase 10: Implement zero-dependency embedded Telemetry & Control Web Dashboard with pure Rust HTTP/SSE server and SPA embedded via include_str! [crates/tokless/src/dashboard/mod.rs:1]
+- Phase 11: End-to-End System Verification & Benchmarks across all 17 agent harnesses, unified CLI, in-process MCP multiplexer, and streaming compression [crates/tokless/tests/phase11_e2e_verification.rs:1]
 
 ## Notes
-- New feature: feat: add proxy agent specification for 'grok', enhance CLI help text, and implement system verification tests for all a [crates/tokless/src/agents/proxy_agent.rs]
 - New feature: feat: update project summaries, add CLI test issues, enhance command tracking, and improve redaction functionality [crates/tokless/src/projectmem/cli.rs]
 - New feature: feat: implement directory indexing, enhance CLI commands, and add async fetch capabilities [crates/tokless/src/commands/ctx.rs]
 - New feature: feat: enhance ICM with multi-agent handoff capabilities, including offer, claim, resolve, and cancel functionalities; ad [crates/tokless/src/aimemory/handoff.rs]
@@ -48,6 +47,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat: implement Phase 7 headroom deep integration with compression, cache alignment, and adaptive memory governor; add s [crates/tokless/src/headroom/adaptive_mem.rs]
 - New feature: feat(tui): add headroom, logs, memory, monitor views and associated widgets [crates/tokless/src/commands/mod.rs]
 - Phase 10 Telemetry & Control Web Dashboard implemented: pure Rust HTTP/SSE server (127.0.0.1:9099), bundled SPA via include_str!, 7 cockpit views, wired into `tokless dashboard [--port 9099] [--open]`, 0 compiler warnings, 229 tests passing. [crates/tokless/src/dashboard/mod.rs:1]
+- New feature: feat(dashboard): add embedded web telemetry & control cockpit [crates/tokless/src/commands/dashboard.rs]
 
 ## Key files
 - `.editorconfig`

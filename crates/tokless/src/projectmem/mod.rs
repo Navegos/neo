@@ -15,7 +15,7 @@ pub mod summary;
 
 pub use cli::run_mem_cli;
 pub use heatmap::{calculate_score, generate_heatmap, HeatmapResult, ScoreResult};
-pub use mcp::run_mcp_server;
+pub use mcp::{handle_mcp_message, run_mcp_server};
 pub use precheck::run_precheck;
 pub use redaction::{is_redaction_enabled, redact, redact_event_fields};
 pub use schema::{

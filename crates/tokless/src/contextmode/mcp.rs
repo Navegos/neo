@@ -619,46 +619,11 @@ impl ContextMcpServer {
             Err(e) => format!("Purge error: {}", e),
         }
     }
-}
-
-pub fn run_mcp_server() -> i32 {
-    let project_root = std::env::var("CONTEXT_MODE_PROJECT_DIR")
-        .or_else(|_| std::env::var("PROJECTMEM_ROOT"))
-        .ok()
-        .map(PathBuf::from)
-        .or_else(|| std::env::current_dir().ok());
-
-    let server = ContextMcpServer::new(project_root);
-
-    let stdin = io::stdin();
-    let stdout = io::stdout();
-    let mut reader = stdin.lock();
-    let mut writer = stdout.lock();
-
-    let mut line = String::new();
-    while let Ok(n) = reader.read_line(&mut line) {
-        if n == 0 {
-            break;
-        }
-
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            line.clear();
-            continue;
-        }
-
-        let req: Value = match serde_json::from_str(trimmed) {
-            Ok(v) => v,
-            Err(_) => {
-                line.clear();
-                continue;
-            }
-        };
-
+    pub fn handle_mcp_message(&self, req: &Value) -> Option<Value> {
         let id = req.get("id").cloned();
-        let method = req.get("method").and_then(|v| v.as_str()).unwrap_or("");
+        let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
 
-        let resp: Option<Value> = match method {
+        match method {
             "initialize" => Some(json!({
                 "jsonrpc": "2.0",
                 "id": id,
@@ -698,7 +663,7 @@ pub fn run_mcp_server() -> i32 {
                     .cloned()
                     .unwrap_or_else(|| json!({}));
 
-                let result_text = server.execute_tool(name, &args);
+                let result_text = self.execute_tool(name, &args);
                 Some(json!({
                     "jsonrpc": "2.0",
                     "id": id,
@@ -726,7 +691,45 @@ pub fn run_mcp_server() -> i32 {
                     None
                 }
             }
+        }
+    }
+}
+
+pub fn run_mcp_server() -> i32 {
+    let project_root = std::env::var("CONTEXT_MODE_PROJECT_DIR")
+        .or_else(|_| std::env::var("PROJECTMEM_ROOT"))
+        .ok()
+        .map(PathBuf::from)
+        .or_else(|| std::env::current_dir().ok());
+
+    let server = ContextMcpServer::new(project_root);
+
+    let stdin = io::stdin();
+    let stdout = io::stdout();
+    let mut reader = stdin.lock();
+    let mut writer = stdout.lock();
+
+    let mut line = String::new();
+    while let Ok(n) = reader.read_line(&mut line) {
+        if n == 0 {
+            break;
+        }
+
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            line.clear();
+            continue;
+        }
+
+        let req: Value = match serde_json::from_str(trimmed) {
+            Ok(v) => v,
+            Err(_) => {
+                line.clear();
+                continue;
+            }
         };
+
+        let resp = server.handle_mcp_message(&req);
 
         if let Some(r) = resp {
             let serialized = serde_json::to_string(&r).unwrap_or_default();
