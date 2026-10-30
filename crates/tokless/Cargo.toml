@@ -20,6 +20,7 @@ regex = "1.13.1"
 dirs = "7.0.0"
 which = "8.0.6"
 crossterm = "0.29.0"
+ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
 tempfile = "3.27.0"
 chrono = "0.4.45"
 reqwest = { version = "0.13.5", features = ["json", "blocking"] }

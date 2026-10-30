@@ -6,6 +6,12 @@ _Last updated: 2026-10-30_
 CLI test
 
 ## Recent issues
+- [DONE] #0019 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0018 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0017 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
 - [DONE] #0016 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
 - [DONE] #0015 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
@@ -20,16 +26,10 @@ CLI test
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
 - [DONE] #0010 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0009 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0008 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0007 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- ...and 6 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 9 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...1 earlier decision not shown (`pjm search`, or `search_events(query)` via MCP)
+- ...4 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Use assertion macros consistently
 - Use assertion macros consistently
 - Use assertion macros consistently

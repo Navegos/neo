@@ -24,6 +24,7 @@ pub mod rtk_hook;
 pub mod runmcp;
 pub mod selfupdate;
 pub mod top;
+pub mod tui;
 pub mod update;
 
 pub use codex_perm_hook::*;
@@ -45,5 +46,6 @@ pub use rtk_hook::*;
 pub use runmcp::*;
 pub use selfupdate::*;
 pub use top::*;
+pub use tui::*;
 pub use update::*;
 

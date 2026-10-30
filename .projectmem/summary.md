@@ -20,8 +20,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 5 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...12 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Executed Phase 1: Full port and embed neo\inspect-vault\rtk into crates/tokless/src/rtk with 100+ filters and zero-allocation ANSI stripper [crates/tokless/src/rtk]
+- ...13 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 2 complete: Ported Python projectmem to pure Rust in crates/tokless/src/projectmem with schema, store locking, redaction, summary generator, precheck, heatmap, in-process MCP server, and tokless mem CLI with zero warnings and 86 passing tests [crates/tokless/src/projectmem]
 - Execute Phase 3: Port TypeScript context-mode to pure Rust in crates/tokless/src/contextmode with rusqlite FTS5, sandbox runner, RTK filtering, and in-process MCP server
 - Complete Phase 4: Port and embed ICM SQLite FTS5 BM25 store and ai-memory tiered claim-once state machine into tokless with zero warnings and 104 passing tests
@@ -36,6 +35,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 6: In-tree rules and skills integration with compile-time include_str! assets for Karpathy principles, Caveman, and Ponytail, eliminating external clone links [crates/tokless/src/rules/]
 - Phase 7: Integrated pure Rust Headroom engine into crates/tokless/src/headroom/ with byte-for-byte critical log preservation, Tree-sitter code compression, structural JSON minification, 1024-token prompt cache alignment, adaptive L0/L1/L2 memory scaling, and BYOK reverse proxy. Dropped Python headroom-py completely.
 - Phase 8: Purged runtime downloaders (npminstall, nodewin, nodelinux, uv, projectmem, gitwin); rewired agent and tool harnesses to native in-tree Rust modules; enforced system detection policy via which::which; 0 compiler warnings, 224 tests passing [crates/tokless/src/util/mod.rs:1]
+- Phase 9: Implemented interactive multi-tab TUI in crates/tokless/src/tui using ratatui and crossterm with 6 views, 60fps rendering, live waterfall, agent wire manager, memory explorer, codegraph inspector, and headroom gauges [crates/tokless/src/tui/mod.rs]
 
 ## Notes
 - New feature: feat(icm): implement in-memory ICM store with CRUD operations and FTS5 support [crates/tokless/src/aimemory/handoff.rs]

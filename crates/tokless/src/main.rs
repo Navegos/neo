@@ -17,7 +17,7 @@ use tokless::commands::{
     run_projectmem_hook, run_proxy_cli, run_rtk_cli, run_rtk_hook,
     run_rtk_hook_cline, run_rtk_hook_codex, run_rtk_hook_copilot, run_rtk_hook_cursor,
     run_rtk_hook_droid, run_rtk_hook_dsh, run_rtk_hook_grok, run_rtk_rewrite, run_self_update,
-    run_top, run_uninstall, run_update, run_gain, InitOptions, PrimeOptions,
+    run_top, run_tui_cli, run_uninstall, run_update, run_gain, InitOptions, PrimeOptions,
 };
 
 use tokless::core::{agent_ids, tool_ids};
@@ -86,6 +86,7 @@ fn help_text() -> String {
           {}       Show what's wired up; warn about anything broken\n\
           {}         Display token savings dashboard across tools\n\
           {}          Live interactive terminal monitor for proxies and agents\n\
+          {}          Full multi-tab interactive terminal control center\n\
           {}        Generate unified context primer for AI agent sessions\n\
           {}       Manage background proxy supervisor: start|stop|status\n\
           {}         Show how tokless was installed, plus paths and config locations\n\
@@ -108,6 +109,7 @@ fn help_text() -> String {
         cy("tokless doctor"),
         cy("tokless gain"),
         cy("tokless top"),
+        cy("tokless tui"),
         cy("tokless prime"),
         cy("tokless daemon"),
         cy("tokless info"),
@@ -292,6 +294,9 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "graph" {
         return tokless::codegraph::run_graph_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "tui" {
+        return run_tui_cli(&args[2..]);
+    }
 
     let p = parse_args(&args[1..]);
     if p.bools.get("verbose") == Some(&true) {
@@ -345,6 +350,7 @@ fn run() -> i32 {
         "stats" => run_doctor(true, true),
         "gain" => run_gain(),
         "top" => run_top(p.bools.get("once") == Some(&true) || p.bools.get("1") == Some(&true)),
+        "tui" => run_tui_cli(&args[2..]),
         "prime" => run_prime(PrimeOptions {
             copy: p.bools.get("copy") == Some(&true) || p.bools.get("c") == Some(&true),
             json: p.bools.get("json") == Some(&true),

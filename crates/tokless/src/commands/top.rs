@@ -7,31 +7,19 @@
 
 use std::env;
 use std::io::{stdout, Write};
-use std::time::Duration;
 
 use crossterm::{
-    cursor::{Hide, MoveTo, Show},
-    event::{self, Event, KeyCode, KeyModifiers},
+    cursor::MoveTo,
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 
 use crate::commands::daemon::is_daemon_running;
 use crate::commands::doctor_stats::doctor_tool_stats;
 use crate::core::list_agents;
-use crate::headroom::proxy::{ensure_proxy_up, proxy_running, stop_proxy};
+use crate::headroom::proxy::proxy_running;
 use crate::util::colors::*;
 use crate::util::headroom_proxy::proxy_routing_enabled;
 use crate::util::version::tokless_version;
-
-struct TerminalGuard;
-
-impl Drop for TerminalGuard {
-    fn drop(&mut self) {
-        let _ = disable_raw_mode();
-        let _ = execute!(stdout(), Show, LeaveAlternateScreen);
-    }
-}
 
 pub fn run_top(once: bool) -> i32 {
     let is_tty = crossterm::tty::IsTty::is_tty(&stdout());
@@ -41,36 +29,8 @@ pub fn run_top(once: bool) -> i32 {
         return 0;
     }
 
-    if enable_raw_mode().is_err() {
-        render_frame();
-        return 0;
-    }
-
-    let _guard = TerminalGuard;
-    let _ = execute!(stdout(), EnterAlternateScreen, Hide);
-
-    loop {
-        render_frame();
-
-        if event::poll(Duration::from_millis(1000)).unwrap_or(false) {
-            if let Ok(Event::Key(key)) = event::read() {
-                match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => break,
-                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => break,
-                    KeyCode::Char('r') => {}
-                    KeyCode::Char('u') => {
-                        let _ = ensure_proxy_up();
-                    }
-                    KeyCode::Char('d') => {
-                        let _ = stop_proxy();
-                    }
-                    _ => {}
-                }
-            }
-        }
-    }
-
-    0
+    // Launch rich 60fps interactive TUI directly on Tab 1 (Live Monitor)
+    crate::tui::run_tui_with_tab(0)
 }
 
 fn render_frame() {
