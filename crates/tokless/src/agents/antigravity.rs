@@ -13,7 +13,6 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::core::AgentManifest;
-use crate::util::exec::{RunOptions, run};
 use crate::util::jsonc::{OrderedMap, Value, has_jsonc_comments, stringify_json};
 use crate::util::logger::L;
 use crate::util::mcpspawn::{mcp_spawn_for, pick_mcp_spawn, wrap_auto_index};
@@ -1690,25 +1689,17 @@ fn antigravity_windows_user_env_compatible() -> bool {
         return true;
     }
     let u = antigravity_url();
-    let ps = format!(
-        "$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $false)\n\
-if ($null -eq $k) {{ exit 0 }}\n\
-foreach ($name in @('{ANTIGRAVITY_PROXY_ENV_KEY}','{ANTIGRAVITY_CLOUD_CODE_KEY}')) {{\n\
-  $cur = $k.GetValue($name, $null)\n\
-  if ($null -ne $cur -and $cur -ne '{u}') {{ $k.Close(); exit 2 }}\n\
-}}\n\
-$k.Close()\n"
-    );
-    run(
-        "powershell",
-        &["-NoProfile", "-Command", &ps],
-        RunOptions {
-            capture: true,
-            ..Default::default()
-        },
-    )
-    .code
-        == 0
+    #[cfg(windows)]
+    {
+        for name in [ANTIGRAVITY_PROXY_ENV_KEY, ANTIGRAVITY_CLOUD_CODE_KEY] {
+            if let Some(cur) = crate::env_injector::windows::get_env_reg_value(name) {
+                if !cur.is_empty() && cur != u {
+                    return false;
+                }
+            }
+        }
+    }
+    true
 }
 
 fn antigravity_write_windows_user_env() -> (bool, bool) {
@@ -1716,95 +1707,86 @@ fn antigravity_write_windows_user_env() -> (bool, bool) {
         return (false, true);
     }
     let u = antigravity_url();
-    let ps = format!(
-        "$ErrorActionPreference='Stop'\n\
-$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)\n\
-if ($null -eq $k) {{ $k = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey('Environment') }}\n\
-$want = @{{\n\
-  '{ANTIGRAVITY_PROXY_ENV_KEY}' = '{u}'\n\
-  '{ANTIGRAVITY_CLOUD_CODE_KEY}' = '{u}'\n\
-}}\n\
-$names = @($want.Keys)\n\
-foreach ($name in $names) {{\n\
-  $cur = $k.GetValue($name, $null)\n\
-  if ($null -ne $cur -and $cur -ne $want[$name]) {{ $k.Close(); exit 2 }}\n\
-}}\n\
-$old = @{{}}\n\
-foreach ($name in $want.Keys) {{ $old[$name] = $k.GetValue($name, $null) }}\n\
-$oldMarker = $k.GetValue('{ANTIGRAVITY_WINDOWS_MARKER}', $null)\n\
-$mask = 0\n\
-if ($oldMarker -match '(^|,)proxy=(\\d+)') {{ $mask = [int]$Matches[2] }}\n\
-$changed = $false\n\
-try {{\n\
-  foreach ($name in $want.Keys) {{\n\
-    $cur = $old[$name]\n\
-    if ($cur -ne $want[$name]) {{\n\
-      $k.SetValue($name, $want[$name], [Microsoft.Win32.RegistryValueKind]::String)\n\
-      $changed = $true\n\
-      if ($name -eq '{ANTIGRAVITY_PROXY_ENV_KEY}') {{ $mask = $mask -bor 1 }}\n\
-      if ($name -eq '{ANTIGRAVITY_CLOUD_CODE_KEY}') {{ $mask = $mask -bor 2 }}\n\
-    }}\n\
-  }}\n\
-  $k.SetValue('{ANTIGRAVITY_WINDOWS_MARKER}', ('proxy=' + $mask), [Microsoft.Win32.RegistryValueKind]::String)\n\
-}} catch {{\n\
-  foreach ($name in $want.Keys) {{\n\
-    if ($null -eq $old[$name]) {{ $k.DeleteValue($name, $false) }}\n\
-    else {{ $k.SetValue($name, $old[$name], [Microsoft.Win32.RegistryValueKind]::String) }}\n\
-  }}\n\
-  if ($null -eq $oldMarker) {{ $k.DeleteValue('{ANTIGRAVITY_WINDOWS_MARKER}', $false) }}\n\
-  else {{ $k.SetValue('{ANTIGRAVITY_WINDOWS_MARKER}', $oldMarker, [Microsoft.Win32.RegistryValueKind]::String) }}\n\
-  $k.Close()\n\
-  exit 3\n\
-}}\n\
-$k.Close()\n\
-if ($changed) {{ Write-Output 'changed' }}\n"
-    );
-    let r = run(
-        "powershell",
-        &["-NoProfile", "-Command", &ps],
-        RunOptions {
-            capture: true,
-            ..Default::default()
-        },
-    );
-    (r.code == 0 && r.stdout.contains("changed"), r.code == 0)
+    #[cfg(windows)]
+    {
+        let mut changed = false;
+        let mut mask: u32 = 0;
+        let old_marker = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_WINDOWS_MARKER);
+        if let Some(ref m) = old_marker {
+            if let Some(caps) = regex::Regex::new(r"(?:^|,)proxy=(\d+)").ok().and_then(|re| re.captures(m)) {
+                if let Some(m_val) = caps.get(1) {
+                    mask = m_val.as_str().parse().unwrap_or(0);
+                }
+            }
+        }
+
+        let keys = [(ANTIGRAVITY_PROXY_ENV_KEY, 1u32), (ANTIGRAVITY_CLOUD_CODE_KEY, 2u32)];
+        for (key, bit) in keys {
+            let cur = crate::env_injector::windows::get_env_reg_value(key);
+            if cur.as_deref() != Some(&u) {
+                if crate::env_injector::windows::set_env_reg_value(key, &u).is_err() {
+                    return (false, false);
+                }
+                changed = true;
+                mask |= bit;
+            }
+        }
+
+        let marker_val = format!("proxy={}", mask);
+        let _ = crate::env_injector::windows::set_env_reg_value(ANTIGRAVITY_WINDOWS_MARKER, &marker_val);
+        if changed {
+            crate::env_injector::windows::broadcast_setting_change();
+        }
+        (changed, true)
+    }
+    #[cfg(not(windows))]
+    {
+        (false, true)
+    }
 }
 
 fn antigravity_clear_windows_user_env() -> bool {
     if !paths::is_win() {
         return false;
     }
-    let u = antigravity_url();
-    let ps = format!(
-        "$ErrorActionPreference='Stop'\n\
-$k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)\n\
-if ($null -eq $k) {{ exit 0 }}\n\
-$names = @('{ANTIGRAVITY_PROXY_ENV_KEY}','{ANTIGRAVITY_CLOUD_CODE_KEY}')\n\
-$changed = $false\n\
-$marker = $k.GetValue('{ANTIGRAVITY_WINDOWS_MARKER}', $null)\n\
-if ($marker -notmatch '^proxy=(\\d+)$') {{ $k.Close(); exit 0 }}\n\
-$mask = [int]$Matches[1]\n\
-foreach ($name in $names) {{\n\
-  $cur = $k.GetValue($name, $null)\n\
-  $bit = if ($name -eq '{ANTIGRAVITY_PROXY_ENV_KEY}') {{ 1 }} else {{ 2 }}\n\
-  if (($mask -band $bit) -ne 0 -and $cur -eq '{u}') {{\n\
-    $k.DeleteValue($name, $false)\n\
-    $changed = $true\n\
-  }}\n\
-}}\n\
-  $k.DeleteValue('{ANTIGRAVITY_WINDOWS_MARKER}', $false)\n\
-$k.Close()\n\
-if ($changed) {{ Write-Output 'changed' }}\n"
-    );
-    let r = run(
-        "powershell",
-        &["-NoProfile", "-Command", &ps],
-        RunOptions {
-            capture: true,
-            ..Default::default()
-        },
-    );
-    r.code == 0 && r.stdout.contains("changed")
+    #[cfg(windows)]
+    {
+        let u = antigravity_url();
+        let marker = match crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_WINDOWS_MARKER) {
+            Some(m) => m,
+            None => return false,
+        };
+
+        let mut mask: u32 = 0;
+        if let Some(caps) = regex::Regex::new(r"^proxy=(\d+)$").ok().and_then(|re| re.captures(&marker)) {
+            if let Some(m_val) = caps.get(1) {
+                mask = m_val.as_str().parse().unwrap_or(0);
+            }
+        }
+
+        let mut changed = false;
+        let keys = [(ANTIGRAVITY_PROXY_ENV_KEY, 1u32), (ANTIGRAVITY_CLOUD_CODE_KEY, 2u32)];
+        for (key, bit) in keys {
+            if (mask & bit) != 0 {
+                if let Some(cur) = crate::env_injector::windows::get_env_reg_value(key) {
+                    if cur == u {
+                        let _ = crate::env_injector::windows::delete_env_reg_value(key);
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        let _ = crate::env_injector::windows::delete_env_reg_value(ANTIGRAVITY_WINDOWS_MARKER);
+        if changed {
+            crate::env_injector::windows::broadcast_setting_change();
+        }
+        changed
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
 }
 
 pub fn configure_antigravity_proxy() -> (bool, String) {

@@ -20,8 +20,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 6 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...24 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Phase 6: In-tree rules and skills integration with compile-time include_str! assets for Karpathy principles, Caveman, and Ponytail, eliminating external clone links [crates/tokless/src/rules/]
+- ...25 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 7: Integrated pure Rust Headroom engine into crates/tokless/src/headroom/ with byte-for-byte critical log preservation, Tree-sitter code compression, structural JSON minification, 1024-token prompt cache alignment, adaptive L0/L1/L2 memory scaling, and BYOK reverse proxy. Dropped Python headroom-py completely.
 - Phase 8: Purged runtime downloaders (npminstall, nodewin, nodelinux, uv, projectmem, gitwin); rewired agent and tool harnesses to native in-tree Rust modules; enforced system detection policy via which::which; 0 compiler warnings, 224 tests passing [crates/tokless/src/util/mod.rs:1]
 - Phase 9: Implemented interactive multi-tab TUI in crates/tokless/src/tui using ratatui and crossterm with 6 views, 60fps rendering, live waterfall, agent wire manager, memory explorer, codegraph inspector, and headroom gauges [crates/tokless/src/tui/mod.rs]
@@ -36,9 +35,9 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 7: Headroom Deep Integration verified with core compression (log, code, json), 1024-token cache alignment, adaptive memory governor (L0/L1/L2), and BYOK streaming proxy; 0 warnings, all tests passing [crates/tokless/src/headroom/mod.rs]
 - Phase 8: Complete runtime downloader purge from rtk.rs; enforce native in-tree compilation and system PATH detection via which; verified with phase8 test suite (5/5 passing, 0 compiler warnings) [crates/tokless/src/tools/rtk.rs:109]
 - Phase 9: Purged destructive binary hijacking from antigravity, grok, and copilot; implemented self-healing engine in crates/tokless/src/env_injector/heal.rs to restore .real/.real.exe binaries and purge shims/state files across tokless init, tokless doctor --fix, and tokless daemon start
+- Phase 10: Non-destructive environment injection via native Windows HKCU\\Environment APIs and broadcast WM_SETTINGCHANGE, Unix environment.d/systemd, teardown guard on daemon stop and Ctrl+C [crates/tokless/src/env_injector/]
 
 ## Notes
-- Phase 10 Telemetry & Control Web Dashboard implemented: pure Rust HTTP/SSE server (127.0.0.1:9099), bundled SPA via include_str!, 7 cockpit views, wired into `tokless dashboard [--port 9099] [--open]`, 0 compiler warnings, 229 tests passing. [crates/tokless/src/dashboard/mod.rs:1]
 - New feature: feat(dashboard): add embedded web telemetry & control cockpit [crates/tokless/src/commands/dashboard.rs]
 - New feature: feat: update project summaries and CLI help text; enhance MCP message handling [crates/tokless/src/commands/tui.rs]
 - New feature: feat: Enhance project memory management and global gotchas functionality [crates/tokless/src/main.rs]
@@ -48,6 +47,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat: Implement in-tree rules and skills management with CLI integration and verification tests [crates/tokless/src/main.rs]
 - New feature: feat: Update project summary and enhance verification tests for Phase 7 headroom integration [crates/tokless/tests/phase3_contextmode_verification.rs]
 - New feature: feat: Update project summary, enhance CLI test issue tracking, and add Phase 8 downloader purge verification tests [crates/tokless/src/tools/rtk.rs]
+- New feature: feat: implement self-healing for legacy hijacked binaries and shims [crates/tokless/src/agents/antigravity.rs]
 
 ## Key files
 - `.editorconfig`

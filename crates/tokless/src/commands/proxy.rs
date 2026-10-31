@@ -189,6 +189,7 @@ pub fn run_proxy_up(opts: InitOptions) -> i32 {
         tree_close();
     }
 
+    let _ = crate::env_injector::inject_proxy_env();
     tree_status(&[status_ok(&format!(
         "Headroom running on port {}.",
         proxy_port()
@@ -245,6 +246,7 @@ pub fn run_proxy_down(opts: InitOptions) -> i32 {
         let _ = disable_proxy_autostart();
         let _ = stop_proxy();
         let _ = set_proxy_routing_enabled(false);
+        let _ = crate::env_injector::teardown_proxy_env();
         tree_status(&[status_ok("Headroom stopped and agent routing restored.")]);
     } else {
         tree_status(&[status_ok("Selected agent routing restored.")]);

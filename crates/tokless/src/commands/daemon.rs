@@ -110,6 +110,11 @@ fn daemon_start() -> i32 {
         ));
     }
 
+    // Connect non-destructive environment injection so environment is ready before VS Code or IDEs launch
+    if let Err(e) = crate::env_injector::inject_proxy_env() {
+        L.warn(&format!("Environment injection warning: {}", e));
+    }
+
     let _ = fs::remove_file(daemon_stop_file());
     let exe = tokless_abs_strict();
     if exe.is_empty() {
@@ -150,6 +155,9 @@ fn daemon_start() -> i32 {
 }
 
 fn daemon_stop() -> i32 {
+    // Purge all Tokless-owned environment variables upon shutdown
+    let _ = crate::env_injector::teardown_proxy_env();
+
     if !is_daemon_running() {
         L.raw(&format!("  {} Tokless daemon is not running", C.dim("•")));
         return 0;
@@ -176,6 +184,11 @@ fn daemon_run_foreground() -> i32 {
         return 1;
     }
 
+    // Register teardown handlers (SIGINT, SIGTERM, Ctrl+C) and RAII guard
+    crate::env_injector::register_teardown_handlers();
+    let mut teardown_guard = crate::env_injector::TeardownGuard::new();
+    let _ = crate::env_injector::inject_proxy_env();
+
     loop {
         if Path::new(&daemon_stop_file()).exists() {
             let _ = fs::remove_file(daemon_pid_file());
@@ -190,6 +203,9 @@ fn daemon_run_foreground() -> i32 {
 
         sleep(Duration::from_secs(2));
     }
+
+    let _ = crate::env_injector::teardown_proxy_env();
+    teardown_guard.disarm();
 
     0
 }
