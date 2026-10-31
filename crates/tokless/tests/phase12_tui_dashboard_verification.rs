@@ -18,6 +18,10 @@ use tokless::tui::app::{App, MemoryFilter};
 use tokless::dashboard::api::*;
 use tokless::dashboard::assets::*;
 use tokless::dashboard::server::*;
+use tokless::telemetry::{
+    calculate_cost, calculate_savings, global_collector, render_metrics, CostTracker,
+    MetricsCollector, RequestTracker,
+};
 
 fn press_key(code: KeyCode) -> KeyEvent {
     KeyEvent {
@@ -283,3 +287,126 @@ async fn test_phase12_dashboard_http_server_and_sse() {
         }
     }
 }
+
+#[test]
+fn test_phase12_prometheus_telemetry_and_metrics_endpoint() {
+    let _lock = acquire_lock();
+
+    // 1. In-tree Cost & Pricing Catalog
+    let sonnet_cost = calculate_cost("claude-3-7-sonnet", 10_000, 2_000, 5_000);
+    assert!(sonnet_cost > 0.0);
+    let savings = calculate_savings("claude-3-7-sonnet", 8_000);
+    assert!(savings > 0.0);
+
+    let mut tracker = CostTracker::new();
+    tracker.record_transaction("anthropic", "claude-3-7-sonnet", "claude", "vk-1", sonnet_cost, savings);
+    assert_eq!(tracker.total_spend_usd(), sonnet_cost);
+    assert_eq!(tracker.total_savings_usd(), savings);
+
+    // 2. Latency Breakdown Tracker
+    let mut req_tracker = RequestTracker::start();
+    req_tracker.record_compression(150);
+    req_tracker.record_serialization(50);
+    req_tracker.record_rule_injection(90);
+    req_tracker.record_mcp_pruning(300);
+    req_tracker.record_upstream_duration(Duration::from_millis(200));
+    req_tracker.record_transport_end();
+    let record = req_tracker.finish();
+    assert_eq!(record.overhead.total_micros(), 590);
+    assert!(record.upstream_seconds() >= 0.19);
+
+    // 3. Collector & Hot Path Latency (< 10 µs)
+    let collector = MetricsCollector::new();
+    let start = std::time::Instant::now();
+    for _ in 0..100 {
+        collector.inc_active_requests();
+        collector.record_http_request("POST", "/v1/chat/completions", 200, 0.025, 2048, 1024);
+        collector.dec_active_requests();
+    }
+    let elapsed = start.elapsed();
+    let per_op = elapsed / 100;
+    assert!(
+        per_op < Duration::from_micros(10),
+        "Hot-path metrics recording exceeded 10 µs: {:?}",
+        per_op
+    );
+
+    // Record comprehensive metrics
+    collector.record_upstream_call(
+        "anthropic",
+        "claude-3-7-sonnet",
+        200,
+        None,
+        0.350,
+        12000,
+        3000,
+        6000,
+        5000,
+        "claude",
+        "vk-corp",
+    );
+    collector.record_upstream_call(
+        "anthropic",
+        "claude-3-7-sonnet",
+        429,
+        Some("rate_limit"),
+        0.020,
+        0,
+        0,
+        0,
+        0,
+        "claude",
+        "vk-corp",
+    );
+    collector.record_cache_event("direct", true, 0.0003);
+    collector.record_cache_event("semantic", true, 0.0009);
+    collector.record_cache_event("direct", false, 0.0002);
+    collector.set_provider_key_up("anthropic", "primary_key", true);
+    collector.record_key_rotation("anthropic", "429_rate_limit");
+    collector.record_circuit_breaker_trip("anthropic", "consecutive_5xx");
+    collector.record_retry("anthropic", 1);
+    collector.record_latency_breakdown(&record);
+
+    // 4. Prometheus Exposition Text Verification
+    let rendered = tokless::telemetry::prometheus::render_metrics_from(&collector);
+    assert!(rendered.contains("tokless_http_requests_total"));
+    assert!(rendered.contains("tokless_http_request_duration_seconds"));
+    assert!(rendered.contains("tokless_http_request_size_bytes"));
+    assert!(rendered.contains("tokless_http_response_size_bytes"));
+    assert!(rendered.contains("tokless_upstream_requests_total"));
+    assert!(rendered.contains("tokless_success_requests_total"));
+    assert!(rendered.contains("tokless_error_requests_total"));
+    assert!(rendered.contains("tokless_upstream_latency_seconds"));
+    assert!(rendered.contains("tokless_active_requests"));
+    assert!(rendered.contains("tokless_input_tokens_total"));
+    assert!(rendered.contains("tokless_output_tokens_total"));
+    assert!(rendered.contains("tokless_cached_tokens_total"));
+    assert!(rendered.contains("tokless_tokens_saved_total"));
+    assert!(rendered.contains("tokless_cost_usd_total"));
+    assert!(rendered.contains("tokless_cost_savings_usd_total"));
+    assert!(rendered.contains("tokless_cache_hits_total{cache_type=\"direct\"} 1"));
+    assert!(rendered.contains("tokless_cache_hits_total{cache_type=\"semantic\"} 1"));
+    assert!(rendered.contains("tokless_cache_misses_total 1"));
+    assert!(rendered.contains("tokless_cache_lookup_latency_seconds"));
+    assert!(rendered.contains("tokless_provider_key_up{provider=\"anthropic\",key_id=\"primary_key\"} 1"));
+    assert!(rendered.contains("tokless_key_rotation_events_total"));
+    assert!(rendered.contains("tokless_circuit_breaker_trips_total"));
+    assert!(rendered.contains("tokless_request_retries"));
+    assert!(rendered.contains("tokless_overhead_latency_seconds"));
+
+    // 5. Global collector and /metrics HTTP endpoint integration
+    let global_text = render_metrics();
+    assert!(!global_text.is_empty());
+
+    let req_metrics_raw = b"GET /metrics HTTP/1.1\r\nHost: 127.0.0.1:9099\r\n\r\n";
+    let (req_metrics, _) = HttpRequest::parse(req_metrics_raw).expect("parse metrics request");
+    assert_eq!(req_metrics.path, "/metrics");
+
+    let resp_metrics = HttpResponse::ok_plain(&global_text);
+    let bytes_metrics = resp_metrics.to_bytes();
+    let str_metrics = String::from_utf8_lossy(&bytes_metrics);
+    assert!(str_metrics.contains("HTTP/1.1 200 OK"));
+    assert!(str_metrics.contains("Content-Type: text/plain; version=0.0.4; charset=utf-8"));
+    assert!(str_metrics.contains("tokless_http_requests_total"));
+}
+

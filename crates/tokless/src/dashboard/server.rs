@@ -135,6 +135,15 @@ impl HttpResponse {
         }
     }
 
+    pub fn ok_plain(body: &str) -> Self {
+        Self {
+            status: 200,
+            status_text: "OK",
+            content_type: "text/plain; version=0.0.4; charset=utf-8",
+            body: body.as_bytes().to_vec(),
+        }
+    }
+
     pub fn ok_json(val: serde_json::Value) -> Self {
         let bytes = serde_json::to_vec(&val).unwrap_or_default();
         Self {
@@ -347,6 +356,7 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
         ("GET", "/") | ("GET", "/index.html") => HttpResponse::ok_html(INDEX_HTML),
         ("GET", "/style.css") => HttpResponse::ok_css(STYLE_CSS),
         ("GET", "/app.js") => HttpResponse::ok_js(APP_JS),
+        ("GET", "/metrics") => HttpResponse::ok_plain(&crate::telemetry::render_metrics()),
 
         ("GET", "/api/overview") | ("GET", "/api/status") => {
             HttpResponse::ok_json(handle_overview())

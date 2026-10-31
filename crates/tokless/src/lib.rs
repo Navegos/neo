@@ -22,4 +22,5 @@ pub mod rules;
 pub mod tui;
 pub mod dashboard;
 pub mod env_injector;
+pub mod telemetry;
 

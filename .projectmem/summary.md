@@ -7,6 +7,7 @@ _Last updated: 2026-10-31_
 Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go to Rust.
 
 ## Recent issues
+- [DONE] #0018 Phase 12: Implement Native Prometheus Telemetry Subsystem, cost tracking, latency breakdown, and /metrics exposition [crates/tokless/src/telemetry/mod.rs:1] -> Phase 12 complete: Prometheus metrics subsystem, cost tracking, latency breakdown, /metrics endpoint, TUI, and embedded Web Dashboard verified (5 tests passing, 0 warnings) [crates/tokless/src/telemetry/mod.rs:1] (fixed)
 - [DONE] #0017 Phase 11: Agent Doctor & Self-Healing Parity across all 17 agents [crates/tokless/src/commands/doctor.rs:31] -> Phase 11 verified: all 17 agent configurations audited, in-tree rules verified, legacy runners purged, environment status checked; 331 tests passing with 0 warnings (fixed)
 - [DONE] #0016 Phase 9: Legacy healing and binary un-hijack [crates/tokless/CONSOLIDATION_PLAN.md:404] -> Phase 9 complete: purged binary hijacking, automated self-healing engine restores .real binaries and deletes shims/state files, 232 unit tests and 5 phase 9 verification tests passing with 0 warnings (fixed)
 - [DONE] #0015 Execute Phase 7: Headroom Deep Integration (compression, cache alignment, adaptive memory governor, BYOK proxy unification) [crates/tokless/src/headroom/] -> Phase 7 complete: Full native headroom deep integration with lossless log compression, AST code pruner, JSON minifier, 1024-token prompt cache alignment, adaptive memory governor (L0/L1/L2), and BYOK streaming proxy. (fixed)
@@ -16,8 +17,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - [DONE] #0011 OpenCode v1/v2 proxy & BYOK parity missing: ConfigureOpenCodeProxyV2, RemoveOpenCodeProxyV2, OpenCodeProxyV2Wired, retrieve tool stash, and proxy_agent opencode2 spec [crates/tokless/src/agents/opencode.rs] -> Verified and integrated OpenCode v1 and v2 proxy and BYOK parity with complete specs and stash handling (fixed)
 - [DONE] #0010 MCP adapters and opencode v2 regressions: opencode2 MCP writes v1 root shape instead of mcp.servers, codex MCP block parser missing, cursor MCP permissions missing [crates/tokless/src/agents/mcp_adapters.rs] -> Verified and wired MCP adapters for opencode2 with mcp.servers, codex TOML block parser, and cursor MCP permissions (fixed)
 - [DONE] #0009 ProjectMem tool missing pjm context + intent sections + global gotchas, kilo/opencode2 extensions, before_agent_start/transform hooks, and git worktree post-commit hook [crates/tokless/src/tools/projectmem.rs] -> Projectmem tool equipped with session push, kilo/opencode2 extensions, and rule files refresh (fixed)
-- [DONE] #0008 CodeGraph tool missing antigravity/droid/pi hooks and package purge, status --json health check, codegraph init vs index --quiet, and opencode autoindexjs unwire [crates/tokless/src/tools/codegraph.rs] -> CodeGraph tool equipped with hooks for antigravity, droid, pi, and opencode/opencode2 autoindex unwiring (fixed)
-- ...and 7 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 8 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
 - ...28 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
@@ -38,7 +38,6 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 7: Implemented Native Enterprise AI Gateway and Headroom deep integration with 36 provider clients, local session reuse bridges, dynamic failover cascade, multi-key pools, load balancer, task complexity router, virtual key governance, dual-tier semantic cache, and dynamic MCP schema pruner; 407 workspace tests passing with 0 warnings [crates/tokless/src/gateway/]
 
 ## Notes
-- New feature: feat: Enhance codegraph functionality with health checks and multi-language parsing tests [crates/tokless/src/tools/codegraph.rs]
 - New feature: feat: Implement in-tree rules and skills management with CLI integration and verification tests [crates/tokless/src/main.rs]
 - New feature: feat: Update project summary and enhance verification tests for Phase 7 headroom integration [crates/tokless/tests/phase3_contextmode_verification.rs]
 - New feature: feat: Update project summary, enhance CLI test issue tracking, and add Phase 8 downloader purge verification tests [crates/tokless/src/tools/rtk.rs]
@@ -48,6 +47,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat(tokless): implement Phase 12 TUI and telemetry web dashboard verification [crates/tokless/src/dashboard/api.rs]
 - New feature: feat(tokless): implement Phase 13 end-to-end system verification and benchmarks [crates/tokless/tests/phase13_e2e_verification.rs]
 - New feature: feat: update project documentation for Phase 13 end-to-end system verification and benchmarks [crates/tokless/CONSOLIDATION_PLAN.md]
+- New feature: feat(tokless): implement Phase 7 headroom deep integration and native enterprise AI gateway [crates/tokless/src/gateway/agent_cli/claude_code.rs]
 
 ## Key files
 - `.editorconfig`

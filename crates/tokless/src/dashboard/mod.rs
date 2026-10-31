@@ -70,11 +70,13 @@ pub fn run_dashboard_cli(argv: &[String]) -> i32 {
 
     let url = format!("http://127.0.0.1:{}", port);
     println!(
-        "\n  {} {}\n  {} {}\n  {} {}\n\n  {}",
+        "\n  {} {}\n  {} {}\n  {} {}\n  {} {}\n\n  {}",
         C.cyan("tokless"),
         C.bold("Telemetry & Control Cockpit (Phase 12)"),
         C.dim("Local Dashboard:"),
         C.cyan(&url),
+        C.dim("Prometheus Metrics:"),
+        C.cyan(&format!("{}/metrics", url)),
         C.dim("SSE Stream:"),
         C.cyan(&format!("{}/api/events", url)),
         C.dim("Press Ctrl+C to stop dashboard server...")
