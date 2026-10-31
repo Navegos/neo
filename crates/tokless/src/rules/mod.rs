@@ -11,11 +11,13 @@
 //! Exposes functions to inject, patch, and verify instructions across agent
 //! configs (`CLAUDE.md`, `.cursor/rules/`, `AGENTS.md`, and custom agent paths).
 
+pub mod cli;
 pub mod embedded;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub use cli::run_rules_cli;
 pub use embedded::caveman as caveman_rule;
 pub use embedded::ponytail as ponytail_rule;
 pub use embedded::principles as principles_rule;
@@ -438,6 +440,91 @@ pub fn remove_rule_from_path(path: impl AsRef<Path>, rule: RuleKind) -> Result<b
         safe_write_file(p, &updated)?;
     }
     Ok(true)
+}
+
+/// Composite report of patched agent configurations.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct PatchReport {
+    pub claude_patched: bool,
+    pub agents_patched: bool,
+    pub cursor_rules_written: Vec<PathBuf>,
+}
+
+/// Injects or patches in-tree rules into all supported agent configurations in `dir`:
+/// `CLAUDE.md`, `AGENTS.md`, and `.cursor/rules/*.mdc`.
+pub fn patch_all_agent_configs(dir: impl AsRef<Path>, rules: &[RuleKind]) -> Result<PatchReport, DynError> {
+    let p = dir.as_ref();
+    let claude_patched = patch_claude_md(p, rules)?;
+    let agents_patched = patch_agents_md(p, rules)?;
+    let cursor_rules_written = patch_cursor_rules(p, rules)?;
+    Ok(PatchReport {
+        claude_patched,
+        agents_patched,
+        cursor_rules_written,
+    })
+}
+
+/// Status report for an agent config file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConfigRuleStatus {
+    pub target: String,
+    pub present_rules: Vec<RuleKind>,
+}
+
+/// Inspects configured rules across CLAUDE.md, AGENTS.md, and .cursor/rules in a workspace.
+pub fn inspect_agent_rules(dir: impl AsRef<Path>) -> Vec<ConfigRuleStatus> {
+    let p = dir.as_ref();
+    let mut out = Vec::new();
+
+    // Check CLAUDE.md
+    let claude_path = p.join("CLAUDE.md");
+    if claude_path.exists() {
+        if let Ok(content) = fs::read_to_string(&claude_path) {
+            let present: Vec<RuleKind> = RuleKind::all()
+                .iter()
+                .copied()
+                .filter(|&r| content_has_rule(&content, r))
+                .collect();
+            out.push(ConfigRuleStatus {
+                target: "CLAUDE.md".to_string(),
+                present_rules: present,
+            });
+        }
+    }
+
+    // Check AGENTS.md
+    let agents_path = p.join("AGENTS.md");
+    if agents_path.exists() {
+        if let Ok(content) = fs::read_to_string(&agents_path) {
+            let present: Vec<RuleKind> = RuleKind::all()
+                .iter()
+                .copied()
+                .filter(|&r| content_has_rule(&content, r))
+                .collect();
+            out.push(ConfigRuleStatus {
+                target: "AGENTS.md".to_string(),
+                present_rules: present,
+            });
+        }
+    }
+
+    // Check .cursor/rules/
+    let cursor_rules_dir = p.join(".cursor").join("rules");
+    if cursor_rules_dir.is_dir() {
+        let mut present = Vec::new();
+        for &r in RuleKind::all() {
+            let rule_file = cursor_rules_dir.join(r.cursor_filename());
+            if rule_file.exists() {
+                present.push(r);
+            }
+        }
+        out.push(ConfigRuleStatus {
+            target: ".cursor/rules/".to_string(),
+            present_rules: present,
+        });
+    }
+
+    out
 }
 
 #[cfg(test)]

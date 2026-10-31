@@ -98,6 +98,7 @@ fn help_text() -> String {
           {}          Tree-sitter AST call-graph, blast-radius, and code explorer\n\
           {}          Instant Context Memory (ICM) SQLite FTS5 BM25 knowledge engine\n\
           {}      Multi-agent claim-once context handoffs across 17+ agents\n\
+          {}        Manage in-tree coding rules & skills (principles, caveman, ponytail)\n\
           {}          Execute command and apply token-reduction filters\n\
           {}      Manage the headroom HTTP proxy: up|down|status\n\n\
         {}\n  --agents <list>     Limit to a subset: claude,opencode,opencode2,codex,antigravity,copilot,cursor,droid,grok,pi,omp,kilo,cline,amp,kimi,zcode,dsh\n\
@@ -125,6 +126,7 @@ fn help_text() -> String {
         cy("tokless graph"),
         cy("tokless icm"),
         cy("tokless handoff"),
+        cy("tokless rules"),
         cy("tokless rtk"),
         cy("tokless proxy"),
         C.bold("Flags:"),
@@ -315,6 +317,9 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "dashboard" {
         return tokless::dashboard::run_dashboard_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "rules" {
+        return tokless::rules::run_rules_cli(&args[2..]);
+    }
 
     let p = parse_args(&args[1..]);
     if p.bools.get("verbose") == Some(&true) {
@@ -386,6 +391,7 @@ fn run() -> i32 {
         "graph" => tokless::codegraph::run_graph_cli(&args[2..]),
         "icm" => tokless::icm::run_icm_cli(&args[2..]),
         "handoff" => tokless::aimemory::run_handoff_cli(&args[2..]),
+        "rules" => tokless::rules::run_rules_cli(&args[2..]),
         "self-update" => run_self_update(p.bools.get("check") == Some(&true)),
         _ => {
             println!("{}", help_text());

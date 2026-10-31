@@ -20,8 +20,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 5 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...20 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Port ProjectMem to pure safe Rust in crates/tokless/src/projectmem/ with LockFileEx, fcntl, README generator, zero-alloc redaction, RTK trace connector, and tokless mem CLI
+- ...21 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 3 complete: Port Context-Mode to pure Rust in crates/tokless/src/contextmode with rusqlite FTS5 BM25 search, recursive directory indexing, async reqwest fetcher, sandbox subprocess runner with RTK output filtering, and tokless ctx <eval|search|index> CLI [crates/tokless/src/contextmode]
 - Phase 4: Embedded ICM SQLite FTS5 BM25 memory store and ai-memory claim-once multi-agent handoff state machine across 17+ agents with progressive L0/L1/L2 disclosure and zero LLM token spend [crates/tokless/src/icm/store.rs:1]
 - Phase 5: Ported CodeGraph to pure safe Rust engine in crates/tokless/src/codegraph with embedded Tree-sitter parsers, petgraph blast-radius engine, incremental SQLite cache, in-process MCP server, projectmem coordinate auto-resolution, and tokless graph CLI [crates/tokless/src/codegraph/mod.rs:1]
@@ -36,9 +35,9 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 3: ContextMode pure Rust port verified with isolated sandbox runner, in-memory RTK pipe, SQLite FTS5 BM25 chunker, async fetcher, in-process ctx_* MCP server, CLI, and integration test suite; 325 tests passing with 0 warnings [crates/tokless/src/contextmode/mod.rs:1]
 - Phase 4: ICM & ai-memory integration complete with embedded SQLite FTS5 BM25 store, sub-10ms recall latency, claim-once multi-agent handoffs across 17+ agents, tiered progressive disclosure packer, projectmem sync, CLI commands (tokless icm, tokless handoff, tokless mem sync), and in-process MCP server dispatch; 281 tests passing with 0 warnings [crates/tokless/src/icm/mod.rs:1]
 - Phase 5: CodeGraph pure Rust engine integrated with multi-language Tree-sitter parsers, petgraph blast-radius traversal, SQLite symbols cache, in-process MCP server, and projectmem coordinate resolution; 281 tests passing with 0 warnings [crates/tokless/src/codegraph/mod.rs]
+- Phase 6: In-Tree Rules & Skills Integration complete with embedded Karpathy principles, Caveman ASD-STE100, and Ponytail discipline; zero clone links, config patchers for CLAUDE.md/AGENTS.md/.cursor, CLI subcommands, 310 tests passing with 0 warnings [crates/tokless/src/rules/mod.rs]
 
 ## Notes
-- Phase 6 complete: In-tree rules & skills integration with embedded markdown assets via include_str! (principles, caveman, ponytail), zero external repo clone links, patch/inject helpers for CLAUDE.md, .cursor/rules/, AGENTS.md, 222 tests passing with 0 warnings [crates/tokless/src/rules/mod.rs:1]
 - New feature: Add embedded rules for coding guidelines: Caveman, Ponytail, and Principles [crates/tokless/src/lib.rs]
 - New feature: feat: implement Phase 7 headroom deep integration with compression, cache alignment, and adaptive memory governor; add s [crates/tokless/src/headroom/adaptive_mem.rs]
 - New feature: feat(tui): add headroom, logs, memory, monitor views and associated widgets [crates/tokless/src/commands/mod.rs]
@@ -48,6 +47,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat: Enhance project memory management and global gotchas functionality [crates/tokless/src/main.rs]
 - New feature: feat(tests): add phase 3 context mode verification tests and enhance project summaries [crates/tokless/tests/phase3_contextmode_verification.rs]
 - New feature: feat: Add Instant Context Memory (ICM) CLI and integrate with existing commands [crates/tokless/src/aimemory/cli.rs]
+- New feature: feat: Enhance codegraph functionality with health checks and multi-language parsing tests [crates/tokless/src/tools/codegraph.rs]
 
 ## Key files
 - `.editorconfig`
