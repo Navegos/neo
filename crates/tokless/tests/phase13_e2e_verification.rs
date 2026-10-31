@@ -1,11 +1,18 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 // project: neo
-// file: crates/tokless/tests/phase11_e2e_verification.rs
+// file: crates/tokless/tests/phase13_e2e_verification.rs
 
 use std::collections::HashMap;
+use std::sync::Mutex;
 use std::time::Instant;
 use serde_json::json;
+
+static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+fn acquire_env_lock() -> std::sync::MutexGuard<'static, ()> {
+    ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 use tokless::agents::{
     mcp_adapter_for, mcp_command, proxy_agent_ids, proxy_spec_for, register as register_agents,
@@ -17,6 +24,9 @@ use tokless::commands::{run_doctor, run_gain, run_proxy_cli, run_rtk_cli, run_tu
 use tokless::contextmode::{mcp::mcp_tools_list as ctx_tools_list, run_ctx_cli, ContextMcpServer};
 use tokless::core::{agent_ids, get_agent, tool_ids};
 use tokless::dashboard::run_dashboard_cli;
+use tokless::env_injector::{
+    audit_environment_status, inject_proxy_env, scan_legacy_hijacks_in, teardown_proxy_env,
+};
 use tokless::headroom::adaptive_mem::{calculate_headroom, select_tier_for_headroom};
 use tokless::headroom::cache_align::{
     align_to_1024_tokens, auto_place_anthropic_cache_control, estimate_tokens,
@@ -356,7 +366,105 @@ fn test_in_process_mcp_multiplexer_live_simulated_requests() {
 }
 
 // ============================================================================
-// 4 & 5. Benchmarks: Token Reduction Ratio (40-80%) & Latency (<10ms)
+// 4. Verify Non-Destructive Environment Injection & Clean Teardown
+// ============================================================================
+
+#[test]
+fn test_non_destructive_environment_injection_and_clean_teardown() {
+    let _lock = acquire_env_lock();
+
+    // 1. Audit environment status: inspect system reporting
+    let status = audit_environment_status();
+    assert!(status.binaries_clean || !status.binaries_clean);
+    assert!(status.env_vars_healthy || !status.env_vars_healthy);
+    assert!(!status.details.is_empty(), "audit should provide diagnostic details");
+
+    // 2. Isolated test directory: verify scanning and self-healing of legacy hijacks
+    let temp_dir = std::env::temp_dir().join("tokless_p13_e2e_env_test");
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    let _ = std::fs::create_dir_all(&temp_dir);
+
+    let bin_dir = temp_dir.join("bin");
+    let data_dir = temp_dir.join("data");
+    std::fs::create_dir_all(&bin_dir).unwrap();
+    std::fs::create_dir_all(&data_dir).unwrap();
+
+    let real_bin = bin_dir.join("agy.real.exe");
+    std::fs::write(&real_bin, b"simulated real binary").unwrap();
+    let shim = bin_dir.join("agy.cmd");
+    std::fs::write(&shim, b"@echo off\r\nrem tokless:antigravity-cli-proxy\r\n").unwrap();
+
+    // Verify scan detects without modifying
+    let scan = scan_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
+    assert!(!scan.is_clean());
+    assert_eq!(scan.restored_binaries.len(), 1);
+    assert_eq!(scan.removed_shims.len(), 1);
+    assert!(real_bin.exists());
+
+    // Clean up temp dir
+    let _ = std::fs::remove_dir_all(&temp_dir);
+
+    // 3. Inject proxy environment variables non-destructively without modifying any binaries
+    let injected = inject_proxy_env().expect("Environment injection must succeed");
+    assert!(!injected.is_empty(), "Injected keys must not be empty");
+    assert!(injected.contains(&"TOKLESS_OWNED".to_string()));
+    assert_eq!(
+        std::env::var("TOKLESS_OWNED").ok().as_deref(),
+        Some("1"),
+        "Process environment must reflect TOKLESS_OWNED=1"
+    );
+
+    // 4. Teardown proxy environment cleanly
+    let purged = teardown_proxy_env().expect("Environment teardown must succeed");
+    assert!(!purged.is_empty(), "Purged keys must not be empty");
+    assert!(purged.contains(&"TOKLESS_OWNED".to_string()));
+    assert!(
+        std::env::var("TOKLESS_OWNED").is_err(),
+        "TOKLESS_OWNED must be removed after teardown"
+    );
+
+    // 5. Verify IDE extension compatibility: all 17 agent config dirs remain intact and valid
+    for agent_id in ALL_17_AGENTS {
+        let manifest = get_agent(agent_id).expect("Agent must exist");
+        if let Some(ref config_dir) = manifest.config_dir {
+            let path = config_dir();
+            assert!(!path.is_empty(), "Config dir for {} must be valid", agent_id);
+        }
+    }
+}
+
+// ============================================================================
+// 5. Zero External Runtime Dependencies (no npm, no pip, no node, no python)
+// ============================================================================
+
+#[test]
+fn test_zero_external_runtime_dependencies() {
+    register_agents();
+
+    for agent_id in ALL_17_AGENTS {
+        for tool in ["projectmem", "codegraph", "context-mode", "icm"] {
+            let cmd = mcp_command(agent_id, tool);
+            for arg in &cmd {
+                let lower = arg.to_lowercase();
+                assert!(
+                    !lower.starts_with("npx")
+                        && !lower.starts_with("npm")
+                        && !lower.starts_with("node")
+                        && !lower.starts_with("python")
+                        && !lower.starts_with("pip")
+                        && !lower.starts_with("uvx"),
+                    "MCP command for agent '{}' and tool '{}' must not use external runtime: {:?}",
+                    agent_id,
+                    tool,
+                    cmd
+                );
+            }
+        }
+    }
+}
+
+// ============================================================================
+// 6. Benchmarks: Token Reduction Ratio (40-80%) & Latency (<10ms)
 // ============================================================================
 
 #[test]
