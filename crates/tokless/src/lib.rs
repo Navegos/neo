@@ -8,6 +8,7 @@
 pub mod core;
 pub mod util;
 pub mod headroom;
+pub mod gateway;
 pub mod agents;
 pub mod tools;
 pub mod commands;

@@ -15,6 +15,7 @@ pub mod copilot_daemon;
 pub mod grok_daemon;
 pub mod headroom;
 pub mod process_identity;
+pub mod pruner;
 pub mod proxy;
 pub mod responses_compat;
 pub mod router;
@@ -34,6 +35,7 @@ pub use copilot_daemon::{
 pub use grok_daemon::*;
 pub use headroom::*;
 pub use process_identity::*;
+pub use pruner::*;
 pub use proxy::*;
 pub use responses_compat::*;
 pub use router::*;
