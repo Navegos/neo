@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/agents/mcp_adapters.rs
 // created: 2026-10-20
-// lastModified: 2026-10-20
+// lastModified: 2026-10-31
 
 use std::path::Path;
 use std::sync::Arc;
@@ -12,11 +12,12 @@ use serde_json::Value;
 use crate::core::{with_any_shape, with_command, McpAdapter, McpOption, McpReply, McpRequest};
 use crate::util::jsonc::{stringify_json, OrderedMap};
 use crate::util::mcpspawn::{mcp_spawn_for, pick_mcp_spawn, wrap_auto_index};
+use crate::tools::copilot_ide_mcp_path;
 use crate::util::paths::{
-    amp_paths_resolved, claude_code_paths, cline_paths_resolved, codex_paths_resolved,
-    cursor_global_mcp_path, ensure_dir, kilo_paths_resolved, kimi_paths_resolved,
-    omp_paths_resolved, opencode_paths_resolved, opencode_paths_v2, pi_paths_resolved,
-    read_file_safe, write_file, zcode_paths_resolved,
+    amp_paths_resolved, antigravity_paths_resolved, claude_code_paths, cline_paths_resolved,
+    codex_paths_resolved, copilot_paths_resolved, cursor_global_mcp_path, ensure_dir,
+    kilo_paths_resolved, kimi_paths_resolved, omp_paths_resolved, opencode_paths_resolved,
+    opencode_paths_v2, pi_paths_resolved, read_file_safe, write_file, zcode_paths_resolved,
 };
 
 use super::antigravity::*;
@@ -155,6 +156,62 @@ fn nested_child_ref<'a>(cfg: &'a OrderedMap, path: &str) -> Option<&'a OrderedMa
     Some(cur)
 }
 
+pub fn is_legacy_mcp_runner_str(cmd: &str) -> bool {
+    let norm = cmd.replace('\\', "/");
+    let stem = Path::new(&norm)
+        .file_stem()
+        .and_then(|st| st.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    matches!(
+        stem.as_str(),
+        "npx" | "uvx" | "pip" | "pip3" | "pipx" | "npm" | "bunx" | "pnpm" | "python" | "python3" | "node"
+    )
+}
+
+pub fn is_tokless_mcp_command_str(cmd: &str) -> bool {
+    let norm = cmd.replace('\\', "/");
+    let stem = Path::new(&norm)
+        .file_stem()
+        .and_then(|st| st.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    matches!(
+        stem.as_str(),
+        "tokless"
+            | "tokless-linux"
+            | "tokless-linux-x64"
+            | "tokless-linux-arm64"
+            | "tokless-darwin"
+            | "tokless-darwin-x64"
+            | "tokless-darwin-arm64"
+    )
+}
+
+pub fn is_legacy_mcp_entry(v: &Value) -> bool {
+    let Some(m) = v.as_object() else {
+        return false;
+    };
+    if let Some(cmd) = m.get("command") {
+        match cmd {
+            Value::String(s) => {
+                if is_legacy_mcp_runner_str(s) {
+                    return true;
+                }
+            }
+            Value::Array(arr) => {
+                if let Some(first) = arr.first().and_then(|v| v.as_str()) {
+                    if is_legacy_mcp_runner_str(first) {
+                        return true;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 fn tokless_mcp_entry(v: &Value) -> bool {
     let Some(m) = v.as_object() else {
         return false;
@@ -170,8 +227,7 @@ fn tokless_mcp_entry(v: &Value) -> bool {
         },
         _ => return false,
     };
-    let filename = Path::new(first).file_stem().and_then(|s| s.to_str()).unwrap_or("");
-    filename.eq_ignore_ascii_case("tokless")
+    is_tokless_mcp_command_str(first)
 }
 
 pub struct GenericJsonMcpAdapter {
@@ -204,7 +260,7 @@ impl McpAdapter for GenericJsonMcpAdapter {
             };
         };
         if let Some(current) = servers.get(&req.tool_id) {
-            if !tokless_mcp_entry(current) {
+            if !tokless_mcp_entry(current) && !is_legacy_mcp_entry(current) {
                 return McpReply {
                     file: path,
                     err: Some(format!("mcp {}: foreign entry present; refusing to overwrite", req.tool_id)),
@@ -251,7 +307,7 @@ impl McpAdapter for GenericJsonMcpAdapter {
         let Some(current) = servers.get(&req.tool_id) else {
             return McpReply { changed: false, file: path, err: None };
         };
-        if !tokless_mcp_entry(current) {
+        if !tokless_mcp_entry(current) && !is_legacy_mcp_entry(current) {
             return McpReply {
                 file: path,
                 err: Some(format!("mcp {}: foreign entry present; refusing to remove", req.tool_id)),
@@ -918,6 +974,228 @@ pub fn mcp_has(agent_id: &str, tool_id: &str, any_shape: bool) -> bool {
         opts.push(with_any_shape());
     }
     adapter.has_mcp(tool_id, &opts)
+}
+
+pub const MANAGED_MCP_TOOLS: &[&str] = &["codegraph", "context-mode", "projectmem", "icm"];
+
+pub fn agent_mcp_json_files(agent_id: &str) -> Vec<(String, String)> {
+    match agent_id {
+        "claude" => vec![(claude_code_paths().global_json, "mcpServers".into())],
+        "cursor" => vec![
+            (cursor_global_mcp_path(), "mcpServers".into()),
+            (".cursor/mcp.json".into(), "mcpServers".into()),
+        ],
+        "opencode" => vec![(opencode_paths_resolved().config, "mcp".into())],
+        "opencode2" => vec![(opencode_paths_v2().config, "mcp".into())],
+        "antigravity" => vec![
+            (antigravity_paths_resolved().mcp_config_cli, "mcpServers".into()),
+            (antigravity_paths_resolved().mcp_config_ide, "mcpServers".into()),
+        ],
+        "copilot" => vec![
+            (copilot_paths_resolved().mcp_config, "mcpServers".into()),
+            (copilot_ide_mcp_path(), "servers".into()),
+        ],
+        "droid" => vec![(droid_mcp_file(), "mcpServers".into())],
+        "kilo" => vec![(kilo_paths_resolved().config, "mcp".into())],
+        "omp" => vec![
+            (omp_paths_resolved().config, "mcpServers".into()),
+            (format!("{}/mcp.json", omp_agent_dir_resolved()), "mcpServers".into()),
+        ],
+        "pi" => vec![(pi_paths_resolved().mcp_config, "mcpServers".into())],
+        "cline" => vec![(cline_paths_resolved().mcp_config, "mcpServers".into())],
+        "amp" => vec![(amp_paths_resolved().config, "amp.mcpServers".into())],
+        "kimi" => vec![(kimi_paths_resolved().mcp_config, "mcpServers".into())],
+        "zcode" => vec![(zcode_paths_resolved().mcp_config, "mcp.servers".into())],
+        _ => Vec::new(),
+    }
+}
+
+pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
+    let mut issues = Vec::new();
+    match agent_id {
+        "codex" => {
+            let p = codex_paths_resolved().config;
+            if let Some(raw) = read_file_safe(&p) {
+                for &tool in MANAGED_MCP_TOOLS {
+                    let header = format!("mcp_servers.{}", tool);
+                    if let Some(block) = crate::util::toml::block_text(&raw, &header) {
+                        for line in block.lines() {
+                            let t = line.trim();
+                            if let Some((k, v)) = t.split_once('=') {
+                                if k.trim() == "command" {
+                                    let cmd = v.trim().trim_matches('"').trim_matches('\'');
+                                    if is_legacy_mcp_runner_str(cmd) {
+                                        issues.push(format!("{}: legacy runner {}", tool, cmd));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        "grok" => {
+            let p = grok_config_file();
+            if let Some(raw) = read_file_safe(&p) {
+                for &tool in MANAGED_MCP_TOOLS {
+                    let header = format!("mcp_servers.{}", tool);
+                    if let Some(block) = crate::util::toml::block_text(&raw, &header) {
+                        for line in block.lines() {
+                            let t = line.trim();
+                            if let Some((k, v)) = t.split_once('=') {
+                                if k.trim() == "command" {
+                                    let cmd = v.trim().trim_matches('"').trim_matches('\'');
+                                    if is_legacy_mcp_runner_str(cmd) {
+                                        issues.push(format!("{}: legacy runner {}", tool, cmd));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        "dsh" => {
+            let p = dsh_patch_file();
+            if let Some(raw) = read_file_safe(&p) {
+                for &tool in MANAGED_MCP_TOOLS {
+                    let marker = format!("id: mcp-{}", tool);
+                    if raw.contains(&marker) && (raw.contains("npx") || raw.contains("uvx") || raw.contains("pip")) {
+                        issues.push(format!("{}: legacy runner in dsh patch", tool));
+                    }
+                }
+            }
+        }
+        _ => {
+            let json_files = agent_mcp_json_files(agent_id);
+            for (path, key) in json_files {
+                if let Some(raw) = read_file_safe(&path) {
+                    if let Some(cfg) = try_parse_jsonc(&raw) {
+                        if let Some(servers) = nested_child_ref(&cfg, &key) {
+                            for &tool in MANAGED_MCP_TOOLS {
+                                if let Some(v) = servers.get(tool) {
+                                    if is_legacy_mcp_entry(v) {
+                                        issues.push(format!("{}: legacy runner in {}", tool, path));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    issues
+}
+
+pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
+    let mut purged = Vec::new();
+    match agent_id {
+        "codex" => {
+            let p = codex_paths_resolved().config;
+            if let Some(raw) = read_file_safe(&p) {
+                let mut next = raw.clone();
+                for &tool in MANAGED_MCP_TOOLS {
+                    let header = format!("mcp_servers.{}", tool);
+                    if let Some(block) = crate::util::toml::block_text(&next, &header) {
+                        if block.contains("npx") || block.contains("uvx") || block.contains("pip") || block.contains("python") {
+                            next = crate::util::toml::remove_block(&next, &header);
+                            purged.push(format!("{}: {}", agent_id, tool));
+                        }
+                    }
+                }
+                if next != raw {
+                    let _ = write_file(&p, &next);
+                }
+            }
+        }
+        "grok" => {
+            let p = grok_config_file();
+            if let Some(raw) = read_file_safe(&p) {
+                let mut next = raw.clone();
+                for &tool in MANAGED_MCP_TOOLS {
+                    let header = format!("mcp_servers.{}", tool);
+                    if let Some(block) = crate::util::toml::block_text(&next, &header) {
+                        if block.contains("npx") || block.contains("uvx") || block.contains("pip") || block.contains("python") {
+                            next = crate::util::toml::remove_block(&next, &header);
+                            purged.push(format!("{}: {}", agent_id, tool));
+                        }
+                    }
+                }
+                if next != raw {
+                    let _ = write_file(&p, &next);
+                }
+            }
+        }
+        "dsh" => {
+            let p = dsh_patch_file();
+            if let Some(raw) = read_file_safe(&p) {
+                for &tool in MANAGED_MCP_TOOLS {
+                    let marker = format!("id: mcp-{}", tool);
+                    if raw.contains(&marker) && (raw.contains("npx") || raw.contains("uvx") || raw.contains("pip")) {
+                        let _ = remove_dsh_mcp_block(&p, tool);
+                        purged.push(format!("{}: {}", agent_id, tool));
+                    }
+                }
+            }
+        }
+        _ => {
+            let json_files = agent_mcp_json_files(agent_id);
+            for (path, key) in json_files {
+                if let Some(raw) = read_file_safe(&path) {
+                    if let Some(mut cfg) = try_parse_jsonc(&raw) {
+                        let mut changed = false;
+                        if let Some(servers) = nested_child(&mut cfg, &key, false) {
+                            for &tool in MANAGED_MCP_TOOLS {
+                                if let Some(v) = servers.get(tool) {
+                                    if is_legacy_mcp_entry(v) {
+                                        servers.remove(tool);
+                                        changed = true;
+                                        purged.push(format!("{}: {}", agent_id, tool));
+                                    }
+                                }
+                            }
+                        }
+                        if changed {
+                            let _ = write_file(&path, &stringify_json(&Value::Object(cfg)));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    purged
+}
+
+fn remove_dsh_mcp_block(path: &str, tool_id: &str) -> bool {
+    let raw = match read_file_safe(path) {
+        Some(r) => r,
+        None => return false,
+    };
+    let id_marker = format!("    - id: mcp-{}\n", tool_id);
+    let Some(idx) = raw.find(&id_marker) else {
+        return false;
+    };
+    let start = match raw[..idx].rfind("\n- insert:") {
+        Some(s) => s + 1,
+        None => {
+            if raw.starts_with("- insert:") {
+                0
+            } else {
+                return false;
+            }
+        }
+    };
+    let line_end = idx + id_marker.len();
+    let end = match raw[line_end..].find("\n- ") {
+        Some(e) => line_end + e,
+        None => raw.len(),
+    };
+    let mut result = format!("{}{}", &raw[..start], &raw[end..]);
+    if end == raw.len() {
+        result = format!("{}\n", result.trim_end_matches(['\r', '\n']));
+    }
+    write_file(path, &result).is_ok()
 }
 
 #[cfg(test)]

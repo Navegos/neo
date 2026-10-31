@@ -252,6 +252,10 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
             None
         };
 
+        if !opts.dry_run {
+            let _ = crate::agents::purge_legacy_mcp_runners(agent_id);
+        }
+
         let mut wired_any = false;
         let mut wire_err: Option<String> = None;
         let mut newly_wired: Vec<Arc<ToolManifest>> = Vec::new();

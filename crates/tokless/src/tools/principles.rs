@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/principles.rs
 // created: 2026-10-05
-// lastModified: 2026-10-29
+// lastModified: 2026-10-31
 
 use std::sync::Arc;
 use crate::core::{Channel, ToolManifest};
@@ -134,6 +134,12 @@ pub fn build_principles() -> ToolManifest {
                 return Ok(true);
             }
             let _ = install_cursor_project_rules(".", false);
+            let global_dir = cursor_paths_resolved().rules_dir;
+            if !global_dir.is_empty() {
+                let _ = std::fs::create_dir_all(&global_dir);
+                let p = std::path::Path::new(&global_dir).join("principles.mdc");
+                let _ = crate::util::paths::write_file(&p, &cursor_project_rule_content("principles"));
+            }
             Ok(true)
         }),
     );
@@ -143,9 +149,13 @@ pub fn build_principles() -> ToolManifest {
             if opts.dry_run {
                 return Ok(true);
             }
-            let p = std::path::Path::new(&cursor_paths_resolved().rules_dir).join("principles.mdc");
-            if p.exists() {
-                let _ = std::fs::remove_file(p);
+            let p1 = std::path::Path::new(&cursor_paths_resolved().rules_dir).join("principles.mdc");
+            if p1.exists() {
+                let _ = std::fs::remove_file(p1);
+            }
+            let p2 = std::path::Path::new(".cursor").join("rules").join("principles.mdc");
+            if p2.exists() {
+                let _ = std::fs::remove_file(p2);
             }
             Ok(true)
         }),
@@ -153,16 +163,22 @@ pub fn build_principles() -> ToolManifest {
     tool.verify_for.insert(
         "cursor".into(),
         Arc::new(|| {
-            let p = std::path::Path::new(&cursor_paths_resolved().rules_dir)
-                .join("principles.mdc")
-                .to_string_lossy()
-                .to_string();
-            if let Some(raw) = read_file_safe(&p) {
-                let expected = cursor_project_rule_content("principles");
-                Some(!expected.is_empty() && raw.replace("\r\n", "\n") == expected.replace("\r\n", "\n"))
+            let p1 = std::path::Path::new(&cursor_paths_resolved().rules_dir).join("principles.mdc");
+            let p2 = std::path::Path::new(".cursor").join("rules").join("principles.mdc");
+            let target = if p1.exists() {
+                Some(p1)
+            } else if p2.exists() {
+                Some(p2)
             } else {
-                Some(true)
+                None
+            };
+            if let Some(path) = target {
+                if let Some(raw) = read_file_safe(path.to_string_lossy().as_ref()) {
+                    let expected = cursor_project_rule_content("principles");
+                    return Some(!expected.is_empty() && raw.replace("\r\n", "\n") == expected.replace("\r\n", "\n"));
+                }
             }
+            Some(false)
         }),
     );
 

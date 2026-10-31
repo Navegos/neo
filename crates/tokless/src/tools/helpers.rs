@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/helpers.rs
 // created: 2026-10-05
-// lastModified: 2026-10-14
+// lastModified: 2026-10-31
 
 use std::env;
 use std::fs;
@@ -165,6 +165,38 @@ pub fn remove_json_mcp_entry(path: &str, servers_key: &str, name: &str) -> bool 
     remove_json_mcp_entry_safe(path, servers_key, name).is_ok()
 }
 
+pub fn is_legacy_mcp_runner_str(cmd: &str) -> bool {
+    let norm = cmd.replace('\\', "/");
+    let stem = Path::new(&norm)
+        .file_stem()
+        .and_then(|st| st.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    matches!(
+        stem.as_str(),
+        "npx" | "uvx" | "pip" | "pip3" | "pipx" | "npm" | "bunx" | "pnpm" | "python" | "python3" | "node"
+    )
+}
+
+pub fn is_tokless_mcp_command_str(cmd: &str) -> bool {
+    let norm = cmd.replace('\\', "/");
+    let stem = Path::new(&norm)
+        .file_stem()
+        .and_then(|st| st.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    matches!(
+        stem.as_str(),
+        "tokless"
+            | "tokless-linux"
+            | "tokless-linux-x64"
+            | "tokless-linux-arm64"
+            | "tokless-darwin"
+            | "tokless-darwin-x64"
+            | "tokless-darwin-arm64"
+    )
+}
+
 pub fn has_mcp_entry_at_file(path: &str, servers_key: &str, name: &str, expected: Option<&McpSpawn>) -> bool {
     if path.is_empty() {
         return false;
@@ -187,6 +219,10 @@ pub fn has_mcp_entry_at_file(path: &str, servers_key: &str, name: &str, expected
             return false;
         }
         if !mcp_str_arr_eq(entry.get("args"), &exp.args) {
+            return false;
+        }
+    } else {
+        if is_legacy_mcp_runner_str(cmd) || !is_tokless_mcp_command_str(cmd) {
             return false;
         }
     }
@@ -246,7 +282,15 @@ pub fn has_array_mcp_entry(path: &str, name: &str, expected: Option<&McpSpawn>) 
         }
     } else {
         match entry.get("command") {
-            Some(Value::Array(a)) if !a.is_empty() => {}
+            Some(Value::Array(a)) if !a.is_empty() => {
+                if let Some(cmd) = a.first().and_then(|v| v.as_str()) {
+                    if is_legacy_mcp_runner_str(cmd) || !is_tokless_mcp_command_str(cmd) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
             _ => return false,
         }
     }
@@ -291,7 +335,26 @@ pub fn has_codex_mcp_entry(name: &str, _expected: Option<&McpSpawn>) -> bool {
         None => return false,
     };
     let header = format!("mcp_servers.{}", name);
-    has_block(&existing, &header)
+    if !has_block(&existing, &header) {
+        return false;
+    }
+    if let Some(start) = existing.find(&format!("[{}]", header)) {
+        let rest = &existing[start..];
+        let end = rest[1..].find("\n[").map(|i| i + 1).unwrap_or(rest.len());
+        let block = &rest[..end];
+        for line in block.lines() {
+            let t = line.trim();
+            if let Some((k, v)) = t.split_once('=') {
+                if k.trim() == "command" {
+                    let cmd = v.trim().trim_matches('"').trim_matches('\'');
+                    if is_legacy_mcp_runner_str(cmd) || !is_tokless_mcp_command_str(cmd) {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    true
 }
 
 // --- Agent-specific MCP paths ---

@@ -100,6 +100,73 @@ pub fn heal_legacy_hijacks_in(scan_dirs: &[PathBuf], data_dirs: &[PathBuf]) -> H
     report
 }
 
+/// Scans for legacy binary hijacks, shims, and orphaned state files without modifying anything.
+pub fn scan_legacy_hijacks() -> HealingReport {
+    let scan_dirs = collect_binary_scan_dirs();
+    let data_dirs = collect_data_dirs();
+    scan_legacy_hijacks_in(&scan_dirs, &data_dirs)
+}
+
+/// Targeted dry-run scan operating within the provided binary and data directories.
+pub fn scan_legacy_hijacks_in(scan_dirs: &[PathBuf], data_dirs: &[PathBuf]) -> HealingReport {
+    let mut report = HealingReport::default();
+    let mut visited_dirs = HashSet::new();
+
+    for dir in scan_dirs {
+        if !dir.is_dir() {
+            continue;
+        }
+        let canonical_dir = dir.canonicalize().unwrap_or_else(|_| dir.clone());
+        if !visited_dirs.insert(canonical_dir.clone()) {
+            continue;
+        }
+
+        let entries = match fs::read_dir(&canonical_dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let file = entry.path();
+            if let Some((is_real, canonical_name)) = analyze_stashed_binary(&file) {
+                if is_real {
+                    let canonical_path = canonical_dir.join(&canonical_name);
+                    report.restored_binaries.push((file.clone(), canonical_path));
+                }
+            } else if is_tokless_shim_or_sidecar(&file) {
+                report.removed_shims.push(file);
+            }
+        }
+    }
+
+    let mut visited_data_dirs = HashSet::new();
+    for data_dir in data_dirs {
+        if !data_dir.is_dir() {
+            continue;
+        }
+        let canonical_data = data_dir.canonicalize().unwrap_or_else(|_| data_dir.clone());
+        if !visited_data_dirs.insert(canonical_data.clone()) {
+            continue;
+        }
+
+        let entries = match fs::read_dir(&canonical_data) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let file = entry.path();
+            let file_name = match file.file_name().and_then(|f| f.to_str()) {
+                Some(n) => n.to_ascii_lowercase(),
+                None => continue,
+            };
+            if ORPHANED_STATE_FILES.iter().any(|&orph| file_name == orph) {
+                report.removed_state_files.push(file);
+            }
+        }
+    }
+
+    report
+}
+
 /// Collects standard directories where agent binaries or legacy shims could reside.
 fn collect_binary_scan_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();

@@ -29,6 +29,9 @@ struct AgentReport {
 }
 
 pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
+    let all_agents = list_agents();
+    let tools = list_tools();
+
     if fix {
         let healing = crate::env_injector::heal_legacy_hijacks();
         if !healing.is_clean() {
@@ -45,10 +48,50 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
                 C.green(Sym::CHECK)
             ));
         }
+
+        let mut fixed_count = 0;
+        for agent in &all_agents {
+            if !agent.detect().installed {
+                continue;
+            }
+            let purged = crate::agents::purge_legacy_mcp_runners(&agent.id);
+            if !purged.is_empty() {
+                L.raw(&format!(
+                    "  {} Purged broken legacy MCP runners for {}: {}",
+                    C.green(Sym::CHECK),
+                    agent.label,
+                    purged.join(", ")
+                ));
+                fixed_count += purged.len();
+            }
+            for tool in &tools {
+                if !is_tool_selected(&tool.id) {
+                    continue;
+                }
+                if let Some(ref verify) = tool.verify_for.get(&agent.id) {
+                    if verify() == Some(false) {
+                        if let Some(ref wire) = tool.wire_for.get(&agent.id) {
+                            let ro = crate::core::RunOpts {
+                                dry_run: false,
+                                agent: agent.id.clone(),
+                                ..Default::default()
+                            };
+                            if let Ok(true) = wire(&ro) {
+                                fixed_count += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if fixed_count > 0 {
+            L.raw(&format!(
+                "  {} Repaired agent settings (in-tree rules and in-process native MCP)",
+                C.green(Sym::CHECK)
+            ));
+        }
         L.raw("");
     }
-    let tools = list_tools();
-    let all_agents = list_agents();
     let mut reports_opt: Vec<Option<AgentReport>> = vec![None; all_agents.len()];
 
     std::thread::scope(|s| {
@@ -64,7 +107,7 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
                 let wired = missing.is_empty() && runtime.is_empty();
                 let mut tool_rows = Vec::new();
                 for t in tools_ref {
-                    if t.instruction_only || !is_tool_selected(&t.id) {
+                    if !is_tool_selected(&t.id) {
                         continue;
                     }
                     if let Some(ref verify) = t.verify_for.get(&agent.id) {
@@ -135,6 +178,15 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
         tree_corner("Ports");
         for p in port_rows {
             tree_leaf(&p);
+        }
+        tree_close();
+    }
+
+    let env_rows = doctor_env_report();
+    if !env_rows.is_empty() {
+        tree_corner("Environment");
+        for e in env_rows {
+            tree_leaf(&e);
         }
         tree_close();
     }
@@ -233,7 +285,7 @@ fn doctor_proxy_ports(reports: &[AgentReport]) -> Vec<String> {
 fn doctor_missing_tools(tools: &[std::sync::Arc<ToolManifest>], agent_id: &str) -> Vec<String> {
     let mut missing = Vec::new();
     for tool in tools {
-        if tool.instruction_only || !is_tool_selected(&tool.id) {
+        if !is_tool_selected(&tool.id) {
             continue;
         }
         if let Some(ref verify) = tool.verify_for.get(agent_id) {
@@ -243,6 +295,57 @@ fn doctor_missing_tools(tools: &[std::sync::Arc<ToolManifest>], agent_id: &str) 
         }
     }
     missing
+}
+
+fn doctor_env_report() -> Vec<String> {
+    let mut rows = Vec::new();
+    let env_status = crate::env_injector::audit_environment_status();
+
+    if env_status.binaries_clean {
+        rows.push(format!(
+            "{} Binaries: clean (no .real hijacked binaries, shims, or orphaned state files)",
+            C.green(Sym::CHECK)
+        ));
+    } else {
+        rows.push(format!(
+            "{} Binaries: hijacked binaries or shims detected (run {})",
+            C.yellow(Sym::WARN),
+            paint_cmd("tokless doctor --fix")
+        ));
+        for b in &env_status.hijacked_binaries {
+            rows.push(format!("  {} hijacked: {}", C.red("x"), b));
+        }
+        for s in &env_status.shims_detected {
+            rows.push(format!("  {} shim: {}", C.red("x"), s));
+        }
+    }
+
+    if env_status.env_vars_healthy {
+        let count = env_status.active_proxy_vars.len();
+        if count > 0 {
+            rows.push(format!(
+                "{} Environment: healthy ({} proxy variables active)",
+                C.green(Sym::CHECK),
+                count
+            ));
+        } else {
+            rows.push(format!(
+                "{} Environment: healthy (default OS state, no proxy overrides active)",
+                C.green(Sym::CHECK)
+            ));
+        }
+    } else {
+        rows.push(format!(
+            "{} Environment: stale or orphaned proxy variables detected (run {})",
+            C.yellow(Sym::WARN),
+            paint_cmd("tokless doctor --fix")
+        ));
+        for d in &env_status.details {
+            rows.push(format!("  {} {}", C.yellow(Sym::WARN), d));
+        }
+    }
+
+    rows
 }
 
 fn doctor_summary_line(r: &AgentReport) -> String {

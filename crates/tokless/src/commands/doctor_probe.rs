@@ -58,6 +58,9 @@ pub fn probe_agent_runtime(agent_id: &str) -> Vec<RuntimeIssue> {
             out.push(RuntimeIssue { kind: "mcp".into(), detail });
         }
     }
+    for legacy_issue in crate::agents::audit_agent_legacy_mcp(agent_id) {
+        out.push(RuntimeIssue { kind: "mcp".into(), detail: legacy_issue });
+    }
     out
 }
 

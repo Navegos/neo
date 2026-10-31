@@ -4,12 +4,17 @@
 // file: crates/tokless/tests/phase10_env_injector_verification.rs
 // created: 2026-10-31
 
+use std::sync::Mutex;
+
+static TEST_ENV_LOCK: Mutex<()> = Mutex::new(());
+
 use tokless::env_injector::{
     inject_proxy_env, register_teardown_handlers, teardown_proxy_env, TeardownGuard,
 };
 
 #[test]
 fn test_phase10_env_injection_and_teardown_cycle() {
+    let _lock = TEST_ENV_LOCK.lock().unwrap();
     // 1. Initial teardown to ensure clean state
     let _ = teardown_proxy_env();
 
@@ -39,6 +44,7 @@ fn test_phase10_env_injection_and_teardown_cycle() {
 
 #[test]
 fn test_phase10_teardown_guard_raii() {
+    let _lock = TEST_ENV_LOCK.lock().unwrap();
     // Ensure clean state
     let _ = teardown_proxy_env();
 
@@ -57,6 +63,7 @@ fn test_phase10_teardown_guard_raii() {
 
 #[test]
 fn test_phase10_teardown_guard_disarm() {
+    let _lock = TEST_ENV_LOCK.lock().unwrap();
     let _ = teardown_proxy_env();
     let _ = inject_proxy_env();
     assert_eq!(std::env::var("TOKLESS_OWNED").ok().as_deref(), Some("1"));
@@ -111,6 +118,7 @@ fn test_phase10_windows_native_reg_and_broadcast() {
 
 #[test]
 fn test_phase10_unix_dropin_and_vars() {
+    let _lock = TEST_ENV_LOCK.lock().unwrap();
     use tokless::env_injector::unix::{inject_unix_env, teardown_unix_env};
 
     let injected = inject_unix_env("http://127.0.0.1:8787").expect("unix inject should succeed");

@@ -6,6 +6,10 @@ _Last updated: 2026-10-31_
 CLI test
 
 ## Recent issues
+- [DONE] #0045 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0044 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
 - [DONE] #0043 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
 - [DONE] #0042 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
@@ -22,14 +26,10 @@ CLI test
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
 - [DONE] #0036 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0035 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0034 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- ...and 33 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 35 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...28 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
+- ...30 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Use assertion macros consistently
 - Use assertion macros consistently
 - Use assertion macros consistently

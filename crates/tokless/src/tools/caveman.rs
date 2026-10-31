@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/caveman.rs
 // created: 2026-10-05
-// lastModified: 2026-10-29
+// lastModified: 2026-10-31
 
 use std::sync::Arc;
 use crate::core::{Channel, ToolManifest};
@@ -134,6 +134,12 @@ pub fn build_caveman() -> ToolManifest {
                 return Ok(true);
             }
             let _ = install_cursor_project_rules(".", false);
+            let global_dir = cursor_paths_resolved().rules_dir;
+            if !global_dir.is_empty() {
+                let _ = std::fs::create_dir_all(&global_dir);
+                let p = std::path::Path::new(&global_dir).join("response-style.mdc");
+                let _ = crate::util::paths::write_file(&p, &cursor_project_rule_content("caveman"));
+            }
             Ok(true)
         }),
     );
@@ -143,9 +149,15 @@ pub fn build_caveman() -> ToolManifest {
             if opts.dry_run {
                 return Ok(true);
             }
-            let p = std::path::Path::new(&cursor_paths_resolved().rules_dir).join("caveman.mdc");
-            if p.exists() {
-                let _ = std::fs::remove_file(p);
+            for name in &["response-style.mdc", "caveman.mdc"] {
+                let p1 = std::path::Path::new(&cursor_paths_resolved().rules_dir).join(name);
+                if p1.exists() {
+                    let _ = std::fs::remove_file(p1);
+                }
+                let p2 = std::path::Path::new(".cursor").join("rules").join(name);
+                if p2.exists() {
+                    let _ = std::fs::remove_file(p2);
+                }
             }
             Ok(true)
         }),
@@ -153,16 +165,27 @@ pub fn build_caveman() -> ToolManifest {
     tool.verify_for.insert(
         "cursor".into(),
         Arc::new(|| {
-            let p = std::path::Path::new(&cursor_paths_resolved().rules_dir)
-                .join("caveman.mdc")
-                .to_string_lossy()
-                .to_string();
-            if let Some(raw) = read_file_safe(&p) {
-                let expected = cursor_project_rule_content("caveman");
-                Some(!expected.is_empty() && raw.replace("\r\n", "\n") == expected.replace("\r\n", "\n"))
-            } else {
-                Some(true)
+            let dir = cursor_paths_resolved().rules_dir;
+            for name in &["response-style.mdc", "caveman.mdc"] {
+                let p1 = std::path::Path::new(&dir).join(name);
+                let p2 = std::path::Path::new(".cursor").join("rules").join(name);
+                let target = if p1.exists() {
+                    Some(p1)
+                } else if p2.exists() {
+                    Some(p2)
+                } else {
+                    None
+                };
+                if let Some(path) = target {
+                    if let Some(raw) = read_file_safe(path.to_string_lossy().as_ref()) {
+                        let expected = cursor_project_rule_content("caveman");
+                        if !expected.is_empty() && raw.replace("\r\n", "\n") == expected.replace("\r\n", "\n") {
+                            return Some(true);
+                        }
+                    }
+                }
             }
+            Some(false)
         }),
     );
 
