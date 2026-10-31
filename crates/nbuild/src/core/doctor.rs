@@ -78,12 +78,12 @@ impl Doctor {
                 .with_context(|| format!("Failed to copy {} to {}", current_exe.display(), dest_exe.display()))?;
         }
 
-        // Also look for sibling binaries (archinfo, tokless) in current exe directory
+        // Also look for sibling binaries (archinfo, toksi) in current exe directory
         if let Some(parent) = current_exe.parent() {
             let companions = if cfg!(windows) {
-                vec!["archinfo.exe", "tokless.exe"]
+                vec!["archinfo.exe", "toksi.exe"]
             } else {
-                vec!["archinfo", "tokless"]
+                vec!["archinfo", "toksi"]
             };
 
             for companion in companions {

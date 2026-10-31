@@ -122,17 +122,17 @@ jobs:
           NBUILD_ARCHIVE="nbuild-${VERSION}-${TARGET}.tar.zst"
           $TAR_CMD -acvf "staging/$NBUILD_ARCHIVE" -C dist/nbuild .
 
-          # 3. Package tokless
-          mkdir -p dist/tokless
-          cp target/$TARGET/release/tokless$EXE dist/tokless/
-          cp crates/tokless/LICENSE crates/tokless/README.md dist/tokless/ 2>/dev/null || true
-          TOKLESS_ARCHIVE="tokless-${VERSION}-${TARGET}.tar.zst"
-          $TAR_CMD -acvf "staging/$TOKLESS_ARCHIVE" -C dist/tokless .
+          # 3. Package toksi
+          mkdir -p dist/toksi
+          cp target/$TARGET/release/toksi$EXE dist/toksi/
+          cp crates/toksi/LICENSE crates/toksi/README.md dist/toksi/ 2>/dev/null || true
+          TOKSI_ARCHIVE="toksi-${VERSION}-${TARGET}.tar.zst"
+          $TAR_CMD -acvf "staging/$TOKSI_ARCHIVE" -C dist/toksi .
 
           # 4. Package unified neo multi-crate bundle (all tools in one distro)
           mkdir -p dist/neo/bin
           cp target/$TARGET/release/nbuild$EXE dist/neo/bin/
-          cp target/$TARGET/release/tokless$EXE dist/neo/bin/
+          cp target/$TARGET/release/toksi$EXE dist/neo/bin/
           cp target/$TARGET/release/archinfo$EXE dist/neo/bin/
           cp -r crates/nbuild/catalog dist/neo/ 2>/dev/null || true
           cp LICENSE README.md dist/neo/ 2>/dev/null || true
@@ -269,7 +269,7 @@ jobs:
         run: |
           cargo package -p archinfo --allow-dirty --no-verify
           cargo package -p nbuild --allow-dirty --no-verify
-          cargo package -p tokless --allow-dirty --no-verify
+          cargo package -p toksi --allow-dirty --no-verify
           cp target/package/*.crate release-assets/
 
       # Creates GitHub Release with structured release notes and all binary + crate assets
@@ -293,5 +293,5 @@ jobs:
           echo "=== 2. Publishing nbuild to crates.io ==="
           cargo publish -p nbuild --allow-dirty
 
-          echo "=== 3. Publishing tokless to crates.io ==="
-          cargo publish -p tokless --allow-dirty
+          echo "=== 3. Publishing toksi to crates.io ==="
+          cargo publish -p toksi --allow-dirty

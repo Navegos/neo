@@ -20,9 +20,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 8 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...28 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Phase 10: Implement zero-dependency embedded Telemetry & Control Web Dashboard with pure Rust HTTP/SSE server and SPA embedded via include_str! [crates/tokless/src/dashboard/mod.rs:1]
-- Phase 11: End-to-End System Verification & Benchmarks across all 17 agent harnesses, unified CLI, in-process MCP multiplexer, and streaming compression [crates/tokless/tests/phase11_e2e_verification.rs:1]
+- ...30 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 1: Verified and hardened RTK filter engine integration with 100+ command profiles, zero-alloc ANSI stripper, cross-tool adapters (contextmode, projectmem, headroom), and phase1 integration test suite (255 tests passing, 0 warnings) [crates/tokless/src/rtk/]
 - Phase 2: ProjectMem pure Rust port completed with schema, store, deterministic summary, precheck, redaction, heatmap, global memory and stack detection, in-process MCP server, and RTK auto-trace extraction; 274 tests passing with 0 warnings
 - Phase 3: ContextMode pure Rust port verified with isolated sandbox runner, in-memory RTK pipe, SQLite FTS5 BM25 chunker, async fetcher, in-process ctx_* MCP server, CLI, and integration test suite; 325 tests passing with 0 warnings [crates/tokless/src/contextmode/mod.rs:1]
@@ -36,9 +34,10 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 12: Interactive 6-tab TUI in crossterm/ratatui with Live Monitor, Wire Manager, Memory Explorer, CodeGraph Visualizer, Headroom BYOK & Cache Inspector, Diagnostic Logs; zero-dependency Telemetry Web Dashboard on :9099 with embedded SPA and SSE [crates/tokless/src/tui/]
 - Phase 13: End-to-End System Verification & Benchmarks verified across all 17 agent harnesses, unified CLI, proxy compression, non-destructive env injection, zero external runtime deps, and benchmarks (395 tests passing, 0 warnings) [crates/tokless/tests/phase13_e2e_verification.rs]
 - Phase 7: Implemented Native Enterprise AI Gateway and Headroom deep integration with 36 provider clients, local session reuse bridges, dynamic failover cascade, multi-key pools, load balancer, task complexity router, virtual key governance, dual-tier semantic cache, and dynamic MCP schema pruner; 407 workspace tests passing with 0 warnings [crates/tokless/src/gateway/]
+- Refactor: Rename crate tokless to toksi across workspace, packages, binaries, APIs, metrics, and agent harnesses
+- Phase 11: Resolved duplicate definitions from tokless-to-toksi rename, verified Phase 11 agent doctor & self-healing parity; 241 unit tests and 8 verification tests passing with 0 warnings [crates/toksi/src/]
 
 ## Notes
-- New feature: feat: Implement in-tree rules and skills management with CLI integration and verification tests [crates/tokless/src/main.rs]
 - New feature: feat: Update project summary and enhance verification tests for Phase 7 headroom integration [crates/tokless/tests/phase3_contextmode_verification.rs]
 - New feature: feat: Update project summary, enhance CLI test issue tracking, and add Phase 8 downloader purge verification tests [crates/tokless/src/tools/rtk.rs]
 - New feature: feat: implement self-healing for legacy hijacked binaries and shims [crates/tokless/src/agents/antigravity.rs]
@@ -48,6 +47,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat(tokless): implement Phase 13 end-to-end system verification and benchmarks [crates/tokless/tests/phase13_e2e_verification.rs]
 - New feature: feat: update project documentation for Phase 13 end-to-end system verification and benchmarks [crates/tokless/CONSOLIDATION_PLAN.md]
 - New feature: feat(tokless): implement Phase 7 headroom deep integration and native enterprise AI gateway [crates/tokless/src/gateway/agent_cli/claude_code.rs]
+- New feature: feat(tokless): implement Phase 12 native Prometheus telemetry subsystem and metrics endpoint" -m "- Add in-tree model ca [crates/tokless/src/dashboard/mod.rs]
 
 ## Key files
 - `.editorconfig`

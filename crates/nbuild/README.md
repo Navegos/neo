@@ -30,7 +30,7 @@ Written in modern Rust (Edition 2024), `nbuild` provisions clean, immutable tool
   - Automatic directory flattening and wrapper directory prefix stripping.
 - **Self-Diagnosis & Self-Healing (`nbuild doctor`)**:
   - Validates installation topology; warns when executed outside canonical toolchain structure.
-  - Auto-installs self and companion tools (`tokless`, `archinfo`) into `distro/neo/bin/`.
+  - Auto-installs self and companion tools (`toksi`, `archinfo`) into `distro/neo/bin/`.
   - Automatically detects and repairs broken, dangling, or stale symlinks and junctions.
   - Verifies package integrity against `pkg_meta.json` checksums; repairs missing or broken files.
   - Executes immediate smoke tests (`--version`, link resolution) to ensure operational readiness.
@@ -64,7 +64,7 @@ $TOOLCHAINS_DIR/
     └── <target-triple>/                          # e.g. x86_64-pc-windows-msvc, aarch64-unknown-linux-gnu
         │
         ├── distro/                               # Isolated immutable package stores (clean folder names)
-        │   ├── neo/                              # Neo unified distro: nbuild, tokless, companion tools
+        │   ├── neo/                              # Neo unified distro: nbuild, toksi, companion tools
         │   ├── cmake/
         │   ├── ninja/
         │   ├── llvm/

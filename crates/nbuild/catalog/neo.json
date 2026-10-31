@@ -2,7 +2,7 @@
   "name": "neo",
   "category": "tool",
   "target_level": "system",
-  "description": "Unified AI coding agent toolchain & proxy (nbuild, archinfo, tokless)",
+  "description": "Unified AI coding agent toolchain & proxy (nbuild, archinfo, toksi)",
   "remote_repo": "Navegos/neo",
   "releases_url": "https://api.github.com/repos/Navegos/neo/releases/latest",
   "git_url": "https://github.com/Navegos/neo.git",

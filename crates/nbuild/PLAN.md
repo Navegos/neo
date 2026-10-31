@@ -19,8 +19,8 @@ $TOOLCHAINS_DIR/
     └── <target-triple>/                          # e.g. x86_64-pc-windows-msvc, aarch64-apple-xros
         │
         ├── distro/                               # Isolated immutable package stores (clean folder names, no version in folder)
-        │   ├── neo/                                  # Neo unified distro: nbuild, tokless, companion tools
-        │   │   ├── bin/                              # nbuild, archinfo, tokless
+        │   ├── neo/                                  # Neo unified distro: nbuild, toksi, companion tools
+        │   │   ├── bin/                              # nbuild, archinfo, toksi
         │   │   ├── share/                            # bundled catalogs, schemas, templates
         │   │   └── pkg_meta.json                     # Neo package receipt
         │   ├── cmake/
@@ -175,13 +175,13 @@ Mirrors the dual-path dependency/build paradigm (`dep-cmake.ps1` vs `build-cmake
 `nbuild` installs into the canonical distro hierarchy: `$TOOLCHAINS_DIR/<platform>/<triple>/distro/neo/` with all necessary host symlinks into `$TOOLCHAINS_DIR/usr/bin/`, `$TOOLCHAINS_DIR/usr/share/`, and target sysroot directories.
 
 1. **Unified Multi-Crate Monorepo Packaging**:
-   - The Neo repository contains multiple crates and tools: `nbuild`, `archinfo`, `tokless`, `archinfo`, and auxiliary agent tools.
+   - The Neo repository contains multiple crates and tools: `nbuild`, `archinfo`, `toksi`, `archinfo`, and auxiliary agent tools.
    - Forge API endpoint: `https://api.github.com/repos/Navegos/neo/releases/latest`.
    - Multi-stage release asset: a single unified archive containing all compiled crates and tools for each target platform/triple.
-   - **Unified Update Semantics**: Updating `nbuild` automatically updates the entire `neo` distro package, updating all binaries (`nbuild`, `archinfo`, `tokless`) in lockstep from the single multi-crate release.
+   - **Unified Update Semantics**: Updating `nbuild` automatically updates the entire `neo` distro package, updating all binaries (`nbuild`, `archinfo`, `toksi`) in lockstep from the single multi-crate release.
 2. **Catalog Manifest (`catalog/neo.json`)**:
    - Defines `name: "neo"` with `releases_url: "https://api.github.com/repos/Navegos/neo/releases/latest"`.
-   - Exports all binaries (`nbuild`, `archinfo`, `tokless`) into `bin/` and maps symlinks into `usr/bin/`.
+   - Exports all binaries (`nbuild`, `archinfo`, `toksi`) into `bin/` and maps symlinks into `usr/bin/`.
    - Embeds package metadata, version tags, and asset hints (`neo-{triple}`).
 
 ## 6. Self-Diagnosis, Doctor & Self-Healing Engine (`nbuild doctor`)

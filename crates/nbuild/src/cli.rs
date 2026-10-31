@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/nbuild/src/cli.rs
 // created: 2026-10-14
-// lastModified: 2026-10-16
+// lastModified: 2026-10-31
 
 use std::path::PathBuf;
 use anyhow::{Context, Result};
@@ -744,7 +744,7 @@ fn run_interactive_menu(mut config: NeoConfig) -> Result<()> {
         println!("--------------------------------------------------------");
         println!("  1. System Doctor & Self-Heal (repair links, packages, test)");
         println!("  2. Environment Setup (configure TOOLCHAINS_DIR & PATH)");
-        println!("  3. Install / Update Neo (nbuild, tokless, companion tools)");
+        println!("  3. Install / Update Neo (nbuild, toksi, companion tools)");
         println!("  4. Manage Packages (cmake, ninja, llvm, zlib, libpng, ...)");
         println!("  5. File Operations (search, copy, move, rename, delete, mkdir)");
         println!("  6. Run Workflow Pipeline");

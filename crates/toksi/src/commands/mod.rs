@@ -1,0 +1,53 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/toksi/src/commands/mod.rs
+// created: 2026-10-05
+// lastModified: 2026-10-31
+
+pub mod codex_perm_hook;
+pub mod ctx;
+pub mod daemon;
+pub mod dashboard;
+pub mod disable;
+pub mod doctor;
+pub mod doctor_probe;
+pub mod doctor_stats;
+pub mod helpers;
+pub mod index;
+pub mod info;
+pub mod init;
+pub mod mcp_proxy;
+pub mod prime;
+pub mod proxy;
+pub mod rtk;
+pub mod rtk_hook;
+pub mod runmcp;
+pub mod selfupdate;
+pub mod top;
+pub mod tui;
+pub mod update;
+
+pub use codex_perm_hook::*;
+pub use ctx::*;
+pub use daemon::*;
+pub use dashboard::*;
+pub use disable::*;
+pub use doctor::*;
+pub use doctor_probe::*;
+pub use doctor_stats::*;
+pub use helpers::*;
+pub use index::*;
+pub use info::*;
+pub use init::*;
+pub use mcp_proxy::*;
+pub use prime::*;
+pub use proxy::*;
+pub use rtk::*;
+pub use rtk_hook::*;
+pub use runmcp::*;
+pub use selfupdate::*;
+pub use top::*;
+pub use tui::*;
+pub use update::*;
+
