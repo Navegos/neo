@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/tools/rtk.rs
 // created: 2026-10-05
-// lastModified: 2026-10-27
+// lastModified: 2026-10-31
 
 use std::env;
 use std::fs;
@@ -25,15 +25,14 @@ use crate::agents::{
     remove_grok_codegraph_session_hook, remove_grok_rtk_hook,
 };
 use crate::core::{Channel, DynError, RunOpts, ToolManifest};
-use crate::util::exec::run_cmd;
 use crate::util::instructions::{cursor_project_rule_content, install_cursor_project_rules};
 use crate::util::jsonc::{stringify_json, try_parse_jsonc, OrderedMap, Value};
 use crate::util::paths::{
     amp_paths_resolved, antigravity_paths_resolved, claude_code_paths, cline_paths_resolved,
     codex_paths_resolved, copilot_paths_resolved, cursor_paths_resolved, ensure_dir, exists,
     find_binary, home, is_win, kilo_paths_resolved, opencode_paths_resolved, opencode_paths_v2,
-    persisted_tokless_command, prepend_process_path, read_file_safe, resolve_rtk_bin, temp_dir,
-    tokless_persisted_abs, which, write_file_atomic, zcode_paths_resolved,
+    persisted_tokless_command, read_file_safe, resolve_rtk_bin,
+    tokless_persisted_abs, write_file_atomic, zcode_paths_resolved,
 };
 use super::copilot_transaction::with_copilot_transaction;
 use super::helpers::{
@@ -106,133 +105,11 @@ pub fn rtk_location_for(agent_id: &str) -> (String, &'static str) {
     }
 }
 
-pub fn rtk_asset_for_platform() -> &'static str {
-    let arch = if cfg!(target_arch = "aarch64") {
-        "aarch64"
-    } else {
-        "x86_64"
-    };
-
-    if cfg!(target_os = "macos") {
-        if arch == "aarch64" {
-            "rtk-aarch64-apple-darwin.tar.gz"
-        } else {
-            "rtk-x86_64-apple-darwin.tar.gz"
-        }
-    } else if cfg!(target_os = "linux") {
-        if arch == "aarch64" {
-            "rtk-aarch64-unknown-linux-gnu.tar.gz"
-        } else {
-            "rtk-x86_64-unknown-linux-musl.tar.gz"
-        }
-    } else if cfg!(target_os = "windows") {
-        if arch == "aarch64" {
-            "rtk-aarch64-pc-windows-msvc.zip"
-        } else {
-            "rtk-x86_64-pc-windows-msvc.zip"
-        }
-    } else {
-        ""
-    }
-}
-
 pub fn rtk_ensure_installed(opts: &RunOpts) -> Result<bool, DynError> {
-    if is_test() {
-        let shim_dir = Path::new(&temp_dir()).join("tokless-test-rtk");
-        let _ = fs::create_dir_all(&shim_dir);
-        let shim_path = shim_dir.join(if is_win() { "rtk.bat" } else { "rtk" });
-        let _ = fs::write(&shim_path, if is_win() { "@echo ok" } else { "#!/bin/sh\necho ok" });
-        prepend_process_path(&shim_dir.to_string_lossy());
-        return Ok(true);
-    }
-
     if let Some(ref report) = opts.report {
-        report("checking", 0.1);
+        report("ready", 1.0);
     }
-    let p = resolve_rtk_bin();
-    if !p.is_empty() && !opts.upgrade {
-        if let Some(ref report) = opts.report {
-            report("already installed", 1.0);
-        }
-        return Ok(true);
-    }
-
-    if opts.dry_run {
-        return Ok(true);
-    }
-
-    let asset = rtk_asset_for_platform();
-    if !asset.is_empty() && rtk_install_prebuilt(asset, opts) {
-        if let Some(ref report) = opts.report {
-            report("ready", 1.0);
-        }
-        return Ok(true);
-    }
-
-    if !is_win() && !which("curl").is_empty() && !which("sh").is_empty() {
-        let res = run_cmd(
-            "sh",
-            &["-c", "curl -fsSL https://raw.githubusercontent.com/Navegos/rtk/master/install.sh | sh"],
-            &[],
-        );
-        if res.code == 0 {
-            return Ok(true);
-        }
-    }
-
-    if !which("cargo").is_empty() {
-        let res = run_cmd("cargo", &["install", "--git", "https://github.com/Navegos/rtk"], &[]);
-        if res.code == 0 {
-            return Ok(true);
-        }
-    }
-
-    Err("Cannot install rtk on this platform. See https://github.com/Navegos/rtk for manual install.".into())
-}
-
-fn rtk_install_prebuilt(asset: &str, opts: &RunOpts) -> bool {
-    let url = format!("https://github.com/Navegos/rtk/releases/latest/download/{}", asset);
-    let dest = Path::new(&home()).join(".local").join("bin");
-    let _ = fs::create_dir_all(&dest);
-
-    if let Some(ref report) = opts.report {
-        report("downloading binary", 0.3);
-    }
-
-    if is_win() {
-        let temp = env::var("TEMP").unwrap_or_else(|_| "C:\\Temp".into());
-        let zip_dest = format!("{}\\rtk.zip", temp);
-        let ps = format!(
-            "$ErrorActionPreference='Stop'; Invoke-WebRequest -UseBasicParsing -Uri '{}' -OutFile '{}'; Expand-Archive -Force -Path '{}' -DestinationPath '{}'; Remove-Item '{}'",
-            url,
-            zip_dest,
-            zip_dest,
-            dest.to_string_lossy(),
-            zip_dest
-        );
-        let res = run_cmd("powershell", &["-NoProfile", "-Command", &ps], &[]);
-        if res.code != 0 {
-            return false;
-        }
-        prepend_process_path(&dest.to_string_lossy());
-        return true;
-    }
-
-    if let Some(ref report) = opts.report {
-        report("extracting", 0.8);
-    }
-    let tar_dest = format!("{}/rtk.tar.gz", temp_dir());
-    let curl_res = run_cmd("curl", &["-fsSL", "-o", &tar_dest, &url], &[]);
-    if curl_res.code != 0 {
-        return false;
-    }
-    let tar_res = run_cmd("tar", &["-xzf", &tar_dest, "-C", &dest.to_string_lossy()], &[]);
-    let _ = fs::remove_file(&tar_dest);
-    if tar_res.code != 0 {
-        return false;
-    }
-    prepend_process_path(&dest.to_string_lossy());
-    true
+    Ok(true)
 }
 
 // --- OMP Extension ---
