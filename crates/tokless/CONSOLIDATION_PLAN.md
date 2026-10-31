@@ -1,14 +1,14 @@
-# Tokless Native Consolidation Master Architecture Plan (v2.3)
+# Tokless Native Consolidation Master Architecture Plan (v2.5)
 **Project:** `neo/crates/tokless`  
 **Status:** Approved Master Architectural Blueprint  
-**Objective:** 100% Native Rust consolidation of all token-optimization, memory, code-intelligence, rules, and telemetry engines directly embedded into `crates/tokless/src/*`. Complete removal of external package manager downloads (npm, pip, uv, curl). Pure in-process execution, zero missing code, full feature parity, rich TUI, the ultimate zero-dependency real-time Telemetry & Control Dashboard, complete replacement of legacy `HoangP8/tokless` wiring, and non-destructive user environment proxy injection.
+**Objective:** 100% Native Rust consolidation of all token-optimization, memory, code-intelligence, rules, gateway, and telemetry engines directly embedded into `crates/tokless/src/*`. Complete removal of external package manager downloads (npm, pip, uv, curl). Pure in-process execution, zero missing code, full feature parity, rich TUI, the ultimate zero-dependency real-time Telemetry & Control Dashboard, complete replacement of legacy `HoangP8/tokless` wiring, non-destructive user environment proxy injection, and enterprise-grade in-tree AI Gateway intelligence: 36+ agent-capable BYOK provider cascade, agent CLI session reuse bridges, governance with hierarchical spend budgets and rate limits, dual-tier semantic caching, drop-in SDK replacement, and zero-latency async Prometheus telemetry.
 
 ---
 
 ## 1. Core Architectural Mandates
 
 1. **100% Native In-Tree Embedding (`crates/tokless/src/*`)**:
-   - Every tool (`projectmem`, `icm`, `aimemory`, `codegraph`, `contextmode`, `headroom`, `rtk`, `rules`) is implemented as an internal Rust module.
+   - Every tool (`projectmem`, `icm`, `aimemory`, `codegraph`, `contextmode`, `headroom`, `gateway`, `telemetry`, `rtk`, `rules`) is implemented as an internal Rust module.
    - Tokless agent harnesses, MCP proxies, and CLI commands call internal Rust functions directly via zero-cost Rust abstractions—**never via spawned external tool binaries or shell wrappers**.
 2. **Purge of Runtime Downloader / Installer Slop**:
    - Completely remove `npminstall.rs`, `nodewin.rs`, `nodelinux.rs`, `uv.rs`, and Python/pip/uvx bootstrapping code from `tokless`.
@@ -26,11 +26,61 @@
    - **Never rename or hijack agent CLI binaries** (e.g., renaming `agy.exe` to `agy.real.exe` or `grok` to `grok.real`).
    - Extensions and IDE plugins (e.g., Gemini Code Assist in VS Code) actively monitor, download, and execute agent CLIs; binary tampering breaks updates and integrity checks.
    - Instead, inject routing variables directly into the OS user environment before IDE launch (`HKCU\Environment` on Windows with `WM_SETTINGCHANGE` broadcast; user session env on Unix/macOS) and cleanly remove them upon Tokless daemon shutdown.
-6. **Legacy HoangP8/tokless Cleanup & Self-Healing**:
+6. **Native AI Gateway, 36+ BYOK Providers & Drop-in Replacement (Bifrost Study Integration)**:
+   - **36 Agent-Capable BYOK Providers Supported**:
+     1. `Anthropic` (Claude 3.7 Sonnet, Claude 3.5 Sonnet / Haiku / Opus)
+     2. `Azure OpenAI` (GPT-4o, o1, o3-mini enterprise deployments)
+     3. `AWS Bedrock` (Claude 3.7/3.5, Llama 3.3, Amazon Titan with SigV4 auth)
+     4. `BytePlus` (ByteDance enterprise models)
+     5. `Cerebras` (Ultra-fast wafer-scale Llama 3.1 inference)
+     6. `Cloudflare` (Cloudflare Workers AI edge models)
+     7. `Cohere` (Command R+, Command R, embed models)
+     8. `Databricks` (Databricks Model Serving / DBRX)
+     9. `DeepSeek` (DeepSeek V3, DeepSeek R1 direct API)
+     10. `ElevenLabs` (Voice agents, text-to-speech audio streaming)
+     11. `Fireworks` (Fireworks AI fast open-weights & function calling)
+     12. `Google Gemini` (Google AI Studio Gemini 2.0 Flash / Pro)
+     13. `GitHub Copilot` (Copilot Chat API / Language Models endpoint)
+     14. `Groq` (Groq LPUs - Llama 3.3 70B, DeepSeek R1 Distill)
+     15. `Hugging Face` (HF Inference Endpoints / TGI)
+     16. `llama.cpp` (Local llama-server HTTP endpoints)
+     17. `MiniMax` (MiniMax Hailuo / text reasoning)
+     18. `Mistral` (Mistral Large, Codestral, Mistral Small)
+     19. `Nebius` (Nebius AI Studio GPU cloud)
+     20. `Ollama` (Local zero-cost models at `http://localhost:11434`)
+     21. `OpenCode` (OpenCode Zen Gateway)
+     22. `OpenAI` (GPT-4o, o1, o3-mini, GPT-4-turbo)
+     23. `OpenRouter` (Universal model aggregator & ultimate fallback)
+     24. `Parasail` (Parasail high-throughput AI)
+     25. `Perplexity` (Sonar online search & reasoning models)
+     26. `Replicate` (Replicate hosted models)
+     27. `Runware` (Runware ultra-fast media & inference API)
+     28. `Runway ML` (Runway Gen-2 / Gen-3 video & multimodal API)
+     29. `Sarvam AI` (Sarvam Indic language models)
+     30. `SGLang` (Fast local/remote SGLang inference engine)
+     31. `Together` (Together AI open source models)
+     32. `TypeSafe` (TypeSafe LLM gateway)
+     33. `Vertex AI` (Google Cloud Vertex AI enterprise)
+     34. `vLLM` (vLLM local/server endpoints at `http://localhost:8000`)
+     35. `Wafer` (Wafer AI cloud)
+     36. `xAI` (Grok 2, Grok 3, Grok Beta)
+   - **Agent CLI Session Reuse Bridges (Zero-Key Cost Alternative)**: Auto-detects and gateways through local authenticated agent CLI sessions (Claude Code `~/.claude.json`, GitHub Copilot CLI session, Google Antigravity/Gemini ADC, Grok CLI, Cursor bridge) when API keys are absent or as cost-free alternatives.
+   - **Dynamic Failover Cascade & Failure Classification**: Automatic key rotation and provider failover based on structured failure taxonomy (`credential`, `quota`, `rate_limit`, `model_access`, `model_gone`, `region_blocked`, `transient`, `timeout`). Jittered backoff respects `Retry-After`, `retry-after-ms`, and `google.rpc.RetryInfo`.
+   - **Dual-Tier Response Caching**: Direct SHA-256 canonical prompt hashing (<1ms replay, 0 tokens) + Semantic vector similarity matching (cosine threshold >= 0.92) with streaming chunk replay and async background writes to `.tokless/cache.db`.
+   - **Hierarchical Governance, Budgets & Rate Limits**: Virtual Keys (`x-tokless-vk`), spend caps in USD per rolling cycle, Token-per-minute (TPM) and Requests-per-minute (RPM) throttles, and in-flight request concurrency gauges.
+   - **Intelligent Load Balancing & Complexity Routing**: Distributes requests across keys and providers via round-robin, least-latency, lowest-cost, or task complexity tiers (`SIMPLE`, `MEDIUM`, `COMPLEX`).
+   - **Drop-in SDK Replacement**: 100% protocol compatibility for `/v1/chat/completions`, `/v1/messages`, and `/v1beta/models/*`—any SDK or agent points to `http://127.0.0.1:9099` with zero code changes.
+   - **MCP Tool Schema Pruner & Circuit Breaker**: Prunes unused MCP schemas (saving 5,000–15,000 tokens/turn) and halts runaway agent retry loops.
+7. **Legacy HoangP8/tokless Cleanup & Self-Healing**:
    - Automatically detect and heal all legacy leftovers: restore any `.real` binaries back to original executables, purge orphaned wrapper batch/shell scripts, remove obsolete state files, and repair damaged agent JSON/JSONC settings.
-7. **Full Observability & Control**:
-   - **Full-Featured Interactive TUI (`tokless tui` / `tokless top`)**: Multi-tab live monitoring, agent wire manager, memory explorer, and graph inspector.
+8. **Full Observability & Control**:
+   - **Full-Featured Interactive TUI (`tokless tui` / `tokless top`)**: Multi-tab live monitoring, agent wire manager, memory explorer, graph inspector, and gateway key manager.
    - **Ultimate Telemetry & Control Dashboard (`tokless dashboard`)**: Embedded local web server with zero external dependencies, providing real-time token compression waterfalls, dollar savings counters, error telemetry, agent fleet management, CodeGraph topology visualizer, and memory decision DAGs.
+9. **Async Native Telemetry & Real-Time Cost Engine**:
+   - **Prometheus `/metrics` Endpoint**: Native Prometheus text exposition at `http://127.0.0.1:9099/metrics` for external scrapers, Grafana, OpenTelemetry, and internal dashboards.
+   - **Async Lock-Free Collection**: Telemetry events emitted via non-blocking channels to a background collector, guaranteeing zero latency overhead (<10 µs) on proxied AI requests.
+   - **Real-Time Financial Cost Tracking (USD)**: Continuous token valuation via in-tree model catalog pricing table, tracking exact dollar spend and savings per provider, model, agent, and virtual key.
+   - **Multi-Level Latency Breakdown**: Deconstructs end-to-end request time into HTTP transport, upstream provider latency, and internal Tokless overhead (serialization, compression, rule injection, MCP pruning).
 
 ---
 
@@ -81,14 +131,85 @@ crates/tokless/src/
 │   ├── fetch.rs              # Async HTTP fetcher + HTML reader (`reqwest`)
 │   └── mcp.rs                # In-process `ctx_*` MCP tools
 │
-├── headroom/                 # Native Rust Headroom Proxy & Token Compressor
+├── headroom/                 # Native Rust Headroom Token Compression Engine
 │   ├── mod.rs                # Headroom orchestrator
 │   ├── compression/          # Lossless log deduplication, AST code pruner, JSON minifier
+│   ├── pruner/               # MCP Tool Schema Optimizer (saves 5k-15k tokens/turn)
 │   ├── cache_align.rs        # 1024-token prompt cache alignment engine
-│   ├── adaptive_mem.rs       # Dynamic memory brief scaling based on context headroom
-│   ├── byok_gateway.rs       # Multi-provider routing (Anthropic, OpenAI, Gemini)
-│   ├── router.rs             # Cascade, load-shedding, and quota coordinator
+│   └── adaptive_mem.rs       # Dynamic memory brief scaling based on context headroom
+│
+├── gateway/                  # Enterprise Native AI Gateway & BYOK Failover Engine
+│   ├── mod.rs                # Gateway facade & unified request dispatcher
+│   ├── providers/            # 36 Agent-Capable In-tree provider clients (reqwest, async streaming)
+│   │   ├── mod.rs            # Provider trait & registry
+│   │   ├── frontier/         # Tier-1 Frontier & Cloud Hyperscalers
+│   │   │   ├── anthropic.rs  # Anthropic Messages API (Claude 3.7/3.5)
+│   │   │   ├── openai.rs     # OpenAI ChatCompletions (GPT-4o, o1, o3-mini)
+│   │   │   ├── gemini.rs     # Google AI Studio Gemini 2.0 Flash / Pro
+│   │   │   ├── vertex.rs     # Google Cloud Vertex AI
+│   │   │   ├── bedrock.rs    # AWS Bedrock (SigV4 auth, Claude/Llama/Titan)
+│   │   │   ├── azure.rs      # Azure OpenAI Service
+│   │   │   └── databricks.rs # Databricks Model Serving / DBRX
+│   │   ├── accelerator/      # High-Speed Inference & LPUs
+│   │   │   ├── groq.rs       # Groq LPUs (ultra-low latency)
+│   │   │   ├── cerebras.rs   # Cerebras Wafer-Scale cluster
+│   │   │   ├── fireworks.rs  # Fireworks AI
+│   │   │   ├── deepseek.rs   # DeepSeek Direct API V3 / R1
+│   │   │   ├── together.rs   # Together AI
+│   │   │   ├── nebius.rs     # Nebius AI Studio
+│   │   │   ├── parasail.rs   # Parasail AI
+│   │   │   └── wafer.rs      # Wafer Cloud
+│   │   ├── aggregators/      # Open Aggregators & Model Hubs
+│   │   │   ├── openrouter.rs # OpenRouter universal router & fallback
+│   │   │   ├── huggingface.rs# Hugging Face Inference Endpoints / TGI
+│   │   │   ├── replicate.rs  # Replicate API
+│   │   │   └── cloudflare.rs # Cloudflare Workers AI
+│   │   ├── specialized/      # Specialized, Search & International Enterprise
+│   │   │   ├── mistral.rs    # Mistral AI & Codestral
+│   │   │   ├── cohere.rs     # Cohere Command R+
+│   │   │   ├── perplexity.rs # Perplexity Sonar search/reasoning
+│   │   │   ├── minimax.rs    # MiniMax Hailuo
+│   │   │   ├── byteplus.rs   # BytePlus ByteDance AI
+│   │   │   ├── sarvam.rs     # Sarvam AI Indic models
+│   │   │   ├── typesafe.rs   # TypeSafe LLM Gateway
+│   │   │   └── xai.rs        # xAI Grok API
+│   │   ├── multimodal/       # Voice, Audio & Multimodal Media Generators
+│   │   │   ├── elevenlabs.rs # ElevenLabs voice agents & TTS streaming
+│   │   │   ├── runware.rs    # Runware ultra-fast media API
+│   │   │   └── runway.rs     # Runway ML Gen-2 / Gen-3 video API
+│   │   ├── local/            # Local & Self-Hosted Zero-Cost Engines
+│   │   │   ├── ollama.rs     # Ollama REST API (11434)
+│   │   │   ├── vllm.rs       # vLLM high-throughput server (8000)
+│   │   │   ├── sglang.rs     # SGLang fast engine
+│   │   │   └── llamacpp.rs   # llama.cpp server
+│   │   └── ecosystem/        # Developer Agent & IDE Ecosystem Gateways
+│   │       ├── githubcopilot.rs # GitHub Copilot Language Models API
+│   │       └── opencode.rs   # OpenCode Zen Gateway
+│   ├── agent_cli/            # Local Agent Session Bridges (Zero-Cost Alternative)
+│   │   ├── mod.rs            # Session detector & resolver
+│   │   ├── claude_code.rs    # Reads ~/.claude.json OAuth sessions
+│   │   ├── copilot.rs        # Reads gh auth token & Copilot tokens
+│   │   ├── gemini_agy.rs     # Reads ~/.gemini/ & Google ADC
+│   │   ├── grok_cli.rs       # Reads Grok CLI session state
+│   │   └── cursor.rs         # Cursor local bridge
+│   ├── cascade.rs            # Dynamic failover engine & failure classifier (credential, quota, 429, etc.)
+│   ├── keys.rs               # Multi-key pools, key health (key_up: 0|1), rotation with Retry-After backoff
+│   ├── loadbalancer.rs       # Round-robin, least-latency, lowest-cost, weighted selectors
+│   ├── routing.rs            # Complexity tier router (SIMPLE, MEDIUM, COMPLEX)
+│   ├── governance.rs         # Virtual keys (x-tokless-vk), USD budgets, TPM/RPM limits, concurrency
+│   ├── semantic_cache.rs     # Dual-tier cache: Direct SHA-256 hash + Semantic vector similarity
+│   ├── normalizer/           # Bidirectional protocol translation (Anthropic <-> OpenAI <-> Gemini)
+│   ├── compat/               # Drop-in SDK endpoints (/v1/chat/completions, /v1/messages, /v1beta/models/*)
+│   ├── circuit_breaker.rs    # Infinite loop detector & run-away session stopper
 │   └── proxy.rs              # High-throughput HTTP/SSE reverse proxy
+│
+├── telemetry/                # Zero-Latency Async Metrics & USD Cost Engine
+│   ├── mod.rs                # Telemetry facade & Prometheus exporter
+│   ├── prometheus.rs         # Text format exposition at /metrics endpoint
+│   ├── collector.rs          # Lock-free non-blocking event channel (zero latency impact)
+│   ├── cost.rs               # In-tree model catalog pricing table & USD spend/savings calculator
+│   ├── tracker.rs            # Multi-level latency breakdown (transport, provider, tokless overhead)
+│   └── cache_analytics.rs    # Direct & semantic cache hit ratios, savings ROI
 │
 ├── rtk/                      # Native Rust RTK (Rust Token Killer) Engine
 │   ├── mod.rs                # RTK filter facade & streaming interceptor
@@ -204,14 +325,14 @@ flowchart TD
 
 ## 4. Chronological & Dependency-Ordered Execution Roadmap
 
-The 12 phases are organized in strict logical dependency order: from foundational filters, memory, and code intelligence engines, to clean runtime purging, non-destructive proxying, and comprehensive user interfaces.
+The 13 phases are organized in strict logical dependency order: from foundational filters, memory, and code intelligence engines, to clean runtime purging, non-destructive proxying, and comprehensive user interfaces.
 
 ```
 [Phase 1: RTK] ──▶ [Phase 2: ProjectMem] ──▶ [Phase 3: ContextMode] ──▶ [Phase 4: ICM & ai-memory]
                                                                                 │
 ┌───────────────────────────────────────────────────────────────────────────────┘
 ▼
-[Phase 5: CodeGraph] ──▶ [Phase 6: In-Tree Rules] ──▶ [Phase 7: Headroom Proxy]
+[Phase 5: CodeGraph] ──▶ [Phase 6: In-Tree Rules] ──▶ [Phase 7: Headroom & Gateway]
                                                               │
 ┌─────────────────────────────────────────────────────────────┘
 ▼
@@ -230,12 +351,12 @@ The 12 phases are organized in strict logical dependency order: from foundationa
 | **Phase 4** | **ICM & ai-memory** | Embed SQLite FTS5 store, claim-once handoffs, L0/L1/L2 briefs in `crates/tokless/src/{icm, aimemory}/`. | Zero-LLM persistent memory; cross-agent handoffs. |
 | **Phase 5** | **CodeGraph Engine** | Integrate Tree-sitter parsers, petgraph blast radius in `crates/tokless/src/codegraph/`. | Sub-millisecond AST & blast radius without Node.js. |
 | **Phase 6** | **In-Tree Rules & Skills** | Embed Karpathy principles, Caveman, Ponytail into `crates/tokless/src/rules/` via `include_str!`. | Self-contained, distributable agent rules. |
-| **Phase 7** | **Headroom Integration** | Port compression, 1024-token cache aligner, adaptive memory governor into `crates/tokless/src/headroom/`. | Streaming HTTP proxy; 50–80% overall token cut. |
+| **Phase 7** | **Headroom & Native AI Gateway** | Port compression, cache aligner, MCP pruner, 36+ agent-capable BYOK provider cascade, agent CLI session bridges, governance/budgets, dual-tier semantic cache, drop-in SDK endpoints. | Full in-tree Headroom & Gateway engine (`headroom/`, `gateway/`); 50–80% token cut, 0 downtime. |
 | **Phase 8** | **Downloader Purge** | Remove `npminstall.rs`, `nodewin.rs`, `nodelinux.rs`, `uv.rs`. Rewire all tools to internal modules. | Clean `crates/tokless/src/util/`; zero downloader code. |
 | **Phase 9** | **Legacy Healing & Un-Hijack** | Implement `crates/tokless/src/env_injector/heal.rs` to restore `*.real` binaries and delete shims. | Pristine binaries (`agy.exe`, `grok.exe`, `copilot`). |
 | **Phase 10** | **Non-Destructive Env Injection** | Implement `crates/tokless/src/env_injector/{windows, unix, teardown}.rs` with `WM_SETTINGCHANGE`. | Pre-VS Code environment readiness; clean exit teardown. |
 | **Phase 11** | **Agent Doctor & Self-Healing** | Upgrade `tokless doctor --fix` and `init.rs` to validate and heal all 17 agent configurations. | Perfectly wired agent configs across all 17 harnesses. |
-| **Phase 12** | **TUI & Telemetry Dashboard** | Build multi-tab interactive TUI (`tui/`) and zero-dependency local web dashboard (`dashboard/`). | `tokless tui` / `top` and `tokless dashboard` interfaces. |
+| **Phase 12** | **TUI, Telemetry & Web Dashboard** | Native Prometheus `/metrics` exposition, async zero-latency collector, USD real-time cost tracking, interactive multi-tab TUI (`tui/`) and embedded web dashboard (`dashboard/`). | Native `/metrics` endpoint, `tokless tui`/`top`, and `tokless dashboard`. |
 | **Phase 13** | **End-to-End System Verification** | Run workspace integration tests, verify proxy compression, memory recall, and benchmarks. | 0 warnings, 100% tests passing, proven token reduction. |
 
 ---
@@ -362,24 +483,36 @@ Requirements:
 5. Ensure zero compiler warnings and passing unit tests.
 ```
 
-### Phase 7: Headroom Deep Integration
+### Phase 7: Headroom Deep Integration & Native Enterprise AI Gateway
 ```text
 Read crates/tokless/CONSOLIDATION_PLAN.md first to understand the global master architecture, cross-tool coupling, and directory topology.
 
-Execute Phase 7: Headroom Deep Integration.
-Source: neo\inspect-vault\headroom (crates/headroom-core)
-Target: crates/tokless/src/headroom/
+Execute Phase 7: Headroom Deep Integration & Native Enterprise AI Gateway.
+Sources: neo\inspect-vault\headroom (crates/headroom-core) and gateway architecture from neo\inspect-vault\bifrost (core/providers/, plugins/routing/, plugins/semanticcache/, plugins/governance/, plugins/compat/)
+Targets: crates/tokless/src/headroom/, crates/tokless/src/gateway/
 
 Requirements:
 1. Drop Python headroom-py completely.
-2. Implement core token compression in crates/tokless/src/headroom/compression/:
-   - log.rs (repetition-collapsing log compressor; guarantees FATAL, ERROR, and panic lines survive byte-for-byte)
-   - code.rs (AST-aware whitespace and comment pruner)
-   - json.rs (structural JSON minifier)
-3. Implement 1024-token prompt cache alignment (padding and normalizing headers to 1,024-token boundaries for 90% cache discounts on Anthropic, OpenAI, Gemini).
-4. Implement adaptive memory governor: dynamically scale injected memory from crates/tokless/src/{projectmem, aimemory, icm} between L0 (TOC), L1 (Abstracts), and L2 (Full) based on real-time context window headroom.
-5. Unify with BYOK gateway and streaming reverse proxy (/v1/chat/completions, /v1/messages).
-6. Ensure zero compiler warnings and passing unit tests.
+2. Implement core token compression in crates/tokless/src/headroom/:
+   - compression/log.rs: repetition-collapsing log compressor; guarantees FATAL, ERROR, and panic lines survive byte-for-byte.
+   - compression/code.rs: AST-aware whitespace and comment pruner.
+   - compression/json.rs: structural JSON minifier.
+   - pruner/mcp_pruner.rs: dynamic MCP tool schema optimizer (slashes 5,000–15,000 wasted input tokens per turn).
+   - cache_align.rs: 1024-token prompt cache alignment (padding and normalizing headers to 1,024-token boundaries for 90% cache discounts on Anthropic, OpenAI, Gemini).
+   - adaptive_mem.rs: dynamic memory governor (scales injected memory from projectmem/aimemory/icm between L0/L1/L2 based on context window headroom).
+3. Implement Native Enterprise AI Gateway (crates/tokless/src/gateway/):
+   - providers/: 36 agent-capable in-tree provider clients (Anthropic, Azure OpenAI, AWS Bedrock with SigV4, BytePlus, Cerebras, Cloudflare, Cohere, Databricks, DeepSeek, ElevenLabs, Fireworks, Google Gemini, GitHub Copilot, Groq, Hugging Face, llama.cpp, MiniMax, Mistral, Nebius, Ollama, OpenCode, OpenAI, OpenRouter, Parasail, Perplexity, Replicate, Runware, Runway ML, Sarvam AI, SGLang, Together, TypeSafe, Vertex AI, vLLM, Wafer, xAI).
+   - agent_cli/: Local session reuse bridges (Claude Code ~/.claude.json, GitHub Copilot gh auth token, Gemini ADC ~/.gemini/, Grok CLI, Cursor bridge) enabling zero-cost token execution by reusing authenticated agent CLI sessions.
+   - cascade.rs: Dynamic failover cascade with Bifrost failure classification (credential, quota, rate_limit, model_access, model_gone, region_blocked, transient, timeout). Permanent per-key failures rotate immediately with no backoff; 429 rate limits rotate with jittered backoff using provider hints (Retry-After, retry-after-ms, google.rpc.RetryInfo).
+   - keys.rs: Multi-key pools per provider with weight, priority, health state (key_up: 0|1), and failure cooldowns.
+   - loadbalancer.rs: Intelligent request distribution (round-robin, least-latency, lowest-cost, least-in-flight).
+   - routing.rs: Task complexity router (SIMPLE -> fast/cheap model, MEDIUM -> balanced model, COMPLEX -> flagship reasoning model).
+   - governance.rs: Virtual keys (x-tokless-vk), hierarchical USD budgets with cumulative checking, rate limiting (TPM/RPM), and concurrent in-flight request gauges.
+   - semantic_cache.rs: Dual-tier caching (Direct SHA-256 canonical prompt hash for <1ms exact match + Semantic vector similarity for rephrased prompts with cosine threshold >= 0.92). Streaming chunk caching & replay. Zero-latency async writes to .tokless/cache.db.
+   - normalizer/: Bidirectional protocol translation between Anthropic Messages, OpenAI Chat, and Gemini Content APIs.
+   - compat/: Drop-in SDK endpoints (/v1/chat/completions, /v1/messages, /v1beta/models/*, /openai, /anthropic, /gemini) allowing any agent or SDK to point base_url="http://127.0.0.1:9099" with zero code changes.
+   - circuit_breaker.rs: Infinite agent tool loop detector and runaway request blocker.
+4. Ensure zero compiler warnings and passing unit tests.
 ```
 
 ### Phase 8: Downloader Purge & System Refactor
@@ -459,27 +592,41 @@ Requirements:
 3. Ensure zero compiler warnings, 0 test failures, and clean verification reports across all 17 agents.
 ```
 
-### Phase 12: TUI & Telemetry Web Dashboard
+### Phase 12: TUI, Prometheus Telemetry & Web Dashboard
 ```text
 Read crates/tokless/CONSOLIDATION_PLAN.md first to understand the global master architecture, cross-tool coupling, and directory topology.
 
-Execute Phase 12: TUI & Telemetry Web Dashboard.
-Target: crates/tokless/src/tui/, crates/tokless/src/dashboard/
+Execute Phase 12: TUI, Prometheus Telemetry & Web Dashboard.
+Sources: neo\inspect-vault\bifrost (plugins/telemetry/, ui/)
+Targets: crates/tokless/src/telemetry/, crates/tokless/src/tui/, crates/tokless/src/dashboard/
 
 Requirements:
-1. Implement full multi-tab interactive TUI in crates/tokless/src/tui/ using `ratatui` and `crossterm`:
+1. Implement Native Prometheus Telemetry Subsystem (crates/tokless/src/telemetry/):
+   - prometheus.rs: Native metrics exposition in Prometheus text format at HTTP endpoint http://127.0.0.1:9099/metrics.
+   - collector.rs: Asynchronous, lock-free ring buffer / non-blocking channel collector ensuring zero latency impact (<10 µs) on AI request hot paths.
+   - cost.rs: In-tree model catalog pricing table with real-time financial tracking ($ USD spend and savings per provider, model, agent, and virtual key).
+   - tracker.rs: Multi-level latency breakdown deconstructing HTTP transport latency, upstream provider latency, and internal Tokless overhead (serialization, compression, rule injection, MCP pruning).
+   - Comprehensive tracking metrics:
+     * HTTP transport: tokless_http_requests_total, tokless_http_request_duration_seconds, tokless_http_request_size_bytes, tokless_http_response_size_bytes.
+     * Upstream provider: tokless_upstream_requests_total, tokless_success_requests_total, tokless_error_requests_total (labels: provider, model, status_code, error_type), tokless_upstream_latency_seconds, tokless_active_requests.
+     * Token usage & savings: tokless_input_tokens_total, tokless_output_tokens_total, tokless_cached_tokens_total, tokless_tokens_saved_total.
+     * Costs & ROI: tokless_cost_usd_total, tokless_cost_savings_usd_total.
+     * Cache analytics: tokless_cache_hits_total (labels: cache_type="direct"|"semantic"), tokless_cache_misses_total, tokless_cache_lookup_latency_seconds.
+     * Health & Resilience: tokless_provider_key_up, tokless_key_rotation_events_total, tokless_circuit_breaker_trips_total, tokless_request_retries.
+2. Implement full multi-tab interactive TUI in crates/tokless/src/tui/ using `ratatui` and `crossterm`:
    - Tab 1: Live Monitor & Waterfall (real-time token throughput, compression percentage, dollar savings counter)
    - Tab 2: Agent Wire Manager (interactive table of 17 agents; Space to toggle wire/unwire, Enter to inspect MCP config)
-   - Tab 3: Memory Explorer (search .projectmem/events.jsonl and ICM SQLite DB, filter issues/decisions/gotchas, key 'p' triggers precheck)
-   - Tab 4: CodeGraph Visualizer (interactive symbol search, call paths, blast radius tree)
-   - Tab 5: Headroom BYOK & Cache Inspector (cache alignment gauges, provider quota meters, fallback cascades)
-   - Tab 6: Diagnostic Logs (real-time logs from daemon, proxy, and watchdog)
+   - Tab 3: Gateway & Provider Key Manager (live status of 18+ providers, key pool health key_up: 1/0, rotation events, fallback cascade order)
+   - Tab 4: Memory Explorer (search .projectmem/events.jsonl and ICM SQLite DB, filter issues/decisions/gotchas, key 'p' triggers precheck)
+   - Tab 5: CodeGraph Visualizer (interactive symbol search, call paths, blast radius tree)
+   - Tab 6: Governance & Quotas (real-time budget gauges, TPM/RPM meters, virtual keys)
+   - Tab 7: Diagnostic Logs (real-time logs from daemon, proxy, and watchdog)
    - Connect to CLI commands `tokless tui` and `tokless top`.
-2. Implement the embedded local HTTP & SSE/WebSocket server (127.0.0.1:9099) in crates/tokless/src/dashboard/:
+3. Implement embedded local HTTP & SSE/WebSocket server (127.0.0.1:9099) in crates/tokless/src/dashboard/:
    - Single-page application (HTML/CSS/JS/SVG) embedded via `include_str!` (zero npm/node build dependencies).
    - Live token savings waterfall, dollar counter, error telemetry (429s, outages), agent fleet grid, and SVG decision DAG visualizer.
    - Connect to CLI command `tokless dashboard [--port 9099] [--open]`.
-3. Ensure zero compiler warnings and passing tests.
+4. Ensure zero compiler warnings and passing tests.
 ```
 
 ### Phase 13: End-to-End System Verification & Benchmarks
