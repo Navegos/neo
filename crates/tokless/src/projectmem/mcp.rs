@@ -209,6 +209,26 @@ pub fn tool_get_context(root: &Path, _tokens: usize, focus: Option<&str>) -> Str
     lines.join("\n")
 }
 
+pub fn tool_get_global_gotchas(library: Option<&str>) -> String {
+    let mut gotchas = super::global::read_gotchas();
+    if let Some(lib) = library {
+        let needle = lib.to_lowercase();
+        gotchas.retain(|g| g.library.contains(&needle));
+    }
+    if gotchas.is_empty() {
+        return match library {
+            Some(l) => format!("No global gotchas found for {}.", l),
+            None => "No global gotchas found.".to_string(),
+        };
+    }
+    let mut lines = vec![format!("Global gotchas ({}):", gotchas.len())];
+    for g in gotchas.iter().take(15) {
+        let src_str = g.source_project.as_deref().map(|s| format!(" (from {})", s)).unwrap_or_default();
+        lines.push(format!("  [{}] {}{}", g.library, g.gotcha, src_str));
+    }
+    lines.join("\n")
+}
+
 pub fn tool_log_issue(root: &Path, summary: &str, location: Option<&str>) -> Result<String, String> {
     let events = read_events(Some(root))?;
     let issue_id = next_issue_id(&events);
@@ -609,7 +629,10 @@ pub fn execute_mcp_tool(name: &str, args: &Value) -> String {
             let focus = args.get("focus").and_then(|v| v.as_str());
             tool_get_context(&root, tokens, focus)
         }
-        "get_global_gotchas" => "No global gotchas found.".to_string(),
+        "get_global_gotchas" => {
+            let lib = args.get("library").and_then(|v| v.as_str());
+            tool_get_global_gotchas(lib)
+        }
         "log_issue" => {
             let summary = args.get("summary").and_then(|v| v.as_str()).unwrap_or("");
             let loc = args.get("location").and_then(|v| v.as_str());

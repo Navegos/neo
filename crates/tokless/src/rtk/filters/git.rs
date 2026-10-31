@@ -22,7 +22,7 @@ pub fn filter_git(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> Stri
 
     match subcommand {
         "status" => filter_git_status(&clean),
-        "diff" => filter_git_diff(&clean),
+        "diff" | "show" => filter_git_diff(&clean),
         "log" => filter_git_log(&clean),
         "branch" => filter_git_branch(&clean),
         "add" | "commit" | "push" | "pull" | "fetch" | "checkout" | "stash" => {
@@ -480,6 +480,9 @@ mod tests {
         let raw = "diff --git a/Cargo.lock b/Cargo.lock\nindex 1234..5678 100644\n--- a/Cargo.lock\n+++ b/Cargo.lock\n@@ -1,3 +1,5 @@\n+line1\n+line2\n-line3\n";
         let out = filter_git_diff(raw);
         assert!(out.contains("[lockfile updated: Cargo.lock (+2 -1)]"));
+
+        let show_out = filter_git("git show HEAD", raw, "", 0);
+        assert!(show_out.contains("[lockfile updated: Cargo.lock (+2 -1)]"));
     }
 
     #[test]

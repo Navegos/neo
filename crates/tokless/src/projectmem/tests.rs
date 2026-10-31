@@ -456,15 +456,17 @@ error: could not compile `my-crate`";
     assert!(attempt_ev.notes.as_ref().unwrap().contains("error: could not compile"));
 }
 
+static TEST_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 #[test]
 fn test_cli_all_subcommands_end_to_end() {
+    let _guard = TEST_MUTEX.lock().unwrap();
     let tmp = tempdir().unwrap();
     let root = tmp.path();
 
-    // Use PROJECTMEM_ROOT env so CLI routes directly to tmp dir
-    unsafe {
-        std::env::set_var("PROJECTMEM_ROOT", root.to_str().unwrap());
-    }
+    // Use overrides so CLI routes directly to tmp dir safely without thread races
+    set_mem_root_override(Some(root.to_path_buf()));
+    super::global::set_global_dir_override(Some(root.join("global_home")));
 
     // 1. init
     assert_eq!(run_mem_cli(&["init".into(), "--purpose".into(), "CLI E2E Test".into()]), 0);
@@ -515,7 +517,79 @@ fn test_cli_all_subcommands_end_to_end() {
     assert_eq!(run_mem_cli(&["search".into(), "assertion".into()]), 0);
     assert_eq!(run_mem_cli(&["regenerate".into()]), 0);
 
-    unsafe {
-        std::env::remove_var("PROJECTMEM_ROOT");
-    }
+    // 11. global commands
+    assert_eq!(run_mem_cli(&["global".into(), "status".into()]), 0);
+    assert_eq!(run_mem_cli(&["global".into(), "detect".into()]), 0);
+    assert_eq!(run_mem_cli(&["global".into(), "add".into(), "Always verify invariants".into()]), 0);
+    assert_eq!(run_mem_cli(&["global".into(), "add-gotcha".into(), "tokio".into(), "avoid block_on inside runtime".into()]), 0);
+    assert_eq!(run_mem_cli(&["global".into(), "list".into()]), 0);
+
+    set_mem_root_override(None);
+    super::global::set_global_dir_override(None);
+}
+
+#[test]
+fn test_global_memory_crud_and_auto_promote() {
+    let _guard = TEST_MUTEX.lock().unwrap();
+    let tmp = tempdir().unwrap();
+    let global_home = tmp.path().join("home");
+    std::fs::create_dir_all(&global_home).unwrap();
+
+    super::global::set_global_dir_override(Some(global_home.clone()));
+
+    use super::global::*;
+
+    // 1. Add pattern
+    let p = add_pattern("Avoid blocking calls in async runtime", Some(vec!["async".into(), "rust".into()]), Some("test_proj".into()), Some("high")).unwrap();
+    assert!(p.id.starts_with("pat_"));
+    let patterns = read_patterns();
+    assert_eq!(patterns.len(), 1);
+    assert_eq!(patterns[0].pattern, "Avoid blocking calls in async runtime");
+
+    // 2. Add gotcha
+    let g = add_gotcha("tokio", "gotcha: calling block_on in async context causes panic", Some(vec!["rust".into()]), Some("test_proj".into()), None).unwrap();
+    assert!(g.id.starts_with("got_"));
+    let gotchas = read_gotchas();
+    assert_eq!(gotchas.len(), 1);
+    assert_eq!(gotchas[0].library, "tokio");
+
+    // 3. MCP query
+    let res = tool_get_global_gotchas(Some("tokio"));
+    assert!(res.contains("Global gotchas (1):"));
+    assert!(res.contains("[tokio] gotcha: calling block_on"));
+
+    let empty_res = tool_get_global_gotchas(Some("nonexistent_lib"));
+    assert_eq!(empty_res, "No global gotchas found for nonexistent_lib.");
+
+    // 4. Stack detection
+    let proj_dir = tmp.path().join("proj");
+    std::fs::create_dir_all(&proj_dir).unwrap();
+    std::fs::write(proj_dir.join("Cargo.toml"), "[package]\nname = \"foo\"\n[dependencies]\ntokio = \"1.0\"\nserde = \"1.0\"\n").unwrap();
+    let detected = detect_stack(&proj_dir);
+    assert!(detected.tags.contains(&"rust".to_string()));
+    assert!(detected.libraries.contains(&"tokio".to_string()));
+    assert!(detected.libraries.contains(&"serde".to_string()));
+
+    // 5. Auto-promotion on attempt failure
+    let promoted = auto_promote_event(
+        "gotcha: tokio spawn task without keepalive drops early",
+        "attempt",
+        "test_proj",
+        None,
+        Some(&detected.libraries),
+        Some("failed"),
+    );
+    assert!(promoted.is_some());
+    let prom = promoted.unwrap();
+    assert_eq!(prom.library, "tokio");
+
+    // Verify gotcha count increased
+    let gotchas_updated = read_gotchas();
+    assert_eq!(gotchas_updated.len(), 2);
+
+    // 6. Remove entry
+    assert!(remove_entry(&p.id));
+    assert_eq!(read_patterns().len(), 0);
+
+    super::global::set_global_dir_override(None);
 }

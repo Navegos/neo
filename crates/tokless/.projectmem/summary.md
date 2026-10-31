@@ -1,35 +1,35 @@
 # projectmem - tokless
 
-_Last updated: 2026-10-30_
+_Last updated: 2026-10-31_
 
 ## Project purpose
 CLI test
 
 ## Recent issues
+- [DONE] #0030 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0029 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0028 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0027 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0026 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0025 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0024 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0023 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
 - [DONE] #0022 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
 - [DONE] #0021 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0020 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0019 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0018 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0017 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0016 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0015 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0014 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0013 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- ...and 12 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 20 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...7 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
+- ...15 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Use assertion macros consistently
 - Use assertion macros consistently
 - Use assertion macros consistently

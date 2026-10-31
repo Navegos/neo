@@ -37,6 +37,7 @@ pub fn print_mem_help() {
           tokless mem stats | score [--format <text|json>]\n\
           tokless mem heatmap\n\
           tokless mem search <query> [--limit <n>]\n\
+          tokless mem global <status|list|add|add-gotcha|remove|detect|prune>\n\
           tokless mem mcp\n"
     );
 }
@@ -671,6 +672,134 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
             let result = super::mcp::tool_search_events(root, &query, limit);
             println!("{}", result);
             0
+        }
+        "global" => {
+            let sub = if rest.is_empty() { "status" } else { rest[0].as_str() };
+            match sub {
+                "status" => {
+                    let patterns = super::global::read_patterns();
+                    let gotchas = super::global::read_gotchas();
+                    println!("ProjectMem Global Memory: {}", super::global::global_dir().display());
+                    println!("  Cross-project patterns: {}", patterns.len());
+                    println!("  Library gotchas:        {}", gotchas.len());
+                    0
+                }
+                "list" => {
+                    let mut tag_filter = None;
+                    let mut lib_filter = None;
+                    let mut i = 1;
+                    while i < rest.len() {
+                        if rest[i] == "--tag" && i + 1 < rest.len() {
+                            tag_filter = Some(rest[i + 1].to_lowercase());
+                            i += 2;
+                        } else if rest[i] == "--library" && i + 1 < rest.len() {
+                            lib_filter = Some(rest[i + 1].to_lowercase());
+                            i += 2;
+                        } else {
+                            i += 1;
+                        }
+                    }
+                    let gotchas = super::global::read_gotchas();
+                    println!("=== Library Gotchas ({}) ===", gotchas.len());
+                    for g in gotchas {
+                        if let Some(ref l) = lib_filter {
+                            if !g.library.contains(l) {
+                                continue;
+                            }
+                        }
+                        println!("  [{}] {} ({})", g.library, g.gotcha, g.id);
+                    }
+                    let patterns = super::global::read_patterns();
+                    println!("=== Cross-Project Patterns ({}) ===", patterns.len());
+                    for p in patterns {
+                        if let Some(ref t) = tag_filter {
+                            if !p.tags.iter().any(|item| item.to_lowercase().contains(t)) {
+                                continue;
+                            }
+                        }
+                        println!("  {} ({})", p.pattern, p.id);
+                    }
+                    0
+                }
+                "add" => {
+                    if rest.len() < 2 {
+                        eprintln!("Error: 'tokless mem global add' requires pattern text");
+                        return 1;
+                    }
+                    let text = rest[1..].join(" ");
+                    match super::global::add_pattern(&text, None, None, None) {
+                        Ok(p) => {
+                            println!("Added global pattern: {} ({})", p.pattern, p.id);
+                            0
+                        }
+                        Err(e) => {
+                            eprintln!("Error: {}", e);
+                            1
+                        }
+                    }
+                }
+                "add-gotcha" => {
+                    if rest.len() < 3 {
+                        eprintln!("Error: 'tokless mem global add-gotcha <library> <text>' requires library and gotcha text");
+                        return 1;
+                    }
+                    let lib = &rest[1];
+                    let text = rest[2..].join(" ");
+                    match super::global::add_gotcha(lib, &text, None, None, None) {
+                        Ok(g) => {
+                            println!("Added global gotcha for {}: {} ({})", g.library, g.gotcha, g.id);
+                            0
+                        }
+                        Err(e) => {
+                            eprintln!("Error: {}", e);
+                            1
+                        }
+                    }
+                }
+                "remove" => {
+                    if rest.len() < 2 {
+                        eprintln!("Error: 'tokless mem global remove <id>' requires id");
+                        return 1;
+                    }
+                    let id = &rest[1];
+                    if super::global::remove_entry(id) {
+                        println!("Removed global entry {}", id);
+                        0
+                    } else {
+                        eprintln!("Entry {} not found", id);
+                        1
+                    }
+                }
+                "detect" => {
+                    let root = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+                    let detected = super::global::detect_stack(&root);
+                    println!("Detected Stack for {}:", root.display());
+                    println!("  Manifests:  {:?}", detected.manifest_files);
+                    println!("  Tags:       {:?}", detected.tags);
+                    println!("  Libraries:  {:?}", detected.libraries);
+                    println!("  Frameworks: {:?}", detected.frameworks);
+                    0
+                }
+                "prune" => {
+                    let mut days = 365;
+                    let mut i = 1;
+                    while i < rest.len() {
+                        if rest[i] == "--older-than" && i + 1 < rest.len() {
+                            days = rest[i + 1].parse().unwrap_or(365);
+                            i += 2;
+                        } else {
+                            i += 1;
+                        }
+                    }
+                    let count = super::global::prune_entries(days, None);
+                    println!("Pruned {} stale global entries older than {} days", count, days);
+                    0
+                }
+                _ => {
+                    eprintln!("Unknown global action: {}", sub);
+                    1
+                }
+            }
         }
         _ => {
             eprintln!("Unknown command 'tokless mem {}'. Run 'tokless mem help' for usage.", cmd);

@@ -127,10 +127,30 @@ impl Drop for FileLock {
     }
 }
 
+static MEM_ROOT_OVERRIDE: std::sync::RwLock<Option<PathBuf>> = std::sync::RwLock::new(None);
+
+pub fn set_mem_root_override(p: Option<PathBuf>) {
+    if let Ok(mut lock) = MEM_ROOT_OVERRIDE.write() {
+        *lock = p;
+    }
+}
+
 pub fn mem_path(root: Option<&Path>) -> PathBuf {
     match root {
         Some(r) => r.join(MEM_DIR),
-        None => env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(MEM_DIR),
+        None => {
+            if let Ok(lock) = MEM_ROOT_OVERRIDE.read() {
+                if let Some(ref p) = *lock {
+                    return p.join(MEM_DIR);
+                }
+            }
+            if let Ok(env_root) = env::var("PROJECTMEM_ROOT") {
+                if !env_root.trim().is_empty() {
+                    return PathBuf::from(env_root.trim()).join(MEM_DIR);
+                }
+            }
+            env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(MEM_DIR)
+        }
     }
 }
 
@@ -139,6 +159,24 @@ pub fn is_project_mem_dir(candidate: &Path) -> bool {
 }
 
 pub fn discover_mem_dir(start: Option<&Path>) -> Option<PathBuf> {
+    if start.is_none() {
+        if let Ok(lock) = MEM_ROOT_OVERRIDE.read() {
+            if let Some(ref p) = *lock {
+                let candidate = p.join(MEM_DIR);
+                if is_project_mem_dir(&candidate) {
+                    return Some(candidate);
+                }
+            }
+        }
+        if let Ok(env_root) = env::var("PROJECTMEM_ROOT") {
+            if !env_root.trim().is_empty() {
+                let candidate = PathBuf::from(env_root.trim()).join(MEM_DIR);
+                if is_project_mem_dir(&candidate) {
+                    return Some(candidate);
+                }
+            }
+        }
+    }
     let cur = match start {
         Some(s) => s.to_path_buf(),
         None => env::current_dir().ok()?,
@@ -283,6 +321,28 @@ pub fn append_event(event: &mut Event, root: Option<&Path>) -> Result<(), String
     let serialized = serde_json::to_string(event).map_err(|e| e.to_string())?;
     writeln!(lock.file_mut(), "{}", serialized).map_err(|e| e.to_string())?;
     lock.file_mut().flush().map_err(|e| e.to_string())?;
+    drop(lock);
+
+    // Best-effort auto-promote cross-project gotchas to global memory
+    let discovered = discover_mem_dir(root);
+    let project_root = discovered
+        .as_deref()
+        .and_then(|p| p.parent())
+        .or(root)
+        .unwrap_or_else(|| Path::new("."));
+    let project_name = project_root
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("project");
+    let detected = super::global::detect_stack(project_root);
+    let _ = super::global::auto_promote_event(
+        &event.summary,
+        &event.event_type,
+        project_name,
+        None,
+        Some(&detected.libraries),
+        event.outcome.as_deref(),
+    );
 
     Ok(())
 }
@@ -596,7 +656,23 @@ pub fn ensure_gitignore_entry(root: &Path, extra: &[&str]) {
 pub fn initialize(root: Option<&Path>, purpose: Option<&str>) -> Result<PathBuf, String> {
     let target = match root {
         Some(r) => r.to_path_buf(),
-        None => env::current_dir().map_err(|e| e.to_string())?,
+        None => {
+            if let Ok(lock) = MEM_ROOT_OVERRIDE.read() {
+                if let Some(ref p) = *lock {
+                    p.clone()
+                } else if let Ok(env_root) = env::var("PROJECTMEM_ROOT") {
+                    if !env_root.trim().is_empty() {
+                        PathBuf::from(env_root.trim())
+                    } else {
+                        env::current_dir().map_err(|e| e.to_string())?
+                    }
+                } else {
+                    env::current_dir().map_err(|e| e.to_string())?
+                }
+            } else {
+                env::current_dir().map_err(|e| e.to_string())?
+            }
+        }
     };
 
     let dir = target.join(MEM_DIR);

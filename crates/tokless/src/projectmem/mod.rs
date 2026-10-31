@@ -5,6 +5,7 @@
 // created: 2026-10-27
 
 pub mod cli;
+pub mod global;
 pub mod heatmap;
 pub mod mcp;
 pub mod precheck;
@@ -14,6 +15,11 @@ pub mod store;
 pub mod summary;
 
 pub use cli::run_mem_cli;
+pub use global::{
+    add_gotcha, add_pattern, auto_promote_event, build_inherited_instructions, detect_stack,
+    get_relevant_entries, global_dir, read_gotchas, read_patterns, DetectedStack, GlobalGotcha,
+    GlobalPattern,
+};
 pub use heatmap::{calculate_score, generate_heatmap, HeatmapResult, ScoreResult};
 pub use mcp::{handle_mcp_message, run_mcp_server};
 pub use precheck::run_precheck;

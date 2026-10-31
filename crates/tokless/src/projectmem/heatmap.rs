@@ -177,9 +177,9 @@ pub fn calculate_score(events: &[Event], since_days: Option<i64>) -> ScoreResult
     let usd_saved = ((tokens_saved as f64 / 1_000_000.0) * USD_PER_MILLION_TOKENS * 100.0).round() / 100.0;
 
     let failed_score = ((failed_approaches * 2) as f64).min(20.0);
-    let decision_score = ((decisions_documented as f64 * 1.5)).min(20.0);
+    let decision_score = (decisions_documented as f64 * 1.5).min(20.0);
     let fix_score = ((fixes_with_context * 2) as f64).min(20.0);
-    let gotcha_score = ((files_with_gotchas.len() as f64 * 0.5)).min(20.0);
+    let gotcha_score = (files_with_gotchas.len() as f64 * 0.5).min(20.0);
     let coverage_score = ((notes_count as f64 * 0.5)
         + (auto_captured_count as f64 * 0.3)
         + (successful_attempts as f64 * 1.0))

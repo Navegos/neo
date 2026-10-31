@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-10-28
+// lastModified: 2026-10-30
 
 use std::collections::HashMap;
 use std::env;
@@ -95,7 +95,8 @@ fn help_text() -> String {
           {}    Remove everything tokless ever touched\n\
           {}          Manage project memory, failure prevention, and MCP server\n\
           {}          Isolated sandbox execution and SQLite FTS5 knowledge base\n\
-          {}        Tree-sitter AST call-graph, blast-radius, and code explorer\n\
+          {}          Tree-sitter AST call-graph, blast-radius, and code explorer\n\
+          {}          Execute command and apply token-reduction filters\n\
           {}      Manage the headroom HTTP proxy: up|down|status\n\n\
         {}\n  --agents <list>     Limit to a subset: claude,opencode,opencode2,codex,antigravity,copilot,cursor,droid,grok,pi,omp,kilo,cline,amp,kimi,zcode,dsh\n\
           --tools <list>      Limit to a subset: rtk,caveman,ponytail,codegraph,context-mode,headroom,projectmem\n\
@@ -120,6 +121,7 @@ fn help_text() -> String {
         cy("tokless mem"),
         cy("tokless ctx"),
         cy("tokless graph"),
+        cy("tokless rtk"),
         cy("tokless proxy"),
         C.bold("Flags:"),
         C.gray("Docs: https://github.com/Navegos/neo/#tokless")
