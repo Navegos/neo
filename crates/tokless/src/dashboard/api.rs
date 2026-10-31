@@ -275,7 +275,7 @@ pub fn handle_memory(query: Option<&str>) -> serde_json::Value {
         items.push(json!({
             "id": "0003",
             "type": "decision",
-            "summary": "Phase 10: Embedded zero-dependency Telemetry & Control Cockpit",
+            "summary": "Phase 12: Embedded zero-dependency Telemetry & Control Cockpit",
             "location": "crates/tokless/src/dashboard/mod.rs:1",
             "timestamp": "2026-10-30",
             "supersedes": "0002"

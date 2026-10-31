@@ -72,7 +72,7 @@ pub fn run_dashboard_cli(argv: &[String]) -> i32 {
     println!(
         "\n  {} {}\n  {} {}\n  {} {}\n\n  {}",
         C.cyan("tokless"),
-        C.bold("Telemetry & Control Cockpit (Phase 10)"),
+        C.bold("Telemetry & Control Cockpit (Phase 12)"),
         C.dim("Local Dashboard:"),
         C.cyan(&url),
         C.dim("SSE Stream:"),
