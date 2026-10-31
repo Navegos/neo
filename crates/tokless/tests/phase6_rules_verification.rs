@@ -9,7 +9,7 @@ use tokless::rules::{
     content_has_rule, has_rule_at_path, inject_rule_at_path, inject_rule_into_content,
     inspect_agent_rules, patch_agents_md, patch_all_agent_configs, patch_claude_md,
     patch_cursor_rules, remove_rule_from_content, remove_rule_from_path,
-    render_rules_markdown, run_rules_cli, RuleKind,
+    run_rules_cli, RuleKind,
 };
 
 #[test]

@@ -10,8 +10,8 @@ use tempfile::tempdir;
 
 use tokless::codegraph::cache::{content_hash, SymbolCache};
 use tokless::codegraph::graph::CodeGraphEngine;
-use tokless::codegraph::kernel::{extract_file, SymbolEdge, SymbolNode, SymbolRef};
-use tokless::codegraph::mcp::{handle_mcp_message, run_mcp_server};
+use tokless::codegraph::kernel::{extract_file, SymbolEdge, SymbolNode};
+use tokless::codegraph::mcp::handle_mcp_message;
 use tokless::codegraph::walker::{detect_language, walk_project_files, WalkedFile};
 use tokless::codegraph::{resolve_coordinate, run_graph_cli, CodeGraph};
 use tokless::projectmem::{append_event, auto_resolve_location, initialize, read_events, Event};

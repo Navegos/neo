@@ -4,7 +4,6 @@
 // file: crates/tokless/tests/phase3_contextmode_verification.rs
 
 use std::fs;
-use std::path::Path;
 use serde_json::json;
 use tempfile::tempdir;
 use tokless::contextmode::*;
