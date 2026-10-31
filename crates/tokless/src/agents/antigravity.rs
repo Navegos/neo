@@ -3,7 +3,7 @@
 // project: tokless
 // file: crates/tokless/src/agents/antigravity.rs
 // created: 2026-10-11
-// lastModified: 2026-10-27
+// lastModified: 2026-10-31
 
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
@@ -17,11 +17,11 @@ use crate::util::exec::{RunOptions, run};
 use crate::util::jsonc::{OrderedMap, Value, has_jsonc_comments, stringify_json};
 use crate::util::logger::L;
 use crate::util::mcpspawn::{mcp_spawn_for, pick_mcp_spawn, wrap_auto_index};
-use crate::util::paths::{self, sh_quote};
+use crate::util::paths;
 
 use super::proxy_protocol::proxy_endpoint_for;
 use super::proxy_provider::{
-    detect_agent_with, json_args_eq, json_equal, json_map_child, json_map_child_mut, sha256_hex,
+    detect_agent_with, json_args_eq, json_equal, json_map_child, json_map_child_mut,
     strings_to_values, tokless_command, tokless_command_ok,
     try_parse_jsonc_map as try_parse_jsonc,
 };
@@ -1956,14 +1956,6 @@ fn remove_file_if_exists(path: &str) -> bool {
 
 // --- antigravity_shim.go ---
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct AntigravityShimState {
-    pub bin: String,
-    pub real: String,
-    #[serde(rename = "realDigest")]
-    pub real_digest: String,
-}
-
 fn antigravity_bin_file() -> String {
     let name = if paths::is_win() { "agy.cmd" } else { "agy" };
     let dirs = agy_known_bin_dirs();
@@ -2021,23 +2013,6 @@ fn antigravity_shim_state_file() -> String {
         .into_owned()
 }
 
-fn read_antigravity_shim_state() -> (AntigravityShimState, bool) {
-    let Some(raw) = paths::read_file_safe(&antigravity_shim_state_file()) else {
-        return (AntigravityShimState::default(), false);
-    };
-    let Ok(state) = serde_json::from_str::<AntigravityShimState>(&raw) else {
-        return (AntigravityShimState::default(), false);
-    };
-    let owned = Path::new(&state.bin) == Path::new(&antigravity_bin_file())
-        && Path::new(&state.real) == Path::new(&antigravity_real_bin_file());
-    (state, owned)
-}
-
-fn antigravity_file_digest(path: &str) -> Result<String, String> {
-    let b = fs::read(path).map_err(|e| e.to_string())?;
-    Ok(sha256_hex(&b))
-}
-
 fn looks_like_antigravity_shim(raw: &str) -> bool {
     if paths::is_win() {
         return raw.starts_with("@echo off\r\n")
@@ -2069,239 +2044,68 @@ fn read_antigravity_launcher(path: &str) -> Result<(String, bool), std::io::Erro
     Ok((String::from_utf8_lossy(&buf).into_owned(), true))
 }
 
-fn render_antigravity_shim() -> String {
-    let u = antigravity_url();
-    if paths::is_win() {
-        return format!(
-            "@echo off\r\n\
-rem {ANTIGRAVITY_SHIM_MARKER}\r\n\
-set \"REAL={}\"\r\n\
-set \"TOKLESS={}\"\r\n\
-set \"URL={u}\"\r\n\
-\"%TOKLESS%\" __proxy-ensure >nul 2>&1\r\n\
-if errorlevel 1 (\r\n\
-  echo agy: Headroom proxy unavailable; run tokless proxy up --agents antigravity 1>&2\r\n\
-  exit /b 1\r\n\
-)\r\n\
-set \"{ANTIGRAVITY_PROXY_ENV_KEY}=%URL%\"\r\n\
-set \"{ANTIGRAVITY_CLOUD_CODE_KEY}=%URL%\"\r\n\
-\"%REAL%\" %*\r\n\
-exit /b %errorlevel%\r\n",
-            antigravity_real_bin_file(),
-            paths::tokless_abs_strict()
-        );
-    }
-    format!(
-        "#!/bin/sh\n\
-{ANTIGRAVITY_SHIM_MARKER}\n\
-REAL={}\n\
-TOKLESS={}\n\
-URL={}\n\
-if ! \"$TOKLESS\" __proxy-ensure >/dev/null 2>&1; then\n\
-  echo 'agy: Headroom proxy unavailable; run tokless proxy up --agents antigravity' >&2\n\
-  exit 1\n\
-fi\n\
-GOOGLE_GEMINI_BASE_URL=\"$URL\" CLOUD_CODE_URL=\"$URL\" exec \"$REAL\" \"$@\"\n",
-        sh_quote(&antigravity_real_bin_file()),
-        sh_quote(&paths::tokless_abs_strict()),
-        sh_quote(&u)
-    )
+pub fn antigravity_shim_applicable() -> bool {
+    false
 }
 
-pub(crate) fn antigravity_shim_applicable() -> bool {
-    let bin = antigravity_bin_file();
-    !bin.is_empty()
-        && (paths::exists(&bin)
-            || paths::exists(&antigravity_vendor_bin_file())
-            || paths::exists(&antigravity_real_bin_file()))
-}
-
-pub(crate) fn antigravity_shim_compatible() -> bool {
-    if !antigravity_shim_applicable() {
-        return true;
-    }
-    if paths::is_win() {
-        let Some(raw) = paths::read_file_safe(&antigravity_bin_file()) else {
-            return paths::exists(&antigravity_vendor_bin_file())
-                && !paths::exists(&antigravity_real_bin_file());
-        };
-        if raw.contains(ANTIGRAVITY_SHIM_MARKER) {
-            let (_, owned) = read_antigravity_shim_state();
-            return owned && looks_like_antigravity_shim(&raw);
-        }
-        return false;
-    }
-    let Ok((raw, script)) = read_antigravity_launcher(&antigravity_bin_file()) else {
-        return paths::exists(&antigravity_real_bin_file());
-    };
-    if script && raw.contains(ANTIGRAVITY_SHIM_MARKER) {
-        let (_, owned) = read_antigravity_shim_state();
-        return owned && looks_like_antigravity_shim(&raw);
-    }
-    let (_, owned) = read_antigravity_shim_state();
-    !script && (!paths::exists(&antigravity_real_bin_file()) || owned)
+pub fn antigravity_shim_compatible() -> bool {
+    true
 }
 
 fn install_antigravity_shim() -> Result<bool, String> {
-    if !antigravity_shim_applicable() {
-        return Ok(false);
-    }
-    let bin = antigravity_bin_file();
-    let vendor = antigravity_vendor_bin_file();
-    let real = antigravity_real_bin_file();
-    let rendered = render_antigravity_shim();
-    let (_, owned) = read_antigravity_shim_state();
-
-    if paths::is_win() {
-        if let Some(raw) = paths::read_file_safe(&bin) {
-            if !owned || !looks_like_antigravity_shim(&raw) {
-                return Err(format!(
-                    "antigravity launcher: {bin} is not a Tokless-owned launcher"
-                ));
-            }
-            if raw == rendered {
-                return Ok(false);
-            }
-        } else if paths::exists(&bin) {
-            return Err(format!("antigravity launcher: cannot read {bin}"));
-        }
-    } else {
-        match read_antigravity_launcher(&bin) {
-            Ok((raw, script)) => {
-                if script && raw.contains(ANTIGRAVITY_SHIM_MARKER) {
-                    if !owned || !looks_like_antigravity_shim(&raw) {
-                        return Err(format!(
-                            "antigravity launcher: {bin} contains tokless marker but unknown shape; refusing to overwrite"
-                        ));
-                    }
-                    if raw == rendered {
-                        return Ok(false);
-                    }
-                } else if script {
-                    return Err(format!(
-                        "antigravity launcher: {bin} is an existing script; refusing to overwrite"
-                    ));
-                } else {
-                    if paths::exists(&real) && !owned {
-                        return Err(format!(
-                            "antigravity launcher: {real} already exists without Tokless ownership; refusing to overwrite"
-                        ));
-                    }
-                    if paths::exists(&real) && owned {
-                        let (state, ok) = read_antigravity_shim_state();
-                        if !ok || state.real_digest.is_empty() {
-                            return Err(
-                                "antigravity launcher: missing real-binary ownership digest"
-                                    .to_string(),
-                            );
-                        }
-                        let digest = antigravity_file_digest(&real).unwrap_or_default();
-                        if digest != state.real_digest {
-                            return Err(
-                                "antigravity launcher: real binary changed outside Tokless; refusing upgrade"
-                                    .to_string(),
-                            );
-                        }
-                        fs::remove_file(&real).map_err(|e| {
-                            format!("antigravity launcher: replace old real binary: {e}")
-                        })?;
-                    }
-                    fs::rename(&bin, &real)
-                        .map_err(|e| format!("antigravity launcher: stash real binary: {e}"))?;
-                }
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(format!("antigravity launcher: read {bin}: {e}")),
-        }
-    }
-
-    if paths::is_win() && paths::exists(&vendor) {
-        if paths::exists(&real) && !owned {
-            return Err(format!(
-                "antigravity launcher: {real} already exists without Tokless ownership; refusing to overwrite"
-            ));
-        }
-        fs::rename(&vendor, &real)
-            .map_err(|e| format!("antigravity launcher: stash real binary: {e}"))?;
-    }
-    if !paths::exists(&real) {
-        return Err(format!("antigravity CLI not found at {vendor}"));
-    }
-    let digest = antigravity_file_digest(&real)
-        .map_err(|e| format!("antigravity launcher: hash real binary: {e}"))?;
-    let state = serde_json::to_string(&AntigravityShimState {
-        bin: bin.clone(),
-        real: real.clone(),
-        real_digest: digest,
-    })
-    .map_err(|e| e.to_string())?;
-    if let Err(err) = paths::write_file(&antigravity_shim_state_file(), &state) {
-        if !owned && paths::exists(&real) && !paths::exists(&bin) {
-            let _ = fs::rename(&real, &bin);
-        }
-        return Err(format!("antigravity launcher: record ownership: {err}"));
-    }
-    if let Err(err) = paths::write_file_mode(&bin, &rendered, 0o755) {
-        if paths::exists(&real) && !paths::exists(&vendor) {
-            let _ = fs::rename(&real, &vendor);
-        }
-        if !owned {
-            let _ = fs::remove_file(antigravity_shim_state_file());
-        }
-        return Err(format!("antigravity launcher: install shim: {err}"));
-    }
-    Ok(true)
+    // Purged in Phase 9: Tokless never hijacks agent binaries or creates shim wrappers.
+    let _ = remove_antigravity_shim();
+    Ok(false)
 }
 
 fn remove_antigravity_shim() -> bool {
     let bin = antigravity_bin_file();
     let vendor = antigravity_vendor_bin_file();
     let real = antigravity_real_bin_file();
-    let (_, owned) = read_antigravity_shim_state();
-    if !owned {
-        return false;
-    }
+    let mut changed = false;
+
+    // Delete shim wrapper if it exists and matches Tokless pattern
     if paths::is_win() {
-        let Some(raw) = paths::read_file_safe(&bin) else {
-            return false;
-        };
-        if !looks_like_antigravity_shim(&raw) || !paths::exists(&real) {
-            return false;
+        if let Some(raw) = paths::read_file_safe(&bin) {
+            if looks_like_antigravity_shim(&raw) {
+                let _ = paths::remove_file_retry(&bin);
+                changed = true;
+            }
         }
-        if paths::exists(&vendor)
-            || paths::remove_file_retry(&bin).is_err()
-            || fs::rename(&real, &vendor).is_err()
-        {
-            return false;
+        // Restore real binary to vendor (agy.exe)
+        if paths::exists(&real) {
+            if paths::exists(&vendor) {
+                let _ = paths::remove_file_retry(&vendor);
+            }
+            if fs::rename(&real, &vendor).is_ok() {
+                changed = true;
+            }
         }
     } else {
-        let Ok((raw, _)) = read_antigravity_launcher(&bin) else {
-            return false;
-        };
-        if !looks_like_antigravity_shim(&raw) || !paths::exists(&real) {
-            return false;
+        if let Ok((raw, _)) = read_antigravity_launcher(&bin) {
+            if looks_like_antigravity_shim(&raw) {
+                let _ = paths::remove_file_retry(&bin);
+                changed = true;
+            }
         }
-        if fs::rename(&real, &bin).is_err() {
-            return false;
+        if paths::exists(&real) {
+            if paths::exists(&bin) {
+                let _ = paths::remove_file_retry(&bin);
+            }
+            if fs::rename(&real, &bin).is_ok() {
+                changed = true;
+            }
         }
     }
-    paths::remove_file_retry(antigravity_shim_state_file()).is_ok()
+
+    if paths::exists(&antigravity_shim_state_file()) {
+        let _ = paths::remove_file_retry(antigravity_shim_state_file());
+        changed = true;
+    }
+
+    changed
 }
 
 pub fn antigravity_shim_wired() -> bool {
-    let (_, owned) = read_antigravity_shim_state();
-    if !owned {
-        return false;
-    }
-    let bin = antigravity_bin_file();
-    if paths::is_win() {
-        let Some(raw) = paths::read_file_safe(&bin) else {
-            return false;
-        };
-        return looks_like_antigravity_shim(&raw) && raw == render_antigravity_shim();
-    }
-    let Ok((raw, _)) = read_antigravity_launcher(&bin) else {
-        return false;
-    };
-    looks_like_antigravity_shim(&raw) && raw == render_antigravity_shim()
+    false
 }

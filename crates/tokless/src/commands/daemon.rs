@@ -100,6 +100,16 @@ fn daemon_start() -> i32 {
         return 0;
     }
 
+    // Self-healing: restore legacy hijacked binaries and purge shims
+    let healing = crate::env_injector::heal_legacy_hijacks();
+    if !healing.is_clean() {
+        L.info(&format!(
+            "Daemon preflight: restored {} hijacked binaries, removed {} shims",
+            healing.restored_binaries.len(),
+            healing.removed_shims.len()
+        ));
+    }
+
     let _ = fs::remove_file(daemon_stop_file());
     let exe = tokless_abs_strict();
     if exe.is_empty() {

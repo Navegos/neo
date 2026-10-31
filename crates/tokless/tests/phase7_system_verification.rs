@@ -219,7 +219,7 @@ fn test_cli_subcommands_execution() {
     assert_eq!(proxy_status_exit, 0, "tokless proxy status --dry-run must exit 0");
 
     // 6. doctor CLI
-    let doctor_exit = run_doctor(true, true);
+    let doctor_exit = run_doctor(true, true, false);
     assert_eq!(doctor_exit, 0, "tokless doctor --offline --json must exit 0");
 }
 

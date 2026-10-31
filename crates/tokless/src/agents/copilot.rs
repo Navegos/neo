@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/agents/copilot.rs
 // created: 2026-10-11
-// lastModified: 2026-10-20
+// lastModified: 2026-10-31
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -1459,173 +1459,49 @@ fn load_copilot_provider_config() -> Option<CopilotProviderConfig> {
 }
 
 fn install_copilot_shim() -> Result<bool, String> {
-    let path = copilot_shim_path();
-    let want = copilot_shim_text();
-    match fs::symlink_metadata(&path) {
-        Ok(meta) => {
-            if !meta.file_type().is_file() {
-                return Err(format!(
-                    "refusing to replace non-regular Copilot command {path}"
-                ));
-            }
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(e.to_string()),
-    }
-    if let Some(raw) = paths::read_file_safe(&path) {
-        if raw != want {
-            if copilot_shim_owned(&raw) {
-                let old_digest = paths::read_file_safe(&copilot_shim_digest_path());
-                let mode = file_mode_or(&path, 0o755).unwrap_or(0o755);
-                write_copilot_file_mode(&path, &want, mode)?;
-                if let Err(err) = write_copilot_file_mode(
-                    &copilot_shim_digest_path(),
-                    &copilot_stash_marker(&want),
-                    0o600,
-                ) {
-                    let _ = write_copilot_file_mode(&path, &raw, mode);
-                    if let Some(d) = old_digest {
-                        let _ = write_copilot_file_mode(&copilot_shim_digest_path(), &d, 0o600);
-                    } else {
-                        let _ = fs::remove_file(copilot_shim_digest_path());
-                    }
-                    return Err(err);
-                }
-                return Ok(true);
-            }
-            if paths::is_win() {
-                return Err(format!(
-                    "refusing to replace non-Tokless Copilot command {path}"
-                ));
-            }
-            let stashed = copilot_stashed_path();
-            if fs::metadata(&stashed).is_ok() {
-                return Err(format!(
-                    "refusing to replace non-Tokless Copilot command {path}: backup already exists"
-                ));
-            }
-            fs::rename(&path, &stashed)
-                .map_err(|e| format!("stash real Copilot command: {e}"))?;
-            if let Err(err) = write_copilot_file_mode(
-                &copilot_stash_marker_path(),
-                &copilot_stash_marker(&raw),
-                0o600,
-            ) {
-                let _ = fs::rename(&stashed, &path);
-                return Err(format!("record real Copilot command: {err}"));
-            }
-            if let Err(err) = write_copilot_file_mode(
-                &copilot_shim_digest_path(),
-                &copilot_stash_marker(&want),
-                0o600,
-            ) {
-                let _ = fs::rename(&stashed, &path);
-                let _ = fs::remove_file(copilot_stash_marker_path());
-                return Err(format!("record Copilot shim: {err}"));
-            }
-            if let Err(err) = write_copilot_file_mode(&path, &want, 0o755) {
-                let _ = fs::rename(&stashed, &path);
-                let _ = fs::remove_file(copilot_stash_marker_path());
-                let _ = fs::remove_file(copilot_shim_digest_path());
-                return Err(err);
-            }
-            return Ok(true);
-        }
-        return Ok(false);
-    }
-    if let Some(parent) = Path::new(&path).parent() {
-        paths::ensure_dir(parent).map_err(|e| e.to_string())?;
-    }
-    let mode = if paths::is_win() { 0o644 } else { 0o755 };
-    write_copilot_file_mode(&path, &want, mode)?;
-    if let Err(err) = write_copilot_file_mode(
-        &copilot_shim_digest_path(),
-        &copilot_stash_marker(&want),
-        0o600,
-    ) {
-        let _ = fs::remove_file(&path);
-        return Err(err);
-    }
-    Ok(true)
+    // Purged in Phase 9: Tokless never hijacks agent binaries or creates shim wrappers.
+    let _ = remove_copilot_shim();
+    Ok(false)
 }
 
 fn remove_copilot_shim() -> bool {
     let path = copilot_shim_path();
-    let Some(raw) = paths::read_file_safe(&path) else {
-        return false;
-    };
-    if !copilot_shim_owned(&raw) {
-        return false;
-    }
-    let shim_mode = file_mode_or(&path, 0o755).unwrap_or(0o755);
-    if !paths::is_win() {
-        let stashed = copilot_stashed_path();
-        if fs::metadata(&stashed).is_ok() {
-            let marker = paths::read_file_safe(&copilot_stash_marker_path());
-            let real = paths::read_file_safe(&stashed);
-            let is_reg = fs::symlink_metadata(&stashed)
-                .ok()
-                .is_some_and(|m| m.file_type().is_file());
-            let (Some(marker_raw), Some(real_raw)) = (marker, real) else {
-                return false;
-            };
-            if !is_reg || marker_raw.trim() != copilot_stash_marker(&real_raw).trim() {
-                return false;
-            }
-            let digest_raw = paths::read_file_safe(&copilot_shim_digest_path());
-            let tmp = format!("{path}.removing");
-            if fs::rename(&path, &tmp).is_err() {
-                return false;
-            }
-            if fs::rename(&stashed, &path).is_err() {
-                let _ = fs::rename(&tmp, &path);
-                return false;
-            }
-            if fs::remove_file(&tmp).is_err() {
-                let _ = fs::rename(&path, &stashed);
-                let _ = fs::rename(&tmp, &path);
-                return false;
-            }
-            if remove_copilot_sidecars().is_err() {
-                let _ = fs::rename(&path, &stashed);
-                let _ = write_copilot_file_mode(&path, &raw, shim_mode);
-                let _ = write_copilot_file_mode(&copilot_stash_marker_path(), &marker_raw, 0o600);
-                if let Some(d) = digest_raw {
-                    let _ = write_copilot_file_mode(&copilot_shim_digest_path(), &d, 0o600);
-                }
-                return false;
-            }
-            return true;
+    let stashed = copilot_stashed_path();
+    let mut changed = false;
+
+    // 1. Remove sidecars
+    let _ = remove_copilot_sidecars();
+
+    // 2. Restore stashed binary if exists
+    if fs::metadata(&stashed).is_ok() {
+        if paths::exists(&path) {
+            let _ = fs::remove_file(&path);
+        }
+        if fs::rename(&stashed, &path).is_ok() {
+            changed = true;
         }
     }
-    if fs::remove_file(&path).is_err() {
-        return false;
+
+    // 3. If wrapper shim still exists, remove it
+    if let Some(raw) = paths::read_file_safe(&path) {
+        if copilot_shim_owned(&raw) || raw.contains("tokless:copilot-shim") {
+            if fs::remove_file(&path).is_ok() {
+                changed = true;
+            }
+        }
     }
-    if let Err(err) = fs::remove_file(copilot_shim_digest_path())
-        && err.kind() != std::io::ErrorKind::NotFound
-    {
-        let _ = write_copilot_file_mode(&path, &raw, shim_mode);
-        return false;
-    }
-    true
+
+    changed
 }
 
 fn remove_copilot_sidecars() -> Result<(), String> {
-    if let Err(e) = fs::remove_file(copilot_stash_marker_path())
-        && e.kind() != std::io::ErrorKind::NotFound
-    {
-        return Err(e.to_string());
-    }
-    if let Err(e) = fs::remove_file(copilot_shim_digest_path())
-        && e.kind() != std::io::ErrorKind::NotFound
-    {
-        return Err(e.to_string());
-    }
+    let _ = fs::remove_file(copilot_stash_marker_path());
+    let _ = fs::remove_file(copilot_shim_digest_path());
     Ok(())
 }
 
 fn copilot_shim_installed() -> bool {
-    paths::read_file_safe(&copilot_shim_path()).is_some_and(|raw| copilot_shim_owned(&raw))
+    false
 }
 
 fn env_value(env: &HashMap<String, String>, key: &str) -> String {
@@ -2308,7 +2184,7 @@ fn configure_copilot_proxy_locked() -> (bool, String) {
 }
 
 pub fn copilot_cli_proxy_applicable() -> bool {
-    copilot_cli_proxy_wired() || !paths::which("copilot").is_empty()
+    false
 }
 
 pub fn copilot_vscode_proxy_applicable() -> bool {

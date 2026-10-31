@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-10-30
+// lastModified: 2026-10-31
 
 use std::collections::HashMap;
 use std::env;
@@ -369,8 +369,12 @@ fn run() -> i32 {
     match command {
         "init" => run_init(opts),
         "update" => run_update(opts),
-        "doctor" => run_doctor(p.bools.get("offline") == Some(&true), p.bools.get("json") == Some(&true)),
-        "stats" => run_doctor(true, true),
+        "doctor" => run_doctor(
+            p.bools.get("offline") == Some(&true),
+            p.bools.get("json") == Some(&true),
+            p.bools.get("fix") == Some(&true),
+        ),
+        "stats" => run_doctor(true, true, false),
         "gain" => run_gain(),
         "top" => run_top(p.bools.get("once") == Some(&true) || p.bools.get("1") == Some(&true)),
         "tui" => run_tui_cli(&args[2..]),

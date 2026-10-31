@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/doctor.rs
 // created: 2026-10-05
-// lastModified: 2026-10-27
+// lastModified: 2026-10-31
 
 use std::env;
 use crate::commands::doctor_probe::{format_runtime_issues, probe_agent_runtime, RuntimeIssue};
@@ -28,7 +28,25 @@ struct AgentReport {
     runtime: Vec<RuntimeIssue>,
 }
 
-pub fn run_doctor(offline: bool, json_output: bool) -> i32 {
+pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
+    if fix {
+        let healing = crate::env_injector::heal_legacy_hijacks();
+        if !healing.is_clean() {
+            L.raw(&format!(
+                "  {} Healed legacy binary hijacks: restored {} binaries, removed {} shims, cleaned {} state files",
+                C.green(Sym::CHECK),
+                healing.restored_binaries.len(),
+                healing.removed_shims.len(),
+                healing.removed_state_files.len()
+            ));
+        } else {
+            L.raw(&format!(
+                "  {} Legacy binary hijacking: clean (no .real binaries or shims found)",
+                C.green(Sym::CHECK)
+            ));
+        }
+        L.raw("");
+    }
     let tools = list_tools();
     let all_agents = list_agents();
     let mut reports_opt: Vec<Option<AgentReport>> = vec![None; all_agents.len()];

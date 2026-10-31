@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/agents/grok.rs
 // created: 2026-10-11
-// lastModified: 2026-10-14
+// lastModified: 2026-10-31
 
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -11,13 +11,11 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
-
 use crate::core::AgentManifest;
 use crate::util::grok::grok_oauth_proxy_port;
 use crate::util::logger::L;
 use crate::util::mcpspawn::{mcp_spawn_for, pick_mcp_spawn, wrap_auto_index};
-use crate::util::paths::{self, sh_quote};
+use crate::util::paths;
 use crate::util::toml::{
     TomlBlock, block_text, has_block, remove_block, toml_block_field, toml_quoted, upsert_block,
 };
@@ -32,7 +30,7 @@ use super::proxy_provider::{
     is_valid_byok_upstream, load_proxy_route_stash, load_proxy_route_stash_locked,
     normalized_headroom_upstream, proxy_endpoint_for_api, proxy_route_stash_path,
     proxy_route_stash_valid, proxy_wire_key, register_byok_route, restore_proxy_route_stash_logged,
-    rollback_byok_route_logged, save_proxy_route_stash, sha256_hex,
+    rollback_byok_route_logged, save_proxy_route_stash,
     tokless_command_ok, tokless_managed_command, with_proxy_route_stash_lock,
 };
 
@@ -458,36 +456,11 @@ pub fn remove_grok_build_proxy() -> bool {
 
 // --- grok_shim.go ---
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct GrokShimState {
-    pub bin: String,
-    pub real: String,
-    #[serde(rename = "realDigest")]
-    pub real_digest: String,
-}
-
 fn grok_shim_state_file() -> String {
     Path::new(&paths::tokless_data_dir())
         .join("grok-cli-proxy.json")
         .to_string_lossy()
         .into_owned()
-}
-
-fn read_grok_shim_state() -> (GrokShimState, bool) {
-    let Some(raw) = paths::read_file_safe(&grok_shim_state_file()) else {
-        return (GrokShimState::default(), false);
-    };
-    let Ok(state) = serde_json::from_str::<GrokShimState>(&raw) else {
-        return (GrokShimState::default(), false);
-    };
-    let owned = Path::new(&state.bin) == Path::new(&grok_bin_file())
-        && Path::new(&state.real) == Path::new(&grok_real_bin_file());
-    (state, owned)
-}
-
-fn grok_file_digest(path: &str) -> Result<String, String> {
-    let b = fs::read(path).map_err(|e| e.to_string())?;
-    Ok(sha256_hex(&b))
 }
 
 fn looks_like_grok_shim(raw: &str) -> bool {
@@ -523,130 +496,10 @@ fn read_grok_launcher(path: &str) -> Result<(String, bool), std::io::Error> {
     Ok((String::from_utf8_lossy(&buf).into_owned(), true))
 }
 
-fn grok_mitm_ca_file() -> String {
-    Path::new(&paths::tokless_data_dir())
-        .join("grok-mitm-ca.pem")
-        .to_string_lossy()
-        .into_owned()
-}
-
-fn render_grok_shim() -> String {
-    let port = grok_oauth_proxy_port();
-    let real = grok_real_bin_file();
-    let tokless = paths::tokless_abs_strict();
-    let ca = grok_mitm_ca_file();
-    if paths::is_win() {
-        return format!(
-            "@echo off\r\n\
-rem {GROK_SHIM_MARKER}\r\n\
-set \"REAL={real}\"\r\n\
-set \"TOKLESS={tokless}\"\r\n\
-set \"CA={ca}\"\r\n\
-\"%TOKLESS%\" __grok-proxy-ensure >nul 2>&1\r\n\
-if errorlevel 1 (\r\n\
-  echo grok: Headroom OAuth proxy unavailable; run tokless proxy up --agents grok 1>&2\r\n\
-  exit /b 1\r\n\
-)\r\n\
-set \"HTTPS_PROXY=http://127.0.0.1:{port}\"\r\n\
-set \"NODE_EXTRA_CA_CERTS=%CA%\"\r\n\
-\"%REAL%\" %*\r\n\
-exit /b %errorlevel%\r\n"
-        );
-    }
-    format!(
-        "#!/bin/sh\n\
-{GROK_SHIM_MARKER}\n\
-REAL={}\n\
-TOKLESS={}\n\
-CA={}\n\
-if ! \"$TOKLESS\" __grok-proxy-ensure >/dev/null 2>&1; then\n\
-  echo 'grok: Headroom OAuth proxy unavailable; run tokless proxy up --agents grok' >&2\n\
-  exit 1\n\
-fi\n\
-HTTPS_PROXY=http://127.0.0.1:{port} NODE_EXTRA_CA_CERTS=\"$CA\" exec \"$REAL\" \"$@\"\n",
-        sh_quote(&real),
-        sh_quote(&tokless),
-        sh_quote(&ca)
-    )
-}
-
 pub fn install_grok_shim() -> Result<bool, String> {
-    let bin = grok_bin_file();
-    let real = grok_real_bin_file();
-    let rendered = render_grok_shim();
-    let (_, owned) = read_grok_shim_state();
-
-    match read_grok_launcher(&bin) {
-        Ok((raw, script)) => {
-            if script && raw.contains(GROK_SHIM_MARKER) {
-                if !owned || !looks_like_grok_shim(&raw) {
-                    return Err(format!(
-                        "grok launcher: {bin} contains tokless marker but unknown shape; refusing to overwrite"
-                    ));
-                }
-                if raw == rendered {
-                    return Ok(false);
-                }
-            } else if script {
-                return Err(format!(
-                    "grok launcher: {bin} is an existing script; refusing to overwrite"
-                ));
-            } else {
-                if paths::exists(&real) && !owned {
-                    return Err(format!(
-                        "grok launcher: {real} already exists without Tokless ownership; refusing to overwrite"
-                    ));
-                }
-                if paths::exists(&real) && owned {
-                    let (state, ok) = read_grok_shim_state();
-                    if !ok || state.real_digest.is_empty() {
-                        return Err(
-                            "grok launcher: missing real-binary ownership digest".to_string(),
-                        );
-                    }
-                    let digest = grok_file_digest(&real).unwrap_or_default();
-                    if digest != state.real_digest {
-                        return Err(
-                            "grok launcher: real binary changed outside Tokless; refusing upgrade"
-                                .to_string(),
-                        );
-                    }
-                    fs::remove_file(&real)
-                        .map_err(|e| format!("grok launcher: replace old real binary: {e}"))?;
-                }
-                fs::rename(&bin, &real)
-                    .map_err(|e| format!("grok launcher: stash real binary: {e}"))?;
-            }
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(format!("grok launcher: read {bin}: {e}")),
-    }
-
-    if !paths::exists(&real) {
-        return Err(format!("grok binary not found at {bin}"));
-    }
-    let digest =
-        grok_file_digest(&real).map_err(|e| format!("grok launcher: hash real binary: {e}"))?;
-    let state = serde_json::to_string(&GrokShimState {
-        bin: bin.clone(),
-        real: real.clone(),
-        real_digest: digest,
-    })
-    .map_err(|e| e.to_string())?;
-    if let Err(err) = paths::write_file(&grok_shim_state_file(), &state) {
-        if !owned && paths::exists(&real) && !paths::exists(&bin) {
-            let _ = fs::rename(&real, &bin);
-        }
-        return Err(format!("grok launcher: record ownership: {err}"));
-    }
-    if let Err(err) = paths::write_file_mode(&bin, &rendered, 0o755) {
-        if !owned && paths::exists(&real) {
-            let _ = fs::rename(&real, &bin);
-            let _ = fs::remove_file(grok_shim_state_file());
-        }
-        return Err(format!("grok launcher: install shim: {err}"));
-    }
-    Ok(true)
+    // Purged in Phase 9: Tokless never hijacks agent binaries or creates shim wrappers.
+    let _ = remove_grok_shim();
+    Ok(false)
 }
 
 pub fn remove_grok_shim() -> bool {
@@ -656,37 +509,50 @@ pub fn remove_grok_shim() -> bool {
 pub fn remove_grok_shim_checked() -> Result<bool, String> {
     let bin = grok_bin_file();
     let real = grok_real_bin_file();
-    let (state, owned) = read_grok_shim_state();
-    if !owned {
-        return Ok(false);
-    }
-    let (raw, script) = read_grok_launcher(&bin).map_err(|e| e.to_string())?;
-    if !script || !looks_like_grok_shim(&raw) || !paths::exists(&real) {
-        return Err("grok launcher state does not match installed shim".to_string());
-    }
-    if !state.real_digest.is_empty() {
-        let digest = grok_file_digest(&real)?;
-        if digest != state.real_digest {
-            return Err("grok real binary digest mismatch; refusing restore".to_string());
+    let mut changed = false;
+
+    if paths::is_win() {
+        if let Some(raw) = paths::read_file_safe(&bin) {
+            if looks_like_grok_shim(&raw) {
+                let _ = fs::remove_file(&bin);
+                changed = true;
+            }
+        }
+        if paths::exists(&real) {
+            if paths::exists(&bin) {
+                let _ = fs::remove_file(&bin);
+            }
+            if fs::rename(&real, &bin).is_ok() {
+                changed = true;
+            }
+        }
+    } else {
+        if let Ok((raw, script)) = read_grok_launcher(&bin) {
+            if script && looks_like_grok_shim(&raw) {
+                let _ = fs::remove_file(&bin);
+                changed = true;
+            }
+        }
+        if paths::exists(&real) {
+            if paths::exists(&bin) {
+                let _ = fs::remove_file(&bin);
+            }
+            if fs::rename(&real, &bin).is_ok() {
+                changed = true;
+            }
         }
     }
-    if paths::is_win() && paths::exists(&bin) {
-        fs::remove_file(&bin).map_err(|e| e.to_string())?;
+
+    if paths::exists(&grok_shim_state_file()) {
+        let _ = fs::remove_file(grok_shim_state_file());
+        changed = true;
     }
-    fs::rename(&real, &bin).map_err(|e| e.to_string())?;
-    let _ = fs::remove_file(grok_shim_state_file());
-    Ok(true)
+
+    Ok(changed)
 }
 
 pub fn grok_shim_wired() -> bool {
-    let (_, owned) = read_grok_shim_state();
-    if !owned || !paths::exists(&grok_real_bin_file()) {
-        return false;
-    }
-    let Ok((raw, script)) = read_grok_launcher(&grok_bin_file()) else {
-        return false;
-    };
-    script && looks_like_grok_shim(&raw) && raw == render_grok_shim()
+    false
 }
 
 // --- grok_proxy.go ---

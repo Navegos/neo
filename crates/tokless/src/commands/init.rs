@@ -28,6 +28,19 @@ use crate::util::prompt::{is_interactive, multi_select, MultiSelectOption};
 pub fn run_init(mut opts: InitOptions) -> i32 {
     crate::util::logger::set_quiet(!opts.verbose);
 
+    // Self-healing: restore legacy hijacked binaries and purge shims
+    if !opts.dry_run {
+        let healing = crate::env_injector::heal_legacy_hijacks();
+        if !healing.is_clean() {
+            L.info(&format!(
+                "Self-healing: restored {} hijacked binaries, removed {} shims, cleaned {} state files",
+                healing.restored_binaries.len(),
+                healing.removed_shims.len(),
+                healing.removed_state_files.len()
+            ));
+        }
+    }
+
     if env::var("TOKLESS_INSTALLER_RUN").as_deref() == Ok("1") {
         opts.upgrade = true;
     } else {
