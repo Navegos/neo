@@ -37,6 +37,7 @@ pub fn print_mem_help() {
           tokless mem stats | score [--format <text|json>]\n\
           tokless mem heatmap\n\
           tokless mem search <query> [--limit <n>]\n\
+          tokless mem sync\n\
           tokless mem global <status|list|add|add-gotcha|remove|detect|prune>\n\
           tokless mem mcp\n"
     );
@@ -57,6 +58,33 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
             0
         }
         "mcp" => run_mcp_server(),
+        "sync" | "sync-icm" => {
+            let root = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let events = match read_events(Some(&root)) {
+                Ok(e) => e,
+                Err(e) => {
+                    eprintln!("Error reading projectmem events: {}", e);
+                    return 1;
+                }
+            };
+            let db_path = crate::icm::resolve_icm_db_path();
+            match crate::icm::IcmStore::open(&db_path) {
+                Ok(mut store) => match store.sync_from_projectmem(&events) {
+                    Ok(count) => {
+                        println!("Synced {} events from projectmem into SQLite ICM ({})", count, db_path.display());
+                        0
+                    }
+                    Err(e) => {
+                        eprintln!("Error syncing to ICM: {}", e);
+                        1
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Error opening ICM store at {}: {}", db_path.display(), e);
+                    1
+                }
+            }
+        }
         "init" => {
             let mut purpose = None;
             let mut i = 0;

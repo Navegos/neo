@@ -20,8 +20,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 5 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...18 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Phase 6: Ported headroom to native Rust in crates/tokless/src/headroom with native HTTP/SSE proxy, lossless log deduplication, AST code compression, JSON pruner, 1024-token cache alignment, dynamic memory governor, unified BYOK gateway, dropped Python headroom-py, 172 passing tests [crates/tokless/src/headroom]
+- ...19 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 7 complete: Verified all 17 agent harnesses, in-process MCP multiplexer, unified tokless CLI subcommands, proxy streaming compression, and token benchmarks with 241 passed workspace tests and zero compiler warnings [crates/tokless/tests/phase7_system_verification.rs]
 - Port ProjectMem to pure safe Rust in crates/tokless/src/projectmem/ with LockFileEx, fcntl, README generator, zero-alloc redaction, RTK trace connector, and tokless mem CLI
 - Phase 3 complete: Port Context-Mode to pure Rust in crates/tokless/src/contextmode with rusqlite FTS5 BM25 search, recursive directory indexing, async reqwest fetcher, sandbox subprocess runner with RTK output filtering, and tokless ctx <eval|search|index> CLI [crates/tokless/src/contextmode]
@@ -36,9 +35,9 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 1: Verified and hardened RTK filter engine integration with 100+ command profiles, zero-alloc ANSI stripper, cross-tool adapters (contextmode, projectmem, headroom), and phase1 integration test suite (255 tests passing, 0 warnings) [crates/tokless/src/rtk/]
 - Phase 2: ProjectMem pure Rust port completed with schema, store, deterministic summary, precheck, redaction, heatmap, global memory and stack detection, in-process MCP server, and RTK auto-trace extraction; 274 tests passing with 0 warnings
 - Phase 3: ContextMode pure Rust port verified with isolated sandbox runner, in-memory RTK pipe, SQLite FTS5 BM25 chunker, async fetcher, in-process ctx_* MCP server, CLI, and integration test suite; 325 tests passing with 0 warnings [crates/tokless/src/contextmode/mod.rs:1]
+- Phase 4: ICM & ai-memory integration complete with embedded SQLite FTS5 BM25 store, sub-10ms recall latency, claim-once multi-agent handoffs across 17+ agents, tiered progressive disclosure packer, projectmem sync, CLI commands (tokless icm, tokless handoff, tokless mem sync), and in-process MCP server dispatch; 281 tests passing with 0 warnings [crates/tokless/src/icm/mod.rs:1]
 
 ## Notes
-- New feature: feat: enhance ICM with multi-agent handoff capabilities, including offer, claim, resolve, and cancel functionalities; ad [crates/tokless/src/aimemory/handoff.rs]
 - New feature: feat: enhance projectmem functionality with auto-resolve location features, improve location parsing, and add new tests [crates/tokless/src/codegraph/mcp.rs]
 - Phase 6 complete: In-tree rules & skills integration with embedded markdown assets via include_str! (principles, caveman, ponytail), zero external repo clone links, patch/inject helpers for CLAUDE.md, .cursor/rules/, AGENTS.md, 222 tests passing with 0 warnings [crates/tokless/src/rules/mod.rs:1]
 - New feature: Add embedded rules for coding guidelines: Caveman, Ponytail, and Principles [crates/tokless/src/lib.rs]
@@ -48,6 +47,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat(dashboard): add embedded web telemetry & control cockpit [crates/tokless/src/commands/dashboard.rs]
 - New feature: feat: update project summaries and CLI help text; enhance MCP message handling [crates/tokless/src/commands/tui.rs]
 - New feature: feat: Enhance project memory management and global gotchas functionality [crates/tokless/src/main.rs]
+- New feature: feat(tests): add phase 3 context mode verification tests and enhance project summaries [crates/tokless/tests/phase3_contextmode_verification.rs]
 
 ## Key files
 - `.editorconfig`

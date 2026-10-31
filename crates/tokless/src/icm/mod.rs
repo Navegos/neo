@@ -7,11 +7,13 @@ pub mod schema;
 pub mod store;
 pub mod recall;
 pub mod mcp;
+pub mod cli;
 
 pub use schema::*;
 pub use store::*;
 pub use recall::*;
 pub use mcp::*;
+pub use cli::*;
 
 #[cfg(test)]
 mod tests {

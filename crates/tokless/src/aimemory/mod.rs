@@ -6,10 +6,12 @@
 pub mod handoff;
 pub mod tiered;
 pub mod wiki;
+pub mod cli;
 
 pub use handoff::*;
 pub use tiered::*;
 pub use wiki::*;
+pub use cli::*;
 
 use std::env;
 use std::path::PathBuf;

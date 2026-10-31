@@ -96,6 +96,8 @@ fn help_text() -> String {
           {}          Manage project memory, failure prevention, and MCP server\n\
           {}          Isolated sandbox execution and SQLite FTS5 knowledge base\n\
           {}          Tree-sitter AST call-graph, blast-radius, and code explorer\n\
+          {}          Instant Context Memory (ICM) SQLite FTS5 BM25 knowledge engine\n\
+          {}      Multi-agent claim-once context handoffs across 17+ agents\n\
           {}          Execute command and apply token-reduction filters\n\
           {}      Manage the headroom HTTP proxy: up|down|status\n\n\
         {}\n  --agents <list>     Limit to a subset: claude,opencode,opencode2,codex,antigravity,copilot,cursor,droid,grok,pi,omp,kilo,cline,amp,kimi,zcode,dsh\n\
@@ -121,6 +123,8 @@ fn help_text() -> String {
         cy("tokless mem"),
         cy("tokless ctx"),
         cy("tokless graph"),
+        cy("tokless icm"),
+        cy("tokless handoff"),
         cy("tokless rtk"),
         cy("tokless proxy"),
         C.bold("Flags:"),
@@ -163,6 +167,7 @@ fn is_session_boot_arg(args: &[String]) -> bool {
         [a, b, ..] if a == "mem" && b == "mcp" => true,
         [a, b, ..] if a == "ctx" && b == "mcp" => true,
         [a, b, ..] if a == "graph" && b == "mcp" => true,
+        [a, b, ..] if (a == "icm" || a == "handoff") && b == "mcp" => true,
         _ => false,
     }
 }
@@ -298,6 +303,12 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "graph" {
         return tokless::codegraph::run_graph_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "icm" {
+        return tokless::icm::run_icm_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "handoff" {
+        return tokless::aimemory::run_handoff_cli(&args[2..]);
+    }
     if args.len() >= 2 && args[1] == "tui" {
         return run_tui_cli(&args[2..]);
     }
@@ -373,6 +384,8 @@ fn run() -> i32 {
         "mem" => tokless::projectmem::run_mem_cli(&args[2..]),
         "ctx" => tokless::contextmode::run_ctx_cli(&args[2..]),
         "graph" => tokless::codegraph::run_graph_cli(&args[2..]),
+        "icm" => tokless::icm::run_icm_cli(&args[2..]),
+        "handoff" => tokless::aimemory::run_handoff_cli(&args[2..]),
         "self-update" => run_self_update(p.bools.get("check") == Some(&true)),
         _ => {
             println!("{}", help_text());

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/tokless/src/commands/runmcp.rs
 // created: 2026-10-05
-// lastModified: 2026-10-28
+// lastModified: 2026-10-31
 
 use std::env;
 use std::io::{self, Read};
@@ -159,7 +159,8 @@ pub fn run_mcp(argv: &[String]) -> i32 {
         return crate::contextmode::mcp::run_mcp_server();
     }
 
-    let is_icm = actual_cmd_args.iter().any(|a| a.contains("icm") || a.contains("icm-mcp")) || tool == "icm";
+    let is_icm = actual_cmd_args.iter().any(|a| a.contains("icm") || a.contains("icm-mcp") || a.contains("aimemory") || a.contains("handoff"))
+        || tool == "icm" || tool == "aimemory" || tool == "handoff";
     if is_icm {
         let root = projectmem_root(&workspace);
         unsafe {
