@@ -257,6 +257,12 @@ pub fn has_codegraph_index(dir: &str) -> bool {
 }
 
 pub fn codegraph_index_healthy(dir: &str) -> bool {
+    let symbols_db = Path::new(dir).join(".codegraph").join("symbols.db");
+    if symbols_db.exists() {
+        if let Ok(meta) = fs::metadata(&symbols_db) {
+            return meta.len() >= 4096;
+        }
+    }
     let db = Path::new(dir).join(".codegraph").join("codegraph.db");
     if !db.exists() {
         return has_codegraph_index(dir);
