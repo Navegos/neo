@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/mod.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 pub mod app;
 pub mod views;
@@ -87,9 +87,23 @@ pub fn run_tui_with_tab(initial_tab: usize) -> i32 {
             if let Ok(ev) = event::read() {
                 match ev {
                     Event::Key(key) => {
-                        // On Windows, ignore Release events to avoid double actions
-                        if key.kind == KeyEventKind::Press {
+                        // On Windows, handle both Press and Repeat events
+                        if key.kind == KeyEventKind::Press || key.kind == KeyEventKind::Repeat {
                             app.handle_key(key);
+                        }
+                    }
+                    Event::Mouse(mouse) => {
+                        use crossterm::event::MouseEventKind;
+                        if mouse.kind == MouseEventKind::Down(crossterm::event::MouseButton::Left) {
+                            // Row 2 is tab bar (y == 2)
+                            if mouse.row == 2 {
+                                let width = terminal.size().map(|s| s.width).unwrap_or(80);
+                                let tab_width = (width / 6).max(1);
+                                let clicked_tab = (mouse.column / tab_width) as usize;
+                                if clicked_tab < 6 {
+                                    app.current_tab = clicked_tab;
+                                }
+                            }
                         }
                     }
                     Event::Resize(_, _) => {

@@ -1317,6 +1317,14 @@ struct CopilotProviderConfig {
 }
 
 fn copilot_headroom_command() -> String {
+    let tok = paths::toksi_persisted_abs();
+    if !tok.is_empty() && paths::exists(&tok) {
+        return tok;
+    }
+    let b = paths::which("toksi");
+    if !b.is_empty() {
+        return b;
+    }
     let hr = crate::util::headroom::headroom_paths_resolved();
     if !hr.bin.is_empty() && paths::exists(&hr.bin) {
         return hr.bin;

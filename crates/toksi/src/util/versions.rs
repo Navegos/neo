@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/versions.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use super::exec::{resolve_npm_binary, resolve_rtk_bin, run, RunOptions};
 use super::headroom::{headroom_bin, headroom_installed, headroom_installed_version};
-use super::paths::{exists, home, IS_WIN};
+use super::paths::{exists, home, toksi_persisted_abs, which, IS_WIN};
 use crate::tools::projectmem::{projectmem_installed, projectmem_installed_version};
 
 pub const DEFAULT_REGISTRY_URL: &str = "https://registry.npmjs.org/";
@@ -281,7 +281,7 @@ pub fn github_latest(repo: &str) -> Option<String> {
 pub fn rtk_installed_version() -> Option<String> {
     let p = resolve_rtk_bin();
     if p.is_empty() {
-        return None;
+        return Some(crate::util::version::toksi_version().to_string());
     }
     let r = run(
         &p,
@@ -441,36 +441,38 @@ fn gather_versions_impl(force: bool) -> HashMap<String, VersionInfo> {
     let latest = cached_latest(force);
     let mut out = HashMap::new();
 
-    let rtk_inst = rtk_installed_version();
+    let rtk_inst = rtk_installed_version().or_else(|| Some(crate::util::version::toksi_version().to_string()));
     out.insert(
         "rtk".to_string(),
         VersionInfo {
-            present: rtk_inst.is_some(),
+            present: true,
             installed: rtk_inst,
             latest: latest.get("rtk").cloned().flatten(),
-            channel: "github".to_string(),
+            channel: "in-tree".to_string(),
         },
     );
 
-    let cg_inst = npm_installed_version("@colbymchenry/codegraph");
+    let cg_inst = npm_installed_version("@colbymchenry/codegraph")
+        .or_else(|| Some(crate::util::version::toksi_version().to_string()));
     out.insert(
         "codegraph".to_string(),
         VersionInfo {
-            present: cg_inst.is_some(),
+            present: true,
             installed: cg_inst,
             latest: latest.get("codegraph").cloned().flatten(),
-            channel: "npm".to_string(),
+            channel: "in-tree".to_string(),
         },
     );
 
-    let cm_inst = npm_installed_version("context-mode");
+    let cm_inst = npm_installed_version("context-mode")
+        .or_else(|| Some(crate::util::version::toksi_version().to_string()));
     out.insert(
         "context-mode".to_string(),
         VersionInfo {
-            present: cm_inst.is_some(),
+            present: true,
             installed: cm_inst,
             latest: latest.get("context-mode").cloned().flatten(),
-            channel: "npm".to_string(),
+            channel: "in-tree".to_string(),
         },
     );
 
@@ -514,22 +516,60 @@ pub fn latest_version_for(id: &str) -> Option<String> {
 
 pub fn installed_version_for(id: &str) -> Option<String> {
     match id {
-        "rtk" => rtk_installed_version(),
-        "codegraph" => npm_installed_version("@colbymchenry/codegraph"),
-        "context-mode" => npm_installed_version("context-mode"),
+        "rtk" => rtk_installed_version().or_else(|| Some(crate::util::version::toksi_version().to_string())),
+        "codegraph" => npm_installed_version("@colbymchenry/codegraph")
+            .or_else(|| Some(crate::util::version::toksi_version().to_string())),
+        "context-mode" => npm_installed_version("context-mode")
+            .or_else(|| Some(crate::util::version::toksi_version().to_string())),
         "headroom" => headroom_installed_version(),
         "projectmem" => projectmem_installed_version(),
-        "toksi" => npm_installed_version("toksi"),
+        "toksi" => npm_installed_version("toksi").or_else(|| Some(crate::util::version::toksi_version().to_string())),
         _ => None,
     }
 }
 
 pub fn installed_path_for(id: &str) -> Option<String> {
     let p = match id {
-        "rtk" => resolve_rtk_bin(),
-        "codegraph" => npm_pkg_dir("@colbymchenry/codegraph"),
-        "context-mode" => npm_pkg_dir("context-mode"),
-        "toksi" => npm_pkg_dir("toksi"),
+        "rtk" => {
+            let r = resolve_rtk_bin();
+            if !r.is_empty() {
+                r
+            } else {
+                toksi_persisted_abs()
+            }
+        }
+        "codegraph" => {
+            let n = npm_pkg_dir("@colbymchenry/codegraph");
+            if !n.is_empty() {
+                n
+            } else {
+                toksi_persisted_abs()
+            }
+        }
+        "context-mode" => {
+            let n = npm_pkg_dir("context-mode");
+            if !n.is_empty() {
+                n
+            } else {
+                toksi_persisted_abs()
+            }
+        }
+        "projectmem" => {
+            let pj = which("pjm");
+            if !pj.is_empty() {
+                pj
+            } else {
+                toksi_persisted_abs()
+            }
+        }
+        "toksi" => {
+            let t = toksi_persisted_abs();
+            if !t.is_empty() {
+                t
+            } else {
+                npm_pkg_dir("toksi")
+            }
+        }
         "headroom" => {
             if headroom_installed() {
                 headroom_bin()

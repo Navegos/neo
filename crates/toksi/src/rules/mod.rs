@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rules/mod.rs
 // created: 2026-10-29
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 //! In-tree rules and skills engine for AI coding agents.
 //!
@@ -366,6 +366,37 @@ pub fn patch_agents_md(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<b
     }
 }
 
+/// Injects or patches in-tree rules into `GEMINI.md` (Antigravity instruction file).
+///
+/// Accepts either the project workspace directory or a direct path to `GEMINI.md`.
+/// Preserves any existing user notes or custom instructions.
+pub fn patch_gemini_md(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<bool, DynError> {
+    let file_path = resolve_target_file(target, "GEMINI.md");
+    let existing = if file_path.exists() {
+        fs::read_to_string(&file_path)?
+    } else {
+        String::new()
+    };
+
+    let (preamble, mut current_rules) = parse_content_sections(&existing);
+    let mut modified = false;
+
+    for &r in rules {
+        if !current_rules.contains(&r) {
+            current_rules.push(r);
+            modified = true;
+        }
+    }
+
+    if modified || !file_path.exists() {
+        let rendered = render_rules_markdown(&current_rules, if preamble.is_empty() { None } else { Some(&preamble) });
+        safe_write_file(&file_path, &rendered)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
 /// Injects or patches in-tree rules into Cursor `.cursor/rules/` directory.
 ///
 /// Accepts either the workspace directory, `.cursor` directory, or `.cursor/rules` directory.
@@ -449,19 +480,22 @@ pub fn remove_rule_from_path(path: impl AsRef<Path>, rule: RuleKind) -> Result<b
 pub struct PatchReport {
     pub claude_patched: bool,
     pub agents_patched: bool,
+    pub gemini_patched: bool,
     pub cursor_rules_written: Vec<PathBuf>,
 }
 
 /// Injects or patches in-tree rules into all supported agent configurations in `dir`:
-/// `CLAUDE.md`, `AGENTS.md`, and `.cursor/rules/*.mdc`.
+/// `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, and `.cursor/rules/*.mdc`.
 pub fn patch_all_agent_configs(dir: impl AsRef<Path>, rules: &[RuleKind]) -> Result<PatchReport, DynError> {
     let p = dir.as_ref();
     let claude_patched = patch_claude_md(p, rules)?;
     let agents_patched = patch_agents_md(p, rules)?;
+    let gemini_patched = patch_gemini_md(p, rules)?;
     let cursor_rules_written = patch_cursor_rules(p, rules)?;
     Ok(PatchReport {
         claude_patched,
         agents_patched,
+        gemini_patched,
         cursor_rules_written,
     })
 }
@@ -473,7 +507,7 @@ pub struct ConfigRuleStatus {
     pub present_rules: Vec<RuleKind>,
 }
 
-/// Inspects configured rules across CLAUDE.md, AGENTS.md, and .cursor/rules in a workspace.
+/// Inspects configured rules across CLAUDE.md, AGENTS.md, GEMINI.md, and .cursor/rules in a workspace.
 pub fn inspect_agent_rules(dir: impl AsRef<Path>) -> Vec<ConfigRuleStatus> {
     let p = dir.as_ref();
     let mut out = Vec::new();
@@ -505,6 +539,22 @@ pub fn inspect_agent_rules(dir: impl AsRef<Path>) -> Vec<ConfigRuleStatus> {
                 .collect();
             out.push(ConfigRuleStatus {
                 target: "AGENTS.md".to_string(),
+                present_rules: present,
+            });
+        }
+    }
+
+    // Check GEMINI.md
+    let gemini_path = p.join("GEMINI.md");
+    if gemini_path.exists() {
+        if let Ok(content) = fs::read_to_string(&gemini_path) {
+            let present: Vec<RuleKind> = RuleKind::all()
+                .iter()
+                .copied()
+                .filter(|&r| content_has_rule(&content, r))
+                .collect();
+            out.push(ConfigRuleStatus {
+                target: "GEMINI.md".to_string(),
                 present_rules: present,
             });
         }

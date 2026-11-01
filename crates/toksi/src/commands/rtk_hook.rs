@@ -3,16 +3,15 @@
 // project: neo
 // file: crates/toksi/src/commands/rtk_hook.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::env;
 use std::fs::OpenOptions;
 use std::io::{self, Read, Write};
 use std::path::Path;
-use std::process::Command;
 
 use crate::util::jsonc::{stringify_json, try_parse_jsonc, try_parse_jsonc_map, OrderedMap, Value};
-use crate::util::paths::{copilot_paths_resolved, resolve_rtk_bin};
+use crate::util::paths::copilot_paths_resolved;
 
 pub fn run_rtk_rewrite() -> i32 {
     let args: Vec<String> = env::args().skip(2).collect();
@@ -49,22 +48,7 @@ pub fn rtk_rewrite(cmd_line: &str) -> (String, bool) {
         return (native_rewritten, true);
     }
 
-    let rtk_path = resolve_rtk_bin();
-    if rtk_path.is_empty() {
-        return (String::new(), false);
-    }
-    let output = match Command::new(&rtk_path).args(["rewrite", cmd_line]).output() {
-        Ok(o) => o,
-        Err(_) => return (String::new(), false),
-    };
-    if !output.status.success() && output.status.code() != Some(3) {
-        return (String::new(), false);
-    }
-    let new_cmd = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if new_cmd.is_empty() || new_cmd == cmd_line {
-        return (String::new(), false);
-    }
-    (new_cmd, true)
+    (String::new(), false)
 }
 
 fn has_shell_pipe(line: &str) -> bool {
@@ -222,7 +206,16 @@ pub fn segment_binary(seg: &str) -> String {
 }
 
 pub fn segment_starts_with_rtk(seg: &str) -> bool {
-    segment_binary(seg) == "rtk"
+    let bin = segment_binary(seg);
+    if bin == "rtk" {
+        return true;
+    }
+    if bin == "toksi" {
+        let trimmed = seg.trim();
+        let tokens: Vec<&str> = trimmed.split_whitespace().collect();
+        return tokens.len() >= 2 && tokens[1] == "rtk";
+    }
+    false
 }
 
 pub fn command_uses_rtk(cmd_line: &str) -> bool {
@@ -899,8 +892,11 @@ mod tests {
     #[test]
     fn test_is_already_rtk_and_command_uses_rtk() {
         assert!(is_already_rtk("rtk git status"));
+        assert!(is_already_rtk("toksi rtk git status"));
         assert!(!is_already_rtk("rtk git status && git diff"));
+        assert!(!is_already_rtk("toksi rtk git status && git diff"));
         assert!(command_uses_rtk("rtk git status && git diff"));
+        assert!(command_uses_rtk("toksi rtk git status && git diff"));
         assert!(command_uses_rtk("\"/usr/local/bin/rtk.exe\" git status"));
         assert!(!command_uses_rtk("git status"));
     }

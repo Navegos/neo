@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/rtk.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::env;
 use std::fs;
@@ -31,7 +31,7 @@ use crate::util::paths::{
     amp_paths_resolved, antigravity_paths_resolved, claude_code_paths, cline_paths_resolved,
     codex_paths_resolved, copilot_paths_resolved, cursor_paths_resolved, ensure_dir, exists,
     find_binary, home, is_win, kilo_paths_resolved, opencode_paths_resolved, opencode_paths_v2,
-    persisted_toksi_command, read_file_safe, resolve_rtk_bin,
+    persisted_toksi_command, read_file_safe,
     toksi_persisted_abs, write_file_atomic, zcode_paths_resolved,
 };
 use super::copilot_transaction::with_copilot_transaction;
@@ -263,7 +263,7 @@ fn kilo_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
     }
     let p = kilo_rtk_path();
     let exe = toksi_persisted_abs();
-    if p.is_empty() || exe.is_empty() || resolve_rtk_bin().is_empty() {
+    if p.is_empty() || exe.is_empty() {
         return Ok(false);
     }
     let _ = ensure_dir(Path::new(&p).parent().unwrap_or(Path::new("")));

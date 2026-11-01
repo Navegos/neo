@@ -459,6 +459,19 @@ pub fn tokless_abs_strict() -> String {
 }
 
 pub fn toksi_persisted_abs() -> String {
+    if let Ok(cur) = std::env::current_exe() {
+        let s = cur.to_string_lossy().to_string();
+        if stable_executable(&s) {
+            let stem = cur
+                .file_stem()
+                .and_then(|x| x.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if stem == "toksi" || stem == "tokless" {
+                return s;
+            }
+        }
+    }
     if let Some(raw) = read_file_safe(install_marker_path()) {
         if let Ok(marker) = serde_json::from_str::<InstallRecord>(&raw) {
             if stable_executable(&marker.path) {

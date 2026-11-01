@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/process_identity.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -142,7 +142,12 @@ fn identify_process_windows(
                 break;
             }
             Ok(output) => {
-                last_err = Some(String::from_utf8_lossy(&output.stderr).trim().to_string());
+                let err = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                last_err = Some(if err.is_empty() {
+                    "process not found or exited".to_string()
+                } else {
+                    err
+                });
             }
             Err(e) => {
                 last_err = Some(e.to_string());
@@ -151,9 +156,10 @@ fn identify_process_windows(
     }
 
     let Some(out) = out_bytes else {
-        return Err(last_err
-            .unwrap_or_else(|| "failed to query process identity".to_string())
-            .into());
+        let err = last_err
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| "failed to query process identity".to_string());
+        return Err(err.into());
     };
 
     let p: WindowsProcess =

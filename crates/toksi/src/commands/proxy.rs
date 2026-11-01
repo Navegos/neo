@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::collections::HashSet;
 
@@ -48,6 +48,9 @@ pub fn resolve_proxy_agents(requested: &Option<Vec<String>>, for_up: bool) -> (V
 
     let mut auto = Vec::new();
     for id in valid_ids {
+        if for_up && id == "grok" {
+            continue;
+        }
         if !for_up || proxy_agent_applicable(&id) {
             auto.push(id);
         }
@@ -58,7 +61,10 @@ pub fn resolve_proxy_agents(requested: &Option<Vec<String>>, for_up: bool) -> (V
 pub fn validate_proxy_up_agents(targets: &[String], explicit: bool) -> Result<(), String> {
     for id in targets {
         if id == "grok" {
-            return Err("grok does not support proxy routing".into());
+            if explicit {
+                return Err("grok does not support proxy routing".into());
+            }
+            continue;
         }
         if explicit && !proxy_agent_applicable(id) {
             return Err(format!("agent '{}' is not installed or configured on this machine", id));
@@ -125,6 +131,7 @@ pub fn run_proxy_up(opts: InitOptions) -> i32 {
         }
     };
 
+    let _ = set_proxy_routing_enabled(true);
     let needs_headroom = targets.iter().any(|id| proxy_agent_uses_headroom(id));
     if needs_headroom {
         if let Err(e) = start_proxy() {
@@ -133,7 +140,6 @@ pub fn run_proxy_up(opts: InitOptions) -> i32 {
         }
         let _ = enable_proxy_autostart();
     }
-    let _ = set_proxy_routing_enabled(true);
 
     tree_top("Agents");
     let mut configured = Vec::new();
@@ -349,6 +355,7 @@ pub fn run_proxy_cli(argv: &[String]) -> i32 {
     let mut verbose = false;
     let mut help = false;
     let mut agents_opt: Option<Vec<String>> = None;
+    let mut serve_mode = false;
     let mut i = 0;
     while i < argv.len() {
         let a = &argv[i];
@@ -375,10 +382,49 @@ pub fn run_proxy_cli(argv: &[String]) -> i32 {
                 .filter(|s| !s.is_empty())
                 .collect();
             agents_opt = Some(list);
+        } else if (a == "--port" || a == "-p") && i + 1 < argv.len() {
+            if let Ok(p) = argv[i + 1].parse::<u16>() {
+                unsafe { std::env::set_var("TOKSI_HEADROOM_PROXY_PORT", p.to_string()); }
+            }
+            serve_mode = true;
+            i += 1;
+        } else if a.starts_with("--port=") {
+            let p_str = a.split_once('=').unwrap().1;
+            if let Ok(p) = p_str.parse::<u16>() {
+                unsafe { std::env::set_var("TOKSI_HEADROOM_PROXY_PORT", p.to_string()); }
+            }
+            serve_mode = true;
+        } else if a == "--anthropic-api-url" && i + 1 < argv.len() {
+            unsafe { std::env::set_var("ANTHROPIC_BASE_URL", &argv[i + 1]); }
+            serve_mode = true;
+            i += 1;
+        } else if a == "--openai-api-url" && i + 1 < argv.len() {
+            unsafe { std::env::set_var("OPENAI_BASE_URL", &argv[i + 1]); }
+            serve_mode = true;
+            i += 1;
+        } else if a == "--gemini-api-url" && i + 1 < argv.len() {
+            unsafe { std::env::set_var("GOOGLE_GEMINI_BASE_URL", &argv[i + 1]); }
+            serve_mode = true;
+            i += 1;
+        } else if a == "--cloudcode-api-url" && i + 1 < argv.len() {
+            unsafe { std::env::set_var("CLOUD_CODE_URL", &argv[i + 1]); }
+            serve_mode = true;
+            i += 1;
+        } else if a == "--no-cache" {
+            serve_mode = true;
         } else if cmd.is_empty() && !a.starts_with('-') {
-            cmd = a.clone();
+            if let Ok(p) = a.parse::<u16>() {
+                unsafe { std::env::set_var("TOKSI_HEADROOM_PROXY_PORT", p.to_string()); }
+                serve_mode = true;
+            } else {
+                cmd = a.clone();
+            }
         }
         i += 1;
+    }
+
+    if cmd.is_empty() && serve_mode {
+        cmd = "serve".to_string();
     }
 
     if help || cmd == "help" {

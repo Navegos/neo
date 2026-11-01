@@ -3,7 +3,7 @@
 // project: toksi
 // file: crates/toksi/src/agents/antigravity.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
@@ -65,21 +65,61 @@ pub fn antigravity_manifest() -> AgentManifest {
 }
 
 pub fn antigravity_mcp_config_files() -> Vec<String> {
-    let p = paths::antigravity_paths_resolved();
-    let cli_cfg = Path::new(&paths::home())
-        .join(".gemini")
-        .join("antigravity-cli")
-        .join("mcp_config.json")
-        .to_string_lossy()
-        .into_owned();
-    vec![p.mcp_config_cli, cli_cfg]
+    let gemini = Path::new(&paths::home()).join(".gemini");
+    vec![
+        gemini
+            .join("antigravity")
+            .join("mcp_config.json")
+            .to_string_lossy()
+            .into_owned(),
+        gemini
+            .join("antigravity-cli")
+            .join("mcp_config.json")
+            .to_string_lossy()
+            .into_owned(),
+        gemini
+            .join("antigravity-ide")
+            .join("mcp_config.json")
+            .to_string_lossy()
+            .into_owned(),
+        gemini
+            .join("config")
+            .join("mcp_config.json")
+            .to_string_lossy()
+            .into_owned(),
+    ]
+}
+
+pub fn antigravity_hooks_files() -> Vec<String> {
+    let gemini = Path::new(&paths::home()).join(".gemini");
+    vec![
+        gemini
+            .join("antigravity")
+            .join("hooks.json")
+            .to_string_lossy()
+            .into_owned(),
+        gemini
+            .join("antigravity-cli")
+            .join("hooks.json")
+            .to_string_lossy()
+            .into_owned(),
+        gemini
+            .join("antigravity-ide")
+            .join("hooks.json")
+            .to_string_lossy()
+            .into_owned(),
+        gemini
+            .join("config")
+            .join("hooks.json")
+            .to_string_lossy()
+            .into_owned(),
+    ]
 }
 
 pub fn antigravity_legacy_mcp_files() -> Vec<String> {
-    let p = paths::antigravity_paths_resolved();
     let gemini = Path::new(&paths::home()).join(".gemini");
-    let mut files = vec![p.mcp_config, p.settings];
-    for variant in ["antigravity-ide"] {
+    let mut files = Vec::new();
+    for variant in ["antigravity-desktop"] {
         let d = gemini.join(variant);
         if paths::exists(&d) {
             files.push(d.join("mcp_config.json").to_string_lossy().into_owned());
@@ -92,12 +132,26 @@ pub fn antigravity_settings_files() -> Vec<String> {
     let gemini = Path::new(&paths::home()).join(".gemini");
     vec![
         gemini
+            .join("antigravity")
+            .join("settings.json")
+            .to_string_lossy()
+            .into_owned(),
+        gemini
             .join("antigravity-cli")
             .join("settings.json")
             .to_string_lossy()
             .into_owned(),
         gemini
             .join("antigravity-ide")
+            .join("settings.json")
+            .to_string_lossy()
+            .into_owned(),
+        gemini
+            .join("config")
+            .join("settings.json")
+            .to_string_lossy()
+            .into_owned(),
+        gemini
             .join("settings.json")
             .to_string_lossy()
             .into_owned(),
@@ -441,6 +495,8 @@ pub fn install_antigravity_rtk_hook() -> bool {
     clean_antigravity_dead_hook_groups();
     allow_antigravity_entry("command(rtk)");
     allow_antigravity_entry("command(rtk )");
+    allow_antigravity_entry("command(toksi)");
+    allow_antigravity_entry("command(toksi )");
     has_antigravity_rtk_hook()
 }
 
@@ -848,10 +904,9 @@ pub fn configure_antigravity_mcp(tool_id: &str) -> (bool, String) {
 
         let servers = json_map_child_mut(&mut cfg, "mcpServers").unwrap();
         if let Some(existing) = servers.get(tool_id) {
-            if !json_equal(existing, &entry_val) {
-                all_configured = false;
+            if json_equal(existing, &entry_val) {
+                continue;
             }
-            continue;
         }
         servers.insert(tool_id.to_string(), entry_val);
         let next = stringify_json(&Value::Object(cfg));

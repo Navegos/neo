@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor_stats.rs
 // created: 2026-10-20
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::collections::HashMap;
 use std::fs;
@@ -13,7 +13,7 @@ use serde::Deserialize;
 
 use crate::util::colors::C;
 use crate::util::exec::{run, RunOptions};
-use crate::util::paths::{home, is_win, resolve_codegraph_bin, which};
+use crate::util::paths::{home, is_win, resolve_codegraph_bin, toksi_persisted_abs, which};
 
 pub fn human_count(n: i64) -> String {
     if n >= 1_000_000 {
@@ -430,38 +430,55 @@ pub fn doctor_tool_stats(project_dir: &str, is_project: bool) -> HashMap<String,
     let tools = ["headroom", "projectmem", "rtk", "codegraph", "context-mode"];
 
     for tool in tools {
+        if tool == "headroom" {
+            stats.insert(tool.to_string(), headroom_stats_summary());
+            continue;
+        }
         if tool == "context-mode" {
-            if !which("context-mode").is_empty() {
-                stats.insert(tool.to_string(), context_mode_stats(&home()));
-            }
+            stats.insert(tool.to_string(), context_mode_stats(&home()));
             continue;
         }
 
-        let bin = if tool == "codegraph" {
-            resolve_codegraph_bin()
-        } else {
-            which(tool)
+        let (bin, args): (String, Vec<&str>) = match tool {
+            "projectmem" => {
+                let p = which("projectmem");
+                if !p.is_empty() {
+                    (p, vec!["stats", "--format", "json"])
+                } else {
+                    let tok = toksi_persisted_abs();
+                    let b = if !tok.is_empty() { tok } else { which("toksi") };
+                    (b, vec!["mem", "stats", "--format", "json"])
+                }
+            }
+            "rtk" => {
+                let p = which("rtk");
+                if !p.is_empty() {
+                    (p, vec!["gain"])
+                } else {
+                    let tok = toksi_persisted_abs();
+                    let b = if !tok.is_empty() { tok } else { which("toksi") };
+                    (b, vec!["rtk", "gain"])
+                }
+            }
+            "codegraph" => {
+                if !is_project {
+                    continue;
+                }
+                let p = resolve_codegraph_bin();
+                if !p.is_empty() {
+                    (p, vec!["status", "--json", project_dir])
+                } else {
+                    let tok = toksi_persisted_abs();
+                    let b = if !tok.is_empty() { tok } else { which("toksi") };
+                    (b, vec!["graph", "status", "--json", project_dir])
+                }
+            }
+            _ => continue,
         };
 
         if bin.is_empty() {
             continue;
         }
-
-        let args: Vec<&str> = match tool {
-            "headroom" => {
-                stats.insert(tool.to_string(), headroom_stats_summary());
-                continue;
-            }
-            "projectmem" => vec!["stats", "--format", "json"],
-            "rtk" => vec!["gain"],
-            "codegraph" => {
-                if !is_project {
-                    continue;
-                }
-                vec!["status", "--json", project_dir]
-            }
-            _ => continue,
-        };
 
         if let Some(out) = run_doctor_command(Duration::from_secs(4), &bin, &args) {
             stats.insert(tool.to_string(), labelled_stats(tool, &out));
@@ -502,10 +519,19 @@ pub fn process_alive(pid: u32) -> bool {
 pub fn run_gain() -> i32 {
     crate::commands::helpers::cmd_header("gain", "token savings dashboard across tools");
 
-    let rtk_bin = which("rtk");
+    let (rtk_bin, gain_args): (String, Vec<&str>) = {
+        let w = which("rtk");
+        if !w.is_empty() {
+            (w, vec!["gain"])
+        } else {
+            let tok = toksi_persisted_abs();
+            let b = if !tok.is_empty() { tok } else { which("toksi") };
+            (b, vec!["rtk", "gain"])
+        }
+    };
     if !rtk_bin.is_empty() {
         crate::util::progress::tree_top("RTK Savings");
-        if let Some(out) = run_doctor_command(Duration::from_secs(4), &rtk_bin, &["gain"]) {
+        if let Some(out) = run_doctor_command(Duration::from_secs(4), &rtk_bin, &gain_args) {
             for line in out.lines() {
                 let trimmed = line.trim();
                 if !trimmed.is_empty() && !trimmed.starts_with("[warn]") {

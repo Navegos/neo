@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/mcp_adapters.rs
 // created: 2026-10-20
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::path::Path;
 use std::sync::Arc;
@@ -14,7 +14,7 @@ use crate::util::jsonc::{stringify_json, OrderedMap};
 use crate::util::mcpspawn::{mcp_spawn_for, pick_mcp_spawn, wrap_auto_index};
 use crate::tools::copilot_ide_mcp_path;
 use crate::util::paths::{
-    amp_paths_resolved, antigravity_paths_resolved, claude_code_paths, cline_paths_resolved,
+    amp_paths_resolved, claude_code_paths, cline_paths_resolved,
     codex_paths_resolved, copilot_paths_resolved, cursor_global_mcp_path, ensure_dir,
     kilo_paths_resolved, kimi_paths_resolved, omp_paths_resolved, opencode_paths_resolved,
     opencode_paths_v2, pi_paths_resolved, read_file_safe, write_file, zcode_paths_resolved,
@@ -157,12 +157,15 @@ fn nested_child_ref<'a>(cfg: &'a OrderedMap, path: &str) -> Option<&'a OrderedMa
 }
 
 pub fn is_legacy_mcp_runner_str(cmd: &str) -> bool {
-    let norm = cmd.replace('\\', "/");
+    let norm = cmd.replace('\\', "/").to_ascii_lowercase();
     let stem = Path::new(&norm)
         .file_stem()
         .and_then(|st| st.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
+    if norm.contains("tokless") || stem == "tokless" || stem.starts_with("tokless-") {
+        return true;
+    }
     matches!(
         stem.as_str(),
         "npx" | "uvx" | "pip" | "pip3" | "pipx" | "npm" | "bunx" | "pnpm" | "python" | "python3" | "node"
@@ -207,6 +210,20 @@ pub fn is_legacy_mcp_entry(v: &Value) -> bool {
                 }
             }
             _ => {}
+        }
+    }
+    if let Some(args) = m.get("args").and_then(|a| a.as_array()) {
+        for arg in args {
+            if let Some(s) = arg.as_str() {
+                let low = s.to_ascii_lowercase();
+                if low.contains("tokless")
+                    || low.contains("pjm-mcp")
+                    || low.ends_with("codegraph.cmd")
+                    || low.ends_with("context-mode.cmd")
+                {
+                    return true;
+                }
+            }
         }
     }
     false
@@ -987,10 +1004,10 @@ pub fn agent_mcp_json_files(agent_id: &str) -> Vec<(String, String)> {
         ],
         "opencode" => vec![(opencode_paths_resolved().config, "mcp".into())],
         "opencode2" => vec![(opencode_paths_v2().config, "mcp".into())],
-        "antigravity" => vec![
-            (antigravity_paths_resolved().mcp_config_cli, "mcpServers".into()),
-            (antigravity_paths_resolved().mcp_config_ide, "mcpServers".into()),
-        ],
+        "antigravity" => antigravity_mcp_config_files()
+            .into_iter()
+            .map(|f| (f, "mcpServers".into()))
+            .collect(),
         "copilot" => vec![
             (copilot_paths_resolved().mcp_config, "mcpServers".into()),
             (copilot_ide_mcp_path(), "servers".into()),

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions};
@@ -34,7 +34,7 @@ use crate::util::headroom::{headroom_bin, headroom_installed, headroom_paths_res
 use crate::util::headroom_proxy::{
     clear_headroom_proxy_runtime, headroom_proxy_openai_url, headroom_proxy_port,
     headroom_proxy_url, proxy_routing_enabled, read_proxy_runtime, save_headroom_proxy_runtime,
-    ProxyRuntime,
+    set_proxy_routing_enabled, ProxyRuntime,
 };
 use crate::util::logger::{with_quiet, L};
 use crate::util::paths::{
@@ -45,6 +45,9 @@ pub const PROXY_READY_TIMEOUT: Duration = Duration::from_secs(15);
 pub const PROXY_STOP_TIMEOUT: Duration = Duration::from_secs(5);
 pub const PROXY_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 pub const PROXY_POLL_INTERVAL: Duration = Duration::from_millis(300);
+#[cfg(windows)]
+pub const PROXY_IDENTITY_TIMEOUT: Duration = Duration::from_secs(5);
+#[cfg(not(windows))]
 pub const PROXY_IDENTITY_TIMEOUT: Duration = Duration::from_secs(2);
 pub const PROXY_START_LOCK_WAIT: Duration = Duration::from_secs(30);
 pub const PROXY_START_LOCK_STALE: Duration = Duration::from_secs(60);
@@ -161,6 +164,7 @@ pub fn proxy_args_for_urls(
 ) -> Vec<String> {
     let mut args = vec![
         "proxy".to_string(),
+        "serve".to_string(),
         "--port".to_string(),
         port.to_string(),
         "--no-cache".to_string(),
@@ -494,9 +498,6 @@ pub fn ensure_proxy_up_checked() -> Result<(), Box<dyn std::error::Error + Send 
 }
 
 pub fn run_proxy_foreground() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if !proxy_routing_enabled() {
-        return Ok(());
-    }
     let port = proxy_port_from_runtime();
     if read_proxy_runtime().is_none() {
         persist_proxy_runtime(port)
@@ -977,6 +978,7 @@ pub fn proxy_owned_process_live() -> bool {
 }
 
 pub fn start_proxy() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let _ = set_proxy_routing_enabled(true);
     headroom_allowed_base_urls_checked()
         .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { format!("headroom proxy allowlist configuration: {}", e).into() })?;
 
@@ -1189,7 +1191,8 @@ pub fn verify_identity_with_retry(
     }
     let err_msg = last_err
         .map(|e| e.to_string())
-        .unwrap_or_else(|| "identity never surfaced".to_string());
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| "process not found or exited".to_string());
     Err((
         ProcessIdentityInfo::default(),
         format!("headroom proxy identity could not be verified: {}", err_msg).into(),

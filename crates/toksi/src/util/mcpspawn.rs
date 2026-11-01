@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/mcpspawn.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Write};
@@ -125,23 +125,23 @@ pub fn pick_mcp_spawn(bin: &str, extra_args: &[&str]) -> McpSpawn {
             return spawn;
         }
     } else if bin == "projectmem" {
-        let spawn = wrap_cmd_shim(McpSpawn {
-            command: "projectmem".to_string(),
-            args: extra_vec,
-        });
-        return wrap_bounded_tool("projectmem", spawn);
+        let self_cmd = toksi_run_mcp_command();
+        return McpSpawn {
+            command: self_cmd,
+            args: vec!["mem".into(), "mcp".into()],
+        };
     } else if bin == "context-mode" {
-        let spawn = wrap_cmd_shim(McpSpawn {
-            command: "context-mode".to_string(),
-            args: extra_vec,
-        });
-        return wrap_context_mode(spawn);
+        let self_cmd = toksi_run_mcp_command();
+        return McpSpawn {
+            command: self_cmd,
+            args: vec!["ctx".into(), "mcp".into()],
+        };
     } else if bin == "icm" {
-        let spawn = wrap_cmd_shim(McpSpawn {
-            command: "icm".to_string(),
-            args: extra_vec,
-        });
-        return wrap_bounded_tool("icm", spawn);
+        let self_cmd = toksi_run_mcp_command();
+        return McpSpawn {
+            command: self_cmd,
+            args: vec!["icm".into(), "mcp".into()],
+        };
     } else {
         let p = which(bin);
         if !p.is_empty() {

@@ -1,27 +1,28 @@
 # projectmem - neo
 
-_Last updated: 2026-10-31_
+_Last updated: 2026-11-01_
 
 ## Project purpose
 --------------------------------------------------------------------------------
 Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go to Rust.
 
 ## Recent issues
+- [DONE] #0022 Unify embedded tool detection across platforms: fallback to in-tree toksi binary for rtk, codegraph, context-mode, projectmem, headroom [crates/toksi/src/commands/doctor_stats.rs:430 (doctor_tool_stats)] -> Unified embedded tool resolution across Windows, Linux, and Mac: fallback to in-tree toksi binary for rtk, codegraph, context-mode, projectmem, headroom (fixed)
+  - Partial attempt: Update doctor_stats, versions, doctor_probe, projectmem, and rtk tool to resolve in-tree toksi binary for embedded tools [crates/toksi/src/commands/doctor_stats.rs:430 (doctor_tool_stats)]
+- [DONE] #0021 Legacy external rtk binary fallback in rtk_rewrite causes unrecognized commands to emit bare rtk [crates/toksi/src/commands/rtk_hook.rs:52 (rtk_rewrite)] -> Purged external rtk binary fallback from rtk_rewrite; unsupported commands stay unmutated, supported commands rewrite to toksi rtk (fixed)
+  - Partial attempt: Remove legacy external rtk binary fallback in rtk_rewrite and support toksi rtk prefix [crates/toksi/src/commands/rtk_hook.rs:43 (rtk_rewrite)]
+- [DONE] #0020 Headroom proxy startup fails identity verification when routing disabled [crates/toksi/src/headroom/proxy.rs:498 (run_proxy_foreground)] -> Prevent premature exit in run_proxy_foreground by removing routing_enabled guard on serve mode, enable routing preference on start_proxy, and improve Windows identity verification fallback/timeouts (fixed)
+- [DONE] #0019 Multiple issues in toksi: proxy startup fail, TUI hangs, agent wiring, dashboard telemetry [crates/toksi] -> Fixed proxy serve args and parser, decoupled TUI probe thread, unified antigravity 4-directory topology, purged tokless MCP runners, wired GEMINI.md in-tree rules [crates/toksi] (fixed)
 - [DONE] #0018 Phase 12: Implement Native Prometheus Telemetry Subsystem, cost tracking, latency breakdown, and /metrics exposition [crates/tokless/src/telemetry/mod.rs:1] -> Phase 12 complete: Prometheus metrics subsystem, cost tracking, latency breakdown, /metrics endpoint, TUI, and embedded Web Dashboard verified (5 tests passing, 0 warnings) [crates/tokless/src/telemetry/mod.rs:1] (fixed)
 - [DONE] #0017 Phase 11: Agent Doctor & Self-Healing Parity across all 17 agents [crates/tokless/src/commands/doctor.rs:31] -> Phase 11 verified: all 17 agent configurations audited, in-tree rules verified, legacy runners purged, environment status checked; 331 tests passing with 0 warnings (fixed)
 - [DONE] #0016 Phase 9: Legacy healing and binary un-hijack [crates/tokless/CONSOLIDATION_PLAN.md:404] -> Phase 9 complete: purged binary hijacking, automated self-healing engine restores .real binaries and deletes shims/state files, 232 unit tests and 5 phase 9 verification tests passing with 0 warnings (fixed)
 - [DONE] #0015 Execute Phase 7: Headroom Deep Integration (compression, cache alignment, adaptive memory governor, BYOK proxy unification) [crates/tokless/src/headroom/] -> Phase 7 complete: Full native headroom deep integration with lossless log compression, AST code pruner, JSON minifier, 1024-token prompt cache alignment, adaptive memory governor (L0/L1/L2), and BYOK streaming proxy. (fixed)
 - [DONE] #0014 Phase 6: Port and deep integrate headroom into crates/tokless/src/headroom [crates/tokless/src/headroom] -> Phase 6 complete: Ported and deeply integrated headroom into pure Rust in crates/tokless/src/headroom with native reverse proxy, log deduplication, AST code compression, JSON pruner, 1024-token prompt cache alignment, dynamic memory governor, dropped Python headroom-py, zero compiler warnings, 172 passing tests [crates/tokless/src/headroom] (fixed)
 - [DONE] #0013 ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint on memories.summary_hash [crates/tokless/src/icm/store.rs:77] -> Add UNIQUE constraint directly on summary_hash column in memories table (fixed)
-- [DONE] #0012 Commands doctor/init/proxy parity gaps: doctor missing per-agent tool/proxy/instruction rows and proxy port checks; init missing excluded-tool unwire and persisted selection load [crates/tokless/src/commands/doctor.rs] -> Implemented doctor per-agent tool rows and Ports overview, init excluded tools unwire and selection persistence, proxy lifecycle lock and rollback transaction (fixed)
-- [DONE] #0011 OpenCode v1/v2 proxy & BYOK parity missing: ConfigureOpenCodeProxyV2, RemoveOpenCodeProxyV2, OpenCodeProxyV2Wired, retrieve tool stash, and proxy_agent opencode2 spec [crates/tokless/src/agents/opencode.rs] -> Verified and integrated OpenCode v1 and v2 proxy and BYOK parity with complete specs and stash handling (fixed)
-- [DONE] #0010 MCP adapters and opencode v2 regressions: opencode2 MCP writes v1 root shape instead of mcp.servers, codex MCP block parser missing, cursor MCP permissions missing [crates/tokless/src/agents/mcp_adapters.rs] -> Verified and wired MCP adapters for opencode2 with mcp.servers, codex TOML block parser, and cursor MCP permissions (fixed)
-- [DONE] #0009 ProjectMem tool missing pjm context + intent sections + global gotchas, kilo/opencode2 extensions, before_agent_start/transform hooks, and git worktree post-commit hook [crates/tokless/src/tools/projectmem.rs] -> Projectmem tool equipped with session push, kilo/opencode2 extensions, and rule files refresh (fixed)
-- ...and 8 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 12 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...30 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Phase 1: Verified and hardened RTK filter engine integration with 100+ command profiles, zero-alloc ANSI stripper, cross-tool adapters (contextmode, projectmem, headroom), and phase1 integration test suite (255 tests passing, 0 warnings) [crates/tokless/src/rtk/]
+- ...31 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 2: ProjectMem pure Rust port completed with schema, store, deterministic summary, precheck, redaction, heatmap, global memory and stack detection, in-process MCP server, and RTK auto-trace extraction; 274 tests passing with 0 warnings
 - Phase 3: ContextMode pure Rust port verified with isolated sandbox runner, in-memory RTK pipe, SQLite FTS5 BM25 chunker, async fetcher, in-process ctx_* MCP server, CLI, and integration test suite; 325 tests passing with 0 warnings [crates/tokless/src/contextmode/mod.rs:1]
 - Phase 4: ICM & ai-memory integration complete with embedded SQLite FTS5 BM25 store, sub-10ms recall latency, claim-once multi-agent handoffs across 17+ agents, tiered progressive disclosure packer, projectmem sync, CLI commands (tokless icm, tokless handoff, tokless mem sync), and in-process MCP server dispatch; 281 tests passing with 0 warnings [crates/tokless/src/icm/mod.rs:1]
@@ -36,6 +37,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Phase 7: Implemented Native Enterprise AI Gateway and Headroom deep integration with 36 provider clients, local session reuse bridges, dynamic failover cascade, multi-key pools, load balancer, task complexity router, virtual key governance, dual-tier semantic cache, and dynamic MCP schema pruner; 407 workspace tests passing with 0 warnings [crates/tokless/src/gateway/]
 - Refactor: Rename crate tokless to toksi across workspace, packages, binaries, APIs, metrics, and agent harnesses
 - Phase 11: Resolved duplicate definitions from tokless-to-toksi rename, verified Phase 11 agent doctor & self-healing parity; 241 unit tests and 8 verification tests passing with 0 warnings [crates/toksi/src/]
+- Refactor: refactor(toksi): rename tokless to toksi and enforce Phase 11 self-healing parity [crates/nbuild/src/cli.rs]
 
 ## Notes
 - New feature: feat: Update project summary and enhance verification tests for Phase 7 headroom integration [crates/tokless/tests/phase3_contextmode_verification.rs]

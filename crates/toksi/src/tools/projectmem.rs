@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/projectmem.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::env;
 use std::fs;
@@ -169,7 +169,7 @@ pub fn projectmem_installed() -> bool {
 }
 
 pub fn projectmem_installed_version() -> Option<String> {
-    Some("0.3.4".to_string())
+    Some(crate::util::version::toksi_version().to_string())
 }
 
 pub fn run_pjm(root: &str, args: &[&str]) -> String {
