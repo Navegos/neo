@@ -533,7 +533,7 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
         return Ok(());
     };
 
-    let (path, _, _) = super::byok_gateway::split_uri_path_and_query(&req.raw_uri);
+    let (path, _, query) = super::byok_gateway::split_uri_path_and_query(&req.raw_uri);
 
     // Health/live checks
     if path == "/livez" || path == "/healthz" || path == "/readyz" {
@@ -558,18 +558,47 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
 
     // Identify target URL based on route
     let (anthropic_url, openai_url) = real_upstream_urls();
-    let (gemini_url, _) = proxy_upstream_gemini_urls();
+    let (gemini_url_raw, cloudcode_url_raw) = proxy_upstream_gemini_urls();
+    let gemini_url = if gemini_url_raw.is_empty() {
+        "https://generativelanguage.googleapis.com".to_string()
+    } else {
+        gemini_url_raw
+    };
+    let cloudcode_url = if cloudcode_url_raw.is_empty() {
+        "https://cloudcode-pa.googleapis.com".to_string()
+    } else {
+        cloudcode_url_raw
+    };
 
-    let target_base = if path.starts_with("/v1/messages") {
+    let is_cloudcode_req = path.starts_with("/v1internal")
+        || path.starts_with("/v1alpha")
+        || path.contains("cloudcode")
+        || req.headers.iter().any(|(k, v)| {
+            k.eq_ignore_ascii_case("x-goog-api-client")
+                && (v.contains("jetski") || v.contains("cloudcode") || v.contains("antigravity"))
+        });
+
+    let target_base = if is_cloudcode_req {
+        cloudcode_url
+    } else if path.starts_with("/v1/messages") {
         anthropic_url
     } else if path.starts_with("/v1beta") || path.contains("gemini") {
-        if !gemini_url.is_empty() { gemini_url } else { openai_url }
+        gemini_url
     } else {
         openai_url
     };
 
-    // Preprocessing on POST JSON requests
-    if req.method.eq_ignore_ascii_case("POST") && !req.body.is_empty() {
+    let is_llm_request = req.method.eq_ignore_ascii_case("POST")
+        && !req.body.is_empty()
+        && (path.starts_with("/v1/messages")
+            || path.contains(":generateContent")
+            || path.contains(":streamGenerateContent")
+            || path.ends_with("/chat/completions")
+            || path.ends_with("/completions")
+            || path.ends_with("/responses"));
+
+    // Preprocessing on POST JSON LLM requests only
+    if is_llm_request {
         if let Ok(mut json_val) = serde_json::from_slice::<serde_json::Value>(&req.body) {
             // 1. Dynamic Memory Governor (scaling L0 vs L1 vs L2 based on headroom)
             super::adaptive_mem::inject_adaptive_memory(&mut json_val);
@@ -632,6 +661,7 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
         &target_base,
         &req.method,
         &path,
+        Some(&query),
         &req.headers,
         &req.body,
     ).await;

@@ -420,4 +420,18 @@ ValueError: invalid ID parameter";
         assert!(!comp_code.contains("// Inline comment"));
         assert!(comp_code.contains("pub fn test_add"));
     }
+
+    #[test]
+    fn test_non_llm_uri_and_target_resolution() {
+        use crate::headroom::byok_gateway::{byok_target_path, split_uri_path_and_query};
+
+        let uri = "/v1internal:loadUser?alt=sse&key=test_key";
+        let (path, _, query) = split_uri_path_and_query(uri);
+        assert_eq!(path, "/v1internal:loadUser");
+        assert_eq!(query, "alt=sse&key=test_key");
+
+        let target_base = "https://cloudcode-pa.googleapis.com";
+        let merged = byok_target_path(target_base, &path);
+        assert_eq!(merged, "/v1internal:loadUser");
+    }
 }

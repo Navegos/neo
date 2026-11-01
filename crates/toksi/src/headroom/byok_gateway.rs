@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/byok_gateway.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -1070,9 +1070,9 @@ async fn serve_proxy_connection(
     let Some(req) = read_http_request(&mut stream).await? else {
         return Ok(());
     };
-    let (path, _, _) = split_uri_path_and_query(&req.raw_uri);
+    let (path, _, query) = split_uri_path_and_query(&req.raw_uri);
     let (status, headers, body) =
-        forward_to_byok_target(target_base, &req.method, &path, &req.headers, &req.body).await;
+        forward_to_byok_target(target_base, &req.method, &path, Some(&query), &req.headers, &req.body).await;
     write_http_response(&mut stream, status, status_reason(status), &headers, &body).await
 }
 
@@ -1234,7 +1234,8 @@ pub async fn handle_byok_gateway_request(
         }
     }
 
-    forward_to_byok_target(&proxy_target, method, &path, headers, body).await
+    let (path, _, query) = split_uri_path_and_query(raw_uri);
+    forward_to_byok_target(&proxy_target, method, &path, Some(&query), headers, body).await
 }
 
 fn check_upstream_host_allowed(target_url: &url::Url) -> Result<(), String> {
@@ -1267,6 +1268,7 @@ pub async fn forward_to_byok_target(
     target_base: &str,
     method: &str,
     incoming_path: &str,
+    query: Option<&str>,
     headers: &[(String, String)],
     body: &[u8],
 ) -> (u16, Vec<(String, String)>, Vec<u8>) {
@@ -1288,7 +1290,11 @@ pub async fn forward_to_byok_target(
 
     let merged_path = byok_target_path(target_url.path(), incoming_path);
     target_url.set_path(&merged_path);
-    target_url.set_query(None);
+    if let Some(q) = query.filter(|s| !s.is_empty()) {
+        target_url.set_query(Some(q));
+    } else {
+        target_url.set_query(None);
+    }
 
     let is_responses_post = method.eq_ignore_ascii_case("POST")
         && (merged_path == "/v1/responses"
@@ -1308,7 +1314,7 @@ pub async fn forward_to_byok_target(
 
     let Ok(client) = reqwest::Client::builder()
         .no_proxy()
-        .timeout(Duration::from_secs(60))
+        .timeout(Duration::from_secs(120))
         .build()
     else {
         return (
@@ -1331,7 +1337,9 @@ pub async fn forward_to_byok_target(
         }
         req_builder = req_builder.header(k.as_str(), v.as_str());
     }
-    req_builder = req_builder.body(outgoing_body);
+    if !outgoing_body.is_empty() {
+        req_builder = req_builder.body(outgoing_body);
+    }
 
     let Ok(resp) = req_builder.send().await else {
         return (

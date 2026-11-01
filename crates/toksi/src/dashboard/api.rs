@@ -9,8 +9,9 @@ use std::path::PathBuf;
 use serde::Deserialize;
 use serde_json::json;
 
+use crate::agents::proxy_agent_wired;
 use crate::core::{list_agents, list_tools, RunOpts};
-use crate::headroom::proxy::{proxy_running, start_proxy, stop_proxy};
+use crate::headroom::proxy::{proxy_port, proxy_running, start_proxy, stop_proxy};
 use crate::commands::daemon::is_daemon_running;
 use crate::commands::init_agent_fully_wired;
 use crate::util::byok::{delete_byok_route, read_byok_routes, upsert_byok_route};
@@ -186,10 +187,15 @@ pub fn handle_agents() -> serde_json::Value {
     let mut rows = Vec::new();
     for ag in agent_manifests {
         let detection = ag.detect();
-        let is_wired = init_agent_fully_wired(&ag.id, &tools);
+        let is_proxy_wired = proxy_agent_wired(&ag.id);
+        let is_wired = init_agent_fully_wired(&ag.id, &tools) || is_proxy_wired;
 
-        let port = if is_wired {
-            "8787 -> Direct".to_string()
+        let port = if is_proxy_wired && proxy_running() {
+            format!("{} -> Routed", proxy_port())
+        } else if is_proxy_wired {
+            format!("{} (stopped)", proxy_port())
+        } else if is_wired {
+            "wired (direct)".to_string()
         } else {
             "none (unwired)".to_string()
         };

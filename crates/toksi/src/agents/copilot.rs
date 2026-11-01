@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/copilot.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -1307,7 +1307,7 @@ fn sync_copilot_ide_instructions_locked() -> Result<(), String> {
 
 // --- copilot_cli.go ---
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 struct CopilotProviderConfig {
     pub managed_by: String,
     #[serde(rename = "type")]
@@ -1417,12 +1417,12 @@ pub fn copilot_config_path() -> String {
 }
 
 fn save_copilot_provider_config() -> Result<(), String> {
-    let base_url = std::env::var("COPILOT_PROVIDER_BASE_URL")
+    let mut base_url = std::env::var("COPILOT_PROVIDER_BASE_URL")
         .unwrap_or_default()
         .trim()
         .to_string();
     if base_url.is_empty() {
-        return Ok(());
+        base_url = crate::agents::proxy_protocol::proxy_endpoint_for("copilot");
     }
     let mut provider_type = std::env::var("COPILOT_PROVIDER_TYPE")
         .unwrap_or_default()
@@ -1506,10 +1506,6 @@ fn remove_copilot_sidecars() -> Result<(), String> {
     let _ = fs::remove_file(copilot_stash_marker_path());
     let _ = fs::remove_file(copilot_shim_digest_path());
     Ok(())
-}
-
-fn copilot_shim_installed() -> bool {
-    false
 }
 
 fn env_value(env: &HashMap<String, String>, key: &str) -> String {
@@ -2119,12 +2115,15 @@ pub fn configure_copilot_cli_proxy() -> (bool, String) {
 
 fn configure_copilot_cli_proxy_safe() -> Result<(bool, String), String> {
     let shim = copilot_shim_path();
-    let changed = install_copilot_shim()?;
+    let _ = install_copilot_shim();
+    let mut changed = false;
+    let old_cfg = load_copilot_provider_config();
     if let Err(err) = save_copilot_provider_config() {
-        if changed {
-            let _ = remove_copilot_shim();
-        }
         return Err(err);
+    }
+    let new_cfg = load_copilot_provider_config();
+    if old_cfg != new_cfg {
+        changed = true;
     }
     Ok((changed, shim))
 }
@@ -2192,7 +2191,7 @@ fn configure_copilot_proxy_locked() -> (bool, String) {
 }
 
 pub fn copilot_cli_proxy_applicable() -> bool {
-    false
+    !paths::which("copilot").is_empty() || load_copilot_provider_config().is_some()
 }
 
 pub fn copilot_vscode_proxy_applicable() -> bool {
@@ -2451,7 +2450,7 @@ pub fn copilot_proxy_wired() -> bool {
 }
 
 pub fn copilot_cli_proxy_wired() -> bool {
-    copilot_shim_installed()
+    load_copilot_provider_config().is_some()
 }
 
 pub fn copilot_vscode_proxy_wired() -> bool {

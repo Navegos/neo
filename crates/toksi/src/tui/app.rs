@@ -14,9 +14,10 @@ use std::sync::Arc;
 use std::time::Duration;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use crate::agents::proxy_agent_wired;
 use crate::core::{list_agents, list_tools, RunOpts};
 use crate::headroom::byok_gateway::configured_byok_routes;
-use crate::headroom::proxy::{ensure_proxy_up, proxy_running, stop_proxy};
+use crate::headroom::proxy::{ensure_proxy_up, proxy_port, proxy_running, stop_proxy};
 use crate::commands::daemon::is_daemon_running;
 use crate::commands::init_agent_fully_wired;
 use crate::util::paths::{
@@ -475,10 +476,15 @@ impl App {
         let mut rows = Vec::new();
         for ag in agent_manifests {
             let detection = ag.detect();
-            let is_wired = init_agent_fully_wired(&ag.id, &tools);
+            let is_proxy_wired = proxy_agent_wired(&ag.id);
+            let is_wired = init_agent_fully_wired(&ag.id, &tools) || is_proxy_wired;
 
-            let port = if is_wired {
-                format!("8787 -> Direct")
+            let port = if is_proxy_wired && proxy_running() {
+                format!("{} -> Routed", proxy_port())
+            } else if is_proxy_wired {
+                format!("{} (stopped)", proxy_port())
+            } else if is_wired {
+                "wired (direct)".into()
             } else {
                 "none (unwired)".into()
             };

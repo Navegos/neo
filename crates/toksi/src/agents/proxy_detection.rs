@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/proxy_detection.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-01
 
 use std::collections::HashMap;
 use std::fs;
@@ -18,7 +18,8 @@ use crate::util::{
 
 use super::antigravity::{
     antigravity_env_file, antigravity_ide_applicable, antigravity_ide_compatible,
-    antigravity_proxy_wired, antigravity_shim_compatible,
+    antigravity_proxy_wired, antigravity_shim_compatible, ANTIGRAVITY_CLOUD_CODE_KEY,
+    ANTIGRAVITY_PROXY_ENV_KEY,
 };
 use super::cline::detect_cline_proxy;
 use super::copilot::detect_copilot_proxy;
@@ -1022,26 +1023,28 @@ fn env_file_val(raw: &str, key: &str) -> String {
 }
 
 fn detect_antigravity_proxy_full(cap: &ProxyCapability) -> ProxyDetection {
+    let endpoint = proxy_endpoint_for(&cap.id);
     let path = antigravity_env_file();
-    let raw = match fs::read_to_string(&path) {
-        Ok(r) => r,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return proxy_detection(
-                &cap.id,
-                "automatic route not configured",
-                ProxyState::ProxyStateAbsent,
-            );
+    let raw = fs::read_to_string(&path).unwrap_or_default();
+    let mut value = env_file_val(&raw, ANTIGRAVITY_PROXY_ENV_KEY);
+    if value.is_empty() {
+        value = env_file_val(&raw, "GEMINI_API_BASE_URL");
+    }
+    let mut cloud = env_file_val(&raw, ANTIGRAVITY_CLOUD_CODE_KEY);
+    if cloud.is_empty() {
+        cloud = env_file_val(&raw, "CLOUDCODE_URL");
+    }
+
+    #[cfg(windows)]
+    if value.is_empty() && cloud.is_empty() {
+        if let Some(val) = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_PROXY_ENV_KEY) {
+            value = val;
         }
-        Err(_) => {
-            return proxy_detection(
-                &cap.id,
-                "env file unreadable",
-                ProxyState::ProxyStateUnreadable,
-            );
+        if let Some(c) = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_CLOUD_CODE_KEY) {
+            cloud = c;
         }
-    };
-    let value = env_file_val(&raw, "GEMINI_API_BASE_URL");
-    let cloud = env_file_val(&raw, "CLOUDCODE_URL");
+    }
+
     if value.is_empty() && cloud.is_empty() {
         return proxy_detection(
             &cap.id,
@@ -1049,10 +1052,9 @@ fn detect_antigravity_proxy_full(cap: &ProxyCapability) -> ProxyDetection {
             ProxyState::ProxyStateNativeUnconfigured,
         );
     }
-    let endpoint = proxy_endpoint_for(&cap.id);
-    if value == endpoint && cloud == endpoint {
+    if value == endpoint || cloud == endpoint {
         if antigravity_proxy_wired() {
-            let mut surfaces = "CLI launcher".to_string();
+            let mut surfaces = "environment".to_string();
             if antigravity_ide_applicable() {
                 surfaces.push_str(" and IDE setting");
             }

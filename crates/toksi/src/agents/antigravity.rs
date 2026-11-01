@@ -1478,18 +1478,24 @@ fn remove_antigravity_ide() -> bool {
 }
 
 pub fn antigravity_ide_proxy_wired() -> bool {
-    let Some(state) = read_antigravity_ide_state() else {
-        return false;
-    };
-    let Some(raw) = paths::read_file_safe(&state.path) else {
-        return false;
-    };
-    let Some(cfg) = try_parse_jsonc(&raw) else {
-        return false;
-    };
-    cfg.get(ANTIGRAVITY_IDE_ENDPOINT_KEY)
-        .and_then(|v| v.as_str())
-        == Some(antigravity_url().as_str())
+    if let Some(state) = read_antigravity_ide_state() {
+        if let Some(raw) = paths::read_file_safe(&state.path) {
+            if let Some(cfg) = try_parse_jsonc(&raw) {
+                if cfg.get(ANTIGRAVITY_IDE_ENDPOINT_KEY).and_then(|v| v.as_str()) == Some(antigravity_url().as_str()) {
+                    return true;
+                }
+            }
+        }
+    }
+    // Also check active settings file directly if state record is missing
+    if let Some(path) = antigravity_ide_settings_file() {
+        if let Some(raw) = paths::read_file_safe(&path) {
+            if let Some(cfg) = try_parse_jsonc(&raw) {
+                return cfg.get(ANTIGRAVITY_IDE_ENDPOINT_KEY).and_then(|v| v.as_str()) == Some(antigravity_url().as_str());
+            }
+        }
+    }
+    false
 }
 
 // --- antigravity_proxy.go ---
@@ -1947,13 +1953,26 @@ pub fn remove_antigravity_proxy() -> bool {
 }
 
 pub fn antigravity_proxy_wired() -> bool {
-    let Some(raw) = paths::read_file_safe(&antigravity_env_file()) else {
-        return false;
-    };
     let url = antigravity_url();
-    if antigravity_env_value(&raw, ANTIGRAVITY_PROXY_ENV_KEY) != url
-        || antigravity_env_value(&raw, ANTIGRAVITY_CLOUD_CODE_KEY) != url
-    {
+    let mut env_ok = false;
+    if let Some(raw) = paths::read_file_safe(&antigravity_env_file()) {
+        if (antigravity_env_value(&raw, ANTIGRAVITY_PROXY_ENV_KEY) == url
+            || antigravity_env_value(&raw, "GEMINI_API_BASE_URL") == url)
+            && (antigravity_env_value(&raw, ANTIGRAVITY_CLOUD_CODE_KEY) == url
+                || antigravity_env_value(&raw, "CLOUDCODE_URL") == url)
+        {
+            env_ok = true;
+        }
+    }
+    #[cfg(windows)]
+    if !env_ok {
+        let p1 = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_PROXY_ENV_KEY);
+        let p2 = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_CLOUD_CODE_KEY);
+        if p1.as_deref() == Some(&url) || p2.as_deref() == Some(&url) {
+            env_ok = true;
+        }
+    }
+    if !env_ok {
         return false;
     }
     let mut has_surface = false;
