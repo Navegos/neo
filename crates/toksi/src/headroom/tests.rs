@@ -434,4 +434,21 @@ ValueError: invalid ID parameter";
         let merged = byok_target_path(target_base, &path);
         assert_eq!(merged, "/v1internal:loadUser");
     }
+
+    #[test]
+    fn test_decode_chunked_transfer_encoding() {
+        use crate::headroom::byok_gateway::decode_chunked_bytes;
+
+        let payload = r#"{"project":"aicode-c","messages":[]}"#;
+        let hex_size = format!("{:x}", payload.len());
+        let chunked_data = format!("{}\r\n{}\r\n0\r\n\r\n", hex_size, payload);
+
+        let decoded = decode_chunked_bytes(chunked_data.as_bytes()).expect("decode valid chunk");
+        assert_eq!(String::from_utf8_lossy(&decoded), payload);
+
+        // Also test multi-chunk parsing
+        let multi = b"4\r\nWiki\r\n6\r\npedia \r\n0\r\n\r\n";
+        let multi_decoded = decode_chunked_bytes(multi).expect("decode multi chunks");
+        assert_eq!(String::from_utf8_lossy(&multi_decoded), "Wikipedia ");
+    }
 }

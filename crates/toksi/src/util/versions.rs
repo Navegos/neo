@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/versions.rs
 // created: 2026-10-05
-// lastModified: 2026-11-01
+// lastModified: 2026-11-02
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -632,10 +632,10 @@ pub fn npm_pkg_dir(pkg: &str) -> String {
 fn fetch_latest_for(id: &str) -> Option<String> {
     match id {
         "rtk" => github_latest_release("Navegos/rtk").or_else(|| github_latest_release("rtk-ai/rtk")),
-        "codegraph" => npm_latest("@colbymchenry/codegraph"),
-        "context-mode" => npm_latest("context-mode"),
-        "toksi" => npm_latest("toksi"),
-        "headroom" => pypi_latest("headroom-ai"),
+        "codegraph" => github_latest_release("Navegos/codegraph").or_else(|| github_latest_release("rtk-ai/rtk")),
+        "context-mode" => github_latest_release("Navegos/context-mode").or_else(|| github_latest_release("mksglu/context-mode")),
+        "toksi" => github_latest_release("Navegos/toksi"),
+        "headroom" => github_latest_release("Navegos/headroom").or_else(|| github_latest_release("headroomlabs-ai/headroom")),
         _ => None,
     }
 }

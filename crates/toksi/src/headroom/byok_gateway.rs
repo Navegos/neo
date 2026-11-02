@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/byok_gateway.rs
 // created: 2026-10-05
-// lastModified: 2026-11-01
+// lastModified: 2026-11-02
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -945,27 +945,43 @@ pub(crate) async fn read_http_request(
 
     let mut headers = Vec::new();
     let mut content_length: usize = 0;
+    let mut is_chunked = false;
     for line in lines {
         if let Some((k, v)) = line.split_once(':') {
             let key = k.trim().to_string();
             let val = v.trim().to_string();
             if key.eq_ignore_ascii_case("content-length") {
                 content_length = val.parse::<usize>().unwrap_or(0);
+            } else if key.eq_ignore_ascii_case("transfer-encoding") {
+                if val.to_ascii_lowercase().contains("chunked") {
+                    is_chunked = true;
+                }
             }
             headers.push((key, val));
         }
     }
 
-    let mut body = buf[header_end..].to_vec();
-    while body.len() < content_length {
-        let n = stream.read(&mut temp).await?;
-        if n == 0 {
-            break;
+    let body = if is_chunked {
+        read_chunked_body(stream, &buf[header_end..]).await?
+    } else {
+        let mut b = buf[header_end..].to_vec();
+        while b.len() < content_length {
+            let n = stream.read(&mut temp).await?;
+            if n == 0 {
+                break;
+            }
+            b.extend_from_slice(&temp[..n]);
         }
-        body.extend_from_slice(&temp[..n]);
-    }
-    if content_length > 0 && body.len() > content_length {
-        body.truncate(content_length);
+        if content_length > 0 && b.len() > content_length {
+            b.truncate(content_length);
+        }
+        b
+    };
+
+    if is_chunked {
+        headers.retain(|(k, _)| !k.eq_ignore_ascii_case("transfer-encoding"));
+        headers.retain(|(k, _)| !k.eq_ignore_ascii_case("content-length"));
+        headers.push(("content-length".to_string(), body.len().to_string()));
     }
 
     Ok(Some(ParsedHttpRequest {
@@ -974,6 +990,109 @@ pub(crate) async fn read_http_request(
         headers,
         body,
     }))
+}
+
+pub(crate) async fn read_chunked_body(
+    stream: &mut TcpStream,
+    initial: &[u8],
+) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+    let mut raw = initial.to_vec();
+    let mut decoded = Vec::new();
+    let mut temp = [0u8; 8192];
+    const MAX_BODY: usize = 64 * 1024 * 1024;
+
+    loop {
+        let crlf_pos = loop {
+            if let Some(pos) = raw.windows(2).position(|w| w == b"\r\n") {
+                break pos;
+            }
+            let n = stream.read(&mut temp).await?;
+            if n == 0 {
+                return Err("unexpected EOF reading chunk size".into());
+            }
+            raw.extend_from_slice(&temp[..n]);
+            if raw.len() > MAX_BODY {
+                return Err("chunked body exceeded limit".into());
+            }
+        };
+
+        let size_line = String::from_utf8_lossy(&raw[..crlf_pos]);
+        let size_str = size_line.split(';').next().unwrap_or("").trim();
+        let chunk_size = usize::from_str_radix(size_str, 16)
+            .map_err(|e| format!("invalid chunk size '{}': {}", size_str, e))?;
+
+        if chunk_size == 0 {
+            raw.drain(..crlf_pos + 2);
+            loop {
+                if raw.starts_with(b"\r\n") {
+                    raw.drain(..2);
+                    break;
+                }
+                if let Some(pos) = raw.windows(4).position(|w| w == b"\r\n\r\n") {
+                    raw.drain(..pos + 4);
+                    break;
+                }
+                let n = stream.read(&mut temp).await?;
+                if n == 0 {
+                    break;
+                }
+                raw.extend_from_slice(&temp[..n]);
+                if raw.len() > 64 * 1024 {
+                    return Err("chunk trailers too large".into());
+                }
+            }
+            break;
+        }
+
+        let chunk_start = crlf_pos + 2;
+        let chunk_end = chunk_start + chunk_size;
+        let needed_total = chunk_end + 2;
+
+        while raw.len() < needed_total {
+            let n = stream.read(&mut temp).await?;
+            if n == 0 {
+                return Err("unexpected EOF reading chunk data".into());
+            }
+            raw.extend_from_slice(&temp[..n]);
+            if decoded.len() + (raw.len() - chunk_start) > MAX_BODY {
+                return Err("chunked body exceeded limit".into());
+            }
+        }
+
+        decoded.extend_from_slice(&raw[chunk_start..chunk_end]);
+        raw.drain(..needed_total);
+    }
+
+    Ok(decoded)
+}
+
+#[cfg(test)]
+pub(crate) fn decode_chunked_bytes(mut raw: &[u8]) -> Result<Vec<u8>, String> {
+    let mut decoded = Vec::new();
+    loop {
+        let Some(crlf_pos) = raw.windows(2).position(|w| w == b"\r\n") else {
+            return Err("missing CRLF after chunk size".to_string());
+        };
+        let size_line = String::from_utf8_lossy(&raw[..crlf_pos]);
+        let size_str = size_line.split(';').next().unwrap_or("").trim();
+        let chunk_size = usize::from_str_radix(size_str, 16)
+            .map_err(|e| format!("invalid chunk size '{}': {}", size_str, e))?;
+
+        if chunk_size == 0 {
+            break;
+        }
+
+        let chunk_start = crlf_pos + 2;
+        let chunk_end = chunk_start + chunk_size;
+        let needed_total = chunk_end + 2;
+        if raw.len() < needed_total {
+            return Err("truncated chunk data".to_string());
+        }
+
+        decoded.extend_from_slice(&raw[chunk_start..chunk_end]);
+        raw = &raw[needed_total..];
+    }
+    Ok(decoded)
 }
 
 pub(crate) async fn write_http_response(
@@ -1332,6 +1451,7 @@ pub async fn forward_to_byok_target(
             || k.eq_ignore_ascii_case("host")
             || k.eq_ignore_ascii_case("content-length")
             || k.eq_ignore_ascii_case("connection")
+            || k.eq_ignore_ascii_case("transfer-encoding")
         {
             continue;
         }
