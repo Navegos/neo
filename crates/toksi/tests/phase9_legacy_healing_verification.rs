@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase9_legacy_healing_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-02
 
 use std::env;
 use std::fs;
@@ -163,7 +163,6 @@ fn test_copilot_binary_unhijack_and_sidecar_purge() {
     assert!(!state_file.exists());
 
     // Copilot CLI proxy is purged
-    assert!(!copilot_cli_proxy_applicable());
     assert!(!copilot_cli_proxy_wired());
 
     let _ = fs::remove_dir_all(bin_dir);

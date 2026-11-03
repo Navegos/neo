@@ -33,6 +33,20 @@ pub fn headroom_paths_resolved() -> HeadroomPaths {
 }
 
 pub fn headroom_bin() -> String {
+    let toksi = crate::util::paths::toksi_persisted_abs();
+    if !toksi.is_empty() && exists(&toksi) {
+        return toksi;
+    }
+    let t_abs = crate::util::paths::toksi_abs();
+    if !t_abs.is_empty() && exists(&t_abs) {
+        return t_abs;
+    }
+    if let Ok(cur) = std::env::current_exe() {
+        let cur_str = cur.to_string_lossy().to_string();
+        if exists(&cur_str) && !crate::util::paths::is_test_executable(&cur_str) {
+            return cur_str;
+        }
+    }
     let p = Path::new(&headroom_paths_resolved().bin).join("headroom");
     let full = if IS_WIN {
         format!("{}.exe", p.to_string_lossy())
@@ -42,15 +56,9 @@ pub fn headroom_bin() -> String {
     if exists(&full) && Path::new(&full).is_file() {
         return full;
     }
-    let toksi = crate::util::paths::toksi_abs();
-    if !toksi.is_empty() && exists(&toksi) {
-        return toksi;
-    }
-    if let Ok(cur) = std::env::current_exe() {
-        let cur_str = cur.to_string_lossy().to_string();
-        if exists(&cur_str) {
-            return cur_str;
-        }
+    let w = crate::util::paths::which("headroom");
+    if !w.is_empty() && exists(&w) {
+        return w;
     }
     full
 }

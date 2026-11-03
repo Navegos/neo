@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/env_injector/unix.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-02
 
 use std::fs;
 use std::path::PathBuf;
@@ -40,11 +40,7 @@ pub fn inject_unix_env(proxy_url: &str) -> Result<Vec<String>, String> {
         }
         std::env::set_var(TOKSI_OWNED_MARKER, "1");
         std::env::set_var(TOKSI_OWNED_KEYS, &keys_csv);
-        std::env::set_var(TOKSI_OWNED_MARKER, "1");
-        std::env::set_var(TOKSI_OWNED_KEYS, &keys_csv);
     }
-    injected.push(TOKSI_OWNED_MARKER.to_string());
-    injected.push(TOKSI_OWNED_KEYS.to_string());
     injected.push(TOKSI_OWNED_MARKER.to_string());
     injected.push(TOKSI_OWNED_KEYS.to_string());
 
@@ -55,8 +51,6 @@ pub fn inject_unix_env(proxy_url: &str) -> Result<Vec<String>, String> {
         for &key in MANAGED_PROXY_KEYS {
             cmd.arg(format!("{}={}", key, proxy_url));
         }
-        cmd.arg(format!("{}=1", TOKSI_OWNED_MARKER));
-        cmd.arg(format!("{}={}", TOKSI_OWNED_KEYS, keys_csv));
         cmd.arg(format!("{}=1", TOKSI_OWNED_MARKER));
         cmd.arg(format!("{}={}", TOKSI_OWNED_KEYS, keys_csv));
         let _ = cmd.output();
@@ -71,8 +65,6 @@ pub fn inject_unix_env(proxy_url: &str) -> Result<Vec<String>, String> {
         for &key in MANAGED_PROXY_KEYS {
             content.push_str(&format!("{}=\"{}\"\n", key, proxy_url));
         }
-        content.push_str(&format!("{}=\"1\"\n", TOKSI_OWNED_MARKER));
-        content.push_str(&format!("{}=\"{}\"\n", TOKSI_OWNED_KEYS, keys_csv));
         content.push_str(&format!("{}=\"1\"\n", TOKSI_OWNED_MARKER));
         content.push_str(&format!("{}=\"{}\"\n", TOKSI_OWNED_KEYS, keys_csv));
         let _ = fs::write(conf_path, content);
@@ -105,8 +97,8 @@ pub fn teardown_unix_env() -> Result<Vec<String>, String> {
         }
         cmd.arg(TOKSI_OWNED_MARKER);
         cmd.arg(TOKSI_OWNED_KEYS);
-        cmd.arg(TOKSI_OWNED_MARKER);
-        cmd.arg(TOKSI_OWNED_KEYS);
+        cmd.arg(TOKLESS_OWNED_MARKER);
+        cmd.arg(TOKLESS_OWNED_KEYS);
         let _ = cmd.output();
     }
 
@@ -118,13 +110,13 @@ pub fn teardown_unix_env() -> Result<Vec<String>, String> {
         }
         std::env::remove_var(TOKSI_OWNED_MARKER);
         std::env::remove_var(TOKSI_OWNED_KEYS);
-        std::env::remove_var(TOKSI_OWNED_MARKER);
-        std::env::remove_var(TOKSI_OWNED_KEYS);
+        std::env::remove_var(TOKLESS_OWNED_MARKER);
+        std::env::remove_var(TOKLESS_OWNED_KEYS);
     }
     purged.push(TOKSI_OWNED_MARKER.to_string());
     purged.push(TOKSI_OWNED_KEYS.to_string());
-    purged.push(TOKSI_OWNED_MARKER.to_string());
-    purged.push(TOKSI_OWNED_KEYS.to_string());
+    purged.push(TOKLESS_OWNED_MARKER.to_string());
+    purged.push(TOKLESS_OWNED_KEYS.to_string());
 
     Ok(purged)
 }

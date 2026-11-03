@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/copilot.rs
 // created: 2026-10-11
-// lastModified: 2026-11-01
+// lastModified: 2026-11-02
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -2476,28 +2476,14 @@ pub(crate) fn detect_copilot_proxy(cap: &ProxyCapability) -> ProxyDetection {
         }
     }
     if cli_state == ProxyState::ProxyStateManaged || vscode_state == ProxyState::ProxyStateManaged {
-        if cli_state == ProxyState::ProxyStateNativeUnconfigured
-            || vscode_state == ProxyState::ProxyStateNativeUnconfigured
-        {
-            return proxy_detection(
-                &cap.id,
-                "one Copilot surface managed; another unconfigured",
-                ProxyState::ProxyStateNativeUnconfigured,
-            );
-        }
-        if cli_state == ProxyState::ProxyStateManaged && vscode_state == ProxyState::ProxyStateAbsent
-        {
-            return proxy_detection(&cap.id, &cli_detail, ProxyState::ProxyStateManaged);
-        }
-        if vscode_state == ProxyState::ProxyStateManaged && cli_state == ProxyState::ProxyStateAbsent
-        {
-            return proxy_detection(&cap.id, &vscode_detail, ProxyState::ProxyStateManaged);
-        }
-        return proxy_detection(
-            &cap.id,
-            "managed Copilot surfaces",
-            ProxyState::ProxyStateManaged,
-        );
+        let detail = if cli_state == ProxyState::ProxyStateManaged && vscode_state == ProxyState::ProxyStateManaged {
+            "managed Copilot surfaces".to_string()
+        } else if vscode_state == ProxyState::ProxyStateManaged {
+            vscode_detail
+        } else {
+            cli_detail
+        };
+        return proxy_detection(&cap.id, &detail, ProxyState::ProxyStateManaged);
     }
     if cli_state == ProxyState::ProxyStateAbsent && vscode_state == ProxyState::ProxyStateAbsent {
         return proxy_detection(

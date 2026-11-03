@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/cursor.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-02
 
 use std::collections::HashSet;
 use std::fs;
@@ -1813,7 +1813,7 @@ pub fn cursor_known_bin_dirs() -> Vec<String> {
 pub fn cursor_cli_path() -> String {
     let known = cursor_known_bin_dirs();
     let known_refs: Vec<&str> = known.iter().map(|s| s.as_str()).collect();
-    for name in ["cursor-agent", "agent"] {
+    for name in ["cursor", "cursor-agent", "agent"] {
         let bin = find_binary(name, &known_refs);
         if !bin.is_empty() {
             return bin;

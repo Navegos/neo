@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/byok_gateway.rs
 // created: 2026-10-05
-// lastModified: 2026-11-02
+// lastModified: 2026-11-03
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -375,9 +375,9 @@ pub fn byok_target_path(target: &str, incoming: &str) -> String {
     }
     if target == "/v1" && incoming.starts_with("/v1") {
         if incoming == "/v1" {
-            return "/".to_string();
+            return "/v1".to_string();
         }
-        return incoming[3..].to_string();
+        return incoming.to_string();
     }
     if target.ends_with("/v1") && incoming.starts_with("/v1") {
         if incoming == "/v1" {
@@ -1104,6 +1104,7 @@ pub(crate) async fn write_http_response(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut head = format!("HTTP/1.1 {} {}\r\n", status, reason);
     let mut has_content_len = false;
+    let mut has_cors = false;
     for (k, v) in headers {
         if k.eq_ignore_ascii_case("transfer-encoding") {
             continue;
@@ -1111,7 +1112,15 @@ pub(crate) async fn write_http_response(
         if k.eq_ignore_ascii_case("content-length") {
             has_content_len = true;
         }
+        if k.eq_ignore_ascii_case("access-control-allow-origin") {
+            has_cors = true;
+        }
         head.push_str(&format!("{}: {}\r\n", k, v));
+    }
+    if !has_cors {
+        head.push_str("Access-Control-Allow-Origin: *\r\n");
+        head.push_str("Access-Control-Allow-Headers: *\r\n");
+        head.push_str("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n");
     }
     if !has_content_len {
         head.push_str(&format!("Content-Length: {}\r\n", body.len()));
@@ -1190,9 +1199,7 @@ async fn serve_proxy_connection(
         return Ok(());
     };
     let (path, _, query) = split_uri_path_and_query(&req.raw_uri);
-    let (status, headers, body) =
-        forward_to_byok_target(target_base, &req.method, &path, Some(&query), &req.headers, &req.body).await;
-    write_http_response(&mut stream, status, status_reason(status), &headers, &body).await
+    forward_streaming_to_byok_target(target_base, &req.method, &path, Some(&query), &req.headers, &req.body, &mut stream).await
 }
 
 pub async fn handle_byok_gateway_request(
@@ -1503,4 +1510,220 @@ pub async fn forward_to_byok_target(
     };
 
     (status, resp_headers, final_body)
+}
+
+pub async fn forward_streaming_to_byok_target(
+    target_base: &str,
+    method: &str,
+    incoming_path: &str,
+    query: Option<&str>,
+    headers: &[(String, String)],
+    body: &[u8],
+    client_stream: &mut TcpStream,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let Ok(mut target_url) = url::Url::parse(target_base) else {
+        write_http_response(
+            client_stream,
+            502,
+            "Bad Gateway",
+            &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+            b"invalid BYOK upstream\n",
+        ).await?;
+        return Ok(());
+    };
+
+    if check_upstream_host_allowed(&target_url).is_err() {
+        write_http_response(
+            client_stream,
+            502,
+            "Bad Gateway",
+            &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+            b"BYOK upstream unavailable\n",
+        ).await?;
+        return Ok(());
+    }
+
+    let merged_path = byok_target_path(target_url.path(), incoming_path);
+    target_url.set_path(&merged_path);
+    if let Some(q) = query.filter(|s| !s.is_empty()) {
+        target_url.set_query(Some(q));
+    } else {
+        target_url.set_query(None);
+    }
+
+    let is_responses_post = method.eq_ignore_ascii_case("POST")
+        && (merged_path == "/v1/responses"
+            || merged_path == "/responses"
+            || incoming_path == "/v1/responses"
+            || incoming_path == "/responses");
+
+    let mut outgoing_body = body.to_vec();
+    let mut ns_map = HashMap::new();
+    if is_responses_post && !body.is_empty() {
+        let (rewritten, m, ok) = flatten_responses_tools(body);
+        if ok {
+            outgoing_body = rewritten;
+            ns_map = m;
+        }
+    }
+
+    let Ok(client) = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(300))
+        .build()
+    else {
+        write_http_response(
+            client_stream,
+            502,
+            "Bad Gateway",
+            &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+            b"BYOK upstream unavailable\n",
+        ).await?;
+        return Ok(());
+    };
+
+    let req_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
+    let mut req_builder = client.request(req_method, target_url);
+
+    for (k, v) in headers {
+        if k.eq_ignore_ascii_case(BYOK_ROUTE_HEADER)
+            || k.eq_ignore_ascii_case("host")
+            || k.eq_ignore_ascii_case("content-length")
+            || k.eq_ignore_ascii_case("connection")
+            || k.eq_ignore_ascii_case("transfer-encoding")
+        {
+            continue;
+        }
+        req_builder = req_builder.header(k.as_str(), v.as_str());
+    }
+    if !outgoing_body.is_empty() {
+        req_builder = req_builder.body(outgoing_body);
+    }
+
+    let resp = match req_builder.send().await {
+        Ok(r) => r,
+        Err(_) => {
+            write_http_response(
+                client_stream,
+                502,
+                "Bad Gateway",
+                &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+                b"BYOK upstream unavailable\n",
+            ).await?;
+            return Ok(());
+        }
+    };
+
+    let status = resp.status().as_u16();
+    let mut is_stream = false;
+    for (k, v) in resp.headers() {
+        if k.as_str().eq_ignore_ascii_case("content-type") {
+            if let Ok(v_str) = v.to_str() {
+                let low = v_str.to_ascii_lowercase();
+                if low.contains("text/event-stream")
+                    || low.contains("application/x-ndjson")
+                    || low.contains("grpc")
+                    || low.contains("stream")
+                {
+                    is_stream = true;
+                }
+            }
+        }
+        if k.as_str().eq_ignore_ascii_case("transfer-encoding") {
+            if let Ok(v_str) = v.to_str() {
+                if v_str.to_ascii_lowercase().contains("chunked") {
+                    is_stream = true;
+                }
+            }
+        }
+    }
+    if resp.content_length().is_none() {
+        is_stream = true;
+    }
+    let must_buffer = is_responses_post && status == 200;
+
+    if is_stream && !must_buffer {
+        let mut head = format!("HTTP/1.1 {} {}\r\n", status, status_reason(status));
+        head.push_str("Transfer-Encoding: chunked\r\n");
+        let mut has_cors = false;
+        for (k, v) in resp.headers() {
+            let k_str = k.as_str();
+            if k_str.eq_ignore_ascii_case("content-length")
+                || k_str.eq_ignore_ascii_case("transfer-encoding")
+                || k_str.eq_ignore_ascii_case("connection")
+            {
+                continue;
+            }
+            if k_str.eq_ignore_ascii_case("access-control-allow-origin") {
+                has_cors = true;
+            }
+            if let Ok(v_str) = v.to_str() {
+                head.push_str(&format!("{}: {}\r\n", k_str, v_str));
+            }
+        }
+        if !has_cors {
+            head.push_str("Access-Control-Allow-Origin: *\r\n");
+            head.push_str("Access-Control-Allow-Headers: *\r\n");
+            head.push_str("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n");
+        }
+        head.push_str("Connection: keep-alive\r\n\r\n");
+        client_stream.write_all(head.as_bytes()).await?;
+        client_stream.flush().await?;
+
+        let mut resp = resp;
+        while let Some(chunk) = resp.chunk().await.ok().flatten() {
+            if chunk.is_empty() {
+                continue;
+            }
+            let chunk_header = format!("{:x}\r\n", chunk.len());
+            client_stream.write_all(chunk_header.as_bytes()).await?;
+            client_stream.write_all(&chunk).await?;
+            client_stream.write_all(b"\r\n").await?;
+            client_stream.flush().await?;
+        }
+        client_stream.write_all(b"0\r\n\r\n").await?;
+        client_stream.flush().await?;
+        return Ok(());
+    }
+
+    let mut resp_headers = Vec::new();
+    for (k, v) in resp.headers() {
+        let k_str = k.as_str().to_string();
+        let Ok(v_str) = v.to_str() else {
+            continue;
+        };
+        if k_str.eq_ignore_ascii_case("content-length")
+            || k_str.eq_ignore_ascii_case("transfer-encoding")
+            || k_str.eq_ignore_ascii_case("connection")
+        {
+            continue;
+        }
+        resp_headers.push((k_str, v_str.to_string()));
+    }
+
+    let Ok(raw_resp_bytes) = resp.bytes().await else {
+        write_http_response(
+            client_stream,
+            502,
+            "Bad Gateway",
+            &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+            b"BYOK upstream unavailable\n",
+        ).await?;
+        return Ok(());
+    };
+
+    let final_body = if is_responses_post && status == 200 {
+        transform_sse_bytes(&raw_resp_bytes, ns_map)
+    } else {
+        raw_resp_bytes.to_vec()
+    };
+
+    write_http_response(
+        client_stream,
+        status,
+        status_reason(status),
+        &resp_headers,
+        &final_body,
+    ).await?;
+    Ok(())
 }

@@ -433,6 +433,12 @@ ValueError: invalid ID parameter";
         let target_base = "https://cloudcode-pa.googleapis.com";
         let merged = byok_target_path(target_base, &path);
         assert_eq!(merged, "/v1internal:loadUser");
+
+        let v1_merged = byok_target_path("/v1", "/v1/chat/completions");
+        assert_eq!(v1_merged, "/v1/chat/completions");
+
+        let v1_models = byok_target_path("/v1", "/v1/models");
+        assert_eq!(v1_models, "/v1/models");
     }
 
     #[test]

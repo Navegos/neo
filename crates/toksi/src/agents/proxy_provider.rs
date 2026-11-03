@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/proxy_provider.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-02
 
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -497,9 +497,6 @@ pub(crate) fn toksi_managed_command(command: &str, args: &[&str]) -> bool {
     base == "toksi"
         || base == "toksi.exe"
         || base.starts_with("toksi-")
-        || base == "tokless"
-        || base == "tokless.exe"
-        || base.starts_with("tokless-")
 }
 
 pub(crate) fn json_map_child<'a>(m: &'a OrderedMap, key: &str) -> Option<&'a OrderedMap> {
@@ -699,7 +696,7 @@ fn kilo_cmd_shim_server(command: &[String], server: &str) -> bool {
 
 pub(crate) fn kilo_is_toksi_command(command: &str) -> bool {
     let b = kilo_command_base(command);
-    b == "toksi" || b == "tokless"
+    b == "toksi"
 }
 
 pub(crate) fn kilo_projectmem_server(command: &[String]) -> bool {
@@ -868,14 +865,10 @@ pub(crate) fn detect_agent_with(
 }
 
 pub(crate) fn is_vscode_extension_installed(extension_id: &str) -> bool {
-    let prefix = format!("{}.", extension_id.to_ascii_lowercase());
-    let h = paths::home();
-    let dirs = [
-        Path::new(&h).join(".vscode").join("extensions"),
-        Path::new(&h).join(".vscode-insiders").join("extensions"),
-        Path::new(&h).join(".vscode-oss").join("extensions"),
-    ];
-    for dir in dirs {
+    let low_id = extension_id.to_ascii_lowercase();
+    let prefix_dash = format!("{low_id}-");
+    let prefix_dot = format!("{low_id}.");
+    for dir in crate::agents::vscode::vscode_extension_dirs() {
         let Ok(entries) = fs::read_dir(dir) else {
             continue;
         };
@@ -887,9 +880,7 @@ pub(crate) fn is_vscode_extension_installed(extension_id: &str) -> bool {
                 continue;
             }
             let name = entry.file_name().to_string_lossy().to_ascii_lowercase();
-            if let Some(rest) = name.strip_prefix(&prefix)
-                && rest.as_bytes().first().is_some_and(|c| c.is_ascii_digit())
-            {
+            if name == low_id || name.starts_with(&prefix_dash) || name.starts_with(&prefix_dot) {
                 return true;
             }
         }

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/mod.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-02
 
 pub mod byok;
 pub mod colors;
@@ -57,14 +57,16 @@ pub use mcpspawn::*;
 pub use paths::{
     amp_paths_resolved, antigravity_paths_resolved, claude_code_paths, clear_home_override,
     clear_write_file_override, cline_paths_resolved, codex_paths_resolved, copilot_paths_resolved,
-    copy_dir_merge, cursor_global_mcp_path, cursor_paths_resolved, ensure_dir, exists, home,
-    is_go_test_executable, is_test_executable, is_win, kilo_paths_resolved, kimi_paths_resolved,
-    open_code_paths_resolved, opencode_config_dir_v2, opencode_paths_resolved, opencode_paths_v2,
-    persisted_toksi_command, read_file_safe, set_home_override, set_write_file_override,
+    copy_dir_merge, cursor_global_mcp_path, cursor_paths_resolved, ensure_dir, exists,
+    find_real_binary, home, is_go_test_executable, is_real_binary, is_test_executable, is_win,
+    kilo_paths_resolved, kimi_paths_resolved, known_binary_aliases, open_code_paths_resolved,
+    opencode_config_dir_v2, opencode_paths_resolved, opencode_paths_v2, path_dirs,
+    persisted_toksi_command, platform_candidate_extensions, read_file_safe, set_home_override, set_write_file_override,
     sh_quote, split_command, stable_executable, temp_dir, toksi_abs, toksi_abs_strict,
     toksi_data_dir, toksi_persisted_abs, which, write_file, write_file_atomic,
     write_file_mode, zcode_paths_resolved, AmpPaths, AntigravityPaths, ClaudePaths, ClinePaths,
-    CodexPaths, CopilotPaths, CursorPaths, KiloPaths, KimiPaths, OpenCodePaths, ZcodePaths, IS_WIN,
+    CodexPaths, CopilotPaths, CursorPaths, KiloPaths, KimiPaths, OpenCodePaths, ZcodePaths,
+    CANDIDATE_EXTENSIONS, IS_WIN,
 };
 pub use pathsetup::*;
 pub use preflight::*;

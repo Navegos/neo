@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase6_rules_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-02
 
 use std::fs;
 use tempfile::tempdir;
@@ -179,14 +179,16 @@ fn test_phase6_patch_all_agent_configs_and_inspect() {
 
     assert!(report.claude_patched);
     assert!(report.agents_patched);
+    assert!(report.gemini_patched);
     assert_eq!(report.cursor_rules_written.len(), 3);
 
     assert!(tmp.path().join("CLAUDE.md").exists());
     assert!(tmp.path().join("AGENTS.md").exists());
+    assert!(tmp.path().join("GEMINI.md").exists());
 
     // Inspect rules
     let statuses = inspect_agent_rules(tmp.path());
-    assert_eq!(statuses.len(), 3);
+    assert_eq!(statuses.len(), 4);
 
     for st in &statuses {
         assert_eq!(st.present_rules.len(), 3);

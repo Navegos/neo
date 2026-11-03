@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/env_injector/windows.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-02
 
 #[cfg(windows)]
 use std::ffi::OsStr;
@@ -247,16 +247,16 @@ pub fn inject_windows_env(proxy_url: &str) -> Result<Vec<String>, String> {
 pub fn teardown_windows_env() -> Result<Vec<String>, String> {
     let marker = get_env_reg_value(TOKSI_OWNED_MARKER)
         .or_else(|| std::env::var(TOKSI_OWNED_MARKER).ok())
-        .or_else(|| get_env_reg_value(TOKSI_OWNED_MARKER))
-        .or_else(|| std::env::var(TOKSI_OWNED_MARKER).ok());
+        .or_else(|| get_env_reg_value(TOKLESS_OWNED_MARKER))
+        .or_else(|| std::env::var(TOKLESS_OWNED_MARKER).ok());
     let mut purged = Vec::new();
 
-    // Check if toksi/tokless previously owned the keys
+    // Check if toksi or legacy tokless previously owned the keys
     if marker.as_deref() == Some("1") || marker.is_some() {
         let keys_str = get_env_reg_value(TOKSI_OWNED_KEYS)
             .or_else(|| std::env::var(TOKSI_OWNED_KEYS).ok())
-            .or_else(|| get_env_reg_value(TOKSI_OWNED_KEYS))
-            .or_else(|| std::env::var(TOKSI_OWNED_KEYS).ok())
+            .or_else(|| get_env_reg_value(TOKLESS_OWNED_KEYS))
+            .or_else(|| std::env::var(TOKLESS_OWNED_KEYS).ok())
             .unwrap_or_default();
         let keys: Vec<String> = if !keys_str.is_empty() {
             keys_str.split(',').map(|s| s.trim().to_string()).collect()
@@ -274,18 +274,18 @@ pub fn teardown_windows_env() -> Result<Vec<String>, String> {
 
         let _ = delete_env_reg_value(TOKSI_OWNED_MARKER);
         let _ = delete_env_reg_value(TOKSI_OWNED_KEYS);
-        let _ = delete_env_reg_value(TOKSI_OWNED_MARKER);
-        let _ = delete_env_reg_value(TOKSI_OWNED_KEYS);
+        let _ = delete_env_reg_value(TOKLESS_OWNED_MARKER);
+        let _ = delete_env_reg_value(TOKLESS_OWNED_KEYS);
         unsafe {
             std::env::remove_var(TOKSI_OWNED_MARKER);
             std::env::remove_var(TOKSI_OWNED_KEYS);
-            std::env::remove_var(TOKSI_OWNED_MARKER);
-            std::env::remove_var(TOKSI_OWNED_KEYS);
+            std::env::remove_var(TOKLESS_OWNED_MARKER);
+            std::env::remove_var(TOKLESS_OWNED_KEYS);
         }
         purged.push(TOKSI_OWNED_MARKER.to_string());
         purged.push(TOKSI_OWNED_KEYS.to_string());
-        purged.push(TOKSI_OWNED_MARKER.to_string());
-        purged.push(TOKSI_OWNED_KEYS.to_string());
+        purged.push(TOKLESS_OWNED_MARKER.to_string());
+        purged.push(TOKLESS_OWNED_KEYS.to_string());
 
         broadcast_setting_change();
     }

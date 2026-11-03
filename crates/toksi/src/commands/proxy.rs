@@ -163,6 +163,9 @@ pub fn run_proxy_up(opts: InitOptions) -> i32 {
         }
         let ok = configure_proxy_agent(id);
         if ok {
+            if id == "copilot" && crate::agents::copilot::copilot_vscode_proxy_wired() && !crate::headroom::copilot_proxy_running() {
+                let _ = crate::headroom::start_copilot_proxy();
+            }
             configured.push(id.clone());
             tree_leaf(&format!(
                 "{} {} {}",
@@ -237,6 +240,9 @@ pub fn run_proxy_down(opts: InitOptions) -> i32 {
         let label = get_agent(id)
             .map(|a| a.label.clone())
             .unwrap_or_else(|| id.clone());
+        if id == "copilot" {
+            let _ = crate::headroom::stop_copilot_proxy();
+        }
         let ok = remove_proxy_agent(id);
         let mark = if ok { C.green(Sym::CHECK) } else { C.gray(Sym::BULLET) };
         let status = if ok {

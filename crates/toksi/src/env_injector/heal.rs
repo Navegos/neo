@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/env_injector/heal.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-02
 
 use std::collections::HashSet;
 use std::env;
@@ -14,21 +14,21 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::agents::antigravity::agy_known_bin_dirs;
 use crate::util::paths::{self, expected_bin_dirs, grok_paths_resolved, toksi_data_dir};
 
-/// Markers that identify legacy Toksi/Toksi-generated shims and batch wrappers.
+/// Markers that identify legacy Toksi/Tokless-generated shims and batch wrappers.
 const SHIM_MARKERS: &[&str] = &[
     "toksi:antigravity-cli-proxy",
     "toksi:grok-cli-proxy",
     "toksi:copilot-shim",
-    "toksi:antigravity-cli-proxy",
-    "toksi:grok-cli-proxy",
-    "toksi:copilot-shim",
+    "tokless:antigravity-cli-proxy",
+    "tokless:grok-cli-proxy",
+    "tokless:copilot-shim",
     "__proxy-ensure",
     "__grok-proxy-ensure",
     "__copilot",
     "rem toksi:",
-    "rem toksi:",
+    "rem tokless:",
     "# toksi:copilot-shim",
-    "# toksi:copilot-shim",
+    "# tokless:copilot-shim",
 ];
 
 /// Known legacy orphaned state file names in Toksi data directories.
@@ -210,17 +210,22 @@ fn collect_binary_scan_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-/// Collects directories where Toksi or legacy proxies stored state files.
+/// Collects directories where Toksi or legacy tokless proxies stored state files.
 fn collect_data_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
     let data_dir = toksi_data_dir();
     if !data_dir.is_empty() {
-        dirs.push(PathBuf::from(data_dir));
+        dirs.push(PathBuf::from(&data_dir));
+        let legacy_data = data_dir.replace("toksi", "tokless");
+        if legacy_data != data_dir {
+            dirs.push(PathBuf::from(legacy_data));
+        }
     }
     let home = paths::home();
     if !home.is_empty() {
         let home_path = PathBuf::from(&home);
         dirs.push(home_path.join(".toksi"));
+        dirs.push(home_path.join(".tokless"));
         dirs.push(home_path.join(".antigravity"));
         dirs.push(home_path.join(".grok"));
     }
@@ -409,17 +414,46 @@ pub fn is_toksi_shim_or_sidecar(path: &Path) -> bool {
     }
 
     // Candidate wrapper filenames
-    let is_candidate_wrapper = file_name == "agy.cmd"
-        || file_name == "agy.bat"
-        || file_name == "agy"
-        || file_name == "grok.cmd"
-        || file_name == "grok.bat"
-        || file_name == "grok"
-        || file_name == "copilot.cmd"
-        || file_name == "copilot.bat"
-        || file_name == "copilot";
+    let stem = match path.file_stem().and_then(|s| s.to_str()) {
+        Some(s) => s.to_ascii_lowercase(),
+        None => return false,
+    };
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
 
-    if !is_candidate_wrapper {
+    let is_candidate_ext = ext == "cmd"
+        || ext == "bat"
+        || ext == "ps1"
+        || ext == "sh"
+        || ext == "zsh"
+        || ext == "bash"
+        || ext == "command"
+        || ext.is_empty();
+
+    let is_candidate_stem = matches!(
+        stem.as_str(),
+        "agy"
+            | "antigravity"
+            | "antigravity ide"
+            | "antigravity-ide"
+            | "claude"
+            | "codex"
+            | "copilot"
+            | "cursor"
+            | "factory"
+            | "droid"
+            | "grok"
+            | "opencode"
+            | "opencode2"
+            | "opencoe2"
+            | "toksi"
+            | "tokless"
+    );
+
+    if !is_candidate_stem || !is_candidate_ext {
         return false;
     }
 
@@ -452,6 +486,11 @@ pub fn is_toksi_shim_or_sidecar(path: &Path) -> bool {
 
     // Shell script wrapper check
     if text.starts_with("#!/") && (text.contains("exec \"$REAL\"") || text.contains("toksi") || text.contains("tokless")) {
+        return true;
+    }
+
+    // PowerShell wrapper check
+    if ext == "ps1" && (text.contains("$REAL") || text.contains("toksi") || text.contains("tokless")) {
         return true;
     }
 

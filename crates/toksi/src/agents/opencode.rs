@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/opencode.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-02
 
 use std::fs;
 use std::path::Path;
@@ -248,16 +248,16 @@ pub fn open_code_binary_paths() -> Vec<String> {
         }
     };
     let names = if paths::IS_WIN {
-        &["opencode2.exe", "opencode.exe", "opencode2", "opencode"][..]
+        &["opencode2.exe", "opencoe2.exe", "opencode.exe", "opencode2", "opencoe2", "opencode"][..]
     } else {
-        &["opencode2", "opencode"][..]
+        &["opencode2", "opencoe2", "opencode"][..]
     };
     for dir in opencode_known_bin_dirs() {
         for &name in names {
             add(Path::new(&dir).join(name).to_string_lossy().to_string());
         }
     }
-    for &name in &["opencode2", "opencode"] {
+    for &name in &["opencode2", "opencoe2", "opencode"] {
         add(paths::find_binary::<&str>(name, &[]));
     }
     out

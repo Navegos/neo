@@ -3,7 +3,7 @@
 // project: toksi
 // file: crates/toksi/src/agents/antigravity.rs
 // created: 2026-10-11
-// lastModified: 2026-11-01
+// lastModified: 2026-11-02
 
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
@@ -2013,8 +2013,12 @@ fn remove_file_if_exists(path: &str) -> bool {
 // --- antigravity_shim.go ---
 
 fn antigravity_bin_file() -> String {
-    let name = if paths::is_win() { "agy.cmd" } else { "agy" };
     let dirs = agy_known_bin_dirs();
+    let found = paths::find_binary("agy", &dirs);
+    if !found.is_empty() {
+        return found;
+    }
+    let name = if paths::is_win() { "agy.cmd" } else { "agy" };
     for dir in &dirs {
         let bin = Path::new(dir).join(name).to_string_lossy().into_owned();
         if paths::exists(&bin)

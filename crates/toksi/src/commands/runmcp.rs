@@ -123,6 +123,11 @@ pub fn run_mcp(argv: &[String]) -> i32 {
 
     let actual_cmd_args: Vec<String> = cmd_args.to_vec();
 
+    ensure_proxy_up();
+    if crate::agents::copilot::copilot_vscode_proxy_wired() {
+        crate::headroom::ensure_copilot_proxy_up();
+    }
+
     let is_codegraph = codegraph_mcp_command(&actual_cmd_args) || tool == "codegraph";
     if is_codegraph {
         let root = codegraph_workspace(&workspace);

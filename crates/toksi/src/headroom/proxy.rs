@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-11-01
+// lastModified: 2026-11-03
 
 use std::collections::BTreeSet;
 use std::fs::{File, OpenOptions};
@@ -30,7 +30,7 @@ use super::watchdog::{
     clear_proxy_stop_request, proxy_stop_requested, request_proxy_stop, run_headroom_supervised,
 };
 use crate::util::byok::{byok_gateway_port, parse_byok_routes};
-use crate::util::headroom::{headroom_bin, headroom_installed, headroom_paths_resolved};
+use crate::util::headroom::{headroom_bin, headroom_paths_resolved};
 use crate::util::headroom_proxy::{
     clear_headroom_proxy_runtime, headroom_proxy_openai_url, headroom_proxy_port,
     headroom_proxy_url, proxy_routing_enabled, read_proxy_runtime, save_headroom_proxy_runtime,
@@ -164,7 +164,6 @@ pub fn proxy_args_for_urls(
 ) -> Vec<String> {
     let mut args = vec![
         "proxy".to_string(),
-        "serve".to_string(),
         "--port".to_string(),
         port.to_string(),
         "--no-cache".to_string(),
@@ -430,20 +429,33 @@ pub fn headroom_allowed_base_urls_checked() -> Result<String, Box<dyn std::error
 }
 
 pub fn resolve_headroom_bin() -> String {
-    let t = crate::util::paths::toksi_abs();
+    let t = crate::util::paths::toksi_persisted_abs();
     if !t.is_empty() && exists(&t) {
         return t;
     }
+    let t_abs = crate::util::paths::toksi_abs();
+    if !t_abs.is_empty() && exists(&t_abs) {
+        return t_abs;
+    }
     if let Ok(cur) = std::env::current_exe() {
         let s = cur.to_string_lossy().to_string();
-        if exists(&s) {
+        if exists(&s) && !crate::util::paths::is_test_executable(&s) {
             return s;
         }
     }
-    if headroom_installed() {
-        return headroom_bin();
+    let w_toksi = which("toksi");
+    if !w_toksi.is_empty() && exists(&w_toksi) {
+        return w_toksi;
     }
-    which("toksi")
+    let h = headroom_bin();
+    if !h.is_empty() && exists(&h) {
+        return h;
+    }
+    let w = crate::util::paths::which("headroom");
+    if !w.is_empty() && exists(&w) {
+        return w;
+    }
+    String::new()
 }
 
 pub fn proxy_live_z(port: u16) -> bool {
@@ -542,6 +554,18 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
         return Ok(());
     }
 
+    // CORS preflight
+    if req.method.eq_ignore_ascii_case("OPTIONS") {
+        let headers = vec![
+            ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+            ("Access-Control-Allow-Methods".to_string(), "GET, POST, PUT, DELETE, OPTIONS".to_string()),
+            ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
+            ("Access-Control-Max-Age".to_string(), "86400".to_string()),
+        ];
+        super::byok_gateway::write_http_response(&mut stream, 204, "No Content", &headers, &[]).await?;
+        return Ok(());
+    }
+
     // Check BYOK routing header or path
     let has_byok_header = req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(super::byok_gateway::BYOK_ROUTE_HEADER));
     if has_byok_header || path.starts_with("/byok/") {
@@ -570,20 +594,20 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
         cloudcode_url_raw
     };
 
-    let is_cloudcode_req = path.starts_with("/v1internal")
+    let target_base = if path.starts_with("/v1internal")
         || path.starts_with("/v1alpha")
         || path.contains("cloudcode")
-        || req.headers.iter().any(|(k, v)| {
-            k.eq_ignore_ascii_case("x-goog-api-client")
-                && (v.contains("jetski") || v.contains("cloudcode") || v.contains("antigravity"))
-        });
-
-    let target_base = if is_cloudcode_req {
+    {
         cloudcode_url
     } else if path.starts_with("/v1/messages") {
         anthropic_url
     } else if path.starts_with("/v1beta") || path.contains("gemini") {
         gemini_url
+    } else if req.headers.iter().any(|(k, v)| {
+        k.eq_ignore_ascii_case("x-goog-api-client")
+            && (v.contains("jetski") || v.contains("cloudcode"))
+    }) && !path.starts_with("/v1/") {
+        cloudcode_url
     } else {
         openai_url
     };
@@ -656,17 +680,16 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
         }
     }
 
-    // Forward to upstream target
-    let (status, headers, body) = super::byok_gateway::forward_to_byok_target(
+    // Forward to upstream target (streaming if SSE / ndjson, buffered otherwise)
+    super::byok_gateway::forward_streaming_to_byok_target(
         &target_base,
         &req.method,
         &path,
         Some(&query),
         &req.headers,
         &req.body,
-    ).await;
-
-    super::byok_gateway::write_http_response(&mut stream, status, super::byok_gateway::status_reason(status), &headers, &body).await?;
+        &mut stream,
+    ).await?;
     Ok(())
 }
 
@@ -809,9 +832,14 @@ pub fn proxy_supervised_args_match(port: u16) -> bool {
     } else {
         &state.args
     };
+    let want = proxy_args_from_runtime(port);
+    let strip_serve = |args: &[String]| -> Vec<String> {
+        args.iter().filter(|a| a.as_str() != "serve").cloned().collect()
+    };
+    let args_match = state.args == want || strip_serve(&state.args) == strip_serve(&want);
     identity.start == state.start
         && identity.matches(&state.executable, check_args)
-        && state.args == proxy_args_from_runtime(port)
+        && args_match
 }
 
 fn proxy_start_lock_path() -> String {
@@ -937,6 +965,12 @@ pub fn proxy_args_match_recorded(port: u16) -> bool {
     }
     let want = proxy_args_from_runtime(port);
     if record.args == want {
+        return true;
+    }
+    let strip_serve = |args: &[String]| -> Vec<String> {
+        args.iter().filter(|a| a.as_str() != "serve").cloned().collect()
+    };
+    if strip_serve(&record.args) == strip_serve(&want) {
         return true;
     }
     record.args.len() > want.len() && record.args[record.args.len() - want.len()..] == want[..]

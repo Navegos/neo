@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/exec.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-02
 
 use std::io::Read;
 use std::path::Path;
@@ -199,33 +199,18 @@ pub fn prepend_process_path(dir: &str) {
 }
 
 pub fn find_binary<S: AsRef<str>>(bin: &str, extra_dirs: &[S]) -> String {
-    let p = which(bin);
-    if !p.is_empty() {
-        return p;
-    }
-    let names: Vec<String> = if IS_WIN {
-        vec![
-            format!("{}.exe", bin),
-            format!("{}.cmd", bin),
-            format!("{}.bat", bin),
-            bin.to_string(),
-        ]
-    } else {
-        vec![bin.to_string()]
-    };
-    for dir_item in extra_dirs {
-        let dir = dir_item.as_ref();
-        if dir.is_empty() {
-            continue;
+    let dirs: Vec<&Path> = extra_dirs
+        .iter()
+        .map(|s| Path::new(s.as_ref()))
+        .collect();
+
+    if let Some(p) = super::paths::find_real_binary(bin, &dirs) {
+        if let Some(parent) = p.parent() {
+            prepend_process_path(&parent.to_string_lossy());
         }
-        for n in &names {
-            let p = Path::new(dir).join(n);
-            if p.is_file() {
-                prepend_process_path(dir);
-                return p.to_string_lossy().to_string();
-            }
-        }
+        return p.to_string_lossy().to_string();
     }
+
     String::new()
 }
 
