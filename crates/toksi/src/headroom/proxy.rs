@@ -6,6 +6,14 @@
 // lastModified: 2026-11-03
 
 use std::collections::BTreeSet;
+use std::sync::{Arc, OnceLock};
+use crate::gateway::GatewayProxyOrchestrator;
+
+static GATEWAY_ORCHESTRATOR: OnceLock<Arc<GatewayProxyOrchestrator>> = OnceLock::new();
+
+pub fn gateway_orchestrator() -> &'static Arc<GatewayProxyOrchestrator> {
+    GATEWAY_ORCHESTRATOR.get_or_init(|| Arc::new(GatewayProxyOrchestrator::new()))
+}
 use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::net::Ipv6Addr;
@@ -541,155 +549,234 @@ pub async fn run_native_headroom_proxy(port: u16) -> Result<(), Box<dyn std::err
 }
 
 async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let Some(mut req) = super::byok_gateway::read_http_request(&mut stream).await? else {
-        return Ok(());
-    };
+    loop {
+        let Some(mut req) = super::byok_gateway::read_http_request(&mut stream).await? else {
+            return Ok(());
+        };
 
-    let (path, _, query) = super::byok_gateway::split_uri_path_and_query(&req.raw_uri);
+        let is_close_requested = req.headers.iter().any(|(k, v)| {
+            k.eq_ignore_ascii_case("connection") && v.eq_ignore_ascii_case("close")
+        });
 
-    // Health/live checks
-    if path == "/livez" || path == "/healthz" || path == "/readyz" {
-        let body = br#"{"service":"headroom-proxy","status":"ok"}"#;
-        super::byok_gateway::write_http_response(&mut stream, 200, "OK", &[("Content-Type".to_string(), "application/json".to_string())], body).await?;
-        return Ok(());
-    }
+        let (path, _, query) = super::byok_gateway::split_uri_path_and_query(&req.raw_uri);
 
-    // CORS preflight
-    if req.method.eq_ignore_ascii_case("OPTIONS") {
-        let headers = vec![
-            ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-            ("Access-Control-Allow-Methods".to_string(), "GET, POST, PUT, DELETE, OPTIONS".to_string()),
-            ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
-            ("Access-Control-Max-Age".to_string(), "86400".to_string()),
-        ];
-        super::byok_gateway::write_http_response(&mut stream, 204, "No Content", &headers, &[]).await?;
-        return Ok(());
-    }
+        // Health/live checks
+        if path == "/livez" || path == "/healthz" || path == "/readyz" {
+            let body = br#"{"service":"headroom-proxy","status":"ok"}"#;
+            super::byok_gateway::write_http_response(&mut stream, 200, "OK", &[("Content-Type".to_string(), "application/json".to_string())], body).await?;
+            if is_close_requested {
+                break;
+            }
+            continue;
+        }
 
-    // Check BYOK routing header or path
-    let has_byok_header = req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(super::byok_gateway::BYOK_ROUTE_HEADER));
-    if has_byok_header || path.starts_with("/byok/") {
-        let (status, headers, body) = super::byok_gateway::handle_byok_gateway_request(
-            &req.method,
-            &req.raw_uri,
-            &req.headers,
-            &req.body,
-            None,
-        ).await;
-        super::byok_gateway::write_http_response(&mut stream, status, super::byok_gateway::status_reason(status), &headers, &body).await?;
-        return Ok(());
-    }
+        // CORS preflight
+        if req.method.eq_ignore_ascii_case("OPTIONS") {
+            let headers = vec![
+                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+                ("Access-Control-Allow-Methods".to_string(), "GET, POST, PUT, DELETE, OPTIONS".to_string()),
+                ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
+                ("Access-Control-Max-Age".to_string(), "86400".to_string()),
+            ];
+            super::byok_gateway::write_http_response(&mut stream, 204, "No Content", &headers, &[]).await?;
+            if is_close_requested {
+                break;
+            }
+            continue;
+        }
 
-    // Identify target URL based on route
-    let (anthropic_url, openai_url) = real_upstream_urls();
-    let (gemini_url_raw, cloudcode_url_raw) = proxy_upstream_gemini_urls();
-    let gemini_url = if gemini_url_raw.is_empty() {
-        "https://generativelanguage.googleapis.com".to_string()
-    } else {
-        gemini_url_raw
-    };
-    let cloudcode_url = if cloudcode_url_raw.is_empty() {
-        "https://cloudcode-pa.googleapis.com".to_string()
-    } else {
-        cloudcode_url_raw
-    };
+        // Check BYOK routing header or path
+        let has_byok_header = req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(super::byok_gateway::BYOK_ROUTE_HEADER));
+        if has_byok_header || path.starts_with("/byok/") {
+            let (status, headers, body) = super::byok_gateway::handle_byok_gateway_request(
+                &req.method,
+                &req.raw_uri,
+                &req.headers,
+                &req.body,
+                None,
+            ).await;
+            super::byok_gateway::write_http_response(&mut stream, status, super::byok_gateway::status_reason(status), &headers, &body).await?;
+            if is_close_requested {
+                break;
+            }
+            continue;
+        }
 
-    let target_base = if path.starts_with("/v1internal")
-        || path.starts_with("/v1alpha")
-        || path.contains("cloudcode")
-    {
-        cloudcode_url
-    } else if path.starts_with("/v1/messages") {
-        anthropic_url
-    } else if path.starts_with("/v1beta") || path.contains("gemini") {
-        gemini_url
-    } else if req.headers.iter().any(|(k, v)| {
-        k.eq_ignore_ascii_case("x-goog-api-client")
-            && (v.contains("jetski") || v.contains("cloudcode"))
-    }) && !path.starts_with("/v1/") {
-        cloudcode_url
-    } else {
-        openai_url
-    };
+        // Identify target URL based on route
+        let (anthropic_url, openai_url) = real_upstream_urls();
+        let (gemini_url_raw, cloudcode_url_raw) = proxy_upstream_gemini_urls();
+        let gemini_url = if gemini_url_raw.is_empty() {
+            "https://generativelanguage.googleapis.com".to_string()
+        } else {
+            gemini_url_raw
+        };
+        let cloudcode_url = if cloudcode_url_raw.is_empty() {
+            "https://cloudcode-pa.googleapis.com".to_string()
+        } else {
+            cloudcode_url_raw
+        };
 
-    let is_llm_request = req.method.eq_ignore_ascii_case("POST")
-        && !req.body.is_empty()
-        && (path.starts_with("/v1/messages")
+        let is_google_request = path.starts_with("/v1internal")
+            || path.starts_with("/v1alpha")
+            || path.starts_with("/v1beta")
+            || path.starts_with("/v1/projects")
+            || path.contains("cloudcode")
+            || path.contains("jetski")
+            || path.contains("gemini")
+            || path.contains(":generateCode")
+            || path.contains(":streamGenerateCode")
+            || path.contains(":loadCodeContext")
+            || path.contains(":loadMetadata")
+            || path.contains(":generateMessage")
+            || path.contains(":streamGenerateMessage")
             || path.contains(":generateContent")
             || path.contains(":streamGenerateContent")
-            || path.ends_with("/chat/completions")
-            || path.ends_with("/completions")
-            || path.ends_with("/responses"));
+            || req.headers.iter().any(|(k, v)| {
+                k.eq_ignore_ascii_case("x-goog-api-client")
+                    || k.eq_ignore_ascii_case("x-goog-user-project")
+                    || (k.eq_ignore_ascii_case("authorization") && v.contains("ya29."))
+            });
 
-    // Preprocessing on POST JSON LLM requests only
-    if is_llm_request {
-        if let Ok(mut json_val) = serde_json::from_slice::<serde_json::Value>(&req.body) {
-            // 1. Dynamic Memory Governor (scaling L0 vs L1 vs L2 based on headroom)
-            super::adaptive_mem::inject_adaptive_memory(&mut json_val);
-
-            // 2. 1024-token prompt cache alignment
-            if path.starts_with("/v1/messages") {
-                super::cache_align::auto_place_anthropic_cache_control(&mut json_val);
+        let target_base = if is_google_request {
+            if path.starts_with("/v1beta") || (path.contains("gemini") && !path.contains("cloudcode") && !path.contains("jetski")) {
+                gemini_url
+            } else {
+                cloudcode_url
             }
-            super::cache_align::stabilize_cache_keys(&mut json_val);
-            super::cache_align::align_system_prompt_to_1024(&mut json_val);
+        } else if path.starts_with("/v1/messages") || req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("anthropic-version")) {
+            anthropic_url
+        } else {
+            openai_url
+        };
 
-            // 3. Compress conversation messages (logs, code, and JSON in tool outputs)
-            if let Some(serde_json::Value::Array(messages)) = json_val.get_mut("messages") {
-                for msg in messages {
-                    let is_tool_role = msg.get("role").and_then(|r| r.as_str()) == Some("tool");
-                    let tool_name = msg.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
-                    if let Some(serde_json::Value::String(content)) = msg.get_mut("content") {
-                        if content.len() > 120 {
-                            if is_tool_role {
-                                *content = crate::rtk::compress_tool_output(&tool_name, content);
-                            } else {
-                                *content = super::compression::compress_content(content, None);
-                            }
+        let is_llm_request = req.method.eq_ignore_ascii_case("POST")
+            && !req.body.is_empty()
+            && (path.starts_with("/v1/messages")
+                || path.contains(":generateContent")
+                || path.contains(":streamGenerateContent")
+                || path.contains(":generateCode")
+                || path.contains(":streamGenerateCode")
+                || path.contains(":generateMessage")
+                || path.contains(":streamGenerateMessage")
+                || path.ends_with("/chat/completions")
+                || path.ends_with("/completions")
+                || path.ends_with("/responses"));
+
+        // Preprocessing on POST JSON LLM requests only when conversation contents or messages exist
+        if is_llm_request {
+            if let Ok(mut json_val) = serde_json::from_slice::<serde_json::Value>(&req.body) {
+                let has_contents = json_val.get("contents").is_some();
+                let has_messages = json_val.get("messages").is_some();
+
+                if has_contents || has_messages {
+                    let orch = gateway_orchestrator();
+                    let prompt_str = json_val.to_string();
+
+                    // Check Gateway Semantic Cache first
+                    let prov_label = if is_google_request {
+                        "gemini"
+                    } else if path.starts_with("/v1/messages") {
+                        "anthropic"
+                    } else {
+                        "openai"
+                    };
+
+                    if let Some(cached) = orch.lookup_cache(prov_label, &prompt_str) {
+                        let resp_body = if path.contains("stream") {
+                            format!("data: {}\n\ndata: [DONE]\n\n", cached).into_bytes()
+                        } else {
+                            cached.into_bytes()
+                        };
+                        let headers = vec![
+                            ("Content-Type".to_string(), if path.contains("stream") { "text/event-stream".to_string() } else { "application/json".to_string() }),
+                            ("X-Toksi-Cache".to_string(), "HIT".to_string()),
+                        ];
+                        super::byok_gateway::write_http_response(&mut stream, 200, "OK", &headers, &resp_body).await?;
+                        if is_close_requested {
+                            break;
                         }
-                    } else if let Some(serde_json::Value::Array(blocks)) = msg.get_mut("content") {
-                        for block in blocks {
-                            let is_tool_result =
-                                block.get("type").and_then(|t| t.as_str()) == Some("tool_result");
-                            let block_name = block.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
-                            if let Some(serde_json::Value::String(text)) = block.get_mut("text") {
-                                if text.len() > 120 {
-                                    if is_tool_result {
-                                        *text = crate::rtk::compress_tool_output(&block_name, text);
-                                    } else {
-                                        *text = super::compression::compress_content(text, None);
-                                    }
-                                }
-                            } else if let Some(serde_json::Value::String(content)) = block.get_mut("content") {
+                        continue;
+                    }
+
+                    // 1. Dynamic Memory Governor (scaling L0 vs L1 vs L2 based on headroom)
+                    super::adaptive_mem::inject_adaptive_memory(&mut json_val);
+
+                    // 2. 1024-token prompt cache alignment
+                    if path.starts_with("/v1/messages") {
+                        super::cache_align::auto_place_anthropic_cache_control(&mut json_val);
+                    }
+                    super::cache_align::stabilize_cache_keys(&mut json_val);
+                    super::cache_align::align_system_prompt_to_1024(&mut json_val);
+
+                    // 3. Headroom MCP tool schema pruning
+                    let pruner_cfg = crate::headroom::pruner::McpPrunerConfig::default();
+                    let _ = crate::headroom::pruner::prune_mcp_request_payload(&mut json_val, &pruner_cfg);
+
+                    // 4. Compress conversation messages (logs, code, and JSON in tool outputs)
+                    if let Some(serde_json::Value::Array(messages)) = json_val.get_mut("messages") {
+                        for msg in messages {
+                            let is_tool_role = msg.get("role").and_then(|r| r.as_str()) == Some("tool");
+                            let tool_name = msg.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+                            if let Some(serde_json::Value::String(content)) = msg.get_mut("content") {
                                 if content.len() > 120 {
-                                    if is_tool_result {
-                                        *content = crate::rtk::compress_tool_output(&block_name, content);
+                                    if is_tool_role {
+                                        *content = crate::rtk::compress_tool_output(&tool_name, content);
                                     } else {
                                         *content = super::compression::compress_content(content, None);
+                                    }
+                                }
+                            } else if let Some(serde_json::Value::Array(blocks)) = msg.get_mut("content") {
+                                for block in blocks {
+                                    let is_tool_result =
+                                        block.get("type").and_then(|t| t.as_str()) == Some("tool_result");
+                                    let block_name = block.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+                                    if let Some(serde_json::Value::String(text)) = block.get_mut("text") {
+                                        if text.len() > 120 {
+                                            if is_tool_result {
+                                                *text = crate::rtk::compress_tool_output(&block_name, text);
+                                            } else {
+                                                *text = super::compression::compress_content(text, None);
+                                            }
+                                        }
+                                    } else if let Some(serde_json::Value::String(content)) = block.get_mut("content") {
+                                        if content.len() > 120 {
+                                            if is_tool_result {
+                                                *content = crate::rtk::compress_tool_output(&block_name, content);
+                                            } else {
+                                                *content = super::compression::compress_content(content, None);
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+
+                    if let Ok(serialized) = serde_json::to_vec(&json_val) {
+                        req.body = serialized;
+                    }
                 }
             }
+        }
 
-            if let Ok(serialized) = serde_json::to_vec(&json_val) {
-                req.body = serialized;
-            }
+        // Forward to upstream target (streaming if SSE / ndjson, buffered otherwise)
+        if let Err(e) = super::byok_gateway::forward_streaming_to_byok_target(
+            &target_base,
+            &req.method,
+            &path,
+            Some(&query),
+            &req.headers,
+            &req.body,
+            &mut stream,
+        ).await {
+            L.debug(&format!("forward_streaming error: {}", e));
+            break;
+        }
+
+        if is_close_requested {
+            break;
         }
     }
-
-    // Forward to upstream target (streaming if SSE / ndjson, buffered otherwise)
-    super::byok_gateway::forward_streaming_to_byok_target(
-        &target_base,
-        &req.method,
-        &path,
-        Some(&query),
-        &req.headers,
-        &req.body,
-        &mut stream,
-    ).await?;
     Ok(())
 }
 

@@ -16,6 +16,29 @@ _Loose thoughts, not yet committed to._
 ## Active plans
 _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
 
+### toksi — Native Rust Consolidation & Gateway Fix
+- [x] Phase 1: RTK Engine Integration (100+ filters, ANSI stripper, `toksi rtk`)
+- [x] Phase 2: ProjectMem Pure Rust Port (schema, JSONL store, summary, precheck, MCP)
+- [x] Phase 3: Context-Mode Pure Rust Port (sandbox runner, FTS5 chunker, `ctx_*` tools)
+- [x] Phase 4: ICM & ai-memory Integration (SQLite FTS5, multi-agent handoff, tiered briefs)
+- [x] Phase 5: CodeGraph Pure Rust Engine (Tree-sitter, petgraph, symbols cache)
+- [x] Phase 6: In-Tree Rules & Skills (Karpathy, Caveman, Ponytail embedded via `include_str!`)
+- [x] Phase 7: Headroom Deep Integration & Gateway Catalog (36 providers, semantic cache)
+- [x] Phase 8: Downloader Purge (zero npm/pip/node/python dependency)
+- [x] Phase 9: Legacy Healing & Binary Un-Hijack (`heal.rs`)
+- [x] Phase 10: Non-Destructive Environment Injection (`windows.rs`, `WM_SETTINGCHANGE`)
+- [x] Phase 11: Agent Doctor & Self-Healing Parity (`doctor --fix`, 17 agent harnesses)
+- [x] Phase 12: TUI, Prometheus Telemetry & Web Dashboard (`/metrics`, TUI, dashboard)
+- [x] Phase 13: End-to-End System Verification (10/10 e2e tests passing)
+- [x] Fix VS Code Antigravity Extension connection bug:
+  - [x] Implement HTTP/1.1 keep-alive loop in `headroom/proxy.rs` `serve_headroom_connection`
+  - [x] Fix route discrimination for Google Cloud Code / Gemini / Antigravity endpoints
+  - [x] Strip `Content-Encoding: gzip` in `forward_streaming_to_byok_target` to prevent zlib client decompression crash
+  - [x] Include `:generateCode`, `:streamGenerateCode`, `:loadCodeContext` in `is_llm_request`
+  - [x] Add VS Code User settings paths to `antigravity_ide_settings_candidates`
+  - [x] Unify `GatewayProxyOrchestrator` real network forwarding (remove mock response)
+  - [x] Build release (`cargo build --release -p toksi`) and test live extension stream
+
 ### nbuild — Toolchain & Workflow Manager
 - [x] Initialized `crates/nbuild` crate in root `Cargo.toml`
 - [x] Migrated `archinfo` to `crates/archinfo` as workspace dependency

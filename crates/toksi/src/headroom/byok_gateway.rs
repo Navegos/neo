@@ -1105,12 +1105,16 @@ pub(crate) async fn write_http_response(
     let mut head = format!("HTTP/1.1 {} {}\r\n", status, reason);
     let mut has_content_len = false;
     let mut has_cors = false;
+    let mut has_conn_header = false;
     for (k, v) in headers {
         if k.eq_ignore_ascii_case("transfer-encoding") {
             continue;
         }
         if k.eq_ignore_ascii_case("content-length") {
             has_content_len = true;
+        }
+        if k.eq_ignore_ascii_case("connection") {
+            has_conn_header = true;
         }
         if k.eq_ignore_ascii_case("access-control-allow-origin") {
             has_cors = true;
@@ -1125,7 +1129,10 @@ pub(crate) async fn write_http_response(
     if !has_content_len {
         head.push_str(&format!("Content-Length: {}\r\n", body.len()));
     }
-    head.push_str("Connection: close\r\n\r\n");
+    if !has_conn_header {
+        head.push_str("Connection: keep-alive\r\n");
+    }
+    head.push_str("\r\n");
     stream.write_all(head.as_bytes()).await?;
     stream.write_all(body).await?;
     stream.flush().await?;
@@ -1631,13 +1638,13 @@ pub async fn forward_streaming_to_byok_target(
         }
         if k.as_str().eq_ignore_ascii_case("transfer-encoding") {
             if let Ok(v_str) = v.to_str() {
-                if v_str.to_ascii_lowercase().contains("chunked") {
+                if v_str.to_ascii_lowercase().contains("chunked") && (incoming_path.contains("stream") || incoming_path.contains("messages")) {
                     is_stream = true;
                 }
             }
         }
     }
-    if resp.content_length().is_none() {
+    if incoming_path.contains("stream") && resp.content_length().is_none() {
         is_stream = true;
     }
     let must_buffer = is_responses_post && status == 200;
@@ -1651,6 +1658,7 @@ pub async fn forward_streaming_to_byok_target(
             if k_str.eq_ignore_ascii_case("content-length")
                 || k_str.eq_ignore_ascii_case("transfer-encoding")
                 || k_str.eq_ignore_ascii_case("connection")
+                || k_str.eq_ignore_ascii_case("content-encoding")
             {
                 continue;
             }
@@ -1695,6 +1703,7 @@ pub async fn forward_streaming_to_byok_target(
         if k_str.eq_ignore_ascii_case("content-length")
             || k_str.eq_ignore_ascii_case("transfer-encoding")
             || k_str.eq_ignore_ascii_case("connection")
+            || k_str.eq_ignore_ascii_case("content-encoding")
         {
             continue;
         }

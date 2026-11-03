@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor_probe.rs
 // created: 2026-10-05
-// lastModified: 2026-11-01
+// lastModified: 2026-11-03
 
 use std::env;
 use std::io;
@@ -122,7 +122,7 @@ pub fn is_toksi_managed_hook(fields: &[String]) -> bool {
     }
     matches!(
         fields[1].as_str(),
-        "rtk-hook" | "codex-perm" | "agy-hook" | "copilot-hook" | "projectmem-hook" | "grok-hook" | "cursor-hook" | "index"
+        "rtk-hook" | "codex-perm" | "agy-hook" | "copilot-hook" | "projectmem-hook" | "grok-hook" | "cursor-hook" | "index" | "ctx-hook" | "context-mode-hook"
     )
 }
 

@@ -7,6 +7,8 @@ _Last updated: 2026-11-03_
 Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go to Rust.
 
 ## Recent issues
+- [DONE] #0029 RTK hook not launching for command runs in Antigravity due to missing workspace .agents/hooks.json, sandbox permission denials on ~/.gemini/config, and invalid context-mode subcommand in hooks.json [crates/toksi/src/agents/antigravity.rs:210 (antigravity_hooks_file)] -> Added ctx-hook and context-mode aliases in toksi CLI, installed fresh binary to C:/Programs/neo/bin/toksi.exe (fixed)
+- [DONE] #0028 VS Code Antigravity extension fails to connect due to missing keep-alive loop, route discrimination, and gzip content-encoding leak in proxy stream [crates/toksi/src/headroom/proxy.rs:543 (serve_headroom_connection)] -> Eliminated false chunking of HTTP/2 responses lacking Content-Length that broke protobuf JSON parsing with invalid value []. Wired GatewayProxyOrchestrator semantic cache into proxy loop. [crates/toksi/src/headroom/byok_gateway.rs:1640 (forward_streaming_to_byok_target)] (fixed)
 - [DONE] #0027 toksi proxy reports model unavailable in VS Code antigravity extension while terminal works [crates/toksi/src/main.rs:252 (run)] -> Proxy routes /v1beta and gemini endpoints to generativelanguage even when x-goog-api-client has antigravity header. Added CORS preflight 204 handler and fixed /v1 path preservation in byok_target_path. Tested by test_non_llm_uri_and_target_resolution. (fixed)
 - [DONE] #0026 VS Code MCP spawn and proxy wiring parity for Copilot and Antigravity streaming [crates/toksi/src/agents/copilot.rs:2478 (detect_copilot_proxy)] -> Resolved Copilot proxy startup, VS Code MCP proxy boot, and Antigravity streaming timeouts in Toksi (fixed)
 - [DONE] #0025 HTTP request parser does not decode Transfer-Encoding chunked, corrupting JSON bodies with chunk headers and failing requests with HTTP 400 [crates/toksi/src/headroom/byok_gateway.rs:950 (read_http_request)] -> Add Transfer-Encoding chunked decoding loop to read_chunked_body, stripping chunk size headers (e.g. 10103\r\n) and reassembling valid JSON body with Content-Length (fixed)
@@ -18,13 +20,10 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - [DONE] #0021 Legacy external rtk binary fallback in rtk_rewrite causes unrecognized commands to emit bare rtk [crates/toksi/src/commands/rtk_hook.rs:52 (rtk_rewrite)] -> Purged external rtk binary fallback from rtk_rewrite; unsupported commands stay unmutated, supported commands rewrite to toksi rtk (fixed)
   - Partial attempt: Remove legacy external rtk binary fallback in rtk_rewrite and support toksi rtk prefix [crates/toksi/src/commands/rtk_hook.rs:43 (rtk_rewrite)]
 - [DONE] #0020 Headroom proxy startup fails identity verification when routing disabled [crates/toksi/src/headroom/proxy.rs:498 (run_proxy_foreground)] -> Prevent premature exit in run_proxy_foreground by removing routing_enabled guard on serve mode, enable routing preference on start_proxy, and improve Windows identity verification fallback/timeouts (fixed)
-- [DONE] #0019 Multiple issues in toksi: proxy startup fail, TUI hangs, agent wiring, dashboard telemetry [crates/toksi] -> Fixed proxy serve args and parser, decoupled TUI probe thread, unified antigravity 4-directory topology, purged tokless MCP runners, wired GEMINI.md in-tree rules [crates/toksi] (fixed)
-- [DONE] #0018 Phase 12: Implement Native Prometheus Telemetry Subsystem, cost tracking, latency breakdown, and /metrics exposition [crates/tokless/src/telemetry/mod.rs:1] -> Phase 12 complete: Prometheus metrics subsystem, cost tracking, latency breakdown, /metrics endpoint, TUI, and embedded Web Dashboard verified (5 tests passing, 0 warnings) [crates/tokless/src/telemetry/mod.rs:1] (fixed)
-- ...and 17 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 19 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...33 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Phase 4: ICM & ai-memory integration complete with embedded SQLite FTS5 BM25 store, sub-10ms recall latency, claim-once multi-agent handoffs across 17+ agents, tiered progressive disclosure packer, projectmem sync, CLI commands (tokless icm, tokless handoff, tokless mem sync), and in-process MCP server dispatch; 281 tests passing with 0 warnings [crates/tokless/src/icm/mod.rs:1]
+- ...34 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 5: CodeGraph pure Rust engine integrated with multi-language Tree-sitter parsers, petgraph blast-radius traversal, SQLite symbols cache, in-process MCP server, and projectmem coordinate resolution; 281 tests passing with 0 warnings [crates/tokless/src/codegraph/mod.rs]
 - Phase 6: In-Tree Rules & Skills Integration complete with embedded Karpathy principles, Caveman ASD-STE100, and Ponytail discipline; zero clone links, config patchers for CLAUDE.md/AGENTS.md/.cursor, CLI subcommands, 310 tests passing with 0 warnings [crates/tokless/src/rules/mod.rs]
 - Phase 7: Headroom Deep Integration verified with core compression (log, code, json), 1024-token cache alignment, adaptive memory governor (L0/L1/L2), and BYOK streaming proxy; 0 warnings, all tests passing [crates/tokless/src/headroom/mod.rs]
@@ -39,6 +38,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Refactor: refactor(toksi): rename tokless to toksi and enforce Phase 11 self-healing parity [crates/nbuild/src/cli.rs]
 - Refactor: Refactor proxy handling and telemetry integration [crates/toksi/src/agents/antigravity.rs]
 - Use only toksi paths, purge tokless aliases from discovery and adapters, keep tokless checks strictly for self-healing and data migration
+- Refactor: Refactor headroom proxy and utility functions; enhance binary resolution and add CORS support [crates/toksi/src/agents/antigravity.rs]
 
 ## Notes
 - New feature: feat: implement self-healing for legacy hijacked binaries and shims [crates/tokless/src/agents/antigravity.rs]

@@ -1319,6 +1319,18 @@ pub fn antigravity_ide_settings_candidates() -> Vec<String> {
     };
     vec![
         Path::new(&base)
+            .join("Code")
+            .join("User")
+            .join("settings.json")
+            .to_string_lossy()
+            .into_owned(),
+        Path::new(&base)
+            .join("Code - Insiders")
+            .join("User")
+            .join("settings.json")
+            .to_string_lossy()
+            .into_owned(),
+        Path::new(&base)
             .join("Antigravity IDE")
             .join("User")
             .join("settings.json")
@@ -2169,3 +2181,4 @@ fn remove_antigravity_shim() -> bool {
 pub fn antigravity_shim_wired() -> bool {
     false
 }
+
