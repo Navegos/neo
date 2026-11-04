@@ -262,6 +262,7 @@ mod tests {
             timeout_secs: Some(10),
             max_lines: Some(50),
             max_bytes: None,
+            ..Default::default()
         };
 
         let res = sandbox.execute(&req).unwrap();
@@ -401,10 +402,119 @@ mod tests {
             timeout_secs: Some(10),
             max_lines: Some(50),
             max_bytes: None,
+            ..Default::default()
         };
 
         let res = sandbox.execute(&req).unwrap();
         assert_eq!(res.exit_code, 0);
         assert!(res.stdout.contains("powershell-ok"));
+    }
+
+    #[test]
+    fn test_rewrite_windows_build_tools() {
+        use super::super::sandbox::rewrite_windows_build_tools;
+        if cfg!(windows) {
+            assert_eq!(rewrite_windows_build_tools("mvn test"), "mvn.cmd test");
+            assert_eq!(rewrite_windows_build_tools("cd dir && mvn clean install"), "cd dir && mvn.cmd clean install");
+            assert_eq!(rewrite_windows_build_tools("./mvnw test"), "./mvnw test");
+            assert_eq!(rewrite_windows_build_tools("echo mvn"), "echo mvn");
+        } else {
+            assert_eq!(rewrite_windows_build_tools("mvn test"), "mvn test");
+        }
+    }
+
+    #[test]
+    fn test_replace_handle_line_formatter() {
+        use super::super::filter::replace_handle_line;
+        let line = replace_handle_line("auth tokens", "ctx_execute:test", 24000);
+        assert!(line.contains("ctx_search({queries:[\"auth tokens\"], source:\"ctx_execute:test\"})"));
+        assert!(line.contains("searches the whole output (24000 B)."));
+    }
+
+    #[test]
+    fn test_mcp_ctx_batch_alias_and_string_commands() {
+        let temp = tempfile::tempdir().unwrap();
+        let server = ContextMcpServer::new(Some(temp.path().to_path_buf()));
+
+        let cmd = if cfg!(windows) {
+            "Write-Output 'batch-1'"
+        } else {
+            "echo 'batch-1'"
+        };
+
+        // Call using "ctx_batch" name and array of strings
+        let res = server.execute_tool(
+            "ctx_batch",
+            &json!({
+                "commands": [cmd]
+            }),
+        );
+        assert!(res.contains("Batch executed 1 commands"));
+    }
+
+    #[test]
+    fn test_mcp_ctx_resume() {
+        let temp = tempfile::tempdir().unwrap();
+        let server = ContextMcpServer::new(Some(temp.path().to_path_buf()));
+
+        let resume_out = server.execute_tool(
+            "ctx_resume",
+            &json!({
+                "session": "test-session"
+            }),
+        );
+        assert!(resume_out.contains("Session 'test-session' state resume:"));
+        assert!(resume_out.contains("Recorded tool calls:"));
+    }
+
+    #[test]
+    fn test_sandbox_summary_mode() {
+        let sandbox = PolyglotSandbox::new();
+        let code = if cfg!(windows) {
+            "Write-Output 'summary-ok'"
+        } else {
+            "echo 'summary-ok'"
+        };
+
+        let req = ExecRequest {
+            language: "shell".to_string(),
+            code: code.to_string(),
+            cwd: None,
+            timeout_secs: Some(10),
+            max_lines: Some(50),
+            max_bytes: None,
+            summary: Some(true),
+            ..Default::default()
+        };
+
+        let res = sandbox.execute(&req).unwrap();
+        assert_eq!(res.exit_code, 0);
+        assert!(res.stdout.contains("exit 0 ·"));
+        assert!(res.stdout.contains("summary-ok"));
+    }
+
+    #[test]
+    fn test_sandbox_background_execution() {
+        let sandbox = PolyglotSandbox::new();
+        let code = if cfg!(windows) {
+            "Start-Sleep -Milliseconds 100"
+        } else {
+            "sleep 0.1"
+        };
+
+        let req = ExecRequest {
+            language: "shell".to_string(),
+            code: code.to_string(),
+            cwd: None,
+            timeout_secs: Some(10),
+            max_lines: Some(50),
+            max_bytes: None,
+            background: Some(true),
+            ..Default::default()
+        };
+
+        let res = sandbox.execute(&req).unwrap();
+        assert_eq!(res.exit_code, 0);
+        assert!(res.stdout.starts_with("background:"));
     }
 }

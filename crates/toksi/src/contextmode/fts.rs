@@ -549,6 +549,31 @@ impl ContentStore {
         .flatten()
     }
 
+    pub fn list_sources(&self) -> Result<Vec<SourceMeta>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, label, chunk_count, code_chunk_count, indexed_at, file_path, content_hash
+             FROM sources ORDER BY id DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(SourceMeta {
+                id: row.get(0)?,
+                label: row.get(1)?,
+                chunk_count: row.get(2)?,
+                code_chunk_count: row.get(3)?,
+                indexed_at: row.get(4)?,
+                file_path: row.get(5)?,
+                content_hash: row.get(6)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            if let Ok(m) = r {
+                out.push(m);
+            }
+        }
+        Ok(out)
+    }
+
     pub fn delete_source(&mut self, label: &str) -> Result<usize, rusqlite::Error> {
         let tx = self.conn.transaction()?;
         let source_ids: Vec<i64> = {

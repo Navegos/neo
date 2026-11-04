@@ -252,6 +252,7 @@ pub fn run_ctx_cli(args: &[String]) -> i32 {
                     timeout_secs: Some(timeout),
                     max_lines: Some(max_lines),
                     max_bytes: None,
+                    ..Default::default()
                 };
                 match sandbox.execute(&req) {
                     Ok(res) => {

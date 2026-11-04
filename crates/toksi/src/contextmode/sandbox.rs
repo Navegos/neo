@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/sandbox.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::fs;
 use std::io::Read;
@@ -20,6 +20,46 @@ use super::stats::record_sandbox_bytes;
 pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
 pub const MAX_RAW_OUTPUT_BYTES: usize = 50 * 1024 * 1024; // 50MB limit before OOM kill
 
+/// On Windows, rewrite bare `mvn` at command start or delimiter to `mvn.cmd`.
+pub fn rewrite_windows_build_tools(code: &str) -> String {
+    if !is_win() {
+        return code.to_string();
+    }
+    const SEPARATORS: &[char] = &[';', '&', '|', '(', '\n'];
+    const BLANKS: &[char] = &[' ', '\t', '\n', '\r'];
+    const MVN: &str = "mvn";
+    const MVN_CMD: &str = "mvn.cmd";
+
+    let mut out = String::with_capacity(code.len() + 8);
+    let mut at_start = true;
+    let chars: Vec<char> = code.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        let ch = chars[i];
+        if at_start && (ch == ' ' || ch == '\t') {
+            out.push(ch);
+            i += 1;
+            continue;
+        }
+        if at_start && i + 3 <= chars.len() {
+            let candidate: String = chars[i..i + 3].iter().collect();
+            if candidate == MVN {
+                let after = if i + 3 < chars.len() { chars[i + 3] } else { '\0' };
+                if after == '\0' || BLANKS.contains(&after) {
+                    out.push_str(MVN_CMD);
+                    i += 3;
+                    at_start = false;
+                    continue;
+                }
+            }
+        }
+        out.push(ch);
+        at_start = SEPARATORS.contains(&ch);
+        i += 1;
+    }
+    out
+}
+
 #[derive(Debug, Clone)]
 pub struct ExecRequest {
     pub language: String,
@@ -28,6 +68,27 @@ pub struct ExecRequest {
     pub timeout_secs: Option<u64>,
     pub max_lines: Option<usize>,
     pub max_bytes: Option<usize>,
+    pub file: Option<PathBuf>,
+    pub background: Option<bool>,
+    pub summary: Option<bool>,
+    pub intent: Option<String>,
+}
+
+impl Default for ExecRequest {
+    fn default() -> Self {
+        Self {
+            language: "shell".to_string(),
+            code: String::new(),
+            cwd: None,
+            timeout_secs: Some(DEFAULT_TIMEOUT_SECS),
+            max_lines: Some(DEFAULT_MAX_LINES),
+            max_bytes: Some(DEFAULT_MAX_BYTES),
+            file: None,
+            background: None,
+            summary: None,
+            intent: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -144,6 +205,13 @@ impl PolyglotSandbox {
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());
 
+        command.env("NO_COLOR", "1");
+        command.env("FORCE_COLOR", "0");
+
+        if let Some(ref f) = req.file {
+            command.env("CTX_FILE", f);
+        }
+
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -152,6 +220,20 @@ impl PolyglotSandbox {
         }
 
         let start_time = Instant::now();
+
+        if req.background == Some(true) {
+            let child = command.spawn().map_err(|e| format!("Failed to spawn background sandbox process '{}': {}", cmd, e))?;
+            let pid = child.id();
+            let _ = fs::remove_file(&script_file);
+            return Ok(ExecResult {
+                stdout: format!("background:{}", pid),
+                stderr: String::new(),
+                exit_code: 0,
+                timed_out: false,
+                duration_ms: start_time.elapsed().as_millis() as u64,
+            });
+        }
+
         let mut child = command.spawn().map_err(|e| format!("Failed to spawn sandbox process '{}': {}", cmd, e))?;
 
         let stdout_handle = child.stdout.take();
@@ -230,8 +312,15 @@ impl PolyglotSandbox {
         let filtered_stdout = process_sandbox_output(Some(&req.code), &raw_stdout_str, max_lines, max_bytes);
         let filtered_stderr = process_sandbox_output(None, &raw_stderr_str, max_lines, max_bytes);
 
+        let mut final_stdout = filtered_stdout;
+        if req.summary == Some(true) {
+            let full_bytes = raw_stdout_str.len() + raw_stderr_str.len();
+            let summary_head = format!("exit {} · {} B\n```{}\n{}\n```\n", exit_code, full_bytes, lang, req.code);
+            final_stdout = format!("{}{}", summary_head, final_stdout);
+        }
+
         Ok(ExecResult {
-            stdout: filtered_stdout,
+            stdout: final_stdout,
             stderr: filtered_stderr,
             exit_code,
             timed_out,
@@ -293,6 +382,10 @@ impl PolyglotSandbox {
             timeout_secs,
             max_lines: None,
             max_bytes: None,
+            file: Some(abs_path),
+            background: None,
+            summary: None,
+            intent: None,
         })
     }
 
@@ -323,30 +416,36 @@ impl PolyglotSandbox {
     fn prepare_script(&self, language: &str, code: &str) -> Result<PathBuf, String> {
         let unique = format!("ctx-{}-{}.tmp", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0), std::process::id());
 
+        let effective_code = if is_win() && (language == "shell" || language == "bash" || language == "sh" || language == "powershell" || language == "pwsh") {
+            rewrite_windows_build_tools(code)
+        } else {
+            code.to_string()
+        };
+
         let (ext, content) = match language {
             "powershell" | "pwsh" => {
                 let mut ps_content = String::from("\u{feff}[Console]::InputEncoding = [System.Text.UTF8Encoding]::new()\n[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()\n$OutputEncoding = [System.Text.UTF8Encoding]::new()\n");
-                ps_content.push_str(code);
+                ps_content.push_str(&effective_code);
                 ("ps1", ps_content)
             }
             "shell" | "bash" | "sh" => {
                 if is_win() && (self.runtimes.shell.contains("powershell") || self.runtimes.shell.contains("pwsh")) {
                     let mut ps_content = String::from("\u{feff}[Console]::InputEncoding = [System.Text.UTF8Encoding]::new()\n[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()\n$OutputEncoding = [System.Text.UTF8Encoding]::new()\n");
-                    ps_content.push_str(code);
+                    ps_content.push_str(&effective_code);
                     ("ps1", ps_content)
                 } else if is_win() && self.runtimes.shell == "cmd" {
-                    ("cmd", code.to_string())
+                    ("cmd", effective_code)
                 } else {
-                    ("sh", code.to_string())
+                    ("sh", effective_code)
                 }
             }
-            "python" | "py" => ("py", code.to_string()),
-            "javascript" | "js" => ("js", code.to_string()),
-            "typescript" | "ts" => ("ts", code.to_string()),
-            "ruby" | "rb" => ("rb", code.to_string()),
-            "rust" | "rs" => ("rs", code.to_string()),
-            "go" => ("go", code.to_string()),
-            _ => ("txt", code.to_string()),
+            "python" | "py" => ("py", effective_code),
+            "javascript" | "js" => ("js", effective_code),
+            "typescript" | "ts" => ("ts", effective_code),
+            "ruby" | "rb" => ("rb", effective_code),
+            "rust" | "rs" => ("rs", effective_code),
+            "go" => ("go", effective_code),
+            _ => ("txt", effective_code),
         };
 
         let file_path = self.temp_dir.join(format!("{}.{}", unique, ext));

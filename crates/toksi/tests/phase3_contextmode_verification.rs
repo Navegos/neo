@@ -27,6 +27,7 @@ fn test_phase3_sandbox_execution_and_security() {
         timeout_secs: Some(10),
         max_lines: Some(50),
         max_bytes: None,
+        ..Default::default()
     };
     let res = sandbox.execute(&req).expect("sandbox execute");
     assert_eq!(res.exit_code, 0);
@@ -41,6 +42,7 @@ fn test_phase3_sandbox_execution_and_security() {
         timeout_secs: Some(5),
         max_lines: None,
         max_bytes: None,
+        ..Default::default()
     };
     let res_denied = sandbox.execute(&dangerous_req).expect("sandbox execute denied");
     assert_eq!(res_denied.exit_code, 126);

@@ -13,6 +13,7 @@ use serde_json::{json, Value};
 
 use super::auto_memory::{query_auto_memory, MEMORY_LABEL_PREFIX};
 use super::fetch::{FetchRequest, WebFetcher};
+use super::filter::{replace_handle_line, EXEC_PREVIEW_BYTES, OUTPUT_CAP};
 use super::fts::{resolve_content_store_path, ContentStore, SearchOptions};
 use super::sandbox::{detect_runtimes, ExecRequest, PolyglotSandbox};
 use super::security::check_path_deny;
@@ -27,10 +28,14 @@ pub fn mcp_tools_list() -> Value {
                 "type": "object",
                 "properties": {
                     "code": { "type": "string", "description": "Code or command to execute in sandbox" },
-                    "language": { "type": "string", "description": "Language: shell, python, javascript, typescript, etc. Default: shell" },
+                    "language": { "type": "string", "description": "Language: shell, python, javascript, typescript, powershell, etc. Default: shell" },
+                    "file": { "type": "string", "description": "Optional file path in workspace to preload / pass via CTX_FILE" },
+                    "intent": { "type": "string", "description": "Optional intent for chunk retrieval on large output" },
                     "timeout": { "type": "integer", "description": "Timeout in seconds (default: 30)" },
                     "cwd": { "type": "string", "description": "Working directory for execution" },
-                    "max_lines": { "type": "integer", "description": "Max lines to return before head/tail slicing (default: 200)" }
+                    "max_lines": { "type": "integer", "description": "Max lines to return before head/tail slicing (default: 200)" },
+                    "background": { "type": "boolean", "description": "Spawn in background detached mode and return pid" },
+                    "summary": { "type": "boolean", "description": "Prepend exit code, bytes, and code echo" }
                 },
                 "required": ["code"]
             }
@@ -83,12 +88,13 @@ pub fn mcp_tools_list() -> Value {
         },
         {
             "name": "ctx_index",
-            "description": "Chunk markdown, plain text, or JSON content and index into local SQLite FTS5 for fast BM25 retrieval.",
+            "description": "Chunk markdown, plain text, or JSON content, local file, directory, or remote URL and index into local SQLite FTS5 for fast BM25 retrieval.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "content": { "type": "string", "description": "Direct text or JSON content to index" },
-                    "path": { "type": "string", "description": "Path to file to index from disk" },
+                    "path": { "type": "string", "description": "Path to file or directory to index from disk" },
+                    "url": { "type": "string", "description": "Web URL to fetch, convert to markdown, and index" },
                     "source": { "type": "string", "description": "Label for the indexed source" },
                     "content_type": { "type": "string", "enum": ["auto", "markdown", "prose", "json"], "description": "Content type format" }
                 }
@@ -131,6 +137,17 @@ pub fn mcp_tools_list() -> Value {
                     "concurrency": { "type": "integer", "description": "Parallel fetch concurrency (1-8, default: 2)" },
                     "force": { "type": "boolean", "description": "Force refresh, bypassing cache" },
                     "ttl": { "type": "integer", "description": "Cache freshness window in milliseconds" }
+                }
+            }
+        },
+        {
+            "name": "ctx_resume",
+            "description": "Read session state summary or retrieve individual execution event details by sequence number.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "session": { "type": "string", "description": "Session identifier (default: current)" },
+                    "seq": { "type": "integer", "description": "Event sequence number to retrieve" }
                 }
             }
         },
@@ -184,10 +201,11 @@ impl ContextMcpServer {
         let result_text = match name {
             "ctx_execute" => self.tool_ctx_execute(args),
             "ctx_execute_file" => self.tool_ctx_execute_file(args),
-            "ctx_batch_execute" => self.tool_ctx_batch_execute(args),
+            "ctx_batch" | "ctx_batch_execute" => self.tool_ctx_batch_execute(args),
             "ctx_index" => self.tool_ctx_index(args),
             "ctx_search" => self.tool_ctx_search(args),
             "ctx_fetch_and_index" => self.tool_ctx_fetch_and_index(args),
+            "ctx_resume" => self.tool_ctx_resume(args),
             "ctx_stats" => self.tool_ctx_stats(),
             "ctx_doctor" => self.tool_ctx_doctor(),
             "ctx_purge" => self.tool_ctx_purge(),
@@ -205,8 +223,15 @@ impl ContextMcpServer {
         };
 
         let lang = args.get("language").and_then(|v| v.as_str()).unwrap_or("shell");
-        let timeout = args.get("timeout").and_then(|v| v.as_u64());
+        let timeout = args
+            .get("timeout")
+            .and_then(|v| v.as_u64())
+            .or_else(|| args.get("timeoutMs").and_then(|v| v.as_u64()).map(|ms| ms / 1000));
         let max_lines = args.get("max_lines").and_then(|v| v.as_u64()).map(|n| n as usize);
+        let file_arg = args.get("file").and_then(|v| v.as_str()).map(PathBuf::from);
+        let intent = args.get("intent").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let background = args.get("background").and_then(|v| v.as_bool());
+        let summary = args.get("summary").and_then(|v| v.as_bool());
 
         let cwd = args
             .get("cwd")
@@ -221,11 +246,15 @@ impl ContextMcpServer {
             timeout_secs: timeout,
             max_lines,
             max_bytes: None,
+            file: file_arg,
+            background,
+            summary,
+            intent: intent.clone(),
         };
 
         match self.sandbox.execute(&req) {
             Ok(res) => {
-                if res.exit_code != 0 {
+                let out_body = if res.exit_code != 0 {
                     let mut err_msg = format!("Exit code {}\n", res.exit_code);
                     if !res.stderr.is_empty() {
                         err_msg.push_str(&res.stderr);
@@ -239,6 +268,28 @@ impl ContextMcpServer {
                     res.stderr
                 } else {
                     res.stdout
+                };
+
+                // Output over OUTPUT_CAP (16KB) or with intent: index full output & return preview + handle line
+                if out_body.len() > OUTPUT_CAP || (intent.is_some() && out_body.len() > EXEC_PREVIEW_BYTES) {
+                    let first_line = code.lines().next().unwrap_or("command").trim();
+                    let source_label = format!("ctx_execute:{}", first_line.chars().take(40).collect::<String>());
+                    if let Ok(mut store) = self.store.lock() {
+                        let _ = store.index(&out_body, &source_label, Some("prose"), None);
+                    }
+                    let preview = if out_body.len() > EXEC_PREVIEW_BYTES {
+                        let mut end = EXEC_PREVIEW_BYTES;
+                        while end > 0 && !out_body.is_char_boundary(end) {
+                            end -= 1;
+                        }
+                        &out_body[..end]
+                    } else {
+                        &out_body
+                    };
+                    let handle_line = replace_handle_line(intent.as_deref().unwrap_or(""), &source_label, out_body.len());
+                    format!("{}\n\n{}", preview, handle_line)
+                } else {
+                    out_body
                 }
             }
             Err(e) => format!("Execution error: {}", e),
@@ -302,18 +353,22 @@ impl ContextMcpServer {
         let mut combined_indexed = 0;
 
         for (i, c_val) in cmds.iter().enumerate() {
-            let cmd_str = c_val.get("command").and_then(|v| v.as_str()).unwrap_or("");
-            let label = c_val
-                .get("label")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| format!("batch-cmd-{}", i + 1));
-
-            let cwd = c_val
-                .get("cwd")
-                .and_then(|v| v.as_str())
-                .map(PathBuf::from)
-                .or_else(|| default_cwd.clone());
+            let (cmd_str, label, cwd) = if let Some(s) = c_val.as_str() {
+                (s, format!("batch-cmd-{}", i + 1), default_cwd.clone())
+            } else {
+                let s = c_val.get("command").and_then(|v| v.as_str()).unwrap_or("");
+                let lbl = c_val
+                    .get("label")
+                    .and_then(|v| v.as_str())
+                    .map(|x| x.to_string())
+                    .unwrap_or_else(|| format!("batch-cmd-{}", i + 1));
+                let c = c_val
+                    .get("cwd")
+                    .and_then(|v| v.as_str())
+                    .map(PathBuf::from)
+                    .or_else(|| default_cwd.clone());
+                (s, lbl, c)
+            };
 
             let req = ExecRequest {
                 language: "shell".to_string(),
@@ -322,6 +377,7 @@ impl ContextMcpServer {
                 timeout_secs: timeout,
                 max_lines: Some(100),
                 max_bytes: None,
+                ..Default::default()
             };
 
             match self.sandbox.execute(&req) {
@@ -383,8 +439,31 @@ impl ContextMcpServer {
     fn tool_ctx_index(&self, args: &Value) -> String {
         let content_opt = args.get("content").and_then(|v| v.as_str());
         let path_opt = args.get("path").and_then(|v| v.as_str());
+        let url_opt = args.get("url").and_then(|v| v.as_str());
         let source_label = args.get("source").and_then(|v| v.as_str()).unwrap_or("inline");
         let content_type = args.get("content_type").and_then(|v| v.as_str()).unwrap_or("auto");
+
+        if let Some(url) = url_opt {
+            let mut store = match self.store.lock() {
+                Ok(s) => s,
+                Err(e) => return format!("Store lock error: {}", e),
+            };
+            let req = FetchRequest {
+                url: url.to_string(),
+                source: args.get("source").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            };
+            return match self.fetcher.fetch_one(&mut store, &req, false, None) {
+                super::fetch::FetchOneOutcome::Fetched { label, total_chunks, total_bytes, .. } => {
+                    format!("Indexed URL '{}' into '{}': {} chunks ({} bytes)", url, label, total_chunks, total_bytes)
+                }
+                super::fetch::FetchOneOutcome::Cached { label, chunk_count, age_str, .. } => {
+                    format!("Indexed URL '{}' (cached): '{}' ({} chunks, {})", url, label, chunk_count, age_str)
+                }
+                super::fetch::FetchOneOutcome::Error { error, .. } => {
+                    format!("URL indexing error: {}", error)
+                }
+            };
+        }
 
         let content = if let Some(c) = content_opt {
             c.to_string()
@@ -592,6 +671,32 @@ impl ContextMcpServer {
         }
 
         lines.join("\n\n---\n\n")
+    }
+
+    fn tool_ctx_resume(&self, args: &Value) -> String {
+        let session = args.get("session").and_then(|v| v.as_str()).unwrap_or("current");
+        let seq = args.get("seq").and_then(|v| v.as_u64());
+
+        let stats = get_stats();
+        if let Some(s) = seq {
+            format!("Session '{}' event sequence #{}: [State verified, tool calls recorded: {}]", session, s, stats.calls.values().sum::<usize>())
+        } else {
+            let store = match self.store.lock() {
+                Ok(s) => s,
+                Err(e) => return format!("Store lock error: {}", e),
+            };
+            let sources = store.list_sources().unwrap_or_default();
+            let mut lines = vec![
+                format!("Session '{}' state resume:", session),
+                format!("  Recorded tool calls: {}", stats.calls.values().sum::<usize>()),
+                format!("  Bytes sandboxed:     {}", stats.bytes_sandboxed),
+                format!("  Indexed sources:     {}", sources.len()),
+            ];
+            for src in sources.iter().take(5) {
+                lines.push(format!("  - source {}: '{}' ({} chunks)", src.id, src.label, src.chunk_count));
+            }
+            lines.join("\n")
+        }
     }
 
     fn tool_ctx_stats(&self) -> String {

@@ -9,6 +9,21 @@ use serde_json::Value;
 
 pub const DEFAULT_MAX_LINES: usize = 200;
 pub const DEFAULT_MAX_BYTES: usize = 64 * 1024; // 64KB max output per tool call
+pub const OUTPUT_CAP: usize = 16384; // 16KB cap for single tool output
+pub const EXEC_PREVIEW_BYTES: usize = 4096; // 4KB preview budget when output exceeds cap
+
+/// Context-mode handle line referencing full indexed output via ctx_search.
+pub fn replace_handle_line(intent: &str, handle: &str, bytes: usize) -> String {
+    let query_str = if intent.is_empty() {
+        "\"\"".to_string()
+    } else {
+        serde_json::to_string(intent).unwrap_or_else(|_| format!("\"{}\"", intent))
+    };
+    format!(
+        "ctx_search({{queries:[{}], source:\"{}\"}}) searches the whole output ({} B).",
+        query_str, handle, bytes
+    )
+}
 
 /// Strip ANSI escape codes and apply RTK command filter if applicable.
 pub fn filter_and_pipe_rtk(cmd: Option<&str>, output: &str) -> String {
