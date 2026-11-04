@@ -39,6 +39,14 @@ pub fn filter_test(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> Str
         filter_playwright(&clean, exit_code)
     } else if bin == "ctest" {
         filter_ctest(&clean, exit_code)
+    } else if bin == "sbt" && (sub == "test" || sub.contains("test") || sub.ends_with("/test")) {
+        filter_sbt_test(&clean, exit_code)
+    } else if bin == "rake" && (sub == "test" || cmd.contains("test")) {
+        filter_rake_minitest(&clean, exit_code)
+    } else if bin == "artisan" && sub == "test" {
+        filter_artisan_test(&clean, exit_code)
+    } else if bin == "paratest" || bin == "phpt" {
+        filter_phpunit(&clean, exit_code)
     } else {
         clean
     }
@@ -429,6 +437,229 @@ pub fn filter_ctest(raw: &str, exit_code: i32) -> String {
     }
 }
 
+/// Filter Scala SBT test output (ScalaTest & munit).
+pub fn filter_sbt_test(raw: &str, exit_code: i32) -> String {
+    let mut succeeded = 0;
+    let mut failed = 0;
+    let mut ignored = 0;
+    let mut canceled = 0;
+    let mut pending = 0;
+    let mut suites = 0;
+    let mut failures = Vec::new();
+    let mut has_summary = false;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        let mut content = trimmed;
+        if let Some(rest) = content.strip_prefix("[info]") {
+            content = rest.trim();
+        } else if let Some(rest) = content.strip_prefix("[error]") {
+            content = rest.trim();
+        }
+
+        if content.starts_with("Tests: succeeded ") {
+            // Tests: succeeded N, failed N, canceled N, ignored N, pending N
+            let parts: Vec<&str> = content.split(',').collect();
+            for part in parts {
+                let p = part.trim();
+                if let Some(rest) = p.strip_prefix("Tests: succeeded ") {
+                    succeeded = rest.parse().unwrap_or(0);
+                    has_summary = true;
+                } else if let Some(rest) = p.strip_prefix("succeeded ") {
+                    succeeded = rest.parse().unwrap_or(0);
+                    has_summary = true;
+                } else if let Some(rest) = p.strip_prefix("failed ") {
+                    failed = rest.parse().unwrap_or(0);
+                } else if let Some(rest) = p.strip_prefix("canceled ") {
+                    canceled = rest.parse().unwrap_or(0);
+                } else if let Some(rest) = p.strip_prefix("ignored ") {
+                    ignored = rest.parse().unwrap_or(0);
+                } else if let Some(rest) = p.strip_prefix("pending ") {
+                    pending = rest.parse().unwrap_or(0);
+                }
+            }
+            continue;
+        }
+
+        if trimmed.contains("*** FAILED ***") {
+            let name = trimmed
+                .replace("*** FAILED ***", "")
+                .replace("[info]", "")
+                .trim()
+                .trim_start_matches('-')
+                .trim()
+                .to_string();
+            failures.push(name);
+            continue;
+        }
+
+        if content.starts_with("Suites: completed ") {
+            let p = content.trim_start_matches("Suites: completed ");
+            if let Some(num_str) = p.split(',').next() {
+                suites = num_str.trim().parse().unwrap_or(0);
+            }
+        }
+    }
+
+    if exit_code == 0 && failed == 0 && canceled == 0 {
+        if has_summary {
+            let mut summary = format!("sbt test: {} passed", succeeded);
+            if ignored > 0 {
+                summary.push_str(&format!(", {} ignored", ignored));
+            }
+            if pending > 0 {
+                summary.push_str(&format!(", {} pending", pending));
+            }
+            if suites > 0 {
+                summary.push_str(&format!(" ({} suites)", suites));
+            }
+            summary
+        } else {
+            "sbt test: all tests passed".to_string()
+        }
+    } else {
+        let mut out = Vec::new();
+        if has_summary {
+            out.push(format!("sbt test: {} passed, {} failed", succeeded, failed));
+        } else {
+            out.push(format!("sbt test: FAILED (exit code {})", exit_code));
+        }
+        if !failures.is_empty() {
+            out.push("Failures:".to_string());
+            for f in &failures {
+                out.push(format!("  [FAIL] {}", f));
+            }
+        }
+        out.join("\n")
+    }
+}
+
+/// Filter Ruby Rake / Minitest output.
+pub fn filter_rake_minitest(raw: &str, exit_code: i32) -> String {
+    let mut runs = 0;
+    let mut assertions = 0;
+    let mut failures = 0;
+    let mut errors = 0;
+    let mut skips = 0;
+    let mut failure_blocks = Vec::new();
+    let mut in_failure = false;
+    let mut current_block = Vec::new();
+    let mut has_summary = false;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+
+        if trimmed.contains("runs,") && trimmed.contains("assertions,") {
+            // N runs, N assertions, N failures, N errors, N skips
+            has_summary = true;
+            for part in trimmed.split(',') {
+                let p = part.trim();
+                let nums: String = p.chars().take_while(|c| c.is_ascii_digit()).collect();
+                if let Ok(val) = nums.parse::<usize>() {
+                    if p.contains("run") {
+                        runs = val;
+                    } else if p.contains("assertion") {
+                        assertions = val;
+                    } else if p.contains("failure") {
+                        failures = val;
+                    } else if p.contains("error") {
+                        errors = val;
+                    } else if p.contains("skip") {
+                        skips = val;
+                    }
+                }
+            }
+            continue;
+        }
+
+        if trimmed.starts_with("Failure:") || trimmed.starts_with("Error:") {
+            if in_failure && !current_block.is_empty() {
+                failure_blocks.push(current_block.join("\n"));
+                current_block.clear();
+            }
+            in_failure = true;
+            current_block.push(trimmed.to_string());
+            continue;
+        }
+
+        if in_failure {
+            if trimmed.is_empty() || trimmed.starts_with("Finished in") {
+                in_failure = false;
+                if !current_block.is_empty() {
+                    failure_blocks.push(current_block.join("\n"));
+                    current_block.clear();
+                }
+            } else if current_block.len() < 5 {
+                current_block.push(line.to_string());
+            }
+        }
+    }
+
+    if in_failure && !current_block.is_empty() {
+        failure_blocks.push(current_block.join("\n"));
+    }
+
+    if exit_code == 0 && failures == 0 && errors == 0 {
+        if has_summary {
+            format!("minitest: {} runs, {} assertions (all passed)", runs, assertions)
+        } else {
+            "minitest: all tests passed".to_string()
+        }
+    } else {
+        let mut out = Vec::new();
+        out.push(format!("minitest: {} runs, {} assertions, {} failures, {} errors", runs, assertions, failures, errors));
+        if skips > 0 {
+            out.push(format!("({} skipped)", skips));
+        }
+        if !failure_blocks.is_empty() {
+            out.push(failure_blocks.join("\n\n"));
+        }
+        out.join("\n")
+    }
+}
+
+/// Filter PHP Laravel Artisan test runner output.
+pub fn filter_artisan_test(raw: &str, exit_code: i32) -> String {
+    let mut passed = 0;
+    let mut failed = 0;
+    let mut failures = Vec::new();
+    let mut summary = String::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("PASS ") {
+            passed += 1;
+        } else if trimmed.starts_with("FAIL ") {
+            failed += 1;
+            failures.push(trimmed.to_string());
+        } else if trimmed.starts_with("Tests:") || trimmed.contains("passed") && trimmed.contains("failed") {
+            summary = trimmed.to_string();
+        }
+    }
+
+    if exit_code == 0 && failed == 0 {
+        if !summary.is_empty() {
+            format!("artisan test: {}", summary)
+        } else {
+            format!("artisan test: {} passed", passed)
+        }
+    } else {
+        let mut out = Vec::new();
+        if !summary.is_empty() {
+            out.push(format!("artisan test: {}", summary));
+        } else {
+            out.push(format!("artisan test: FAILED (exit code {})", exit_code));
+        }
+        if !failures.is_empty() {
+            out.push("Failures:".to_string());
+            for f in failures.iter().take(10) {
+                out.push(format!("  {}", f));
+            }
+        }
+        out.join("\n")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -471,6 +702,32 @@ mod tests {
         let raw = "============================= test session starts =============================\ncollected 5 items\n\ntest_sample.py .....                                                     [100%]\n\n============================== 5 passed in 0.12s ==============================\n";
         let out = filter_pytest(raw, 0);
         assert!(out.contains("pytest: 5 passed in 0.12s"));
+    }
+
+    #[test]
+    fn test_filter_sbt_test() {
+        let raw = "[info] - should compute sum *** FAILED ***\n[info]   42 was not equal to 43\n[info] Suites: completed 2, aborted 0\n[info] Tests: succeeded 5, failed 1, canceled 0, ignored 0, pending 0\n";
+        let out = filter_sbt_test(raw, 1);
+        assert!(out.contains("sbt test: 5 passed, 1 failed"));
+        assert!(out.contains("should compute sum"));
+
+        let pass_raw = "[info] Suites: completed 2, aborted 0\n[info] Tests: succeeded 6, failed 0, canceled 0, ignored 0, pending 0\n";
+        let pass_out = filter_sbt_test(pass_raw, 0);
+        assert_eq!(pass_out, "sbt test: 6 passed (2 suites)");
+    }
+
+    #[test]
+    fn test_filter_rake_minitest() {
+        let raw = "Run options: --seed 1234\n\n# Running:\n\n..\n\nFinished in 0.002s\n2 runs, 2 assertions, 0 failures, 0 errors, 0 skips\n";
+        let out = filter_rake_minitest(raw, 0);
+        assert_eq!(out, "minitest: 2 runs, 2 assertions (all passed)");
+    }
+
+    #[test]
+    fn test_filter_artisan_test() {
+        let raw = "   PASS  Tests\\Unit\\ExampleTest\n  ✓ basic test\n\n  Tests:  1 passed (1 assertions)\n  Duration: 0.05s\n";
+        let out = filter_artisan_test(raw, 0);
+        assert!(out.contains("artisan test: Tests:  1 passed (1 assertions)"));
     }
 }
 

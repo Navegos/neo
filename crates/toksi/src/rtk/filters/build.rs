@@ -38,6 +38,15 @@ pub fn filter_build(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> St
         "pip" | "uv" => filter_pip_uv(bin, cmd, &clean, exit_code),
         "eslint" => filter_eslint(&clean, exit_code),
         "prettier" => filter_prettier(&clean, exit_code),
+        "sbt" => filter_sbt_compile(&clean, exit_code),
+        "rubocop" => filter_rubocop(&clean, exit_code),
+        "phpstan" => filter_phpstan(&clean, exit_code),
+        "pint" => filter_pint(&clean, exit_code),
+        "golangci-lint" => filter_golangci_lint(&clean, exit_code),
+        "sqlfluff" => filter_sqlfluff(&clean, exit_code),
+        "next" => filter_next_build(&clean, exit_code),
+        "prisma" => filter_prisma(cmd, &clean, exit_code),
+        "ng" => filter_ng_build(&clean, exit_code),
         _ => clean,
     }
 }
@@ -560,6 +569,316 @@ pub fn filter_prettier(raw: &str, exit_code: i32) -> String {
     }
 }
 
+/// Filter Scala SBT compile output.
+pub fn filter_sbt_compile(raw: &str, exit_code: i32) -> String {
+    let mut source_count: usize = 0;
+    let mut total_time_secs = None;
+    let mut error_lines = Vec::new();
+    let mut has_success = false;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+
+        if trimmed.starts_with("[info] Compiling ") {
+            let rest = trimmed.trim_start_matches("[info] Compiling ");
+            if let Some(num_str) = rest.split_whitespace().next() {
+                source_count += num_str.parse().unwrap_or(0);
+            }
+            continue;
+        }
+
+        if trimmed.starts_with("[success] Total time: ") {
+            let rest = trimmed.trim_start_matches("[success] Total time: ");
+            total_time_secs = rest.split_whitespace().next().map(|s| s.to_string());
+            has_success = true;
+            continue;
+        }
+
+        if trimmed.starts_with("[error] ") {
+            let err = trimmed.trim_start_matches("[error] ").trim();
+            if !err.is_empty() && !err.starts_with("Total time:") && !err.contains("compileIncremental") {
+                error_lines.push(err.to_string());
+            }
+        }
+    }
+
+    if !error_lines.is_empty() || exit_code != 0 {
+        if !error_lines.is_empty() {
+            let mut out = vec![format!("sbt compile: {} errors", error_lines.len())];
+            for err in error_lines.iter().take(20) {
+                out.push(format!("  [error] {}", err));
+            }
+            out.join("\n")
+        } else {
+            format!("sbt compile: FAILED (exit code {})", exit_code)
+        }
+    } else if has_success || source_count > 0 {
+        let mut msg = format!("sbt compile: {} sources compiled", source_count);
+        if let Some(t) = total_time_secs {
+            msg.push_str(&format!(" ({}s)", t));
+        }
+        msg
+    } else {
+        "sbt compile: success".to_string()
+    }
+}
+
+/// Filter Ruby RuboCop output.
+pub fn filter_rubocop(raw: &str, exit_code: i32) -> String {
+    let mut offenses = Vec::new();
+    let mut summary = String::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.contains("files inspected,") && (trimmed.contains("offense detected") || trimmed.contains("offenses detected")) {
+            summary = trimmed.to_string();
+        } else if trimmed.contains(':') && (trimmed.contains(": C: ") || trimmed.contains(": W: ") || trimmed.contains(": E: ") || trimmed.contains(": F: ")) {
+            offenses.push(trimmed.to_string());
+        }
+    }
+
+    if exit_code == 0 && offenses.is_empty() {
+        if !summary.is_empty() {
+            format!("rubocop: {}", summary)
+        } else {
+            "rubocop: no offenses detected".to_string()
+        }
+    } else {
+        let mut out = Vec::new();
+        if !summary.is_empty() {
+            out.push(format!("rubocop: {}", summary));
+        } else {
+            out.push(format!("rubocop: {} offenses detected", offenses.len()));
+        }
+        for o in offenses.iter().take(25) {
+            out.push(format!("  {}", o));
+        }
+        if offenses.len() > 25 {
+            out.push(format!("  ... +{} more offenses", offenses.len() - 25));
+        }
+        out.join("\n")
+    }
+}
+
+/// Filter PHP PHPStan static analysis output.
+pub fn filter_phpstan(raw: &str, exit_code: i32) -> String {
+    let mut errors = Vec::new();
+    let mut summary = String::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("[OK]") || trimmed.starts_with("[ERROR]") {
+            summary = trimmed.to_string();
+        } else if trimmed.contains(".php") || (trimmed.starts_with("Line ") || trimmed.contains("  : ")) {
+            errors.push(trimmed.to_string());
+        }
+    }
+
+    if exit_code == 0 && (errors.is_empty() || summary.starts_with("[OK]")) {
+        if !summary.is_empty() {
+            format!("phpstan: {}", summary)
+        } else {
+            "phpstan: [OK] No errors".to_string()
+        }
+    } else {
+        let mut out = Vec::new();
+        if !summary.is_empty() {
+            out.push(format!("phpstan: {}", summary));
+        } else {
+            out.push(format!("phpstan: FAILED (exit code {})", exit_code));
+        }
+        for e in errors.iter().take(25) {
+            out.push(format!("  {}", e));
+        }
+        if errors.len() > 25 {
+            out.push(format!("  ... +{} more errors", errors.len() - 25));
+        }
+        out.join("\n")
+    }
+}
+
+/// Filter PHP Laravel Pint code style output.
+pub fn filter_pint(raw: &str, exit_code: i32) -> String {
+    let mut files = Vec::new();
+    let mut summary = String::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("PASS") || trimmed.starts_with("FAIL") {
+            summary = trimmed.to_string();
+        } else if trimmed.contains(".php") {
+            files.push(trimmed.to_string());
+        }
+    }
+
+    if exit_code == 0 && files.is_empty() {
+        if !summary.is_empty() {
+            format!("pint: {}", summary)
+        } else {
+            "pint: all files passed".to_string()
+        }
+    } else {
+        let mut out = Vec::new();
+        out.push(if !summary.is_empty() { format!("pint: {}", summary) } else { format!("pint: {} files changed/failing", files.len()) });
+        for f in files.iter().take(20) {
+            out.push(format!("  {}", f));
+        }
+        out.join("\n")
+    }
+}
+
+/// Filter Go golangci-lint output.
+pub fn filter_golangci_lint(raw: &str, exit_code: i32) -> String {
+    let mut issues = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.contains(".go:") {
+            issues.push(trimmed.to_string());
+        }
+    }
+
+    if exit_code == 0 && issues.is_empty() {
+        "golangci-lint: no issues found".to_string()
+    } else {
+        let mut out = vec![format!("golangci-lint: {} issues found", issues.len())];
+        for issue in issues.iter().take(25) {
+            out.push(format!("  {}", issue));
+        }
+        if issues.len() > 25 {
+            out.push(format!("  ... +{} more issues", issues.len() - 25));
+        }
+        out.join("\n")
+    }
+}
+
+/// Filter SQL sqlfluff lint output.
+pub fn filter_sqlfluff(raw: &str, exit_code: i32) -> String {
+    let mut issues = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.contains("|") && (trimmed.contains("L:") || trimmed.contains("AL") || trimmed.contains("LT")) {
+            issues.push(trimmed.to_string());
+        }
+    }
+
+    if exit_code == 0 && issues.is_empty() {
+        "sqlfluff: all checks passed".to_string()
+    } else {
+        let mut out = vec![format!("sqlfluff: {} violations", issues.len())];
+        for issue in issues.iter().take(25) {
+            out.push(format!("  {}", issue));
+        }
+        if issues.len() > 25 {
+            out.push(format!("  ... +{} more violations", issues.len() - 25));
+        }
+        out.join("\n")
+    }
+}
+
+/// Filter Next.js build output.
+pub fn filter_next_build(raw: &str, exit_code: i32) -> String {
+    let mut routes_static = 0;
+    let mut routes_dynamic = 0;
+    let mut routes_total = 0;
+    let mut errors = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('○') || trimmed.starts_with("(Static)") {
+            routes_static += 1;
+            routes_total += 1;
+        } else if trimmed.starts_with('●') || trimmed.starts_with('◐') || trimmed.starts_with('λ') || trimmed.starts_with("(Dynamic)") {
+            routes_dynamic += 1;
+            routes_total += 1;
+        } else if trimmed.contains("Error:") || trimmed.starts_with("Failed to compile") {
+            errors.push(trimmed.to_string());
+        }
+    }
+
+    if exit_code != 0 || !errors.is_empty() {
+        let mut out = vec![format!("next build: FAILED (exit code {})", exit_code)];
+        for err in errors.iter().take(15) {
+            out.push(format!("  {}", err));
+        }
+        out.join("\n")
+    } else if routes_total > 0 {
+        format!("next build: {} routes generated ({} static, {} dynamic)", routes_total, routes_static, routes_dynamic)
+    } else {
+        "next build: compiled successfully".to_string()
+    }
+}
+
+/// Filter Prisma CLI output (generate, migrate, db push).
+pub fn filter_prisma(cmd: &str, raw: &str, exit_code: i32) -> String {
+    let mut clean_lines = Vec::new();
+    let mut models = 0;
+
+    for line in raw.lines() {
+        // Strip ASCII art and box characters
+        if line.contains('█') || line.contains('▀') || line.contains('▄') || line.contains('┌') || line.contains('└') || line.contains('│') {
+            continue;
+        }
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.contains("model") && trimmed.contains("generated") {
+            models += 1;
+        }
+        if trimmed.starts_with("✔") || trimmed.starts_with("Prisma schema loaded") || trimmed.contains("The following migration(s)") || trimmed.contains("Database is now in sync") {
+            clean_lines.push(trimmed.to_string());
+        }
+    }
+
+    if exit_code != 0 {
+        format!("prisma: failed (exit code {})\n{}", exit_code, raw.lines().take(15).collect::<Vec<_>>().join("\n"))
+    } else if !clean_lines.is_empty() {
+        let mut out = vec!["prisma: success".to_string()];
+        out.extend(clean_lines);
+        out.join("\n")
+    } else if models > 0 {
+        format!("prisma: generated client with {} models", models)
+    } else {
+        format!("prisma: operation completed ({})", cmd)
+    }
+}
+
+/// Filter Angular ng build output.
+pub fn filter_ng_build(raw: &str, exit_code: i32) -> String {
+    let mut bundles = Vec::new();
+    let mut errors = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("Initial Chunk Files") || trimmed.starts_with("Lazy Chunk Files") || trimmed.starts_with("Build at:") {
+            continue;
+        }
+        if trimmed.ends_with(".js") || trimmed.ends_with(".css") {
+            bundles.push(trimmed.to_string());
+        } else if trimmed.starts_with("Error:") || trimmed.starts_with("✘ [ERROR]") {
+            errors.push(trimmed.to_string());
+        }
+    }
+
+    if exit_code != 0 || !errors.is_empty() {
+        let mut out = vec![format!("ng build: FAILED (exit code {})", exit_code)];
+        for e in errors.iter().take(15) {
+            out.push(format!("  {}", e));
+        }
+        out.join("\n")
+    } else if !bundles.is_empty() {
+        let mut out = vec![format!("ng build: {} chunk files generated", bundles.len())];
+        for b in bundles.iter().take(10) {
+            out.push(format!("  {}", b));
+        }
+        out.join("\n")
+    } else {
+        "ng build: build completed successfully".to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -601,5 +920,42 @@ mod tests {
         assert!(out.contains("tsc: 1 errors in 1 files"));
         assert!(out.contains("src/main.ts(12,5):"));
         assert!(out.contains("TS2322: Type 'string' is not assignable to type 'number'."));
+    }
+
+    #[test]
+    fn test_filter_sbt_compile() {
+        let raw = "[info] Compiling 12 Scala sources to target/classes ...\n[success] Total time: 3 s\n";
+        let out = filter_sbt_compile(raw, 0);
+        assert_eq!(out, "sbt compile: 12 sources compiled (3s)");
+    }
+
+    #[test]
+    fn test_filter_rubocop() {
+        let raw = "Inspecting 15 files\n..\napp/models/user.rb:10:5: C: Style/StringLiterals: Prefer single-quoted strings.\n\n15 files inspected, 1 offense detected\n";
+        let out = filter_rubocop(raw, 1);
+        assert!(out.contains("1 offense detected"));
+        assert!(out.contains("Style/StringLiterals"));
+    }
+
+    #[test]
+    fn test_filter_phpstan() {
+        let raw = "Note: Using configuration /path/phpstan.neon.\n 5/5 [▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓] 100%\n\n [OK] No errors\n";
+        let out = filter_phpstan(raw, 0);
+        assert_eq!(out, "phpstan: [OK] No errors");
+    }
+
+    #[test]
+    fn test_filter_next_build() {
+        let raw = "Route (app)                              Size     First Load JS\n○ /                                      5.2 kB          85 kB\n● /dashboard                             12 kB           92 kB\nλ /api/data                              0 B             80 kB\n";
+        let out = filter_next_build(raw, 0);
+        assert_eq!(out, "next build: 3 routes generated (1 static, 2 dynamic)");
+    }
+
+    #[test]
+    fn test_filter_prisma() {
+        let raw = "Prisma schema loaded from schema.prisma\n✔ Generated Prisma Client to ./node_modules/@prisma/client in 85ms\n";
+        let out = filter_prisma("prisma generate", raw, 0);
+        assert!(out.contains("prisma: success"));
+        assert!(out.contains("Generated Prisma Client"));
     }
 }

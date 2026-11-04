@@ -461,6 +461,111 @@ pub fn filter_glab(cmd: &str, stdout: &str, stderr: &str, _exit_code: i32) -> St
     }
 }
 
+/// Filter Graphite (gt) CLI commands.
+pub fn filter_gt(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> String {
+    let raw = if !stderr.is_empty() && stdout.is_empty() {
+        stderr
+    } else {
+        stdout
+    };
+    let clean = strip_ansi(raw);
+    let parts: Vec<&str> = cmd.split_whitespace().collect();
+    let subcommand = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
+
+    match subcommand {
+        "status" => filter_git_status(&clean),
+        "diff" | "show" => filter_git_diff(&clean),
+        "log" => filter_gt_log(&clean),
+        "submit" => filter_gt_submit(&clean, exit_code),
+        "sync" => filter_gt_sync(&clean, exit_code),
+        "restack" => filter_gt_restack(&clean, exit_code),
+        "create" => filter_gt_create(&clean, exit_code),
+        "add" | "push" | "checkout" => filter_git_ops(&clean, subcommand, exit_code),
+        _ => {
+            if clean.lines().count() > 20 {
+                clean.lines().take(20).collect::<Vec<_>>().join("\n")
+            } else {
+                clean
+            }
+        }
+    }
+}
+
+fn filter_gt_log(raw: &str) -> String {
+    let mut lines = Vec::new();
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with("Press ? for help") {
+            continue;
+        }
+        lines.push(line.to_string());
+    }
+    if lines.len() > 30 {
+        let mut truncated = lines.into_iter().take(25).collect::<Vec<_>>();
+        truncated.push("... [stack branches truncated]".to_string());
+        truncated.join("\n")
+    } else {
+        lines.join("\n")
+    }
+}
+
+fn filter_gt_submit(raw: &str, exit_code: i32) -> String {
+    let mut prs = Vec::new();
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.contains("pull request") || trimmed.contains("PR #") || trimmed.starts_with("https://github.com/") {
+            prs.push(trimmed.to_string());
+        }
+    }
+    if !prs.is_empty() {
+        format!("gt submit: success\n{}", prs.join("\n"))
+    } else if exit_code == 0 {
+        "gt submit: stack submitted successfully".to_string()
+    } else {
+        format!("gt submit: failed (exit code {})\n{}", exit_code, raw.trim())
+    }
+}
+
+fn filter_gt_sync(raw: &str, exit_code: i32) -> String {
+    if exit_code == 0 {
+        let mut synced_count = 0;
+        for line in raw.lines() {
+            if line.contains("Synced") || line.contains("Pulled") || line.contains("Updated") {
+                synced_count += 1;
+            }
+        }
+        if synced_count > 0 {
+            format!("gt sync: {} branches synced with trunk", synced_count)
+        } else {
+            "gt sync: stack in sync with trunk".to_string()
+        }
+    } else {
+        format!("gt sync: failed (exit code {})\n{}", exit_code, raw.trim())
+    }
+}
+
+fn filter_gt_restack(raw: &str, exit_code: i32) -> String {
+    if exit_code == 0 {
+        "gt restack: stack restacked onto updated parent".to_string()
+    } else {
+        format!("gt restack: conflict or error (exit code {})\n{}", exit_code, raw.trim())
+    }
+}
+
+fn filter_gt_create(raw: &str, exit_code: i32) -> String {
+    if exit_code == 0 {
+        for line in raw.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("Created branch") || trimmed.starts_with("Switched to branch") {
+                return trimmed.to_string();
+            }
+        }
+        "gt create: branch created".to_string()
+    } else {
+        format!("gt create: failed (exit code {})\n{}", exit_code, raw.trim())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -498,6 +603,18 @@ mod tests {
         let out = filter_gh_pr_checks(raw);
         assert!(out.contains("CI Checks: 1 passed, 1 failed, 1 pending"));
         assert!(out.contains("test\tfail\thttps://ci/2"));
+    }
+
+    #[test]
+    fn test_filter_gt() {
+        let submit_raw = "Submitting branch feature...\nCreated pull request #42 for feature: https://github.com/org/repo/pull/42\n";
+        let out = filter_gt("gt submit", submit_raw, "", 0);
+        assert!(out.contains("gt submit: success"));
+        assert!(out.contains("pull request #42"));
+
+        let sync_raw = "Synced branch feat-1\nSynced branch feat-2\n";
+        let sync_out = filter_gt("gt sync", sync_raw, "", 0);
+        assert!(sync_out.contains("2 branches synced"));
     }
 }
 

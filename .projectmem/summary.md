@@ -40,7 +40,6 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - Refactor: Refactor code structure for improved readability and maintainability [crates/toksi/.toksi/memory.db]
 
 ## Notes
-- New feature: feat(tokless): implement Phase 7 headroom deep integration and native enterprise AI gateway [crates/tokless/src/gateway/agent_cli/claude_code.rs]
 - New feature: feat(tokless): implement Phase 12 native Prometheus telemetry subsystem and metrics endpoint" -m "- Add in-tree model ca [crates/tokless/src/dashboard/mod.rs]
 - New feature: feat: enhance proxy detection and routing for Antigravity and Copilot, improve query handling in BYOK gateway [crates/toksi/src/agents/antigravity.rs]
 - New feature: feat: implement Transfer-Encoding chunked decoding in HTTP request parser and add corresponding tests [crates/toksi/src/headroom/byok_gateway.rs]
@@ -50,6 +49,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - New feature: feat: Implement bypass for non-LLM authentication and ConnectRPC management endpoints; enhance error handling and loggin [crates/toksi/src/agents/antigravity.rs]
 - New feature: feat: Update project documentation and fix CLI test assertions; enhance command filtering logic [crates/toksi/src/rtk/engine.rs]
 - New feature: feat: Implement auto-population of failure traces in projectmem; add tests for RTK failure trace handling [crates/toksi/src/projectmem/cli.rs]
+- New feature: feat: Add auto-memory functionality for reading and querying memory files; implement tests for auto-memory operations [crates/toksi/src/contextmode/auto_memory.rs]
 
 ## Key files
 - `.editorconfig`

@@ -33,6 +33,8 @@ pub fn filter_system(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> S
         "env" => filter_env(&clean),
         "psql" => filter_psql(&clean, exit_code),
         "aws" => filter_aws(cmd, &clean, exit_code),
+        "ast-grep" | "sg" => filter_ast_grep(&clean, exit_code),
+        "black" => filter_black(&clean, exit_code),
         _ => clean,
     }
 }
@@ -319,6 +321,72 @@ pub fn filter_aws(_cmd: &str, raw: &str, _exit_code: i32) -> String {
     out.join("\n")
 }
 
+/// Filter ast-grep search matches by grouping and capping lines per file.
+pub fn filter_ast_grep(raw: &str, exit_code: i32) -> String {
+    if raw.trim().is_empty() {
+        return String::new();
+    }
+    let mut file_matches: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
+    let mut non_match_lines = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = line.splitn(3, ':').collect();
+        if parts.len() == 3 && parts[1].chars().all(|c| c.is_ascii_digit()) {
+            let file = parts[0].to_string();
+            let entry = format!("{}:{}", parts[1], parts[2]);
+            file_matches.entry(file).or_default().push(entry);
+        } else {
+            non_match_lines.push(line.to_string());
+        }
+    }
+
+    if file_matches.is_empty() {
+        if exit_code != 0 {
+            return format!("ast-grep: failed (exit code {})\n{}", exit_code, raw.trim());
+        }
+        return raw.to_string();
+    }
+
+    let mut out = Vec::new();
+    for (file, entries) in file_matches {
+        let count = entries.len();
+        let display_limit = 5;
+        for entry in entries.iter().take(display_limit) {
+            out.push(format!("{}:{}", file, entry));
+        }
+        if count > display_limit {
+            out.push(format!("  [... +{} more match line(s) in {}]", count - display_limit, file));
+        }
+    }
+    out.join("\n")
+}
+
+/// Filter python black formatting output.
+pub fn filter_black(raw: &str, exit_code: i32) -> String {
+    let mut summary = String::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.contains("reformatted") || trimmed.contains("unchanged") || trimmed.contains("would be reformatted") {
+            summary = trimmed.to_string();
+        }
+    }
+
+    if exit_code == 0 {
+        if !summary.is_empty() {
+            format!("black: {}", summary)
+        } else {
+            "black: all files formatted".to_string()
+        }
+    } else {
+        format!("black: FAILED (exit code {})\n{}", exit_code, raw.trim())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,5 +420,20 @@ mod tests {
 
         let out_l = filter_wc("wc -l foo.rs", raw, 0);
         assert_eq!(out_l, "12");
+    }
+
+    #[test]
+    fn test_filter_ast_grep() {
+        let raw = "src/lib.rs:10:pub fn foo() {}\nsrc/lib.rs:20:pub fn bar() {}\nsrc/lib.rs:30:pub fn baz() {}\nsrc/lib.rs:40:pub fn qux() {}\nsrc/lib.rs:50:pub fn abc() {}\nsrc/lib.rs:60:pub fn def() {}\n";
+        let out = filter_ast_grep(raw, 0);
+        assert!(out.contains("src/lib.rs:10:pub fn foo() {}"));
+        assert!(out.contains("1 more match line(s) in src/lib.rs"));
+    }
+
+    #[test]
+    fn test_filter_black() {
+        let raw = "reformatted /path/to/script.py\nAll done! ✨ 🍰 ✨\n1 file reformatted, 3 files left unchanged.\n";
+        let out = filter_black(raw, 0);
+        assert_eq!(out, "black: 1 file reformatted, 3 files left unchanged.");
     }
 }

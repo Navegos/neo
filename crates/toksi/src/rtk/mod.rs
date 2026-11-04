@@ -89,6 +89,24 @@ pub fn extract_root_cause(cmd: &str, output: &str) -> Option<String> {
         {
             return Some(trimmed.to_string());
         }
+        if (bin == "sbt" || cmd.contains("sbt"))
+            && (trimmed.contains("*** FAILED ***") || (trimmed.starts_with("[error]") && !trimmed.contains("Total time:")))
+        {
+            return Some(trimmed.to_string());
+        }
+        if (bin == "rubocop" || bin == "rake" || cmd.contains("rubocop") || cmd.contains("rake"))
+            && (trimmed.starts_with("Failure:") || trimmed.starts_with("Error:") || (trimmed.contains(".rb:") && trimmed.contains(": ")))
+        {
+            return Some(trimmed.to_string());
+        }
+        if (bin == "phpunit" || bin == "artisan" || bin == "phpstan" || bin == "pest")
+            && (trimmed.starts_with("FAIL ") || trimmed.starts_with("FAILURES!") || trimmed.starts_with("Fatal error:") || (trimmed.starts_with("[ERROR]") && trimmed.contains("errors")))
+        {
+            return Some(trimmed.to_string());
+        }
+        if bin == "golangci-lint" && trimmed.contains(".go:") {
+            return Some(trimmed.to_string());
+        }
     }
 
     // Fallback: look for general exception or error patterns regardless of bin
@@ -146,6 +164,18 @@ mod tests {
         assert_eq!(
             extract_root_cause("go test ./...", go_err),
             Some("--- FAIL: TestFailure (0.00s)".to_string())
+        );
+
+        let sbt_err = "[info] - math.Add should return 4 *** FAILED ***\n[info]   42 was not equal to 4";
+        assert_eq!(
+            extract_root_cause("sbt test", sbt_err),
+            Some("[info] - math.Add should return 4 *** FAILED ***".to_string())
+        );
+
+        let php_err = "Fatal error: Uncaught Error: Call to undefined function foo()\n";
+        assert_eq!(
+            extract_root_cause("artisan test", php_err),
+            Some("Fatal error: Uncaught Error: Call to undefined function foo()".to_string())
         );
     }
 }

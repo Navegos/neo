@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/rtk.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use crate::rtk::engine::{list_supported_commands, run_command_filtered};
 use crate::rtk::hook::run_rtk_rewrite;
@@ -54,7 +54,13 @@ pub fn run_rtk_cli(args: &[String]) -> i32 {
         return run_rtk_rewrite();
     }
 
-    let cmd_line = args.join(" ");
+    let actual_args = if first == "--" && args.len() > 1 {
+        &args[1..]
+    } else {
+        args
+    };
+
+    let cmd_line = actual_args.join(" ");
     match run_command_filtered(&cmd_line) {
         Ok(code) => code,
         Err(e) => {

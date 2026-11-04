@@ -150,17 +150,18 @@ pub fn handle_failed_command_trace(cmd_line: &str, stdout: &str, stderr: &str) {
 /// List all supported command filters (native commands + 60+ TOML filters).
 pub fn list_supported_commands() -> Vec<&'static str> {
     let mut cmds = vec![
-        "git", "git status", "git diff", "git log", "git branch", "git add", "git commit", "git push", "git pull",
-        "gh", "glab",
+        "git", "git status", "git diff", "git log", "git branch", "git add", "git commit", "git push", "git pull", "git checkout", "git stash",
+        "gh", "glab", "gt",
         "cargo", "cargo build", "cargo check", "cargo clippy", "cargo test", "cargo nextest",
         "tsc", "pytest", "vitest", "jest", "playwright", "ctest",
-        "go", "go build", "go test", "go vet",
+        "go", "go build", "go test", "go vet", "golangci-lint",
         "dotnet", "dotnet build", "dotnet test",
-        "mvn", "gradle", "gradlew",
-        "mypy", "ruff", "make", "eslint", "prettier",
-        "npm", "pnpm", "yarn", "bun", "deno", "pip", "uv",
+        "mvn", "gradle", "gradlew", "sbt",
+        "mypy", "ruff", "make", "eslint", "prettier", "rubocop", "phpstan", "pint", "sqlfluff",
+        "npm", "pnpm", "yarn", "bun", "deno", "pip", "uv", "prisma", "next", "ng",
+        "rspec", "rake", "phpunit", "pest", "artisan",
         "docker", "docker ps", "docker compose", "podman", "kubectl",
-        "curl", "wget", "ls", "tree", "cat", "find", "wc", "env", "psql", "aws",
+        "curl", "wget", "ls", "tree", "cat", "find", "wc", "env", "psql", "aws", "ast-grep", "black",
     ];
 
     cmds.extend(list_filter_names());
