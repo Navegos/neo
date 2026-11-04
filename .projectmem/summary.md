@@ -4,7 +4,7 @@ _Last updated: 2026-11-04_
 
 ## Project purpose
 --------------------------------------------------------------------------------
-Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go to Rust.
+Enterprise-grade native Rust tooling, token-optimization, and headroom gateway pipeline for AI coding assistants. Transparently sits between 17 coding agents and 39+ upstream LLM providers to cut token spend by 30-70%, enforce latency/cost/concurrency quotas, and provide zero-latency memory, AST code intelligence, and real-time telemetry across dedicated isolated ports.
 
 ## Recent issues
 - [OPEN] #0034 Bypass non-LLM authentication and ConnectRPC management endpoints directly without intercepting headers or proxying, capturing only LLM processing in and out [crates/toksi/src/headroom/proxy.rs:615 (serve_headroom_connection)] (open)
@@ -23,10 +23,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - ...and 22 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...34 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Phase 5: CodeGraph pure Rust engine integrated with multi-language Tree-sitter parsers, petgraph blast-radius traversal, SQLite symbols cache, in-process MCP server, and projectmem coordinate resolution; 281 tests passing with 0 warnings [crates/tokless/src/codegraph/mod.rs]
-- Phase 6: In-Tree Rules & Skills Integration complete with embedded Karpathy principles, Caveman ASD-STE100, and Ponytail discipline; zero clone links, config patchers for CLAUDE.md/AGENTS.md/.cursor, CLI subcommands, 310 tests passing with 0 warnings [crates/tokless/src/rules/mod.rs]
-- Phase 7: Headroom Deep Integration verified with core compression (log, code, json), 1024-token cache alignment, adaptive memory governor (L0/L1/L2), and BYOK streaming proxy; 0 warnings, all tests passing [crates/tokless/src/headroom/mod.rs]
+- ...37 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 8: Complete runtime downloader purge from rtk.rs; enforce native in-tree compilation and system PATH detection via which; verified with phase8 test suite (5/5 passing, 0 compiler warnings) [crates/tokless/src/tools/rtk.rs:109]
 - Phase 9: Purged destructive binary hijacking from antigravity, grok, and copilot; implemented self-healing engine in crates/tokless/src/env_injector/heal.rs to restore .real/.real.exe binaries and purge shims/state files across tokless init, tokless doctor --fix, and tokless daemon start
 - Phase 10: Non-destructive environment injection via native Windows HKCU\\Environment APIs and broadcast WM_SETTINGCHANGE, Unix environment.d/systemd, teardown guard on daemon stop and Ctrl+C [crates/tokless/src/env_injector/]
@@ -39,9 +36,11 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - Refactor: Refactor proxy handling and telemetry integration [crates/toksi/src/agents/antigravity.rs]
 - Use only toksi paths, purge tokless aliases from discovery and adapters, keep tokless checks strictly for self-healing and data migration
 - Refactor: Refactor headroom proxy and utility functions; enhance binary resolution and add CORS support [crates/toksi/src/agents/antigravity.rs]
+- Consolidated toksi master architecture v3.0: unified single daemon launch (toksi daemon start), cross-platform forward-slash (/) paths standard for Git Bash compatibility, default SQLite config storage in ~/.toksi/toksi.db, mouse-capable TUI (ratatui/crossterm) and Web UI Telemetry Cockpit (127.0.0.1:9099) with 17-agent observation grid, 36 BYOK providers, and full audit of all 12 inspect-vault engines [crates/toksi/CONSOLIDATION_PLAN.md:1]
+- Toksi master architecture v3.1: 5-port dedicated topology (:8787 Headroom, :8789 Copilot VSCode, :8790 Copilot CLI, :9099 AI Gateway, :9100 Background Dashboard Cockpit) eliminating port contention; expanded 39+ BYOK providers including Bifrost, SageMaker, Bedrock Mantle and smart background Agent CLI bridges; gateway activation guard requiring >=1 provider without crashing when using uncredentialed CLI agents; ground-truth session token accounting from live SSE streams and rate-limit headers; full rules/skills/instructions synchronization across agent workspaces and home config dirs [crates/toksi/CONSOLIDATION_PLAN.md:1]
+- Enforce first-class BYOK provider registration for 5 Local Agent CLIs (agy.exe, copilot.exe, claude, cursor, grok) with smart background launch and chat endpoint verification; mandate active paid quota/subscription for all BYOK providers (disqualifying free-tier accounts from gateway rotation pool with non-blocking inform and zero-fail/zero-bug fallback) [crates/toksi/CONSOLIDATION_PLAN.md:1]
 
 ## Notes
-- New feature: feat(tokless): implement Phase 12 TUI and telemetry web dashboard verification [crates/tokless/src/dashboard/api.rs]
 - New feature: feat(tokless): implement Phase 13 end-to-end system verification and benchmarks [crates/tokless/tests/phase13_e2e_verification.rs]
 - New feature: feat: update project documentation for Phase 13 end-to-end system verification and benchmarks [crates/tokless/CONSOLIDATION_PLAN.md]
 - New feature: feat(tokless): implement Phase 7 headroom deep integration and native enterprise AI gateway [crates/tokless/src/gateway/agent_cli/claude_code.rs]
@@ -51,6 +50,7 @@ Unified tooling and headroom proxy pipeline for AI coding agents, ported from Go
 - New feature: feat: Add VS Code Antigravity extension connection fixes and RTK hook enhancements [crates/toksi/src/agents/antigravity.rs]
 - New feature: feat(keyring): Implement OS keyring support with OAuth envelope handling [crates/toksi/src/commands/auth.rs]
 - New feature: feat: Enhance Antigravity auth and eligibility checks; implement route discrimination for AICode and improve keyring tar [crates/toksi/src/gateway/agent_cli/gemini_agy.rs]
+- New feature: feat: Implement bypass for non-LLM authentication and ConnectRPC management endpoints; enhance error handling and loggin [crates/toksi/src/agents/antigravity.rs]
 
 ## Key files
 - `.editorconfig`
