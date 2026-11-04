@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/projectmem/store.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::env;
 use std::fs::{self, File, OpenOptions};
@@ -58,7 +58,10 @@ pub fn read_last_failure_trace(root: Option<&Path>) -> Option<LastFailureTrace> 
     let raw = fs::read_to_string(path).ok()?;
     serde_json::from_str(&raw).ok()
 }
-pub const INSTRUCTIONS_VERSION: u32 = 1;
+pub const INSTRUCTIONS_VERSION: u32 = 2;
+pub const TITLE_CHARS: usize = 140;
+pub const RECORD_CHARS: usize = 300;
+pub const GLOBAL_MEMORY_HEADING: &str = "## Global Memory — Inherited Knowledge";
 
 pub struct FileLock {
     file: File,
@@ -569,6 +572,7 @@ pub fn ai_instructions() -> String {
         | `.projectmem/summary.md` | `get_summary()` | Distilled project memory (what HAPPENED) |\n\
         | `.projectmem/PROJECT_MAP.md` | `get_project_map()` | Structural layout |\n\
         | `.projectmem/plan.md` | `get_plan()` | Ideas + plans (what we INTEND to do) |\n\n\
+        Prefer the MCP tools when available — they're cheaper than reading files individually (the summary is a bounded snapshot, a few hundred tokens on a young project and a few thousand on an aged one) and they auto-resolve the project root regardless of your working directory.\n\n\
         ## MANDATORY Triggers — You MUST act on these automatically\n\n\
         | Trigger | MCP tool | CLI command |\n\
         | --- | --- | --- |\n\
@@ -580,6 +584,8 @@ pub fn ai_instructions() -> String {
         | Architectural / design decision | `add_decision(summary)` | `pjm decision \"<text>\" --at \"<file:line>\"` |\n\
         | Gotcha / setup detail / constraint discovered | `add_note(summary)` | `pjm note \"<text>\" --at \"<file:line>\"` |\n\
         | Before finishing the session | `get_summary()` | `pjm show` |\n\n\
+        ## Record Length Guidance\n\n\
+        - Keep an issue title under {TITLE_CHARS} characters and an attempt, fix, note or decision under {RECORD_CHARS}. `summary.md` is read at every session start and clips longer records at {RECORD_CHARS} characters; put further evidence into another `record_attempt` instead of one long entry.\n\n\
         All write tools auto-append to `events.jsonl` AND auto-regenerate `summary.md`.\n"
     )
 }
@@ -745,6 +751,21 @@ pub fn initialize(root: Option<&Path>, purpose: Option<&str>) -> Result<PathBuf,
     let instructions = dir.join(AI_INSTRUCTIONS_FILE);
     if !instructions.exists() {
         fs::write(&instructions, ai_instructions()).map_err(|e| e.to_string())?;
+    } else if let Ok(content) = fs::read_to_string(&instructions) {
+        let re = Regex::new(r"<!--\s*projectmem-instructions:\s*(\d+)\s*-->").unwrap();
+        let ver = re.captures(&content).and_then(|c| c[1].parse::<u32>().ok()).unwrap_or(0);
+        if ver < INSTRUCTIONS_VERSION {
+            let bak = dir.join(INSTRUCTIONS_BACKUP_FILE);
+            let _ = fs::write(&bak, &content);
+            let mut global_section = String::new();
+            if content.contains(GLOBAL_MEMORY_HEADING) {
+                if let Some(idx) = content.find(GLOBAL_MEMORY_HEADING) {
+                    global_section = format!("\n\n{}", content[idx..].trim());
+                }
+            }
+            let new_content = format!("{}{}", ai_instructions(), global_section);
+            let _ = fs::write(&instructions, new_content);
+        }
     }
 
     let project_map = dir.join(PROJECT_MAP_FILE);

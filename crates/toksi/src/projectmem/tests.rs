@@ -594,3 +594,168 @@ fn test_global_memory_crud_and_auto_promote() {
 
     super::global::set_global_dir_override(None);
 }
+
+#[test]
+fn test_precheck_path_normalization_and_spellings() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), Some("test precheck")).unwrap();
+
+    let src_dir = root.join("src");
+    std::fs::create_dir_all(&src_dir).unwrap();
+    let auth_path = src_dir.join("auth.py");
+    std::fs::write(&auth_path, "x = 1\n").unwrap();
+
+    let mut issue_ev = Event::new("issue", "token refresh race");
+    issue_ev.issue_id = Some("0001".into());
+    issue_ev.location = Some("src/auth.py".into());
+    append_event(&mut issue_ev, Some(root)).unwrap();
+
+    for i in 0..3 {
+        let mut att = Event::new("attempt", &format!("lock variant {}", i));
+        att.issue_id = Some("0001".into());
+        att.outcome = Some("failed".into());
+        att.location = Some("src/auth.py".into());
+        append_event(&mut att, Some(root)).unwrap();
+    }
+
+    let abs_str = auth_path.to_str().unwrap();
+    for spelling in &["src/auth.py", "./src/auth.py", abs_str] {
+        let text = tool_precheck_file(root, spelling);
+        assert!(!text.contains("Safe to modify"), "Failed for spelling: {}", spelling);
+        assert!(text.contains("3 attempts"), "Failed for spelling: {}", spelling);
+    }
+}
+
+#[test]
+fn test_precheck_file_matches_absolute_location_event() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), Some("test precheck abs")).unwrap();
+
+    let src_dir = root.join("src");
+    std::fs::create_dir_all(&src_dir).unwrap();
+    let db_path = src_dir.join("db.py");
+    std::fs::write(&db_path, "x = 1\n").unwrap();
+
+    let mut issue_ev = Event::new("issue", "pool leak");
+    issue_ev.issue_id = Some("0001".into());
+    issue_ev.location = Some(db_path.to_str().unwrap().to_string());
+    append_event(&mut issue_ev, Some(root)).unwrap();
+
+    let mut att = Event::new("attempt", "reconnect pool failed");
+    att.issue_id = Some("0001".into());
+    att.outcome = Some("failed".into());
+    att.location = Some(db_path.to_str().unwrap().to_string());
+    append_event(&mut att, Some(root)).unwrap();
+
+    let text = tool_precheck_file(root, "src/db.py");
+    assert!(!text.contains("Safe to modify"));
+}
+
+#[test]
+fn test_mcp_get_issue_accepts_unpadded_ids_and_rejects_globs() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), None).unwrap();
+
+    let _ = tool_log_issue(root, "login double submit", None).unwrap();
+
+    for id in &["0001", "1", "01", "#1"] {
+        let text = tool_get_issue(root, id);
+        assert!(text.contains("login double submit"), "Failed for id: {}", id);
+    }
+
+    for id in &["*", "2", "?", "[0001]"] {
+        let text = tool_get_issue(root, id);
+        assert_eq!(text, format!("No issue found with ID {}.", id));
+    }
+}
+
+#[test]
+fn test_mcp_get_issue_finds_backfilled_legacy_ids() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), None).unwrap();
+
+    let mut ev = Event::new("issue", "Legacy issue: fix login");
+    ev.issue_id = Some("legacy_f436".into());
+    append_event(&mut ev, Some(root)).unwrap();
+    let _ = regenerate_summary(Some(root)).unwrap();
+
+    let text = tool_get_issue(root, "legacy_f436");
+    assert!(text.contains("fix login"));
+
+    for id in &["legacy_*", "legacy_f43?", "[l]egacy_f436"] {
+        let t = tool_get_issue(root, id);
+        assert_eq!(t, format!("No issue found with ID {}.", id));
+    }
+}
+
+#[test]
+fn test_summary_fixed_issue_and_record_clipping() {
+    let tmp = tempdir().unwrap();
+    let _root = tmp.path();
+
+    let mut iss = Event::new("issue", "login redirect loop");
+    iss.issue_id = Some("0001".into());
+    iss.location = Some("auth/redirect.py".into());
+
+    let mut att = Event::new("attempt", "cleared the session cookie first");
+    att.issue_id = Some("0001".into());
+    att.outcome = Some("failed".into());
+
+    let mut fx = Event::new("fix", "guarded the redirect in one middleware");
+    fx.issue_id = Some("0001".into());
+    fx.location = Some("auth/middleware.py".into());
+
+    let events = vec![iss, att, fx];
+    let sum = build_summary(&events, "test_proj", None);
+
+    assert!(sum.contains("- [DONE] #0001 login redirect loop [auth/redirect.py] (fixed)"));
+    assert!(!sum.contains("cleared the session cookie first"));
+    assert!(!sum.contains("guarded the redirect in one middleware"));
+
+    // Blank location fallback to fix
+    let mut iss_blank = Event::new("issue", "blank location");
+    iss_blank.issue_id = Some("0002".into());
+    iss_blank.location = Some("   ".into());
+    let mut fx_loc = Event::new("fix", "patched");
+    fx_loc.issue_id = Some("0002".into());
+    fx_loc.location = Some("src/x.py".into());
+    let sum2 = build_summary(&[iss_blank, fx_loc], "test_proj", None);
+    assert!(sum2.contains("- [DONE] #0002 blank location [src/x.py] (fixed)"));
+    assert!(!sum2.contains("[]"));
+
+    // Long record clipping
+    let long_text = "the collector drops its websocket ".repeat(20);
+    let clipped = clip_record(&long_text);
+    assert!(clipped.ends_with("..."));
+    assert!(clipped.len() <= RECORD_CHARS);
+
+    // Multi-line collapsing
+    let multi = "first line\n## not a heading\n\tthird";
+    let collapsed = clip_record(multi);
+    assert_eq!(collapsed, "first line ## not a heading third");
+}
+
+#[test]
+fn test_instructions_refresh_upgrade() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    let mem_dir = root.join(".projectmem");
+    std::fs::create_dir_all(&mem_dir).unwrap();
+    let instr_path = mem_dir.join("AI_INSTRUCTIONS.md");
+    std::fs::write(&instr_path, "# Old Instructions\n<!-- projectmem-instructions: 1 -->\n\nOld content\n").unwrap();
+
+    initialize(Some(root), None).unwrap();
+
+    let refreshed = std::fs::read_to_string(&instr_path).unwrap();
+    assert!(refreshed.contains("<!-- projectmem-instructions: 2 -->"));
+    assert!(refreshed.contains("Record Length Guidance"));
+
+    let bak_path = mem_dir.join("AI_INSTRUCTIONS.md.bak");
+    assert!(bak_path.exists());
+    let bak_content = std::fs::read_to_string(&bak_path).unwrap();
+    assert!(bak_content.contains("<!-- projectmem-instructions: 1 -->"));
+}

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/projectmem/summary.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -19,6 +19,33 @@ use super::store::{
 pub const RECENT_FIXED_ISSUES: usize = 10;
 pub const RECENT_DECISIONS: usize = 15;
 pub const OPEN_IN_FULL: usize = 20;
+pub use super::store::{RECORD_CHARS, TITLE_CHARS};
+
+pub fn clip_record(text: &str) -> String {
+    let collapsed = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if collapsed.len() <= RECORD_CHARS {
+        return collapsed;
+    }
+    let head_limit = RECORD_CHARS.saturating_sub(3);
+    let head = &collapsed[..head_limit];
+    let half = RECORD_CHARS / 2 + 1;
+    let boundary = head.rfind(' ').filter(|&idx| idx >= half);
+    let clipped_head = match boundary {
+        Some(idx) => &head[..idx],
+        None => head,
+    };
+    let trimmed = clipped_head.trim_end_matches(|c| c == ' ' || c == ',' || c == ';' || c == ':');
+    format!("{}...", trimmed)
+}
+
+pub fn loc_str(location: Option<&str>) -> String {
+    let collapsed = location.unwrap_or("").split_whitespace().collect::<Vec<_>>().join(" ");
+    if collapsed.is_empty() {
+        String::new()
+    } else {
+        format!(" [{}]", collapsed)
+    }
+}
 
 const PLACEHOLDER_PHRASES: &[&str] = &[
     "Not described yet.",
@@ -153,26 +180,24 @@ fn issue_lines(
     issue_events: &[Event],
     fix: Option<&Event>,
 ) -> Vec<String> {
-    let status = if fix.is_some() { "fixed" } else { "open" };
-    let marker = if fix.is_some() { "DONE" } else { "OPEN" };
-    let issue_loc = match issue.location {
-        Some(ref l) if !l.trim().is_empty() => format!(" [{}]", l.trim()),
-        _ => String::new(),
-    };
-    let outcome = match fix {
-        Some(f) => {
-            let loc = match f.location {
-                Some(ref l) if !l.trim().is_empty() => format!(" [{}]", l.trim()),
-                _ => String::new(),
-            };
-            format!(" -> {}{}", f.summary, loc)
-        }
-        None => String::new(),
-    };
+    let issue_loc = loc_str(issue.location.as_deref());
+    if let Some(f) = fix {
+        let fixed_loc = if !issue_loc.is_empty() {
+            issue_loc
+        } else {
+            loc_str(f.location.as_deref())
+        };
+        return vec![format!(
+            "- [DONE] #{} {}{fixed_loc} (fixed)",
+            issue_id,
+            clip_record(&issue.summary)
+        )];
+    }
 
     let mut lines = vec![format!(
-        "- [{}] #{} {}{}{} ({})",
-        marker, issue_id, issue.summary, issue_loc, outcome, status
+        "- [OPEN] #{} {}{issue_loc} (open)",
+        issue_id,
+        clip_record(&issue.summary)
     )];
 
     let lessons: Vec<&Event> = issue_events
@@ -182,15 +207,16 @@ fn issue_lines(
 
     let start_idx = lessons.len().saturating_sub(3);
     for lesson in &lessons[start_idx..] {
-        let loc = match lesson.location {
-            Some(ref l) if !l.trim().is_empty() => format!(" [{}]", l.trim()),
-            _ => String::new(),
-        };
         let tag = match lesson.outcome.as_deref() {
             Some("partial") => "Partial attempt",
             _ => "Failed attempt",
         };
-        lines.push(format!("  - {}: {}{}", tag, lesson.summary, loc));
+        lines.push(format!(
+            "  - {}: {}{}",
+            tag,
+            clip_record(&lesson.summary),
+            loc_str(lesson.location.as_deref())
+        ));
     }
 
     lines
@@ -363,11 +389,7 @@ pub fn build_summary(events: &[Event], project_name: &str, project_purpose: Opti
         }
         let start = decisions.len().saturating_sub(RECENT_DECISIONS);
         for dec in &decisions[start..] {
-            let loc = match dec.location {
-                Some(ref l) if !l.trim().is_empty() => format!(" [{}]", l.trim()),
-                _ => String::new(),
-            };
-            lines.push(format!("- {}{}", dec.summary, loc));
+            lines.push(format!("- {}{}", clip_record(&dec.summary), loc_str(dec.location.as_deref())));
         }
     } else {
         lines.push("- No decisions logged yet.".to_string());
@@ -378,11 +400,7 @@ pub fn build_summary(events: &[Event], project_name: &str, project_purpose: Opti
     if !notes.is_empty() {
         let start = notes.len().saturating_sub(10);
         for n in &notes[start..] {
-            let loc = match n.location {
-                Some(ref l) if !l.trim().is_empty() => format!(" [{}]", l.trim()),
-                _ => String::new(),
-            };
-            lines.push(format!("- {}{}", n.summary, loc));
+            lines.push(format!("- {}{}", clip_record(&n.summary), loc_str(n.location.as_deref())));
         }
     } else {
         lines.push("- No notes logged yet.".to_string());
@@ -470,8 +488,7 @@ mod tests {
         let summary = build_summary(&events, "test_proj", Some("A great tool"));
         assert!(summary.contains("# projectmem - test_proj"));
         assert!(summary.contains("A great tool"));
-        assert!(summary.contains("- [DONE] #0001 Crashing on null pointer [src/main.rs:10] -> Used if-let instead (fixed)"));
-        assert!(summary.contains("- Failed attempt: Added unwrapped check"));
+        assert!(summary.contains("- [DONE] #0001 Crashing on null pointer [src/main.rs:10] (fixed)"));
         assert!(summary.contains("- Use if-let over match"));
     }
 }

@@ -69,7 +69,11 @@ pub fn tool_get_plan(root: &Path) -> String {
 }
 
 pub fn tool_precheck_file(root: &Path, file_path: &str) -> String {
-    if super::precheck::is_memory_path(file_path) {
+    let trimmed = file_path.trim();
+    if trimmed.is_empty() {
+        return format!("{}: no warnings. Safe to modify.", file_path);
+    }
+    if super::precheck::is_memory_path(trimmed, Some(root)) {
         return format!(
             "{}: this is a projectmem memory file. It is regenerated from the event log, so do not edit it; record the change with add_note / add_decision / log_issue / record_fix instead.",
             file_path
@@ -99,11 +103,18 @@ pub fn tool_get_issue(root: &Path, issue_id: &str) -> String {
         Ok(d) => d,
         Err(e) => return e,
     };
-    let norm = normalize_issue_id(Some(issue_id)).unwrap_or_else(|| issue_id.to_string());
+    let wanted = match normalize_issue_id(Some(issue_id)) {
+        Some(w) => w,
+        None => return format!("No issue found with ID {}.", issue_id),
+    };
+    let re_id = regex::Regex::new(r"^[\w-]+$").unwrap();
+    if !re_id.is_match(&wanted) {
+        return format!("No issue found with ID {}.", issue_id);
+    }
     if let Ok(entries) = fs::read_dir(&idir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
-            if name.starts_with(&format!("{}-", norm)) && name.ends_with(".md") {
+            if name.starts_with(&format!("{}-", wanted)) && name.ends_with(".md") {
                 return fs::read_to_string(entry.path()).unwrap_or_else(|_| "Failed to read issue file.".into());
             }
         }
@@ -841,6 +852,8 @@ mod tests {
         assert!(note_res.contains("Recorded note"));
 
         let sum = tool_get_summary(root);
-        assert!(sum.contains("Fixed buffer handling"));
+        assert!(sum.contains("- [DONE] #0001 Bug in MCP"));
+        let issue_doc = tool_get_issue(root, "0001");
+        assert!(issue_doc.contains("Fixed buffer handling"));
     }
 }

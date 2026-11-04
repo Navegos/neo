@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/projectmem/precheck.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::collections::HashSet;
 use std::fs;
@@ -37,9 +37,121 @@ pub struct PrecheckWarning {
     pub details: Vec<String>,
 }
 
-pub fn is_memory_path(path: &str) -> bool {
-    let normalized = path.replace('\\', "/");
-    normalized.contains(MEM_DIR) || normalized.starts_with(".projectmem")
+pub fn lexical_normpath(path: &str) -> String {
+    let s = path.replace('\\', "/");
+    let has_prefix_slash = s.starts_with('/');
+    let drive_prefix = if s.len() >= 2 && s.as_bytes()[1] == b':' && s.as_bytes()[0].is_ascii_alphabetic() {
+        if s.len() >= 3 && s.as_bytes()[2] == b'/' {
+            Some(&s[..3])
+        } else {
+            Some(&s[..2])
+        }
+    } else {
+        None
+    };
+
+    let remainder = if let Some(dp) = drive_prefix {
+        &s[dp.len()..]
+    } else if has_prefix_slash {
+        &s[1..]
+    } else {
+        &s[..]
+    };
+
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in remainder.split('/') {
+        if seg.is_empty() || seg == "." {
+            continue;
+        } else if seg == ".." {
+            if !parts.is_empty() && parts.last() != Some(&"..") {
+                parts.pop();
+            } else if drive_prefix.is_none() && !has_prefix_slash {
+                parts.push(seg);
+            }
+        } else {
+            parts.push(seg);
+        }
+    }
+
+    let joined = parts.join("/");
+    if let Some(dp) = drive_prefix {
+        if dp.ends_with('/') {
+            format!("{}{}", dp, joined)
+        } else if joined.is_empty() {
+            dp.to_string()
+        } else {
+            format!("{}/{}", dp, joined)
+        }
+    } else if has_prefix_slash {
+        format!("/{}", joined)
+    } else if joined.is_empty() {
+        ".".to_string()
+    } else {
+        joined
+    }
+}
+
+pub fn root_posix_of(root: Option<&Path>) -> String {
+    let p = match root {
+        Some(r) => r.to_path_buf(),
+        None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+    };
+    let canonical = fs::canonicalize(&p).unwrap_or(p);
+    let s = canonical.to_string_lossy().to_string().replace('\\', "/");
+    let clean = s.strip_prefix("//?/").unwrap_or(&s).to_string();
+    lexical_normpath(&clean)
+}
+
+pub fn project_relative(path: &str, root: Option<&Path>) -> String {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let norm = lexical_normpath(trimmed);
+    let is_abs = norm.starts_with('/')
+        || (norm.len() >= 2 && norm.as_bytes()[1] == b':' && norm.as_bytes()[0].is_ascii_alphabetic());
+    if !is_abs {
+        return norm;
+    }
+
+    let root_str = root_posix_of(root);
+    let check_norm = if cfg!(windows) { norm.to_lowercase() } else { norm.clone() };
+    let check_root = if cfg!(windows) { root_str.to_lowercase() } else { root_str.clone() };
+
+    if check_norm == check_root {
+        return ".".to_string();
+    }
+
+    let prefix = format!("{}/", check_root.trim_end_matches('/'));
+    if check_norm.starts_with(&prefix) {
+        return norm[prefix.len()..].to_string();
+    }
+
+    if let Ok(canon) = fs::canonicalize(Path::new(trimmed)) {
+        let canon_s = canon.to_string_lossy().to_string().replace('\\', "/");
+        let canon_clean = canon_s.strip_prefix("//?/").unwrap_or(&canon_s).to_string();
+        let check_canon = if cfg!(windows) { canon_clean.to_lowercase() } else { canon_clean.clone() };
+        if check_canon == check_root {
+            return ".".to_string();
+        }
+        if check_canon.starts_with(&prefix) {
+            return canon_clean[prefix.len()..].to_string();
+        }
+    }
+
+    norm
+}
+
+pub fn is_memory_path(path: &str, root: Option<&Path>) -> bool {
+    let rel = project_relative(path, root);
+    if rel == MEM_DIR || rel.starts_with(&format!("{}/", MEM_DIR)) {
+        return true;
+    }
+    let norm = lexical_normpath(path.trim());
+    if norm == MEM_DIR || norm.starts_with(&format!("{}/", MEM_DIR)) {
+        return true;
+    }
+    false
 }
 
 pub fn parse_snooze_duration(text: &str) -> Result<ChronoDuration, String> {
@@ -177,9 +289,10 @@ fn git_recent_changes(file_path: &str, days: i64, root: Option<&Path>) -> Option
     None
 }
 
-pub fn events_for_file(file_path: &str, events: &[Event]) -> Vec<Event> {
+pub fn events_for_file(file_path: &str, events: &[Event], root: Option<&Path>) -> Vec<Event> {
+    let norm_target = project_relative(file_path, root);
     let retired = superseded_ids(events);
-    let norm_target = file_path.replace('\\', "/");
+    let mut cache: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
     let mut out = Vec::new();
     for e in events {
@@ -187,19 +300,29 @@ pub fn events_for_file(file_path: &str, events: &[Event]) -> Vec<Event> {
             continue;
         }
 
-        if e.files.iter().any(|f| f.replace('\\', "/") == norm_target) {
-            out.push(e.clone());
-            continue;
-        }
-
-        if let Some(loc_file) = location_to_file(e.location.as_deref()) {
-            if loc_file.replace('\\', "/") == norm_target {
-                out.push(e.clone());
-                continue;
+        let mut matches = false;
+        for f in &e.files {
+            let rel = cache.entry(f.clone()).or_insert_with(|| project_relative(f, root));
+            if *rel == norm_target {
+                matches = true;
+                break;
             }
         }
 
-        if e.summary.contains(file_path) || e.summary.contains(&norm_target) {
+        if !matches {
+            if let Some(loc_file) = location_to_file(e.location.as_deref()) {
+                let rel = cache.entry(loc_file.clone()).or_insert_with(|| project_relative(&loc_file, root));
+                if *rel == norm_target {
+                    matches = true;
+                }
+            }
+        }
+
+        if !matches && (e.summary.contains(file_path) || (!norm_target.is_empty() && e.summary.contains(&norm_target))) {
+            matches = true;
+        }
+
+        if matches {
             out.push(e.clone());
         }
     }
@@ -210,10 +333,31 @@ pub fn analyze_files(files: &[String], events: &[Event], root: Option<&Path>) ->
     let cutoff = Utc::now() - ChronoDuration::days(RECENT_DAYS);
     let mut warnings = Vec::new();
 
-    let clean_files: Vec<&String> = files.iter().filter(|f| !is_memory_path(f)).collect();
+    let mut clean_files = Vec::new();
+    let mut seen = HashSet::new();
+    for f in files {
+        let trimmed = f.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if is_memory_path(trimmed, root) {
+            continue;
+        }
+        let rel = project_relative(trimmed, root);
+        if rel == "." || rel.is_empty() {
+            continue;
+        }
+        if seen.insert(rel.clone()) {
+            clean_files.push(rel);
+        }
+    }
 
-    for file_path in clean_files {
-        let file_events = events_for_file(file_path.as_str(), events);
+    if clean_files.is_empty() {
+        return warnings;
+    }
+
+    for file_path in &clean_files {
+        let file_events = events_for_file(file_path, events, root);
         if file_events.is_empty() {
             continue;
         }
