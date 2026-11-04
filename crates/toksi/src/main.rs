@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-11-03
+// lastModified: 2026-11-04
 
 use std::collections::HashMap;
 use std::env;
@@ -100,7 +100,9 @@ fn help_text() -> String {
           {}      Multi-agent claim-once context handoffs across 17+ agents\n\
           {}        Manage in-tree coding rules & skills (principles, caveman, ponytail)\n\
           {}          Execute command and apply token-reduction filters\n\
-          {}      Manage the headroom HTTP proxy: up|down|status\n\n\
+          {}      Manage the headroom HTTP proxy: up|down|status\n\
+          {}       OS Keyring credential manager: status|get|set|delete|sync\n\
+          {}         SQLite config database: status|export|import|backup|restore\n\n\
         {}\n  --agents <list>     Limit to a subset: claude,opencode,opencode2,codex,antigravity,copilot,cursor,droid,grok,pi,omp,kilo,cline,amp,kimi,zcode,dsh\n\
           --tools <list>      Limit to a subset: rtk,caveman,ponytail,codegraph,context-mode,headroom,projectmem\n\
           -j, --jobs <n>      Number of parallel threads for agent wiring\n\
@@ -129,6 +131,8 @@ fn help_text() -> String {
         cy("toksi rules"),
         cy("toksi rtk"),
         cy("toksi proxy"),
+        cy("toksi auth"),
+        cy("toksi db"),
         C.bold("Flags:"),
         C.gray("Docs: https://github.com/Navegos/neo/#toksi")
     )
@@ -327,6 +331,12 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "rules" {
         return toksi::rules::run_rules_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "auth" {
+        return toksi::commands::run_auth_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "db" {
+        return toksi::commands::run_db_cli(&args[2..]);
+    }
 
     let p = parse_args(&args[1..]);
     if p.bools.get("verbose") == Some(&true) {
@@ -403,6 +413,8 @@ fn run() -> i32 {
         "icm" => toksi::icm::run_icm_cli(&args[2..]),
         "handoff" => toksi::aimemory::run_handoff_cli(&args[2..]),
         "rules" => toksi::rules::run_rules_cli(&args[2..]),
+        "auth" => toksi::commands::run_auth_cli(&args[2..]),
+        "db" => toksi::commands::run_db_cli(&args[2..]),
         "self-update" => run_self_update(p.bools.get("check") == Some(&true)),
         _ => {
             println!("{}", help_text());

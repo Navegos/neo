@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::env;
 use crate::commands::doctor_probe::{format_runtime_issues, probe_agent_runtime, RuntimeIssue};
@@ -254,11 +254,33 @@ fn doctor_proxy_ports(reports: &[AgentReport]) -> Vec<String> {
     if !byok_routes.is_empty() {
         let gw_port = crate::util::byok::byok_gateway_port();
         ports.push(format!(
-            "{} BYOK gateway (127.0.0.1:{}) â€” {}",
+            "{} BYOK gateway (127.0.0.1:{}) — {}",
             C.green(Sym::CHECK),
             gw_port,
             C.green(&format!("{} routes active", byok_routes.len()))
         ));
+    }
+
+    // Keyring status
+    let backend = crate::keyring::current_backend_name();
+    let statuses = crate::keyring::audit_keyring_statuses();
+    let active_keys = statuses.iter().filter(|s| s.has_credential && !s.is_expired).count();
+    ports.push(format!(
+        "{} OS Keyring ({}) — {}",
+        C.green(Sym::CHECK),
+        backend,
+        if active_keys > 0 { C.green(&format!("{} credentials active", active_keys)) } else { C.gray("ready") }
+    ));
+
+    // SQLite config database status
+    if let Ok(db) = crate::db::open_default_db() {
+        if let Ok(stats) = db.stats() {
+            ports.push(format!(
+                "{} Config DB (SQLite WAL) — {}",
+                C.green(Sym::CHECK),
+                C.green(&format!("{} routes, {} providers", stats.routes_count, stats.providers_count))
+            ));
+        }
     }
 
     for r in reports {

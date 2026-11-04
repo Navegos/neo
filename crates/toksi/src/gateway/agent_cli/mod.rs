@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/agent_cli/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 pub mod claude_code;
 pub mod copilot;
@@ -25,7 +25,20 @@ pub struct LocalAgentSession {
 }
 
 pub fn detect_local_agent_session(agent: &str) -> Option<LocalAgentSession> {
-    match agent.to_lowercase().as_str() {
+    let lower = agent.to_lowercase();
+    // 1. Try native OS Keyring first
+    if let Some(env) = crate::keyring::get_agent_token(&lower) {
+        if !env.is_expired(30) && !env.access_token.is_empty() {
+            return Some(LocalAgentSession {
+                agent: lower,
+                token: env.access_token,
+                source: crate::keyring::current_backend_name().to_string(),
+            });
+        }
+    }
+
+    // 2. Fallbacks by agent
+    match lower.as_str() {
         "claude" | "claude_code" => read_claude_code_session().map(|token| LocalAgentSession {
             agent: "claude".to_string(),
             token,
@@ -36,7 +49,7 @@ pub fn detect_local_agent_session(agent: &str) -> Option<LocalAgentSession> {
             token,
             source: "gh auth token".to_string(),
         }),
-        "gemini" | "antigravity" => read_gemini_adc_session().map(|token| LocalAgentSession {
+        "gemini" | "antigravity" | "agy" => read_gemini_adc_session().map(|token| LocalAgentSession {
             agent: "gemini".to_string(),
             token,
             source: "Google ADC".to_string(),
@@ -54,4 +67,3 @@ pub fn detect_local_agent_session(agent: &str) -> Option<LocalAgentSession> {
         _ => None,
     }
 }
-

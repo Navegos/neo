@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/byok_gateway.rs
 // created: 2026-10-05
-// lastModified: 2026-11-03
+// lastModified: 2026-11-04
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -507,6 +507,13 @@ pub fn stop_byok_gateway() -> Result<(), Box<dyn std::error::Error + Send + Sync
         std::thread::sleep(Duration::from_millis(25));
     }
     Err(format!("BYOK gateway did not stop (pid {})", record.pid).into())
+}
+
+pub fn ensure_byok_gateway_ready() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if byok_routes_configured() && !byok_gateway_live() {
+        start_byok_gateway()?;
+    }
+    Ok(())
 }
 
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
@@ -1291,36 +1298,55 @@ pub async fn handle_byok_gateway_request(
         path = remaining_path;
         cred = format!("{}.{}", route.id, route.token);
     } else {
-        if credentials.len() != 1 {
+        if credentials.is_empty() {
+            let proto = if path.starts_with("/v1/messages") {
+                "anthropic-messages"
+            } else if path.contains("responses") {
+                "openai-responses"
+            } else {
+                "openai-chat"
+            };
+            if let Some(found) = configured_byok_routes().into_iter().find(|r| r.protocol == proto) {
+                cred = format!("{}.{}", found.id, found.token);
+                route = found;
+            } else {
+                return (
+                    502,
+                    vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+                    b"unknown BYOK route\n".to_vec(),
+                );
+            }
+        } else if credentials.len() != 1 {
             return (
                 502,
                 vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
                 b"unknown BYOK route\n".to_vec(),
             );
+        } else {
+            let Some((id, token)) = route_parts(credentials[0]) else {
+                return (
+                    502,
+                    vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+                    b"unknown BYOK route\n".to_vec(),
+                );
+            };
+            let Some(found) = lookup_byok_route(id) else {
+                return (
+                    502,
+                    vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+                    b"unknown BYOK route\n".to_vec(),
+                );
+            };
+            if !constant_time_eq(token.as_bytes(), found.token.as_bytes()) {
+                return (
+                    502,
+                    vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+                    b"unknown BYOK route\n".to_vec(),
+                );
+            }
+            route = found;
+            cred = credentials[0].to_string();
         }
-        let Some((id, token)) = route_parts(credentials[0]) else {
-            return (
-                502,
-                vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
-                b"unknown BYOK route\n".to_vec(),
-            );
-        };
-        let Some(found) = lookup_byok_route(id) else {
-            return (
-                502,
-                vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
-                b"unknown BYOK route\n".to_vec(),
-            );
-        };
-        if !constant_time_eq(token.as_bytes(), found.token.as_bytes()) {
-            return (
-                502,
-                vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
-                b"unknown BYOK route\n".to_vec(),
-            );
-        }
-        route = found;
-        cred = credentials[0].to_string();
     }
 
     if !method.eq_ignore_ascii_case("POST") {
@@ -1397,6 +1423,83 @@ fn check_upstream_host_allowed(target_url: &url::Url) -> Result<(), String> {
     }
 }
 
+pub fn enrich_headers_with_keyring_credentials(
+    target_base: &str,
+    headers: &[(String, String)],
+) -> Vec<(String, String)> {
+    let mut out = headers.to_vec();
+    let has_auth = out.iter().any(|(k, v)| {
+        (k.eq_ignore_ascii_case("authorization") && !v.trim().is_empty())
+            || (k.eq_ignore_ascii_case("x-api-key") && !v.trim().is_empty())
+            || (k.eq_ignore_ascii_case("x-goog-api-key") && !v.trim().is_empty())
+    });
+
+    if has_auth {
+        return out;
+    }
+
+    let target_lower = target_base.to_lowercase();
+    if target_lower.contains("googleapis.com")
+        || target_lower.contains("google")
+        || target_lower.contains("gemini")
+        || target_lower.contains("cloudcode")
+    {
+        if let Some(tok) = crate::gateway::agent_cli::read_gemini_adc_session() {
+            if tok.starts_with("ya29.") || tok.contains('.') {
+                out.push(("Authorization".to_string(), format!("Bearer {}", tok)));
+            } else {
+                out.push(("x-goog-api-key".to_string(), tok));
+            }
+            if !out.iter().any(|(k, _)| k.eq_ignore_ascii_case("x-goog-api-client")) {
+                out.push(("x-goog-api-client".to_string(), "gl-rust/1.0.0 toksi/2.5.0".to_string()));
+            }
+        }
+    } else if target_lower.contains("anthropic.com") {
+        if let Some(tok) = crate::gateway::agent_cli::read_claude_code_session() {
+            out.push(("x-api-key".to_string(), tok));
+            if !out.iter().any(|(k, _)| k.eq_ignore_ascii_case("anthropic-version")) {
+                out.push(("anthropic-version".to_string(), "2023-06-01".to_string()));
+            }
+        }
+    } else if target_lower.contains("copilot") || target_lower.contains("github") {
+        if let Some(tok) = crate::gateway::agent_cli::read_copilot_session() {
+            out.push(("Authorization".to_string(), format!("Bearer {}", tok)));
+        }
+    } else if target_lower.contains("openai.com") {
+        if let Some(tok) = crate::keyring::get_agent_token("openai").map(|e| e.access_token).or_else(|| std::env::var("OPENAI_API_KEY").ok()) {
+            out.push(("Authorization".to_string(), format!("Bearer {}", tok)));
+        }
+    } else if let Ok(arc) = crate::db::shared_db() {
+        if let Ok(db) = arc.lock() {
+            if let Ok(providers) = db.list_providers() {
+                for p in providers {
+                    if target_lower.contains(&p.base_url.to_lowercase()) || p.base_url.to_lowercase().contains(&target_lower) {
+                        if let Ok(keys) = db.list_keys_for_provider(&p.id) {
+                            if let Some(active_key) = keys.into_iter().find(|k| k.is_active) {
+                                let secret = if active_key.secret_ref.starts_with("keyring://") {
+                                    let rest = &active_key.secret_ref["keyring://".len()..];
+                                    let (svc, acc) = rest.split_once('/').unwrap_or((rest, "default"));
+                                    crate::keyring::get_credential(svc, acc).unwrap_or(active_key.secret_ref)
+                                } else {
+                                    active_key.secret_ref
+                                };
+                                if p.protocol == "anthropic-messages" {
+                                    out.push(("x-api-key".to_string(), secret));
+                                } else {
+                                    out.push(("Authorization".to_string(), format!("Bearer {}", secret)));
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    out
+}
+
 pub async fn forward_to_byok_target(
     target_base: &str,
     method: &str,
@@ -1459,8 +1562,9 @@ pub async fn forward_to_byok_target(
 
     let req_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
     let mut req_builder = client.request(req_method, target_url);
+    let enriched_headers = enrich_headers_with_keyring_credentials(target_base, headers);
 
-    for (k, v) in headers {
+    for (k, v) in &enriched_headers {
         if k.eq_ignore_ascii_case(BYOK_ROUTE_HEADER)
             || k.eq_ignore_ascii_case("host")
             || k.eq_ignore_ascii_case("content-length")
@@ -1591,8 +1695,9 @@ pub async fn forward_streaming_to_byok_target(
 
     let req_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
     let mut req_builder = client.request(req_method, target_url);
+    let enriched_headers = enrich_headers_with_keyring_credentials(target_base, headers);
 
-    for (k, v) in headers {
+    for (k, v) in &enriched_headers {
         if k.eq_ignore_ascii_case(BYOK_ROUTE_HEADER)
             || k.eq_ignore_ascii_case("host")
             || k.eq_ignore_ascii_case("content-length")

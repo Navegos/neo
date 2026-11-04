@@ -30,6 +30,14 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
 - [x] Phase 11: Agent Doctor & Self-Healing Parity (`doctor --fix`, 17 agent harnesses)
 - [x] Phase 12: TUI, Prometheus Telemetry & Web Dashboard (`/metrics`, TUI, dashboard)
 - [x] Phase 13: End-to-End System Verification (10/10 e2e tests passing)
+- [x] Phase 14: OS Keyring Integration, Config SQLite DB & BYOK Gateway Pre-Registration:
+  - [x] Implement cross-platform Keyring Manager (`advapi32.dll` on Windows, Keychain on macOS, Secret Service on Linux)
+  - [x] Implement base64 OAuth envelope unpacking (`agy` access token & expiration parser)
+  - [x] Wire Keyring into `gateway/agent_cli` (`gemini_agy`, `claude_code`, `copilot`, `cursor`)
+  - [x] Implement high-performance SQLite config DB (`providers`, `provider_keys`, `provider_models`, `byok_routes`, `agent_configs`, `gateway_configs`) with export/import/backup/restore
+  - [x] Enforce BYOK gateway route pre-registration & health check before routing/loadbalancer dispatch
+  - [x] Auto-inject authenticated headers into proxy requests when local agents omit credentials
+  - [x] Add `toksi auth` and `toksi db` CLI subcommands plus `toksi doctor` probes
 - [x] Fix VS Code Antigravity Extension connection bug:
   - [x] Implement HTTP/1.1 keep-alive loop in `headroom/proxy.rs` `serve_headroom_connection`
   - [x] Fix route discrimination for Google Cloud Code / Gemini / Antigravity endpoints

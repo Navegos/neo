@@ -81,6 +81,18 @@
    - **Async Lock-Free Collection**: Telemetry events emitted via non-blocking channels to a background collector, guaranteeing zero latency overhead (<10 µs) on proxied AI requests.
    - **Real-Time Financial Cost Tracking (USD)**: Continuous token valuation via in-tree model catalog pricing table, tracking exact dollar spend and savings per provider, model, agent, and virtual key.
    - **Multi-Level Latency Breakdown**: Deconstructs end-to-end request time into HTTP transport, upstream provider latency, and internal Toksi overhead (serialization, compression, rule injection, MCP pruning).
+10. **Native OS Keyring Storage, Persistent SQLite Config Database & BYOK Pre-Registration**:
+   - **System Keyring Credential Delegation**: Sensitive credentials are never stored in plain-text configuration files. Instead, Toksi directly accesses the OS secure credential manager:
+     * **macOS**: System Keychain under service `gemini` and account `antigravity` (plus `claude`, `copilot`, custom SSO keys). Unpacks base64-encoded envelopes containing OAuth access tokens and expiration timestamps.
+     * **Windows**: Native Credential Manager (`advapi32.dll` via `CredReadW`, `CredWriteW`, `CredDeleteW`) for generic credentials (`gemini:antigravity`, `gemini`, `antigravity`, `claude`, etc.).
+     * **Linux**: Secret Service API backend / `libsecret` (gnome-keyring / kwallet) preventing repeated re-authentications.
+   - **Unified SQLite Configuration Database (`toksi.db`)**:
+     * Replaces fragile flat JSON configs (`byok.routes.json`, `routing.state.json`) and ad-hoc filesystem spinlocks with a high-performance, indexed SQLite database running in WAL mode.
+     * Houses tables for `providers`, `provider_keys`, `provider_models`, `byok_routes`, `agent_configs`, and `gateway_configs`.
+     * Supports zero-downtime operations: `export`, `import`, `backup` (online SQLite backup API), `restore`, and auto-migration from legacy JSON registries.
+   - **Guaranteed BYOK Gateway Pre-Registration & Credential Injection**:
+     * BYOK routes and gateways are validated and committed to SQLite and `RoutingCoordinator` before traffic dispatch.
+     * When an agent CLI or local client sends unauthenticated requests to the proxy/gateway, Toksi resolves credentials from OS Keyring or DB and injects authenticated headers (`Authorization: Bearer <token>`, `x-api-key`, `x-goog-api-client`) before routing to upstreams or load balancers.
 
 ---
 
@@ -252,6 +264,19 @@ crates/toksi/src/
 │   ├── antigravity.rs, claude.rs, cursor.rs, codex.rs, opencode.rs, etc.
 │   └── mcp_adapters.rs       # Agent MCP config read/write/patch engine
 │
+├── keyring/                   # Native Cross-Platform OS Keyring & Credential Manager
+│   ├── mod.rs                # Unified secure credential manager facade
+│   ├── os_windows.rs         # Windows Credential Manager (advapi32.dll: CredReadW/CredWriteW)
+│   ├── os_macos.rs           # macOS Keychain integration (/usr/bin/security CLI / Security.framework)
+│   ├── os_linux.rs           # Linux Secret Service / libsecret backend (secret-tool & DBus)
+│   └── envelope.rs           # Base64 OAuth envelope parser (access_token & expiry extractor)
+│
+├── db/                        # Persistent SQLite Configuration & Registry Database (toksi.db)
+│   ├── mod.rs                # SQLite WAL connection manager & repository facade
+│   ├── schema.rs             # Relational schema (providers, keys, models, byok_routes, agent_configs)
+│   ├── operations.rs         # High-level operations: export, import, backup, restore, sync
+│   └── migrate.rs            # Seamless migration from legacy byok.routes.json & routing.state.json
+│
 ├── util/                     # Pure System & OS Utilities (All Downloaders Purged)
 │   ├── paths.rs, exec.rs, jsonc.rs, toml.rs, colors.rs, etc.
 │   └── (Purged: npminstall.rs, nodewin.rs, nodelinux.rs, uv.rs)
@@ -261,6 +286,8 @@ crates/toksi/src/
     ├── graph.rs              # `toksi graph ...`
     ├── ctx.rs                # `toksi ctx ...`
     ├── rtk.rs                # `toksi rtk ...`
+    ├── auth.rs               # `toksi auth [status|get|set|delete|sync]`
+    ├── db.rs                 # `toksi db [status|export|import|backup|restore]`
     ├── tui.rs                # `toksi tui` (Full interactive control center)
     ├── dashboard.rs          # `toksi dashboard` (Web telemetry server)
     ├── daemon.rs, doctor.rs, proxy.rs, prime.rs, top.rs, init.rs
@@ -645,4 +672,56 @@ Requirements:
    - 0 test failures
    - 0 external runtime dependencies (no npm, no pip, no node, no python required)
 6. Run benchmarks measuring token reduction ratio (target 40–80% overall savings) and latency overhead (<10ms).
+```
+
+### Phase 14: OS Keyring Integration, Config SQLite DB & BYOK Gateway Pre-Registration Pipeline
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md first to understand the global master architecture, cross-tool coupling, and directory topology.
+
+Execute Phase 14: OS Keyring Integration, Config SQLite DB & BYOK Gateway Pre-Registration Pipeline.
+Targets:
+  - crates/toksi/src/keyring/{mod.rs, os_windows.rs, os_macos.rs, os_linux.rs, envelope.rs}
+  - crates/toksi/src/db/{mod.rs, schema.rs, operations.rs, migrate.rs}
+  - crates/toksi/src/gateway/agent_cli/{gemini_agy.rs, claude_code.rs, copilot.rs, cursor.rs, mod.rs}
+  - crates/toksi/src/headroom/{byok_gateway.rs, proxy.rs}
+  - crates/toksi/src/commands/{auth.rs, db.rs, doctor_probe.rs}
+
+Requirements:
+1. Native Cross-Platform OS Keyring Manager (crates/toksi/src/keyring/):
+   - Windows (os_windows.rs): Query and store via native advapi32.dll APIs (CredReadW, CredWriteW, CredDeleteW, CredFree) for generic credentials (`gemini:antigravity`, `gemini`, `antigravity`, `claude`, `copilot`).
+   - macOS (os_macos.rs): Delegate to system Keychain via /usr/bin/security CLI (`find-generic-password -s <service> -a <account> -w`) under service `gemini`, account `antigravity`.
+   - Linux (os_linux.rs): Delegate to Secret Service API backend (`libsecret` / `secret-tool lookup service <service> account <account>`).
+   - Base64 OAuth Envelope Parser (envelope.rs): Decode base64 envelopes (used by Antigravity CLI `agy`), extract OAuth `access_token` and `expiration`, validate token freshness, and support plain JSON/raw token fallback.
+   - Wire into `gateway/agent_cli`: Upgrade `gemini_agy.rs` to read from OS Keyring first before falling back to local files, and unify keyring lookups across Claude Code, Copilot, and Cursor.
+
+2. Persistent SQLite Configuration Database (crates/toksi/src/db/):
+   - Replaces flat JSON files (byok.routes.json, routing.state.json, *.stash.json) with high-performance SQLite database (`~/.toksi/toksi.db`) with WAL mode and indexed lookup.
+   - Tables:
+     * providers (id, name, protocol, base_url, is_enabled, auth_type, metadata_json, created_at, updated_at)
+     * provider_keys (id, provider_id, key_alias, secret_ref, is_active, priority, weight, last_status, expires_at, created_at)
+     * provider_models (id, provider_id, display_name, context_window, max_output_tokens, supports_streaming, supports_tools, is_default, created_at)
+     * byok_routes (id, token, protocol, upstream, provider_id, is_active, created_at, updated_at)
+     * agent_configs (agent_id, provider_id, keyring_service, keyring_account, upstream_route_id, config_json, updated_at)
+     * gateway_configs (key, value, updated_at)
+   - Zero-Downtime Operations:
+     * `toksi db export [--out file.json]`: Full JSON export of all database configurations.
+     * `toksi db import <file.json>`: Merge or overwrite configurations from backup.
+     * `toksi db backup [--out file.db]`: Live SQLite online backup API for crash-safe database snapshots.
+     * `toksi db restore <file.db>`: Database restoration from snapshot.
+     * Automatic migration from existing `byok.routes.json` ensuring full backward compatibility.
+
+3. BYOK Gateway Pre-Registration & Credential Injection Pipeline:
+   - Enforce route validation and commitment to SQLite `byok_routes` and `RoutingCoordinator` state before traffic dispatch.
+   - Verify BYOK gateway background listener status (`byok_gateway_live()`) or launch before passing requests to routing or load balancer.
+   - When requests from local agent CLIs or clients arrive without upstream authorization headers:
+     * Resolve provider SSO credential from OS Keyring or SQLite `provider_keys`.
+     * Extract valid Bearer token and inject authenticated headers (`Authorization: Bearer <token>`, `x-goog-api-client`, `x-api-key`) before forwarding to upstream endpoints or failover cascade.
+   - On 401/403 permanent credential errors, flag key in DB and trigger automatic keyring refresh or provider failover.
+
+4. CLI Subcommands & Diagnostics:
+   - `toksi auth [status|get|set|delete|sync]`: Manage and verify OS Keyring credentials.
+   - `toksi db [status|export|import|backup|restore]`: Manage configuration database lifecycle.
+   - `toksi doctor`: Add verification probes for OS Credential Manager access, Keyring token freshness, and SQLite config DB integrity.
+5. Verification:
+   - Ensure zero compiler warnings and clean passing unit/integration tests (`cargo test -p toksi`).
 ```

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/byok.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::collections::HashSet;
 use std::fs::OpenOptions;
@@ -198,6 +198,36 @@ pub fn encode_byok_routes(
     Ok(serde_json::to_string(&f)?)
 }
 
+fn sync_route_to_db(route: &BYOKRoute) {
+    if let Ok(arc) = crate::db::shared_db() {
+        if let Ok(mut db) = arc.lock() {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            let rec = crate::db::ByokRouteRecord {
+                id: route.id.clone(),
+                token: route.token.clone(),
+                protocol: route.protocol.clone(),
+                upstream: route.upstream.clone(),
+                provider_id: None,
+                is_active: true,
+                created_at: now,
+                updated_at: now,
+            };
+            let _ = db.upsert_byok_route(&rec);
+        }
+    }
+}
+
+fn sync_delete_route_from_db(id: &str) {
+    if let Ok(arc) = crate::db::shared_db() {
+        if let Ok(mut db) = arc.lock() {
+            let _ = db.delete_byok_route(id);
+        }
+    }
+}
+
 pub fn save_byok_routes(
     routes: &[BYOKRoute],
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -217,12 +247,14 @@ pub fn save_byok_routes(
             if !seen.insert(id.clone()) {
                 return Err(format!("route {:?}: duplicate ID", id).into());
             }
-            clean.push(BYOKRoute {
+            let r = BYOKRoute {
                 id,
                 token,
                 protocol,
                 upstream,
-            });
+            };
+            sync_route_to_db(&r);
+            clean.push(r);
         }
         let content = encode_byok_routes(&clean)?;
         write_file_atomic(byok_routes_path(), &content)?;
@@ -234,10 +266,32 @@ pub fn read_byok_routes() -> Result<Vec<BYOKRoute>, Box<dyn std::error::Error + 
     let _guard = BYOK_REGISTRY_LOCK.lock().unwrap();
     with_byok_registry_lock(|| {
         if let Some(raw) = read_file_safe(byok_routes_path()) {
-            parse_byok_routes(&raw)
-        } else {
-            Ok(Vec::new())
+            let routes = parse_byok_routes(&raw)?;
+            if !routes.is_empty() {
+                return Ok(routes);
+            }
         }
+        // Fallback: read from SQLite DB if file is empty/missing
+        if let Ok(arc) = crate::db::shared_db() {
+            if let Ok(db) = arc.lock() {
+                if let Ok(recs) = db.list_byok_routes() {
+                    let routes: Vec<BYOKRoute> = recs
+                        .into_iter()
+                        .filter(|r| r.is_active)
+                        .map(|r| BYOKRoute {
+                            id: r.id,
+                            token: r.token,
+                            protocol: r.protocol,
+                            upstream: r.upstream,
+                        })
+                        .collect();
+                    if !routes.is_empty() {
+                        return Ok(routes);
+                    }
+                }
+            }
+        }
+        Ok(Vec::new())
     })
 }
 
@@ -261,12 +315,14 @@ pub fn upsert_byok_route(
                 r.protocol = protocol.to_string();
                 r.upstream = upstream.trim().trim_end_matches('/').to_string();
                 let result = r.clone();
+                sync_route_to_db(&result);
                 let content = encode_byok_routes(&routes)?;
                 write_file_atomic(byok_routes_path(), &content)?;
                 return Ok((result, Some(previous)));
             }
         }
         let new_route = new_byok_route(id, protocol, upstream)?;
+        sync_route_to_db(&new_route);
         routes.push(new_route.clone());
         let content = encode_byok_routes(&routes)?;
         write_file_atomic(byok_routes_path(), &content)?;
@@ -309,6 +365,7 @@ pub fn byok_routes_for(agent_id: &str) -> Vec<BYOKRoute> {
 
 pub fn delete_byok_route(id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let _guard = BYOK_REGISTRY_LOCK.lock().unwrap();
+    sync_delete_route_from_db(id);
     with_byok_registry_lock(|| {
         let path = byok_routes_path();
         if !Path::new(&path).exists() {

@@ -5,10 +5,12 @@
 // created: 2026-10-05
 // lastModified: 2026-10-31
 
+pub mod auth;
 pub mod codex_perm_hook;
 pub mod ctx;
 pub mod daemon;
 pub mod dashboard;
+pub mod db;
 pub mod disable;
 pub mod doctor;
 pub mod doctor_probe;
@@ -28,10 +30,12 @@ pub mod top;
 pub mod tui;
 pub mod update;
 
+pub use auth::*;
 pub use codex_perm_hook::*;
 pub use ctx::*;
 pub use daemon::*;
 pub use dashboard::*;
+pub use db::*;
 pub use disable::*;
 pub use doctor::*;
 pub use doctor_probe::*;
