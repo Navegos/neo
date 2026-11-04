@@ -34,6 +34,7 @@ impl IcmStore {
             let _ = std::fs::create_dir_all(parent);
         }
         let conn = Connection::open(&path)?;
+        let _ = conn.busy_timeout(std::time::Duration::from_millis(5000));
         let mut store = Self { conn, path };
         store.init_schema()?;
         Ok(store)
@@ -489,6 +490,8 @@ impl IcmStore {
 
             if ev.event_type == "decision" {
                 let _ = self.set_fact("architecture", &format!("decision_{}", &ev.id), &ev.summary, "projectmem");
+            } else if topic == "gotcha" {
+                let _ = self.set_fact("gotcha", &format!("gotcha_{}", &ev.id), &ev.summary, "projectmem");
             }
         }
 

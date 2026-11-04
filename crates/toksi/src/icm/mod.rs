@@ -177,6 +177,16 @@ mod tests {
         let fact = store.get_fact("architecture", "decision_0001").expect("get fact");
         assert!(fact.is_some());
         assert!(fact.unwrap().value.contains("SQLite database"));
+
+        // Verify gotcha fact was stored
+        let gotcha = store.get_fact("gotcha", "gotcha_0002").expect("get gotcha fact");
+        assert!(gotcha.is_some());
+        assert!(gotcha.unwrap().value.contains("WAL mode"));
+
+        // Verify headroom hook recall_tiered_entries
+        let tiered = recall_tiered_entries(&mut store, Some("SQLite"), 5);
+        assert!(!tiered.is_empty());
+        assert!(tiered.iter().any(|t| t.title.contains("Fact: architecture::decision_0001") || t.title.contains("Memory")));
     }
 }
 

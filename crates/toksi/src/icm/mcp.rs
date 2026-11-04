@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/icm/mcp.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::env;
 use std::io::{self, BufRead, Write};
@@ -26,6 +26,10 @@ pub fn resolve_icm_db_path() -> PathBuf {
         if !root.trim().is_empty() {
             return PathBuf::from(root).join(".toksi").join(DEFAULT_DB_FILENAME);
         }
+    }
+    let h = crate::util::paths::home();
+    if !h.is_empty() {
+        return PathBuf::from(h).join(".toksi").join(DEFAULT_DB_FILENAME);
     }
     if let Ok(cwd) = env::current_dir() {
         return cwd.join(".toksi").join(DEFAULT_DB_FILENAME);
@@ -445,7 +449,7 @@ fn dispatch_tool(store: &mut IcmStore, name: &str, args: &Value) -> Result<Strin
 
             serde_json::to_string_pretty(&handoff).map_err(|e| e.to_string())
         }
-        "memory_handoff_claim" => {
+        "memory_handoff_claim" | "memory_handoff_accept" => {
             let id = args.get("id").and_then(|v| v.as_str()).ok_or("missing 'id'")?;
             let agent = args.get("agent").and_then(|v| v.as_str()).ok_or("missing 'agent'")?;
 

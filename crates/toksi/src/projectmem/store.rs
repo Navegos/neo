@@ -378,6 +378,15 @@ pub fn append_event(event: &mut Event, root: Option<&Path>) -> Result<(), String
         event.outcome.as_deref(),
     );
 
+    // Best-effort auto-sync event to ICM SQLite store (~/.toksi/memory.db) when in production context
+    #[cfg(not(test))]
+    if root.is_none() {
+        let icm_path = crate::icm::resolve_icm_db_path();
+        if let Ok(mut icm) = crate::icm::IcmStore::open(&icm_path) {
+            let _ = icm.sync_from_projectmem(&[event.clone()]);
+        }
+    }
+
     Ok(())
 }
 

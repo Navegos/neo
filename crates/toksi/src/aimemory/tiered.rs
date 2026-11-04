@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/aimemory/tiered.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use serde::{Deserialize, Serialize};
 
@@ -44,7 +44,15 @@ pub struct TieredPacker;
 impl TieredPacker {
     /// Progressively pack entries based on max token budget
     pub fn pack(entries: &[TieredEntry], token_budget: usize) -> PackedBrief {
-        // Try L1 first if budget allows (> 300 tokens)
+        // Try L2 first if budget is generous (>= 1200 tokens)
+        if token_budget >= 1200 {
+            let l2_brief = Self::pack_tier(entries, DisclosureTier::L2, token_budget);
+            if l2_brief.estimated_tokens <= token_budget && l2_brief.entries_included > 0 {
+                return l2_brief;
+            }
+        }
+
+        // Try L1 if budget allows (>= 300 tokens)
         if token_budget >= 300 {
             let l1_brief = Self::pack_tier(entries, DisclosureTier::L1, token_budget);
             if l1_brief.estimated_tokens <= token_budget && l1_brief.entries_included > 0 {

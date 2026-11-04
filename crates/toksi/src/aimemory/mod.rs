@@ -29,6 +29,10 @@ pub fn default_handoffs_dir() -> PathBuf {
             return PathBuf::from(root).join(".toksi").join("handoffs");
         }
     }
+    let h = crate::util::paths::home();
+    if !h.is_empty() {
+        return PathBuf::from(h).join(".toksi").join("handoffs");
+    }
     if let Ok(cwd) = env::current_dir() {
         return cwd.join(".toksi").join("handoffs");
     }
@@ -45,6 +49,10 @@ pub fn default_wiki_dir() -> PathBuf {
         if !root.trim().is_empty() {
             return PathBuf::from(root).join(".toksi").join("wiki");
         }
+    }
+    let h = crate::util::paths::home();
+    if !h.is_empty() {
+        return PathBuf::from(h).join(".toksi").join("wiki");
     }
     if let Ok(cwd) = env::current_dir() {
         return cwd.join(".toksi").join("wiki");

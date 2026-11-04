@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/adaptive_mem.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::path::Path;
 use serde_json::{json, Value};
@@ -140,34 +140,13 @@ pub fn collect_memory_entries() -> Vec<TieredEntry> {
         }
     }
 
-    // 4. Check facts and top memories from ICM SQLite store (.toksi/memory.db)
+    // 4. Check facts and top memories from ICM SQLite store (.toksi/memory.db) via headroom hook
     let icm_db_path = crate::icm::resolve_icm_db_path();
     if icm_db_path.exists() {
-        if let Ok(icm_store) = crate::icm::IcmStore::open(&icm_db_path) {
-            if let Ok(facts) = icm_store.list_facts(None) {
-                for f in facts.iter().take(5) {
-                    let desc = format!("{}::{} = {}", f.entity, f.key, f.value);
-                    entries.push(TieredEntry {
-                        key: format!("fact_{}", f.id),
-                        title: format!("Fact: {}::{}", f.entity, f.key),
-                        abstract_text: Some(desc.clone()),
-                        summary_text: Some(desc.clone()),
-                        full_content: desc,
-                    });
-                }
-            }
-            if let Ok(hits) = icm_store.get_recent(5) {
-                for hit in hits {
-                    if hit.memory.importance == crate::icm::Importance::Critical || hit.memory.importance == crate::icm::Importance::High {
-                        entries.push(TieredEntry {
-                            key: format!("icm_{}", hit.memory.id),
-                            title: format!("Memory ({}): {}", hit.memory.topic, hit.memory.importance.as_str()),
-                            abstract_text: Some(hit.memory.summary.clone()),
-                            summary_text: Some(hit.memory.summary.clone()),
-                            full_content: hit.memory.raw_excerpt.unwrap_or(hit.memory.summary),
-                        });
-                    }
-                }
+        if let Ok(mut icm_store) = crate::icm::IcmStore::open(&icm_db_path) {
+            let icm_entries = crate::icm::recall_tiered_entries(&mut icm_store, None, 5);
+            for e in icm_entries {
+                entries.push(e);
             }
         }
     }

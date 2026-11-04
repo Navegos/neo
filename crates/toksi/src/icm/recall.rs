@@ -95,3 +95,43 @@ pub fn estimate_tokens(text: &str) -> usize {
     (text.len() + 3) / 4
 }
 
+/// Headroom budgeting hook: recalls top memories and active facts as TieredEntry items
+/// for direct consumption by the progressive disclosure packer.
+pub fn recall_tiered_entries(store: &mut IcmStore, query: Option<&str>, limit: usize) -> Vec<crate::aimemory::TieredEntry> {
+    let mut entries = Vec::new();
+
+    // 1. Fetch active facts (decisions, gotchas, architecture slots)
+    if let Ok(facts) = store.list_facts(None) {
+        for f in facts.into_iter().take(limit) {
+            let desc = format!("{}::{} = {}", f.entity, f.key, f.value);
+            entries.push(crate::aimemory::TieredEntry {
+                key: format!("fact_{}", f.id),
+                title: format!("Fact: {}::{}", f.entity, f.key),
+                abstract_text: Some(desc.clone()),
+                summary_text: Some(desc.clone()),
+                full_content: format!("{} (source: {})", desc, f.source),
+            });
+        }
+    }
+
+    // 2. Fetch top memories (query-based or most recent)
+    let hits = match query {
+        Some(q) if !q.trim().is_empty() => store.search_bm25(q, limit).unwrap_or_default(),
+        _ => store.get_recent(limit).unwrap_or_default(),
+    };
+
+    for hit in hits {
+        let full = hit.memory.raw_excerpt.clone().unwrap_or_else(|| hit.memory.summary.clone());
+        entries.push(crate::aimemory::TieredEntry {
+            key: format!("icm_{}", hit.memory.id),
+            title: format!("Memory ({}): {}", hit.memory.topic, hit.memory.importance.as_str()),
+            abstract_text: Some(hit.memory.summary.clone()),
+            summary_text: Some(hit.memory.summary.clone()),
+            full_content: full,
+        });
+    }
+
+    entries
+}
+
+
