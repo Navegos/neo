@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/cli.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::path::PathBuf;
 use super::fts::{resolve_content_store_path, ContentStore, SearchOptions};
@@ -77,6 +77,18 @@ pub fn run_ctx_cli(args: &[String]) -> i32 {
                     return 1;
                 }
             };
+            let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let is_mem_source = source.as_deref().map(|s| {
+                s.starts_with(super::auto_memory::MEMORY_LABEL_PREFIX) || s.ends_with(".md")
+            }).unwrap_or(false);
+
+            let mem_hits = super::auto_memory::query_auto_memory(
+                &cwd,
+                &query,
+                if is_mem_source { limit } else { 2 },
+                source.as_deref(),
+            );
+
             let opts = SearchOptions {
                 query,
                 limit,
@@ -85,7 +97,20 @@ pub fn run_ctx_cli(args: &[String]) -> i32 {
                 session_id: None,
             };
             match store.search(&opts) {
-                Ok(results) => {
+                Ok(mut results) => {
+                    if !mem_hits.is_empty() {
+                        if is_mem_source && results.is_empty() {
+                            results = mem_hits;
+                        } else {
+                            let mut combined = mem_hits;
+                            combined.extend(results);
+                            results = combined;
+                            if results.len() > limit {
+                                results.truncate(limit);
+                            }
+                        }
+                    }
+
                     if results.is_empty() {
                         println!("No matching chunks found.");
                     } else {

@@ -324,6 +324,11 @@ impl PolyglotSandbox {
         let unique = format!("ctx-{}-{}.tmp", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0), std::process::id());
 
         let (ext, content) = match language {
+            "powershell" | "pwsh" => {
+                let mut ps_content = String::from("\u{feff}[Console]::InputEncoding = [System.Text.UTF8Encoding]::new()\n[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()\n$OutputEncoding = [System.Text.UTF8Encoding]::new()\n");
+                ps_content.push_str(code);
+                ("ps1", ps_content)
+            }
             "shell" | "bash" | "sh" => {
                 if is_win() && (self.runtimes.shell.contains("powershell") || self.runtimes.shell.contains("pwsh")) {
                     let mut ps_content = String::from("\u{feff}[Console]::InputEncoding = [System.Text.UTF8Encoding]::new()\n[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()\n$OutputEncoding = [System.Text.UTF8Encoding]::new()\n");
@@ -353,6 +358,26 @@ impl PolyglotSandbox {
         let script_str = script_file.to_string_lossy().to_string();
 
         match language {
+            "powershell" | "pwsh" => {
+                let ps_bin = if !which("pwsh").is_empty() {
+                    "pwsh".to_string()
+                } else if !which("powershell").is_empty() {
+                    "powershell".to_string()
+                } else {
+                    self.runtimes.shell.clone()
+                };
+                Ok((
+                    ps_bin,
+                    vec![
+                        "-NoProfile".to_string(),
+                        "-NonInteractive".to_string(),
+                        "-ExecutionPolicy".to_string(),
+                        "Bypass".to_string(),
+                        "-File".to_string(),
+                        script_str,
+                    ],
+                ))
+            }
             "shell" | "bash" | "sh" => {
                 if self.runtimes.shell == "pwsh" || self.runtimes.shell == "powershell" {
                     Ok((

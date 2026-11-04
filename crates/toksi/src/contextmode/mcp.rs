@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/mcp.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::fs;
 use std::io::{self, BufRead, Write};
@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use serde_json::{json, Value};
 
+use super::auto_memory::{query_auto_memory, MEMORY_LABEL_PREFIX};
 use super::fetch::{FetchRequest, WebFetcher};
 use super::fts::{resolve_content_store_path, ContentStore, SearchOptions};
 use super::sandbox::{detect_runtimes, ExecRequest, PolyglotSandbox};
@@ -470,6 +471,7 @@ impl ContextMcpServer {
             Err(e) => return format!("Store lock error: {}", e),
         };
 
+        let root_dir = self.project_root.clone().or_else(|| std::env::current_dir().ok());
         let mut all_results = Vec::new();
         for q in query_list {
             let opts = SearchOptions {
@@ -481,7 +483,35 @@ impl ContextMcpServer {
             };
 
             match store.search(&opts) {
-                Ok(results) => {
+                Ok(mut results) => {
+                    // D-UNIFIED-MEMORY-1 & D-MEMORY-SOURCE-1:
+                    // Merge auto-memory hits from worktree
+                    if let Some(ref root) = root_dir {
+                        let is_mem_source = source_filter.as_deref().map(|s| {
+                            s.starts_with(MEMORY_LABEL_PREFIX) || s.ends_with(".md")
+                        }).unwrap_or(false);
+
+                        let mem_hits = query_auto_memory(
+                            root,
+                            &q,
+                            if is_mem_source { limit } else { 2 },
+                            source_filter.as_deref(),
+                        );
+
+                        if !mem_hits.is_empty() {
+                            if is_mem_source && results.is_empty() {
+                                results = mem_hits;
+                            } else {
+                                let mut combined = mem_hits;
+                                combined.extend(results);
+                                results = combined;
+                                if results.len() > limit {
+                                    results.truncate(limit);
+                                }
+                            }
+                        }
+                    }
+
                     if results.is_empty() {
                         all_results.push(format!("No results for query '{}'", q));
                     } else {

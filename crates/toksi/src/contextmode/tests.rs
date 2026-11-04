@@ -358,4 +358,53 @@ mod tests {
         let fetcher = super::super::fetch::WebFetcher::new();
         let _ = fetcher.async_client();
     }
+
+    #[test]
+    fn test_auto_memory_read_and_search() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+
+        // Write instruction memory files
+        std::fs::write(root.join("CLAUDE.md"), "# Claude Project Rules\n\nAlways use pure Rust with no Node runtime.").unwrap();
+        std::fs::write(root.join("AGENTS.md"), "# Agent Instructions\n\nEnsure 100% test coverage and 0 compiler warnings.").unwrap();
+
+        let files = super::super::auto_memory::read_auto_memory(root);
+        assert_eq!(files.len(), 2);
+        assert!(files.iter().any(|f| f.label == "CLAUDE.md"));
+        assert!(files.iter().any(|f| f.label == "AGENTS.md"));
+
+        // Query auto memory
+        let hits = super::super::auto_memory::query_auto_memory(root, "compiler warnings", 5, None);
+        assert!(!hits.is_empty());
+        assert!(hits[0].label.contains("AGENTS.md"));
+        assert!(hits[0].content.contains("compiler warnings"));
+
+        // Query with source filter
+        let claude_hits = super::super::auto_memory::query_auto_memory(root, "pure Rust", 5, Some("CLAUDE.md"));
+        assert!(!claude_hits.is_empty());
+        assert!(claude_hits[0].label.contains("CLAUDE.md"));
+    }
+
+    #[test]
+    fn test_powershell_sandbox_language() {
+        let sandbox = PolyglotSandbox::new();
+        let code = if cfg!(windows) {
+            "Write-Output 'powershell-ok'"
+        } else {
+            "echo 'powershell-ok'"
+        };
+
+        let req = ExecRequest {
+            language: "powershell".to_string(),
+            code: code.to_string(),
+            cwd: None,
+            timeout_secs: Some(10),
+            max_lines: Some(50),
+            max_bytes: None,
+        };
+
+        let res = sandbox.execute(&req).unwrap();
+        assert_eq!(res.exit_code, 0);
+        assert!(res.stdout.contains("powershell-ok"));
+    }
 }

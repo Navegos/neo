@@ -5,6 +5,7 @@
 // created: 2026-10-27
 // lastModified: 2026-10-31
 
+pub mod auto_memory;
 pub mod cli;
 pub mod fetch;
 pub mod filter;
@@ -17,6 +18,7 @@ pub mod stats;
 #[cfg(test)]
 mod tests;
 
+pub use auto_memory::{query_auto_memory, read_auto_memory, MemoryFile, MEMORY_LABEL_PREFIX};
 pub use cli::run_ctx_cli;
 pub use fetch::{html_to_markdown, ssrf_guard, WebFetcher};
 pub use filter::{filter_and_pipe_rtk, process_sandbox_output, slice_lines};
