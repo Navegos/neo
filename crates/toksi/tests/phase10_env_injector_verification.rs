@@ -23,7 +23,7 @@ fn test_phase10_env_injection_and_teardown_cycle() {
     let injected = inject_proxy_env().expect("environment injection should succeed");
     assert!(!injected.is_empty(), "should report injected keys");
     assert!(injected.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
-    assert!(injected.contains(&"CLOUD_CODE_URL".to_string()));
+    assert!(!injected.contains(&"CLOUD_CODE_URL".to_string()), "CLOUD_CODE_URL must not be injected (bypass auth)");
     assert!(injected.contains(&"TOKSI_OWNED".to_string()));
 
     // Verify current process has the injected variable
@@ -36,7 +36,6 @@ fn test_phase10_env_injection_and_teardown_cycle() {
     let purged = teardown_proxy_env().expect("environment teardown should succeed");
     assert!(!purged.is_empty(), "should report purged keys");
     assert!(purged.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
-    assert!(purged.contains(&"CLOUD_CODE_URL".to_string()));
     assert!(purged.contains(&"TOKSI_OWNED".to_string()));
 
     // Verify current process no longer has the marker

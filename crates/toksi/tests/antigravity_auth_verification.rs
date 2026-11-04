@@ -184,3 +184,33 @@ fn test_antigravity_credential_envelope_parsing() {
         .expect("Should parse base64-encoded OAuth envelope");
     assert_eq!(env_b64.access_token, "ya29.a0ARrdaM_mock_test_token_12345");
 }
+
+#[test]
+fn test_connect_error_translation_prevents_proto_syntax_error() {
+    let path = "/google.internal.cloud.code.v1internal.JetskiService/FetchUserInfo";
+    let headers = vec![
+        ("connect-protocol-version".to_string(), "1".to_string()),
+        ("content-type".to_string(), "application/proto".to_string()),
+    ];
+
+    assert!(toksi::headroom::byok_gateway::is_proto_or_connect_request(path, &headers));
+
+    // Upstream 403 HTML page simulation
+    let html_err_body = b"<!DOCTYPE html><title>403 Forbidden</title><p>Permission denied";
+    assert!(html_err_body.starts_with(b"<"));
+
+    // Translated ConnectRPC error
+    let (err_headers, err_body) = toksi::headroom::byok_gateway::format_connect_error(
+        403,
+        "Google eligibility check rejected: account is not eligible for Gemini/Antigravity or lacks license.",
+    );
+
+    assert!(err_headers.iter().any(|(k, v)| k == "Content-Type" && v.contains("application/json")));
+    assert!(err_headers.iter().any(|(k, v)| k == "Connect-Protocol-Version" && v == "1"));
+
+    // ConnectRPC error body is valid JSON, never starts with '<'
+    assert!(!err_body.starts_with(b"<"));
+    let json_parsed: serde_json::Value = serde_json::from_slice(&err_body).expect("Should be valid JSON");
+    assert_eq!(json_parsed["code"], "permission_denied");
+    assert!(json_parsed["message"].as_str().unwrap().contains("Google eligibility check rejected"));
+}

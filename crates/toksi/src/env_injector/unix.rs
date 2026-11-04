@@ -16,7 +16,6 @@ pub const TOKLESS_OWNED_KEYS: &str = "TOKLESS_OWNED_KEYS";
 
 pub const MANAGED_PROXY_KEYS: &[&str] = &[
     "GOOGLE_GEMINI_BASE_URL",
-    "CLOUD_CODE_URL",
     "ANTHROPIC_BASE_URL",
 ];
 

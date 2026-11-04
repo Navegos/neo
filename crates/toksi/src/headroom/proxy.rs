@@ -698,6 +698,8 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
             openai_url
         };
 
+        crate::util::logger::L.info(&format!("[PROXY] {} {} -> {}", req.method, path, target_base));
+
         let is_llm_request = req.method.eq_ignore_ascii_case("POST")
             && !req.body.is_empty()
             && (path.starts_with("/v1/messages")

@@ -29,7 +29,6 @@ pub const TOKLESS_OWNED_KEYS: &str = "TOKLESS_OWNED_KEYS";
 
 pub const MANAGED_PROXY_KEYS: &[&str] = &[
     "GOOGLE_GEMINI_BASE_URL",
-    "CLOUD_CODE_URL",
     "ANTHROPIC_BASE_URL",
 ];
 
@@ -213,6 +212,12 @@ pub fn inject_windows_env(proxy_url: &str) -> Result<Vec<String>, String> {
         injected.push(key.to_string());
     }
 
+    // Explicitly delete CLOUD_CODE_URL from HKCU\Environment so auth/quota checks bypass proxy
+    let _ = delete_env_reg_value("CLOUD_CODE_URL");
+    unsafe {
+        std::env::remove_var("CLOUD_CODE_URL");
+    }
+
     if let Err(e) = set_env_reg_value(TOKSI_OWNED_MARKER, "1") {
         if reg_err.is_none() {
             reg_err = Some(e);
@@ -276,11 +281,13 @@ pub fn teardown_windows_env() -> Result<Vec<String>, String> {
         let _ = delete_env_reg_value(TOKSI_OWNED_KEYS);
         let _ = delete_env_reg_value(TOKLESS_OWNED_MARKER);
         let _ = delete_env_reg_value(TOKLESS_OWNED_KEYS);
+        let _ = delete_env_reg_value("CLOUD_CODE_URL");
         unsafe {
             std::env::remove_var(TOKSI_OWNED_MARKER);
             std::env::remove_var(TOKSI_OWNED_KEYS);
             std::env::remove_var(TOKLESS_OWNED_MARKER);
             std::env::remove_var(TOKLESS_OWNED_KEYS);
+            std::env::remove_var("CLOUD_CODE_URL");
         }
         purged.push(TOKSI_OWNED_MARKER.to_string());
         purged.push(TOKSI_OWNED_KEYS.to_string());

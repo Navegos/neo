@@ -1562,7 +1562,7 @@ pub async fn forward_to_byok_target(
     };
 
     let req_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
-    let mut req_builder = client.request(req_method, target_url);
+    let mut req_builder = client.request(req_method.clone(), target_url);
     let enriched_headers = enrich_headers_with_keyring_credentials(target_base, headers);
 
     for (k, v) in &enriched_headers {
@@ -1577,7 +1577,7 @@ pub async fn forward_to_byok_target(
         req_builder = req_builder.header(k.as_str(), v.as_str());
     }
     if !outgoing_body.is_empty() {
-        req_builder = req_builder.body(outgoing_body);
+        req_builder = req_builder.body(outgoing_body.clone());
     }
 
     let Ok(resp) = req_builder.send().await else {
@@ -1624,6 +1624,50 @@ pub async fn forward_to_byok_target(
     (status, resp_headers, final_body)
 }
 
+pub fn is_proto_or_connect_request(path: &str, headers: &[(String, String)]) -> bool {
+    let p_low = path.to_ascii_lowercase();
+    p_low.starts_with("/google.")
+        || p_low.starts_with("/jetski.")
+        || p_low.starts_with("/exa.")
+        || p_low.contains("aicode")
+        || p_low.contains("cloudcode")
+        || p_low.contains("cloud.code")
+        || p_low.contains("fetchlicenses")
+        || p_low.contains("fetchuserinfo")
+        || p_low.contains("retrieveuserquota")
+        || p_low.contains("loadcodeassist")
+        || headers.iter().any(|(k, v)| {
+            let k_low = k.to_ascii_lowercase();
+            let v_low = v.to_ascii_lowercase();
+            k_low == "connect-protocol-version"
+                || k_low.starts_with("x-goog-")
+                || k_low.starts_with("x-aicode-")
+                || (k_low == "content-type" && (v_low.contains("proto") || v_low.contains("grpc") || v_low.contains("connect")))
+        })
+}
+
+pub fn format_connect_error(status: u16, message: &str) -> (Vec<(String, String)>, Vec<u8>) {
+    let code = match status {
+        400 => "invalid_argument",
+        401 => "unauthenticated",
+        403 => "permission_denied",
+        404 => "not_found",
+        429 => "resource_exhausted",
+        502 | 503 | 504 => "unavailable",
+        _ => "internal",
+    };
+    let body_json = serde_json::json!({
+        "code": code,
+        "message": message,
+    });
+    let body = serde_json::to_vec(&body_json).unwrap_or_else(|_| format!(r#"{{"code":"{}","message":"{}"}}"#, code, message).into_bytes());
+    let headers = vec![
+        ("Content-Type".to_string(), "application/json; charset=utf-8".to_string()),
+        ("Connect-Protocol-Version".to_string(), "1".to_string()),
+    ];
+    (headers, body)
+}
+
 pub async fn forward_streaming_to_byok_target(
     target_base: &str,
     method: &str,
@@ -1633,25 +1677,37 @@ pub async fn forward_streaming_to_byok_target(
     body: &[u8],
     client_stream: &mut TcpStream,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let is_proto = is_proto_or_connect_request(incoming_path, headers);
+
     let Ok(mut target_url) = url::Url::parse(target_base) else {
-        write_http_response(
-            client_stream,
-            502,
-            "Bad Gateway",
-            &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
-            b"invalid BYOK upstream\n",
-        ).await?;
+        if is_proto {
+            let (h, b) = format_connect_error(502, "invalid BYOK upstream target URL");
+            write_http_response(client_stream, 502, "Bad Gateway", &h, &b).await?;
+        } else {
+            write_http_response(
+                client_stream,
+                502,
+                "Bad Gateway",
+                &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+                b"invalid BYOK upstream\n",
+            ).await?;
+        }
         return Ok(());
     };
 
     if check_upstream_host_allowed(&target_url).is_err() {
-        write_http_response(
-            client_stream,
-            502,
-            "Bad Gateway",
-            &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
-            b"BYOK upstream unavailable\n",
-        ).await?;
+        if is_proto {
+            let (h, b) = format_connect_error(502, "BYOK upstream unavailable or host forbidden");
+            write_http_response(client_stream, 502, "Bad Gateway", &h, &b).await?;
+        } else {
+            write_http_response(
+                client_stream,
+                502,
+                "Bad Gateway",
+                &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+                b"BYOK upstream unavailable\n",
+            ).await?;
+        }
         return Ok(());
     }
 
@@ -1684,18 +1740,23 @@ pub async fn forward_streaming_to_byok_target(
         .timeout(Duration::from_secs(300))
         .build()
     else {
-        write_http_response(
-            client_stream,
-            502,
-            "Bad Gateway",
-            &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
-            b"BYOK upstream unavailable\n",
-        ).await?;
+        if is_proto {
+            let (h, b) = format_connect_error(502, "failed initializing HTTP upstream client");
+            write_http_response(client_stream, 502, "Bad Gateway", &h, &b).await?;
+        } else {
+            write_http_response(
+                client_stream,
+                502,
+                "Bad Gateway",
+                &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+                b"BYOK upstream unavailable\n",
+            ).await?;
+        }
         return Ok(());
     };
 
     let req_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
-    let mut req_builder = client.request(req_method, target_url);
+    let mut req_builder = client.request(req_method.clone(), target_url);
     let enriched_headers = enrich_headers_with_keyring_credentials(target_base, headers);
 
     for (k, v) in &enriched_headers {
@@ -1710,21 +1771,71 @@ pub async fn forward_streaming_to_byok_target(
         req_builder = req_builder.header(k.as_str(), v.as_str());
     }
     if !outgoing_body.is_empty() {
-        req_builder = req_builder.body(outgoing_body);
+        req_builder = req_builder.body(outgoing_body.clone());
     }
 
     let resp = match req_builder.send().await {
         Ok(r) => r,
-        Err(_) => {
-            write_http_response(
-                client_stream,
-                502,
-                "Bad Gateway",
-                &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
-                b"BYOK upstream unavailable\n",
-            ).await?;
+        Err(e) => {
+            if is_proto {
+                let (h, b) = format_connect_error(502, &format!("BYOK upstream connection failed: {}", e));
+                write_http_response(client_stream, 502, "Bad Gateway", &h, &b).await?;
+            } else {
+                write_http_response(
+                    client_stream,
+                    502,
+                    "Bad Gateway",
+                    &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+                    b"BYOK upstream unavailable\n",
+                ).await?;
+            }
             return Ok(());
         }
+    };
+
+    // If Google upstream returned 404 on aicode or cloudcode-pa, attempt sibling fallback
+    let resp = if resp.status().as_u16() == 404
+        && (target_base.contains("aicode.googleapis.com") || target_base.contains("cloudcode-pa.googleapis.com"))
+    {
+        let alt_base = if target_base.contains("aicode.googleapis.com") {
+            "https://cloudcode-pa.googleapis.com"
+        } else {
+            "https://aicode.googleapis.com"
+        };
+        if let Ok(mut alt_url) = url::Url::parse(alt_base) {
+            alt_url.set_path(&merged_path);
+            alt_url.set_query(query.filter(|s| !s.is_empty()));
+            let mut alt_builder = client.request(req_method.clone(), alt_url);
+            let alt_headers = enrich_headers_with_keyring_credentials(alt_base, headers);
+            for (k, v) in &alt_headers {
+                if k.eq_ignore_ascii_case(BYOK_ROUTE_HEADER)
+                    || k.eq_ignore_ascii_case("host")
+                    || k.eq_ignore_ascii_case("content-length")
+                    || k.eq_ignore_ascii_case("connection")
+                    || k.eq_ignore_ascii_case("transfer-encoding")
+                {
+                    continue;
+                }
+                alt_builder = alt_builder.header(k.as_str(), v.as_str());
+            }
+            if !outgoing_body.is_empty() {
+                alt_builder = alt_builder.body(outgoing_body.clone());
+            }
+            if let Ok(alt_resp) = alt_builder.send().await {
+                if alt_resp.status().is_success() || alt_resp.status().as_u16() != 404 {
+                    crate::util::logger::L.info(&format!("[FALLBACK-OK] Sibling fallback {} resolved 404 -> HTTP {}", alt_base, alt_resp.status()));
+                    alt_resp
+                } else {
+                    resp
+                }
+            } else {
+                resp
+            }
+        } else {
+            resp
+        }
+    } else {
+        resp
     };
 
     let status = resp.status().as_u16();
@@ -1818,27 +1929,50 @@ pub async fn forward_streaming_to_byok_target(
     }
 
     let Ok(raw_resp_bytes) = resp.bytes().await else {
-        write_http_response(
-            client_stream,
-            502,
-            "Bad Gateway",
-            &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
-            b"BYOK upstream unavailable\n",
-        ).await?;
+        if is_proto {
+            let (h, b) = format_connect_error(502, "failed reading BYOK upstream response bytes");
+            write_http_response(client_stream, 502, "Bad Gateway", &h, &b).await?;
+        } else {
+            write_http_response(
+                client_stream,
+                502,
+                "Bad Gateway",
+                &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+                b"BYOK upstream unavailable\n",
+            ).await?;
+        }
         return Ok(());
     };
 
-    let final_body = if is_responses_post && status == 200 {
-        transform_sse_bytes(&raw_resp_bytes, ns_map)
+    let is_html_error = raw_resp_bytes.starts_with(b"<")
+        || resp_headers.iter().any(|(k, v)| k.eq_ignore_ascii_case("content-type") && v.to_ascii_lowercase().contains("text/html"));
+
+    let (final_status, final_headers, final_body) = if is_proto && is_html_error {
+        let err_status = if status < 400 { 502 } else { status };
+        let msg = match err_status {
+            401 => "Google authentication failed: unauthenticated or expired token. Check your login state.",
+            403 => "Google eligibility check rejected: account is not eligible for Gemini/Antigravity or lacks license.",
+            404 => "Google upstream service endpoint not found (404).",
+            _ => "Google upstream returned HTML error page instead of protobuf.",
+        };
+        let (h, b) = format_connect_error(err_status, msg);
+        (err_status, h, b)
     } else {
-        raw_resp_bytes.to_vec()
+        let b = if is_responses_post && status == 200 {
+            transform_sse_bytes(&raw_resp_bytes, ns_map)
+        } else {
+            raw_resp_bytes.to_vec()
+        };
+        (status, resp_headers, b)
     };
+
+    crate::util::logger::L.info(&format!("[PROXY-RESP] {} {} -> HTTP {}", method, incoming_path, final_status));
 
     write_http_response(
         client_stream,
-        status,
-        status_reason(status),
-        &resp_headers,
+        final_status,
+        status_reason(final_status),
+        &final_headers,
         &final_body,
     ).await?;
     Ok(())

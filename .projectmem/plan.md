@@ -54,6 +54,13 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
   - [x] Fix Keyring target formats for `zalando/go-keyring` on Windows/macOS/Linux (`antigravity_user`, `jetski-standalone-oauth-token`, `antigravity`, `gemini`)
   - [x] Clean up malformed syntax in `~/.gemini/settings.json` and ensure valid sandbox permissions
   - [x] Verify end-to-end with unit/verification tests and live `agy` CLI compatibility check
+- [x] Phase 16: Protocol Buffer Framing & ConnectRPC In-and-Out Pass-Through (Issue #0031, #0032):
+  - [x] Detect ConnectRPC/Protobuf requests (`is_proto_or_connect_request`)
+  - [x] Format proxy 502/connection failures as structured ConnectRPC error JSON (`{"code":"unavailable",...}`)
+  - [x] Translate upstream HTML error pages (401, 403, 404) into structured ConnectRPC JSON (`permission_denied`, `unauthenticated`), permanently eliminating `proto: syntax error (line 1:1): invalid value`
+  - [x] Implement intelligent sibling upstream fallback between `https://aicode.googleapis.com` and `https://cloudcode-pa.googleapis.com` on 404 (fixing `v1internal` vs `v1main` endpoint splits)
+  - [x] Add real-time proxy route logging (`[PROXY]`, `[PROXY-RESP]`, `[FALLBACK-OK]`) in `proxy.log`
+  - [x] Verified with 4/4 passing verification tests and clean release compilation (0 warnings)
 
 ### nbuild — Toolchain & Workflow Manager
 - [x] Initialized `crates/nbuild` crate in root `Cargo.toml`

@@ -1561,7 +1561,7 @@ pub(crate) fn antigravity_env_value(raw: &str, key: &str) -> String {
 fn antigravity_dot_env_block() -> String {
     let u = antigravity_url();
     format!(
-        "{ANTIGRAVITY_PROXY_FENCE_HEAD}\n{ANTIGRAVITY_PROXY_ENV_KEY}={u}\n{ANTIGRAVITY_CLOUD_CODE_KEY}={u}\n{ANTIGRAVITY_PROXY_FENCE_FOOT}\n"
+        "{ANTIGRAVITY_PROXY_FENCE_HEAD}\n{ANTIGRAVITY_PROXY_ENV_KEY}={u}\n{ANTIGRAVITY_PROXY_FENCE_FOOT}\n"
     )
 }
 
@@ -1699,13 +1699,11 @@ fn antigravity_write_dot_env() -> Result<bool, String> {
     let file = antigravity_env_file();
     let url = antigravity_url();
     let raw = paths::read_file_safe(&file).unwrap_or_default();
-    if !antigravity_can_replace(&raw, ANTIGRAVITY_PROXY_ENV_KEY, &url)
-        || !antigravity_can_replace(&raw, ANTIGRAVITY_CLOUD_CODE_KEY, &url)
-    {
+    if !antigravity_can_replace(&raw, ANTIGRAVITY_PROXY_ENV_KEY, &url) {
         return Ok(false);
     }
     if antigravity_env_value(&raw, ANTIGRAVITY_PROXY_ENV_KEY) == url
-        && antigravity_env_value(&raw, ANTIGRAVITY_CLOUD_CODE_KEY) == url
+        && antigravity_env_value(&raw, ANTIGRAVITY_CLOUD_CODE_KEY).is_empty()
     {
         return Ok(false);
     }
@@ -1721,26 +1719,23 @@ fn antigravity_write_dot_env() -> Result<bool, String> {
 
 fn antigravity_apply_process_env() {
     let u = antigravity_url();
-    for key in [ANTIGRAVITY_PROXY_ENV_KEY, ANTIGRAVITY_CLOUD_CODE_KEY] {
-        let cur = std::env::var(key).unwrap_or_default();
-        if cur.is_empty() || cur == u {
-            // SAFETY: Toksi CLI updates process environment synchronously on main thread.
-            unsafe {
-                std::env::set_var(key, &u);
-            }
+    let cur = std::env::var(ANTIGRAVITY_PROXY_ENV_KEY).unwrap_or_default();
+    if cur.is_empty() || cur == u {
+        // SAFETY: Toksi CLI updates process environment synchronously on main thread.
+        unsafe {
+            std::env::set_var(ANTIGRAVITY_PROXY_ENV_KEY, &u);
+            std::env::remove_var(ANTIGRAVITY_CLOUD_CODE_KEY);
         }
     }
 }
 
 fn antigravity_process_env_compatible() -> bool {
     let u = antigravity_url();
-    for key in [ANTIGRAVITY_PROXY_ENV_KEY, ANTIGRAVITY_CLOUD_CODE_KEY] {
-        if let Ok(v) = std::env::var(key)
-            && !v.is_empty()
-            && v != u
-        {
-            return false;
-        }
+    if let Ok(v) = std::env::var(ANTIGRAVITY_PROXY_ENV_KEY)
+        && !v.is_empty()
+        && v != u
+    {
+        return false;
     }
     true
 }
@@ -1764,11 +1759,9 @@ fn antigravity_windows_user_env_compatible() -> bool {
     let u = antigravity_url();
     #[cfg(windows)]
     {
-        for name in [ANTIGRAVITY_PROXY_ENV_KEY, ANTIGRAVITY_CLOUD_CODE_KEY] {
-            if let Some(cur) = crate::env_injector::windows::get_env_reg_value(name) {
-                if !cur.is_empty() && cur != u {
-                    return false;
-                }
+        if let Some(cur) = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_PROXY_ENV_KEY) {
+            if !cur.is_empty() && cur != u {
+                return false;
             }
         }
     }
@@ -1793,16 +1786,22 @@ fn antigravity_write_windows_user_env() -> (bool, bool) {
             }
         }
 
-        let keys = [(ANTIGRAVITY_PROXY_ENV_KEY, 1u32), (ANTIGRAVITY_CLOUD_CODE_KEY, 2u32)];
-        for (key, bit) in keys {
-            let cur = crate::env_injector::windows::get_env_reg_value(key);
-            if cur.as_deref() != Some(&u) {
-                if crate::env_injector::windows::set_env_reg_value(key, &u).is_err() {
-                    return (false, false);
-                }
-                changed = true;
-                mask |= bit;
+        let cur = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_PROXY_ENV_KEY);
+        if cur.as_deref() != Some(&u) {
+            if crate::env_injector::windows::set_env_reg_value(ANTIGRAVITY_PROXY_ENV_KEY, &u).is_err() {
+                return (false, false);
             }
+            changed = true;
+            mask |= 1u32;
+        }
+
+        // Delete CLOUD_CODE_URL from user environment so Google auth/quota calls bypass proxy directly
+        if crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_CLOUD_CODE_KEY).is_some() {
+            let _ = crate::env_injector::windows::delete_env_reg_value(ANTIGRAVITY_CLOUD_CODE_KEY);
+            changed = true;
+        }
+        unsafe {
+            std::env::remove_var(ANTIGRAVITY_CLOUD_CODE_KEY);
         }
 
         let marker_val = format!("proxy={}", mask);
@@ -1840,9 +1839,9 @@ fn antigravity_clear_windows_user_env() -> bool {
         let mut changed = false;
         let keys = [(ANTIGRAVITY_PROXY_ENV_KEY, 1u32), (ANTIGRAVITY_CLOUD_CODE_KEY, 2u32)];
         for (key, bit) in keys {
-            if (mask & bit) != 0 {
+            if (mask & bit) != 0 || key == ANTIGRAVITY_CLOUD_CODE_KEY {
                 if let Some(cur) = crate::env_injector::windows::get_env_reg_value(key) {
-                    if cur == u {
+                    if cur == u || key == ANTIGRAVITY_CLOUD_CODE_KEY {
                         let _ = crate::env_injector::windows::delete_env_reg_value(key);
                         changed = true;
                     }
@@ -1876,7 +1875,6 @@ pub fn configure_antigravity_proxy() -> (bool, String) {
         || !antigravity_shim_compatible()
         || !antigravity_ide_compatible()
         || !antigravity_can_replace(raw, ANTIGRAVITY_PROXY_ENV_KEY, &url)
-        || !antigravity_can_replace(raw, ANTIGRAVITY_CLOUD_CODE_KEY, &url)
     {
         return (false, file);
     }
@@ -1941,8 +1939,8 @@ pub fn remove_antigravity_proxy() -> bool {
         removed = true;
     }
     if let Some(ref raw) = raw_opt
-        && antigravity_env_value(raw, ANTIGRAVITY_PROXY_ENV_KEY) == url
-        && antigravity_env_value(raw, ANTIGRAVITY_CLOUD_CODE_KEY) == url
+        && (antigravity_env_value(raw, ANTIGRAVITY_PROXY_ENV_KEY) == url
+            || antigravity_env_value(raw, ANTIGRAVITY_CLOUD_CODE_KEY) == url)
     {
         let next = antigravity_strip_fence(raw);
         if next != *raw {
@@ -1968,10 +1966,8 @@ pub fn antigravity_proxy_wired() -> bool {
     let url = antigravity_url();
     let mut env_ok = false;
     if let Some(raw) = paths::read_file_safe(&antigravity_env_file()) {
-        if (antigravity_env_value(&raw, ANTIGRAVITY_PROXY_ENV_KEY) == url
-            || antigravity_env_value(&raw, "GEMINI_API_BASE_URL") == url)
-            && (antigravity_env_value(&raw, ANTIGRAVITY_CLOUD_CODE_KEY) == url
-                || antigravity_env_value(&raw, "CLOUDCODE_URL") == url)
+        if antigravity_env_value(&raw, ANTIGRAVITY_PROXY_ENV_KEY) == url
+            || antigravity_env_value(&raw, "GEMINI_API_BASE_URL") == url
         {
             env_ok = true;
         }
@@ -1979,8 +1975,7 @@ pub fn antigravity_proxy_wired() -> bool {
     #[cfg(windows)]
     if !env_ok {
         let p1 = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_PROXY_ENV_KEY);
-        let p2 = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_CLOUD_CODE_KEY);
-        if p1.as_deref() == Some(&url) || p2.as_deref() == Some(&url) {
+        if p1.as_deref() == Some(&url) {
             env_ok = true;
         }
     }
@@ -2011,8 +2006,7 @@ pub fn antigravity_proxy_wired() -> bool {
 
 pub fn antigravity_proxy_session_ready() -> bool {
     let u = antigravity_url();
-    std::env::var(ANTIGRAVITY_CLOUD_CODE_KEY).ok().as_deref() == Some(u.as_str())
-        && std::env::var(ANTIGRAVITY_PROXY_ENV_KEY).ok().as_deref() == Some(u.as_str())
+    std::env::var(ANTIGRAVITY_PROXY_ENV_KEY).ok().as_deref() == Some(u.as_str())
 }
 
 fn remove_file_if_exists(path: &str) -> bool {
