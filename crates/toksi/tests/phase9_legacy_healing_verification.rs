@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase9_legacy_healing_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-11-02
+// lastModified: 2026-11-04
 
 use std::env;
 use std::fs;
@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use toksi::agents::antigravity::{antigravity_shim_applicable, antigravity_shim_compatible, antigravity_shim_wired};
-use toksi::agents::copilot::{copilot_cli_proxy_applicable, copilot_cli_proxy_wired};
+use toksi::agents::copilot::copilot_cli_proxy_wired;
 use toksi::agents::grok::{grok_shim_wired, install_grok_shim};
 use toksi::commands::run_doctor;
 use toksi::env_injector::heal::{heal_legacy_hijacks_in, is_toksi_shim_or_sidecar};

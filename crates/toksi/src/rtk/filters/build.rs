@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/build.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::collections::BTreeMap;
 use crate::rtk::ansi::strip_ansi;
@@ -149,7 +149,13 @@ pub fn filter_cargo_build(raw: &str, subcommand: &str, exit_code: i32) -> String
         out.push(fin);
     } else if out.is_empty() {
         if exit_code == 0 {
-            out.push(format!("cargo {}: ok (compiled {} crates)", subcommand, compiled_count));
+            if compiled_count > 0 {
+                out.push(format!("cargo {}: ok (compiled {} crates)", subcommand, compiled_count));
+            } else if raw.starts_with("cargo ") || raw.contains("version") || raw.contains("Usage:") {
+                return raw.to_string();
+            } else {
+                out.push(format!("cargo {}: ok (compiled 0 crates)", subcommand));
+            }
         } else {
             out.push(format!("cargo {}: failed (exit code {})", subcommand, exit_code));
         }

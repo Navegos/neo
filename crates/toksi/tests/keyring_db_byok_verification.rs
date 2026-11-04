@@ -8,8 +8,7 @@
 use toksi::db::{ByokRouteRecord, ProviderRecord, ToksiConfigDb};
 use toksi::headroom::byok_gateway::enrich_headers_with_keyring_credentials;
 use toksi::keyring::{
-    decode_base64, encode_base64, get_agent_token, get_credential, parse_credential_envelope,
-    set_credential,
+    encode_base64, get_credential, parse_credential_envelope, set_credential,
 };
 
 #[test]

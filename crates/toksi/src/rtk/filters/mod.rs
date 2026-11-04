@@ -24,6 +24,9 @@ pub fn is_filterable_command(cmd_line: &str) -> bool {
         return false;
     }
     let parts: Vec<&str> = trimmed.split_whitespace().collect();
+    if parts.iter().any(|&p| p == "--version" || p == "-V" || p == "--help" || p == "-h" || p == "help") {
+        return false;
+    }
     let bin = parts.first().copied().unwrap_or("");
     let sub = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
 
@@ -51,6 +54,9 @@ pub fn is_filterable_command(cmd_line: &str) -> bool {
 pub fn filter_command_output(cmd_line: &str, stdout: &str, stderr: &str, exit_code: i32) -> String {
     let trimmed = cmd_line.trim();
     let parts: Vec<&str> = trimmed.split_whitespace().collect();
+    if parts.iter().any(|&p| p == "--version" || p == "-V" || p == "--help" || p == "-h" || p == "help") {
+        return if !stdout.is_empty() { stdout.to_string() } else { stderr.to_string() };
+    }
     let bin = parts.first().copied().unwrap_or("");
     let sub = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
 

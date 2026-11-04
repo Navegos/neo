@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/engine.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::process::{Command, Stdio};
 use crate::rtk::ansi::strip_ansi;
@@ -86,7 +86,7 @@ pub fn run_command_filtered(cmd_line: &str) -> std::io::Result<i32> {
 
     let output = Command::new(program)
         .args(args)
-        .stdin(Stdio::inherit())
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()?;
