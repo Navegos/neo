@@ -23,8 +23,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - ...and 22 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...40 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Phase 12: Interactive 6-tab TUI in crossterm/ratatui with Live Monitor, Wire Manager, Memory Explorer, CodeGraph Visualizer, Headroom BYOK & Cache Inspector, Diagnostic Logs; zero-dependency Telemetry Web Dashboard on :9099 with embedded SPA and SSE [crates/tokless/src/tui/]
+- ...41 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 13: End-to-End System Verification & Benchmarks verified across all 17 agent harnesses, unified CLI, proxy compression, non-destructive env injection, zero external runtime deps, and benchmarks (395 tests passing, 0 warnings) [crates/tokless/tests/phase13_e2e_verification.rs]
 - Phase 7: Implemented Native Enterprise AI Gateway and Headroom deep integration with 36 provider clients, local session reuse bridges, dynamic failover cascade, multi-key pools, load balancer, task complexity router, virtual key governance, dual-tier semantic cache, and dynamic MCP schema pruner; 407 workspace tests passing with 0 warnings [crates/tokless/src/gateway/]
 - Refactor: Rename crate tokless to toksi across workspace, packages, binaries, APIs, metrics, and agent harnesses
@@ -39,9 +38,9 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - Refactor: Refactor code structure for improved readability and maintainability [crates/toksi/.toksi/memory.db]
 - Phase 03: Completed full native pure Rust port of Context-Mode with 100% parity: isolated PolyglotSandbox with CPU timeout and memory bounds, Windows mvn rewrite, NO_COLOR/FORCE_COLOR, CTX_FILE, background detached execution; filter.rs with OUTPUT_CAP and EXEC_PREVIEW_BYTES slice/handle line; fts.rs SQLite FTS5 chunker and BM25 search; fetch.rs async reqwest fetcher with SSRF guard and markdown extraction; mcp.rs in-process ctx_* tools (ctx_execute, ctx_execute_file, ctx_batch_execute, ctx_batch, ctx_index with url, ctx_search with auto-memory, ctx_fetch_and_index, ctx_resume, ctx_stats, ctx_doctor, ctx_purge) and toksi ctx CLI. 27 unit tests and 7 integration tests passing with 0 warnings. [crates/toksi/src/contextmode/mod.rs:1]
 - Prioritize ~/.toksi/memory.db, expose recall_tiered_entries headroom hook, and support memory_handoff_accept in ICM
+- Phase 05: CodeGraph Pure Rust Engine refreshed with upstream inspect-vault updates (C/C++ member type refs, Python parameterized base, Go uppercase const/var exports, JS/TS subscript exports) [crates/toksi/src/codegraph/mod.rs:1]
 
 ## Notes
-- New feature: feat: Add VS Code Antigravity extension connection fixes and RTK hook enhancements [crates/toksi/src/agents/antigravity.rs]
 - New feature: feat(keyring): Implement OS keyring support with OAuth envelope handling [crates/toksi/src/commands/auth.rs]
 - New feature: feat: Enhance Antigravity auth and eligibility checks; implement route discrimination for AICode and improve keyring tar [crates/toksi/src/gateway/agent_cli/gemini_agy.rs]
 - New feature: feat: Implement bypass for non-LLM authentication and ConnectRPC management endpoints; enhance error handling and loggin [crates/toksi/src/agents/antigravity.rs]
@@ -51,6 +50,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - New feature: feat: enhance command filters and output handling [crates/toksi/src/commands/rtk.rs]
 - New feature: feat(projectmem): complete pure safe Rust port with v0.3.5 parity [crates/toksi/src/projectmem/mcp.rs]
 - New feature: feat(contextmode): enhance sandbox execution, MCP tooling, and output management [crates/toksi/src/contextmode/cli.rs]
+- New feature: feat(icm): prioritize home dir db, add tiered recall hook, and sync projectmem gotchas [crates/toksi/src/aimemory/mod.rs]
 
 ## Key files
 - `.editorconfig`

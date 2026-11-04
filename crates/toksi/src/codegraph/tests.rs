@@ -693,5 +693,83 @@ impl PaymentGateway {
             Some("src/auth.rs:1 (verify_token)")
         );
     }
+
+    #[test]
+    fn test_extract_python_parameterized_base() {
+        let code = r#"
+class Leaf(Base[str]):
+    def evaluate(self) -> str:
+        return "leaf"
+"#;
+        let extraction = extract_file("leaf.py", code, "python").expect("extract python");
+        assert!(!extraction.nodes.is_empty());
+        let cls = extraction.nodes.iter().find(|n| n.name == "Leaf").unwrap();
+        assert_eq!(cls.kind, "class");
+        let extends_refs: Vec<&str> = extraction.refs.iter().filter(|r| r.kind == "extends").map(|r| r.name.as_str()).collect();
+        assert!(extends_refs.contains(&"Base"), "extends ref should resolve to Base, got {:?}", extends_refs);
+    }
+
+    #[test]
+    fn test_extract_go_exported_const_var() {
+        let code = r#"
+package config
+
+const (
+    MaxRetries = 5
+    timeoutSec = 30
+)
+
+var (
+    GlobalClient = "client"
+    localCache = 10
+)
+"#;
+        let extraction = extract_file("config.go", code, "go").expect("extract go");
+        let max_retries = extraction.nodes.iter().find(|n| n.name == "MaxRetries").unwrap();
+        assert_eq!(max_retries.visibility.as_deref(), Some("public"));
+
+        let timeout = extraction.nodes.iter().find(|n| n.name == "timeoutSec").unwrap();
+        assert_ne!(timeout.visibility.as_deref(), Some("public"));
+
+        let global_client = extraction.nodes.iter().find(|n| n.name == "GlobalClient").unwrap();
+        assert_eq!(global_client.visibility.as_deref(), Some("public"));
+
+        let local_cache = extraction.nodes.iter().find(|n| n.name == "localCache").unwrap();
+        assert_ne!(local_cache.visibility.as_deref(), Some("public"));
+    }
+
+    #[test]
+    fn test_extract_tsjs_subscript_export() {
+        let code = r#"
+exports["fetchData"] = function() {
+    return true;
+};
+module.exports["saveData"] = function() {
+    return false;
+};
+"#;
+        let extraction = extract_file("api.js", code, "javascript").expect("extract js");
+        let names: Vec<&str> = extraction.nodes.iter().map(|n| n.name.as_str()).collect();
+        assert!(names.contains(&"fetchData"), "should name symbol after exports[\"fetchData\"], got {:?}", names);
+        assert!(names.contains(&"saveData"), "should name symbol after module.exports[\"saveData\"], got {:?}", names);
+    }
+
+    #[test]
+    fn test_extract_cpp_struct_member_types() {
+        let code = r#"
+struct Config {
+    int timeout;
+};
+
+struct Server {
+    Config cfg;
+};
+"#;
+        let extraction = extract_file("server.cpp", code, "cpp").expect("extract cpp");
+        let server_node = extraction.nodes.iter().find(|n| n.name == "Server").unwrap();
+        assert_eq!(server_node.kind, "struct");
+        let refs: Vec<&str> = extraction.refs.iter().filter(|r| r.from_node_id == server_node.id).map(|r| r.name.as_str()).collect();
+        assert!(refs.contains(&"Config"), "Server struct should reference member type Config, got {:?}", refs);
+    }
 }
 

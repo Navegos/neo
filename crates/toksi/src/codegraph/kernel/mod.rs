@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 #[macro_export]
 macro_rules! stack_guard {
@@ -111,6 +111,7 @@ pub fn decode_buffers(file_path: &str, out: &buffers::EmitOut) -> Result<FileExt
         let row = &out.nodes[off..off + buffers::NODE_ROW_SIZE];
         let kind_idx = row[0] as usize;
         let vis_code = row[1];
+        let flags_val = u16::from_le_bytes(row[2..4].try_into().unwrap());
         let start_line = u32::from_le_bytes(row[4..8].try_into().unwrap());
         let end_line = u32::from_le_bytes(row[8..12].try_into().unwrap());
         let start_col = u32::from_le_bytes(row[12..16].try_into().unwrap());
@@ -135,7 +136,17 @@ pub fn decode_buffers(file_path: &str, out: &buffers::EmitOut) -> Result<FileExt
             2 => Some("private".to_string()),
             3 => Some("protected".to_string()),
             4 => Some("internal".to_string()),
-            _ => None,
+            _ => {
+                if (flags_val & 0x01) != 0 {
+                    if (flags_val & 0x02) != 0 {
+                        Some("public".to_string())
+                    } else {
+                        Some("private".to_string())
+                    }
+                } else {
+                    None
+                }
+            }
         };
 
         let name = get_arena_str(arena, name_off, name_len).unwrap_or("").to_string();

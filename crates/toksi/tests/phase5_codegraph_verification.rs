@@ -548,3 +548,82 @@ fn step_two() -> bool { true }
     );
 }
 
+#[test]
+fn test_phase5_updated_extractions_parity() {
+    // 1. Python parameterized base class
+    let py_code = r#"
+class Leaf(Base[str]):
+    def evaluate(self) -> str:
+        return "leaf"
+"#;
+    let py_ext = extract_file("leaf.py", py_code, "python").expect("extract python");
+    let leaf_node = py_ext.nodes.iter().find(|n| n.name == "Leaf").unwrap();
+    assert_eq!(leaf_node.kind, "class");
+    let extends_refs: Vec<&str> = py_ext
+        .refs
+        .iter()
+        .filter(|r| r.kind == "extends")
+        .map(|r| r.name.as_str())
+        .collect();
+    assert!(extends_refs.contains(&"Base"), "Python parameterized base should resolve to Base");
+
+    // 2. Go exported const/var
+    let go_code = r#"
+package config
+
+const (
+    MaxRetries = 5
+    timeoutSec = 30
+)
+
+var (
+    GlobalClient = "client"
+    localCache = 10
+)
+"#;
+    let go_ext = extract_file("config.go", go_code, "go").expect("extract go");
+    let max_retries = go_ext.nodes.iter().find(|n| n.name == "MaxRetries").unwrap();
+    assert_eq!(max_retries.visibility.as_deref(), Some("public"));
+
+    let timeout = go_ext.nodes.iter().find(|n| n.name == "timeoutSec").unwrap();
+    assert_ne!(timeout.visibility.as_deref(), Some("public"));
+
+    let global_client = go_ext.nodes.iter().find(|n| n.name == "GlobalClient").unwrap();
+    assert_eq!(global_client.visibility.as_deref(), Some("public"));
+
+    // 3. TS/JS subscript export
+    let js_code = r#"
+exports["fetchData"] = function() {
+    return true;
+};
+module.exports["saveData"] = function() {
+    return false;
+};
+"#;
+    let js_ext = extract_file("api.js", js_code, "javascript").expect("extract js");
+    let names: Vec<&str> = js_ext.nodes.iter().map(|n| n.name.as_str()).collect();
+    assert!(names.contains(&"fetchData"), "should capture exports[\"fetchData\"]");
+    assert!(names.contains(&"saveData"), "should capture module.exports[\"saveData\"]");
+
+    // 4. C++ struct member types
+    let cpp_code = r#"
+struct Config {
+    int timeout;
+};
+
+struct Server {
+    Config cfg;
+};
+"#;
+    let cpp_ext = extract_file("server.cpp", cpp_code, "cpp").expect("extract cpp");
+    let server_node = cpp_ext.nodes.iter().find(|n| n.name == "Server").unwrap();
+    let refs: Vec<&str> = cpp_ext
+        .refs
+        .iter()
+        .filter(|r| r.from_node_id == server_node.id)
+        .map(|r| r.name.as_str())
+        .collect();
+    assert!(refs.contains(&"Config"), "Server struct should reference Config");
+}
+
+

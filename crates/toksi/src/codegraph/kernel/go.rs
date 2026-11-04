@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/go.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 //! Go extraction — a faithful Rust port of `TreeSitterExtractor`'s Go paths
 //! (src/extraction/tree-sitter.ts) plus languages/go.ts.
@@ -729,11 +729,14 @@ impl<'t> Walker<'t> {
                     // own doc comment beside it in the parentheses; one without
                     // keeps the group's.
                     let doc = self.docstring_of(spec).or_else(|| docstring.clone());
+                    // Exported by its own name's case, read from the spec (the
+                    // declaration around it has no name).
+                    let is_exported = Some(self.is_exported(spec));
                     var_row = self.create_node(
                         if is_const_decl { "constant" } else { "variable" },
                         &name,
                         spec,
-                        Extra { docstring: doc, signature, ..Extra::default() },
+                        Extra { docstring: doc, signature, is_exported, ..Extra::default() },
                     );
                 }
             }
