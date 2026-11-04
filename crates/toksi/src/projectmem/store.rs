@@ -14,6 +14,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use super::redaction::redact_event_fields;
 use super::schema::{auto_resolve_location, normalize_timestamp, Event};
@@ -28,6 +29,35 @@ pub const INSTRUCTIONS_BACKUP_FILE: &str = "AI_INSTRUCTIONS.md.bak";
 pub const PROJECT_MAP_FILE: &str = "PROJECT_MAP.md";
 pub const PLAN_FILE: &str = "plan.md";
 pub const CURRENT_ISSUE_MARKER: &str = ".current_issue";
+pub const LAST_FAILURE_FILE: &str = ".last_failure.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LastFailureTrace {
+    pub command: String,
+    pub root_cause: String,
+    pub raw_output: String,
+    pub timestamp: String,
+}
+
+pub fn write_last_failure_trace(trace: &LastFailureTrace, root: Option<&Path>) -> Result<(), String> {
+    let mem_dir = match discover_mem_dir(root) {
+        Some(d) => d,
+        None => return Ok(()),
+    };
+    let path = mem_dir.join(LAST_FAILURE_FILE);
+    let json = serde_json::to_string_pretty(trace).map_err(|e| e.to_string())?;
+    atomic_write_file(&path, &json)
+}
+
+pub fn read_last_failure_trace(root: Option<&Path>) -> Option<LastFailureTrace> {
+    let mem_dir = discover_mem_dir(root)?;
+    let path = mem_dir.join(LAST_FAILURE_FILE);
+    if !path.exists() {
+        return None;
+    }
+    let raw = fs::read_to_string(path).ok()?;
+    serde_json::from_str(&raw).ok()
+}
 pub const INSTRUCTIONS_VERSION: u32 = 1;
 
 pub struct FileLock {
@@ -625,6 +655,7 @@ pub fn ensure_gitignore_entry(root: &Path, extra: &[&str]) {
         format!("{}/watch.pid", MEM_DIR),
         format!("{}/watch.log", MEM_DIR),
         format!("{}/structure.json", MEM_DIR),
+        format!("{}/{}", MEM_DIR, LAST_FAILURE_FILE),
     ];
     for e in extra {
         entries.push(e.to_string());

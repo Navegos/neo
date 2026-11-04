@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/projectmem/mod.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 pub mod cli;
 pub mod global;
@@ -32,7 +32,8 @@ pub use schema::{
     VALID_CONFIDENCE_LEVELS, VALID_EVENT_TYPES, VALID_OUTCOMES,
 };
 pub use store::{
-    append_event, discover_mem_dir, initialize, read_events, require_mem_dir,
+    append_event, discover_mem_dir, initialize, read_events, read_last_failure_trace,
+    require_mem_dir, write_last_failure_trace, LastFailureTrace,
 };
 pub use summary::{build_summary, regenerate_summary};
 

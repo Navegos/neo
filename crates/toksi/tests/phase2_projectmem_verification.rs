@@ -207,3 +207,45 @@ fn test_phase2_global_cross_project_memory() {
 
     global::set_global_dir_override(None);
 }
+
+#[test]
+fn test_phase2_rtk_failure_trace_autopopulate() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), Some("Phase 2 RTK Auto-Populate Test")).unwrap();
+
+    // 1. Manually write a LastFailureTrace as if RTK captured a failed test
+    let trace = LastFailureTrace {
+        command: "cargo test --test integration".to_string(),
+        root_cause: "error[E0433]: failed to resolve: use of undeclared crate `tokio`".to_string(),
+        raw_output: "   Compiling toksi v0.1.0\nerror[E0433]: failed to resolve: use of undeclared crate `tokio`\n --> tests/int.rs:2:5".to_string(),
+        timestamp: utc_now_iso(),
+    };
+    write_last_failure_trace(&trace, Some(root)).unwrap();
+
+    // Verify it is readable
+    let loaded = read_last_failure_trace(Some(root)).unwrap();
+    assert_eq!(loaded.command, "cargo test --test integration");
+    assert!(loaded.root_cause.contains("error[E0433]"));
+
+    // 2. Call tool_record_attempt with empty summary to test auto-population
+    let msg = mcp::tool_record_attempt(
+        root,
+        "",
+        Some("failed"),
+        Some("tests/int.rs:2"),
+        None,
+        None,
+        None,
+    )
+    .unwrap();
+
+    assert!(msg.contains("Recorded failed attempt"));
+    assert!(msg.contains("error[E0433]"));
+
+    let events = read_events(Some(root)).unwrap();
+    let att = events.iter().find(|e| e.event_type == "attempt").unwrap();
+    assert!(att.summary.contains("error[E0433]"));
+    assert_eq!(att.command.as_deref(), Some("cargo test --test integration"));
+    assert!(att.notes.as_ref().unwrap().contains("Compiling toksi v0.1.0"));
+}

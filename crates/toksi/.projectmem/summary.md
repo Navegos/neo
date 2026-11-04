@@ -8,6 +8,10 @@ CLI test
 ## Recent issues
 - [OPEN] #0055 CLI test issue [src/main.rs:1] (open)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0069 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0068 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
+  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
 - [DONE] #0067 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
 - [DONE] #0066 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
@@ -24,14 +28,10 @@ CLI test
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
 - [DONE] #0060 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0059 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- [DONE] #0058 CLI test issue [src/main.rs:1] -> Fixed assertion in test_foo (fixed)
-  - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
-- ...and 56 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 58 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...51 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
+- ...52 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Use assertion macros consistently
 - Use assertion macros consistently
 - Use assertion macros consistently

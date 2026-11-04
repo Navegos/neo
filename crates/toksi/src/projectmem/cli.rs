@@ -196,6 +196,19 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
                 }
             }
 
+            if text.is_empty() {
+                if let Some(trace) = super::store::read_last_failure_trace(None) {
+                    text = trace.root_cause;
+                    if command.is_none() {
+                        command = Some(trace.command);
+                    }
+                    println!("Auto-populated failure trace from RTK: {}", text);
+                } else {
+                    eprintln!("Error: Attempt summary text is required (or run a failing test/build command with RTK first).");
+                    return 1;
+                }
+            }
+
             let events = match read_events(None) {
                 Ok(evs) => evs,
                 Err(e) => {

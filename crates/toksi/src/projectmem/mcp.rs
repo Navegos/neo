@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/projectmem/mcp.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-04
 
 use std::fs;
 use std::io::{self, BufRead, Write};
@@ -274,10 +274,27 @@ pub fn tool_record_attempt(
             .or_else(|| latest_open_issue_within(&events, 5));
     }
 
+    // Check if auto-populating from last RTK failure trace when summary is empty or generic
+    let (effective_summary, effective_cmd, fallback_notes) = if summary.trim().is_empty() || summary == "failed" || summary == "test failed" {
+        if let Some(trace) = super::store::read_last_failure_trace(Some(root)) {
+            let cmd = command.map(|s| s.to_string()).unwrap_or(trace.command);
+            (trace.root_cause, Some(cmd), Some(trace.raw_output))
+        } else {
+            (summary.to_string(), command.map(|s| s.to_string()), None)
+        }
+    } else {
+        (summary.to_string(), command.map(|s| s.to_string()), None)
+    };
+
     if target_issue_id.is_none() {
         // Auto-create parent issue
         let new_id = next_issue_id(&events);
-        let mut auto_issue = Event::new("issue", summary);
+        let issue_title = if effective_summary.trim().is_empty() {
+            "Investigate failed attempt".to_string()
+        } else {
+            effective_summary.clone()
+        };
+        let mut auto_issue = Event::new("issue", &issue_title);
         auto_issue.issue_id = Some(new_id.clone());
         auto_issue.git_commit = get_git_commit(Some(root));
         auto_issue.location = location.map(|s| s.to_string());
@@ -290,19 +307,19 @@ pub fn tool_record_attempt(
     let out = outcome.unwrap_or("failed");
 
     // RTK root cause extraction: refine summary if raw error output or command is provided
-    let cmd_str = command.unwrap_or("");
+    let cmd_str = effective_cmd.as_deref().unwrap_or("");
     let (final_summary, extracted_notes) = if out == "failed" {
-        if let Some(root_cause) = crate::rtk::extract_root_cause(cmd_str, summary) {
-            if summary.lines().count() > 1 {
-                (format!("Failed: {}", root_cause), Some(summary.to_string()))
+        if let Some(root_cause) = crate::rtk::extract_root_cause(cmd_str, &effective_summary) {
+            if effective_summary.lines().count() > 1 {
+                (format!("Failed: {}", root_cause), Some(effective_summary.to_string()))
             } else {
-                (summary.to_string(), None)
+                (effective_summary.to_string(), None)
             }
         } else {
-            (summary.to_string(), None)
+            (effective_summary.to_string(), None)
         }
     } else {
-        (summary.to_string(), None)
+        (effective_summary.to_string(), None)
     };
 
     let mut event = Event::new("attempt", &final_summary);
@@ -310,8 +327,8 @@ pub fn tool_record_attempt(
     event.outcome = Some(out.to_string());
     event.git_commit = get_git_commit(Some(root));
     event.location = location.map(|s| s.to_string());
-    event.command = command.map(|s| s.to_string());
-    event.notes = notes.map(|s| s.to_string()).or(extracted_notes);
+    event.command = effective_cmd;
+    event.notes = notes.map(|s| s.to_string()).or(extracted_notes).or(fallback_notes);
 
     append_event(&mut event, Some(root))?;
     let _ = regenerate_summary(Some(root));
