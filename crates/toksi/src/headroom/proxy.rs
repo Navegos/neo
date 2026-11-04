@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-11-03
+// lastModified: 2026-11-04
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, OnceLock};
@@ -155,6 +155,16 @@ pub fn proxy_upstream_gemini_urls() -> (String, String) {
     };
 
     (gemini, cloudcode)
+}
+
+pub fn proxy_upstream_aicode_url() -> String {
+    if let Ok(v) = std::env::var("TOKSI_HEADROOM_AICODE_URL").or_else(|_| std::env::var("AICODE_ENDPOINT_URL")) {
+        let trimmed = v.trim().to_string();
+        if !trimmed.is_empty() {
+            return trimmed;
+        }
+    }
+    "https://aicode.googleapis.com".to_string()
 }
 
 pub fn proxy_args(port: u16) -> Vec<String> {
@@ -615,14 +625,33 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
         } else {
             cloudcode_url_raw
         };
+        let aicode_url = proxy_upstream_aicode_url();
+        let oauth_url = "https://oauth2.googleapis.com".to_string();
+        let sts_url = "https://sts.googleapis.com".to_string();
 
         let is_google_request = path.starts_with("/v1internal")
             || path.starts_with("/v1alpha")
             || path.starts_with("/v1beta")
+            || path.starts_with("/v1main")
             || path.starts_with("/v1/projects")
+            || path.starts_with("/v1/models")
+            || path.starts_with("/google.")
+            || path.starts_with("/jetski.")
+            || path.starts_with("/exa.")
             || path.contains("cloudcode")
+            || path.contains("cloud.code")
+            || path.contains("aicode")
             || path.contains("jetski")
             || path.contains("gemini")
+            || path.contains("LoadCodeAssist")
+            || path.contains("GetLoadCodeAssist")
+            || path.contains("FetchLicenses")
+            || path.contains("FetchUserInfo")
+            || path.contains("GetUserInfo")
+            || path.contains("FetchQuotaStatus")
+            || path.contains("RetrieveUserQuota")
+            || path.contains("FetchAvailableModels")
+            || path.contains("CountTokens")
             || path.contains(":generateCode")
             || path.contains(":streamGenerateCode")
             || path.contains(":loadCodeContext")
@@ -632,13 +661,33 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
             || path.contains(":generateContent")
             || path.contains(":streamGenerateContent")
             || req.headers.iter().any(|(k, v)| {
-                k.eq_ignore_ascii_case("x-goog-api-client")
-                    || k.eq_ignore_ascii_case("x-goog-user-project")
-                    || (k.eq_ignore_ascii_case("authorization") && v.contains("ya29."))
+                let k_low = k.to_ascii_lowercase();
+                k_low.starts_with("x-goog-")
+                    || k_low.starts_with("x-aicode-")
+                    || k_low == "connect-protocol-version"
+                    || (k_low == "content-type" && (v.contains("grpc") || v.contains("connect") || v.contains("proto")))
+                    || (k_low == "authorization" && v.contains("ya29."))
             });
 
         let target_base = if is_google_request {
-            if path.starts_with("/v1beta") || (path.contains("gemini") && !path.contains("cloudcode") && !path.contains("jetski")) {
+            if path.starts_with("/google.gca.aicode")
+                || path.starts_with("/v1main")
+                || path.contains("aicode")
+                || path.contains("FetchLicenses")
+                || path.contains("FetchQuotaStatus")
+            {
+                aicode_url
+            } else if path.starts_with("/oauth2") || path.starts_with("/token") {
+                oauth_url
+            } else if path.starts_with("/sts") {
+                sts_url
+            } else if path.starts_with("/v1beta")
+                || path.starts_with("/v1/models")
+                || (path.contains("gemini")
+                    && !path.contains("cloudcode")
+                    && !path.contains("cloud.code")
+                    && !path.contains("jetski"))
+            {
                 gemini_url
             } else {
                 cloudcode_url

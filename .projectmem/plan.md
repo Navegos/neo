@@ -46,6 +46,14 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
   - [x] Add VS Code User settings paths to `antigravity_ide_settings_candidates`
   - [x] Unify `GatewayProxyOrchestrator` real network forwarding (remove mock response)
   - [x] Build release (`cargo build --release -p toksi`) and test live extension stream
+- [x] Phase 15: Antigravity Auth & Eligibility RPC Fix (Issue #0030):
+  - [x] Add ConnectRPC and AICode service route discrimination (`google.gca.aicode`, `google.internal.cloud.code`, `aicode`, `cloud.code`, `LoadCodeAssist`, `FetchLicenses`, `GetUserInfo`)
+  - [x] Route AICode management endpoints to `https://aicode.googleapis.com` instead of default Cloud Code or OpenAI
+  - [x] Transparently forward Google OAuth token/sts endpoints (`oauth2.googleapis.com`, `accounts.google.com`, `sts.googleapis.com`)
+  - [x] Prevent false chunked encoding on unary gRPC/ConnectRPC/protobuf responses (preserve raw protojson/protobuf content length)
+  - [x] Fix Keyring target formats for `zalando/go-keyring` on Windows/macOS/Linux (`antigravity_user`, `jetski-standalone-oauth-token`, `antigravity`, `gemini`)
+  - [x] Clean up malformed syntax in `~/.gemini/settings.json` and ensure valid sandbox permissions
+  - [x] Verify end-to-end with unit/verification tests and live `agy` CLI compatibility check
 
 ### nbuild — Toolchain & Workflow Manager
 - [x] Initialized `crates/nbuild` crate in root `Cargo.toml`

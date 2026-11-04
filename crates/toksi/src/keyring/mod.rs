@@ -162,10 +162,15 @@ pub fn get_agent_token(agent: &str) -> Option<OAuthEnvelope> {
     match lower.as_str() {
         "gemini" | "antigravity" | "agy" => {
             // macOS: service gemini, account antigravity
-            // Windows: gemini:antigravity, gemini, antigravity
-            let raw = get_credential("gemini", "antigravity")
+            // Windows / go-keyring: antigravity_user, jetski-standalone-oauth-token, etc.
+            let raw = get_credential("antigravity", "antigravity_user")
+                .or_else(|| get_credential("antigravity_user", "default"))
+                .or_else(|| get_credential("jetski-standalone-oauth-token", "default"))
+                .or_else(|| get_credential("gemini", "antigravity"))
                 .or_else(|| get_credential("antigravity", "default"))
-                .or_else(|| get_credential("google", "antigravity"))?;
+                .or_else(|| get_credential("antigravity", "antigravity"))
+                .or_else(|| get_credential("google", "antigravity"))
+                .or_else(|| get_credential("google", "default"))?;
             parse_credential_envelope(&raw)
         }
         "claude" | "claude_code" => {

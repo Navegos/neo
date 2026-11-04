@@ -1443,6 +1443,7 @@ pub fn enrich_headers_with_keyring_credentials(
         || target_lower.contains("google")
         || target_lower.contains("gemini")
         || target_lower.contains("cloudcode")
+        || target_lower.contains("aicode")
     {
         if let Some(tok) = crate::gateway::agent_cli::read_gemini_adc_session() {
             if tok.starts_with("ya29.") || tok.contains('.') {
@@ -1728,14 +1729,15 @@ pub async fn forward_streaming_to_byok_target(
 
     let status = resp.status().as_u16();
     let mut is_stream = false;
+    let path_low = incoming_path.to_ascii_lowercase();
     for (k, v) in resp.headers() {
         if k.as_str().eq_ignore_ascii_case("content-type") {
             if let Ok(v_str) = v.to_str() {
                 let low = v_str.to_ascii_lowercase();
                 if low.contains("text/event-stream")
                     || low.contains("application/x-ndjson")
-                    || low.contains("grpc")
-                    || low.contains("stream")
+                    || (low.contains("stream") && path_low.contains("stream"))
+                    || (low.contains("grpc") && (path_low.contains("stream") || path_low.contains("task")))
                 {
                     is_stream = true;
                 }
@@ -1743,13 +1745,13 @@ pub async fn forward_streaming_to_byok_target(
         }
         if k.as_str().eq_ignore_ascii_case("transfer-encoding") {
             if let Ok(v_str) = v.to_str() {
-                if v_str.to_ascii_lowercase().contains("chunked") && (incoming_path.contains("stream") || incoming_path.contains("messages")) {
+                if v_str.to_ascii_lowercase().contains("chunked") && (path_low.contains("stream") || path_low.contains("messages")) {
                     is_stream = true;
                 }
             }
         }
     }
-    if incoming_path.contains("stream") && resp.content_length().is_none() {
+    if path_low.contains("stream") && resp.content_length().is_none() {
         is_stream = true;
     }
     let must_buffer = is_responses_post && status == 200;

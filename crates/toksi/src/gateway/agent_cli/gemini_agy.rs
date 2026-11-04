@@ -21,19 +21,36 @@ pub fn read_gemini_adc_session() -> Option<String> {
         }
     }
 
-    // 2. Check ~/.gemini/oauth_credentials.json
+    // 2. Check local file token storage (.gemini/antigravity-cli/auth.json, oauth_credentials.json, etc.)
     if let Some(home) = dirs::home_dir() {
-        let gemini_token_path = home.join(".gemini").join("oauth_credentials.json");
-        if gemini_token_path.exists() {
-            if let Ok(raw) = std::fs::read_to_string(gemini_token_path) {
-                if let Some(env) = crate::keyring::parse_credential_envelope(&raw) {
-                    if !env.is_expired(30) && !env.access_token.is_empty() {
-                        return Some(env.access_token);
+        let mut candidates = vec![
+            home.join(".gemini").join("antigravity-cli").join("auth.json"),
+            home.join(".gemini").join("antigravity").join("auth.json"),
+            home.join(".gemini").join("config").join("auth.json"),
+            home.join(".gemini").join("oauth_credentials.json"),
+        ];
+        if cfg!(windows) {
+            if let Some(local) = dirs::data_local_dir() {
+                candidates.push(local.join("Antigravity").join("auth.json"));
+            }
+        }
+
+        for path in candidates {
+            if path.exists() {
+                if let Ok(raw) = std::fs::read_to_string(&path) {
+                    if let Some(env) = crate::keyring::parse_credential_envelope(&raw) {
+                        if !env.is_expired(30) && !env.access_token.is_empty() {
+                            return Some(env.access_token);
+                        }
                     }
-                }
-                if let Ok(val) = serde_json::from_str::<Value>(&raw) {
-                    if let Some(tok) = val.get("access_token").or_else(|| val.get("token")).and_then(Value::as_str) {
-                        return Some(tok.to_string());
+                    if let Ok(val) = serde_json::from_str::<Value>(&raw) {
+                        if let Some(tok) = val.get("access_token")
+                            .or_else(|| val.get("token"))
+                            .or_else(|| val.get("session_token"))
+                            .and_then(Value::as_str)
+                        {
+                            return Some(tok.to_string());
+                        }
                     }
                 }
             }
