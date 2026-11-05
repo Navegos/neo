@@ -25,6 +25,7 @@ pub fn filter_git(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> Stri
         "diff" | "show" => filter_git_diff(&clean),
         "log" => filter_git_log(&clean),
         "branch" => filter_git_branch(&clean),
+        "ls-tree" | "ls-files" => filter_git_ls_tree(&clean),
         "add" | "commit" | "push" | "pull" | "fetch" | "checkout" | "stash" => {
             filter_git_ops(&clean, subcommand, exit_code)
         }
@@ -45,7 +46,9 @@ pub fn filter_git_status(raw: &str) -> String {
         || raw.contains("Changes to be committed:")
         || raw.contains("Changes not staged for commit:")
         || raw.contains("Untracked files:")
-        || raw.contains("Unmerged paths:");
+        || raw.contains("Unmerged paths:")
+        || raw.contains("nothing to commit")
+        || raw.contains("no changes added to commit");
 
     if is_human_readable {
         #[derive(PartialEq)]
@@ -141,7 +144,7 @@ pub fn filter_git_status(raw: &str) -> String {
                     untracked.push(file.to_string());
                     continue;
                 }
-                if xy == "UU" || xy == "AA" || xy == "DD" || xy.contains('U') {
+                if matches!(xy, "UU" | "AA" | "DD" | "UD" | "DU" | "AU" | "UA") {
                     conflicts.push(format!("conflict: {}", file));
                     continue;
                 }
@@ -316,8 +319,85 @@ pub fn filter_git_log(raw: &str) -> String {
 
     if out.is_empty() {
         raw.lines().take(50).collect::<Vec<&str>>().join("\n")
+    } else if out.len() > 50 {
+        let total = out.len();
+        out.truncate(50);
+        out.push(format!("... [{} more commits omitted by rtk]", total - 50));
+        out.join("\n")
     } else {
         out.join("\n")
+    }
+}
+
+/// Folds `git ls-tree` or `git ls-files` output into compact directory-grouped lines.
+pub fn filter_git_ls_tree(raw: &str) -> String {
+    if let Some(folded) = fold_ls_tree_paths(raw) {
+        folded
+    } else {
+        raw.to_string()
+    }
+}
+
+/// Fold a list of paths sharing directory prefixes into compact format:
+/// `dir/ file1 file2 file3`
+pub fn fold_ls_tree_paths(listing: &str) -> Option<String> {
+    let body = listing.strip_suffix('\n').unwrap_or(listing);
+    let mut out = String::with_capacity(listing.len());
+    let mut run_dir: Option<&str> = None;
+    let mut paths = 0usize;
+
+    for path in body.lines() {
+        let trimmed = path.trim();
+        if trimmed.is_empty() || trimmed.ends_with('/') {
+            continue;
+        }
+        // Extract file from potential git ls-tree tab-separated output: <mode> <type> <hash>\t<file>
+        let path_str = if let Some((_meta, file)) = trimmed.split_once('\t') {
+            file
+        } else {
+            trimmed
+        };
+        paths += 1;
+
+        if path_str.starts_with('"') || path_str.contains(' ') {
+            if run_dir.take().is_some() {
+                out.push('\n');
+            }
+            if path_str.starts_with('"') {
+                out.push_str(path_str);
+            } else {
+                out.push('"');
+                out.push_str(path_str);
+                out.push('"');
+            }
+            out.push('\n');
+            continue;
+        }
+
+        let (dir, name) = match path_str.rfind('/') {
+            Some(slash) => path_str.split_at(slash + 1),
+            None => ("./", path_str),
+        };
+
+        if run_dir != Some(dir) {
+            if run_dir.is_some() {
+                out.push('\n');
+            }
+            out.push_str(dir);
+            run_dir = Some(dir);
+        }
+        out.push(' ');
+        out.push_str(name);
+    }
+
+    if run_dir.is_some() {
+        out.push('\n');
+    }
+
+    if paths >= 2 && out.len() < listing.len() {
+        Some(out)
+    } else {
+        None
     }
 }
 

@@ -107,6 +107,23 @@ pub fn extract_root_cause(cmd: &str, output: &str) -> Option<String> {
         if bin == "golangci-lint" && trimmed.contains(".go:") {
             return Some(trimmed.to_string());
         }
+        if (bin == "git" || cmd.contains("git")) && (trimmed.starts_with("fatal:") || trimmed.starts_with("error:")) {
+            return Some(trimmed.to_string());
+        }
+        if (bin == "docker" || bin == "podman")
+            && (trimmed.starts_with("Error response from daemon:") || trimmed.contains("Cannot connect to the Docker daemon"))
+        {
+            return Some(trimmed.to_string());
+        }
+        if bin == "kubectl" && trimmed.starts_with("Error from server") {
+            return Some(trimmed.to_string());
+        }
+        if bin == "ctest" && (trimmed.contains("***Failed") || trimmed.starts_with("The following tests FAILED:")) {
+            return Some(trimmed.to_string());
+        }
+        if (bin == "gcc" || bin == "g++" || bin == "clang" || bin == "clang++") && trimmed.contains(": error:") {
+            return Some(trimmed.to_string());
+        }
     }
 
     // Fallback: look for general exception or error patterns regardless of bin

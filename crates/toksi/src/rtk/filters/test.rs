@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/test.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use crate::rtk::ansi::strip_ansi;
 
@@ -21,7 +21,9 @@ pub fn filter_test(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> Str
     let bin = parts.first().copied().unwrap_or("");
     let sub = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
 
-    if bin == "cargo" && (sub == "test" || sub == "nextest") {
+    if bin == "cargo" && sub == "nextest" {
+        filter_cargo_nextest(&clean, exit_code)
+    } else if bin == "cargo" && sub == "test" {
         filter_cargo_test(&clean, exit_code)
     } else if bin == "pytest" || (bin == "python" && sub == "-m" && cmd.contains("pytest")) {
         filter_pytest(&clean, exit_code)
@@ -132,6 +134,158 @@ pub fn filter_cargo_test(raw: &str, exit_code: i32) -> String {
         out.push(format!("test result: FAILED (exit code {})", exit_code));
     }
 
+    out.join("\n")
+}
+
+fn nextest_status(trimmed: &str) -> &str {
+    match trimmed.strip_prefix("TRY ") {
+        Some(rest) => rest
+            .trim_start_matches(|c: char| c.is_ascii_digit())
+            .trim_start(),
+        None => trimmed,
+    }
+}
+
+fn nextest_test_name(block: &str) -> &str {
+    let line = block.lines().next().unwrap_or_default();
+    let name = line.split_once(']').map_or(line, |(_, rest)| rest).trim();
+    name.strip_prefix('(')
+        .and_then(|rest| rest.split_once(") "))
+        .map_or(name, |(_, name)| name)
+}
+
+/// Filter `cargo nextest` output:
+/// Suppresses compilation noise and passing tests, extracts failure blocks with retry awareness,
+/// and outputs compact summary.
+pub fn filter_cargo_nextest(raw: &str, exit_code: i32) -> String {
+    let mut failures: Vec<String> = Vec::new();
+    let mut in_failure_block = false;
+    let mut current_failure_header = String::new();
+    let mut current_failure_body: Vec<String> = Vec::new();
+    let mut summary_line = String::new();
+    let mut binaries: u32 = 0;
+    let mut passed_count = 0;
+    let mut failed_count = 0;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+
+        if trimmed.starts_with("Compiling")
+            || trimmed.starts_with("Checking")
+            || trimmed.starts_with("Downloading")
+            || trimmed.starts_with("Downloaded")
+            || trimmed.starts_with("Finished")
+            || trimmed.starts_with("Locking")
+            || trimmed.starts_with("Updating")
+            || trimmed.starts_with("────")
+            || trimmed.starts_with("Nextest run ID")
+        {
+            continue;
+        }
+
+        if trimmed.starts_with("Starting") {
+            if let Some(pos) = trimmed.find("across ") {
+                let rest = &trimmed[pos + 7..];
+                if let Some(num_str) = rest.split_whitespace().next() {
+                    binaries = num_str.parse().unwrap_or(0);
+                }
+            }
+            continue;
+        }
+
+        let status = nextest_status(trimmed);
+        let is_failure = status.starts_with("FAIL")
+            || status.starts_with("TIMEOUT")
+            || status.starts_with("TMT");
+
+        if is_failure || status.starts_with("PASS") {
+            if in_failure_block {
+                let mut block = current_failure_header.clone();
+                if !current_failure_body.is_empty() {
+                    block.push('\n');
+                    block.push_str(&current_failure_body.join("\n"));
+                }
+                failures.push(block);
+                current_failure_header.clear();
+                current_failure_body.clear();
+                in_failure_block = false;
+            }
+
+            let name = nextest_test_name(trimmed);
+            failures.retain(|b| nextest_test_name(b) != name);
+
+            if is_failure {
+                failed_count += 1;
+                current_failure_header = trimmed.to_string();
+                in_failure_block = true;
+            } else {
+                passed_count += 1;
+            }
+            continue;
+        }
+
+        if in_failure_block {
+            if trimmed.starts_with("Summary") {
+                let mut block = current_failure_header.clone();
+                if !current_failure_body.is_empty() {
+                    block.push('\n');
+                    block.push_str(&current_failure_body.join("\n"));
+                }
+                failures.push(block);
+                current_failure_header.clear();
+                current_failure_body.clear();
+                in_failure_block = false;
+                summary_line = trimmed.to_string();
+            } else {
+                current_failure_body.push(line.to_string());
+            }
+            continue;
+        }
+
+        if trimmed.starts_with("Summary") {
+            summary_line = trimmed.to_string();
+        }
+    }
+
+    if in_failure_block {
+        let mut block = current_failure_header;
+        if !current_failure_body.is_empty() {
+            block.push('\n');
+            block.push_str(&current_failure_body.join("\n"));
+        }
+        failures.push(block);
+    }
+
+    if failures.is_empty() {
+        if exit_code == 0 {
+            if !summary_line.is_empty() {
+                // Example: Summary [ 2.503s] 2 tests run: 2 passed (1 slow), 0 skipped
+                if let Some(dur_start) = summary_line.find('[') {
+                    if let Some(dur_end) = summary_line.find(']') {
+                        let dur = summary_line[dur_start + 1..dur_end].trim();
+                        let bin_str = if binaries > 0 {
+                            format!(" ({} binary, {})", binaries, dur)
+                        } else {
+                            format!(" ({})", dur)
+                        };
+                        return format!("cargo nextest: {} passed{}", passed_count.max(1), bin_str);
+                    }
+                }
+                return format!("cargo nextest: {}", summary_line);
+            }
+            return format!("cargo nextest: {} passed", passed_count.max(1));
+        } else {
+            return format!("cargo nextest: failed (exit code {})", exit_code);
+        }
+    }
+
+    let mut out = Vec::new();
+    out.push(failures.join("\n\n"));
+    if !summary_line.is_empty() {
+        out.push(summary_line);
+    } else {
+        out.push(format!("cargo nextest: {} failed, {} passed", failed_count.max(failures.len()), passed_count));
+    }
     out.join("\n")
 }
 

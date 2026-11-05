@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/build.rs
 // created: 2026-10-27
-// lastModified: 2026-11-04
+// lastModified: 2026-11-05
 
 use std::collections::BTreeMap;
 use crate::rtk::ansi::strip_ansi;
@@ -322,16 +322,93 @@ pub fn filter_mypy(raw: &str, exit_code: i32) -> String {
 }
 
 /// Filter `ruff` Python linter outputs.
+/// Filter `ruff` outputs (both text format and JSON diagnostics).
 pub fn filter_ruff(raw: &str, exit_code: i32) -> String {
-    let lines: Vec<&str> = raw.lines().filter(|l| !l.trim().is_empty()).collect();
-    if lines.is_empty() {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
         if exit_code == 0 {
-            "ruff: ok".to_string()
+            return "Ruff: No issues found".to_string();
         } else {
-            format!("ruff: failed (exit code {})", exit_code)
+            return format!("ruff: failed (exit code {})", exit_code);
         }
+    }
+
+    // Try parsing JSON diagnostics: [{"code": "F401", "message": "...", "filename": "...", "fix": ...}]
+    if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        if let Ok(items) = serde_json::from_str::<Vec<serde_json::Value>>(trimmed) {
+            if items.is_empty() {
+                return "Ruff: No issues found".to_string();
+            }
+            let total = items.len();
+            let mut unique_files = std::collections::HashSet::new();
+            let mut fixable = 0;
+            let mut by_rule = BTreeMap::new();
+
+            for item in &items {
+                if let Some(f) = item.get("filename").and_then(|v| v.as_str()) {
+                    unique_files.insert(f.to_string());
+                }
+                if item.get("fix").map_or(false, |v| !v.is_null()) {
+                    fixable += 1;
+                }
+                if let Some(code) = item.get("code").and_then(|v| v.as_str()) {
+                    *by_rule.entry(code.to_string()).or_insert(0) += 1;
+                }
+            }
+
+            let mut out = format!("Ruff: {} issues in {} files", total, unique_files.len());
+            if fixable > 0 {
+                out.push_str(&format!(" ({} fixable)", fixable));
+            }
+            out.push('\n');
+
+            let mut sorted_rules: Vec<_> = by_rule.into_iter().collect();
+            sorted_rules.sort_by(|a, b| b.1.cmp(&a.1));
+            for (code, count) in sorted_rules.iter().take(10) {
+                out.push_str(&format!("  {:<8}  {}\n", code, count));
+            }
+            return out.trim_end().to_string();
+        }
+    }
+
+    // Text format parsing
+    let mut findings = Vec::new();
+    let mut fixable = 0;
+    let mut unique_files = std::collections::HashSet::new();
+
+    for line in trimmed.lines() {
+        let t = line.trim();
+        if t.is_empty() {
+            continue;
+        }
+        if t.contains(": error:") || t.contains(": warning:") || t.contains(": E") || t.contains(": F") || t.contains(": W") {
+            findings.push(t);
+            if t.contains("[*]") {
+                fixable += 1;
+            }
+            if let Some((file, _)) = t.split_once(':') {
+                unique_files.insert(file);
+            }
+        }
+    }
+
+    if findings.is_empty() {
+        if exit_code == 0 {
+            "Ruff: No issues found".to_string()
+        } else {
+            trimmed.to_string()
+        }
+    } else if findings.len() <= 20 {
+        findings.join("\n")
     } else {
-        lines.join("\n")
+        let mut out = Vec::new();
+        let fix_str = if fixable > 0 { format!(" ({} fixable)", fixable) } else { String::new() };
+        out.push(format!("Ruff: {} issues in {} files{}", findings.len(), unique_files.len(), fix_str));
+        for line in findings.iter().take(15) {
+            out.push((*line).to_string());
+        }
+        out.push(format!("... [{} more issues omitted by rtk]", findings.len() - 15));
+        out.join("\n")
     }
 }
 

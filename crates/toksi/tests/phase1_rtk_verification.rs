@@ -66,6 +66,10 @@ fn test_rtk_git_filters() {
     let diff_raw = "diff --git a/Cargo.lock b/Cargo.lock\nindex 1234..5678 100644\n--- a/Cargo.lock\n+++ b/Cargo.lock\n@@ -1,2 +1,3 @@\n+foo\n";
     let diff_filtered = filter_command_output("git diff", diff_raw, "", 0);
     assert!(diff_filtered.contains("[lockfile updated: Cargo.lock (+1 -0)]"));
+
+    let ls_tree_raw = "100644 blob 1234\tsrc/main.rs\n100644 blob 5678\tsrc/lib.rs\n";
+    let ls_tree_filtered = filter_command_output("git ls-tree HEAD", ls_tree_raw, "", 0);
+    assert!(ls_tree_filtered.contains("src/ main.rs lib.rs"));
 }
 
 #[test]
@@ -84,6 +88,19 @@ fn test_rtk_cargo_and_compiler_filters() {
     let tsc_filtered = filter_command_output("tsc", tsc_raw, "", 1);
     assert!(tsc_filtered.contains("TS2322"));
     assert!(tsc_filtered.contains("1 errors in 1 files"));
+
+    // Nextest test with retries: keep only last attempt
+    let nextest_raw = "    Starting 2 tests across 1 binary\n    TRY 1 FAIL [   0.005s] (1/2) app tests::flaky\n    TRY 2 PASS [   0.004s] (1/2) app tests::flaky\n    FAIL [   0.006s] (2/2) app tests::bad\n        assertion failed: false\n    Summary [   0.015s] 2 tests run: 1 passed, 1 failed, 0 skipped\n";
+    let nextest_filtered = filter_command_output("cargo nextest run", nextest_raw, "", 1);
+    assert!(!nextest_filtered.contains("TRY 1 FAIL"));
+    assert!(nextest_filtered.contains("app tests::bad"));
+    assert!(nextest_filtered.contains("assertion failed: false"));
+
+    // Ruff test
+    let ruff_json = r#"[{"code": "F401", "message": "'os' imported but unused", "filename": "app.py", "fix": null}]"#;
+    let ruff_filtered = filter_command_output("ruff check --output-format=json", ruff_json, "", 1);
+    assert!(ruff_filtered.contains("Ruff: 1 issues in 1 files"));
+    assert!(ruff_filtered.contains("F401"));
 }
 
 #[test]
@@ -108,6 +125,14 @@ fn test_rtk_cross_tool_adapters() {
     let pytest_err = "def test_answer():\n>       assert func(3) == 5\nE       AssertionError: assert 4 == 5";
     let py_cause = extract_root_cause("pytest tests/", pytest_err);
     assert_eq!(py_cause.as_deref(), Some("AssertionError: assert 4 == 5"));
+
+    let git_err = "fatal: remote origin already exists.";
+    let git_cause = extract_root_cause("git remote add origin", git_err);
+    assert_eq!(git_cause.as_deref(), Some("fatal: remote origin already exists."));
+
+    let docker_err = "Error response from daemon: Container is not running";
+    let docker_cause = extract_root_cause("docker stop my_app", docker_err);
+    assert_eq!(docker_cause.as_deref(), Some("Error response from daemon: Container is not running"));
 }
 
 #[test]

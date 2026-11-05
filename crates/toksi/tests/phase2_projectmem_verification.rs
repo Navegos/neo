@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase2_projectmem_verification.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use tempfile::tempdir;
 use toksi::projectmem::*;
@@ -74,7 +74,7 @@ fn test_phase2_store_summary_and_precheck_verification() {
     assert!(sum_path.exists());
     let summary_md = std::fs::read_to_string(&sum_path).unwrap();
     assert!(summary_md.contains("Phase 2 Verification Engine"));
-    assert!(summary_md.contains("Reset idle connections before checkout"));
+    assert!(summary_md.contains("- [DONE] #0001 Database connection timeout in pool [src/db.rs:42] (fixed)"));
     assert!(summary_md.contains("Switch to sqlx built-in pool"));
     // Superseded decision must drop out of summary
     assert!(!summary_md.contains("Use deadpool for postgres pooling"));
@@ -161,7 +161,7 @@ error: could not compile `demo`";
     let resp = mcp::handle_mcp_message(&rpc_req).unwrap();
     assert_eq!(resp["id"], 1);
     let content = resp["result"]["content"][0]["text"].as_str().unwrap();
-    assert!(content.contains("Implemented Clone for Inner"));
+    assert!(content.contains("- [DONE] #0001 Build failure on missing trait"));
 }
 
 #[test]
