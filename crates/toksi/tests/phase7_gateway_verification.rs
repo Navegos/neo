@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase7_gateway_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -25,10 +25,11 @@ use toksi::headroom::pruner::{
 };
 
 #[test]
-fn test_phase7_36_providers_catalog_and_categories() {
+fn test_phase7_39_providers_catalog_and_categories() {
+    assert_eq!(ProviderId::ALL_39.len(), 39);
     assert_eq!(ProviderId::ALL_36.len(), 36);
 
-    for pid in ProviderId::ALL_36 {
+    for pid in ProviderId::ALL_39 {
         let name = pid.as_str();
         assert!(!name.is_empty());
         assert_eq!(ProviderId::from_name(name), Some(pid));
@@ -39,6 +40,11 @@ fn test_phase7_36_providers_catalog_and_categories() {
         let cat = pid.category();
         let _ = cat; // Category is resolvable
     }
+
+    // Verify new providers specifically
+    assert_eq!(ProviderId::from_name("bedrockmantle"), Some(ProviderId::BedrockMantle));
+    assert_eq!(ProviderId::from_name("sagemaker"), Some(ProviderId::SageMaker));
+    assert_eq!(ProviderId::from_name("bifrost"), Some(ProviderId::Bifrost));
 }
 
 #[test]

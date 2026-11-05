@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/providers/frontier/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use std::collections::HashMap;
 use serde_json::{json, Value};
@@ -289,8 +289,11 @@ impl ProviderClient for GenericFrontierProvider {
             ProviderId::Azure => {
                 h.insert("api-key".to_string(), api_key.to_string());
             }
-            ProviderId::Bedrock => {
+            ProviderId::Bedrock | ProviderId::SageMaker => {
                 h.insert("x-amz-security-token".to_string(), api_key.to_string());
+            }
+            ProviderId::BedrockMantle => {
+                h.insert("Authorization".to_string(), format!("Bearer {}", api_key));
             }
             ProviderId::Vertex | ProviderId::Databricks => {
                 h.insert("Authorization".to_string(), format!("Bearer {}", api_key));

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/providers/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 pub mod accelerator;
 pub mod aggregators;
@@ -29,13 +29,15 @@ pub enum ProviderCategory {
     Ecosystem,
 }
 
-/// Enumeration of all 36 in-tree AI providers
+/// Enumeration of all 39+ in-tree AI providers
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ProviderId {
-    // Frontier (7)
+    // Frontier (9)
     Anthropic,
     Azure,
     Bedrock,
+    BedrockMantle,
+    SageMaker,
     Databricks,
     Gemini,
     OpenAI,
@@ -51,7 +53,8 @@ pub enum ProviderId {
     Together,
     Wafer,
 
-    // Aggregators (4)
+    // Aggregators (5)
+    Bifrost,
     Cloudflare,
     HuggingFace,
     OpenRouter,
@@ -84,6 +87,48 @@ pub enum ProviderId {
 }
 
 impl ProviderId {
+    pub const ALL_39: [ProviderId; 39] = [
+        ProviderId::Anthropic,
+        ProviderId::Azure,
+        ProviderId::Bedrock,
+        ProviderId::BedrockMantle,
+        ProviderId::SageMaker,
+        ProviderId::Databricks,
+        ProviderId::Gemini,
+        ProviderId::OpenAI,
+        ProviderId::Vertex,
+        ProviderId::Cerebras,
+        ProviderId::DeepSeek,
+        ProviderId::Fireworks,
+        ProviderId::Groq,
+        ProviderId::Nebius,
+        ProviderId::Parasail,
+        ProviderId::Together,
+        ProviderId::Wafer,
+        ProviderId::Bifrost,
+        ProviderId::Cloudflare,
+        ProviderId::HuggingFace,
+        ProviderId::OpenRouter,
+        ProviderId::Replicate,
+        ProviderId::BytePlus,
+        ProviderId::Cohere,
+        ProviderId::Minimax,
+        ProviderId::Mistral,
+        ProviderId::Perplexity,
+        ProviderId::Sarvam,
+        ProviderId::TypeSafe,
+        ProviderId::XAI,
+        ProviderId::ElevenLabs,
+        ProviderId::Runware,
+        ProviderId::Runway,
+        ProviderId::LlamaCpp,
+        ProviderId::Ollama,
+        ProviderId::SGLang,
+        ProviderId::VLLM,
+        ProviderId::GitHubCopilot,
+        ProviderId::OpenCode,
+    ];
+
     pub const ALL_36: [ProviderId; 36] = [
         ProviderId::Anthropic,
         ProviderId::Azure,
@@ -128,6 +173,8 @@ impl ProviderId {
             Self::Anthropic => "anthropic",
             Self::Azure => "azure",
             Self::Bedrock => "bedrock",
+            Self::BedrockMantle => "bedrockmantle",
+            Self::SageMaker => "sagemaker",
             Self::Databricks => "databricks",
             Self::Gemini => "gemini",
             Self::OpenAI => "openai",
@@ -140,6 +187,7 @@ impl ProviderId {
             Self::Parasail => "parasail",
             Self::Together => "together",
             Self::Wafer => "wafer",
+            Self::Bifrost => "bifrost",
             Self::Cloudflare => "cloudflare",
             Self::HuggingFace => "huggingface",
             Self::OpenRouter => "openrouter",
@@ -166,18 +214,20 @@ impl ProviderId {
 
     pub fn from_name(name: &str) -> Option<Self> {
         let n = name.to_lowercase();
-        Self::ALL_36.into_iter().find(|p| p.as_str() == n)
+        Self::ALL_39.into_iter().find(|p| p.as_str() == n)
     }
 
     pub fn category(&self) -> ProviderCategory {
         match self {
-            Self::Anthropic | Self::Azure | Self::Bedrock | Self::Databricks |
-            Self::Gemini | Self::OpenAI | Self::Vertex => ProviderCategory::Frontier,
+            Self::Anthropic | Self::Azure | Self::Bedrock | Self::BedrockMantle |
+            Self::SageMaker | Self::Databricks | Self::Gemini | Self::OpenAI |
+            Self::Vertex => ProviderCategory::Frontier,
 
             Self::Cerebras | Self::DeepSeek | Self::Fireworks | Self::Groq |
             Self::Nebius | Self::Parasail | Self::Together | Self::Wafer => ProviderCategory::Accelerator,
 
-            Self::Cloudflare | Self::HuggingFace | Self::OpenRouter | Self::Replicate => ProviderCategory::Aggregator,
+            Self::Bifrost | Self::Cloudflare | Self::HuggingFace | Self::OpenRouter |
+            Self::Replicate => ProviderCategory::Aggregator,
 
             Self::BytePlus | Self::Cohere | Self::Minimax | Self::Mistral |
             Self::Perplexity | Self::Sarvam | Self::TypeSafe | Self::XAI => ProviderCategory::Specialized,
@@ -195,6 +245,8 @@ impl ProviderId {
             Self::Anthropic => "https://api.anthropic.com/v1/messages",
             Self::Azure => "https://{resource}.openai.azure.com",
             Self::Bedrock => "https://bedrock-runtime.{region}.amazonaws.com",
+            Self::BedrockMantle => "https://bedrock-mantle.{region}.api.aws",
+            Self::SageMaker => "https://runtime.sagemaker.{region}.amazonaws.com",
             Self::Databricks => "https://{workspace}.cloud.databricks.com/serving-endpoints",
             Self::Gemini => "https://generativelanguage.googleapis.com/v1beta",
             Self::OpenAI => "https://api.openai.com/v1",
@@ -207,6 +259,7 @@ impl ProviderId {
             Self::Parasail => "https://api.parasail.io/v1",
             Self::Together => "https://api.together.xyz/v1",
             Self::Wafer => "https://api.wafer.ai/v1",
+            Self::Bifrost => "http://127.0.0.1:8080/v1",
             Self::Cloudflare => "https://api.cloudflare.com/client/v4/accounts/{account}/ai/run",
             Self::HuggingFace => "https://api-inference.huggingface.co/v1",
             Self::OpenRouter => "https://openrouter.ai/api/v1",
