@@ -2,7 +2,9 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, .projectmem/plan.md, and .gemini/antigravity/brain/PHASE_02_PROJECTMEM_PURE_RUST.md first to understand the global master architecture and cross-tool coupling.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .gemini/antigravity/brain/PHASE_02_PROJECTMEM_PURE_RUST.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/projectmem as updated please rerun
 
 Execute Phase 02: ProjectMem Pure Rust Port.
 Source: neo/inspect-vault/projectmem (~v0.3.4, Python)

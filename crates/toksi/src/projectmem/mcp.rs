@@ -544,8 +544,8 @@ pub fn mcp_tools_list() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "summary": { "type": "string", "description": "One-line description of the bug" },
-                    "location": { "type": "string", "description": "Optional file path or component" },
+                    "summary": { "type": "string", "description": "One-line description of the bug. Becomes the issue title and is matched by search_events. Keep it under 140 characters." },
+                    "location": { "type": "string", "description": "Optional file path or component where the issue occurs (e.g., 'auth/middleware.go:42')." },
                     "project": { "type": "string", "description": "Optional project root" }
                 },
                 "required": ["summary"]
@@ -557,10 +557,10 @@ pub fn mcp_tools_list() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "summary": { "type": "string", "description": "One-line description of what was tried" },
-                    "outcome": { "type": "string", "enum": ["worked", "failed", "partial"] },
-                    "location": { "type": "string", "description": "Optional file path" },
-                    "issue_id": { "type": "string", "description": "Optional issue ID" },
+                    "summary": { "type": "string", "description": "One-line description of what you tried (e.g., 'tried contain: layout — preview still jumps'). Put further evidence into another attempt, not this one. Keep it under 300 characters: summary.md clips longer text." },
+                    "outcome": { "type": "string", "enum": ["worked", "failed", "partial"], "description": "Result of the attempt: worked, failed, or partial." },
+                    "location": { "type": "string", "description": "Optional file path or component where the attempt took place." },
+                    "issue_id": { "type": "string", "description": "Optional issue ID (e.g. '0042'). Defaults to current active issue." },
                     "command": { "type": "string", "description": "Optional command executed (e.g. cargo test, pytest)" },
                     "notes": { "type": "string", "description": "Optional failure trace or extra notes" },
                     "project": { "type": "string", "description": "Optional project root" }
@@ -574,9 +574,9 @@ pub fn mcp_tools_list() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "summary": { "type": "string", "description": "One-line description of confirmed fix" },
-                    "location": { "type": "string", "description": "Optional file path" },
-                    "issue_id": { "type": "string", "description": "Optional issue ID to close" },
+                    "summary": { "type": "string", "description": "One-line description of the confirmed fix (e.g., 'guarded submit handler with isSubmitting ref'). Keep it under 300 characters." },
+                    "location": { "type": "string", "description": "Optional file path where the fix was applied." },
+                    "issue_id": { "type": "string", "description": "Optional issue ID to close. Defaults to current active issue." },
                     "project": { "type": "string", "description": "Optional project root" }
                 },
                 "required": ["summary"]
@@ -588,8 +588,8 @@ pub fn mcp_tools_list() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "summary": { "type": "string", "description": "Description of decision" },
-                    "location": { "type": "string", "description": "Optional file path" },
+                    "summary": { "type": "string", "description": "One-line description of the architectural or product decision (e.g., 'use bcrypt rounds=12 for password hashing'). Becomes part of the project's permanent record — write it for a future contributor. Keep it under 300 characters: summary.md clips longer text." },
+                    "location": { "type": "string", "description": "Optional file path or scope where the decision applies." },
                     "supersedes": { "type": "string", "description": "Optional event id being retired" },
                     "project": { "type": "string", "description": "Optional project root" }
                 },
@@ -602,8 +602,8 @@ pub fn mcp_tools_list() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "summary": { "type": "string", "description": "Description of gotcha or note" },
-                    "location": { "type": "string", "description": "Optional file path or library" },
+                    "summary": { "type": "string", "description": "One-line description of the gotcha, lesson, or context worth preserving. Prefix with 'gotcha:' or 'lesson:' to enable cross-project promotion — e.g., 'gotcha: bcrypt v4 silently truncates passwords longer than 72 bytes'. Keep it under 300 characters: summary.md clips longer text." },
+                    "location": { "type": "string", "description": "Optional file path or library this note applies to." },
                     "project": { "type": "string", "description": "Optional project root" }
                 },
                 "required": ["summary"]

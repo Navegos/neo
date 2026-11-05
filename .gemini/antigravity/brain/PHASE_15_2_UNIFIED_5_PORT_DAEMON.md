@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, and .gemini/antigravity/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md first to understand the global master architecture and port topology.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .gemini/antigravity/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 Execute Phase 15.2: Unified 5-Port Daemon & Copilot Supervision.
 Targets:

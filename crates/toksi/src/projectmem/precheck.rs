@@ -290,7 +290,11 @@ fn git_recent_changes(file_path: &str, days: i64, root: Option<&Path>) -> Option
 }
 
 pub fn events_for_file(file_path: &str, events: &[Event], root: Option<&Path>) -> Vec<Event> {
-    let norm_target = project_relative(file_path, root);
+    let trimmed = file_path.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+    let norm_target = project_relative(trimmed, root);
     let retired = superseded_ids(events);
     let mut cache: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
@@ -318,7 +322,7 @@ pub fn events_for_file(file_path: &str, events: &[Event], root: Option<&Path>) -
             }
         }
 
-        if !matches && (e.summary.contains(file_path) || (!norm_target.is_empty() && e.summary.contains(&norm_target))) {
+        if !matches && (e.summary.contains(trimmed) || (!norm_target.is_empty() && e.summary.contains(&norm_target))) {
             matches = true;
         }
 
@@ -608,5 +612,29 @@ mod tests {
         let warnings = analyze_files(&["src/auth.rs".to_string()], &events, None);
         assert!(!warnings.is_empty());
         assert_eq!(warnings[0].warning_type, "failed_attempts");
+    }
+
+    #[test]
+    fn test_a_blank_path_is_not_a_file() {
+        let mut e1 = Event::new("attempt", "tried lock variant 0");
+        e1.outcome = Some("failed".into());
+        e1.location = Some("src/f.rs".into());
+
+        let mut e2 = Event::new("attempt", "tried lock variant 1");
+        e2.outcome = Some("failed".into());
+        e2.location = Some("src/f.rs".into());
+
+        let events = vec![e1, e2];
+
+        for blank in ["", "   ", "\n", "\t"] {
+            let res = analyze_files(&[blank.to_string()], &events, None);
+            assert!(res.is_empty(), "Blank path '{}' should yield no warnings", blank);
+            let evs = events_for_file(blank, &events, None);
+            assert!(evs.is_empty(), "events_for_file for '{}' should be empty", blank);
+        }
+
+        // Surrounding whitespace is trimmed and matches
+        let res_trimmed = analyze_files(&[" src/f.rs\n".to_string()], &events, None);
+        assert!(!res_trimmed.is_empty(), "Surrounding whitespace should be trimmed and match");
     }
 }

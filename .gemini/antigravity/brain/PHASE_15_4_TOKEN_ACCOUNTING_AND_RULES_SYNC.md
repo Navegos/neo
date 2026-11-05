@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, and .gemini/antigravity/brain/PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md first to understand the global master architecture and telemetry/rules sync.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .gemini/antigravity/brain/PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 Execute Phase 15.4: Ground-Truth Token Accounting & In-Tree Rules Sync.
 Targets:

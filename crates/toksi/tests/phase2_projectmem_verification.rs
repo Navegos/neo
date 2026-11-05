@@ -249,3 +249,53 @@ fn test_phase2_rtk_failure_trace_autopopulate() {
     assert_eq!(att.command.as_deref(), Some("cargo test --test integration"));
     assert!(att.notes.as_ref().unwrap().contains("Compiling toksi v0.1.0"));
 }
+
+#[test]
+fn test_phase2_python_v035_parity_edge_cases() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), Some("Phase 2 Parity Check")).unwrap();
+
+    // 1. A blank location on an issue falls back to fix's location in summary
+    let mut ev_issue = Event::new("issue", "blank location fallback check");
+    ev_issue.issue_id = Some("0001".to_string());
+    ev_issue.location = Some("   ".to_string());
+    append_event(&mut ev_issue, Some(root)).unwrap();
+
+    let mut ev_fix = Event::new("fix", "patched properly");
+    ev_fix.issue_id = Some("0001".to_string());
+    ev_fix.location = Some("src/fixed.rs".to_string());
+    append_event(&mut ev_fix, Some(root)).unwrap();
+
+    let sum_path = regenerate_summary(Some(root)).unwrap();
+    let summary_md = std::fs::read_to_string(&sum_path).unwrap();
+    assert!(summary_md.contains("- [DONE] #0001 blank location fallback check [src/fixed.rs] (fixed)"));
+    assert!(!summary_md.contains("[]"));
+
+    // 2. A blank path is not a file and yields no warnings in precheck
+    for blank in ["", "   ", "\n", "\t"] {
+        let resp = mcp::tool_precheck_file(root, blank);
+        assert!(resp.contains("no warnings. Safe to modify."));
+    }
+
+    // 3. MCP tool descriptions must state length limits
+    let rpc_req = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/list",
+        "params": {}
+    });
+    let resp = mcp::handle_mcp_message(&rpc_req).unwrap();
+    let tools = resp["result"]["tools"].as_array().unwrap();
+
+    for tool_name in ["log_issue", "record_attempt", "record_fix", "add_decision", "add_note"] {
+        let tool = tools.iter().find(|t| t["name"] == tool_name).expect("Tool must exist");
+        let desc = tool["inputSchema"]["properties"]["summary"]["description"].as_str().unwrap();
+        assert!(
+            desc.contains("under 140 characters") || desc.contains("under 300 characters"),
+            "Tool {} summary description must state character limits: {}",
+            tool_name,
+            desc
+        );
+    }
+}

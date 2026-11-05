@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, and .gemini/antigravity/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md first to understand the global master architecture and TUI interface.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .gemini/antigravity/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 Execute Phase 16.1: Mouse-Capable Interactive TUI.
 Targets:

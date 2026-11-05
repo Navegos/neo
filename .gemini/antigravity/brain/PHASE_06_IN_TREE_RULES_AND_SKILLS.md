@@ -2,7 +2,9 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, .projectmem/plan.md, and .gemini/antigravity/brain/PHASE_06_IN_TREE_RULES_AND_SKILLS.md first to understand the global master architecture and cross-tool coupling.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .gemini/antigravity/brain/PHASE_06_IN_TREE_RULES_AND_SKILLS.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/andrej-karpathy-skills, neo/inspect-vault/caveman, neo/inspect-vault/ponytail as updated please rerun
 
 Execute Phase 06: In-Tree Rules & Skills Integration.
 Sources: neo/inspect-vault/andrej-karpathy-skills, neo/inspect-vault/caveman

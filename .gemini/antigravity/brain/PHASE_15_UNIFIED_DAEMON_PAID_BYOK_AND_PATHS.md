@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, .projectmem/plan.md, and .gemini/antigravity/brain/PHASE_15_UNIFIED_DAEMON_PAID_BYOK_AND_PATHS.md first to understand the global master architecture and cross-tool coupling.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .gemini/antigravity/brain/PHASE_15_UNIFIED_DAEMON_PAID_BYOK_AND_PATHS.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 Execute Phase 15: Unified 5-Port Daemon, Paid Quota Enforcement & Smart Agent CLI Providers.
 Targets:

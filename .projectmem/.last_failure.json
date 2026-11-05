@@ -1,6 +1,6 @@
 {
-  "command": "git checkout -- crates/toksi/.projectmem/issues/",
-  "root_cause": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied",
-  "raw_output": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied\n",
-  "timestamp": "2026-11-05T21:44:23Z"
+  "command": "git -C inspect-vault/projectmem diff v0.3.4..HEAD",
+  "root_cause": "fatal: ambiguous argument 'v0.3.4..HEAD': unknown revision or path not in the working tree.",
+  "raw_output": "fatal: ambiguous argument 'v0.3.4..HEAD': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions, like this:\n'git <command> [<revision>...] -- [<file>...]'\n",
+  "timestamp": "2026-11-05T21:50:11Z"
 }

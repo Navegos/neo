@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, .projectmem/plan.md, and .gemini/antigravity/brain/PHASE_16_MOUSE_TUI_AND_BACKGROUND_WEB_COCKPIT.md first to understand the global master architecture and cross-tool coupling.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .gemini/antigravity/brain/PHASE_16_MOUSE_TUI_AND_BACKGROUND_WEB_COCKPIT.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 Execute Phase 16: Mouse-Capable TUI & Enterprise Web UI Cockpit.
 Targets:

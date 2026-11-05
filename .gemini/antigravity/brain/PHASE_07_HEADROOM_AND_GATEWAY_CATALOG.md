@@ -2,11 +2,13 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, .projectmem/plan.md, and .gemini/antigravity/brain/PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md first to understand the global master architecture and cross-tool coupling.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .gemini/antigravity/brain/PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/headroom, neo/inspect-vault/bifrost, neo\inspect-vault\tokless as updated please rerun
 
 Execute Phase 07: Headroom Deep Integration & Gateway Catalog.
-Sources: neo/inspect-vault/headroom (crates/headroom-core) and neo/inspect-vault/bifrost (core/providers/, plugins/)
-Targets: crates/toksi/src/headroom/, crates/toksi/src/gateway/
+Sources: neo/inspect-vault/headroom (crates/headroom-core) and neo/inspect-vault/bifrost, neo\inspect-vault\tokless (core/providers/, plugins/)
+Targets: crates/toksi/src/headroom/, crates/toksi/src/gateway/, crates/toksi/src/
 
 Requirements:
 1. Drop Python headroom-py completely.

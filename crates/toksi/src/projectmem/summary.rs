@@ -491,5 +491,21 @@ mod tests {
         assert!(summary.contains("- [DONE] #0001 Crashing on null pointer [src/main.rs:10] (fixed)"));
         assert!(summary.contains("- Use if-let over match"));
     }
+
+    #[test]
+    fn test_a_blank_location_falls_back_to_the_fixs() {
+        let mut e1 = Event::new("issue", "blank location");
+        e1.issue_id = Some("0001".into());
+        e1.location = Some("   ".into());
+
+        let mut e2 = Event::new("fix", "patched");
+        e2.issue_id = Some("0001".into());
+        e2.location = Some("src/x.rs".into());
+
+        let events = vec![e1, e2];
+        let text = build_summary(&events, "test_proj", None);
+        assert!(text.contains("- [DONE] #0001 blank location [src/x.rs] (fixed)"));
+        assert!(!text.contains("[]"));
+    }
 }
 

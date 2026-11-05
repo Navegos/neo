@@ -2,7 +2,9 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, .projectmem/plan.md, and .gemini/antigravity/brain/PHASE_05_CODEGRAPH_PURE_RUST.md first to understand the global master architecture and cross-tool coupling.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .gemini/antigravity/brain/PHASE_05_CODEGRAPH_PURE_RUST.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/codegraph as updated please rerun
 
 Execute Phase 05: CodeGraph Pure Rust Engine.
 Source: neo/inspect-vault/codegraph (codegraph-kernel in Rust + TS wrapper)
