@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/mcpspawn.rs
 // created: 2026-10-05
-// lastModified: 2026-11-01
+// lastModified: 2026-11-05
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Write};
@@ -136,7 +136,7 @@ pub fn pick_mcp_spawn(bin: &str, extra_args: &[&str]) -> McpSpawn {
             command: self_cmd,
             args: vec!["ctx".into(), "mcp".into()],
         };
-    } else if bin == "icm" {
+    } else if bin == "icm" || bin == "aimemory" || bin == "handoff" {
         let self_cmd = toksi_run_mcp_command();
         return McpSpawn {
             command: self_cmd,

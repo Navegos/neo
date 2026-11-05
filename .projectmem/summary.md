@@ -7,6 +7,7 @@ _Last updated: 2026-11-05_
 Enterprise-grade native Rust tooling, token-optimization, and headroom gateway pipeline for AI coding assistants. Transparently sits between 17 coding agents and 39+ upstream LLM providers to cut token spend by 30-70%, enforce latency/cost/concurrency quotas, and provide zero-latency memory, AST code intelligence, and real-time telemetry across dedicated isolated ports.
 
 ## Recent issues
+- [OPEN] #0035 Phase 08: Purge external runtime downloaders and rewire agent harnesses to in-tree modules [crates/toksi/src/util/] (open)
 - [OPEN] #0034 Bypass non-LLM authentication and ConnectRPC management endpoints directly without intercepting headers or proxying, capturing only LLM processing in and out [crates/toksi/src/headroom/proxy.rs:615 (serve_headroom_connection)] (open)
 - [OPEN] #0033 Transparent TCP tunnel or non-LLM passthrough for Antigravity auth/eligibility, proxy only LLM generation requests [crates/toksi/src/headroom/proxy.rs:615 (serve_headroom_connection)] (open)
 - [DONE] #0032 Antigravity eligibility check returns 404 not found Google upstream service endpoint not found [crates/toksi/src/headroom/proxy.rs:672 (serve_headroom_connection)] -> Automatic sibling upstream fallback between aicode.googleapis.com and cloudcode-pa.googleapis.com on 404, eliminating 404 endpoint not found during Antigravity eligibility checks (fixed)
@@ -23,12 +24,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - ...and 22 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...42 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Phase 7: Implemented Native Enterprise AI Gateway and Headroom deep integration with 36 provider clients, local session reuse bridges, dynamic failover cascade, multi-key pools, load balancer, task complexity router, virtual key governance, dual-tier semantic cache, and dynamic MCP schema pruner; 407 workspace tests passing with 0 warnings [crates/tokless/src/gateway/]
-- Refactor: Rename crate tokless to toksi across workspace, packages, binaries, APIs, metrics, and agent harnesses
-- Phase 11: Resolved duplicate definitions from tokless-to-toksi rename, verified Phase 11 agent doctor & self-healing parity; 241 unit tests and 8 verification tests passing with 0 warnings [crates/toksi/src/]
-- Refactor: refactor(toksi): rename tokless to toksi and enforce Phase 11 self-healing parity [crates/nbuild/src/cli.rs]
-- Refactor: Refactor proxy handling and telemetry integration [crates/toksi/src/agents/antigravity.rs]
+- ...47 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Use only toksi paths, purge tokless aliases from discovery and adapters, keep tokless checks strictly for self-healing and data migration
 - Refactor: Refactor headroom proxy and utility functions; enhance binary resolution and add CORS support [crates/toksi/src/agents/antigravity.rs]
 - Consolidated toksi master architecture v3.0: unified single daemon launch (toksi daemon start), cross-platform forward-slash (/) paths standard for Git Bash compatibility, default SQLite config storage in ~/.toksi/toksi.db, mouse-capable TUI (ratatui/crossterm) and Web UI Telemetry Cockpit (127.0.0.1:9099) with 17-agent observation grid, 36 BYOK providers, and full audit of all 12 inspect-vault engines [crates/toksi/CONSOLIDATION_PLAN.md:1]
@@ -39,11 +35,13 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - Prioritize ~/.toksi/memory.db, expose recall_tiered_entries headroom hook, and support memory_handoff_accept in ICM
 - Phase 05: CodeGraph Pure Rust Engine refreshed with upstream inspect-vault updates (C/C++ member type refs, Python parameterized base, Go uppercase const/var exports, JS/TS subscript exports) [crates/toksi/src/codegraph/mod.rs:1]
 - Phase 07: Headroom Deep Integration & Gateway Catalog refreshed with 39+ providers (added BedrockMantle, SageMaker, Bifrost), byte-for-byte critical log survival, AST-aware code compression, and dual-tier semantic cache [crates/toksi/src/gateway/providers/mod.rs]
+- Master architecture v3.3: unified 5-port daemon (:8787,:8789,:8790,:9099,:9100), root .toksi workspace consolidation, normalized hooks (<tool>-hook <agent>) and MCP names, 39+ BYOK providers with Bifrost and smart CLI bridges, strict paid quota enforcement with zero-fail fallback, ground-truth token accounting, forward-slash paths, mouse TUI and background Web UI [crates/toksi/CONSOLIDATION_PLAN.md:1]
+- Master architecture v3.3 plan approved: unified 5-port daemon (:8787,:8789,:8790,:9099,:9100), root .toksi workspace consolidation, normalized hooks (<tool>-hook <agent>) and MCP names (projectmem, context, codegraph), 39+ BYOK providers with Bifrost and smart CLI bridges, strict paid quota enforcement with zero-fail fallback, ground-truth token accounting, forward-slash paths, mouse TUI and background Web UI [crates/toksi/CONSOLIDATION_PLAN.md:1]
+- Consolidated Toksi v3.3 Master Architecture & Execution Plan across 5 dedicated ports, root .toksi workspace topology, normalized tool hooks (<tool>-hook <agent>) and MCP names, 39+ BYOK providers with smart background CLI bridges, strict paid quota enforcement with zero-fail fallback, ground-truth session token accounting, forward-slash paths, mouse TUI, and background Web UI cockpit [crates/toksi/CONSOLIDATION_PLAN.md:1]
+- Toksi v3.3 Disciplinary Coding Standards and Conventions Consolidation [crates/toksi/CONSOLIDATION_PLAN.md:1]
+- Modularized Phase 15 and 16 into discrete ready-to-run subphase prompt files in .gemini/antigravity/brain/*.md for token-isolated per-chat execution [crates/toksi/CONSOLIDATION_PLAN.md:1]
 
 ## Notes
-- New feature: feat: Implement bypass for non-LLM authentication and ConnectRPC management endpoints; enhance error handling and loggin [crates/toksi/src/agents/antigravity.rs]
-- New feature: feat: Update project documentation and fix CLI test assertions; enhance command filtering logic [crates/toksi/src/rtk/engine.rs]
-- New feature: feat: Implement auto-population of failure traces in projectmem; add tests for RTK failure trace handling [crates/toksi/src/projectmem/cli.rs]
 - New feature: feat: Add auto-memory functionality for reading and querying memory files; implement tests for auto-memory operations [crates/toksi/src/contextmode/auto_memory.rs]
 - New feature: feat: enhance command filters and output handling [crates/toksi/src/commands/rtk.rs]
 - New feature: feat(projectmem): complete pure safe Rust port with v0.3.5 parity [crates/toksi/src/projectmem/mcp.rs]
@@ -51,6 +49,9 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - New feature: feat(icm): prioritize home dir db, add tiered recall hook, and sync projectmem gotchas [crates/toksi/src/aimemory/mod.rs]
 - New feature: feat(codegraph): enhance C/C++, Go, Python, and JS/TS AST extractions [crates/toksi/src/codegraph/kernel/ccpp/mod.rs]
 - New feature: feat(rules): add modular agent rules and multi-target config synchronization [crates/toksi/src/rules/caveman.rs]
+- New feature: feat(gateway): add BedrockMantle, SageMaker, and Bifrost providers [crates/toksi/src/gateway/providers/frontier/mod.rs]
+- gotcha: BYOK gateway requires active commercial paid tier; free or trial accounts bypass rotation pool with non-blocking notice without crashing [crates/toksi/src/gateway/agent_cli/tier_check.rs:1]
+- gotcha: universal forward-slash / path normalization required for Git Bash and cross-platform compatibility; isolated port 9099 (AI Gateway) and port 9100 (Web Dashboard) prevents SSE socket contention [crates/toksi/src/util/paths.rs:1]
 
 ## Key files
 - `.editorconfig`

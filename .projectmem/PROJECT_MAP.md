@@ -1,6 +1,6 @@
 # Project Map - neo
 
-Status: updated for Toksi Native Consolidation Master Architecture Plan (v3.2).
+Status: updated for Toksi Native Consolidation Master Architecture Plan (v3.3).
 
 ## Project purpose
 --------------------------------------------------------------------------------
@@ -10,8 +10,18 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - Language: Safe Rust (Edition 2024)
 - Manifest: Cargo.toml (workspace)
 - Crates: `crates/toksi`, `crates/nbuild`, `crates/archinfo`
-- Path convention: Universal forward slashes (`/`) across Windows and Unix for Git Bash / POSIX compatibility
+- Path convention: Universal forward slashes (`/`) across Windows and Unix for Git Bash / POSIX compatibility (with escaped `\\` preserved in JSON5/TOML configs for Windows cmd hooks.json commands)
 - Storage: Default SQLite configuration database stored in user home (`~/.toksi/toksi.db`)
+- Workspace Topology:
+  * Only ONE `.toksi` directory in root workspace (`<root>/.toksi/`)
+  * Subfolder `.toksi` directories auto-merged into `<root>/.toksi/` and deleted
+  * Tool subdirectories consolidated under `.toksi/<tool>`: `.toksi/{codegraph, headroom, projectmem, context, icm, ai-memory, rtk}`
+  * Workspace agent configuration directories (`.claude`, `.cursor`, `.vscode`, `.grok`, `.cline`) strictly located in first workspace root
+- Tool Hook & MCP Conventions:
+  * Hook syntax standard: `<tool>-hook <agent>` (e.g. `codegraph-hook agy`, `projectmem-hook agy`, `context-hook agy`, `rtk-hook agy`)
+  * Normalized MCP tool names: `projectmem`, `context`, `codegraph`
+  * Normalized MCP instruction directories: `context`
+  * Agent taxonomy: `antigravity;agy;antigravity-ide`, `copilot-cli;copilot-vscode`, etc.
 - Network Port Topology:
   * Port 8787: Headroom Streaming Proxy (Antigravity, Grok)
   * Port 8789: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`)
@@ -24,7 +34,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
   * `gateway`: 39+ BYOK providers (including `Bifrost`, `AWS SageMaker`, `AWS Bedrock Mantle`), first-class local Agent CLI providers (`AntigravityCli`, `CopilotCli`, `ClaudeCli`, `CursorBridge`, `GrokCli`) with smart background launch and reachability verification, strict paid quota enforcement (disqualifying free-tier/trial accounts with non-blocking inform and zero-fail fallback), 8-category failover cascade, dynamic load balancer, complexity tier router, dual-tier semantic cache, drop-in SDK endpoints (:9099).
   * `headroom`: Transparent HTTP/SSE streaming proxy (:8787), dual-port Copilot supervisor (:8789 and :8790), log deduplication, AST code/whitespace compression, JSON minifier, dynamic MCP schema pruner (saves 5k-15k tokens/turn), 1024-token prompt cache alignment, adaptive memory headroom scaling.
   * `keyring`: Cross-platform OS Keyring credential manager (Windows Credential Manager via `advapi32.dll`, macOS Keychain, Linux Secret Service) with base64 OAuth envelope parser.
-  * `db`: Persistent SQLite WAL configuration database (`~/.toksi/toksi.db`) with online backup, JSON export/import, and auto-migration.
+  * `db`: Persistent SQLite WAL configuration database (`~/.toksi/toksi.db`) with online backup, JSON export/import, and auto-migration from legacy paths.
   * `env_injector`: Non-destructive OS environment injection (`HKCU\Environment` on Windows with `WM_SETTINGCHANGE` broadcast; session env on Unix) and auto-healer for legacy shims.
   * `telemetry`: Ground-truth session metrics and rate-limit tracking directly from live SSE response streams, async zero-latency non-blocking metrics collector, native Prometheus exposition (:9099/metrics), real-time USD cost and savings calculator.
   * `tui`: Full-featured interactive terminal user interface (`ratatui` + `crossterm`) with full mouse capture (tabs, tables, action buttons, scroll).
@@ -32,9 +42,9 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
   * `agents`: Native configs, hooks, and MCP wiring for 17 AI coding assistants (Claude Code, Antigravity, GitHub Copilot, Cursor, Codex, OpenCode, Factory Droid, Grok, Pi, OMP, Kilo, Cline, Amp, Kimi, ZCode, DSH).
   * `rtk`: 100+ command output filters (git, cargo, test runners, linters, docker) and zero-allocation ANSI stripper.
   * `projectmem`: Safe Rust port of ProjectMem (~v0.3.4) with atomic JSONL store, zero-LLM summary, git staged diff precheck, and in-process MCP server.
-  * `icm`: Instant Context Memory with local SQLite FTS5 BM25 search and sub-10ms zero-token recall (`~/.toksi/memory.db`).
+  * `icm`: Instant Context Memory with local SQLite FTS5 BM25 search and sub-10ms zero-token recall (`~/.toksi/icm/memory.db`).
   * `aimemory`: Open Knowledge Format (OKF v0.2) wiki store, claim-once multi-agent handoff state machine, and progressive L0/L1/L2 disclosure.
-  * `codegraph`: Pure Rust Tree-sitter parsers (Rust, TS/JS, Py, Go, C/C++), petgraph dependency/blast-radius engine, and AST symbol cache (`.codegraph/symbols.db`).
+  * `codegraph`: Pure Rust Tree-sitter parsers (Rust, TS/JS, Py, Go, C/C++), petgraph dependency/blast-radius engine, and AST symbol cache (`.toksi/codegraph/symbols.db`).
   * `contextmode`: Subprocess sandbox runner with CPU/memory bounds, SQLite FTS5 search index, async HTTP fetcher, piped through RTK filters.
   * `rules`: In-tree compile-time embedded guidelines (`include_str!`): Karpathy principles, Caveman ASD-STE100 compressor, Ponytail lazy senior build discipline; universal synchronizer for `rules*.md`, `skills*.md`, `instructions*.md`, `agents*.md`.
 - `crates/nbuild`: Universal toolchain manager, local GitHub Actions workflow runner, package engine, and remote worker runner for AI agents.

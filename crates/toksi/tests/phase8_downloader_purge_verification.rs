@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase8_downloader_purge_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use std::path::Path;
 use toksi::agents::register as register_all_agents;
@@ -160,8 +160,26 @@ fn test_phase8_system_detection_policy_via_which() {
 fn test_phase8_mcp_command_wiring_uses_in_tree_toksi() {
     use toksi::agents::mcp_command;
 
-    let agents = ["claude", "cursor", "antigravity", "copilot", "codex", "opencode"];
-    let tools = ["projectmem", "context-mode", "codegraph", "icm"];
+    let agents = [
+        "claude",
+        "opencode",
+        "opencode2",
+        "codex",
+        "cursor",
+        "antigravity",
+        "copilot",
+        "droid",
+        "grok",
+        "kilo",
+        "omp",
+        "pi",
+        "cline",
+        "kimi",
+        "zcode",
+        "dsh",
+        "amp",
+    ];
+    let tools = ["projectmem", "context-mode", "codegraph", "icm", "aimemory"];
 
     for agent in agents {
         for tool in tools {

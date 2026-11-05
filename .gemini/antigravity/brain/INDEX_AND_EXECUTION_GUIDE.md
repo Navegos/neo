@@ -24,8 +24,13 @@
 | [`PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md`](./PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md) | TUI & Dashboard | Native Prometheus `/metrics`, async collector, multi-tab TUI, embedded web UI | Implemented & Tested |
 | [`PHASE_13_E2E_VERIFICATION_BENCHMARKS.md`](./PHASE_13_E2E_VERIFICATION_BENCHMARKS.md) | E2E Verification | 100% test pass rate, 0 warnings, token reduction and latency benchmarks | Implemented & Tested |
 | [`PHASE_14_KEYRING_AND_CONFIG_SQLITE_DB.md`](./PHASE_14_KEYRING_AND_CONFIG_SQLITE_DB.md) | Keyring & SQLite DB | Native OS Keyring (`advapi32.dll`, Keychain, Secret Service), SQLite config DB | Implemented & Tested |
-| [`PHASE_15_UNIFIED_DAEMON_PAID_BYOK_AND_PATHS.md`](./PHASE_15_UNIFIED_DAEMON_PAID_BYOK_AND_PATHS.md) | Master 5-Port Daemon & Paths | 5-port supervisor (:8787, :8789, :8790, :9099, :9100), forward-slash `/` paths standard, `~/.toksi/toksi.db` default, smart background Local Agent CLI providers (`agy`, `copilot`, `claude`, `cursor`, `grok`), strict paid quota enforcement, rules sync | **NEXT ACTIVE PHASE** |
-| [`PHASE_16_MOUSE_TUI_AND_BACKGROUND_WEB_COCKPIT.md`](./PHASE_16_MOUSE_TUI_AND_BACKGROUND_WEB_COCKPIT.md) | Mouse TUI & Web Cockpit | Crossterm `EnableMouseCapture`, background Web UI Cockpit on `:9100`, real-time 17-agent observation grid, paid tier badges, load balancer controls, comprehensive README sync | **UPCOMING PHASE** |
+| [`PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md`](./PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md) | Workspace & Standards | Forward-slash `/` paths, `~/.toksi/toksi.db`, single root `.toksi` consolidation, tool layout, hook syntax (`<tool>-hook <agent>`), MCP renaming | **NEXT ACTIVE PHASE (1/7)** |
+| [`PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`](./PHASE_15_2_UNIFIED_5_PORT_DAEMON.md) | 5-Port Daemon & Copilot | 5-port supervisor (:8787, :8789, :8790, :9099, :9100), Copilot dual-port verification, latency isolation | **ACTIVE PHASE (2/7)** |
+| [`PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`](./PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md) | Smart CLI & Paid Quota | Local Agent CLI providers (`agy`, `copilot`, `claude`, `cursor`, `grok`), smart launch, paid tier mandate, graceful bypass | **ACTIVE PHASE (3/7)** |
+| [`PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md`](./PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md) | Token Accounting & Rules | Ground-truth session tokens, real SSE usage/quotas, universal rules/skills sync across 17 agents, CLI help update | **ACTIVE PHASE (4/7)** |
+| [`PHASE_16_1_MOUSE_CAPABLE_TUI.md`](./PHASE_16_1_MOUSE_CAPABLE_TUI.md) | Mouse-Capable TUI | Crossterm `EnableMouseCapture`, tab clicks, row selection, action buttons, scrollable views | **UPCOMING PHASE (5/7)** |
+| [`PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`](./PHASE_16_2_WEB_COCKPIT_DASHBOARD.md) | Web Cockpit Dashboard | Background Web UI on `:9100`, 17-agent observation grid, quota gauges, routing/loadbalancer controls | **UPCOMING PHASE (6/7)** |
+| [`PHASE_16_3_README_AND_VERIFICATION.md`](./PHASE_16_3_README_AND_VERIFICATION.md) | README & Verification | Comprehensive technical README, all 17 agents, 39+ providers, 0 warnings, full verification | **UPCOMING PHASE (7/7)** |
 
 ---
 
@@ -36,4 +41,3 @@
 3. Copy the **Ready-to-Run Chat Prompt** block at the top of the file.
 4. Paste it into the new chat and press Send.
 5. The agent will execute that phase cleanly without carrying tokens from previous conversations.
-
