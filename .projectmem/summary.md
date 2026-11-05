@@ -24,8 +24,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - ...and 22 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...48 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Refactor: Refactor headroom proxy and utility functions; enhance binary resolution and add CORS support [crates/toksi/src/agents/antigravity.rs]
+- ...49 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Consolidated toksi master architecture v3.0: unified single daemon launch (toksi daemon start), cross-platform forward-slash (/) paths standard for Git Bash compatibility, default SQLite config storage in ~/.toksi/toksi.db, mouse-capable TUI (ratatui/crossterm) and Web UI Telemetry Cockpit (127.0.0.1:9099) with 17-agent observation grid, 36 BYOK providers, and full audit of all 12 inspect-vault engines [crates/toksi/CONSOLIDATION_PLAN.md:1]
 - Toksi master architecture v3.1: 5-port dedicated topology (:8787 Headroom, :8789 Copilot VSCode, :8790 Copilot CLI, :9099 AI Gateway, :9100 Background Dashboard Cockpit) eliminating port contention; expanded 39+ BYOK providers including Bifrost, SageMaker, Bedrock Mantle and smart background Agent CLI bridges; gateway activation guard requiring >=1 provider without crashing when using uncredentialed CLI agents; ground-truth session token accounting from live SSE streams and rate-limit headers; full rules/skills/instructions synchronization across agent workspaces and home config dirs [crates/toksi/CONSOLIDATION_PLAN.md:1]
 - Enforce first-class BYOK provider registration for 5 Local Agent CLIs (agy.exe, copilot.exe, claude, cursor, grok) with smart background launch and chat endpoint verification; mandate active paid quota/subscription for all BYOK providers (disqualifying free-tier accounts from gateway rotation pool with non-blocking inform and zero-fail/zero-bug fallback) [crates/toksi/CONSOLIDATION_PLAN.md:1]
@@ -40,9 +39,9 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - Toksi v3.3 Disciplinary Coding Standards and Conventions Consolidation [crates/toksi/CONSOLIDATION_PLAN.md:1]
 - Modularized Phase 15 and 16 into discrete ready-to-run subphase prompt files in .gemini/antigravity/brain/*.md for token-isolated per-chat execution [crates/toksi/CONSOLIDATION_PLAN.md:1]
 - Phase 03 refresh: verified full Context-Mode parity in pure Rust with strict CPU/memory limits, in-memory RTK pipe, SQLite FTS5 BM25 search, SSRF per-hop enforcement, and in-process ctx_* MCP suite [crates/toksi/src/contextmode/mod.rs:1]
+- Phase 04 rerun: hardened ICM FTS5 BM25 token sanitization with operator stripping, prioritized ~/.toksi/memory.db, added memory_handoff_accept MCP alias, and added extractive leading_prose fallback for tiered progressive disclosure [crates/toksi/src/icm/store.rs:593 (sanitize_fts5_query)]
 
 ## Notes
-- New feature: feat(rules): add modular agent rules and multi-target config synchronization [crates/toksi/src/rules/caveman.rs]
 - New feature: feat(gateway): add BedrockMantle, SageMaker, and Bifrost providers [crates/toksi/src/gateway/providers/frontier/mod.rs]
 - gotcha: BYOK gateway requires active commercial paid tier; free or trial accounts bypass rotation pool with non-blocking notice without crashing [crates/toksi/src/gateway/agent_cli/tier_check.rs:1]
 - gotcha: universal forward-slash / path normalization required for Git Bash and cross-platform compatibility; isolated port 9099 (AI Gateway) and port 9100 (Web Dashboard) prevents SSE socket contention [crates/toksi/src/util/paths.rs:1]
@@ -52,6 +51,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - New feature: feat(rtk): enhance git, nextest, and ruff filters with root-cause adapters [crates/toksi/src/rtk/filters/build.rs]
 - New feature: feat(projectmem): align edge cases with v0.3.5 and sync phase prompt docs [crates/toksi/src/projectmem/mcp.rs]
 - feat(contextmode): enhance SSRF guard with RFC ranges (shared 100.64.0.0/10, bench 198.18.0.0/15, broadcast 240.0.0.0/4, NAT64, 6to4) and per-hop redirect validation [crates/toksi/src/contextmode/fetch.rs:80 (ssrf_guard)]
+- New feature: feat(contextmode): harden SSRF guard, add ctx_batch/ctx_upgrade tools, and update tests [crates/toksi/src/contextmode/fetch.rs]
 
 ## Key files
 - `.editorconfig`

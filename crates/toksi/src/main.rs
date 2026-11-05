@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-11-04
+// lastModified: 2026-11-05
 
 use std::collections::HashMap;
 use std::env;
@@ -319,7 +319,7 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "icm" {
         return toksi::icm::run_icm_cli(&args[2..]);
     }
-    if args.len() >= 2 && args[1] == "handoff" {
+    if args.len() >= 2 && (args[1] == "handoff" || args[1] == "aimemory") {
         return toksi::aimemory::run_handoff_cli(&args[2..]);
     }
     if args.len() >= 2 && args[1] == "tui" {
@@ -411,7 +411,7 @@ fn run() -> i32 {
         "ctx" => toksi::contextmode::run_ctx_cli(&args[2..]),
         "graph" => toksi::codegraph::run_graph_cli(&args[2..]),
         "icm" => toksi::icm::run_icm_cli(&args[2..]),
-        "handoff" => toksi::aimemory::run_handoff_cli(&args[2..]),
+        "handoff" | "aimemory" => toksi::aimemory::run_handoff_cli(&args[2..]),
         "rules" => toksi::rules::run_rules_cli(&args[2..]),
         "auth" => toksi::commands::run_auth_cli(&args[2..]),
         "db" => toksi::commands::run_db_cli(&args[2..]),

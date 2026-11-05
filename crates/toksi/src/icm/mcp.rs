@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/icm/mcp.rs
 // created: 2026-10-28
-// lastModified: 2026-11-04
+// lastModified: 2026-11-05
 
 use std::env;
 use std::io::{self, BufRead, Write};
@@ -22,16 +22,37 @@ pub fn resolve_icm_db_path() -> PathBuf {
             return PathBuf::from(p);
         }
     }
-    if let Ok(root) = env::var("PROJECTMEM_ROOT") {
-        if !root.trim().is_empty() {
-            return PathBuf::from(root).join(".toksi").join(DEFAULT_DB_FILENAME);
-        }
-    }
     let h = crate::util::paths::home();
     if !h.is_empty() {
-        return PathBuf::from(h).join(".toksi").join(DEFAULT_DB_FILENAME);
+        let home_mem = PathBuf::from(&h).join(".toksi").join("memory.db");
+        if home_mem.exists() {
+            return home_mem;
+        }
+        let home_icm = PathBuf::from(&h).join(".toksi").join("icm").join(DEFAULT_DB_FILENAME);
+        if home_icm.exists() {
+            return home_icm;
+        }
+    }
+    if let Ok(root) = env::var("PROJECTMEM_ROOT") {
+        if !root.trim().is_empty() {
+            let root_icm = PathBuf::from(&root).join(".toksi").join("icm").join(DEFAULT_DB_FILENAME);
+            if root_icm.exists() {
+                return root_icm;
+            }
+            let root_mem = PathBuf::from(&root).join(".toksi").join(DEFAULT_DB_FILENAME);
+            if root_mem.exists() {
+                return root_mem;
+            }
+        }
+    }
+    if !h.is_empty() {
+        return PathBuf::from(&h).join(".toksi").join("memory.db");
     }
     if let Ok(cwd) = env::current_dir() {
+        let cwd_icm = cwd.join(".toksi").join("icm").join(DEFAULT_DB_FILENAME);
+        if cwd_icm.exists() {
+            return cwd_icm;
+        }
         return cwd.join(".toksi").join(DEFAULT_DB_FILENAME);
     }
     PathBuf::from(".toksi").join(DEFAULT_DB_FILENAME)
@@ -206,6 +227,18 @@ pub fn handle_mcp_request(store: &mut IcmStore, req: &Value) -> Option<Value> {
                     {
                         "name": "memory_handoff_claim",
                         "description": "Claim-once atomic acceptance of an offered handoff by the receiving agent.",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string", "description": "Handoff identifier" },
+                                "agent": { "type": "string", "description": "Accepting agent identifier" }
+                            },
+                            "required": ["id", "agent"]
+                        }
+                    },
+                    {
+                        "name": "memory_handoff_accept",
+                        "description": "Claim-once atomic acceptance of an offered handoff (alias of memory_handoff_claim).",
                         "inputSchema": {
                             "type": "object",
                             "properties": {

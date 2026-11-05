@@ -363,6 +363,7 @@ fn test_phase4_in_process_mcp_server_handlers() {
     assert!(tool_names.contains(&"icm_list_topics"));
     assert!(tool_names.contains(&"memory_handoff_offer"));
     assert!(tool_names.contains(&"memory_handoff_claim"));
+    assert!(tool_names.contains(&"memory_handoff_accept"));
     assert!(tool_names.contains(&"memory_handoff_resolve"));
     assert!(tool_names.contains(&"memory_handoff_list"));
     assert!(tool_names.contains(&"memory_wiki_read"));

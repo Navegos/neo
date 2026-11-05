@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase6_rules_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-11-02
+// lastModified: 2026-11-05
 
 use std::fs;
 use tempfile::tempdir;
@@ -188,7 +188,7 @@ fn test_phase6_patch_all_agent_configs_and_inspect() {
 
     // Inspect rules
     let statuses = inspect_agent_rules(tmp.path());
-    assert_eq!(statuses.len(), 4);
+    assert_eq!(statuses.len(), 8);
 
     for st in &statuses {
         assert_eq!(st.present_rules.len(), 3);

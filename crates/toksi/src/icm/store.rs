@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/icm/store.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use std::path::{Path, PathBuf};
 use chrono::Utc;
@@ -591,17 +591,40 @@ impl IcmStore {
 }
 
 fn sanitize_fts5_query(query: &str) -> String {
-    let mut tokens = Vec::new();
-    for word in query.split_whitespace() {
-        let clean: String = word
-            .chars()
-            .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
-            .collect();
-        if clean.len() >= 2 {
-            tokens.push(format!("\"{}\"", clean));
+    let query = if query.len() > 10_000 {
+        let mut end = 10_000;
+        while end > 0 && !query.is_char_boundary(end) {
+            end -= 1;
         }
-    }
-    tokens.join(" OR ")
+        &query[..end]
+    } else {
+        query
+    };
+
+    let cleaned: String = query
+        .chars()
+        .map(|c| {
+            if matches!(
+                c,
+                '-' | '*' | '"' | '(' | ')' | '{' | '}' | ':' | '^' | '+' | '~' | '\\'
+            ) {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect();
+
+    cleaned
+        .split_whitespace()
+        .filter(|w| !w.is_empty())
+        .take(100)
+        .map(|w| {
+            let stripped = w.replace('"', "");
+            format!("\"{stripped}\"")
+        })
+        .collect::<Vec<_>>()
+        .join(" OR ")
 }
 
 fn rand_u64() -> u64 {

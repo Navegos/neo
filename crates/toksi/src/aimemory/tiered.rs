@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/aimemory/tiered.rs
 // created: 2026-10-28
-// lastModified: 2026-11-04
+// lastModified: 2026-11-05
 
 use serde::{Deserialize, Serialize};
 
@@ -73,9 +73,15 @@ impl TieredPacker {
             DisclosureTier::L0 => {
                 out.push_str("### Context Index (L0)\n");
                 for entry in entries {
-                    let desc = entry.abstract_text.as_deref()
-                        .or(entry.summary_text.as_deref())
-                        .unwrap_or("");
+                    let fallback;
+                    let desc = if let Some(ref a) = entry.abstract_text {
+                        a.as_str()
+                    } else if let Some(ref s) = entry.summary_text {
+                        s.as_str()
+                    } else {
+                        fallback = leading_prose(&entry.full_content).unwrap_or_default();
+                        fallback.as_str()
+                    };
                     let short_desc = truncate_utf8_bytes(desc, BRIEF_L0_MAX_BYTES);
                     let line = if short_desc.is_empty() {
                         format!("- **{}**\n", entry.title)
@@ -95,9 +101,15 @@ impl TieredPacker {
             DisclosureTier::L1 => {
                 out.push_str("### Standing Knowledge & Rules (L1)\n");
                 for entry in entries {
-                    let summary = entry.summary_text.as_deref()
-                        .or(entry.abstract_text.as_deref())
-                        .unwrap_or(&entry.full_content);
+                    let fallback;
+                    let summary = if let Some(ref s) = entry.summary_text {
+                        s.as_str()
+                    } else if let Some(ref a) = entry.abstract_text {
+                        a.as_str()
+                    } else {
+                        fallback = leading_prose(&entry.full_content).unwrap_or_else(|| entry.full_content.clone());
+                        fallback.as_str()
+                    };
                     let text = truncate_utf8_bytes(summary, BRIEF_L1_MAX_BYTES);
                     let block = format!("#### {}\n{}\n\n", entry.title, text);
 
@@ -145,6 +157,36 @@ pub fn truncate_utf8_bytes(s: &str, max_bytes: usize) -> &str {
         end -= 1;
     }
     &s[..end]
+}
+
+/// Extractive walk over the opening body prose (skipping headings, rules, and frontmatter)
+/// without any LLM summarization.
+pub fn leading_prose(body: &str) -> Option<String> {
+    let mut end = body.len().min(16 * 1024);
+    while !body.is_char_boundary(end) {
+        end -= 1;
+    }
+    let mut prose = String::new();
+    for block in body[..end].split("\n\n") {
+        let trimmed = block.trim();
+        for line in trimmed.lines().map(str::trim) {
+            if line.is_empty() || line.starts_with('#') || line == "---" {
+                continue;
+            }
+            if !prose.is_empty() {
+                prose.push(' ');
+            }
+            prose.push_str(line);
+            if prose.len() >= BRIEF_L1_MAX_BYTES {
+                return Some(prose);
+            }
+        }
+    }
+    if prose.is_empty() {
+        None
+    } else {
+        Some(prose)
+    }
 }
 
 pub fn estimate_tokens(text: &str) -> usize {

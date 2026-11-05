@@ -26,14 +26,26 @@ pub fn default_handoffs_dir() -> PathBuf {
     }
     if let Ok(root) = env::var("PROJECTMEM_ROOT") {
         if !root.trim().is_empty() {
+            let aimem_dir = PathBuf::from(&root).join(".toksi").join("ai-memory").join("handoffs");
+            if aimem_dir.exists() {
+                return aimem_dir;
+            }
             return PathBuf::from(root).join(".toksi").join("handoffs");
         }
     }
     let h = crate::util::paths::home();
     if !h.is_empty() {
+        let home_aimem = PathBuf::from(&h).join(".toksi").join("ai-memory").join("handoffs");
+        if home_aimem.exists() {
+            return home_aimem;
+        }
         return PathBuf::from(h).join(".toksi").join("handoffs");
     }
     if let Ok(cwd) = env::current_dir() {
+        let cwd_aimem = cwd.join(".toksi").join("ai-memory").join("handoffs");
+        if cwd_aimem.exists() {
+            return cwd_aimem;
+        }
         return cwd.join(".toksi").join("handoffs");
     }
     PathBuf::from(".toksi").join("handoffs")
@@ -47,14 +59,26 @@ pub fn default_wiki_dir() -> PathBuf {
     }
     if let Ok(root) = env::var("PROJECTMEM_ROOT") {
         if !root.trim().is_empty() {
+            let aimem_wiki = PathBuf::from(&root).join(".toksi").join("ai-memory").join("wiki");
+            if aimem_wiki.exists() {
+                return aimem_wiki;
+            }
             return PathBuf::from(root).join(".toksi").join("wiki");
         }
     }
     let h = crate::util::paths::home();
     if !h.is_empty() {
+        let home_aimem = PathBuf::from(&h).join(".toksi").join("ai-memory").join("wiki");
+        if home_aimem.exists() {
+            return home_aimem;
+        }
         return PathBuf::from(h).join(".toksi").join("wiki");
     }
     if let Ok(cwd) = env::current_dir() {
+        let cwd_aimem = cwd.join(".toksi").join("ai-memory").join("wiki");
+        if cwd_aimem.exists() {
+            return cwd_aimem;
+        }
         return cwd.join(".toksi").join("wiki");
     }
     PathBuf::from(".toksi").join("wiki")
