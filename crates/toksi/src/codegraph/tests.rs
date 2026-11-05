@@ -771,5 +771,52 @@ struct Server {
         let refs: Vec<&str> = extraction.refs.iter().filter(|r| r.from_node_id == server_node.id).map(|r| r.name.as_str()).collect();
         assert!(refs.contains(&"Config"), "Server struct should reference member type Config, got {:?}", refs);
     }
+
+    #[test]
+    fn test_resolve_db_path_and_suffix_lookup() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        // Default legacy fallback
+        let p1 = crate::codegraph::resolve_db_path(root);
+        assert_eq!(p1, root.join(".codegraph").join("symbols.db"));
+
+        // When .toksi exists
+        fs::create_dir_all(root.join(".toksi")).unwrap();
+        let p2 = crate::codegraph::resolve_db_path(root);
+        assert_eq!(p2, root.join(".toksi").join("codegraph").join("symbols.db"));
+
+        // File symbols suffix fallback
+        let mut engine = CodeGraphEngine::new();
+        let node = SymbolNode {
+            id: "fn:deep".into(),
+            name: "deep_worker".into(),
+            qualified_name: "deep_worker".into(),
+            kind: "function".into(),
+            visibility: Some("public".into()),
+            file_path: "crates/toksi/src/worker.rs".into(),
+            start_line: 10,
+            end_line: 20,
+            start_column: 0,
+            end_column: 1,
+            docstring: None,
+            signature: None,
+            return_type: None,
+        };
+        engine.add_node(node);
+
+        // Exact match
+        assert_eq!(engine.get_file_symbols("crates/toksi/src/worker.rs").len(), 1);
+        // Clean relative prefix match
+        assert_eq!(engine.get_file_symbols("./crates/toksi/src/worker.rs").len(), 1);
+        // Suffix match
+        assert_eq!(engine.get_file_symbols("src/worker.rs").len(), 1);
+        assert_eq!(engine.get_file_symbols("worker.rs").len(), 1);
+
+        // Coordinate resolution via suffix
+        let res = engine.resolve_coordinate("worker.rs", 15);
+        assert!(res.is_some());
+        assert_eq!(res.unwrap().name, "deep_worker");
+    }
 }
 

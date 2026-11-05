@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/codegraph.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use std::env;
 use std::fs;
@@ -53,10 +53,11 @@ pub fn codegraph_configure_mcp(agent: &str, opts: &RunOpts) -> Result<bool, DynE
     if opts.dry_run {
         return Ok(true);
     }
-    let raw_spawn = match pick_codegraph_spawn(&["serve", "--mcp"]) {
-        Some(s) => s,
-        None => return Err("codegraph binary not found; install @colbymchenry/codegraph".into()),
-    };
+    let raw_spawn = pick_codegraph_spawn(&["serve", "--mcp"])
+        .unwrap_or_else(|| crate::util::McpSpawn {
+            command: crate::util::toksi_run_mcp_command(),
+            args: vec!["graph".into(), "mcp".into()],
+        });
     let spawn = wrap_auto_index(agent, raw_spawn.clone());
 
     match agent {
@@ -237,41 +238,46 @@ pub fn codegraph_verify(agent: &str) -> bool {
 }
 
 pub fn has_codegraph_index(dir: &str) -> bool {
-    let cg_dir = Path::new(dir).join(".codegraph");
-    if !cg_dir.is_dir() {
-        return false;
-    }
-    if let Ok(entries) = fs::read_dir(&cg_dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_lowercase();
-            if name.ends_with(".db") || name.ends_with(".sqlite") || name.ends_with(".json") {
-                if let Ok(meta) = entry.metadata() {
-                    if meta.len() > 0 {
-                        return true;
+    let root = Path::new(dir);
+    let toksi_cg = root.join(".toksi").join("codegraph");
+    let legacy_cg = root.join(".codegraph");
+    for cg_dir in [&toksi_cg, &legacy_cg] {
+        if !cg_dir.is_dir() {
+            continue;
+        }
+        if let Ok(entries) = fs::read_dir(cg_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_lowercase();
+                if name.ends_with(".db") || name.ends_with(".sqlite") || name.ends_with(".json") {
+                    if let Ok(meta) = entry.metadata() {
+                        if meta.len() > 0 {
+                            return true;
+                        }
                     }
                 }
             }
         }
+        if exists(cg_dir.join("codegraph.db")) || exists(cg_dir.join("symbols.db")) || exists(cg_dir.join("index.db")) {
+            return true;
+        }
     }
-    exists(cg_dir.join("codegraph.db")) || exists(cg_dir.join("index.db")) || exists(&cg_dir)
+    false
 }
 
 pub fn codegraph_index_healthy(dir: &str) -> bool {
-    let symbols_db = Path::new(dir).join(".codegraph").join("symbols.db");
-    if symbols_db.exists() {
-        if let Ok(meta) = fs::metadata(&symbols_db) {
-            return meta.len() >= 4096;
+    let root = Path::new(dir);
+    for db_path in [
+        root.join(".toksi").join("codegraph").join("symbols.db"),
+        root.join(".codegraph").join("symbols.db"),
+        root.join(".codegraph").join("codegraph.db"),
+    ] {
+        if db_path.exists() {
+            if let Ok(meta) = fs::metadata(&db_path) {
+                return meta.len() >= 4096;
+            }
         }
     }
-    let db = Path::new(dir).join(".codegraph").join("codegraph.db");
-    if !db.exists() {
-        return has_codegraph_index(dir);
-    }
-    if let Ok(meta) = fs::metadata(&db) {
-        meta.len() >= 4096
-    } else {
-        false
-    }
+    has_codegraph_index(dir)
 }
 
 pub fn run_codegraph_index(dir: &str) -> Result<bool, DynError> {

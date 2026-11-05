@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 pub mod cache;
 pub mod graph;
@@ -25,6 +25,22 @@ pub use cache::{CacheStats, SymbolCache};
 pub use graph::{BlastRadiusReport, CodeGraphEngine, ImpactedNode};
 pub use kernel::{FileExtraction, SymbolEdge, SymbolNode, SymbolRef};
 
+pub fn resolve_db_path(root: &Path) -> PathBuf {
+    let toksi_db = root.join(".toksi").join("codegraph").join("symbols.db");
+    if toksi_db.exists() {
+        return toksi_db;
+    }
+    let legacy_db = root.join(".codegraph").join("symbols.db");
+    if legacy_db.exists() {
+        return legacy_db;
+    }
+    if root.join(".toksi").is_dir() {
+        toksi_db
+    } else {
+        legacy_db
+    }
+}
+
 pub struct CodeGraph {
     pub root: PathBuf,
     pub cache: SymbolCache,
@@ -39,7 +55,7 @@ impl CodeGraph {
             std::env::current_dir()?.join(root)
         };
 
-        let db_path = abs_root.join(".codegraph").join("symbols.db");
+        let db_path = resolve_db_path(&abs_root);
         let cache = SymbolCache::open(&db_path)?;
         let nodes = cache.get_all_nodes();
         let edges = cache.get_all_edges();
@@ -121,7 +137,7 @@ impl CodeGraph {
     }
 
     pub fn index_force(&mut self) -> Result<CacheStats, DynError> {
-        let db_path = self.root.join(".codegraph").join("symbols.db");
+        let db_path = resolve_db_path(&self.root);
         let _ = fs::remove_file(&db_path);
         self.cache = SymbolCache::open(&db_path)?;
         self.ensure_indexed()?;

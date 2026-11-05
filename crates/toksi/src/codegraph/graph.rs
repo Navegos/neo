@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/graph.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -105,10 +105,19 @@ impl CodeGraphEngine {
 
     pub fn get_file_symbols(&self, file_path: &str) -> Vec<&SymbolNode> {
         let normalized = file_path.replace('\\', "/");
-        match self.file_to_indices.get(&normalized) {
-            Some(indices) => indices.iter().map(|&idx| &self.graph[idx]).collect(),
-            None => Vec::new(),
+        if let Some(indices) = self.file_to_indices.get(&normalized) {
+            return indices.iter().map(|&idx| &self.graph[idx]).collect();
         }
+        let clean = normalized.trim_start_matches("./");
+        if let Some(indices) = self.file_to_indices.get(clean) {
+            return indices.iter().map(|&idx| &self.graph[idx]).collect();
+        }
+        for (f, indices) in &self.file_to_indices {
+            if f == clean || f.ends_with(&format!("/{}", clean)) {
+                return indices.iter().map(|&idx| &self.graph[idx]).collect();
+            }
+        }
+        Vec::new()
     }
 
     pub fn resolve_coordinate(&self, file_path: &str, line: u32) -> Option<&SymbolNode> {
