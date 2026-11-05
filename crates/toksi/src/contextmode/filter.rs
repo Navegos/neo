@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/filter.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use serde_json::Value;
 
@@ -11,17 +11,31 @@ pub const DEFAULT_MAX_LINES: usize = 200;
 pub const DEFAULT_MAX_BYTES: usize = 64 * 1024; // 64KB max output per tool call
 pub const OUTPUT_CAP: usize = 16384; // 16KB cap for single tool output
 pub const EXEC_PREVIEW_BYTES: usize = 4096; // 4KB preview budget when output exceeds cap
+pub const REPLACE_TRIGGER_BYTES: usize = 4096;
+pub const MAX_CHUNK_BYTES: usize = 4096;
 
 /// Context-mode handle line referencing full indexed output via ctx_search.
 pub fn replace_handle_line(intent: &str, handle: &str, bytes: usize) -> String {
-    let query_str = if intent.is_empty() {
-        "\"\"".to_string()
+    replace_handle_line_full(intent, handle, bytes, "", "")
+}
+
+/// Full context-mode handle line supporting custom host prefix and asked query terms.
+pub fn replace_handle_line_full(intent: &str, handle: &str, bytes: usize, prefix: &str, asked: &str) -> String {
+    let mut queries = Vec::new();
+    if !intent.is_empty() {
+        queries.push(serde_json::to_string(intent).unwrap_or_else(|_| format!("\"{}\"", intent)));
     } else {
-        serde_json::to_string(intent).unwrap_or_else(|_| format!("\"{}\"", intent))
-    };
+        queries.push("\"\"".to_string());
+    }
+    if !asked.is_empty() {
+        queries.push(serde_json::to_string(asked).unwrap_or_else(|_| format!("\"{}\"", asked)));
+    }
     format!(
-        "ctx_search({{queries:[{}], source:\"{}\"}}) searches the whole output ({} B).",
-        query_str, handle, bytes
+        "{}ctx_search({{queries:[{}], source:\"{}\"}}) searches the whole output ({} B).",
+        prefix,
+        queries.join(","),
+        handle,
+        bytes
     )
 }
 

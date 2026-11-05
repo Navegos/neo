@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/projectmem/mcp.rs
 // created: 2026-10-27
-// lastModified: 2026-11-04
+// lastModified: 2026-11-05
 
 use std::fs;
 use std::io::{self, BufRead, Write};

@@ -7,7 +7,7 @@ Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.
 The code in Source: neo/inspect-vault/andrej-karpathy-skills, neo/inspect-vault/caveman, neo/inspect-vault/ponytail as updated please rerun
 
 Execute Phase 06: In-Tree Rules & Skills Integration.
-Sources: neo/inspect-vault/andrej-karpathy-skills, neo/inspect-vault/caveman
+Sources: neo/inspect-vault/andrej-karpathy-skills, neo/inspect-vault/caveman, neo/inspect-vault/ponytail
 Target: crates/toksi/src/rules/
 
 Requirements:

@@ -4,7 +4,7 @@
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .gemini/antigravity/brain/PHASE_03_CONTEXTMODE_PURE_RUST.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
-The code in Source: neo/inspect-vault/projectmem as updated please rerun
+The code in Source: neo/inspect-vault/context-mode as updated please rerun
 
 Execute Phase 03: Context-Mode Pure Rust Port.
 Source: neo/inspect-vault/context-mode (TypeScript)

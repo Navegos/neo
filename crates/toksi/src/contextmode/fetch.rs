@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/fetch.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -17,6 +17,7 @@ use super::stats::{record_cache_hit, record_cache_miss};
 
 pub const DEFAULT_FETCH_TTL_MS: u64 = 24 * 60 * 60 * 1000; // 24 hours
 pub const FETCH_PREVIEW_LIMIT: usize = 1200;
+pub const FETCH_MAX_HOPS: usize = 5;
 
 #[derive(Debug, Clone)]
 pub struct FetchRequest {
@@ -59,20 +60,33 @@ pub fn ssrf_guard(target_url: &str) -> Result<Url, String> {
         return Err(format!("SSRF block: unsupported scheme '{}', only http/https allowed", scheme));
     }
 
-    let host_str = match parsed.host_str() {
-        Some(h) => h,
-        None => return Err("SSRF block: missing hostname".to_string()),
-    };
-
-    if host_str.eq_ignore_ascii_case("localhost") {
-        return Err("SSRF block: 'localhost' access is forbidden".to_string());
-    }
-
-    // Check IP addresses
-    if let Ok(ip) = host_str.parse::<IpAddr>() {
-        if is_private_or_restricted_ip(ip) {
-            return Err(format!("SSRF block: private/internal IP address '{}' is forbidden", ip));
+    match parsed.host() {
+        Some(url::Host::Ipv4(v4)) => {
+            if is_private_or_restricted_ip(IpAddr::V4(v4)) {
+                return Err(format!("SSRF block: private/internal IP address '{}' is forbidden", v4));
+            }
         }
+        Some(url::Host::Ipv6(v6)) => {
+            if is_private_or_restricted_ip(IpAddr::V6(v6)) {
+                return Err(format!("SSRF block: private/internal IP address '{}' is forbidden", v6));
+            }
+        }
+        Some(url::Host::Domain(domain)) => {
+            if domain.eq_ignore_ascii_case("localhost") {
+                return Err("SSRF block: 'localhost' access is forbidden".to_string());
+            }
+            let bare = if domain.starts_with('[') && domain.ends_with(']') {
+                &domain[1..domain.len() - 1]
+            } else {
+                domain
+            };
+            if let Ok(ip) = bare.parse::<IpAddr>() {
+                if is_private_or_restricted_ip(ip) {
+                    return Err(format!("SSRF block: private/internal IP address '{}' is forbidden", ip));
+                }
+            }
+        }
+        None => return Err("SSRF block: missing hostname".to_string()),
     }
 
     Ok(parsed)
@@ -92,13 +106,43 @@ fn is_private_or_restricted_ip(ip: IpAddr) -> bool {
                 || (octets[0] == 192 && octets[1] == 168)
                 // 169.254.0.0/16 link-local (IMDS)
                 || (octets[0] == 169 && octets[1] == 254)
-                // 0.0.0.0/8
+                // 0.0.0.0/8 "this network"
                 || octets[0] == 0
-                // Broadcast
-                || octets == [255, 255, 255, 255]
+                // 100.64.0.0/10 shared address space (RFC 6598)
+                || (octets[0] == 100 && (64..=127).contains(&octets[1]))
+                // 198.18.0.0/15 benchmark networks (RFC 2544)
+                || (octets[0] == 198 && (18..=19).contains(&octets[1]))
+                // 240.0.0.0/4 reserved & broadcast
+                || (octets[0] >= 240)
         }
         IpAddr::V6(v6) => {
-            v6.is_loopback() || (v6.segments()[0] & 0xfe00) == 0xfc00 // Unique Local Address
+            let segs = v6.segments();
+            // ::1 loopback
+            v6.is_loopback()
+                // :: unspecified
+                || v6.is_unspecified()
+                // Unique Local Address fc00::/7
+                || (segs[0] & 0xfe00) == 0xfc00
+                // Link-local unicast fe80::/10
+                || (segs[0] & 0xffc0) == 0xfe80
+                // Site-local unicast fec0::/10 (RFC 3879)
+                || (segs[0] & 0xffc0) == 0xfec0
+                // IPv4-compatible IPv6 ::/96
+                || (segs[0] == 0 && segs[1] == 0 && segs[2] == 0 && segs[3] == 0 && segs[4] == 0 && segs[5] == 0)
+                // Local-use NAT64 64:ff9b:1::/48 (RFC 8215)
+                || (segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2] == 0x0001)
+                // Embedded IPv4 in NAT64 64:ff9b::/96
+                || (segs[0] == 0x0064 && segs[1] == 0xff9b && segs[2] == 0 && segs[3] == 0 && segs[4] == 0 && segs[5] == 0
+                    && is_private_or_restricted_ip(IpAddr::V4(std::net::Ipv4Addr::new(
+                        (segs[6] >> 8) as u8, (segs[6] & 0xff) as u8,
+                        (segs[7] >> 8) as u8, (segs[7] & 0xff) as u8,
+                    ))))
+                // Embedded IPv4 in 6to4 2002::/16
+                || (segs[0] == 0x2002
+                    && is_private_or_restricted_ip(IpAddr::V4(std::net::Ipv4Addr::new(
+                        (segs[1] >> 8) as u8, (segs[1] & 0xff) as u8,
+                        (segs[2] >> 8) as u8, (segs[2] & 0xff) as u8,
+                    ))))
         }
     }
 }
@@ -216,14 +260,29 @@ impl Default for WebFetcher {
     }
 }
 
+fn ssrf_redirect_policy() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        if attempt.previous().len() >= FETCH_MAX_HOPS {
+            attempt.error("too many redirects")
+        } else {
+            match ssrf_guard(attempt.url().as_str()) {
+                Ok(_) => attempt.follow(),
+                Err(e) => attempt.error(e),
+            }
+        }
+    })
+}
+
 impl WebFetcher {
     pub fn new() -> Self {
         let client = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(30))
+            .redirect(ssrf_redirect_policy())
             .build()
             .unwrap_or_else(|_| reqwest::blocking::Client::new());
         let async_client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
+            .redirect(ssrf_redirect_policy())
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
         Self { client, async_client }

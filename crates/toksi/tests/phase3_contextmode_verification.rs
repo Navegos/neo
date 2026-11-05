@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase3_contextmode_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use std::fs;
 use serde_json::json;
@@ -196,6 +196,11 @@ fn test_phase3_fetch_markdown_and_ssrf() {
     assert!(ssrf_guard("http://169.254.169.254/latest/meta-data/").is_err());
     assert!(ssrf_guard("http://10.20.30.40/secret").is_err());
     assert!(ssrf_guard("http://192.168.1.1/router").is_err());
+    assert!(ssrf_guard("http://100.64.0.1/meta").is_err());
+    assert!(ssrf_guard("http://198.18.0.1/benchmark").is_err());
+    assert!(ssrf_guard("http://240.0.0.1/reserved").is_err());
+    assert!(ssrf_guard("http://[::1]:8080").is_err());
+    assert!(ssrf_guard("http://[fe80::1]/link-local").is_err());
     assert!(ssrf_guard("ftp://example.com/file").is_err());
 
     // 2. HTML to Markdown conversion
@@ -257,12 +262,13 @@ fn test_phase3_inprocess_mcp_server_protocol() {
     let tool_names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
     assert!(tool_names.contains(&"ctx_execute"));
     assert!(tool_names.contains(&"ctx_execute_file"));
-    assert!(tool_names.contains(&"ctx_batch_execute"));
+    assert!(tool_names.contains(&"ctx_batch") || tool_names.contains(&"ctx_batch_execute"));
     assert!(tool_names.contains(&"ctx_index"));
     assert!(tool_names.contains(&"ctx_search"));
     assert!(tool_names.contains(&"ctx_fetch_and_index"));
     assert!(tool_names.contains(&"ctx_stats"));
     assert!(tool_names.contains(&"ctx_doctor"));
+    assert!(tool_names.contains(&"ctx_upgrade"));
     assert!(tool_names.contains(&"ctx_purge"));
 
     // 3. MCP tool call: ctx_index

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/tests.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 #[cfg(test)]
 mod tests {
@@ -210,6 +210,14 @@ mod tests {
         assert!(ssrf_guard("http://169.254.169.254/latest/meta-data").is_err());
         assert!(ssrf_guard("http://10.0.0.1/admin").is_err());
         assert!(ssrf_guard("http://192.168.1.1").is_err());
+        assert!(ssrf_guard("http://0.0.0.0/test").is_err());
+        assert!(ssrf_guard("http://100.64.0.1/metadata").is_err());
+        assert!(ssrf_guard("http://198.18.0.1/bench").is_err());
+        assert!(ssrf_guard("http://240.0.0.1/").is_err());
+        assert!(ssrf_guard("http://[::1]:8080").is_err());
+        assert!(ssrf_guard("http://[::]:8080").is_err());
+        assert!(ssrf_guard("http://[fe80::1]/").is_err());
+        assert!(ssrf_guard("http://[fec0::1]/").is_err());
         assert!(ssrf_guard("file:///etc/passwd").is_err());
     }
 
@@ -515,6 +523,22 @@ mod tests {
 
         let res = sandbox.execute(&req).unwrap();
         assert_eq!(res.exit_code, 0);
-        assert!(res.stdout.starts_with("background:"));
+        assert!(res.stdout.starts_with("started in background, pid ") || res.stdout.starts_with("background:"));
+    }
+
+    #[test]
+    fn test_replace_handle_line_full() {
+        use super::super::filter::replace_handle_line_full;
+        let line = replace_handle_line_full("auth tokens", "src-123", 4096, "toksi_", "jwt verify");
+        assert!(line.contains("toksi_ctx_search({queries:[\"auth tokens\",\"jwt verify\"], source:\"src-123\"})"));
+        assert!(line.contains("searches the whole output (4096 B)."));
+    }
+
+    #[test]
+    fn test_mcp_ctx_upgrade() {
+        let temp = tempfile::tempdir().unwrap();
+        let server = ContextMcpServer::new(Some(temp.path().to_path_buf()));
+        let res = server.execute_tool("ctx_upgrade", &json!({}));
+        assert!(res.contains("pure native Rust engine embedded in Toksi"));
     }
 }

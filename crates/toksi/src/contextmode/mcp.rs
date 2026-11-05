@@ -168,8 +168,39 @@ pub fn mcp_tools_list() -> Value {
             }
         },
         {
+            "name": "ctx_batch",
+            "description": "Run N commands concurrently in sandbox, pipe outputs through RTK filters, auto-index results into SQLite FTS5, and optionally search output. Alias for ctx_batch_execute.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "commands": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Array of commands to run"
+                    },
+                    "queries": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Optional search queries to run against the batch output"
+                    },
+                    "concurrency": { "type": "integer", "description": "Max parallel commands (1-8, default: 2)" },
+                    "timeout": { "type": "integer", "description": "Per-command timeout in seconds (default: 30)" },
+                    "cwd": { "type": "string", "description": "Default working directory" }
+                },
+                "required": ["commands"]
+            }
+        },
+        {
             "name": "ctx_purge",
             "description": "Purge cached content and reset knowledge base.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {}
+            }
+        },
+        {
+            "name": "ctx_upgrade",
+            "description": "Inspect context-mode build version and upgrade status in Toksi pure Rust consolidated engine.",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -208,6 +239,7 @@ impl ContextMcpServer {
             "ctx_resume" => self.tool_ctx_resume(args),
             "ctx_stats" => self.tool_ctx_stats(),
             "ctx_doctor" => self.tool_ctx_doctor(),
+            "ctx_upgrade" => self.tool_ctx_upgrade(args),
             "ctx_purge" => self.tool_ctx_purge(),
             _ => format!("Unknown tool '{}'", name),
         };
@@ -754,6 +786,10 @@ impl ContextMcpServer {
             Ok(count) => format!("Successfully purged {} indexed sources from knowledge base.", count),
             Err(e) => format!("Purge error: {}", e),
         }
+    }
+
+    fn tool_ctx_upgrade(&self, _args: &Value) -> String {
+        "context-mode: pure native Rust engine embedded in Toksi (v3.3). Node.js and TypeScript runtime dependencies purged. Run `toksi update` for binary updates.".to_string()
     }
     pub fn handle_mcp_message(&self, req: &Value) -> Option<Value> {
         let id = req.get("id").cloned();
