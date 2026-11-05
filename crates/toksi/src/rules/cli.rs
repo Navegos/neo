@@ -3,13 +3,13 @@
 // project: neo
 // file: crates/toksi/src/rules/cli.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use std::path::{Path, PathBuf};
 use crate::rules::{
     inject_rule_at_path, inspect_agent_rules, patch_agents_md,
     patch_all_agent_configs, patch_claude_md, remove_rule_from_path,
-    RuleKind,
+    sync_all_rules, RuleKind,
 };
 use crate::util::colors::*;
 
@@ -20,6 +20,7 @@ pub fn print_rules_help() {
           toksi rules list\n\
           toksi rules show <rule> [--cursor] [--body]\n\
           toksi rules patch [target_dir_or_file] [--rules <r1,r2>]\n\
+          toksi rules sync [target_dir] [--rules <r1,r2>] [--global]\n\
           toksi rules inject <file> <rule>\n\
           toksi rules remove <file> <rule>\n\
           toksi rules status [target_dir]\n\n\
@@ -82,6 +83,60 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
                 print!("{}", rule.markdown());
             }
             0
+        }
+        "sync" => {
+            let mut target_dir = PathBuf::from(".");
+            let mut selected_rules = RuleKind::all().to_vec();
+            let mut include_global = false;
+
+            let mut i = 0;
+            while i < rest.len() {
+                let arg = &rest[i];
+                if arg == "--rules" || arg == "-r" {
+                    if i + 1 < rest.len() {
+                        let list_str = &rest[i + 1];
+                        selected_rules.clear();
+                        for item in list_str.split(',') {
+                            if let Some(r) = RuleKind::from_str(item.trim()) {
+                                if !selected_rules.contains(&r) {
+                                    selected_rules.push(r);
+                                }
+                            } else {
+                                eprintln!("Warning: unknown rule '{}' skipped", item.trim());
+                            }
+                        }
+                        i += 1;
+                    }
+                } else if arg == "--global" || arg == "-g" {
+                    include_global = true;
+                } else if !arg.starts_with('-') {
+                    target_dir = PathBuf::from(arg);
+                }
+                i += 1;
+            }
+
+            match sync_all_rules(&target_dir, include_global, &selected_rules) {
+                Ok(report) => {
+                    println!("=== Rules Synchronized ===");
+                    println!("  Workspace: {}", report.workspace.display());
+                    println!("  Updated: {}", report.updated_files.len());
+                    for f in &report.updated_files {
+                        println!("    {} {}", C.green(Sym::CHECK), f.display());
+                    }
+                    println!("  Up-to-date: {}", report.up_to_date_files.len());
+                    if !report.errors.is_empty() {
+                        println!("  Errors ({}):", report.errors.len());
+                        for e in &report.errors {
+                            println!("    {} {}", C.red("x"), e);
+                        }
+                    }
+                    0
+                }
+                Err(e) => {
+                    eprintln!("Error synchronizing rules: {}", e);
+                    1
+                }
+            }
         }
         "patch" => {
             let mut target_dir = PathBuf::from(".");
@@ -156,6 +211,10 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
                         println!("=== Patched Agent Configurations in {} ===", target_dir.display());
                         println!("  CLAUDE.md: {}", if report.claude_patched { "updated" } else { "already up to date" });
                         println!("  AGENTS.md: {}", if report.agents_patched { "updated" } else { "already up to date" });
+                        println!("  GEMINI.md: {}", if report.gemini_patched { "updated" } else { "already up to date" });
+                        println!("  copilot-instructions: {}", if report.copilot_patched { "updated" } else { "already up to date" });
+                        println!("  .clinerules: {}", if report.cline_patched { "updated" } else { "already up to date" });
+                        println!("  CODEX.md: {}", if report.codex_patched { "updated" } else { "already up to date" });
                         println!("  .cursor/rules/: {} rule files written", report.cursor_rules_written.len());
                         0
                     }
@@ -231,7 +290,7 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
 
             let statuses = inspect_agent_rules(&target_dir);
             if statuses.is_empty() {
-                println!("No agent configs (CLAUDE.md, AGENTS.md, .cursor/rules/) found in {}", target_dir.display());
+                println!("No agent configs found in {}", target_dir.display());
             } else {
                 println!("=== Rule Status in {} ===", target_dir.display());
                 for st in statuses {
@@ -252,4 +311,3 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
         }
     }
 }
-

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rules/mod.rs
 // created: 2026-10-29
-// lastModified: 2026-11-01
+// lastModified: 2026-11-05
 
 //! In-tree rules and skills engine for AI coding agents.
 //!
@@ -13,8 +13,12 @@
 //! Exposes functions to inject, patch, and verify instructions across agent
 //! configs (`CLAUDE.md`, `.cursor/rules/`, `AGENTS.md`, and custom agent paths).
 
+pub mod caveman;
 pub mod cli;
 pub mod embedded;
+pub mod ponytail;
+pub mod principles;
+pub mod sync;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -23,6 +27,7 @@ pub use cli::run_rules_cli;
 pub use embedded::caveman as caveman_rule;
 pub use embedded::ponytail as ponytail_rule;
 pub use embedded::principles as principles_rule;
+pub use sync::{sync_all_rules, sync_global_rules, sync_workspace_rules, SyncReport};
 
 pub type DynError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -397,6 +402,156 @@ pub fn patch_gemini_md(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<b
     }
 }
 
+/// Injects or patches in-tree rules into GitHub Copilot instructions (`.github/copilot-instructions.md`).
+pub fn patch_copilot_md(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<bool, DynError> {
+    let p = target.as_ref();
+    let file_path = if p.is_dir() {
+        p.join(".github").join("copilot-instructions.md")
+    } else {
+        p.to_path_buf()
+    };
+    let existing = if file_path.exists() {
+        fs::read_to_string(&file_path)?
+    } else {
+        String::new()
+    };
+
+    let (preamble, mut current_rules) = parse_content_sections(&existing);
+    let mut modified = false;
+
+    for &r in rules {
+        if !current_rules.contains(&r) {
+            current_rules.push(r);
+            modified = true;
+        }
+    }
+
+    if modified || !file_path.exists() {
+        let rendered = render_rules_markdown(&current_rules, if preamble.is_empty() { None } else { Some(&preamble) });
+        safe_write_file(&file_path, &rendered)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+/// Injects or patches in-tree rules into `.clinerules`.
+pub fn patch_cline_rules(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<bool, DynError> {
+    let file_path = resolve_target_file(target, ".clinerules");
+    let existing = if file_path.exists() {
+        fs::read_to_string(&file_path)?
+    } else {
+        String::new()
+    };
+
+    let (preamble, mut current_rules) = parse_content_sections(&existing);
+    let mut modified = false;
+
+    for &r in rules {
+        if !current_rules.contains(&r) {
+            current_rules.push(r);
+            modified = true;
+        }
+    }
+
+    if modified || !file_path.exists() {
+        let rendered = render_rules_markdown(&current_rules, if preamble.is_empty() { None } else { Some(&preamble) });
+        safe_write_file(&file_path, &rendered)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+/// Injects or patches in-tree rules into `CODEX.md`.
+pub fn patch_codex_md(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<bool, DynError> {
+    let file_path = resolve_target_file(target, "CODEX.md");
+    let existing = if file_path.exists() {
+        fs::read_to_string(&file_path)?
+    } else {
+        String::new()
+    };
+
+    let (preamble, mut current_rules) = parse_content_sections(&existing);
+    let mut modified = false;
+
+    for &r in rules {
+        if !current_rules.contains(&r) {
+            current_rules.push(r);
+            modified = true;
+        }
+    }
+
+    if modified || !file_path.exists() {
+        let rendered = render_rules_markdown(&current_rules, if preamble.is_empty() { None } else { Some(&preamble) });
+        safe_write_file(&file_path, &rendered)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+/// Injects or patches in-tree rules into `.agents/rules.md`.
+pub fn patch_agents_rules_md(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<bool, DynError> {
+    let p = target.as_ref();
+    let file_path = if p.is_dir() {
+        p.join(".agents").join("rules.md")
+    } else {
+        p.to_path_buf()
+    };
+    let existing = if file_path.exists() {
+        fs::read_to_string(&file_path)?
+    } else {
+        String::new()
+    };
+
+    let (preamble, mut current_rules) = parse_content_sections(&existing);
+    let mut modified = false;
+
+    for &r in rules {
+        if !current_rules.contains(&r) {
+            current_rules.push(r);
+            modified = true;
+        }
+    }
+
+    if modified || !file_path.exists() {
+        let rendered = render_rules_markdown(&current_rules, if preamble.is_empty() { None } else { Some(&preamble) });
+        safe_write_file(&file_path, &rendered)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+/// Injects or patches in-tree rules into `.cursorrules`.
+pub fn patch_cursorrules(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<bool, DynError> {
+    let file_path = resolve_target_file(target, ".cursorrules");
+    let existing = if file_path.exists() {
+        fs::read_to_string(&file_path)?
+    } else {
+        String::new()
+    };
+
+    let (preamble, mut current_rules) = parse_content_sections(&existing);
+    let mut modified = false;
+
+    for &r in rules {
+        if !current_rules.contains(&r) {
+            current_rules.push(r);
+            modified = true;
+        }
+    }
+
+    if modified || !file_path.exists() {
+        let rendered = render_rules_markdown(&current_rules, if preamble.is_empty() { None } else { Some(&preamble) });
+        safe_write_file(&file_path, &rendered)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
 /// Injects or patches in-tree rules into Cursor `.cursor/rules/` directory.
 ///
 /// Accepts either the workspace directory, `.cursor` directory, or `.cursor/rules` directory.
@@ -481,21 +636,34 @@ pub struct PatchReport {
     pub claude_patched: bool,
     pub agents_patched: bool,
     pub gemini_patched: bool,
+    pub copilot_patched: bool,
+    pub cline_patched: bool,
+    pub codex_patched: bool,
+    pub cursorrules_patched: bool,
     pub cursor_rules_written: Vec<PathBuf>,
 }
 
 /// Injects or patches in-tree rules into all supported agent configurations in `dir`:
-/// `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, and `.cursor/rules/*.mdc`.
+/// `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.clinerules`,
+/// `CODEX.md`, `.cursorrules`, and `.cursor/rules/*.mdc`.
 pub fn patch_all_agent_configs(dir: impl AsRef<Path>, rules: &[RuleKind]) -> Result<PatchReport, DynError> {
     let p = dir.as_ref();
     let claude_patched = patch_claude_md(p, rules)?;
     let agents_patched = patch_agents_md(p, rules)?;
     let gemini_patched = patch_gemini_md(p, rules)?;
+    let copilot_patched = patch_copilot_md(p, rules)?;
+    let cline_patched = patch_cline_rules(p, rules)?;
+    let codex_patched = patch_codex_md(p, rules)?;
+    let cursorrules_patched = patch_cursorrules(p, rules)?;
     let cursor_rules_written = patch_cursor_rules(p, rules)?;
     Ok(PatchReport {
         claude_patched,
         agents_patched,
         gemini_patched,
+        copilot_patched,
+        cline_patched,
+        codex_patched,
+        cursorrules_patched,
         cursor_rules_written,
     })
 }
@@ -507,57 +675,53 @@ pub struct ConfigRuleStatus {
     pub present_rules: Vec<RuleKind>,
 }
 
-/// Inspects configured rules across CLAUDE.md, AGENTS.md, GEMINI.md, and .cursor/rules in a workspace.
+/// Inspects configured rules across CLAUDE.md, AGENTS.md, GEMINI.md, copilot-instructions,
+/// .clinerules, CODEX.md, .cursorrules, and .cursor/rules in a workspace.
 pub fn inspect_agent_rules(dir: impl AsRef<Path>) -> Vec<ConfigRuleStatus> {
     let p = dir.as_ref();
     let mut out = Vec::new();
 
-    // Check CLAUDE.md
-    let claude_path = p.join("CLAUDE.md");
-    if claude_path.exists() {
-        if let Ok(content) = fs::read_to_string(&claude_path) {
-            let present: Vec<RuleKind> = RuleKind::all()
-                .iter()
-                .copied()
-                .filter(|&r| content_has_rule(&content, r))
-                .collect();
-            out.push(ConfigRuleStatus {
-                target: "CLAUDE.md".to_string(),
-                present_rules: present,
-            });
+    let check_file = |rel_path: &str| -> Option<ConfigRuleStatus> {
+        let fpath = p.join(rel_path);
+        if fpath.exists() {
+            if let Ok(content) = fs::read_to_string(&fpath) {
+                let present: Vec<RuleKind> = RuleKind::all()
+                    .iter()
+                    .copied()
+                    .filter(|&r| content_has_rule(&content, r))
+                    .collect();
+                return Some(ConfigRuleStatus {
+                    target: rel_path.to_string(),
+                    present_rules: present,
+                });
+            }
         }
-    }
+        None
+    };
 
-    // Check AGENTS.md
-    let agents_path = p.join("AGENTS.md");
-    if agents_path.exists() {
-        if let Ok(content) = fs::read_to_string(&agents_path) {
-            let present: Vec<RuleKind> = RuleKind::all()
-                .iter()
-                .copied()
-                .filter(|&r| content_has_rule(&content, r))
-                .collect();
-            out.push(ConfigRuleStatus {
-                target: "AGENTS.md".to_string(),
-                present_rules: present,
-            });
-        }
+    if let Some(st) = check_file("CLAUDE.md") {
+        out.push(st);
     }
-
-    // Check GEMINI.md
-    let gemini_path = p.join("GEMINI.md");
-    if gemini_path.exists() {
-        if let Ok(content) = fs::read_to_string(&gemini_path) {
-            let present: Vec<RuleKind> = RuleKind::all()
-                .iter()
-                .copied()
-                .filter(|&r| content_has_rule(&content, r))
-                .collect();
-            out.push(ConfigRuleStatus {
-                target: "GEMINI.md".to_string(),
-                present_rules: present,
-            });
-        }
+    if let Some(st) = check_file("AGENTS.md") {
+        out.push(st);
+    }
+    if let Some(st) = check_file("GEMINI.md") {
+        out.push(st);
+    }
+    if let Some(st) = check_file(".github/copilot-instructions.md") {
+        out.push(st);
+    }
+    if let Some(st) = check_file(".clinerules") {
+        out.push(st);
+    }
+    if let Some(st) = check_file("CODEX.md") {
+        out.push(st);
+    }
+    if let Some(st) = check_file(".cursorrules") {
+        out.push(st);
+    }
+    if let Some(st) = check_file(".agents/rules.md") {
+        out.push(st);
     }
 
     // Check .cursor/rules/
@@ -694,5 +858,23 @@ mod tests {
         assert!(removed);
         assert!(!has_rule_at_path(&file_path, RuleKind::Ponytail));
     }
-}
 
+    #[test]
+    fn test_patch_all_agent_configs() {
+        let tmp = tempdir().unwrap();
+        let rules = RuleKind::all();
+        let report = patch_all_agent_configs(tmp.path(), rules).unwrap();
+
+        assert!(report.claude_patched);
+        assert!(report.agents_patched);
+        assert!(report.gemini_patched);
+        assert!(report.copilot_patched);
+        assert!(report.cline_patched);
+        assert!(report.codex_patched);
+        assert!(report.cursorrules_patched);
+        assert_eq!(report.cursor_rules_written.len(), 3);
+
+        let statuses = inspect_agent_rules(tmp.path());
+        assert!(statuses.len() >= 7);
+    }
+}
