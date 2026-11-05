@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/git.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-05
 
 use std::collections::{BTreeMap, BTreeSet};
 use crate::rtk::ansi::strip_ansi;
@@ -33,6 +33,7 @@ pub fn filter_git(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> Stri
 }
 
 /// Filter `git status` output into a compact matrix.
+/// Supports both `--porcelain` / `-b` output and standard human-readable `git status`.
 pub fn filter_git_status(raw: &str) -> String {
     let mut branch = String::new();
     let mut staged = Vec::new();
@@ -40,38 +41,122 @@ pub fn filter_git_status(raw: &str) -> String {
     let mut untracked = Vec::new();
     let mut conflicts = Vec::new();
 
-    for line in raw.lines() {
-        let trimmed = line.trim_end();
-        if trimmed.starts_with("##") {
-            // Branch header
-            let b = trimmed.trim_start_matches("##").trim();
-            branch = b.to_string();
-            continue;
+    let is_human_readable = raw.contains("On branch ")
+        || raw.contains("Changes to be committed:")
+        || raw.contains("Changes not staged for commit:")
+        || raw.contains("Untracked files:")
+        || raw.contains("Unmerged paths:");
+
+    if is_human_readable {
+        #[derive(PartialEq)]
+        enum Section {
+            None,
+            Staged,
+            Unstaged,
+            Untracked,
+            Conflicts,
         }
+        let mut section = Section::None;
 
-        if trimmed.len() >= 3 {
-            let xy = &trimmed[0..2];
-            let file = trimmed[3..].trim();
-
-            if xy == "??" {
-                untracked.push(file.to_string());
+        for line in raw.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("On branch ") {
+                branch = trimmed.trim_start_matches("On branch ").trim().to_string();
                 continue;
             }
-            if xy == "UU" || xy == "AA" || xy == "DD" || xy.contains('U') {
-                conflicts.push(format!("conflict: {}", file));
+            if trimmed.starts_with("Changes to be committed:") {
+                section = Section::Staged;
                 continue;
             }
-            let x = xy.chars().next().unwrap_or(' ');
-            let y = xy.chars().nth(1).unwrap_or(' ');
+            if trimmed.starts_with("Changes not staged for commit:") {
+                section = Section::Unstaged;
+                continue;
+            }
+            if trimmed.starts_with("Untracked files:") {
+                section = Section::Untracked;
+                continue;
+            }
+            if trimmed.starts_with("Unmerged paths:") {
+                section = Section::Conflicts;
+                continue;
+            }
+            if trimmed.starts_with("no changes added to commit")
+                || trimmed.starts_with("nothing to commit")
+                || trimmed.starts_with("(use \"git ")
+            {
+                continue;
+            }
 
-            if x != ' ' && x != '?' {
-                staged.push(format!("{} {}", x, file));
+            match section {
+                Section::Staged => {
+                    if let Some(rest) = trimmed.strip_prefix("modified:") {
+                        staged.push(format!("M {}", rest.trim()));
+                    } else if let Some(rest) = trimmed.strip_prefix("new file:") {
+                        staged.push(format!("A {}", rest.trim()));
+                    } else if let Some(rest) = trimmed.strip_prefix("deleted:") {
+                        staged.push(format!("D {}", rest.trim()));
+                    } else if let Some(rest) = trimmed.strip_prefix("renamed:") {
+                        staged.push(format!("R {}", rest.trim()));
+                    }
+                }
+                Section::Unstaged => {
+                    if let Some(rest) = trimmed.strip_prefix("modified:") {
+                        unstaged.push(format!("M {}", rest.trim()));
+                    } else if let Some(rest) = trimmed.strip_prefix("deleted:") {
+                        unstaged.push(format!("D {}", rest.trim()));
+                    }
+                }
+                Section::Untracked => {
+                    if !trimmed.is_empty() && !trimmed.starts_with('(') {
+                        untracked.push(trimmed.to_string());
+                    }
+                }
+                Section::Conflicts => {
+                    if let Some(rest) = trimmed.strip_prefix("both modified:") {
+                        conflicts.push(format!("conflict: {}", rest.trim()));
+                    } else if let Some(rest) = trimmed.strip_prefix("both added:") {
+                        conflicts.push(format!("conflict: {}", rest.trim()));
+                    } else if !trimmed.is_empty() && !trimmed.starts_with('(') {
+                        conflicts.push(format!("conflict: {}", trimmed));
+                    }
+                }
+                Section::None => {}
             }
-            if y != ' ' && y != '?' {
-                unstaged.push(format!("{} {}", y, file));
+        }
+    } else {
+        for line in raw.lines() {
+            let trimmed = line.trim_end();
+            if trimmed.starts_with("##") {
+                // Branch header
+                let b = trimmed.trim_start_matches("##").trim();
+                branch = b.to_string();
+                continue;
             }
-        } else if trimmed.starts_with("On branch ") {
-            branch = trimmed.trim_start_matches("On branch ").to_string();
+
+            if trimmed.len() >= 3 {
+                let xy = &trimmed[0..2];
+                let file = trimmed[3..].trim();
+
+                if xy == "??" {
+                    untracked.push(file.to_string());
+                    continue;
+                }
+                if xy == "UU" || xy == "AA" || xy == "DD" || xy.contains('U') {
+                    conflicts.push(format!("conflict: {}", file));
+                    continue;
+                }
+                let x = xy.chars().next().unwrap_or(' ');
+                let y = xy.chars().nth(1).unwrap_or(' ');
+
+                if x != ' ' && x != '?' {
+                    staged.push(format!("{} {}", x, file));
+                }
+                if y != ' ' && y != '?' {
+                    unstaged.push(format!("{} {}", y, file));
+                }
+            } else if trimmed.starts_with("On branch ") {
+                branch = trimmed.trim_start_matches("On branch ").to_string();
+            }
         }
     }
 
@@ -578,6 +663,20 @@ mod tests {
         assert!(out.contains("staged (1):"));
         assert!(out.contains("unstaged (1):"));
         assert!(out.contains("untracked (1):"));
+    }
+
+    #[test]
+    fn test_filter_git_status_human_readable() {
+        let raw = "On branch main\nYour branch is up to date with 'origin/main'.\n\nChanges to be committed:\n  (use \"git restore --staged <file>...\" to unstage)\n\tnew file:   src/foo.rs\n\tmodified:   src/bar.rs\n\nChanges not staged for commit:\n  (use \"git add <file>...\" to update what will be committed)\n\tmodified:   src/baz.rs\n\nUntracked files:\n  (use \"git add <file>...\" to include in what will be committed)\n\tnotes.txt\n";
+        let out = filter_git_status(raw);
+        assert!(out.contains("branch: main"));
+        assert!(out.contains("staged (2):"));
+        assert!(out.contains("A src/foo.rs"));
+        assert!(out.contains("M src/bar.rs"));
+        assert!(out.contains("unstaged (1):"));
+        assert!(out.contains("M src/baz.rs"));
+        assert!(out.contains("untracked (1):"));
+        assert!(out.contains("notes.txt"));
     }
 
     #[test]
