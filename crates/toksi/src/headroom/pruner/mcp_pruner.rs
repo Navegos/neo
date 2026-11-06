@@ -188,3 +188,88 @@ pub fn prune_mcp_request_payload(payload: &mut Value, config: &McpPrunerConfig) 
         None
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mcp_schema_optimization() {
+        let tool = json!({
+            "name": "read_file",
+            "description": "Reads the entire content of a file from filesystem with exact line ranges and offsets",
+            "input_schema": {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "title": "path",
+                        "description": "Path to file"
+                    },
+                    "verbose_desc": {
+                        "type": "string",
+                        "description": "A very long description that exceeds limits ".repeat(20)
+                    }
+                },
+                "required": {}
+            }
+        });
+
+        let mut tools = vec![tool];
+        let cfg = McpPrunerConfig::default();
+        let stats = prune_mcp_tools(&mut tools, &cfg);
+
+        assert_eq!(stats.tools_before, 1);
+        assert_eq!(stats.tools_after, 1);
+        assert!(stats.tokens_saved > 0);
+
+        let pruned_schema = &tools[0]["input_schema"];
+        assert!(pruned_schema.get("$schema").is_none());
+        assert!(pruned_schema.get("required").is_none());
+        assert!(pruned_schema["properties"]["path"].get("title").is_none());
+        assert!(pruned_schema["properties"]["verbose_desc"]["description"]
+            .as_str()
+            .unwrap()
+            .ends_with("..."));
+    }
+
+    #[test]
+    fn test_mcp_allowed_tools_filtering() {
+        let mut tools = vec![
+            json!({"name": "tool_allowed", "description": "keep me"}),
+            json!({"name": "tool_disallowed", "description": "drop me"}),
+        ];
+
+        let cfg = McpPrunerConfig {
+            allowed_tools: Some(vec!["tool_allowed".to_string()]),
+            ..Default::default()
+        };
+
+        let stats = prune_mcp_tools(&mut tools, &cfg);
+        assert_eq!(stats.tools_before, 2);
+        assert_eq!(stats.tools_after, 1);
+        assert_eq!(tools[0]["name"], "tool_allowed");
+    }
+
+    #[test]
+    fn test_prune_mcp_request_payload() {
+        let mut req = json!({
+            "model": "claude-3-7-sonnet",
+            "tools": [
+                {
+                    "name": "bash",
+                    "description": "execute command",
+                    "input_schema": {
+                        "$schema": "https://json-schema.org",
+                        "type": "object"
+                    }
+                }
+            ]
+        });
+
+        let stats = prune_mcp_request_payload(&mut req, &McpPrunerConfig::default()).unwrap();
+        assert_eq!(stats.tools_after, 1);
+        assert!(req["tools"][0]["input_schema"].get("$schema").is_none());
+    }
+}

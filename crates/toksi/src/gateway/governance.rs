@@ -103,3 +103,85 @@ impl GovernanceEngine {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_governance_budget_enforcement() {
+        let gov = GovernanceEngine::new();
+        gov.register_vk(VirtualKeyConfig {
+            vk: "vk-test-1".to_string(),
+            name: "Test Key".to_string(),
+            max_budget_usd: 1.0,
+            max_rpm: 10,
+            max_tpm: 1000,
+            max_concurrent_requests: 2,
+            allowed_models: None,
+        });
+
+        // 1st request ok
+        assert!(gov.check_and_acquire("vk-test-1", 100).is_ok());
+        gov.release_and_record_spend("vk-test-1", 0.60);
+
+        // 2nd request ok
+        assert!(gov.check_and_acquire("vk-test-1", 100).is_ok());
+        gov.release_and_record_spend("vk-test-1", 0.50);
+
+        // Now spend is 1.10, exceeds 1.0
+        let res = gov.check_and_acquire("vk-test-1", 50);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("USD budget exceeded"));
+    }
+
+    #[test]
+    fn test_governance_concurrency_limit() {
+        let gov = GovernanceEngine::new();
+        gov.register_vk(VirtualKeyConfig {
+            vk: "vk-concurrency".to_string(),
+            name: "Concurrency Key".to_string(),
+            max_budget_usd: 100.0,
+            max_rpm: 100,
+            max_tpm: 10000,
+            max_concurrent_requests: 1,
+            allowed_models: None,
+        });
+
+        assert!(gov.check_and_acquire("vk-concurrency", 100).is_ok());
+        // 2nd concurrent should fail
+        let res2 = gov.check_and_acquire("vk-concurrency", 100);
+        assert!(res2.is_err());
+        assert!(res2.unwrap_err().contains("Max concurrent requests reached"));
+
+        // Release flight
+        gov.release_and_record_spend("vk-concurrency", 0.01);
+        // Now next succeeds
+        assert!(gov.check_and_acquire("vk-concurrency", 100).is_ok());
+    }
+
+    #[test]
+    fn test_governance_rpm_and_tpm_limits() {
+        let gov = GovernanceEngine::new();
+        gov.register_vk(VirtualKeyConfig {
+            vk: "vk-rates".to_string(),
+            name: "Rates Key".to_string(),
+            max_budget_usd: 100.0,
+            max_rpm: 2,
+            max_tpm: 500,
+            max_concurrent_requests: 10,
+            allowed_models: None,
+        });
+
+        assert!(gov.check_and_acquire("vk-rates", 200).is_ok());
+        gov.release_and_record_spend("vk-rates", 0.0);
+
+        assert!(gov.check_and_acquire("vk-rates", 200).is_ok());
+        gov.release_and_record_spend("vk-rates", 0.0);
+
+        // 3rd in minute exceeds RPM (max 2)
+        let res3 = gov.check_and_acquire("vk-rates", 50);
+        assert!(res3.is_err());
+        assert!(res3.unwrap_err().contains("RPM limit exceeded"));
+    }
+}

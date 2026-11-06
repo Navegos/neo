@@ -1,6 +1,6 @@
 # projectmem - neo
 
-_Last updated: 2026-11-05_
+_Last updated: 2026-11-06_
 
 ## Project purpose
 --------------------------------------------------------------------------------
@@ -24,10 +24,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - ...and 22 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...50 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Toksi master architecture v3.1: 5-port dedicated topology (:8787 Headroom, :8789 Copilot VSCode, :8790 Copilot CLI, :9099 AI Gateway, :9100 Background Dashboard Cockpit) eliminating port contention; expanded 39+ BYOK providers including Bifrost, SageMaker, Bedrock Mantle and smart background Agent CLI bridges; gateway activation guard requiring >=1 provider without crashing when using uncredentialed CLI agents; ground-truth session token accounting from live SSE streams and rate-limit headers; full rules/skills/instructions synchronization across agent workspaces and home config dirs [crates/toksi/CONSOLIDATION_PLAN.md:1]
-- Enforce first-class BYOK provider registration for 5 Local Agent CLIs (agy.exe, copilot.exe, claude, cursor, grok) with smart background launch and chat endpoint verification; mandate active paid quota/subscription for all BYOK providers (disqualifying free-tier accounts from gateway rotation pool with non-blocking inform and zero-fail/zero-bug fallback) [crates/toksi/CONSOLIDATION_PLAN.md:1]
-- Refactor: Refactor code structure for improved readability and maintainability [crates/toksi/.toksi/memory.db]
+- ...53 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 03: Completed full native pure Rust port of Context-Mode with 100% parity: isolated PolyglotSandbox with CPU timeout and memory bounds, Windows mvn rewrite, NO_COLOR/FORCE_COLOR, CTX_FILE, background detached execution; filter.rs with OUTPUT_CAP and EXEC_PREVIEW_BYTES slice/handle line; fts.rs SQLite FTS5 chunker and BM25 search; fetch.rs async reqwest fetcher with SSRF guard and markdown extraction; mcp.rs in-process ctx_* tools (ctx_execute, ctx_execute_file, ctx_batch_execute, ctx_batch, ctx_index with url, ctx_search with auto-memory, ctx_fetch_and_index, ctx_resume, ctx_stats, ctx_doctor, ctx_purge) and toksi ctx CLI. 27 unit tests and 7 integration tests passing with 0 warnings. [crates/toksi/src/contextmode/mod.rs:1]
 - Prioritize ~/.toksi/memory.db, expose recall_tiered_entries headroom hook, and support memory_handoff_accept in ICM
 - Phase 05: CodeGraph Pure Rust Engine refreshed with upstream inspect-vault updates (C/C++ member type refs, Python parameterized base, Go uppercase const/var exports, JS/TS subscript exports) [crates/toksi/src/codegraph/mod.rs:1]
@@ -40,9 +37,11 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - Phase 03 refresh: verified full Context-Mode parity in pure Rust with strict CPU/memory limits, in-memory RTK pipe, SQLite FTS5 BM25 search, SSRF per-hop enforcement, and in-process ctx_* MCP suite [crates/toksi/src/contextmode/mod.rs:1]
 - Phase 04 rerun: hardened ICM FTS5 BM25 token sanitization with operator stripping, prioritized ~/.toksi/memory.db, added memory_handoff_accept MCP alias, and added extractive leading_prose fallback for tiered progressive disclosure [crates/toksi/src/icm/store.rs:593 (sanitize_fts5_query)]
 - Phase 05: CodeGraph Pure Rust Engine executed and verified with upstream inspect-vault parity, dual-path .toksi/codegraph/symbols.db and .codegraph/symbols.db support, petgraph blast-radius, and file-suffix coordinate resolution [crates/toksi/src/codegraph/mod.rs:1]
+- Phase 06 rerun: In-Tree Rules & Skills Integration verified with embedded Karpathy principles, Caveman ASD-STE100, and Ponytail build discipline compiled via include_str! and zero warnings [crates/toksi/src/rules/mod.rs:1]
+- Phase 07 rerun: Headroom Deep Integration & Gateway Catalog verified with 39+ in-tree provider catalog, 8-class failure cascade, dynamic load balancer, task complexity router, virtual key governance, dual-tier semantic cache (SHA-256 + Cosine Similarity >= 0.92), AST code/whitespace pruning, repetitive log collapsing with guaranteed fatal/error/panic survival, dynamic MCP tool schema optimizer, 1024-token prompt cache alignment, and adaptive memory headroom scaling. 0 warnings, all unit and phase verification tests passing. [crates/toksi/src/headroom/mod.rs:1]
+- Phase 07: Headroom Deep Integration & Gateway Catalog verified. Dropped headroom-py; implemented core token compression (log deduplication with byte-for-byte error/fatal/panic survival, AST code pruner, JSON minifier, dynamic MCP schema pruner, 1024-token prompt cache alignment, adaptive memory governor) and Native Enterprise AI Gateway (39+ in-tree providers, 8-class failure cascade, load balancer, task complexity router, virtual key governance, dual-tier semantic cache with similarity >= 0.92, drop-in SDK endpoints). 75 tests passing with 0 warnings. [crates/toksi/src/headroom/mod.rs:1]
 
 ## Notes
-- gotcha: BYOK gateway requires active commercial paid tier; free or trial accounts bypass rotation pool with non-blocking notice without crashing [crates/toksi/src/gateway/agent_cli/tier_check.rs:1]
 - gotcha: universal forward-slash / path normalization required for Git Bash and cross-platform compatibility; isolated port 9099 (AI Gateway) and port 9100 (Web Dashboard) prevents SSE socket contention [crates/toksi/src/util/paths.rs:1]
 - New feature: feat(plan): detail phase 15-16 execution specs and wire aimemory mcp [crates/toksi/src/util/mcpspawn.rs]
 - New feature: feat(rtk): support human-readable git status in output filter [crates/toksi/src/rtk/filters/git.rs]
@@ -52,6 +51,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - feat(contextmode): enhance SSRF guard with RFC ranges (shared 100.64.0.0/10, bench 198.18.0.0/15, broadcast 240.0.0.0/4, NAT64, 6to4) and per-hop redirect validation [crates/toksi/src/contextmode/fetch.rs:80 (ssrf_guard)]
 - New feature: feat(contextmode): harden SSRF guard, add ctx_batch/ctx_upgrade tools, and update tests [crates/toksi/src/contextmode/fetch.rs]
 - New feature: feat(aimemory,icm): add handoff alias, fallback paths, and robust fts5 sanitization" -m "- aimemory: support .toksi/ai-m [crates/toksi/src/aimemory/mod.rs]
+- New feature: feat(codegraph): support .toksi storage path, fallback spawn, and suffix resolution" -m "- codegraph: add resolve_db_pat [crates/toksi/src/codegraph/graph.rs]
 
 ## Key files
 - `.editorconfig`

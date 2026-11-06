@@ -422,6 +422,37 @@ ValueError: invalid ID parameter";
     }
 
     #[test]
+    fn test_mcp_pruner_dynamic_schema_savings() {
+        use crate::headroom::pruner::mcp_pruner::{prune_mcp_tools, McpPrunerConfig};
+
+        let mut tools = vec![
+            json!({
+                "name": "fetch_large_data",
+                "description": "Fetches external resources ".repeat(30),
+                "input_schema": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "param1": {
+                            "type": "string",
+                            "title": "param1",
+                            "description": "Parameter one ".repeat(25)
+                        }
+                    },
+                    "required": {}
+                }
+            })
+        ];
+
+        let stats = prune_mcp_tools(&mut tools, &McpPrunerConfig::default());
+        assert_eq!(stats.tools_before, 1);
+        assert_eq!(stats.tools_after, 1);
+        assert!(stats.tokens_saved > 0);
+        assert!(tools[0]["input_schema"].get("$schema").is_none());
+        assert!(tools[0]["input_schema"]["properties"]["param1"].get("title").is_none());
+    }
+
+    #[test]
     fn test_non_llm_uri_and_target_resolution() {
         use crate::headroom::byok_gateway::{byok_target_path, split_uri_path_and_query};
 

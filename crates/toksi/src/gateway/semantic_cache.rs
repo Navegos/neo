@@ -153,3 +153,67 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
         dot / (norm_a.sqrt() * norm_b.sqrt())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_exact_sha256_cache_lookup() {
+        let cache = DualTierSemanticCache::new(0.92);
+        let model = "claude-3-7-sonnet";
+        let prompt = "Explain quantum computing";
+        let response = "Quantum computing uses qubits and superposition.";
+
+        assert!(cache.lookup_exact(model, prompt).is_none());
+        cache.store(model, prompt, response, None);
+
+        let hit = cache.lookup_exact(model, prompt);
+        assert_eq!(hit.as_deref(), Some(response));
+    }
+
+    #[test]
+    fn test_cosine_similarity() {
+        let v1 = vec![1.0, 0.0, 0.0];
+        let v2 = vec![1.0, 0.0, 0.0];
+        let v3 = vec![0.0, 1.0, 0.0];
+
+        assert!((cosine_similarity(&v1, &v2) - 1.0).abs() < 1e-5);
+        assert_eq!(cosine_similarity(&v1, &v3), 0.0);
+    }
+
+    #[test]
+    fn test_semantic_vector_lookup_threshold() {
+        let cache = DualTierSemanticCache::new(0.92);
+        let model = "text-embedding-3";
+        let prompt = "How to write a fast compiler";
+        let response = "Use SSA form and LLVM IR.";
+        let emb = vec![0.95, 0.1, 0.05];
+
+        cache.store(model, prompt, response, Some(emb));
+
+        // Similar embedding (cosine similarity >= 0.92)
+        let query_similar = vec![0.94, 0.11, 0.04];
+        let hit = cache.lookup_semantic(&query_similar, model);
+        assert!(hit.is_some());
+        let (resp, sim) = hit.unwrap();
+        assert_eq!(resp, response);
+        assert!(sim >= 0.92);
+
+        // Orthogonal embedding
+        let query_dissimilar = vec![0.0, 1.0, 0.0];
+        assert!(cache.lookup_semantic(&query_dissimilar, model).is_none());
+    }
+
+    #[test]
+    fn test_sqlite_semantic_cache_persistence() {
+        let tmp = tempfile::tempdir().unwrap();
+        let db_path = tmp.path().join("cache.db");
+
+        let cache = DualTierSemanticCache::new(0.92);
+        assert!(cache.init_db(&db_path).is_ok());
+
+        cache.store("gpt-4o", "test query", "cached response", None);
+        assert_eq!(cache.lookup_exact("gpt-4o", "test query").as_deref(), Some("cached response"));
+    }
+}

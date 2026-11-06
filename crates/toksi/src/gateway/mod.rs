@@ -31,3 +31,7 @@ pub use proxy::*;
 pub use routing::*;
 pub use semantic_cache::*;
 
+#[cfg(test)]
+mod tests;
+
+

@@ -1,6 +1,6 @@
 # projectmem - toksi
 
-_Last updated: 2026-11-05_
+_Last updated: 2026-11-06_
 
 ## Project purpose
 CLI test
@@ -9,6 +9,8 @@ CLI test
 - [OPEN] #0073 CLI test issue [src/main.rs:1] (open)
 - [OPEN] #0055 CLI test issue [src/main.rs:1] (open)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0099 CLI test issue [src/main.rs:1] (fixed)
+- [DONE] #0098 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0097 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0096 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0095 CLI test issue [src/main.rs:1] (fixed)
@@ -17,12 +19,10 @@ CLI test
 - [DONE] #0092 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0091 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0090 CLI test issue [src/main.rs:1] (fixed)
-- [DONE] #0089 CLI test issue [src/main.rs:1] (fixed)
-- [DONE] #0088 CLI test issue [src/main.rs:1] (fixed)
-- ...and 85 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 87 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...78 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
+- ...80 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Use assertion macros consistently
 - Use assertion macros consistently
 - Use assertion macros consistently

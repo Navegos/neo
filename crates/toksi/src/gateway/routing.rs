@@ -84,3 +84,42 @@ pub fn analyze_complexity(messages: &[Value], tools: Option<&[Value]>) -> Comple
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_analyze_complexity_simple() {
+        let messages = vec![json!({"role": "user", "content": "What is the capital of France?"})];
+        let rec = analyze_complexity(&messages, None);
+        assert_eq!(rec.complexity, TaskComplexity::Simple);
+        assert_eq!(rec.recommended_model, "gemini-2.0-flash");
+        assert!(rec.reasoning_effort.is_none());
+    }
+
+    #[test]
+    fn test_analyze_complexity_medium() {
+        let messages = vec![json!({
+            "role": "user",
+            "content": "Can you check this code snippet:\n```rust\nfn main() {}\n```\nWhat does it do?"
+        })];
+        let rec = analyze_complexity(&messages, None);
+        assert_eq!(rec.complexity, TaskComplexity::Medium);
+        assert_eq!(rec.recommended_model, "gpt-4o");
+    }
+
+    #[test]
+    fn test_analyze_complexity_complex() {
+        let messages = vec![json!({
+            "role": "user",
+            "content": "Please architect and refactor this entire system step-by-step. Prove and analyze the root cause of deadlock:\n```rust\npub fn deadlock() {}\n```"
+        })];
+        let tools = vec![json!({"name": "bash"}), json!({"name": "read_file"})];
+        let rec = analyze_complexity(&messages, Some(&tools));
+        assert_eq!(rec.complexity, TaskComplexity::Complex);
+        assert_eq!(rec.recommended_model, "claude-3-7-sonnet-20250219");
+        assert_eq!(rec.reasoning_effort, Some("high"));
+    }
+}

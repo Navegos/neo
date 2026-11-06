@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/adaptive_mem.rs
 // created: 2026-10-28
-// lastModified: 2026-11-04
+// lastModified: 2026-11-06
 
 use std::path::Path;
 use serde_json::{json, Value};
@@ -61,8 +61,12 @@ pub fn select_tier_for_headroom(headroom_ratio: f32) -> (DisclosureTier, usize) 
 pub fn collect_memory_entries() -> Vec<TieredEntry> {
     let mut entries = Vec::new();
 
-    // 1. Check standing gotchas and decisions in .projectmem/events.jsonl
-    let events_path = Path::new(".projectmem").join("events.jsonl");
+    // 1. Check standing gotchas and decisions in .toksi/projectmem/events.jsonl or .projectmem/events.jsonl
+    let events_path = if Path::new(".toksi/projectmem/events.jsonl").exists() {
+        Path::new(".toksi/projectmem/events.jsonl").to_path_buf()
+    } else {
+        Path::new(".projectmem").join("events.jsonl")
+    };
     if events_path.exists() {
         if let Ok(content) = std::fs::read_to_string(&events_path) {
             let mut gotcha_count = 0;
@@ -98,8 +102,12 @@ pub fn collect_memory_entries() -> Vec<TieredEntry> {
         }
     }
 
-    // 2. Check summary.md if present
-    let summary_file = Path::new(".projectmem").join("summary.md");
+    // 2. Check summary.md if present (.toksi/projectmem or .projectmem)
+    let summary_file = if Path::new(".toksi/projectmem/summary.md").exists() {
+        Path::new(".toksi/projectmem/summary.md").to_path_buf()
+    } else {
+        Path::new(".projectmem").join("summary.md")
+    };
     if summary_file.exists() {
         if let Ok(content) = std::fs::read_to_string(&summary_file) {
             let first_para = content.lines().take(6).collect::<Vec<&str>>().join("\n");

@@ -148,3 +148,67 @@ pub fn parse_retry_after(headers: &HashMap<String, String>) -> Duration {
     Duration::from_millis(1500)
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_classify_failure_8_categories() {
+        let headers = HashMap::new();
+
+        // 1. RateLimit (429)
+        assert_eq!(classify_failure(429, &headers, "rate limit exceeded"), FailureClass::RateLimit);
+
+        // 2. Quota (402 or 429 with quota message)
+        assert_eq!(classify_failure(402, &headers, "Payment required"), FailureClass::Quota);
+        assert_eq!(classify_failure(429, &headers, "insufficient_quota: out of credits"), FailureClass::Quota);
+
+        // 3. Credential (401 or 403 invalid key)
+        assert_eq!(classify_failure(401, &headers, "Unauthorized"), FailureClass::Credential);
+        assert_eq!(classify_failure(403, &headers, "invalid_api_key provided"), FailureClass::Credential);
+
+        // 4. ModelGone (404 with decommissioned or model not found)
+        assert_eq!(classify_failure(404, &headers, "model_not_found: gpt-3.5 is decommissioned"), FailureClass::ModelGone);
+
+        // 5. RegionBlocked (403 region not supported)
+        assert_eq!(classify_failure(403, &headers, "location not supported in your country"), FailureClass::RegionBlocked);
+
+        // 6. ModelAccess (403 default)
+        assert_eq!(classify_failure(403, &headers, "Forbidden"), FailureClass::ModelAccess);
+
+        // 7. Transient (500, 502, 503, 504, 529)
+        assert_eq!(classify_failure(503, &headers, "Service Unavailable"), FailureClass::Transient);
+        assert_eq!(classify_failure(529, &headers, "Overloaded"), FailureClass::Transient);
+
+        // 8. Timeout (408)
+        assert_eq!(classify_failure(408, &headers, "Request Timeout"), FailureClass::Timeout);
+    }
+
+    #[test]
+    fn test_failure_class_behavior_flags() {
+        assert!(FailureClass::Credential.is_permanent_key_failure());
+        assert!(FailureClass::Quota.is_permanent_key_failure());
+        assert!(FailureClass::ModelAccess.is_permanent_key_failure());
+        assert!(!FailureClass::RateLimit.is_permanent_key_failure());
+
+        assert!(FailureClass::RateLimit.is_retryable());
+        assert!(FailureClass::Transient.is_retryable());
+        assert!(FailureClass::Timeout.is_retryable());
+        assert!(!FailureClass::Credential.is_retryable());
+    }
+
+    #[test]
+    fn test_parse_retry_after() {
+        let mut headers = HashMap::new();
+        headers.insert("retry-after".to_string(), "5".to_string());
+        assert_eq!(parse_retry_after(&headers), Duration::from_secs(5));
+
+        let mut headers_ms = HashMap::new();
+        headers_ms.insert("retry-after-ms".to_string(), "250".to_string());
+        assert_eq!(parse_retry_after(&headers_ms), Duration::from_millis(250));
+
+        let empty = HashMap::new();
+        assert_eq!(parse_retry_after(&empty), Duration::from_millis(1500));
+    }
+}
+

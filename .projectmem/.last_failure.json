@@ -1,6 +1,6 @@
 {
-  "command": "git checkout -- crates/toksi/.projectmem/summary.md",
-  "root_cause": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied",
-  "raw_output": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied\n",
-  "timestamp": "2026-11-05T23:53:13Z"
+  "command": "cargo test -p toksi --lib headroom gateway",
+  "root_cause": "error: unexpected argument 'gateway' found",
+  "raw_output": "error: unexpected argument 'gateway' found\n\nUsage: cargo.exe test [OPTIONS] [TESTNAME] [-- [ARGS]...]\n\nFor more information, try '--help'.\n",
+  "timestamp": "2026-11-06T00:32:01Z"
 }

@@ -7,7 +7,7 @@ Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.
 The code in Source: neo/inspect-vault/headroom, neo/inspect-vault/bifrost, neo\inspect-vault\tokless as updated please rerun
 
 Execute Phase 07: Headroom Deep Integration & Gateway Catalog.
-Sources: neo/inspect-vault/headroom (crates/headroom-core) and neo/inspect-vault/bifrost, neo\inspect-vault\tokless (core/providers/, plugins/)
+Sources: neo/inspect-vault/headroom (crates/headroom-core), neo/inspect-vault/bifrost (core/providers/, plugins/), and neo\inspect-vault\tokless (crates/toksi/src/)
 Targets: crates/toksi/src/headroom/, crates/toksi/src/gateway/, crates/toksi/src/
 
 Requirements:

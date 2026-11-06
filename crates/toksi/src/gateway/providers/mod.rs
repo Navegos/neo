@@ -326,3 +326,59 @@ pub trait ProviderClient: Send + Sync {
     fn parse_response(&self, resp: &Value) -> Result<UnifiedResponse, String>;
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_39_provider_catalog_completeness() {
+        assert_eq!(ProviderId::ALL_39.len(), 39);
+
+        let mut unique_ids = std::collections::HashSet::new();
+        let mut unique_names = std::collections::HashSet::new();
+
+        for p in &ProviderId::ALL_39 {
+            assert!(unique_ids.insert(*p), "Duplicate ProviderId: {:?}", p);
+            assert!(unique_names.insert(p.as_str()), "Duplicate provider name: {}", p.as_str());
+
+            // Every provider must be resolvable from its string representation
+            assert_eq!(ProviderId::from_name(p.as_str()), Some(*p));
+
+            // Default endpoint must be non-empty URL
+            let ep = p.default_endpoint();
+            assert!(ep.starts_with("http://") || ep.starts_with("https://"), "Invalid endpoint for {:?}", p);
+        }
+    }
+
+    #[test]
+    fn test_provider_category_distribution() {
+        let mut frontier_count = 0;
+        let mut accelerator_count = 0;
+        let mut aggregator_count = 0;
+        let mut specialized_count = 0;
+        let mut multimodal_count = 0;
+        let mut local_count = 0;
+        let mut ecosystem_count = 0;
+
+        for p in &ProviderId::ALL_39 {
+            match p.category() {
+                ProviderCategory::Frontier => frontier_count += 1,
+                ProviderCategory::Accelerator => accelerator_count += 1,
+                ProviderCategory::Aggregator => aggregator_count += 1,
+                ProviderCategory::Specialized => specialized_count += 1,
+                ProviderCategory::Multimodal => multimodal_count += 1,
+                ProviderCategory::Local => local_count += 1,
+                ProviderCategory::Ecosystem => ecosystem_count += 1,
+            }
+        }
+
+        assert_eq!(frontier_count, 9);
+        assert_eq!(accelerator_count, 8);
+        assert_eq!(aggregator_count, 5);
+        assert_eq!(specialized_count, 8);
+        assert_eq!(multimodal_count, 3);
+        assert_eq!(local_count, 4);
+        assert_eq!(ecosystem_count, 2);
+    }
+}
+

@@ -146,3 +146,79 @@ impl LoadBalancer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_loadbalancer_round_robin() {
+        let lb = LoadBalancer::new(LoadBalanceStrategy::RoundRobin);
+        let list = vec![ProviderId::Anthropic, ProviderId::OpenAI, ProviderId::Gemini];
+        let p1 = lb.select_provider(&list).unwrap();
+        let p2 = lb.select_provider(&list).unwrap();
+        let p3 = lb.select_provider(&list).unwrap();
+        let p4 = lb.select_provider(&list).unwrap();
+
+        assert_eq!(p1, ProviderId::Anthropic);
+        assert_eq!(p2, ProviderId::OpenAI);
+        assert_eq!(p3, ProviderId::Gemini);
+        assert_eq!(p4, ProviderId::Anthropic);
+    }
+
+    #[test]
+    fn test_loadbalancer_least_latency() {
+        let lb = LoadBalancer::new(LoadBalanceStrategy::LeastLatency);
+        lb.register_provider(ProviderId::Anthropic, 15.0, 1);
+        lb.register_provider(ProviderId::Groq, 0.5, 1);
+
+        // Update Groq latency to 30ms, Anthropic to 250ms
+        lb.release_flight(ProviderId::Groq, 30.0);
+        lb.release_flight(ProviderId::Anthropic, 250.0);
+
+        let list = vec![ProviderId::Anthropic, ProviderId::Groq];
+        let chosen = lb.select_provider(&list).unwrap();
+        assert_eq!(chosen, ProviderId::Groq);
+    }
+
+    #[test]
+    fn test_loadbalancer_lowest_cost() {
+        let lb = LoadBalancer::new(LoadBalanceStrategy::LowestCost);
+        lb.register_provider(ProviderId::Anthropic, 15.0, 1);
+        lb.register_provider(ProviderId::DeepSeek, 0.27, 1);
+
+        let list = vec![ProviderId::Anthropic, ProviderId::DeepSeek];
+        let chosen = lb.select_provider(&list).unwrap();
+        assert_eq!(chosen, ProviderId::DeepSeek);
+    }
+
+    #[test]
+    fn test_loadbalancer_least_in_flight() {
+        let lb = LoadBalancer::new(LoadBalanceStrategy::LeastInFlight);
+        lb.register_provider(ProviderId::Anthropic, 15.0, 1);
+        lb.register_provider(ProviderId::OpenAI, 10.0, 1);
+
+        lb.acquire_flight(ProviderId::Anthropic);
+        lb.acquire_flight(ProviderId::Anthropic);
+
+        let list = vec![ProviderId::Anthropic, ProviderId::OpenAI];
+        let chosen = lb.select_provider(&list).unwrap();
+        assert_eq!(chosen, ProviderId::OpenAI);
+    }
+
+    #[test]
+    fn test_loadbalancer_weighted() {
+        let lb = LoadBalancer::new(LoadBalanceStrategy::Weighted);
+        lb.register_provider(ProviderId::Anthropic, 15.0, 10);
+        lb.register_provider(ProviderId::OpenAI, 10.0, 1);
+
+        let list = vec![ProviderId::Anthropic, ProviderId::OpenAI];
+        let mut anthropic_picks = 0;
+        for _ in 0..11 {
+            if lb.select_provider(&list).unwrap() == ProviderId::Anthropic {
+                anthropic_picks += 1;
+            }
+        }
+        assert!(anthropic_picks >= 10);
+    }
+}

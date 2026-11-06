@@ -39,3 +39,41 @@ pub fn adapt_sdk_payload(protocol: SdkProtocol, target_protocol: SdkProtocol, bo
         _ => body.clone(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_detect_sdk_protocol() {
+        assert_eq!(detect_sdk_protocol("/v1/chat/completions"), Some(SdkProtocol::OpenAI));
+        assert_eq!(detect_sdk_protocol("/openai/deployments/gpt-4o"), Some(SdkProtocol::OpenAI));
+        assert_eq!(detect_sdk_protocol("/v1/messages"), Some(SdkProtocol::Anthropic));
+        assert_eq!(detect_sdk_protocol("/anthropic/v1/messages"), Some(SdkProtocol::Anthropic));
+        assert_eq!(detect_sdk_protocol("/v1beta/models/gemini-2.0-flash:streamGenerateContent"), Some(SdkProtocol::Gemini));
+        assert_eq!(detect_sdk_protocol("/unknown/path"), None);
+    }
+
+    #[test]
+    fn test_adapt_sdk_payload_same_protocol() {
+        let payload = json!({"model": "gpt-4o", "messages": []});
+        let adapted = adapt_sdk_payload(SdkProtocol::OpenAI, SdkProtocol::OpenAI, &payload);
+        assert_eq!(adapted, payload);
+    }
+
+    #[test]
+    fn test_adapt_sdk_payload_cross_conversion() {
+        let openai_req = json!({
+            "model": "gpt-4o",
+            "messages": [
+                {"role": "system", "content": "Be concise"},
+                {"role": "user", "content": "Hello"}
+            ]
+        });
+
+        let anthropic_adapted = adapt_sdk_payload(SdkProtocol::OpenAI, SdkProtocol::Anthropic, &openai_req);
+        assert_eq!(anthropic_adapted["system"], "Be concise");
+        assert_eq!(anthropic_adapted["messages"][0]["role"], "user");
+    }
+}
