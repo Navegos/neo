@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/env_injector/teardown.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-06
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -15,6 +15,13 @@ unsafe extern "system" fn win_ctrl_handler(_ctrl_type: u32) -> i32 {
     0 // FALSE: allow standard termination
 }
 
+#[cfg(unix)]
+unsafe extern "C" fn unix_signal_handler(sig: libc::c_int) {
+    let _ = teardown_proxy_env();
+    libc::signal(sig, libc::SIG_DFL);
+    libc::raise(sig);
+}
+
 pub fn register_teardown_handlers() {
     if HANDLERS_REGISTERED.swap(true, Ordering::SeqCst) {
         return;
@@ -24,6 +31,27 @@ pub fn register_teardown_handlers() {
     unsafe {
         use windows_sys::Win32::System::Console::SetConsoleCtrlHandler;
         SetConsoleCtrlHandler(Some(win_ctrl_handler), 1);
+    }
+
+    #[cfg(target_os = "linux")]
+    unsafe {
+        libc::signal(libc::SIGINT, unix_signal_handler as libc::sighandler_t);
+        libc::signal(libc::SIGTERM, unix_signal_handler as libc::sighandler_t);
+        libc::signal(libc::SIGHUP, unix_signal_handler as libc::sighandler_t);
+    }
+
+    #[cfg(target_os = "macos")]
+    unsafe {
+        libc::signal(libc::SIGINT, unix_signal_handler as libc::sig_t);
+        libc::signal(libc::SIGTERM, unix_signal_handler as libc::sig_t);
+        libc::signal(libc::SIGHUP, unix_signal_handler as libc::sig_t);
+    }
+
+    #[cfg(all(unix, not(target_os = "linux"), not(target_os = "macos")))]
+    unsafe {
+        libc::signal(libc::SIGINT, unix_signal_handler as usize);
+        libc::signal(libc::SIGTERM, unix_signal_handler as usize);
+        libc::signal(libc::SIGHUP, unix_signal_handler as usize);
     }
 }
 
@@ -98,5 +126,16 @@ mod tests {
     fn test_register_handlers_idempotent() {
         register_teardown_handlers();
         register_teardown_handlers();
+    }
+
+    #[test]
+    fn test_inject_and_teardown_proxy_env() {
+        let _lock = crate::env_injector::TEST_ENV_LOCK.lock().unwrap();
+        let inject_res = inject_proxy_env();
+        if let Ok(injected) = inject_res {
+            assert!(injected.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
+            let tear_res = teardown_proxy_env();
+            assert!(tear_res.is_ok());
+        }
     }
 }

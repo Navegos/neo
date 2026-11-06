@@ -83,7 +83,7 @@ pub fn audit_environment_status() -> EnvironmentStatus {
 
     #[cfg(not(windows))]
     {
-        for key in ["GOOGLE_GEMINI_BASE_URL", "CLOUD_CODE_URL", "ANTHROPIC_BASE_URL", "TOKSI_OWNED", "TOKSI_OWNED"] {
+        for key in ["GOOGLE_GEMINI_BASE_URL", "CLOUD_CODE_URL", "ANTHROPIC_BASE_URL", "TOKSI_OWNED"] {
             if let Ok(val) = std::env::var(key) {
                 active_proxy_vars.push(format!("{}={}", key, val));
             }
@@ -101,3 +101,6 @@ pub fn audit_environment_status() -> EnvironmentStatus {
         details,
     }
 }
+
+#[cfg(test)]
+pub(crate) static TEST_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());

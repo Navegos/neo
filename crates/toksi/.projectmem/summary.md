@@ -9,6 +9,8 @@ CLI test
 - [OPEN] #0073 CLI test issue [src/main.rs:1] (open)
 - [OPEN] #0055 CLI test issue [src/main.rs:1] (open)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0104 CLI test issue [src/main.rs:1] (fixed)
+- [DONE] #0103 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0102 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0101 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0100 CLI test issue [src/main.rs:1] (fixed)
@@ -17,12 +19,10 @@ CLI test
 - [DONE] #0097 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0096 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0095 CLI test issue [src/main.rs:1] (fixed)
-- [DONE] #0094 CLI test issue [src/main.rs:1] (fixed)
-- [DONE] #0093 CLI test issue [src/main.rs:1] (fixed)
-- ...and 90 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 92 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...83 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
+- ...85 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Use assertion macros consistently
 - Use assertion macros consistently
 - Use assertion macros consistently
