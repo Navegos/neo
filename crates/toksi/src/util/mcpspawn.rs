@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/mcpspawn.rs
 // created: 2026-10-05
-// lastModified: 2026-11-05
+// lastModified: 2026-11-06
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Write};
@@ -120,23 +120,23 @@ pub fn pick_codegraph_spawn(_extra_args: &[&str]) -> Option<McpSpawn> {
 pub fn pick_mcp_spawn(bin: &str, extra_args: &[&str]) -> McpSpawn {
     let extra_vec: Vec<String> = extra_args.iter().map(|s| s.to_string()).collect();
 
-    if bin == "codegraph" {
+    if bin == "codegraph" || bin == "toksi-codegraph" || bin == "toksi-codegraph-index" {
         if let Some(spawn) = pick_codegraph_spawn(extra_args) {
             return spawn;
         }
-    } else if bin == "projectmem" {
+    } else if bin == "projectmem" || bin == "toksi-projectmem" {
         let self_cmd = toksi_run_mcp_command();
         return McpSpawn {
             command: self_cmd,
             args: vec!["mem".into(), "mcp".into()],
         };
-    } else if bin == "context-mode" {
+    } else if bin == "context-mode" || bin == "context" || bin == "contextmode" || bin == "toksi-context-mode" {
         let self_cmd = toksi_run_mcp_command();
         return McpSpawn {
             command: self_cmd,
             args: vec!["ctx".into(), "mcp".into()],
         };
-    } else if bin == "icm" || bin == "aimemory" || bin == "handoff" {
+    } else if bin == "icm" || bin == "aimemory" || bin == "ai-memory" || bin == "handoff" {
         let self_cmd = toksi_run_mcp_command();
         return McpSpawn {
             command: self_cmd,

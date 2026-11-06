@@ -3,31 +3,25 @@
 // project: neo
 // file: crates/toksi/src/util/headroom.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-06
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use super::mcpspawn::{pick_mcp_spawn, McpSpawn};
-use super::paths::{exists, toksi_data_dir, IS_WIN};
-use super::versions::semver_compare;
+use super::paths::{exists, toksi_data_dir};
 
 pub struct HeadroomPaths {
     pub root: String,
-    pub uv: String,
-    pub tools: String,
     pub bin: String,
-    pub python: String,
+    pub tools: String,
 }
 
 pub fn headroom_paths_resolved() -> HeadroomPaths {
     let root = Path::new(&toksi_data_dir()).join("headroom");
     let bin = root.join("bin");
-    let uv_name = if IS_WIN { "uv.exe" } else { "uv" };
-    let uv = root.join("uv").join(uv_name);
+    let tools = root.join("tools");
     HeadroomPaths {
-        tools: root.join("tools").to_string_lossy().to_string(),
+        tools: tools.to_string_lossy().to_string(),
         bin: bin.to_string_lossy().to_string(),
-        python: root.join("python").to_string_lossy().to_string(),
-        uv: uv.to_string_lossy().to_string(),
         root: root.to_string_lossy().to_string(),
     }
 }
@@ -47,32 +41,16 @@ pub fn headroom_bin() -> String {
             return cur_str;
         }
     }
-    let p = Path::new(&headroom_paths_resolved().bin).join("headroom");
-    let full = if IS_WIN {
-        format!("{}.exe", p.to_string_lossy())
-    } else {
-        p.to_string_lossy().to_string()
-    };
-    if exists(&full) && Path::new(&full).is_file() {
-        return full;
-    }
-    let w = crate::util::paths::which("headroom");
+    let w = crate::util::paths::which("toksi");
     if !w.is_empty() && exists(&w) {
         return w;
     }
-    full
+    "toksi".to_string()
 }
 
 pub fn headroom_env() -> Vec<(String, String)> {
-    let p = headroom_paths_resolved();
-    vec![
-        ("UV_TOOL_DIR".to_string(), p.tools),
-        ("UV_TOOL_BIN_DIR".to_string(), p.bin),
-        ("UV_PYTHON_INSTALL_DIR".to_string(), p.python),
-        ("UV_MANAGED_PYTHON".to_string(), "1".to_string()),
-    ]
+    Vec::new()
 }
-
 
 pub fn mcp_spawn_for(tool_id: &str) -> McpSpawn {
     pick_mcp_spawn(tool_id, &[])
@@ -84,51 +62,7 @@ pub fn headroom_installed() -> bool {
 }
 
 pub fn headroom_installed_version() -> Option<String> {
-    if let Some(v) = headroom_dist_info_version() {
-        return Some(v);
-    }
     Some(crate::util::version::toksi_version().to_string())
-}
-
-fn headroom_dist_info_version() -> Option<String> {
-    let p = headroom_paths_resolved();
-    let mut site_dirs: Vec<PathBuf> = vec![
-        Path::new(&p.tools)
-            .join("headroom-ai")
-            .join("Lib")
-            .join("site-packages"),
-    ];
-    let lib_dir = Path::new(&p.tools).join("headroom-ai").join("lib");
-    if let Ok(entries) = std::fs::read_dir(&lib_dir) {
-        for e in entries.flatten() {
-            let name = e.file_name().to_string_lossy().to_string();
-            if name.starts_with("python") {
-                site_dirs.push(e.path().join("site-packages"));
-            }
-        }
-    }
-    let mut best: Option<String> = None;
-    for site in &site_dirs {
-        if let Ok(entries) = std::fs::read_dir(site) {
-            for e in entries.flatten() {
-                let name = e.file_name().to_string_lossy().to_string();
-                if name.starts_with("headroom_ai-") && name.ends_with(".dist-info") {
-                    let ver = name
-                        .trim_start_matches("headroom_ai-")
-                        .trim_end_matches(".dist-info")
-                        .to_string();
-                    if !ver.is_empty() {
-                        match &best {
-                            None => best = Some(ver),
-                            Some(cur) if semver_compare(&ver, cur) > 0 => best = Some(ver),
-                            _ => {}
-                        }
-                    }
-                }
-            }
-        }
-    }
-    best
 }
 
 pub fn ensure_headroom(upgrade: bool) -> Result<bool, String> {

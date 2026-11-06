@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/mcp_adapters.rs
 // created: 2026-10-20
-// lastModified: 2026-11-01
+// lastModified: 2026-11-06
 
 use std::path::Path;
 use std::sync::Arc;
@@ -993,7 +993,14 @@ pub fn mcp_has(agent_id: &str, tool_id: &str, any_shape: bool) -> bool {
     adapter.has_mcp(tool_id, &opts)
 }
 
-pub const MANAGED_MCP_TOOLS: &[&str] = &["codegraph", "context-mode", "projectmem", "icm"];
+pub const MANAGED_MCP_TOOLS: &[&str] = &[
+    "codegraph",
+    "context-mode",
+    "context",
+    "projectmem",
+    "icm",
+    "aimemory",
+];
 
 pub fn agent_mcp_json_files(agent_id: &str) -> Vec<(String, String)> {
     match agent_id {

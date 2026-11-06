@@ -9,6 +9,9 @@ CLI test
 - [OPEN] #0073 CLI test issue [src/main.rs:1] (open)
 - [OPEN] #0055 CLI test issue [src/main.rs:1] (open)
   - Failed attempt: Failed: thread 'test_foo' panicked at 'assertion failed: left == right' [src/main.rs:1]
+- [DONE] #0102 CLI test issue [src/main.rs:1] (fixed)
+- [DONE] #0101 CLI test issue [src/main.rs:1] (fixed)
+- [DONE] #0100 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0099 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0098 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0097 CLI test issue [src/main.rs:1] (fixed)
@@ -16,13 +19,10 @@ CLI test
 - [DONE] #0095 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0094 CLI test issue [src/main.rs:1] (fixed)
 - [DONE] #0093 CLI test issue [src/main.rs:1] (fixed)
-- [DONE] #0092 CLI test issue [src/main.rs:1] (fixed)
-- [DONE] #0091 CLI test issue [src/main.rs:1] (fixed)
-- [DONE] #0090 CLI test issue [src/main.rs:1] (fixed)
-- ...and 87 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
+- ...and 90 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...80 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
+- ...83 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Use assertion macros consistently
 - Use assertion macros consistently
 - Use assertion macros consistently
