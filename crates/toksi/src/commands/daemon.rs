@@ -96,6 +96,7 @@ fn daemon_status() -> i32 {
 
 fn daemon_start() -> i32 {
     if is_daemon_running() {
+        let _ = crate::env_injector::inject_proxy_env();
         L.raw(&format!("  {} Toksi daemon already running", C.green(Sym::CHECK)));
         return 0;
     }

@@ -257,16 +257,15 @@ pub fn teardown_windows_env() -> Result<Vec<String>, String> {
         .or_else(|| std::env::var(TOKLESS_OWNED_MARKER).ok());
     let mut purged = Vec::new();
 
-    let has_stale_proxy = MANAGED_PROXY_KEYS.iter().any(|k| {
+    let has_managed_or_stale = MANAGED_PROXY_KEYS.iter().any(|k| {
         get_env_reg_value(k)
             .map(|v| v.contains("127.0.0.1") || v.contains("localhost"))
             .unwrap_or(false)
-            || std::env::var(k)
-                .map(|v| v.contains("127.0.0.1") || v.contains("localhost"))
-                .unwrap_or(false)
-    });
+            || std::env::var(k).is_ok()
+            || get_env_reg_value(k).is_some()
+    }) || get_env_reg_value("CLOUD_CODE_URL").is_some() || std::env::var("CLOUD_CODE_URL").is_ok();
 
-    if marker.as_deref() == Some("1") || marker.is_some() || has_stale_proxy {
+    if marker.as_deref() == Some("1") || marker.is_some() || has_managed_or_stale {
         let keys_str = get_env_reg_value(TOKSI_OWNED_KEYS)
             .or_else(|| std::env::var(TOKSI_OWNED_KEYS).ok())
             .or_else(|| get_env_reg_value(TOKLESS_OWNED_KEYS))
@@ -382,6 +381,9 @@ mod tests {
     #[cfg(windows)]
     fn test_windows_env_inject_and_teardown() {
         let _lock = crate::env_injector::TEST_ENV_LOCK.lock().unwrap();
+        unsafe {
+            std::env::set_var("CLOUD_CODE_URL", "http://old-legacy-override");
+        }
         let test_url = "http://127.0.0.1:8787";
         let res = inject_windows_env(test_url);
         match res {
@@ -391,11 +393,13 @@ mod tests {
                 assert!(injected.contains(&TOKSI_OWNED_MARKER.to_string()));
                 assert_eq!(std::env::var("GOOGLE_GEMINI_BASE_URL").unwrap(), test_url);
                 assert_eq!(std::env::var(TOKSI_OWNED_MARKER).unwrap(), "1");
+                assert!(std::env::var("CLOUD_CODE_URL").is_err());
 
                 let purged = teardown_windows_env().expect("teardown failed");
                 assert!(purged.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
                 assert!(std::env::var("GOOGLE_GEMINI_BASE_URL").is_err());
                 assert!(std::env::var(TOKSI_OWNED_MARKER).is_err());
+                assert!(std::env::var("CLOUD_CODE_URL").is_err());
             }
             Err(e) => {
                 assert!(e.contains("code 5"), "unexpected error: {}", e);

@@ -38,6 +38,8 @@ pub fn inject_unix_env_vars(vars: &[(&str, &str)]) -> Result<Vec<String>, String
             std::env::set_var(key, val);
             injected.push(key.to_string());
         }
+        // Explicitly remove CLOUD_CODE_URL so auth/quota checks bypass proxy
+        std::env::remove_var("CLOUD_CODE_URL");
         std::env::set_var(TOKSI_OWNED_MARKER, "1");
         std::env::set_var(TOKSI_OWNED_KEYS, &keys_csv);
     }
@@ -54,6 +56,10 @@ pub fn inject_unix_env_vars(vars: &[(&str, &str)]) -> Result<Vec<String>, String
         cmd.arg(format!("{}=1", TOKSI_OWNED_MARKER));
         cmd.arg(format!("{}={}", TOKSI_OWNED_KEYS, keys_csv));
         let _ = cmd.output();
+
+        let _ = Command::new("systemctl")
+            .args(["--user", "unset-environment", "CLOUD_CODE_URL"])
+            .output();
     }
 
     // 3. launchctl user session environment (macOS)
@@ -63,6 +69,9 @@ pub fn inject_unix_env_vars(vars: &[(&str, &str)]) -> Result<Vec<String>, String
                 .args(["setenv", key, val])
                 .output();
         }
+        let _ = Command::new("launchctl")
+            .args(["unsetenv", "CLOUD_CODE_URL"])
+            .output();
         let _ = Command::new("launchctl")
             .args(["setenv", TOKSI_OWNED_MARKER, "1"])
             .output();
@@ -115,6 +124,7 @@ pub fn teardown_unix_env() -> Result<Vec<String>, String> {
         for &key in MANAGED_PROXY_KEYS {
             cmd.arg(key);
         }
+        cmd.arg("CLOUD_CODE_URL");
         cmd.arg(TOKSI_OWNED_MARKER);
         cmd.arg(TOKSI_OWNED_KEYS);
         cmd.arg(TOKLESS_OWNED_MARKER);
@@ -129,6 +139,9 @@ pub fn teardown_unix_env() -> Result<Vec<String>, String> {
                 .args(["unsetenv", key])
                 .output();
         }
+        let _ = Command::new("launchctl")
+            .args(["unsetenv", "CLOUD_CODE_URL"])
+            .output();
         let _ = Command::new("launchctl")
             .args(["unsetenv", TOKSI_OWNED_MARKER])
             .output();
@@ -149,6 +162,7 @@ pub fn teardown_unix_env() -> Result<Vec<String>, String> {
             std::env::remove_var(key);
             purged.push(key.to_string());
         }
+        std::env::remove_var("CLOUD_CODE_URL");
         std::env::remove_var(TOKSI_OWNED_MARKER);
         std::env::remove_var(TOKSI_OWNED_KEYS);
         std::env::remove_var(TOKLESS_OWNED_MARKER);
@@ -169,16 +183,21 @@ mod tests {
     #[test]
     fn test_unix_env_inject_and_teardown() {
         let _lock = crate::env_injector::TEST_ENV_LOCK.lock().unwrap();
+        unsafe {
+            std::env::set_var("CLOUD_CODE_URL", "http://old-legacy-override");
+        }
         let res = inject_unix_env("http://127.0.0.1:8787");
         assert!(res.is_ok());
         assert_eq!(std::env::var("GOOGLE_GEMINI_BASE_URL").unwrap(), "http://127.0.0.1:8787");
         assert_eq!(std::env::var("ANTHROPIC_BASE_URL").unwrap(), "http://127.0.0.1:8787");
         assert_eq!(std::env::var("TOKSI_OWNED").unwrap(), "1");
+        assert!(std::env::var("CLOUD_CODE_URL").is_err());
 
         let purged = teardown_unix_env();
         assert!(purged.is_ok());
         assert!(std::env::var("GOOGLE_GEMINI_BASE_URL").is_err());
         assert!(std::env::var("ANTHROPIC_BASE_URL").is_err());
         assert!(std::env::var("TOKSI_OWNED").is_err());
+        assert!(std::env::var("CLOUD_CODE_URL").is_err());
     }
 }

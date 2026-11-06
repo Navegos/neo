@@ -1,6 +1,6 @@
 {
-  "command": "cargo test --package toksi --lib env_injector",
-  "root_cause": "thread 'env_injector::windows::tests::test_windows_env_inject_and_teardown' (13864) panicked at crates\\toksi\\src\\env_injector\\windows.rs:385:68:",
-  "raw_output": "\nrunning 9 tests\ntest env_injector::teardown::tests::test_teardown_guard_lifecycle ... ok\ntest env_injector::heal::tests::test_analyze_stashed_binary ... ok\ntest env_injector::teardown::tests::test_register_handlers_idempotent ... ok\ntest env_injector::windows::tests::test_windows_reg_read_write_delete ... ok\ntest env_injector::heal::tests::test_heal_legacy_binary_restoration ... ok\ntest env_injector::windows::tests::test_broadcast_setting_change ... ok\ntest env_injector::unix::tests::test_unix_env_inject_and_teardown ... ok\ntest env_injector::windows::tests::test_windows_env_inject_and_teardown ... FAILED\ntest env_injector::teardown::tests::test_inject_and_teardown_proxy_env ... ok\n\nfailures:\n\n---- env_injector::windows::tests::test_windows_env_inject_and_teardown stdout ----\n\nthread 'env_injector::windows::tests::test_windows_env_inject_and_teardown' (13864) panicked at crates\\toksi\\src\\env_injector\\windows.rs:385:68:\ncalled `Result::unwrap()` on an `Err` value: NotPresent\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    env_injector::windows::tests::test_windows_env_inject_and_teardown\n\ntest result: FAILED. 8 passed; 1 failed; 0 ignored; 0 measured; 314 filtered out; finished in 1.34s\n\n\n   Compiling toksi v2.5.0 (D:\\AI\\neo\\crates\\toksi)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.78s\n     Running unittests src\\lib.rs (target\\debug\\build\\toksi/b2dbdda35603905a\\out\\toksi-b2dbdda35603905a.exe)\nerror: test failed, to rerun pass `-p toksi --lib`\n",
-  "timestamp": "2026-11-06T01:18:56Z"
+  "command": "git grep -n fn stop_proxy -- crates/toksi",
+  "root_cause": "fatal: unable to resolve revision: stop_proxy",
+  "raw_output": "fatal: unable to resolve revision: stop_proxy\n",
+  "timestamp": "2026-11-06T01:55:51Z"
 }

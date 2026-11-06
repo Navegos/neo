@@ -22,8 +22,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - ...and 23 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...54 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Prioritize ~/.toksi/memory.db, expose recall_tiered_entries headroom hook, and support memory_handoff_accept in ICM
+- ...55 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 05: CodeGraph Pure Rust Engine refreshed with upstream inspect-vault updates (C/C++ member type refs, Python parameterized base, Go uppercase const/var exports, JS/TS subscript exports) [crates/toksi/src/codegraph/mod.rs:1]
 - Phase 07: Headroom Deep Integration & Gateway Catalog refreshed with 39+ providers (added BedrockMantle, SageMaker, Bifrost), byte-for-byte critical log survival, AST-aware code compression, and dual-tier semantic cache [crates/toksi/src/gateway/providers/mod.rs]
 - Master architecture v3.3: unified 5-port daemon (:8787,:8789,:8790,:9099,:9100), root .toksi workspace consolidation, normalized hooks (<tool>-hook <agent>) and MCP names, 39+ BYOK providers with Bifrost and smart CLI bridges, strict paid quota enforcement with zero-fail fallback, ground-truth token accounting, forward-slash paths, mouse TUI and background Web UI [crates/toksi/CONSOLIDATION_PLAN.md:1]
@@ -38,9 +37,9 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - Phase 07 rerun: Headroom Deep Integration & Gateway Catalog verified with 39+ in-tree provider catalog, 8-class failure cascade, dynamic load balancer, task complexity router, virtual key governance, dual-tier semantic cache (SHA-256 + Cosine Similarity >= 0.92), AST code/whitespace pruning, repetitive log collapsing with guaranteed fatal/error/panic survival, dynamic MCP tool schema optimizer, 1024-token prompt cache alignment, and adaptive memory headroom scaling. 0 warnings, all unit and phase verification tests passing. [crates/toksi/src/headroom/mod.rs:1]
 - Phase 07: Headroom Deep Integration & Gateway Catalog verified. Dropped headroom-py; implemented core token compression (log deduplication with byte-for-byte error/fatal/panic survival, AST code pruner, JSON minifier, dynamic MCP schema pruner, 1024-token prompt cache alignment, adaptive memory governor) and Native Enterprise AI Gateway (39+ in-tree providers, 8-class failure cascade, load balancer, task complexity router, virtual key governance, dual-tier semantic cache with similarity >= 0.92, drop-in SDK endpoints). 75 tests passing with 0 warnings. [crates/toksi/src/headroom/mod.rs:1]
 - Phase 10 executed: non-destructive environment injection via Windows HKCU\Environment registry direct Win32 APIs, broadcast WM_SETTINGCHANGE via SendMessageTimeoutW, Unix session env via systemd/launchctl/environment.d, and RAII TeardownGuard with process signal handlers (SIGINT, SIGTERM, Ctrl+C). 323 tests passing with 0 warnings. [crates/toksi/src/env_injector/mod.rs:1]
+- Phase 10: Non-destructive user environment management verified across Windows (direct HKCU\Environment registry + WM_SETTINGCHANGE SendMessageTimeoutW broadcast) and Unix (systemd/launchctl/environment.d). Connected to toksi daemon start and graceful teardown guard. Explicitly unsets CLOUD_CODE_URL to prevent auth/quota bypass. Zero warnings, 100% tests pass. [crates/toksi/src/env_injector/mod.rs:1]
 
 ## Notes
-- gotcha: universal forward-slash / path normalization required for Git Bash and cross-platform compatibility; isolated port 9099 (AI Gateway) and port 9100 (Web Dashboard) prevents SSE socket contention [crates/toksi/src/util/paths.rs:1]
 - New feature: feat(plan): detail phase 15-16 execution specs and wire aimemory mcp [crates/toksi/src/util/mcpspawn.rs]
 - New feature: feat(rtk): support human-readable git status in output filter [crates/toksi/src/rtk/filters/git.rs]
 - feat(rtk): refresh RTK filter engine from inspect-vault with git ls-tree/ls-files fold, cargo nextest retry filtering, enhanced ruff JSON/text filters, and expanded root-cause extractions [crates/toksi/src/rtk/filters/git.rs:25 (filter_git)]
@@ -50,6 +49,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - New feature: feat(contextmode): harden SSRF guard, add ctx_batch/ctx_upgrade tools, and update tests [crates/toksi/src/contextmode/fetch.rs]
 - New feature: feat(aimemory,icm): add handoff alias, fallback paths, and robust fts5 sanitization" -m "- aimemory: support .toksi/ai-m [crates/toksi/src/aimemory/mod.rs]
 - New feature: feat(codegraph): support .toksi storage path, fallback spawn, and suffix resolution" -m "- codegraph: add resolve_db_pat [crates/toksi/src/codegraph/graph.rs]
+- New feature: feat(env_injector): add launchctl support, unix signal handlers, and registry teardown guards [crates/toksi/src/env_injector/mod.rs]
 
 ## Key files
 - `.editorconfig`

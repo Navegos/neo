@@ -10,7 +10,7 @@ Target: crates/toksi/src/env_injector/{windows.rs, unix.rs, teardown.rs}, crates
 Requirements:
 1. Implement non-destructive user environment management without modifying any agent binaries:
    - On Windows (windows.rs): Manage HKEY_CURRENT_USER\Environment directly via Windows APIs.
-     Inject proxy environment variables (GOOGLE_GEMINI_BASE_URL, CLOUD_CODE_URL, etc.) with TOKSI_OWNED=1 markers.
+     Inject proxy environment variables (GOOGLE_GEMINI_BASE_URL, etc.) with TOKSI_OWNED=1 markers. We are not injecting CLOUD_CODE_URL in windows and unix so auth/quota checks bypass proxy.
      Broadcast WM_SETTINGCHANGE via SendMessageTimeoutW so new VS Code and terminal windows pick up the proxy immediately without restart.
    - On Linux/macOS (unix.rs): Inject variables into user session environment.
 2. Implement lifecycle teardown guard (teardown.rs):

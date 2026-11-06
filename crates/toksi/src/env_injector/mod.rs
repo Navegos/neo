@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/env_injector/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-06
 
 pub mod heal;
 pub mod teardown;
@@ -55,6 +55,10 @@ pub fn audit_environment_status() -> EnvironmentStatus {
     #[cfg(windows)]
     {
         use windows::{get_env_reg_value, MANAGED_PROXY_KEYS, TOKSI_OWNED_MARKER, TOKLESS_OWNED_MARKER};
+        if let Some(val) = get_env_reg_value("CLOUD_CODE_URL") {
+            env_vars_healthy = false;
+            details.push(format!("CLOUD_CODE_URL detected in registry: {} (bypasses direct auth/quota)", val));
+        }
         let is_owned = get_env_reg_value(TOKSI_OWNED_MARKER).as_deref() == Some("1")
             || get_env_reg_value(TOKLESS_OWNED_MARKER).as_deref() == Some("1");
         if is_owned {
@@ -83,7 +87,11 @@ pub fn audit_environment_status() -> EnvironmentStatus {
 
     #[cfg(not(windows))]
     {
-        for key in ["GOOGLE_GEMINI_BASE_URL", "CLOUD_CODE_URL", "ANTHROPIC_BASE_URL", "TOKSI_OWNED"] {
+        if let Ok(val) = std::env::var("CLOUD_CODE_URL") {
+            env_vars_healthy = false;
+            details.push(format!("CLOUD_CODE_URL detected in session: {} (bypasses direct auth/quota)", val));
+        }
+        for key in ["GOOGLE_GEMINI_BASE_URL", "ANTHROPIC_BASE_URL", "TOKSI_OWNED"] {
             if let Ok(val) = std::env::var(key) {
                 active_proxy_vars.push(format!("{}={}", key, val));
             }
