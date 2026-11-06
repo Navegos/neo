@@ -1,6 +1,6 @@
 {
-  "command": "git grep -n fn stop_proxy -- crates/toksi",
-  "root_cause": "fatal: unable to resolve revision: stop_proxy",
-  "raw_output": "fatal: unable to resolve revision: stop_proxy\n",
-  "timestamp": "2026-11-06T01:55:51Z"
+  "command": "cargo check -p toksi",
+  "root_cause": "error[E0277]: the trait bound `Cow<'_, str>: AsRef<std::path::Path>` is not satisfied",
+  "raw_output": "    Checking toksi v2.5.0 (D:\\AI\\neo\\crates\\toksi)\nerror[E0277]: the trait bound `Cow<'_, str>: AsRef<std::path::Path>` is not satisfied\n   --> crates\\toksi\\src\\commands\\doctor.rs:446:59\n    |\n446 |             let raw = crate::util::paths::read_file_safe(&p.to_string_lossy()).unwrap_or_default();\n    |                       ----------------------------------  ^^^^^^^^^^^^^^^^^^^ the trait `AsRef<std::path::Path>` is not implemented for `Cow<'_, str>`\n    |                       |\n    |                       required by a bound introduced by this call\n    |\n    = note: required for `&Cow<'_, str>` to implement `AsRef<std::path::Path>`\nnote: required by a bound in `read_file_safe`\n   --> crates\\toksi\\src\\util\\paths.rs:285:31\n    |\n285 | pub fn read_file_safe(p: impl AsRef<Path>) -> Option<String> {\n    |                               ^^^^^^^^^^^ required by this bound in `read_file_safe`\nhelp: consider dereferencing here\n    |\n446 |             let raw = crate::util::paths::read_file_safe(&*p.to_string_lossy()).unwrap_or_default();\n    |                                                           +\n\nFor more information about this error, try `rustc --explain E0277`.\nerror: could not compile `toksi` (lib) due to 1 previous error\n",
+  "timestamp": "2026-11-06T02:37:24Z"
 }

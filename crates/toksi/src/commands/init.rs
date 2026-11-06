@@ -363,6 +363,11 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
     }
     wire_bar.done("");
 
+    if !opts.dry_run {
+        let _ = crate::rules::sync_workspace_rules(".", crate::rules::RuleKind::all());
+        let _ = crate::rules::sync_global_rules(crate::rules::RuleKind::all());
+    }
+
     if !opts.dry_run && tools.iter().any(|t| t.id == "projectmem") {
         projectmem_seed_project(&opts);
     }

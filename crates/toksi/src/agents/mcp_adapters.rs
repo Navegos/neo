@@ -132,6 +132,9 @@ pub fn remove_amp_mcp(tool_id: &str) -> bool {
 }
 
 fn nested_child<'a>(cfg: &'a mut OrderedMap, path: &str, create: bool) -> Option<&'a mut OrderedMap> {
+    if cfg.contains_key(path) {
+        return cfg.get_mut(path)?.as_object_mut();
+    }
     let parts: Vec<&str> = path.split('.').collect();
     let mut cur = cfg;
     for part in parts {
@@ -148,6 +151,9 @@ fn nested_child<'a>(cfg: &'a mut OrderedMap, path: &str, create: bool) -> Option
 }
 
 fn nested_child_ref<'a>(cfg: &'a OrderedMap, path: &str) -> Option<&'a OrderedMap> {
+    if let Some(m) = cfg.get(path).and_then(|v| v.as_object()) {
+        return Some(m);
+    }
     let parts: Vec<&str> = path.split('.').collect();
     let mut cur = cfg;
     for part in parts {
@@ -164,6 +170,9 @@ pub fn is_legacy_mcp_runner_str(cmd: &str) -> bool {
         .unwrap_or("")
         .to_ascii_lowercase();
     if norm.contains("tokless") || stem == "tokless" || stem.starts_with("tokless-") {
+        return true;
+    }
+    if norm.contains("pjm-mcp") || stem == "pjm-mcp" {
         return true;
     }
     matches!(
@@ -1048,8 +1057,8 @@ pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
                             if let Some((k, v)) = t.split_once('=') {
                                 if k.trim() == "command" {
                                     let cmd = v.trim().trim_matches('"').trim_matches('\'');
-                                    if is_legacy_mcp_runner_str(cmd) {
-                                        issues.push(format!("{}: legacy runner {}", tool, cmd));
+                                    if is_legacy_mcp_runner_str(cmd) || (!is_toksi_mcp_command_str(cmd) && !cmd.is_empty()) {
+                                        issues.push(format!("{}: legacy or non-toksi runner ({})", tool, cmd));
                                     }
                                 }
                             }
@@ -1069,8 +1078,8 @@ pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
                             if let Some((k, v)) = t.split_once('=') {
                                 if k.trim() == "command" {
                                     let cmd = v.trim().trim_matches('"').trim_matches('\'');
-                                    if is_legacy_mcp_runner_str(cmd) {
-                                        issues.push(format!("{}: legacy runner {}", tool, cmd));
+                                    if is_legacy_mcp_runner_str(cmd) || (!is_toksi_mcp_command_str(cmd) && !cmd.is_empty()) {
+                                        issues.push(format!("{}: legacy or non-toksi runner ({})", tool, cmd));
                                     }
                                 }
                             }
@@ -1084,8 +1093,8 @@ pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
             if let Some(raw) = read_file_safe(&p) {
                 for &tool in MANAGED_MCP_TOOLS {
                     let marker = format!("id: mcp-{}", tool);
-                    if raw.contains(&marker) && (raw.contains("npx") || raw.contains("uvx") || raw.contains("pip")) {
-                        issues.push(format!("{}: legacy runner in dsh patch", tool));
+                    if raw.contains(&marker) && (raw.contains("npx") || raw.contains("uvx") || raw.contains("pip") || raw.contains("tokless") || !raw.contains("toksi")) {
+                        issues.push(format!("{}: legacy or non-toksi runner in dsh patch", tool));
                     }
                 }
             }
@@ -1098,8 +1107,8 @@ pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
                         if let Some(servers) = nested_child_ref(&cfg, &key) {
                             for &tool in MANAGED_MCP_TOOLS {
                                 if let Some(v) = servers.get(tool) {
-                                    if is_legacy_mcp_entry(v) {
-                                        issues.push(format!("{}: legacy runner in {}", tool, path));
+                                    if is_legacy_mcp_entry(v) || (!toksi_mcp_entry(v) && !v.is_null()) {
+                                        issues.push(format!("{}: legacy or non-toksi runner in {}", tool, crate::commands::doctor_probe::short_path(&path)));
                                     }
                                 }
                             }
@@ -1122,7 +1131,22 @@ pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
                 for &tool in MANAGED_MCP_TOOLS {
                     let header = format!("mcp_servers.{}", tool);
                     if let Some(block) = crate::util::toml::block_text(&next, &header) {
-                        if block.contains("npx") || block.contains("uvx") || block.contains("pip") || block.contains("python") {
+                        let is_legacy = block.contains("npx")
+                            || block.contains("uvx")
+                            || block.contains("pip")
+                            || block.contains("python")
+                            || block.contains("tokless")
+                            || block.contains("pjm-mcp")
+                            || block.lines().any(|l| {
+                                if let Some((k, v)) = l.trim().split_once('=') {
+                                    if k.trim() == "command" {
+                                        let cmd = v.trim().trim_matches('"').trim_matches('\'');
+                                        return is_legacy_mcp_runner_str(cmd) || (!is_toksi_mcp_command_str(cmd) && !cmd.is_empty());
+                                    }
+                                }
+                                false
+                            });
+                        if is_legacy {
                             next = crate::util::toml::remove_block(&next, &header);
                             purged.push(format!("{}: {}", agent_id, tool));
                         }
@@ -1140,7 +1164,22 @@ pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
                 for &tool in MANAGED_MCP_TOOLS {
                     let header = format!("mcp_servers.{}", tool);
                     if let Some(block) = crate::util::toml::block_text(&next, &header) {
-                        if block.contains("npx") || block.contains("uvx") || block.contains("pip") || block.contains("python") {
+                        let is_legacy = block.contains("npx")
+                            || block.contains("uvx")
+                            || block.contains("pip")
+                            || block.contains("python")
+                            || block.contains("tokless")
+                            || block.contains("pjm-mcp")
+                            || block.lines().any(|l| {
+                                if let Some((k, v)) = l.trim().split_once('=') {
+                                    if k.trim() == "command" {
+                                        let cmd = v.trim().trim_matches('"').trim_matches('\'');
+                                        return is_legacy_mcp_runner_str(cmd) || (!is_toksi_mcp_command_str(cmd) && !cmd.is_empty());
+                                    }
+                                }
+                                false
+                            });
+                        if is_legacy {
                             next = crate::util::toml::remove_block(&next, &header);
                             purged.push(format!("{}: {}", agent_id, tool));
                         }
@@ -1156,7 +1195,13 @@ pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
             if let Some(raw) = read_file_safe(&p) {
                 for &tool in MANAGED_MCP_TOOLS {
                     let marker = format!("id: mcp-{}", tool);
-                    if raw.contains(&marker) && (raw.contains("npx") || raw.contains("uvx") || raw.contains("pip")) {
+                    if raw.contains(&marker)
+                        && (raw.contains("npx")
+                            || raw.contains("uvx")
+                            || raw.contains("pip")
+                            || raw.contains("tokless")
+                            || !raw.contains("toksi"))
+                    {
                         let _ = remove_dsh_mcp_block(&p, tool);
                         purged.push(format!("{}: {}", agent_id, tool));
                     }
@@ -1172,7 +1217,7 @@ pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
                         if let Some(servers) = nested_child(&mut cfg, &key, false) {
                             for &tool in MANAGED_MCP_TOOLS {
                                 if let Some(v) = servers.get(tool) {
-                                    if is_legacy_mcp_entry(v) {
+                                    if is_legacy_mcp_entry(v) || (!toksi_mcp_entry(v) && !v.is_null()) {
                                         servers.remove(tool);
                                         changed = true;
                                         purged.push(format!("{}: {}", agent_id, tool));

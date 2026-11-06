@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/cursor.rs
 // created: 2026-10-11
-// lastModified: 2026-11-02
+// lastModified: 2026-11-06
 
 use std::collections::HashSet;
 use std::fs;
@@ -1848,8 +1848,7 @@ pub fn cursor_cli_is_cursor() -> bool {
 pub fn detect_cursor() -> Detection {
     let cli = cursor_cli_is_cursor();
     let desktop = cursor_desktop_installed();
-    let config =
-        std::env::var("TOKSI_TEST").unwrap_or_default() == "1" && exists(cursor_config_dir());
+    let config = exists(cursor_config_dir()) || exists(".cursor") || exists(".cursorrules");
     if cli && desktop {
         Detection {
             installed: true,

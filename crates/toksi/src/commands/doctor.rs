@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor.rs
 // created: 2026-10-05
-// lastModified: 2026-11-04
+// lastModified: 2026-11-06
 
 use std::env;
 use crate::commands::doctor_probe::{format_runtime_issues, probe_agent_runtime, RuntimeIssue};
@@ -50,6 +50,37 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
         }
 
         let mut fixed_count = 0;
+        #[cfg(windows)]
+        {
+            if let Some(_) = crate::env_injector::windows::get_env_reg_value("CLOUD_CODE_URL") {
+                let _ = crate::env_injector::windows::delete_env_reg_value("CLOUD_CODE_URL");
+                crate::env_injector::windows::broadcast_setting_change();
+                L.raw(&format!("  {} Cleared stale CLOUD_CODE_URL from Windows registry", C.green(Sym::CHECK)));
+                fixed_count += 1;
+            }
+        }
+
+        if let Ok(report) = crate::rules::sync_workspace_rules(".", crate::rules::RuleKind::all()) {
+            if !report.updated_files.is_empty() {
+                L.raw(&format!(
+                    "  {} Synced in-tree rules across {} workspace file(s)",
+                    C.green(Sym::CHECK),
+                    report.updated_files.len()
+                ));
+                fixed_count += report.updated_files.len();
+            }
+        }
+        if let Ok(report) = crate::rules::sync_global_rules(crate::rules::RuleKind::all()) {
+            if !report.updated_files.is_empty() {
+                L.raw(&format!(
+                    "  {} Synced in-tree rules across {} global config file(s)",
+                    C.green(Sym::CHECK),
+                    report.updated_files.len()
+                ));
+                fixed_count += report.updated_files.len();
+            }
+        }
+
         for agent in &all_agents {
             if !agent.detect().installed {
                 continue;
@@ -191,6 +222,15 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
         tree_close();
     }
 
+    let rules_rows = doctor_rules_report(&cwd);
+    if !rules_rows.is_empty() {
+        tree_corner("Rules");
+        for r in rules_rows {
+            tree_leaf(&r);
+        }
+        tree_close();
+    }
+
     let broken = reports.iter().filter(|r| !r.wired).count();
     let installed_agents = reports.len();
 
@@ -244,7 +284,7 @@ fn doctor_proxy_ports(reports: &[AgentReport]) -> Vec<String> {
         C.gray("stopped")
     };
     ports.push(format!(
-        "{} Headroom proxy (127.0.0.1:{}) â€” {}",
+        "{} Headroom proxy (127.0.0.1:{}) — {}",
         if main_running { C.green(Sym::CHECK) } else { C.gray(Sym::BULLET) },
         main_port,
         main_status
@@ -286,7 +326,7 @@ fn doctor_proxy_ports(reports: &[AgentReport]) -> Vec<String> {
     for r in reports {
         if r.id == "copilot" && crate::agents::copilot::copilot_proxy_wired() {
             ports.push(format!(
-                "{} Copilot proxy (127.0.0.1:{}) â€” {}",
+                "{} Copilot proxy (127.0.0.1:{}) — {}",
                 C.green(Sym::CHECK),
                 crate::agents::copilot::copilot_proxy_port(),
                 C.green("wired")
@@ -294,7 +334,7 @@ fn doctor_proxy_ports(reports: &[AgentReport]) -> Vec<String> {
         }
         if r.id == "grok" && crate::agents::grok::grok_oauth_proxy_wired() {
             ports.push(format!(
-                "{} Grok OAuth proxy (127.0.0.1:{}) â€” {}",
+                "{} Grok OAuth proxy (127.0.0.1:{}) — {}",
                 C.green(Sym::CHECK),
                 crate::util::grok::grok_oauth_proxy_port(),
                 C.green("wired")
@@ -367,6 +407,65 @@ fn doctor_env_report() -> Vec<String> {
         }
     }
 
+    let process_proxies: Vec<String> = [
+        "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+        "http_proxy", "https_proxy", "all_proxy",
+        "GOOGLE_GEMINI_BASE_URL", "ANTHROPIC_BASE_URL", "CLOUD_CODE_URL"
+    ]
+    .iter()
+    .filter_map(|&k| std::env::var(k).ok().map(|v| format!("{}={}", k, v)))
+    .collect();
+
+    if !process_proxies.is_empty() {
+        rows.push(format!(
+            "{} Process proxies: active ({})",
+            C.cyan(Sym::BULLET),
+            process_proxies.join(", ")
+        ));
+    }
+
+    rows
+}
+
+fn doctor_rules_report(workspace: &str) -> Vec<String> {
+    let mut rows = Vec::new();
+    let ws = std::path::Path::new(workspace);
+    let rule_files = [
+        ("CLAUDE.md", "Claude Code"),
+        ("AGENTS.md", "OpenCode / Agents"),
+        ("GEMINI.md", "Gemini / Antigravity"),
+        (".github/copilot-instructions.md", "GitHub Copilot"),
+        (".clinerules", "Cline"),
+        ("CODEX.md", "Codex"),
+        (".cursorrules", "Cursor"),
+    ];
+
+    for (file, label) in rule_files {
+        let p = ws.join(file);
+        if p.exists() {
+            let raw = crate::util::paths::read_file_safe(&p).unwrap_or_default();
+            let has_principles = raw.contains("## Principles");
+            let has_caveman = raw.contains("## Response Style (caveman)");
+            let has_ponytail = raw.contains("## Build Discipline (ponytail)");
+            if has_principles && has_caveman && has_ponytail {
+                rows.push(format!("{} {} ({}) — in-tree rules synced", C.green(Sym::CHECK), file, label));
+            } else {
+                rows.push(format!("{} {} ({}) — partial/missing in-tree rules", C.yellow(Sym::WARN), file, label));
+            }
+        }
+    }
+
+    let cursor_rules_dir = ws.join(".cursor").join("rules");
+    if cursor_rules_dir.is_dir() {
+        let principles_ok = cursor_rules_dir.join("principles.mdc").exists();
+        let caveman_ok = cursor_rules_dir.join("response-style.mdc").exists();
+        let ponytail_ok = cursor_rules_dir.join("build-discipline.mdc").exists();
+        if principles_ok && caveman_ok && ponytail_ok {
+            rows.push(format!("{} .cursor/rules/*.mdc (Cursor) — in-tree rules synced", C.green(Sym::CHECK)));
+        } else {
+            rows.push(format!("{} .cursor/rules/*.mdc (Cursor) — missing in-tree rule files", C.yellow(Sym::WARN)));
+        }
+    }
     rows
 }
 
@@ -464,4 +563,24 @@ fn doctor_status_lines(outdated: i32, broken: usize, installed_agents: usize) ->
         ));
     }
     lines
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_doctor_rules_report_on_empty_dir() {
+        let rows = doctor_rules_report(".");
+        // Empty directory or project directory returns valid formatted lines without panicking
+        for r in rows {
+            assert!(!r.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_doctor_env_report_runs() {
+        let rows = doctor_env_report();
+        assert!(!rows.is_empty());
+    }
 }

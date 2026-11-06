@@ -22,8 +22,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - ...and 23 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...55 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Phase 05: CodeGraph Pure Rust Engine refreshed with upstream inspect-vault updates (C/C++ member type refs, Python parameterized base, Go uppercase const/var exports, JS/TS subscript exports) [crates/toksi/src/codegraph/mod.rs:1]
+- ...56 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 07: Headroom Deep Integration & Gateway Catalog refreshed with 39+ providers (added BedrockMantle, SageMaker, Bifrost), byte-for-byte critical log survival, AST-aware code compression, and dual-tier semantic cache [crates/toksi/src/gateway/providers/mod.rs]
 - Master architecture v3.3: unified 5-port daemon (:8787,:8789,:8790,:9099,:9100), root .toksi workspace consolidation, normalized hooks (<tool>-hook <agent>) and MCP names, 39+ BYOK providers with Bifrost and smart CLI bridges, strict paid quota enforcement with zero-fail fallback, ground-truth token accounting, forward-slash paths, mouse TUI and background Web UI [crates/toksi/CONSOLIDATION_PLAN.md:1]
 - Master architecture v3.3 plan approved: unified 5-port daemon (:8787,:8789,:8790,:9099,:9100), root .toksi workspace consolidation, normalized hooks (<tool>-hook <agent>) and MCP names (projectmem, context, codegraph), 39+ BYOK providers with Bifrost and smart CLI bridges, strict paid quota enforcement with zero-fail fallback, ground-truth token accounting, forward-slash paths, mouse TUI and background Web UI [crates/toksi/CONSOLIDATION_PLAN.md:1]
@@ -38,6 +37,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - Phase 07: Headroom Deep Integration & Gateway Catalog verified. Dropped headroom-py; implemented core token compression (log deduplication with byte-for-byte error/fatal/panic survival, AST code pruner, JSON minifier, dynamic MCP schema pruner, 1024-token prompt cache alignment, adaptive memory governor) and Native Enterprise AI Gateway (39+ in-tree providers, 8-class failure cascade, load balancer, task complexity router, virtual key governance, dual-tier semantic cache with similarity >= 0.92, drop-in SDK endpoints). 75 tests passing with 0 warnings. [crates/toksi/src/headroom/mod.rs:1]
 - Phase 10 executed: non-destructive environment injection via Windows HKCU\Environment registry direct Win32 APIs, broadcast WM_SETTINGCHANGE via SendMessageTimeoutW, Unix session env via systemd/launchctl/environment.d, and RAII TeardownGuard with process signal handlers (SIGINT, SIGTERM, Ctrl+C). 323 tests passing with 0 warnings. [crates/toksi/src/env_injector/mod.rs:1]
 - Phase 10: Non-destructive user environment management verified across Windows (direct HKCU\Environment registry + WM_SETTINGCHANGE SendMessageTimeoutW broadcast) and Unix (systemd/launchctl/environment.d). Connected to toksi daemon start and graceful teardown guard. Explicitly unsets CLOUD_CODE_URL to prevent auth/quota bypass. Zero warnings, 100% tests pass. [crates/toksi/src/env_injector/mod.rs:1]
+- Phase 11: Agent Doctor & Self-Healing completed. Upgraded toksi doctor and toksi doctor --fix to audit all 17 agents, purge broken legacy MCP runners across TOML/YAML/JSON, sync in-tree rules, and report environment and process proxies.
 
 ## Notes
 - New feature: feat(plan): detail phase 15-16 execution specs and wire aimemory mcp [crates/toksi/src/util/mcpspawn.rs]

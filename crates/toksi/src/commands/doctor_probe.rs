@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor_probe.rs
 // created: 2026-10-05
-// lastModified: 2026-11-03
+// lastModified: 2026-11-06
 
 use std::env;
 use std::io;
@@ -18,9 +18,9 @@ use crate::commands::mcp_proxy::resolve_mcp_command;
 use crate::util::jsonc::try_parse_jsonc;
 use crate::util::mcpspawn::McpSpawn;
 use crate::util::paths::{
-    antigravity_paths_resolved, claude_code_paths, cline_paths_resolved,
-    codex_paths_resolved, copilot_paths_resolved, cursor_paths_resolved, home,
-    kilo_paths_resolved, opencode_paths_resolved, read_file_safe,
+    claude_code_paths, cline_paths_resolved,
+    codex_paths_resolved, copilot_paths_resolved, cursor_paths_resolved, grok_paths_resolved, home,
+    kilo_paths_resolved, opencode_paths_resolved, opencode_paths_v2, read_file_safe,
     split_command, which, IS_WIN,
 };
 
@@ -61,7 +61,47 @@ pub fn probe_agent_runtime(agent_id: &str) -> Vec<RuntimeIssue> {
     for legacy_issue in crate::agents::audit_agent_legacy_mcp(agent_id) {
         out.push(RuntimeIssue { kind: "mcp".into(), detail: legacy_issue });
     }
+    for issue in audit_agent_instruction_markers(agent_id) {
+        out.push(issue);
+    }
     out
+}
+
+pub fn audit_agent_instruction_markers(agent_id: &str) -> Vec<RuntimeIssue> {
+    let mut issues = Vec::new();
+    for p in agent_instruction_paths(agent_id) {
+        if let Some(raw) = read_file_safe(&p) {
+            let low = raw.to_ascii_lowercase();
+            if low.contains("<!-- tokless:") || low.contains("tokless-rtk") || low.contains("tokless:") {
+                issues.push(RuntimeIssue {
+                    kind: "instruction".into(),
+                    detail: format!("legacy tokless instruction markers in {}", short_path(&p)),
+                });
+            }
+            if raw.contains("@RTK.md") && !file_exists_any("RTK.md") && !file_exists_any(".agents/RTK.md") {
+                issues.push(RuntimeIssue {
+                    kind: "instruction".into(),
+                    detail: format!("dangling @RTK.md reference in {}", short_path(&p)),
+                });
+            }
+        }
+    }
+    issues
+}
+
+fn agent_instruction_paths(agent_id: &str) -> Vec<String> {
+    let h = home();
+    match agent_id {
+        "claude" => vec!["CLAUDE.md".into(), format!("{}/.claude/CLAUDE.md", h)],
+        "antigravity" => vec!["GEMINI.md".into(), format!("{}/.gemini/rules.md", h)],
+        "copilot" => vec![".github/copilot-instructions.md".into()],
+        "cline" => vec![".clinerules".into(), format!("{}/.cline/rules.md", h)],
+        "codex" => vec!["CODEX.md".into(), format!("{}/.codex/instructions.md", h)],
+        "cursor" => vec![".cursorrules".into()],
+        "grok" => vec![format!("{}/.grok/rules/AGENTS.md", h), "AGENTS.md".into()],
+        "dsh" => vec![format!("{}/.dsh/AGENTS.md", h), "AGENTS.md".into()],
+        _ => vec!["AGENTS.md".into(), ".agents/rules.md".into()],
+    }
 }
 
 pub fn probe_runtime_file(file: &RuntimeFile) -> Option<String> {
@@ -553,84 +593,60 @@ fn managed_runtime_files(agent_id: &str) -> Vec<RuntimeFile> {
 
 fn managed_mcp_spawns(agent_id: &str) -> Vec<McpSpawn> {
     let mut out = Vec::new();
+    let tools = crate::agents::MANAGED_MCP_TOOLS;
     match agent_id {
-        "claude" => {
-            out.extend(mcp_from_command_args_file(&claude_code_paths().global_json, "mcpServers", "codegraph"));
+        "codex" => {
+            for &tool in tools {
+                out.extend(mcp_from_codex_toml(tool));
+            }
+        }
+        "grok" => {
+            for &tool in tools {
+                out.extend(mcp_from_grok_toml(tool));
+            }
+        }
+        "dsh" => {
+            for &tool in tools {
+                out.extend(mcp_from_dsh_yaml(tool));
+            }
         }
         "opencode" => {
-            out.extend(mcp_from_command_array_file(&opencode_paths_resolved().config, "mcp", "codegraph"));
+            for &tool in tools {
+                out.extend(mcp_from_command_array_file(&opencode_paths_resolved().config, "mcp", tool));
+            }
         }
-        "codex" => {
-            out.extend(mcp_from_codex_toml("codegraph"));
+        "opencode2" => {
+            for &tool in tools {
+                out.extend(mcp_from_command_array_file(&opencode_paths_v2().config, "mcp", tool));
+            }
         }
-        "antigravity" => {
-            out.extend(mcp_from_command_args_file(&antigravity_paths_resolved().mcp_config_cli, "mcpServers", "codegraph"));
+        "kilo" => {
+            for &tool in tools {
+                out.extend(mcp_from_command_array_file(&kilo_paths_resolved().config, "mcp", tool));
+            }
         }
-        "copilot" => {
-            let p = copilot_paths_resolved();
-            out.extend(mcp_from_command_args_file(&p.mcp_config, "mcpServers", "codegraph"));
-        }
-        "droid" => {
-            out.extend(mcp_from_command_args_file(&format!("{}/.factory/mcp.json", home()), "mcpServers", "codegraph"));
-        }
-        "pi" => {
-            out.extend(mcp_from_command_args_file(&format!("{}/mcp.json", pi_agent_dir_resolved()), "mcpServers", "codegraph"));
-        }
-        "omp" => {
-            out.extend(mcp_from_command_args_file(&format!("{}/mcp.json", omp_agent_dir_resolved()), "mcpServers", "codegraph"));
-        }
-        "cline" => {
-            let p = cline_paths_resolved();
-            for tool_id in &["codegraph", "context-mode"] {
-                for spawn in mcp_from_command_args_file(&p.mcp_config, "mcpServers", tool_id) {
-                    if is_managed_cline_mcp_spawn(tool_id, &spawn) {
-                        out.push(spawn);
-                    }
+        _ => {
+            let json_files = crate::agents::agent_mcp_json_files(agent_id);
+            for (path, key) in json_files {
+                for &tool in tools {
+                    out.extend(mcp_from_command_args_file(&path, &key, tool));
                 }
             }
         }
-        _ => {}
     }
     out
 }
 
-fn is_managed_cline_mcp_spawn(tool_id: &str, spawn: &McpSpawn) -> bool {
-    let base = path_base_lowercase(&spawn.command);
-    if base != "toksi" && base != "toksi.exe" || spawn.args.len() < 3 || spawn.args[0] != "run-mcp" {
-        return false;
+fn nested_json_obj_ref<'a>(cfg: &'a serde_json::Map<String, Value>, key: &str) -> Option<&'a serde_json::Map<String, Value>> {
+    if let Some(o) = cfg.get(key).and_then(|v| v.as_object()) {
+        return Some(o);
     }
-    match tool_id {
-        "context-mode" => {
-            spawn.args.len() >= 3 && spawn.args[1] == "--context-mode" && is_cline_mcp_target(&spawn.args[2..], "context-mode")
-        }
-        "codegraph" => {
-            spawn.args.len() >= 4 && spawn.args[1] == "--agent" && spawn.args[2] == "cline" && is_cline_mcp_target(&spawn.args[3..], "codegraph")
-        }
-        _ => false,
+    let parts: Vec<&str> = key.split('.').collect();
+    let mut cur = cfg;
+    for part in parts {
+        cur = cur.get(part)?.as_object()?;
     }
-}
-
-fn is_cline_mcp_target(args: &[String], target: &str) -> bool {
-    if args.is_empty() {
-        return false;
-    }
-    let mut base = path_base_lowercase(&args[0]);
-    for ext in &[".exe", ".cmd", ".bat"] {
-        if base.ends_with(ext) {
-            base.truncate(base.len() - ext.len());
-        }
-    }
-    if base == target {
-        return true;
-    }
-    if base == "npx" && args.len() >= 3 && args[1] == "--no-install" {
-        return target == "context-mode" && args[2] == "context-mode"
-            || target == "codegraph" && args[2] == "@colbymchenry/codegraph";
-    }
-    if base == "cmd" && args.len() >= 3 && args[1].eq_ignore_ascii_case("/c") {
-        return is_cline_mcp_target(&args[2..], target);
-    }
-    false
+    Some(cur)
 }
 
 fn mcp_from_command_args_file(path: &str, servers_key: &str, tool_id: &str) -> Vec<McpSpawn> {
@@ -642,7 +658,7 @@ fn mcp_from_command_args_file(path: &str, servers_key: &str, tool_id: &str) -> V
         Some(Value::Object(o)) => o,
         _ => return Vec::new(),
     };
-    let sv = match cfg.get(servers_key).and_then(|v| v.as_object()) {
+    let sv = match nested_json_obj_ref(&cfg, servers_key) {
         Some(o) => o,
         None => return Vec::new(),
     };
@@ -650,8 +666,11 @@ fn mcp_from_command_args_file(path: &str, servers_key: &str, tool_id: &str) -> V
         Some(o) => o,
         None => return Vec::new(),
     };
-    let cmd = match ev.get("command").and_then(|v| v.as_str()) {
-        Some(c) if !c.is_empty() => c.to_string(),
+    let cmd = match ev.get("command") {
+        Some(Value::String(c)) if !c.is_empty() => c.to_string(),
+        Some(Value::Array(arr)) => {
+            arr.first().and_then(|v| v.as_str()).unwrap_or_default().to_string()
+        }
         _ => return Vec::new(),
     };
     let mut args = Vec::new();
@@ -661,6 +680,15 @@ fn mcp_from_command_args_file(path: &str, servers_key: &str, tool_id: &str) -> V
                 args.push(s.to_string());
             }
         }
+    } else if let Some(Value::Array(arr)) = ev.get("command") {
+        for a in arr.iter().skip(1) {
+            if let Some(s) = a.as_str() {
+                args.push(s.to_string());
+            }
+        }
+    }
+    if cmd.is_empty() {
+        return Vec::new();
     }
     vec![McpSpawn { command: cmd, args }]
 }
@@ -674,7 +702,7 @@ fn mcp_from_command_array_file(path: &str, mcp_key: &str, tool_id: &str) -> Vec<
         Some(Value::Object(o)) => o,
         _ => return Vec::new(),
     };
-    let mm = match cfg.get(mcp_key).and_then(|v| v.as_object()) {
+    let mm = match nested_json_obj_ref(&cfg, mcp_key) {
         Some(o) => o,
         None => return Vec::new(),
     };
@@ -701,9 +729,8 @@ fn mcp_from_command_array_file(path: &str, mcp_key: &str, tool_id: &str) -> Vec<
     }]
 }
 
-fn mcp_from_codex_toml(tool_id: &str) -> Vec<McpSpawn> {
-    let p = codex_paths_resolved();
-    let raw = match read_file_safe(&p.config) {
+fn mcp_from_toml_file(path: &str, tool_id: &str) -> Vec<McpSpawn> {
+    let raw = match read_file_safe(path) {
         Some(r) => r,
         None => return Vec::new(),
     };
@@ -730,6 +757,48 @@ fn mcp_from_codex_toml(tool_id: &str) -> Vec<McpSpawn> {
         for sm in re_str.captures_iter(am.as_str()) {
             if let Some(m) = sm.get(1) {
                 args.push(toml_unescape(m.as_str()));
+            }
+        }
+    }
+    vec![McpSpawn { command: cmd, args }]
+}
+
+fn mcp_from_codex_toml(tool_id: &str) -> Vec<McpSpawn> {
+    mcp_from_toml_file(&codex_paths_resolved().config, tool_id)
+}
+
+fn mcp_from_grok_toml(tool_id: &str) -> Vec<McpSpawn> {
+    mcp_from_toml_file(&grok_paths_resolved().config, tool_id)
+}
+
+fn mcp_from_dsh_yaml(tool_id: &str) -> Vec<McpSpawn> {
+    let p = crate::agents::dsh_patch_file();
+    let raw = match read_file_safe(&p) {
+        Some(r) => r,
+        None => return Vec::new(),
+    };
+    let marker = format!("id: mcp-{}", tool_id);
+    let start = match raw.find(&marker) {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
+    let rest = &raw[start..];
+    let end = rest[1..].find("\n- insert:").map(|idx| idx + 1).unwrap_or(rest.len());
+    let block = &rest[..end];
+
+    let re_cmd = Regex::new(r#"(?m)^\s*command:\s*"((?:\\.|[^"\\])*)""#).unwrap();
+    let re_args = Regex::new(r#"(?m)^\s*args:\s*\[([^\]]*)\]"#).unwrap();
+    let re_str = Regex::new(r#""((?:\\.|[^"\\])*)""#).unwrap();
+
+    let cmd = match re_cmd.captures(block).and_then(|c| c.get(1)) {
+        Some(m) => json_unescape(m.as_str()),
+        None => return Vec::new(),
+    };
+    let mut args = Vec::new();
+    if let Some(am) = re_args.captures(block).and_then(|c| c.get(1)) {
+        for sm in re_str.captures_iter(am.as_str()) {
+            if let Some(m) = sm.get(1) {
+                args.push(json_unescape(m.as_str()));
             }
         }
     }
@@ -805,6 +874,25 @@ mod tests {
             RuntimeIssue { kind: "mcp".into(), detail: "missing binary".into() },
         ];
         assert_eq!(format_runtime_issues(&issues), "broken hook, missing binary");
+    }
+
+    #[test]
+    fn test_nested_json_obj_ref() {
+        let mut map = serde_json::Map::new();
+        let mut nested = serde_json::Map::new();
+        nested.insert("servers".into(), Value::Object(serde_json::Map::new()));
+        map.insert("mcp".into(), Value::Object(nested));
+        map.insert("amp.mcpServers".into(), Value::Object(serde_json::Map::new()));
+
+        assert!(nested_json_obj_ref(&map, "amp.mcpServers").is_some());
+        assert!(nested_json_obj_ref(&map, "mcp.servers").is_some());
+        assert!(nested_json_obj_ref(&map, "nonexistent").is_none());
+    }
+
+    #[test]
+    fn test_audit_agent_instruction_markers_clean() {
+        let issues = audit_agent_instruction_markers("unknown_agent");
+        assert!(issues.is_empty());
     }
 }
 
