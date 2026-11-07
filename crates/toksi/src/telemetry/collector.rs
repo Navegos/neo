@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/telemetry/collector.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-06
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
@@ -212,6 +212,17 @@ impl MetricsCollector {
         self.active_requests.fetch_sub(1, Ordering::Relaxed);
     }
 
+    /// Checks whether an error indicates the request was dropped before reaching an upstream provider.
+    pub fn is_dropped_request(error_type: Option<&str>) -> bool {
+        match error_type {
+            Some(et) => {
+                et.eq_ignore_ascii_case("request_dropped")
+                    || et.eq_ignore_ascii_case("RequestDropped")
+            }
+            None => false,
+        }
+    }
+
     /// Record completed HTTP transport metrics (<10 µs hot path)
     pub fn record_http_request(
         &self,
@@ -247,13 +258,20 @@ impl MetricsCollector {
         agent: &str,
         virtual_key: &str,
     ) {
-        // Upstream request counter
-        let req_key = format!("provider=\"{}\",model=\"{}\"", provider, model);
-        if let Ok(mut map) = self.upstream_requests_total.write() {
-            *map.entry(req_key.clone()).or_insert(0) += 1;
+        let is_dropped = Self::is_dropped_request(error_type);
+
+        // A request dropped on a full provider queue never reached upstream,
+        // so it only counts as an error metric. It skips upstream_requests_total
+        // and upstream_latency_seconds.
+        if !is_dropped {
+            let req_key = format!("provider=\"{}\",model=\"{}\"", provider, model);
+            if let Ok(mut map) = self.upstream_requests_total.write() {
+                *map.entry(req_key).or_insert(0) += 1;
+            }
         }
 
         if status_code < 400 {
+            let req_key = format!("provider=\"{}\",model=\"{}\"", provider, model);
             if let Ok(mut map) = self.success_requests_total.write() {
                 *map.entry(req_key).or_insert(0) += 1;
             }
@@ -270,7 +288,9 @@ impl MetricsCollector {
             }
         }
 
-        self.upstream_latency_seconds.observe(latency_secs);
+        if !is_dropped {
+            self.upstream_latency_seconds.observe(latency_secs);
+        }
 
         // Tokens
         let tok_key = format!(

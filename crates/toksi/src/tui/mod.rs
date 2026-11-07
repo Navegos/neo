@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/mod.rs
 // created: 2026-10-30
-// lastModified: 2026-11-01
+// lastModified: 2026-11-06
 
 pub mod app;
 pub mod views;
@@ -98,9 +98,9 @@ pub fn run_tui_with_tab(initial_tab: usize) -> i32 {
                             // Row 2 is tab bar (y == 2)
                             if mouse.row == 2 {
                                 let width = terminal.size().map(|s| s.width).unwrap_or(80);
-                                let tab_width = (width / 6).max(1);
+                                let tab_width = (width / app.tab_names.len() as u16).max(1);
                                 let clicked_tab = (mouse.column / tab_width) as usize;
-                                if clicked_tab < 6 {
+                                if clicked_tab < app.tab_names.len() {
                                     app.current_tab = clicked_tab;
                                 }
                             }
@@ -139,10 +139,11 @@ fn render_ui(f: &mut Frame, app: &mut App) {
     match app.current_tab {
         0 => render_monitor_view(f, chunks[2], app),
         1 => render_agents_view(f, chunks[2], app),
-        2 => render_memory_view(f, chunks[2], app),
-        3 => render_graph_view(f, chunks[2], app),
-        4 => render_headroom_view(f, chunks[2], app),
-        5 => render_logs_view(f, chunks[2], app),
+        2 => render_headroom_view(f, chunks[2], app),
+        3 => render_memory_view(f, chunks[2], app),
+        4 => render_graph_view(f, chunks[2], app),
+        5 => render_governance_view(f, chunks[2], app),
+        6 => render_logs_view(f, chunks[2], app),
         _ => {}
     }
 

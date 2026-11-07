@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "command": "C:\\Programs\\neo\\bin\\toksi.exe copilot-hook codegraph-index"
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "command": "C:\\Programs\\neo\\bin\\toksi.exe copilot-hook codegraph-index"
+      }
+    ],
+    "sessionStart": [
+      {
+        "type": "command",
+        "command": "C:\\Programs\\neo\\bin\\toksi.exe copilot-hook codegraph-index"
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "type": "command",
+        "command": "C:\\Programs\\neo\\bin\\toksi.exe copilot-hook codegraph-index"
+      }
+    ]
+  }
+}

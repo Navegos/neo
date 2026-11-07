@@ -6,6 +6,7 @@
 // lastModified: 2026-10-31
 
 pub mod agents;
+pub mod governance;
 pub mod graph;
 pub mod headroom;
 pub mod logs;
@@ -13,6 +14,7 @@ pub mod memory;
 pub mod monitor;
 
 pub use agents::*;
+pub use governance::*;
 pub use graph::*;
 pub use headroom::*;
 pub use logs::*;

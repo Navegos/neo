@@ -521,14 +521,14 @@ Continuous re-audit against reference implementations in `neo/inspect-vault/*` t
 ## 9. Master-Plan-Aware Ready-to-Run Prompts
 
 > **Zero Token-Waste Modular Execution**:  
-> To execute without context saturation, each phase prompt is isolated in `.gemini/antigravity/brain/*.md`. Run each phase in a separate chat session:
-> - **Phase 15.1**: [`.gemini/antigravity/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md`](../../.gemini/antigravity/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md)
-> - **Phase 15.2**: [`.gemini/antigravity/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`](../../.gemini/antigravity/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md)
-> - **Phase 15.3**: [`.gemini/antigravity/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`](../../.gemini/antigravity/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md)
-> - **Phase 15.4**: [`.gemini/antigravity/brain/PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md`](../../.gemini/antigravity/brain/PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md)
-> - **Phase 16.1**: [`.gemini/antigravity/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md`](../../.gemini/antigravity/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md)
-> - **Phase 16.2**: [`.gemini/antigravity/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`](../../.gemini/antigravity/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md)
-> - **Phase 16.3**: [`.gemini/antigravity/brain/PHASE_16_3_README_AND_VERIFICATION.md`](../../.gemini/antigravity/brain/PHASE_16_3_README_AND_VERIFICATION.md)
+> To execute without context saturation, each phase prompt is isolated in `.agents/brain/*.md`. Run each phase in a separate chat session:
+> - **Phase 15.1**: [`.agents/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md`](../../.agents/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md)
+> - **Phase 15.2**: [`.agents/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`](../../.agents/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md)
+> - **Phase 15.3**: [`.agents/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`](../../.agents/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md)
+> - **Phase 15.4**: [`.agents/brain/PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md`](../../.agents/brain/PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md)
+> - **Phase 16.1**: [`.agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md`](../../.agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md)
+> - **Phase 16.2**: [`.agents/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`](../../.agents/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md)
+> - **Phase 16.3**: [`.agents/brain/PHASE_16_3_README_AND_VERIFICATION.md`](../../.agents/brain/PHASE_16_3_README_AND_VERIFICATION.md)
 
 ### Phase 15: Unified 5-Port Daemon, Paid Quota Enforcement, Smart Agent CLI Providers & Standards Normalization
 ```text

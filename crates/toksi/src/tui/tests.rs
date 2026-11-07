@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/tests.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-06
 
 use super::app::*;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
@@ -21,7 +21,7 @@ fn press_key(code: KeyCode) -> KeyEvent {
 fn test_app_initialization_and_tabs() {
     let app = App::new();
     assert_eq!(app.current_tab, 0);
-    assert_eq!(app.tab_names.len(), 6);
+    assert_eq!(app.tab_names.len(), 7);
     assert!(!app.should_quit);
     assert!(!app.monitor.waterfall.is_empty());
 }
@@ -41,12 +41,18 @@ fn test_tab_navigation_keys() {
     app.handle_key(press_key(KeyCode::Char('5')));
     assert_eq!(app.current_tab, 4);
 
+    app.handle_key(press_key(KeyCode::Char('6')));
+    assert_eq!(app.current_tab, 5);
+
+    app.handle_key(press_key(KeyCode::Char('7')));
+    assert_eq!(app.current_tab, 6);
+
     app.handle_key(press_key(KeyCode::Char('1')));
     assert_eq!(app.current_tab, 0);
 
     // Tab backwards
     app.handle_key(press_key(KeyCode::BackTab));
-    assert_eq!(app.current_tab, 5);
+    assert_eq!(app.current_tab, 6);
 }
 
 #[test]
@@ -60,7 +66,7 @@ fn test_quit_key() {
 #[test]
 fn test_memory_filter_and_search() {
     let mut app = App::new();
-    app.current_tab = 2; // Memory tab
+    app.current_tab = 3; // Memory tab (Tab 4)
 
     let total = app.memory.items.len();
     assert!(total > 0);
@@ -84,7 +90,7 @@ fn test_memory_filter_and_search() {
 #[test]
 fn test_graph_symbol_filter() {
     let mut app = App::new();
-    app.current_tab = 3; // Graph tab
+    app.current_tab = 4; // Graph tab (Tab 5)
 
     app.graph.search_query = "top".to_string();
     let filtered = app.graph.filtered_symbols();
@@ -92,6 +98,32 @@ fn test_graph_symbol_filter() {
     for s in filtered {
         assert!(s.name.to_lowercase().contains("top") || s.file.to_lowercase().contains("top"));
     }
+}
+
+#[test]
+fn test_governance_navigation_and_actions() {
+    let mut app = App::new();
+    app.current_tab = 5; // Governance tab (Tab 6)
+
+    assert_eq!(app.governance.keys.len(), 4);
+    assert_eq!(app.governance.selected, 0);
+
+    // Down navigation
+    app.handle_key(press_key(KeyCode::Char('j')));
+    assert_eq!(app.governance.selected, 1);
+
+    // Up navigation
+    app.handle_key(press_key(KeyCode::Char('k')));
+    assert_eq!(app.governance.selected, 0);
+
+    // Reset window
+    app.handle_key(press_key(KeyCode::Char('r')));
+    assert!(app.status_message.is_some());
+
+    // Clear trips
+    app.governance.circuit_breaker_trips = 3;
+    app.handle_key(press_key(KeyCode::Char('c')));
+    assert_eq!(app.governance.circuit_breaker_trips, 0);
 }
 
 #[test]

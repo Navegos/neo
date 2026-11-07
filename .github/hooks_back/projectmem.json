@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "command": "C:\\Programs\\neo\\bin\\toksi.exe projectmem-hook copilot"
+      }
+    ]
+  }
+}

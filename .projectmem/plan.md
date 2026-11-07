@@ -18,7 +18,7 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
 
 ### toksi — Native Rust Consolidation & Single-Daemon Cockpit (v3.3)
 > Master blueprint: `crates/toksi/CONSOLIDATION_PLAN.md` & `crates/toksi/PLAN.md`.
-> Modular Brain Execution Index: `.gemini/antigravity/brain/INDEX_AND_EXECUTION_GUIDE.md`
+> Modular Brain Execution Index: `.agents/brain/INDEX_AND_EXECUTION_GUIDE.md`
 - [x] Phase 1: RTK Engine Integration (100+ filters, ANSI stripper, `toksi rtk`)
 - [x] Phase 2: ProjectMem Pure Rust Port (schema, JSONL store, summary, precheck, MCP)
 - [x] Phase 3: Context-Mode Pure Rust Port (sandbox runner, FTS5 chunker, `ctx_*` tools)
@@ -41,10 +41,10 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
   - [x] Auto-inject authenticated headers into proxy requests when local agents omit credentials
   - [x] Add `toksi auth` and `toksi db` CLI subcommands plus `toksi doctor` probes
 - [ ] Phase 15: Unified 5-Port Daemon, Paid Quota Enforcement, Smart CLI Providers & Standards Normalization:
-  > Plan 15.1: `.gemini/antigravity/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md`
-  > Plan 15.2: `.gemini/antigravity/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`
-  > Plan 15.3: `.gemini/antigravity/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`
-  > Plan 15.4: `.gemini/antigravity/brain/PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md`
+  > Plan 15.1: `.agents/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md`
+  > Plan 15.2: `.agents/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`
+  > Plan 15.3: `.agents/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`
+  > Plan 15.4: `.agents/brain/PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md`
   - [ ] Upgrade `toksi daemon start` to supervise all 5 dedicated endpoints simultaneously:
     * Port 8787: Headroom Streaming Proxy (Antigravity, Grok)
     * Port 8789: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`)
@@ -76,9 +76,9 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
   - [ ] Update `help_text()` in `crates/toksi/src/main.rs` with comprehensive usage information for all commands, tools, ports, and flags
   - [ ] Ensure 0 compiler warnings and all tests pass
 - [ ] Phase 16: Mouse-Capable TUI & Enterprise Web UI Cockpit:
-  > Plan 16.1: `.gemini/antigravity/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md`
-  > Plan 16.2: `.gemini/antigravity/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`
-  > Plan 16.3: `.gemini/antigravity/brain/PHASE_16_3_README_AND_VERIFICATION.md`
+  > Plan 16.1: `.agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md`
+  > Plan 16.2: `.agents/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`
+  > Plan 16.3: `.agents/brain/PHASE_16_3_README_AND_VERIFICATION.md`
   - [ ] Enable Crossterm mouse capture (`EnableMouseCapture`) in `crates/toksi/src/tui/` with interactive tab switching, row selection, action buttons, and scroll
   - [ ] Upgrade embedded Web Dashboard on port 9100 in `crates/toksi/src/dashboard/assets/`:
     * Non-blocking background execution without monopolizing terminal windows

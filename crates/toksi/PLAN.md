@@ -137,7 +137,7 @@ Native configuration, automatic hook injection, and proxy protocol handling for 
 
 - **Phase 1-14**: Completed (RTK filters, ProjectMem, ContextMode, ICM, ai-memory, CodeGraph, in-tree rules, Headroom & Gateway, downloader purge, legacy healing, non-destructive env injection, agent doctor, telemetry/TUI, verification, OS Keyring & SQLite DB).
 - **Phase 15**: Unified 5-Port Daemon, Paid Quota Enforcement, Smart Agent CLI Providers & Standards Normalization:
-  * **Phase 15.1**: Workspace Topology & Standards Normalization (`.gemini/antigravity/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md`)
+  * **Phase 15.1**: Workspace Topology & Standards Normalization (`.agents/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md`)
     - Forward-slash `/` paths standard (Git Bash friendly) across all OSes.
     - Default SQLite config DB in `~/.toksi/toksi.db` (`users/.toksi/toksi.db`).
     - Single root `.toksi` workspace consolidation with row-level SQLite merge.
@@ -145,27 +145,27 @@ Native configuration, automatic hook injection, and proxy protocol handling for 
     - Root-only workspace agent configuration directories (`.claude`, `.cursor`, `.vscode`, `.grok`, `.cline`).
     - Uniform tool hook syntax: `<tool>-hook <agent>` (e.g. `codegraph-hook agy`, `projectmem-hook agy`, `context-hook agy`).
     - Normalized MCP tool names (`projectmem`, `context`, `codegraph`) and instruction dirs.
-  * **Phase 15.2**: Unified 5-Port Daemon & Copilot Supervision (`.gemini/antigravity/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`)
+  * **Phase 15.2**: Unified 5-Port Daemon & Copilot Supervision (`.agents/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`)
     - Single-command daemon launch (`toksi daemon start`) supervising all 5 ports simultaneously (:8787, :8789, :8790, :9099, :9100).
     - Network port performance isolation: Port 9099 dedicated to low-latency LLM inference streaming; Port 9100 dedicated to Web UI Cockpit.
     - Copilot dual-port isolation: Port 8789 (VS Code proxy) and Port 8790 (CLI proxy) launched and monitored without conflict.
-  * **Phase 15.3**: Smart Agent CLI Providers & Paid Quota Enforcement (`.gemini/antigravity/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`)
+  * **Phase 15.3**: Smart Agent CLI Providers & Paid Quota Enforcement (`.agents/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`)
     - Local Agent CLI providers (`AntigravityCli`, `CopilotCli`, `ClaudeCli`, `CursorBridge`, `GrokCli`) registered as first-class peer BYOK providers.
     - Smart detached background launch with OS Keyring / session tokens and `/livez` health probes.
     - Strict paid quota mandate: require active commercial paid tier or subscription; disqualify free-tier accounts from BYOK gateway pool.
     - Graceful inform & zero-fail policy: emit non-blocking info notice without crashing, panicking, or breaking sessions; smooth fallback to active paid provider or direct agent execution.
     - Zero-provider passthrough: routes cleanly if zero external providers or only local CLI agent configured.
-  * **Phase 15.4**: Ground-Truth Token Accounting & In-Tree Rules Sync (`.gemini/antigravity/brain/PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md`)
+  * **Phase 15.4**: Ground-Truth Token Accounting & In-Tree Rules Sync (`.agents/brain/PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md`)
     - Ground-truth session token accounting: parse real prompt/completion/cached tokens and upstream rate limits directly from live SSE streams. Zero virtual math.
     - Universal rules/skills/instructions synchronizer for all 17 agents across project workspace and user config homes.
     - Complete usage help text updated in `main.rs`.
 - **Phase 16**: Mouse-Capable TUI & Enterprise Web UI Cockpit:
-  * **Phase 16.1**: Mouse-Capable Interactive TUI (`.gemini/antigravity/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md`)
+  * **Phase 16.1**: Mouse-Capable Interactive TUI (`.agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md`)
     - Crossterm `EnableMouseCapture` for tab clicks, table row selection, action buttons, and mouse-wheel scrolling in `toksi tui` / `top`.
-  * **Phase 16.2**: High-Performance Web Telemetry Cockpit on Port 9100 (`.gemini/antigravity/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`)
+  * **Phase 16.2**: High-Performance Web Telemetry Cockpit on Port 9100 (`.agents/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`)
     - Non-blocking background Web UI on `http://127.0.0.1:9100` (`toksi dashboard`).
     - 17-agent live observation grid, ground-truth token savings, upstream quota gauges, provider toggle/weights, load balancer algorithms, and SQLite DB export/import.
-  * **Phase 16.3**: Technical README Rewrite & Workspace Verification (`.gemini/antigravity/brain/PHASE_16_3_README_AND_VERIFICATION.md`)
+  * **Phase 16.3**: Technical README Rewrite & Workspace Verification (`.agents/brain/PHASE_16_3_README_AND_VERIFICATION.md`)
     - Complete technical README in `crates/toksi/README.md` covering architecture, ports, setup, agents, providers, paid quotas, rules sync, and CLI reference.
     - Complete workspace verification with 0 compiler warnings and all tests passing.
 

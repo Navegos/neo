@@ -4,13 +4,13 @@
     "PreToolUse": [
       {
         "type": "command",
-        "command": "C:/Programs/neo/bin/toksi.exe rtk-hook copilot"
+        "command": "C:\\Programs\\neo\\bin\\toksi.exe rtk-hook copilot"
       }
     ],
     "PostToolUse": [
       {
         "type": "command",
-        "command": "C:/Programs/neo/bin/toksi.exe rtk-hook copilot"
+        "command": "C:\\Programs\\neo\\bin\\toksi.exe rtk-hook copilot"
       }
     ]
   }

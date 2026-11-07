@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/widgets/mod.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-06
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -85,7 +85,7 @@ pub fn render_tab_bar(f: &mut Frame, area: Rect, app: &App) {
 /// Renders bottom keybinding helper line.
 pub fn render_footer(f: &mut Frame, area: Rect, app: &App) {
     let mut keys = vec![
-        Span::styled("Tab/1-6", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled("Tab/1-7", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Span::raw(":Tab  "),
     ];
 
@@ -107,6 +107,14 @@ pub fn render_footer(f: &mut Frame, area: Rect, app: &App) {
             keys.push(Span::raw(":Scan  "));
         }
         2 => {
+            keys.push(Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Reload Routes  "));
+            keys.push(Span::styled("c", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Cache Align Test  "));
+            keys.push(Span::styled("↑/↓", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Select  "));
+        }
+        3 => {
             keys.push(Span::styled("/", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Search  "));
             keys.push(Span::styled("p", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
@@ -116,7 +124,7 @@ pub fn render_footer(f: &mut Frame, area: Rect, app: &App) {
             keys.push(Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Detail  "));
         }
-        3 => {
+        4 => {
             keys.push(Span::styled("/", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Search Symbol  "));
             keys.push(Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
@@ -126,13 +134,15 @@ pub fn render_footer(f: &mut Frame, area: Rect, app: &App) {
             keys.push(Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Reindex  "));
         }
-        4 => {
-            keys.push(Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Reload Routes  "));
-            keys.push(Span::styled("c", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Cache Align Test  "));
-        }
         5 => {
+            keys.push(Span::styled("↑/↓", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Select Key  "));
+            keys.push(Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Reset Window  "));
+            keys.push(Span::styled("c", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Clear Trips  "));
+        }
+        6 => {
             keys.push(Span::styled("1-4", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Source  "));
             keys.push(Span::styled("f", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));

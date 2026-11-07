@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/app.rs
 // created: 2026-10-30
-// lastModified: 2026-11-01
+// lastModified: 2026-11-06
 
 use std::env;
 use std::fs;
@@ -221,13 +221,38 @@ pub struct LogsState {
     pub entries: Vec<LogEntry>,
 }
 
+#[derive(Debug, Clone)]
+pub struct VirtualKeyRow {
+    pub vk: String,
+    pub name: String,
+    pub max_budget_usd: f64,
+    pub current_spend_usd: f64,
+    pub max_rpm: u32,
+    pub current_rpm: u32,
+    pub max_tpm: u32,
+    pub current_tpm: u32,
+    pub max_concurrency: u32,
+    pub current_concurrency: u32,
+    pub allowed_models: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct GovernanceState {
+    pub keys: Vec<VirtualKeyRow>,
+    pub selected: usize,
+    pub total_budget_usd: f64,
+    pub total_spent_usd: f64,
+    pub active_rate_limits: u32,
+    pub circuit_breaker_trips: u32,
+}
+
 // -----------------------------------------------------------------------------
 // App State Container
 // -----------------------------------------------------------------------------
 
 pub struct App {
     pub current_tab: usize,
-    pub tab_names: [&'static str; 6],
+    pub tab_names: [&'static str; 7],
     pub should_quit: bool,
     pub cwd_display: String,
     pub status_message: Option<String>,
@@ -240,9 +265,10 @@ pub struct App {
 
     pub monitor: MonitorState,
     pub agents: AgentsState,
+    pub headroom: HeadroomState,
     pub memory: MemoryState,
     pub graph: GraphState,
-    pub headroom: HeadroomState,
+    pub governance: GovernanceState,
     pub logs: LogsState,
 }
 
@@ -293,12 +319,13 @@ impl App {
         let mut app = Self {
             current_tab: 0,
             tab_names: [
-                "1: Live Monitor",
+                "1: Live Monitor & Waterfall",
                 "2: Agent Wire Manager",
-                "3: Memory Explorer",
-                "4: CodeGraph Visualizer",
-                "5: Headroom BYOK & Cache",
-                "6: Diagnostic Logs",
+                "3: Gateway & Provider Keys",
+                "4: Memory Explorer",
+                "5: CodeGraph Visualizer",
+                "6: Governance & Quotas",
+                "7: Diagnostic Logs",
             ],
             should_quit: false,
             cwd_display: cwd,
@@ -360,6 +387,68 @@ impl App {
                 byok_port: 8788,
                 routes: Vec::new(),
                 selected_route: 0,
+            },
+
+            governance: GovernanceState {
+                keys: vec![
+                    VirtualKeyRow {
+                        vk: "default".to_string(),
+                        name: "Global Default".to_string(),
+                        max_budget_usd: 100.0,
+                        current_spend_usd: 18.42,
+                        max_rpm: 120,
+                        current_rpm: 8,
+                        max_tpm: 200_000,
+                        current_tpm: 14_500,
+                        max_concurrency: 10,
+                        current_concurrency: 1,
+                        allowed_models: "All Models (*)".to_string(),
+                    },
+                    VirtualKeyRow {
+                        vk: "ci-bot".to_string(),
+                        name: "Automated CI Pipeline".to_string(),
+                        max_budget_usd: 50.0,
+                        current_spend_usd: 6.15,
+                        max_rpm: 60,
+                        current_rpm: 0,
+                        max_tpm: 100_000,
+                        current_tpm: 0,
+                        max_concurrency: 4,
+                        current_concurrency: 0,
+                        allowed_models: "Fast Tier (flash, haiku, 4o-mini)".to_string(),
+                    },
+                    VirtualKeyRow {
+                        vk: "dev-team".to_string(),
+                        name: "Engineering Team".to_string(),
+                        max_budget_usd: 250.0,
+                        current_spend_usd: 42.80,
+                        max_rpm: 200,
+                        current_rpm: 24,
+                        max_tpm: 400_000,
+                        current_tpm: 56_000,
+                        max_concurrency: 20,
+                        current_concurrency: 3,
+                        allowed_models: "Frontier (claude-3-7, gpt-4o, gemini-2.0)".to_string(),
+                    },
+                    VirtualKeyRow {
+                        vk: "vip-agent".to_string(),
+                        name: "Autonomous Agent Swarm".to_string(),
+                        max_budget_usd: 500.0,
+                        current_spend_usd: 98.10,
+                        max_rpm: 500,
+                        current_rpm: 48,
+                        max_tpm: 1_000_000,
+                        current_tpm: 120_000,
+                        max_concurrency: 50,
+                        current_concurrency: 5,
+                        allowed_models: "All Models (*)".to_string(),
+                    },
+                ],
+                selected: 0,
+                total_budget_usd: 900.0,
+                total_spent_usd: 165.47,
+                active_rate_limits: 4,
+                circuit_breaker_trips: 0,
             },
 
             logs: LogsState {
@@ -955,8 +1044,8 @@ impl App {
             return;
         }
 
-        // Handle search input modes in Tab 3 and Tab 4
-        if self.current_tab == 2 && self.memory.search_active {
+        // Handle search input modes in Tab 4 (Memory) and Tab 5 (CodeGraph)
+        if self.current_tab == 3 && self.memory.search_active {
             match key.code {
                 KeyCode::Esc | KeyCode::Enter => {
                     self.memory.search_active = false;
@@ -974,7 +1063,7 @@ impl App {
             return;
         }
 
-        if self.current_tab == 3 && self.graph.search_active {
+        if self.current_tab == 4 && self.graph.search_active {
             match key.code {
                 KeyCode::Esc | KeyCode::Enter => {
                     self.graph.search_active = false;
@@ -1023,6 +1112,7 @@ impl App {
             KeyCode::Char('4') => { self.current_tab = 3; return; }
             KeyCode::Char('5') => { self.current_tab = 4; return; }
             KeyCode::Char('6') => { self.current_tab = 5; return; }
+            KeyCode::Char('7') => { self.current_tab = 6; return; }
             _ => {}
         }
 
@@ -1030,10 +1120,11 @@ impl App {
         match self.current_tab {
             0 => self.handle_monitor_key(key),
             1 => self.handle_agents_key(key),
-            2 => self.handle_memory_key(key),
-            3 => self.handle_graph_key(key),
-            4 => self.handle_headroom_key(key),
-            5 => self.handle_logs_key(key),
+            2 => self.handle_headroom_key(key),
+            3 => self.handle_memory_key(key),
+            4 => self.handle_graph_key(key),
+            5 => self.handle_governance_key(key),
+            6 => self.handle_logs_key(key),
             _ => {}
         }
     }
@@ -1176,6 +1267,31 @@ impl App {
                 if self.headroom.selected_route + 1 < self.headroom.routes.len() {
                     self.headroom.selected_route += 1;
                 }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_governance_key(&mut self, key: KeyEvent) {
+        match key.code {
+            KeyCode::Up | KeyCode::Char('k') => {
+                if self.governance.selected > 0 {
+                    self.governance.selected -= 1;
+                } else if !self.governance.keys.is_empty() {
+                    self.governance.selected = self.governance.keys.len() - 1;
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if !self.governance.keys.is_empty() {
+                    self.governance.selected = (self.governance.selected + 1) % self.governance.keys.len();
+                }
+            }
+            KeyCode::Char('r') => {
+                self.set_status("Rate-limit sliding windows reset for all virtual keys");
+            }
+            KeyCode::Char('c') => {
+                self.governance.circuit_breaker_trips = 0;
+                self.set_status("Circuit breaker trip counters cleared");
             }
             _ => {}
         }

@@ -156,3 +156,62 @@ fn test_prometheus_exposition_rendering() {
     assert!(text.contains("toksi_overhead_latency_seconds"));
 }
 
+#[test]
+fn test_dropped_request_skips_upstream_metrics() {
+    let collector = MetricsCollector::new();
+
+    // 1. request_dropped (rejection before queueing) should NOT count towards upstream_requests_total
+    // or upstream_latency_seconds, but SHOULD count in error_requests_total
+    collector.record_upstream_call(
+        "openai",
+        "gpt-4o",
+        503,
+        Some("request_dropped"),
+        0.001,
+        0,
+        0,
+        0,
+        0,
+        "copilot",
+        "default",
+    );
+
+    let (_, count, _) = collector.upstream_latency_seconds.snapshot();
+    assert_eq!(count, 0, "Latency count should be 0 for dropped requests");
+
+    {
+        let upstream_map = collector.upstream_requests_total.read().unwrap();
+        assert!(
+            upstream_map.is_empty(),
+            "Upstream requests total should be empty for dropped requests"
+        );
+
+        let error_map = collector.error_requests_total.read().unwrap();
+        assert_eq!(error_map.len(), 1, "Error requests total should record the 503");
+    }
+
+    // 2. An upstream provider 503 (e.g. overloaded_error) DOES count towards upstream traffic
+    collector.record_upstream_call(
+        "openai",
+        "gpt-4o",
+        503,
+        Some("overloaded_error"),
+        0.420,
+        0,
+        0,
+        0,
+        0,
+        "copilot",
+        "default",
+    );
+
+    let (_, count_after, _) = collector.upstream_latency_seconds.snapshot();
+    assert_eq!(count_after, 1, "Latency count should be 1 for provider 503");
+
+    let upstream_map_after = collector.upstream_requests_total.read().unwrap();
+    assert_eq!(
+        *upstream_map_after.get("provider=\"openai\",model=\"gpt-4o\"").unwrap_or(&0),
+        1
+    );
+}
+
