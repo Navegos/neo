@@ -1,6 +1,6 @@
 {
-  "command": "cargo clippy -p toksi --lib -- rules",
-  "root_cause": "error: multiple input filenames provided (first two filenames are `crates\\toksi\\build.rs` and `rules`)",
-  "raw_output": "   Compiling toksi v2.7.0 (D:\\AI\\neo\\crates\\toksi)\nerror: multiple input filenames provided (first two filenames are `crates\\toksi\\build.rs` and `rules`)\n\nerror: could not compile `toksi` (build script) due to 1 previous error\n",
-  "timestamp": "2026-11-08T17:50:17Z"
+  "command": "cargo test -p toksi --test phase11_doctor_self_healing_verification",
+  "root_cause": "error: test failed, to rerun pass `-p toksi --test phase11_doctor_self_healing_verification`",
+  "raw_output": "\nrunning 8 tests\ntest test_phase11_all_17_agents_manifests_and_rules ... ok\ntest test_phase11_doctor_runs_cleanly has been running for over 60 seconds\ntest test_phase11_environment_proxy_status_audit has been running for over 60 seconds\ntest test_phase11_init_idempotency_dry_run has been running for over 60 seconds\ntest test_phase11_legacy_runner_detection has been running for over 60 seconds\ntest test_phase11_purge_legacy_mcp_runners_isolated has been running for over 60 seconds\ntest test_phase11_rules_writing_and_verification_parity has been running for over 60 seconds\ntest test_phase11_scan_legacy_hijacks_dry_run has been running for over 60 seconds\n\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.96s\n     Running tests\\phase11_doctor_self_healing_verification.rs (target\\debug\\build\\toksi/3aa1c0ff1bbced4b\\out\\phase11_doctor_self_healing_verification-3aa1c0ff1bbced4b.exe)\nerror: test failed, to rerun pass `-p toksi --test phase11_doctor_self_healing_verification`\n\nCaused by:\n  process didn't exit successfully: `D:\\AI\\neo\\target\\debug\\build\\toksi/3aa1c0ff1bbced4b\\out\\phase11_doctor_self_healing_verification-3aa1c0ff1bbced4b.exe` (exit code: 1)\nnote: test exited abnormally; to see the full output pass --no-capture to the harness.\n",
+  "timestamp": "2026-11-08T19:13:38Z"
 }
