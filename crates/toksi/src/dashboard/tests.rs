@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/tests.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use super::api::*;
 use super::assets::*;
@@ -31,7 +31,7 @@ fn test_embedded_assets_presence() {
 #[test]
 fn test_http_request_parsing() {
     // 1. Simple GET request
-    let raw_get = b"GET /api/overview HTTP/1.1\r\nHost: 127.0.0.1:9099\r\n\r\n";
+    let raw_get = b"GET /api/overview HTTP/1.1\r\nHost: 127.0.0.1:9100\r\n\r\n";
     let (req, len) = HttpRequest::parse(raw_get).expect("GET request parse failed");
     assert_eq!(req.method, "GET");
     assert_eq!(req.path, "/api/overview");

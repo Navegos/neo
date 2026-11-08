@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{OnceLock, RwLock};
+use tokio::sync::mpsc;
 
 use super::cost::{calculate_cost, calculate_savings};
 use super::tracker::LatencyRecord;
@@ -450,5 +451,43 @@ static GLOBAL_COLLECTOR: OnceLock<MetricsCollector> = OnceLock::new();
 
 pub fn global_collector() -> &'static MetricsCollector {
     GLOBAL_COLLECTOR.get_or_init(MetricsCollector::new)
+}
+
+pub const DEFAULT_TELEMETRY_CHANNEL_CAPACITY: usize = 10_000;
+
+static ASYNC_SENDER: OnceLock<mpsc::Sender<TelemetryEvent>> = OnceLock::new();
+
+/// Returns the global async telemetry channel sender if initialized.
+pub fn async_metrics_sender() -> Option<&'static mpsc::Sender<TelemetryEvent>> {
+    ASYNC_SENDER.get()
+}
+
+/// Try sending a telemetry event asynchronously without blocking (<1 µs hot path).
+/// If channel is uninitialized or full, falls back to direct synchronous ingestion with zero panics.
+pub fn try_send_telemetry_event(event: TelemetryEvent) -> bool {
+    if let Some(tx) = ASYNC_SENDER.get() {
+        if tx.try_send(event.clone()).is_ok() {
+            return true;
+        }
+    }
+    global_collector().ingest_event(event);
+    true
+}
+
+/// Initializes lock-free async telemetry channel worker task.
+pub fn init_async_collector(capacity: usize) -> mpsc::Sender<TelemetryEvent> {
+    if let Some(tx) = ASYNC_SENDER.get() {
+        return tx.clone();
+    }
+    let (tx, mut rx) = mpsc::channel(capacity);
+    let _ = ASYNC_SENDER.set(tx.clone());
+
+    tokio::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            global_collector().ingest_event(event);
+        }
+    });
+
+    tx
 }
 

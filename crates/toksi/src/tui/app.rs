@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/app.rs
 // created: 2026-10-30
-// lastModified: 2026-11-06
+// lastModified: 2026-11-08
 
 use std::env;
 use std::fs;
@@ -313,7 +313,7 @@ impl App {
             };
             (live_tokens_saved as i64, live_total_calls as i64, (live_cost_saved * 100.0).round() / 100.0, comp, warmth)
         } else {
-            (14_892_104_i64, 1_284_i64, 184.26, 68.4, 91.2)
+            (0_i64, 0_i64, 0.0, 0.0, 0.0)
         };
 
         let mut app = Self {
@@ -340,13 +340,13 @@ impl App {
                 proxy_up: false,
                 daemon_up: false,
                 tokens_saved_lifetime: tokens_saved,
-                tokens_saved_today: if live_tokens_saved > 0 { live_tokens_saved as i64 } else { 482_300 },
-                tokens_saved_7d: if live_tokens_saved > 0 { live_tokens_saved as i64 } else { 3_120_500 },
+                tokens_saved_today: live_tokens_saved as i64,
+                tokens_saved_7d: live_tokens_saved as i64,
                 cost_saved_usd: cost_saved,
                 total_calls,
                 compression_pct,
                 cache_warmth_pct,
-                sparkline_data: vec![40, 52, 60, 58, 64, 70, 68, 72, 75, 71, 74, 69, 73, 76, 78, 80],
+                sparkline_data: if live_tokens_saved > 0 { vec![live_tokens_saved / 10] } else { Vec::new() },
                 waterfall: Vec::new(),
             },
 
@@ -490,7 +490,41 @@ impl App {
         // Periodic light refresh every ~1 sec (60 ticks)
         if self.ticks_counter % 60 == 0 {
             self.monitor.daemon_up = is_daemon_running();
+            self.refresh_monitor_stats();
             self.poll_new_logs();
+        }
+    }
+
+    pub fn refresh_monitor_stats(&mut self) {
+        let collector = crate::telemetry::global_collector();
+        let live_tokens_saved: u64 = collector.tokens_saved_total.read().map(|m| m.values().sum()).unwrap_or(0);
+        let live_total_calls: u64 = collector.upstream_requests_total.read().map(|m| m.values().sum()).unwrap_or(0);
+        let live_cost_saved = collector.cost_savings_usd_micros.load(Ordering::Relaxed) as f64 / 1_000_000.0;
+        let input_tokens: u64 = collector.input_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
+        let cached_tokens: u64 = collector.cached_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
+
+        if live_tokens_saved > 0 || live_total_calls > 0 {
+            let comp = (live_tokens_saved as f64 / (input_tokens + live_tokens_saved).max(1) as f64) * 100.0;
+            let warmth = if input_tokens > 0 {
+                (cached_tokens as f64 / input_tokens as f64) * 100.0
+            } else {
+                0.0
+            };
+            self.monitor.tokens_saved_lifetime = live_tokens_saved as i64;
+            self.monitor.tokens_saved_today = live_tokens_saved as i64;
+            self.monitor.tokens_saved_7d = live_tokens_saved as i64;
+            self.monitor.cost_saved_usd = (live_cost_saved * 100.0).round() / 100.0;
+            self.monitor.total_calls = live_total_calls as i64;
+            self.monitor.compression_pct = comp;
+            self.monitor.cache_warmth_pct = warmth;
+        } else {
+            self.monitor.tokens_saved_lifetime = 0;
+            self.monitor.tokens_saved_today = 0;
+            self.monitor.tokens_saved_7d = 0;
+            self.monitor.cost_saved_usd = 0.0;
+            self.monitor.total_calls = 0;
+            self.monitor.compression_pct = 0.0;
+            self.monitor.cache_warmth_pct = 0.0;
         }
     }
 
@@ -499,6 +533,21 @@ impl App {
     // -------------------------------------------------------------------------
 
     fn init_waterfall_samples(&mut self) {
+        if self.monitor.total_calls == 0 {
+            self.monitor.waterfall = vec![
+                WaterfallItem {
+                    time: "Ready".into(),
+                    agent: "Interceptor".into(),
+                    endpoint: "Live Stream Standing By (:9099 / :8787)".into(),
+                    raw_tokens: 0,
+                    compressed_tokens: 0,
+                    savings_pct: 0.0,
+                    pipeline: "Ground-Truth Token Accounting (Idle)".into(),
+                    saved_usd: 0.0,
+                }
+            ];
+            return;
+        }
         self.monitor.waterfall = vec![
             WaterfallItem {
                 time: "19:28:10".into(),

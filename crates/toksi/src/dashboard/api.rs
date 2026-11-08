@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/api.rs
 // created: 2026-10-30
-// lastModified: 2026-11-01
+// lastModified: 2026-11-08
 
 use std::path::PathBuf;
 use serde::Deserialize;
@@ -152,27 +152,43 @@ pub fn handle_waterfall() -> serde_json::Value {
 }
 
 pub fn handle_warroom() -> serde_json::Value {
+    let collector = crate::telemetry::global_collector();
+    let input_tokens: u64 = collector.input_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
+    let max_tokens: u64 = 128_000;
+    let utilization_pct = if input_tokens > 0 {
+        ((input_tokens as f64 / max_tokens as f64) * 100.0).min(100.0)
+    } else {
+        0.0
+    };
+    let pruning_tier = if utilization_pct > 85.0 {
+        "L2 Aggressive (Threshold: 85%)"
+    } else if utilization_pct > 60.0 {
+        "L1 Moderate (Threshold: 60%)"
+    } else {
+        "L0 Normal (Threshold: 85%)"
+    };
+
     json!({
         "rate_limits_429": [
             { "provider": "Anthropic API", "status": "Normal (0)", "backoff_sec": 0, "action": "Direct stream" },
             { "provider": "OpenAI API", "status": "Normal (0)", "backoff_sec": 0, "action": "Direct stream" },
-            { "provider": "DeepSeek", "status": "1 Throttle", "backoff_sec": 1.8, "action": "Rerouted to BYOK lane" }
+            { "provider": "DeepSeek", "status": "Normal (0)", "backoff_sec": 0, "action": "Direct stream" }
         ],
         "outages": {
             "active_outages": 0,
-            "latency_ms": 210,
+            "latency_ms": 0,
             "healthy": true
         },
         "cascade_stages": [
-            { "id": "L0", "name": "Direct Provider (Claude 3.7 / GPT-4o)", "status": "active", "latency_ms": 210 },
-            { "id": "L1", "name": "BYOK Gateway Route (:8788 Upstream)", "status": "standby", "latency_ms": 140 },
-            { "id": "L2", "name": "Local Degraded Mode (ICM SQLite Cache)", "status": "standby", "latency_ms": 8 }
+            { "id": "L0", "name": "Direct Provider (Claude 3.7 / GPT-4o)", "status": "active", "latency_ms": 0 },
+            { "id": "L1", "name": "BYOK Gateway Route (:8788 Upstream)", "status": "standby", "latency_ms": 0 },
+            { "id": "L2", "name": "Local Degraded Mode (ICM SQLite Cache)", "status": "standby", "latency_ms": 0 }
         ],
         "context_watchdog": {
-            "tokens_used": 42500,
-            "max_tokens": 128000,
-            "utilization_pct": 33.2,
-            "pruning_tier": "L0 Normal (Threshold: 85%)"
+            "tokens_used": input_tokens,
+            "max_tokens": max_tokens,
+            "utilization_pct": (utilization_pct * 10.0).round() / 10.0,
+            "pruning_tier": pruning_tier
         }
     })
 }

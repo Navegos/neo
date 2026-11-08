@@ -580,6 +580,25 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
             continue;
         }
 
+        // Native Prometheus metrics exposition
+        if path == "/metrics" {
+            let metrics_body = crate::telemetry::render_metrics();
+            super::byok_gateway::write_http_response(
+                &mut stream,
+                200,
+                "OK",
+                &[
+                    ("Content-Type".to_string(), "text/plain; version=0.0.4; charset=utf-8".to_string()),
+                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+                ],
+                metrics_body.as_bytes(),
+            ).await?;
+            if is_close_requested {
+                break;
+            }
+            continue;
+        }
+
         // CORS preflight
         if req.method.eq_ignore_ascii_case("OPTIONS") {
             let headers = vec![

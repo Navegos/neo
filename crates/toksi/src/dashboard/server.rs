@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/server.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -221,21 +221,28 @@ impl DashboardServer {
         let listener = TcpListener::bind(&addr).await?;
         let (broadcast_tx, _) = broadcast::channel::<String>(32);
 
-        // Background SSE ticker broadcaster
+        // Background SSE ticker broadcaster broadcasting ground-truth session metrics
         let ticker_tx = broadcast_tx.clone();
         tokio::spawn(async move {
-            let mut tick_counter: u64 = 0;
             loop {
                 tokio::time::sleep(Duration::from_millis(1500)).await;
-                tick_counter = tick_counter.wrapping_add(1);
-                let lifetime = 14_892_104 + (tick_counter * 142);
-                let saved_usd = 184.26 + ((tick_counter as f64) * 0.003);
+                let collector = crate::telemetry::global_collector();
+                let tokens_saved: u64 = collector.tokens_saved_total.read().map(|m| m.values().sum()).unwrap_or(0);
+                let cost_saved = collector.cost_savings_usd_micros.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1_000_000.0;
+                let total_calls: u64 = collector.upstream_requests_total.read().map(|m| m.values().sum()).unwrap_or(0);
+                let input_tokens: u64 = collector.input_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
+                let output_tokens: u64 = collector.output_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
+                let cached_tokens: u64 = collector.cached_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
+
                 let payload = serde_json::json!({
                     "type": "tick",
                     "payload": {
-                        "tokens_saved_lifetime": lifetime,
-                        "cost_saved_usd": saved_usd,
-                        "total_calls": 1284 + tick_counter
+                        "tokens_saved_lifetime": tokens_saved,
+                        "cost_saved_usd": (cost_saved * 100.0).round() / 100.0,
+                        "total_calls": total_calls,
+                        "input_tokens": input_tokens,
+                        "output_tokens": output_tokens,
+                        "cached_tokens": cached_tokens
                     }
                 });
                 let _ = ticker_tx.send(payload.to_string());

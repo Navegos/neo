@@ -215,3 +215,104 @@ fn test_dropped_request_skips_upstream_metrics() {
     );
 }
 
+#[test]
+fn test_tokentracker_ground_truth_zero_idle() {
+    use super::tokentracker::{TokenTrackerEngine, ParsedTokenUsage};
+
+    let engine = TokenTrackerEngine::new(50);
+    // When idle with no sessions, all metrics must be strictly 0
+    let (prompt, completion, cached, saved, cost, savings) = engine.lifetime_summary();
+    assert_eq!(prompt, 0);
+    assert_eq!(completion, 0);
+    assert_eq!(cached, 0);
+    assert_eq!(saved, 0);
+    assert_eq!(cost, 0.0);
+    assert_eq!(savings, 0.0);
+    assert!(engine.get_recent_sessions().is_empty());
+
+    // Record one ground-truth session
+    let usage = ParsedTokenUsage {
+        prompt_tokens: 10_000,
+        completion_tokens: 2_000,
+        cached_tokens: 4_000,
+        saved_tokens: 8_000,
+    };
+    let rec = engine.record_usage("sess-1", "claude", "anthropic", "claude-3-7-sonnet", usage, 450)
+        .expect("record_usage must succeed");
+
+    assert_eq!(rec.input_tokens, 10_000);
+    assert_eq!(rec.output_tokens, 2_000);
+    assert_eq!(rec.cached_tokens, 4_000);
+    assert_eq!(rec.saved_tokens, 8_000);
+    assert!(rec.cost_usd > 0.0);
+    assert!(rec.saved_usd > 0.0);
+
+    let (prompt2, completion2, cached2, saved2, cost2, savings2) = engine.lifetime_summary();
+    assert_eq!(prompt2, 10_000);
+    assert_eq!(completion2, 2_000);
+    assert_eq!(cached2, 4_000);
+    assert_eq!(saved2, 8_000);
+    assert!(cost2 > 0.0);
+    assert!(savings2 > 0.0);
+}
+
+#[test]
+fn test_sse_chunk_token_parsers() {
+    use super::tokentracker::{parse_anthropic_sse_chunk, parse_gemini_chunk, parse_openai_sse_chunk};
+
+    // 1. OpenAI completion chunk
+    let openai_chunk = r#"data: {"id":"chatcmpl-123","object":"chat.completion.chunk","usage":{"prompt_tokens":1200,"completion_tokens":350,"prompt_tokens_details":{"cached_tokens":800}}}"#;
+    let parsed_openai = parse_openai_sse_chunk(openai_chunk).expect("OpenAI chunk must parse");
+    assert_eq!(parsed_openai.prompt_tokens, 1200);
+    assert_eq!(parsed_openai.completion_tokens, 350);
+    assert_eq!(parsed_openai.cached_tokens, 800);
+
+    // OpenAI [DONE] returns None
+    assert!(parse_openai_sse_chunk("data: [DONE]").is_none());
+
+    // 2. Anthropic message_start & message_delta
+    let anthropic_start = r#"data: {"type":"message_start","message":{"id":"msg_123","usage":{"input_tokens":5400,"cache_read_input_tokens":3200}}}"#;
+    let parsed_start = parse_anthropic_sse_chunk(anthropic_start).expect("Anthropic start must parse");
+    assert_eq!(parsed_start.prompt_tokens, 5400);
+    assert_eq!(parsed_start.cached_tokens, 3200);
+    assert_eq!(parsed_start.completion_tokens, 0);
+
+    let anthropic_delta = r#"data: {"type":"message_delta","usage":{"output_tokens":620}}"#;
+    let parsed_delta = parse_anthropic_sse_chunk(anthropic_delta).expect("Anthropic delta must parse");
+    assert_eq!(parsed_delta.completion_tokens, 620);
+    assert_eq!(parsed_delta.prompt_tokens, 0);
+
+    // 3. Gemini usageMetadata
+    let gemini_json = r#"{"candidates":[],"usageMetadata":{"promptTokenCount":4500,"candidatesTokenCount":1100,"totalTokenCount":5600,"cachedContentTokenCount":2000}}"#;
+    let parsed_gemini = parse_gemini_chunk(gemini_json).expect("Gemini chunk must parse");
+    assert_eq!(parsed_gemini.prompt_tokens, 4500);
+    assert_eq!(parsed_gemini.completion_tokens, 1100);
+    assert_eq!(parsed_gemini.cached_tokens, 2000);
+}
+
+#[tokio::test]
+async fn test_async_metrics_channel_ingestion() {
+    use super::collector::{init_async_collector, try_send_telemetry_event, TelemetryEvent};
+
+    let _tx = init_async_collector(100);
+
+    let sent = try_send_telemetry_event(TelemetryEvent::UpstreamRequest {
+        provider: "openai".to_string(),
+        model: "gpt-4o-mini".to_string(),
+        status_code: 200,
+        error_type: None,
+        latency_secs: 0.05,
+        input_tokens: 1500,
+        output_tokens: 300,
+        cached_tokens: 500,
+        tokens_saved: 700,
+        agent: "cursor".to_string(),
+        virtual_key: "default".to_string(),
+    });
+    assert!(sent, "try_send_telemetry_event must succeed");
+
+    // Allow worker loop to drain
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+}
+
+

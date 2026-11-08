@@ -1246,6 +1246,18 @@ pub async fn handle_byok_gateway_request(
         );
     }
 
+    if path == "/metrics" {
+        let metrics_text = crate::telemetry::render_metrics();
+        return (
+            200,
+            vec![
+                ("Content-Type".to_string(), "text/plain; version=0.0.4; charset=utf-8".to_string()),
+                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+            ],
+            metrics_text.into_bytes(),
+        );
+    }
+
     let credentials: Vec<&str> = headers
         .iter()
         .filter(|(k, _)| k.eq_ignore_ascii_case(BYOK_ROUTE_HEADER))

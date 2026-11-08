@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/mod.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 pub mod api;
 pub mod assets;
@@ -17,6 +17,8 @@ pub use server::*;
 
 use crate::util::colors::*;
 use crate::util::logger::L;
+
+pub const DEFAULT_DASHBOARD_PORT: u16 = 9100;
 
 pub fn open_browser(url: &str) {
     #[cfg(target_os = "windows")]
@@ -36,7 +38,7 @@ pub fn open_browser(url: &str) {
 }
 
 pub fn run_dashboard_cli(argv: &[String]) -> i32 {
-    let mut port: u16 = 9099;
+    let mut port: u16 = DEFAULT_DASHBOARD_PORT;
     let mut open = false;
 
     let mut i = 0;

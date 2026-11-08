@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/mod.rs
 // created: 2026-10-30
-// lastModified: 2026-11-06
+// lastModified: 2026-11-08
 
 pub mod app;
 pub mod views;
@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use crossterm::{
     cursor::{Hide, Show},
-    event::{self, Event, KeyEventKind},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -36,7 +36,7 @@ struct TerminalGuard;
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
         let _ = disable_raw_mode();
-        let _ = execute!(stdout(), Show, LeaveAlternateScreen);
+        let _ = execute!(stdout(), Show, LeaveAlternateScreen, DisableMouseCapture);
     }
 }
 
@@ -58,7 +58,7 @@ pub fn run_tui_with_tab(initial_tab: usize) -> i32 {
 
     let _guard = TerminalGuard;
     let mut stdout = stdout();
-    if execute!(stdout, EnterAlternateScreen, Hide).is_err() {
+    if execute!(stdout, EnterAlternateScreen, Hide, EnableMouseCapture).is_err() {
         return 1;
     }
 

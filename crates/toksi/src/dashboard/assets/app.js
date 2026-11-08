@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/assets/app.js
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 // toksi dashboard client application - pure vanilla ES6+ with zero external npm dependencies
 
@@ -11,15 +11,15 @@ class ToksiApp {
   constructor() {
     this.state = {
       overview: {
-        proxy_up: true,
-        daemon_up: true,
-        tokens_saved_lifetime: 14892104,
-        tokens_saved_today: 482300,
-        tokens_saved_7d: 3120500,
-        cost_saved_usd: 184.26,
-        total_calls: 1284,
-        compression_pct: 68.4,
-        cache_warmth_pct: 91.2,
+        proxy_up: false,
+        daemon_up: false,
+        tokens_saved_lifetime: 0,
+        tokens_saved_today: 0,
+        tokens_saved_7d: 0,
+        cost_saved_usd: 0.00,
+        total_calls: 0,
+        compression_pct: 0.0,
+        cache_warmth_pct: 0.0,
       },
       waterfall: [],
       agents: [],

@@ -40,7 +40,6 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - Refactor: Refactor context mode CLI to support 'execute' command and enhance test coverage [crates/toksi/src/contextmode/cli.rs]
 
 ## Notes
-- New feature: feat(aimemory,icm): add handoff alias, fallback paths, and robust fts5 sanitization" -m "- aimemory: support .toksi/ai-m [crates/toksi/src/aimemory/mod.rs]
 - New feature: feat(codegraph): support .toksi storage path, fallback spawn, and suffix resolution" -m "- codegraph: add resolve_db_pat [crates/toksi/src/codegraph/graph.rs]
 - New feature: feat(env_injector): add launchctl support, unix signal handlers, and registry teardown guards [crates/toksi/src/env_injector/mod.rs]
 - New feature: feat(doctor): add rules audit/sync, agent instruction probes, and multi-format MCP resolution [crates/toksi/src/agents/cursor.rs]
@@ -50,6 +49,7 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - New feature: feat: add ICM hook functionality and normalize path handling across modules [crates/toksi/src/aimemory/handoff.rs]
 - New feature: Add new skills: Ponytail and Principles; enhance Caveman integration [crates/toksi/src/rules/embedded/caveman.rs]
 - New feature: Add new skills and guidelines for AI coding agents [crates/toksi/.agents/agents.md]
+- New feature: feat: add new skills for AI coding agents - Ponytail and Principles [crates/toksi/src/agents/codex.rs]
 
 ## Key files
 - `.editorconfig`
