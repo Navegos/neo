@@ -39,6 +39,24 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
                 healing.removed_state_files.len()
             ));
         }
+
+        // Workspace topology: single root .toksi and root-only agent dirs
+        if let Ok(merged) = crate::commands::doctor::consolidate_nested_toksi_dirs(std::path::Path::new(".")) {
+            if merged > 0 {
+                L.info(&format!(
+                    "Consolidated {} nested .toksi directory/directories into root workspace .toksi",
+                    merged
+                ));
+            }
+        }
+        if let Ok(merged_agents) = crate::commands::doctor::consolidate_nested_agent_dirs(std::path::Path::new(".")) {
+            if merged_agents > 0 {
+                L.info(&format!(
+                    "Consolidated {} nested agent config directory/directories into workspace root",
+                    merged_agents
+                ));
+            }
+        }
     }
 
     if env::var("TOKSI_INSTALLER_RUN").as_deref() == Ok("1") {

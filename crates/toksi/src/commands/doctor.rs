@@ -35,7 +35,11 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
         Err(_) => root.to_path_buf(),
     };
     let root_toksi = root_canon.join(".toksi");
+    if !root_toksi.exists() {
+        let _ = std::fs::create_dir_all(&root_toksi);
+    }
 
+    // 1. Discover subfolder .toksi folders and merge rows
     let mut stack = vec![root_canon.clone()];
     while let Some(dir) = stack.pop() {
         let entries = match std::fs::read_dir(&dir) {
@@ -46,7 +50,7 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
             let path = entry.path();
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str == "target" || name_str == ".git" || name_str == "node_modules" {
+            if name_str == "target" || name_str == ".git" || name_str == "node_modules" || name_str == "dist" || name_str == "build" {
                 continue;
             }
             if path.is_dir() {
@@ -56,7 +60,29 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
                         Err(_) => path.clone(),
                     };
                     if path_canon != root_toksi {
-                        // Merge subdirectories/files into root .toksi
+                        // Merge SQLite DBs row-by-row before deleting!
+                        // a) toksi.db
+                        let sub_toksi_db = path.join("toksi.db");
+                        if sub_toksi_db.exists() {
+                            let root_toksi_db = root_toksi.join("toksi.db");
+                            let _ = crate::db::merge_toksi_db(&root_toksi_db, &sub_toksi_db);
+                        }
+                        // b) memory.db (in sub/.toksi or sub/.toksi/icm)
+                        for mem_sub in [path.join("memory.db"), path.join("icm").join("memory.db")] {
+                            if mem_sub.exists() {
+                                let root_mem = root_toksi.join("icm").join("memory.db");
+                                let _ = crate::db::merge_memory_db(&root_mem, &mem_sub);
+                            }
+                        }
+                        // c) symbols.db (in sub/.toksi or sub/.toksi/codegraph)
+                        for sym_sub in [path.join("symbols.db"), path.join("codegraph").join("symbols.db")] {
+                            if sym_sub.exists() {
+                                let root_sym = root_toksi.join("codegraph").join("symbols.db");
+                                let _ = crate::db::merge_symbols_db(&root_sym, &sym_sub);
+                            }
+                        }
+
+                        // Copy other subdirectories/files into root .toksi
                         if let Ok(sub_entries) = std::fs::read_dir(&path) {
                             for sub in sub_entries.flatten() {
                                 let sub_path = sub.path();
@@ -78,7 +104,156 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
             }
         }
     }
+
+    // 2. Consolidate loose legacy tool folders into .toksi/<tool>
+    let tool_migrations = [
+        (".codegraph", "codegraph"),
+        (".context-mode", "context"),
+        (".context", "context"),
+        (".icm", "icm"),
+        (".ai-memory", "ai-memory"),
+        (".rtk", "rtk"),
+    ];
+
+    for (legacy_name, tool_name) in tool_migrations {
+        let legacy_path = root_canon.join(legacy_name);
+        if legacy_path.exists() && legacy_path.is_dir() {
+            let target_tool_dir = root_toksi.join(tool_name);
+            let _ = std::fs::create_dir_all(&target_tool_dir);
+            if legacy_name == ".codegraph" {
+                let sub_sym = legacy_path.join("symbols.db");
+                if sub_sym.exists() {
+                    let root_sym = target_tool_dir.join("symbols.db");
+                    let _ = crate::db::merge_symbols_db(&root_sym, &sub_sym);
+                }
+            } else if legacy_name == ".icm" {
+                let sub_mem = legacy_path.join("memory.db");
+                if sub_mem.exists() {
+                    let root_mem = target_tool_dir.join("memory.db");
+                    let _ = crate::db::merge_memory_db(&root_mem, &sub_mem);
+                }
+            }
+            if let Ok(entries) = std::fs::read_dir(&legacy_path) {
+                for entry in entries.flatten() {
+                    let dest = target_tool_dir.join(entry.file_name());
+                    if !dest.exists() {
+                        let _ = std::fs::rename(entry.path(), dest);
+                    }
+                }
+            }
+            let _ = std::fs::remove_dir_all(&legacy_path);
+            consolidated_count += 1;
+        }
+    }
+
+    // Mirror/migrate loose .projectmem into .toksi/projectmem
+    let legacy_pjm = root_canon.join(".projectmem");
+    if legacy_pjm.exists() && legacy_pjm.is_dir() {
+        let target_pjm = root_toksi.join("projectmem");
+        let _ = std::fs::create_dir_all(&target_pjm);
+        if let Ok(entries) = std::fs::read_dir(&legacy_pjm) {
+            for entry in entries.flatten() {
+                let dest = target_pjm.join(entry.file_name());
+                if !dest.exists() {
+                    let _ = std::fs::copy(entry.path(), dest);
+                }
+            }
+        }
+    }
+
     Ok(consolidated_count)
+}
+
+pub fn audit_nested_agent_dirs(root: &std::path::Path) -> Vec<String> {
+    let mut warnings = Vec::new();
+    let root_canon = match std::fs::canonicalize(root) {
+        Ok(c) => c,
+        Err(_) => root.to_path_buf(),
+    };
+    let agent_dirs = [".claude", ".cursor", ".vscode", ".grok", ".cline", ".agents", ".gemini", ".github"];
+
+    let mut stack = vec![root_canon.clone()];
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str == "target" || name_str == ".git" || name_str == "node_modules" || name_str == "dist" || name_str == "build" {
+                continue;
+            }
+            if path.is_dir() {
+                if agent_dirs.contains(&name_str.as_ref()) {
+                    let path_canon = match std::fs::canonicalize(&path) {
+                        Ok(c) => c,
+                        Err(_) => path.clone(),
+                    };
+                    if path_canon.parent() != Some(&root_canon) {
+                        warnings.push(format!(
+                            "[WARNING] Nested agent config directory found: {}. Agent configs must strictly reside ONLY in workspace root.",
+                            crate::util::paths::normalize_path(&path.to_string_lossy())
+                        ));
+                    }
+                } else {
+                    stack.push(path);
+                }
+            }
+        }
+    }
+    warnings
+}
+
+pub fn consolidate_nested_agent_dirs(root: &std::path::Path) -> std::io::Result<usize> {
+    let mut count = 0;
+    let root_canon = match std::fs::canonicalize(root) {
+        Ok(c) => c,
+        Err(_) => root.to_path_buf(),
+    };
+    let agent_dirs = [".claude", ".cursor", ".vscode", ".grok", ".cline", ".agents", ".gemini", ".github"];
+
+    let mut stack = vec![root_canon.clone()];
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str == "target" || name_str == ".git" || name_str == "node_modules" || name_str == "dist" || name_str == "build" {
+                continue;
+            }
+            if path.is_dir() {
+                if agent_dirs.contains(&name_str.as_ref()) {
+                    let path_canon = match std::fs::canonicalize(&path) {
+                        Ok(c) => c,
+                        Err(_) => path.clone(),
+                    };
+                    if path_canon.parent() != Some(&root_canon) {
+                        let root_dest = root_canon.join(&name);
+                        let _ = std::fs::create_dir_all(&root_dest);
+                        if let Ok(sub_entries) = std::fs::read_dir(&path) {
+                            for sub in sub_entries.flatten() {
+                                let dest = root_dest.join(sub.file_name());
+                                if !dest.exists() {
+                                    let _ = std::fs::rename(sub.path(), dest);
+                                }
+                            }
+                        }
+                        let _ = std::fs::remove_dir_all(&path);
+                        count += 1;
+                    }
+                } else {
+                    stack.push(path);
+                }
+            }
+        }
+    }
+    Ok(count)
 }
 
 pub fn audit_agent_cli_binaries() -> Vec<String> {
@@ -92,13 +267,8 @@ pub fn audit_agent_cli_binaries() -> Vec<String> {
         if cli.is_empty() {
             continue;
         }
-        let in_path = !crate::util::paths::which(cli).is_empty()
-            || !crate::util::paths::which(&format!("{}.exe", cli)).is_empty();
-        if !in_path {
-            warnings.push(format!(
-                "[ERROR] Required executable '{}' for agent '{}' not found in system PATH.\n[ACTION] Please add the directory containing '{}' to your PATH environment variable and retry.",
-                cli, agent.label, cli
-            ));
+        if let Err(e) = crate::util::env_path::check_executable_in_path(cli) {
+            warnings.push(e);
         }
     }
     warnings
@@ -115,6 +285,15 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
                     "  {} Consolidated {} nested .toksi directory/directories into root workspace .toksi",
                     C.green(Sym::CHECK),
                     merged
+                ));
+            }
+        }
+        if let Ok(merged_agents) = consolidate_nested_agent_dirs(std::path::Path::new(".")) {
+            if merged_agents > 0 {
+                L.raw(&format!(
+                    "  {} Consolidated {} nested agent config directory/directories into workspace root",
+                    C.green(Sym::CHECK),
+                    merged_agents
                 ));
             }
         }

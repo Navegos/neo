@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/mcp_adapters.rs
 // created: 2026-10-20
-// lastModified: 2026-11-06
+// lastModified: 2026-11-08
 
 use std::path::Path;
 use std::sync::Arc;
@@ -35,11 +35,29 @@ use super::opencode::*;
 use super::pi::*;
 use super::proxy_provider::{json_args_eq, try_parse_jsonc_map as try_parse_jsonc};
 
+pub fn normalize_mcp_tool_id(tool_id: &str) -> &'static str {
+    match tool_id.trim() {
+        "projectmem" | "toksi-projectmem" | "pjm" => "projectmem",
+        "context" | "context-mode" | "toksi-context-mode" | "ctx" => "context",
+        "codegraph" | "toksi-codegraph" | "toksi-codegraph-index" => "codegraph",
+        "icm" | "toksi-icm" => "icm",
+        "aimemory" | "ai-memory" | "toksi-aimemory" => "aimemory",
+        "rtk" | "toksi-rtk" => "rtk",
+        _ => "tool",
+    }
+}
+
+pub fn mcp_settings_to_skills_dir(agent_base: &str, tool_id: &str) -> String {
+    let clean = normalize_mcp_tool_id(tool_id);
+    crate::util::paths::normalize_path(&format!("{}/skills/{}", agent_base, clean))
+}
+
 pub fn mcp_command(agent_id: &str, tool_id: &str) -> Vec<String> {
-    let spawn = if tool_id == "codegraph" {
+    let clean_id = normalize_mcp_tool_id(tool_id);
+    let spawn = if clean_id == "codegraph" {
         wrap_auto_index(agent_id, pick_mcp_spawn("codegraph", &["serve", "--mcp"]))
     } else {
-        mcp_spawn_for(tool_id)
+        mcp_spawn_for(clean_id)
     };
     let mut cmd = vec![spawn.command];
     cmd.extend(spawn.args);

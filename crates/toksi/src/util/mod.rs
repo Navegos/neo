@@ -8,6 +8,7 @@
 pub mod byok;
 pub mod colors;
 pub mod deps;
+pub mod env_path;
 pub mod exec;
 pub mod grok;
 pub mod headroom;
@@ -41,6 +42,7 @@ pub use colors::{
     SYM,
 };
 pub use deps::{detect_runtimes, pick_js_runner, report_runtimes, RuntimeReport};
+pub use env_path::*;
 pub use exec::*;
 pub use grok::*;
 pub use headroom::{

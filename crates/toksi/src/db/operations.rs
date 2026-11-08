@@ -499,6 +499,15 @@ impl ToksiConfigDb {
         Ok(n)
     }
 
+    pub fn merge_from_file(&mut self, source_path: &Path) -> Result<usize, rusqlite::Error> {
+        if !source_path.exists() {
+            return Ok(0);
+        }
+        let source_db = ToksiConfigDb::open(source_path)?;
+        let dump = source_db.export_dump()?;
+        self.import_dump(&dump, true)
+    }
+
     pub fn backup_to_file(&self, dest_path: &Path) -> Result<(), rusqlite::Error> {
         if let Some(parent) = dest_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -532,4 +541,114 @@ impl ToksiConfigDb {
             file_size_bytes,
         })
     }
+}
+
+/// Merges records from another toksi.db into target_path row-by-row without data loss.
+pub fn merge_toksi_db(target_path: &Path, source_path: &Path) -> Result<usize, rusqlite::Error> {
+    if !source_path.exists() {
+        return Ok(0);
+    }
+    if !target_path.exists() {
+        if let Some(parent) = target_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::copy(source_path, target_path).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        return Ok(1);
+    }
+    let mut target_db = ToksiConfigDb::open(target_path)?;
+    let source_db = ToksiConfigDb::open(source_path)?;
+    let dump = source_db.export_dump()?;
+    target_db.import_dump(&dump, true)
+}
+
+/// Merges records from another memory.db (ICM) into target_path row-by-row without data loss.
+pub fn merge_memory_db(target_path: &Path, source_path: &Path) -> Result<usize, rusqlite::Error> {
+    if !source_path.exists() {
+        return Ok(0);
+    }
+    if !target_path.exists() {
+        if let Some(parent) = target_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::copy(source_path, target_path).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        return Ok(1);
+    }
+    let target_conn = Connection::open(target_path)?;
+    target_conn.busy_timeout(std::time::Duration::from_millis(5000))?;
+    let src_str = crate::util::paths::normalize_path(&source_path.to_string_lossy());
+    target_conn.execute("ATTACH DATABASE ?1 AS src_mem", params![src_str])?;
+
+    let mut rows_merged = 0;
+    if let Ok(n) = target_conn.execute(
+        "INSERT OR REPLACE INTO memories SELECT * FROM src_mem.memories",
+        [],
+    ) {
+        rows_merged += n;
+    }
+    if let Ok(n) = target_conn.execute(
+        "INSERT OR REPLACE INTO facts SELECT * FROM src_mem.facts",
+        [],
+    ) {
+        rows_merged += n;
+    }
+    if let Ok(n) = target_conn.execute(
+        "INSERT OR REPLACE INTO sessions SELECT * FROM src_mem.sessions",
+        [],
+    ) {
+        rows_merged += n;
+    }
+    if let Ok(n) = target_conn.execute(
+        "INSERT OR REPLACE INTO messages SELECT * FROM src_mem.messages",
+        [],
+    ) {
+        rows_merged += n;
+    }
+    let _ = target_conn.execute("DETACH DATABASE src_mem", []);
+    Ok(rows_merged)
+}
+
+/// Merges records from another symbols.db (CodeGraph) into target_path row-by-row without data loss.
+pub fn merge_symbols_db(target_path: &Path, source_path: &Path) -> Result<usize, rusqlite::Error> {
+    if !source_path.exists() {
+        return Ok(0);
+    }
+    if !target_path.exists() {
+        if let Some(parent) = target_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        std::fs::copy(source_path, target_path).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        return Ok(1);
+    }
+    let target_conn = Connection::open(target_path)?;
+    target_conn.busy_timeout(std::time::Duration::from_millis(5000))?;
+    let src_str = crate::util::paths::normalize_path(&source_path.to_string_lossy());
+    target_conn.execute("ATTACH DATABASE ?1 AS src_sym", params![src_str])?;
+
+    let mut rows_merged = 0;
+    if let Ok(n) = target_conn.execute(
+        "INSERT OR REPLACE INTO files SELECT * FROM src_sym.files",
+        [],
+    ) {
+        rows_merged += n;
+    }
+    if let Ok(n) = target_conn.execute(
+        "INSERT OR REPLACE INTO nodes SELECT * FROM src_sym.nodes",
+        [],
+    ) {
+        rows_merged += n;
+    }
+    if let Ok(n) = target_conn.execute(
+        "INSERT OR IGNORE INTO edges SELECT * FROM src_sym.edges",
+        [],
+    ) {
+        rows_merged += n;
+    }
+    if let Ok(n) = target_conn.execute(
+        "INSERT OR IGNORE INTO refs SELECT * FROM src_sym.refs",
+        [],
+    ) {
+        rows_merged += n;
+    }
+    let _ = target_conn.execute("DETACH DATABASE src_sym", []);
+    Ok(rows_merged)
 }

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/paths.rs
 // created: 2026-10-05
-// lastModified: 2026-11-02
+// lastModified: 2026-11-08
 
 use std::path::Path;
 use std::sync::RwLock;
@@ -27,9 +27,30 @@ pub fn normalize_path(p: &str) -> String {
     if trimmed.is_empty() {
         return String::new();
     }
-    let replaced = trimmed.replace('\\', "/");
-    // If windows drive letter like C:/, ensure proper format
-    replaced
+    // Remove Windows extended-length prefix \\?\ or //?/
+    let clean = if trimmed.starts_with(r"\\?\") || trimmed.starts_with("//?/") {
+        &trimmed[4..]
+    } else {
+        trimmed
+    };
+    let mut replaced = clean.replace('\\', "/");
+    // Handle UNC paths: preserve leading double slashes //server/...
+    let is_unc = clean.starts_with(r"\\") || clean.starts_with("//");
+    if is_unc && !replaced.starts_with("//") {
+        replaced = format!("/{}", replaced);
+    }
+    // Preserve Windows drive letter format C:/... (uppercase drive letter)
+    if replaced.len() >= 2 && replaced.chars().nth(1) == Some(':') {
+        let drive = replaced.chars().next().unwrap_or('C').to_ascii_uppercase();
+        format!("{}:{}", drive, &replaced[2..])
+    } else {
+        replaced
+    }
+}
+
+/// Helper to escape path with double backslashes exclusively for cmd.exe command strings in JSON5/TOML configs
+pub fn escape_path_for_cmd(p: &str) -> String {
+    normalize_path(p).replace('/', "\\\\")
 }
 
 pub use crate::util::exec::{
@@ -46,42 +67,48 @@ pub use crate::util::preflight::{
 };
 
 pub fn set_home_override(p: impl Into<String>) {
-    let mut guard = HOME_OVERRIDE.write().unwrap();
-    let s = p.into();
-    if s.is_empty() {
-        *guard = None;
-    } else {
-        *guard = Some(s);
+    if let Ok(mut guard) = HOME_OVERRIDE.write() {
+        let s = p.into();
+        if s.is_empty() {
+            *guard = None;
+        } else {
+            *guard = Some(s);
+        }
     }
 }
 
 pub fn clear_home_override() {
-    let mut guard = HOME_OVERRIDE.write().unwrap();
-    *guard = None;
+    if let Ok(mut guard) = HOME_OVERRIDE.write() {
+        *guard = None;
+    }
 }
 
 pub fn set_write_file_override<F>(f: F)
 where
     F: Fn(&str, &str) -> std::io::Result<()> + Send + Sync + 'static,
 {
-    let mut guard = WRITE_FILE_OVERRIDE.write().unwrap();
-    *guard = Some(Box::new(f));
+    if let Ok(mut guard) = WRITE_FILE_OVERRIDE.write() {
+        *guard = Some(Box::new(f));
+    }
 }
 
 pub fn clear_write_file_override() {
-    let mut guard = WRITE_FILE_OVERRIDE.write().unwrap();
-    *guard = None;
+    if let Ok(mut guard) = WRITE_FILE_OVERRIDE.write() {
+        *guard = None;
+    }
 }
 
 pub fn home() -> String {
-    if let Some(ref h) = *HOME_OVERRIDE.read().unwrap() {
-        if !h.is_empty() {
-            return h.clone();
+    if let Ok(guard) = HOME_OVERRIDE.read() {
+        if let Some(ref h) = *guard {
+            if !h.is_empty() {
+                return normalize_path(h);
+            }
         }
     }
     if IS_WIN {
         if let Some(dir) = dirs::home_dir() {
-            let s = dir.to_string_lossy().to_string();
+            let s = normalize_path(&dir.to_string_lossy());
             if !s.is_empty() {
                 return s;
             }
@@ -89,11 +116,11 @@ pub fn home() -> String {
     }
     if let Ok(h) = std::env::var("HOME") {
         if !h.is_empty() {
-            return h;
+            return normalize_path(&h);
         }
     }
     dirs::home_dir()
-        .map(|p| p.to_string_lossy().to_string())
+        .map(|p| normalize_path(&p.to_string_lossy()))
         .unwrap_or_default()
 }
 
@@ -189,66 +216,46 @@ pub fn persisted_tokless_command(exe: &str, args: &[&str]) -> String {
 }
 
 pub fn toksi_data_dir() -> String {
-    let dir = if let Some(ref h) = *HOME_OVERRIDE.read().unwrap() {
-        if !h.is_empty() {
-            if IS_WIN {
-                Path::new(h)
-                    .join("AppData")
-                    .join("Local")
-                    .join("toksi")
-                    .to_string_lossy()
-                    .to_string()
-            } else {
-                Path::new(h)
-                    .join(".local")
-                    .join("share")
-                    .join("toksi")
-                    .to_string_lossy()
-                    .to_string()
-            }
-        } else {
-            default_toksi_data_dir()
+    if let Ok(dir) = std::env::var("TOKSI_DATA_DIR") {
+        if !dir.trim().is_empty() {
+            return normalize_path(dir.trim());
         }
-    } else {
-        default_toksi_data_dir()
-    };
-
-    // Auto-migrate from legacy tokless data dir if it exists
-    let p = Path::new(&dir);
-    let legacy = dir.replace("toksi", "tokless");
-    if legacy != dir {
-        let lp = Path::new(&legacy);
-        if lp.exists() {
-            let _ = std::fs::create_dir_all(p);
-            if let Ok(entries) = std::fs::read_dir(lp) {
-                for entry in entries.flatten() {
-                    let dest = p.join(entry.file_name());
-                    if !dest.exists() {
-                        let _ = std::fs::copy(entry.path(), dest);
-                    }
-                }
+    }
+    if let Ok(guard) = HOME_OVERRIDE.read() {
+        if let Some(ref h) = *guard {
+            if !h.is_empty() {
+                let toksi_home = normalize_path(&Path::new(h).join(".toksi").to_string_lossy());
+                return toksi_home;
             }
         }
     }
-
-    // Auto-migrate from ~/.tokless to ~/.toksi if ~/.tokless exists
     let h = home();
     if !h.is_empty() {
-        let legacy_dot = Path::new(&h).join(".tokless");
-        let toksi_dot = Path::new(&h).join(".toksi");
-        if legacy_dot.exists() {
-            let _ = std::fs::create_dir_all(&toksi_dot);
-            if let Ok(entries) = std::fs::read_dir(&legacy_dot) {
-                for entry in entries.flatten() {
-                    let dest = toksi_dot.join(entry.file_name());
-                    if !dest.exists() {
-                        let _ = std::fs::copy(entry.path(), dest);
+        let toksi_home = normalize_path(&Path::new(&h).join(".toksi").to_string_lossy());
+        // Auto-migrate from legacy LOCALAPPDATA / local share if target doesn't exist
+        let legacy_dir = legacy_toksi_data_dir();
+        if !legacy_dir.is_empty() && legacy_dir != toksi_home {
+            let lp = Path::new(&legacy_dir);
+            let tp = Path::new(&toksi_home);
+            if lp.exists() && !tp.exists() {
+                let _ = std::fs::create_dir_all(tp);
+                if let Ok(entries) = std::fs::read_dir(lp) {
+                    for entry in entries.flatten() {
+                        let dest = tp.join(entry.file_name());
+                        if !dest.exists() {
+                            let _ = std::fs::copy(entry.path(), dest);
+                        }
                     }
                 }
             }
         }
+        return toksi_home;
     }
-    dir
+    legacy_toksi_data_dir()
+}
+
+pub fn legacy_toksi_data_dir() -> String {
+    default_toksi_data_dir()
 }
 
 fn default_toksi_data_dir() -> String {
@@ -263,14 +270,13 @@ fn default_toksi_data_dir() -> String {
                     .to_string_lossy()
                     .to_string()
             });
-        return Path::new(&base).join("toksi").to_string_lossy().to_string();
+        return normalize_path(&Path::new(&base).join("toksi").to_string_lossy());
     }
-    Path::new(&home())
+    normalize_path(&Path::new(&home())
         .join(".local")
         .join("share")
         .join("toksi")
-        .to_string_lossy()
-        .to_string()
+        .to_string_lossy())
 }
 
 pub fn tokless_data_dir() -> String {
@@ -316,8 +322,10 @@ pub fn remove_file_retry(p: impl AsRef<Path>) -> std::io::Result<()> {
 
 pub fn write_file_atomic(p: impl AsRef<Path>, content: &str) -> std::io::Result<()> {
     let p = p.as_ref();
-    if let Some(ref f) = *WRITE_FILE_OVERRIDE.read().unwrap() {
-        return f(&p.to_string_lossy(), content);
+    if let Ok(guard) = WRITE_FILE_OVERRIDE.read() {
+        if let Some(ref f) = *guard {
+            return f(&p.to_string_lossy(), content);
+        }
     }
     if let Some(parent) = p.parent() {
         if !parent.as_os_str().is_empty() {
@@ -341,8 +349,10 @@ pub fn write_file_atomic(p: impl AsRef<Path>, content: &str) -> std::io::Result<
 
 pub fn write_file(p: impl AsRef<Path>, content: &str) -> std::io::Result<()> {
     let p = p.as_ref();
-    if let Some(ref f) = *WRITE_FILE_OVERRIDE.read().unwrap() {
-        return f(&p.to_string_lossy(), content);
+    if let Ok(guard) = WRITE_FILE_OVERRIDE.read() {
+        if let Some(ref f) = *guard {
+            return f(&p.to_string_lossy(), content);
+        }
     }
     if let Ok(meta) = std::fs::symlink_metadata(p) {
         if meta.file_type().is_symlink() {
@@ -1416,6 +1426,23 @@ pub fn copy_dir_merge(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_normalize_path() {
+        assert_eq!(normalize_path(r"C:\Users\name\.toksi\toksi.db"), "C:/Users/name/.toksi/toksi.db");
+        assert_eq!(normalize_path(r"c:\users\name"), "C:/users/name");
+        assert_eq!(normalize_path(r"\\server\share\file.txt"), "//server/share/file.txt");
+        assert_eq!(normalize_path(r"\\?\C:\foo\bar"), "C:/foo/bar");
+        assert_eq!(normalize_path("/home/user/.toksi/toksi.db"), "/home/user/.toksi/toksi.db");
+        assert_eq!(normalize_path(""), "");
+    }
+
+    #[test]
+    fn test_escape_path_for_cmd() {
+        let p = "C:/Programs/neo/bin/toksi.exe";
+        assert_eq!(escape_path_for_cmd(p), r"C:\\Programs\\neo\\bin\\toksi.exe");
+        assert_eq!(escape_path_for_cmd(r"C:\Programs\neo\bin\toksi.exe"), r"C:\\Programs\\neo\\bin\\toksi.exe");
+    }
 
     #[test]
     fn test_known_binary_aliases() {

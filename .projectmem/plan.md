@@ -49,17 +49,17 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
 - [x] Phase 12: TUI, Prometheus Telemetry & Web Dashboard (`/metrics`, TUI, dashboard)
 - [x] Phase 13: End-to-End System Verification (10/10 e2e tests passing)
 - [x] Phase 14: OS Keyring Integration, Config SQLite DB & BYOK Gateway Pre-Registration
-- [ ] Phase 15.1: Workspace Topology, Forward-Slash Normalization, Standards & PATH Validation Mandate:
+- [x] Phase 15.1: Workspace Topology, Forward-Slash Normalization, Standards & PATH Validation Mandate:
   > Plan 15.1: `.agents/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md`
-  - [ ] Implement `normalize_path(p: &str) -> String` in `crates/toksi/src/util/paths.rs` converting all `\` to `/` across all OSes (Windows, Linux, macOS). Handle drive letters (`C:/`), UNC paths (`//server`), and tildes. Escaped `\\` allowed only for cmd.exe commands in JSON5/TOML configs.
-  - [ ] Implement `check_executable_in_path(cmd: &str) -> Result<(), String>` in `crates/toksi/src/util/env_path.rs`. Validate required binaries (`bash`, `cmd`, `toksi`, `agy.exe`, `copilot.exe`, `claude`, `cursor`, `grok`, tools) exist in `PATH`. Never hardcode absolute paths. On missing binary, log clean remediation instruction.
-  - [ ] Relocate default SQLite database to `~/.toksi/toksi.db` (`dirs::home_dir()`), NOT in `localdata/toksi`. Implement automatic startup migration from legacy `LOCALAPPDATA/toksi`.
-  - [ ] Single root `.toksi` consolidation: discover subfolder `.toksi` directories (e.g. `crates/toksi/.toksi`), merge table rows into root `.toksi/toksi.db`, `memory.db`, `symbols.db` without data loss, and delete nested subfolder instances.
-  - [ ] Consolidate tool layout strictly under `.toksi/<tool>`: `.toksi/{codegraph, headroom, projectmem, context, icm, ai-memory, rtk}`. Automatically migrate loose legacy folders (`.codegraph`, `.projectmem`, `.context-mode`, etc.) into `.toksi/<tool>`.
-  - [ ] Enforce root-only workspace agent folders: `.claude`, `.cursor`, `.vscode`, `.grok`, `.cline`, `.gemini`, `.github`, `.agents` strictly in the primary workspace root.
-  - [ ] Standardize tool hook syntax: `<tool>-hook <agent>` (e.g. `codegraph-hook agy`, `projectmem-hook agy`, `context-hook agy`, `rtk-hook agy`).
-  - [ ] Normalize MCP tool identifiers: `toksi-projectmem` -> `projectmem`, `toksi-context-mode` -> `context`, `toksi-codegraph-index` -> `codegraph`. Map MCP settings to `skills/<tool>`.
-  - [ ] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
+  - [x] Implement `normalize_path(p: &str) -> String` in `crates/toksi/src/util/paths.rs` converting all `\` to `/` across all OSes (Windows, Linux, macOS). Handle drive letters (`C:/`), UNC paths (`//server`), and tildes. Escaped `\\` allowed only for cmd.exe commands in JSON5/TOML configs.
+  - [x] Implement `check_executable_in_path(cmd: &str) -> Result<(), String>` in `crates/toksi/src/util/env_path.rs`. Validate required binaries (`bash`, `cmd`, `toksi`, `agy.exe`, `copilot.exe`, `claude`, `cursor`, `grok`, tools) exist in `PATH`. Never hardcode absolute paths. On missing binary, log clean remediation instruction.
+  - [x] Relocate default SQLite database to `~/.toksi/toksi.db` (`dirs::home_dir()`), NOT in `localdata/toksi`. Implement automatic startup migration from legacy `LOCALAPPDATA/toksi`.
+  - [x] Single root `.toksi` consolidation: discover subfolder `.toksi` directories (e.g. `crates/toksi/.toksi`), merge table rows into root `.toksi/toksi.db`, `memory.db`, `symbols.db` without data loss, and delete nested subfolder instances.
+  - [x] Consolidate tool layout strictly under `.toksi/<tool>`: `.toksi/{codegraph, headroom, projectmem, context, icm, ai-memory, rtk}`. Automatically migrate loose legacy folders (`.codegraph`, `.projectmem`, `.context-mode`, etc.) into `.toksi/<tool>`.
+  - [x] Enforce root-only workspace agent folders: `.claude`, `.cursor`, `.vscode`, `.grok`, `.cline`, `.gemini`, `.github`, `.agents` strictly in the primary workspace root.
+  - [x] Standardize tool hook syntax: `<tool>-hook <agent>` (e.g. `codegraph-hook agy`, `projectmem-hook agy`, `context-hook agy`, `rtk-hook agy`).
+  - [x] Normalize MCP tool identifiers: `toksi-projectmem` -> `projectmem`, `toksi-context-mode` -> `context`, `toksi-codegraph-index` -> `codegraph`. Map MCP settings to `skills/<tool>`.
+  - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
 - [ ] Phase 15.2: Unified 5-Port Daemon & Copilot Supervision:
   > Plan 15.2: `.agents/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`
   - [ ] Supervise all 5 dedicated endpoints simultaneously in `toksi daemon start`:
