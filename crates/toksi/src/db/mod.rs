@@ -22,6 +22,22 @@ pub fn default_db_path() -> PathBuf {
             return PathBuf::from(dir).join("toksi.db");
         }
     }
+    let h = crate::util::paths::home();
+    if !h.is_empty() {
+        let p = PathBuf::from(h).join(".toksi").join("toksi.db");
+        // Auto-migrate from legacy LOCALAPPDATA / local share if target doesn't exist
+        if !p.exists() {
+            let legacy_data_dir = crate::util::paths::toksi_data_dir();
+            let legacy_db = PathBuf::from(&legacy_data_dir).join("toksi.db");
+            if legacy_db.exists() && legacy_db != p {
+                if let Some(parent) = p.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                let _ = std::fs::copy(&legacy_db, &p);
+            }
+        }
+        return p;
+    }
     let data_dir = crate::util::paths::toksi_data_dir();
     PathBuf::from(data_dir).join("toksi.db")
 }

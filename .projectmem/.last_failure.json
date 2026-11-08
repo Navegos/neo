@@ -1,6 +1,6 @@
 {
-  "command": "cargo check -p toksi --all-targets --config build.rustflags=[\\ -D\\, \\warnings\\]",
-  "root_cause": "error: unexpected argument 'warnings]' found",
-  "raw_output": "error: unexpected argument 'warnings]' found\n\nUsage: cargo.exe check [OPTIONS]\n\nFor more information, try '--help'.\n",
-  "timestamp": "2026-11-08T22:50:08Z"
+  "command": "git checkout .toksi/",
+  "root_cause": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied",
+  "raw_output": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied\n",
+  "timestamp": "2026-11-08T23:27:43Z"
 }

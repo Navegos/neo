@@ -8,6 +8,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
+use zeroize::Zeroize;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OAuthEnvelope {
@@ -15,7 +16,27 @@ pub struct OAuthEnvelope {
     pub refresh_token: Option<String>,
     pub expires_at: Option<i64>,
     pub token_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub raw_json: Option<Value>,
+}
+
+impl Zeroize for OAuthEnvelope {
+    fn zeroize(&mut self) {
+        self.access_token.zeroize();
+        if let Some(ref mut refresh) = self.refresh_token {
+            refresh.zeroize();
+        }
+    }
+}
+
+impl OAuthEnvelope {
+    pub fn take_access_token(&mut self) -> String {
+        std::mem::take(&mut self.access_token)
+    }
+
+    pub fn take_refresh_token(&mut self) -> Option<String> {
+        self.refresh_token.take()
+    }
 }
 
 impl OAuthEnvelope {
@@ -65,7 +86,7 @@ pub fn decode_base64(input: &str) -> Option<Vec<u8>> {
 
 pub fn encode_base64(input: &[u8]) -> String {
     const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity((input.len() + 2) / 3 * 4);
+    let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
     let mut i = 0;
     while i < input.len() {
         let b0 = input[i] as u32;
@@ -99,14 +120,13 @@ pub fn parse_credential_envelope(raw: &str) -> Option<OAuthEnvelope> {
     }
 
     // 1. Try base64 decoding
-    if let Some(decoded) = decode_base64(trimmed) {
-        if let Ok(utf8_str) = std::str::from_utf8(&decoded) {
-            if let Ok(val) = serde_json::from_str::<Value>(utf8_str) {
-                if let Some(env) = extract_envelope_from_json(val) {
-                    return Some(env);
-                }
-            }
-        }
+    if let Some(env) = decode_base64(trimmed)
+        .as_deref()
+        .and_then(|bytes| std::str::from_utf8(bytes).ok())
+        .and_then(|s| serde_json::from_str::<Value>(s).ok())
+        .and_then(extract_envelope_from_json)
+    {
+        return Some(env);
     }
 
     // 2. Try direct JSON parsing

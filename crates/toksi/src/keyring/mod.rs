@@ -12,6 +12,17 @@ pub mod os_windows;
 
 pub use envelope::{decode_base64, encode_base64, parse_credential_envelope, OAuthEnvelope};
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum KeyringError {
+    #[error("Credential not found for service '{service}' (account '{account}')")]
+    NotFound { service: String, account: String },
+    #[error("OS Keyring storage failed: {0}")]
+    StorageError(String),
+    #[error("Failed to parse credential envelope: {0}")]
+    InvalidEnvelope(String),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeyringStatus {
@@ -42,6 +53,10 @@ fn vault_path() -> std::path::PathBuf {
         if !dir.is_empty() {
             return std::path::PathBuf::from(dir).join("vault.json");
         }
+    }
+    let h = crate::util::paths::home();
+    if !h.is_empty() {
+        return std::path::PathBuf::from(h).join(".toksi").join("vault.json");
     }
     std::path::PathBuf::from(crate::util::paths::toksi_data_dir()).join("vault.json")
 }
@@ -91,15 +106,9 @@ fn delete_from_vault(key: &str) -> bool {
 pub fn get_credential(service: &str, account: &str) -> Option<String> {
     let os_result = if cfg!(windows) {
         let combined = format!("{}:{}", service, account);
-        if let Some(tok) = os_windows::read_credential(&combined) {
-            Some(tok)
-        } else if let Some(tok) = os_windows::read_credential(service) {
-            Some(tok)
-        } else if let Some(tok) = os_windows::read_credential(account) {
-            Some(tok)
-        } else {
-            None
-        }
+        os_windows::read_credential(&combined)
+            .or_else(|| os_windows::read_credential(service))
+            .or_else(|| os_windows::read_credential(account))
     } else if cfg!(target_os = "macos") {
         os_macos::read_keychain(service, account)
     } else if cfg!(target_os = "linux") {

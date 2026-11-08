@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/keyring/os_windows.rs
 // created: 2026-11-04
-// lastModified: 2026-11-04
+// lastModified: 2026-11-08
 
 #[cfg(windows)]
 mod imp {
@@ -12,19 +12,19 @@ mod imp {
 
     #[repr(C)]
     #[allow(non_snake_case)]
-    struct FILETIME {
+    struct Filetime {
         dwLowDateTime: u32,
         dwHighDateTime: u32,
     }
 
     #[repr(C)]
     #[allow(non_snake_case)]
-    struct CREDENTIALW {
+    struct Credentialw {
         Flags: u32,
         Type: u32,
         TargetName: *mut u16,
         Comment: *mut u16,
-        LastWritten: FILETIME,
+        LastWritten: Filetime,
         CredentialBlobSize: u32,
         CredentialBlob: *mut u8,
         Persist: u32,
@@ -44,10 +44,10 @@ mod imp {
             TargetName: *const u16,
             Type: u32,
             Flags: u32,
-            Credential: *mut *mut CREDENTIALW,
+            Credential: *mut *mut Credentialw,
         ) -> i32;
 
-        fn CredWriteW(Credential: *const CREDENTIALW, Flags: u32) -> i32;
+        fn CredWriteW(Credential: *const Credentialw, Flags: u32) -> i32;
 
         fn CredDeleteW(TargetName: *const u16, Type: u32, Flags: u32) -> i32;
 
@@ -60,8 +60,12 @@ mod imp {
 
     pub fn read_credential(target_name: &str) -> Option<String> {
         let wide_target = to_wide(target_name);
-        let mut cred_ptr: *mut CREDENTIALW = std::ptr::null_mut();
+        let mut cred_ptr: *mut Credentialw = std::ptr::null_mut();
 
+        // SAFETY: `CredReadW` is a standard Win32 advapi32.dll function.
+        // `wide_target` is guaranteed to be a null-terminated UTF-16 wide string slice.
+        // If successful, `cred_ptr` points to an allocated CREDENTIALW struct whose buffer is
+        // valid until freed by `CredFree`.
         unsafe {
             let res = CredReadW(
                 wide_target.as_ptr(),
@@ -102,12 +106,12 @@ mod imp {
         let mut wide_user = user_name.map(to_wide);
         let mut blob_bytes = secret.as_bytes().to_vec();
 
-        let mut cred = CREDENTIALW {
+        let mut cred = Credentialw {
             Flags: 0,
             Type: CRED_TYPE_GENERIC,
             TargetName: wide_target.as_mut_ptr(),
             Comment: std::ptr::null_mut(),
-            LastWritten: FILETIME { dwLowDateTime: 0, dwHighDateTime: 0 },
+            LastWritten: Filetime { dwLowDateTime: 0, dwHighDateTime: 0 },
             CredentialBlobSize: blob_bytes.len() as u32,
             CredentialBlob: blob_bytes.as_mut_ptr(),
             Persist: CRED_PERSIST_ENTERPRISE,
@@ -117,6 +121,8 @@ mod imp {
             UserName: wide_user.as_mut().map(|w| w.as_mut_ptr()).unwrap_or(std::ptr::null_mut()),
         };
 
+        // SAFETY: `CredWriteW` is called with pointers to valid pinned stack buffers (`wide_target`,
+        // `wide_user`, `blob_bytes`). All buffers outlive the call duration.
         unsafe {
             if CredWriteW(&cred, 0) != 0 {
                 return true;
@@ -130,6 +136,7 @@ mod imp {
 
     pub fn delete_credential(target_name: &str) -> bool {
         let wide_target = to_wide(target_name);
+        // SAFETY: `CredDeleteW` is called with a valid null-terminated UTF-16 wide string.
         unsafe {
             CredDeleteW(wide_target.as_ptr(), CRED_TYPE_GENERIC, 0) != 0
         }
