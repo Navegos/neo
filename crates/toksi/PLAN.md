@@ -113,7 +113,7 @@ Native configuration, automatic hook injection, and proxy protocol handling for 
 - **Phase 15.3**: Local Agent CLIs as First-Class BYOK, Smart Launch, Paid Quota Enforcement, Graceful Fallback & Bifrost Integration.
 - **Phase 15.4**: Multi-Protocol Architecture (MCP, A2A, ACP, stdio, SSE, HTTP) & Dynamic .gitignore/.ignore Index Purging.
 - **Phase 15.5**: Ground-Truth Token Accounting, Zero-Math Metrics, Network Reconnect Auto-Healing Watchdog & Rules Sync.
-- **Phase 15.6**: Advanced Vault Intelligence Engines (`TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`).
+- **Phase 15.6**: Advanced Vault Intelligence Engines (`TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm`).
 - **Phase 16.1**: High-Performance Mouse-Capable Interactive TUI (`EnableMouseCapture`, fix input locks & tab freezes).
 - **Phase 16.2**: Enterprise Background Web Telemetry Cockpit Dashboard (:9100, live observation grid, quotas, load balancer).
 - **Phase 16.3**: Open Agents Directory Protocols, Selective User vs Workspace Install & Complete Technical README Verification.

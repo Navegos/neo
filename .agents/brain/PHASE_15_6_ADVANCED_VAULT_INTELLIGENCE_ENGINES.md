@@ -13,6 +13,7 @@ Targets:
   - crates/toksi/src/codegraph/scip.rs
   - crates/toksi/src/aimemory/mem0_bridge.rs
   - crates/toksi/src/gateway/semantic_cache.rs
+  - crates/toksi/src/gateway/normalizer/litellm.rs
 
 Requirements:
 1. Ingest & Consolidate Remaining Inspect-Vault Engines:
@@ -23,6 +24,7 @@ Requirements:
    - scip (`neo/inspect-vault/scip`): SCIP code intelligence protocol indexer.
    - mem0 (`neo/inspect-vault/mem0`): Personalized long-term memory extraction.
    - Chroma (`neo/inspect-vault/chroma`): Vector embedding similarity search backing semantic cache.
+   - LiteLLM (`neo/inspect-vault/litellm`): 100+ model alias mapping, token pricing tables, and drop-in format conversions.
 2. Verification:
    - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
 ```
@@ -44,5 +46,25 @@ pub fn pack_codebase(root: &std::path::Path, cfg: &RepomixConfig) -> Result<Stri
     // Generate directory tree, file manifests, and concatenated representations
     // while honoring .gitignore and exact token counting.
     Ok("packed".to_string())
+}
+```
+
+### 2. LiteLLM Provider Normalization in `litellm.rs`
+```rust
+pub struct ModelCostRecord {
+    pub model_name: &'static str,
+    pub input_cost_per_token: f64,
+    pub output_cost_per_token: f64,
+    pub cache_read_cost_per_token: f64,
+    pub max_tokens: usize,
+}
+
+pub fn normalize_model_name(requested_model: &str) -> &'static str {
+    match requested_model {
+        "gpt-4o" | "openai/gpt-4o" => "gpt-4o",
+        "claude-3-7-sonnet" | "anthropic/claude-3-7-sonnet" => "claude-3-7-sonnet-20250219",
+        "gemini-2.0-flash" | "google/gemini-2.0-flash" => "gemini-2.0-flash",
+        _ => "default-model",
+    }
 }
 ```

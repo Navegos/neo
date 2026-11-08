@@ -74,7 +74,7 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
   - [ ] Universal rules/skills sync across 17 agents; update CLI usage help in `main.rs`
 - [ ] Phase 15.6: Advanced Vault Intelligence Engines Consolidation:
   > Plan 15.6: `.agents/brain/PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md`
-  - [ ] Consolidate remaining reference vaults in pure Rust: `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`
+  - [ ] Consolidate remaining reference vaults in pure Rust: `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm`
 - [ ] Phase 16.1: High-Performance Mouse-Capable Interactive TUI:
   > Plan 16.1: `.agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md`
   - [ ] Enable crossterm `EnableMouseCapture`: tab clicks, row selection, action buttons, scrollable views

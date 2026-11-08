@@ -1,7 +1,7 @@
 # Toksi Native Consolidation Master Architecture Plan (v3.4)
 **Project:** `neo/crates/toksi`  
 **Status:** Approved Master Architectural Blueprint & Implementation Specification  
-**Objective:** 100% Native Rust consolidation of all token-optimization, memory, code-intelligence, rules, gateway, load-balancer, and telemetry engines directly embedded into `crates/toksi/src/*`. Complete removal of external package manager downloads (npm, pip, uv, curl). Pure in-process execution, zero missing code, full feature parity, Git Bash friendly forward-slash (`/`) directory normalization, default SQLite storage in user home (`~/.toksi/toksi.db`), single-daemon zero-touch launch, mouse-capable interactive TUI, dedicated high-performance 5-port network topology, ground-truth session token accounting, strict paid-quota verification for all BYOK providers (with graceful inform and zero-fail fallback), workspace root `.toksi` consolidation, standardized tool hook syntax (`<tool>-hook <agent>`), normalized MCP naming, multi-protocol architecture (MCP, A2A, ACP, stdio, SSE, HTTP), `.gitignore` dynamic vector cache purging, Open Agents directory structure support, and enterprise-grade background Web UI Telemetry & Control Cockpit.
+**Objective:** 100% Native Rust consolidation of all token-optimization, memory, code-intelligence, rules, gateway, load-balancer, and telemetry engines directly embedded into `crates/toksi/src/*` (consolidating tokless/toksi, bifrost, context-mode, codegraph, headroom, projectmem, ai-memory, icm, rtk, caveman, ponytail, andrej-karpathy-skills, TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, and agents-structures). Complete removal of external package manager downloads (npm, pip, uv, curl). Pure in-process execution, zero missing code, full feature parity, Git Bash friendly forward-slash (`/`) directory normalization, default SQLite storage in user home (`~/.toksi/toksi.db`), single-daemon zero-touch launch, mouse-capable interactive TUI, dedicated high-performance 5-port network topology, ground-truth session token accounting, strict paid-quota verification for all BYOK providers (with graceful inform and zero-fail fallback), workspace root `.toksi` consolidation, standardized tool hook syntax (`<tool>-hook <agent>`), normalized MCP naming, multi-protocol architecture (MCP, A2A, ACP, stdio, SSE, HTTP), `.gitignore` dynamic vector cache purging, Open Agents directory structure support, and enterprise-grade background Web UI Telemetry & Control Cockpit.
 
 ---
 
@@ -357,8 +357,7 @@ Toksi directly understands, reads, writes, and synchronizes the standardized age
 
 2. **Google Antigravity (`.gemini/`)**:
    - `~/.gemini/` (Global User) & `<root>/.gemini/` (Workspace Root)
-   - Layout: `hooks.json`, `mcp_config.json`, `settings.json`, `rules/`, `skills/`, `GEMINI.md`, `plugins/`.
-   - Settings in `antigravity/` and `antigravity-cli/` mapped to `skills/<tool>`.
+   - Layout: `hooks.json`, `mcp_config.json`, `settings.json`, `agents/`, `rules/`, `skills/`, `GEMINI.md`, `plugins/`.
 
 3. **GitHub Copilot (`.copilot/` & `.github/`)**:
    - `~/.copilot/` (User CLI), `~/.github/` (User Global), `<root>/.github/` (Workspace Root)
@@ -555,7 +554,7 @@ Toksi ensures that all 17 supported agents have their instruction, skill, and ru
 
 ---
 
-## 7. Upstream Vaults Audit, Missing Features & Bugfix Matrix (19 Reference Engines)
+## 7. Upstream Vaults Audit, Missing Features & Bugfix Matrix (20 Reference Engines)
 
 Continuous re-audit against reference implementations in `neo/inspect-vault/*` to guarantee full feature parity, upstream bug fixes, and zero omitted capabilities:
 
@@ -580,6 +579,7 @@ Continuous re-audit against reference implementations in `neo/inspect-vault/*` t
 | `neo/inspect-vault/scip` | `crates/toksi/src/codegraph/scip.rs` | SCIP protocol code intelligence indexer for precise cross-file definition & reference graphs. | In Progress |
 | `neo/inspect-vault/mem0` | `crates/toksi/src/aimemory/mem0_bridge.rs` | Long-term personalized memory extraction, entity tracking, and cross-session user preferences. | In Progress |
 | `neo/inspect-vault/chroma` | `crates/toksi/src/gateway/semantic_cache.rs` | Embedding vector similarity indexing and dual-tier semantic cache backing store. | In Progress |
+| `neo/inspect-vault/litellm` | `crates/toksi/src/gateway/normalizer/`, `crates/toksi/src/gateway/compat/` | 100+ model naming aliases, standard request/response mapping, token billing rates, and drop-in OpenAI/Anthropic/Gemini compatibility. | In Progress |
 | `neo/inspect-vault/agents-structures` | `crates/toksi/src/agents/` | Reference configurations, schemas, and layouts for `.agents/`, `.gemini/`, `.copilot/`, `.claude/`, `.codex/`, `.cursor/`, `.grok/`. | In Progress |
 
 ---
@@ -607,7 +607,7 @@ Continuous re-audit against reference implementations in `neo/inspect-vault/*` t
 | **Phase 15.3** | **Smart Agent CLI Providers & Paid Quota** | Local Agent CLI providers (`agy`, `copilot`, `claude`, `cursor`, `grok`) registered as peer BYOK providers; smart background launch; strict paid quota enforcement with non-blocking inform and zero-fail fallback; Bifrost integration. | Reliable CLI agent bridges, paid commercial tier verification, graceful unbilled bypass. | **ACTIVE (3/9)** |
 | **Phase 15.4** | **Multi-Protocol & Dynamic Ignore Purge** | Multi-protocol architecture (MCP, A2A, ACP, stdio, SSE, HTTP) across all tools; `.gitignore` and `.ignore` integration with dynamic vector/embedding cache purge. | Multi-protocol interoperability; zero junk in vector cache. | **ACTIVE (4/9)** |
 | **Phase 15.5** | **Token Accounting & Network Healing** | Ground-truth session token accounting from live SSE streams; upstream rate-limit headers; zero-math stats; AI channel quota check; network reconnect auto-healing watchdog; universal rules/skills sync. | Real token/quota telemetry; auto-reconnect recovery; pristine synchronized agent guidelines. | **ACTIVE (5/9)** |
-| **Phase 15.6** | **Advanced Vault Intelligence Engines** | Pure Rust consolidation of `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma` into `crates/toksi`. | Complete feature parity with all 19 reference vaults; zero missing capabilities. | **ACTIVE (6/9)** |
+| **Phase 15.6** | **Advanced Vault Intelligence Engines** | Pure Rust consolidation of `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm` into `crates/toksi`. | Complete feature parity with all 20 reference vaults; zero missing capabilities. | **ACTIVE (6/9)** |
 | **Phase 16.1** | **Mouse-Capable TUI** | Enable crossterm mouse capture (`EnableMouseCapture`); interactive tab bar clicks, entity row selection, action buttons, scrollable logs; fix keyboard/tab freezes. | Beautiful, mouse-interactive terminal control cockpit (`toksi tui`/`top`) with zero input hangs. | **ACTIVE (7/9)** |
 | **Phase 16.2** | **Web Cockpit Dashboard** | Background Web UI on `:9100` (`toksi dashboard`); 17-agent live observation grid; real-time token savings; upstream quota gauges; gateway & load balancer controls; DB backup/export. | High-performance, isolated web telemetry & administration cockpit. | **ACTIVE (8/9)** |
 | **Phase 16.3** | **Open Agents & README Verification** | Full support for `.agents/`, `.gemini/`, `.copilot/`, `.claude/`, `.codex/`, `.cursor/`, `.grok/`; selective user-level vs workspace installation; comprehensive technical README; complete verification. | Universal multi-agent protocol compliance; definitive documentation; 100% tests pass. | **ACTIVE (9/9)** |
@@ -844,6 +844,7 @@ Targets:
   - crates/toksi/src/codegraph/scip.rs
   - crates/toksi/src/aimemory/mem0_bridge.rs
   - crates/toksi/src/gateway/semantic_cache.rs
+  - crates/toksi/src/gateway/normalizer/litellm.rs
 
 Requirements:
 1. Ingest & Consolidate Remaining Inspect-Vault Engines:
@@ -854,6 +855,7 @@ Requirements:
    - scip (`neo/inspect-vault/scip`): SCIP code intelligence protocol indexer.
    - mem0 (`neo/inspect-vault/mem0`): Personalized long-term memory extraction.
    - Chroma (`neo/inspect-vault/chroma`): Vector embedding similarity search backing semantic cache.
+   - LiteLLM (`neo/inspect-vault/litellm`): 100+ model alias mapping, token pricing tables, and drop-in format conversions.
 2. Verification:
    - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
 ```

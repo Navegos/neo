@@ -53,4 +53,4 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
   * `rules`: In-tree compile-time embedded guidelines (`include_str!`): Karpathy principles, Caveman ASD-STE100 compressor, Ponytail lazy senior build discipline; universal synchronizer for `rules*.md`, `skills*.md`, `instructions*.md`, `agents*.md`.
 - `crates/nbuild`: Universal toolchain manager, local GitHub Actions workflow runner, package engine, and remote worker runner for AI agents.
 - `crates/archinfo`: Hardware CPU feature detection, ISA mapping, and target triple platform analysis.
-- `inspect-vault/*`: Consolidated reference vaults (tokless, bifrost, headroom, rtk, context-mode, codegraph, projectmem, ai-memory, icm, ponytail, caveman, andrej-karpathy-skills, TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, agents-structures).
+- `inspect-vault/*`: Consolidated reference vaults (tokless, bifrost, headroom, rtk, context-mode, codegraph, projectmem, ai-memory, icm, ponytail, caveman, andrej-karpathy-skills, TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, agents-structures).
