@@ -1,4 +1,4 @@
-# Toksi Native Consolidation: Phase Index & Execution Guide
+# Toksi Native Consolidation: Phase Index & Execution Guide (v3.4)
 
 > **Zero Token-Waste Execution Policy**:  
 > To prevent context saturation and token budget exhaustion, **run one phase per chat session**.  
@@ -24,13 +24,15 @@
 | [`PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md`](./PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md) | TUI & Dashboard | Native Prometheus `/metrics`, async collector, multi-tab TUI, embedded web UI | Implemented & Tested |
 | [`PHASE_13_E2E_VERIFICATION_BENCHMARKS.md`](./PHASE_13_E2E_VERIFICATION_BENCHMARKS.md) | E2E Verification | 100% test pass rate, 0 warnings, token reduction and latency benchmarks | Implemented & Tested |
 | [`PHASE_14_KEYRING_AND_CONFIG_SQLITE_DB.md`](./PHASE_14_KEYRING_AND_CONFIG_SQLITE_DB.md) | Keyring & SQLite DB | Native OS Keyring (`advapi32.dll`, Keychain, Secret Service), SQLite config DB | Implemented & Tested |
-| [`PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md`](./PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md) | Workspace & Standards | Forward-slash `/` paths, `~/.toksi/toksi.db`, single root `.toksi` consolidation, tool layout, hook syntax (`<tool>-hook <agent>`), MCP renaming | **NEXT ACTIVE PHASE (1/7)** |
-| [`PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`](./PHASE_15_2_UNIFIED_5_PORT_DAEMON.md) | 5-Port Daemon & Copilot | 5-port supervisor (:8787, :8789, :8790, :9099, :9100), Copilot dual-port verification, latency isolation | **ACTIVE PHASE (2/7)** |
-| [`PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`](./PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md) | Smart CLI & Paid Quota | Local Agent CLI providers (`agy`, `copilot`, `claude`, `cursor`, `grok`), smart launch, paid tier mandate, graceful bypass | **ACTIVE PHASE (3/7)** |
-| [`PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md`](./PHASE_15_4_TOKEN_ACCOUNTING_AND_RULES_SYNC.md) | Token Accounting & Rules | Ground-truth session tokens, real SSE usage/quotas, universal rules/skills sync across 17 agents, CLI help update | **ACTIVE PHASE (4/7)** |
-| [`PHASE_16_1_MOUSE_CAPABLE_TUI.md`](./PHASE_16_1_MOUSE_CAPABLE_TUI.md) | Mouse-Capable TUI | Crossterm `EnableMouseCapture`, tab clicks, row selection, action buttons, scrollable views | **UPCOMING PHASE (5/7)** |
-| [`PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`](./PHASE_16_2_WEB_COCKPIT_DASHBOARD.md) | Web Cockpit Dashboard | Background Web UI on `:9100`, 17-agent observation grid, quota gauges, routing/loadbalancer controls | **UPCOMING PHASE (6/7)** |
-| [`PHASE_16_3_README_AND_VERIFICATION.md`](./PHASE_16_3_README_AND_VERIFICATION.md) | README & Verification | Comprehensive technical README, all 17 agents, 39+ providers, 0 warnings, full verification | **UPCOMING PHASE (7/7)** |
+| [`PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md`](./PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md) | Workspace & Standards | Forward-slash `/` paths, `~/.toksi/toksi.db`, single root `.toksi` consolidation, tool layout, hook syntax (`<tool>-hook <agent>`), MCP renaming, PATH validation mandate | **ACTIVE PHASE (1/9)** |
+| [`PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`](./PHASE_15_2_UNIFIED_5_PORT_DAEMON.md) | 5-Port Daemon & Copilot | 5-port supervisor (:8787, :8789, :8790, :9099, :9100), Copilot dual-port verification, latency isolation | **ACTIVE PHASE (2/9)** |
+| [`PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`](./PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md) | Smart CLI & Paid Quota | Local Agent CLI providers (`agy`, `copilot`, `claude`, `cursor`, `grok`), smart launch, paid tier mandate, graceful bypass, Bifrost provider | **ACTIVE PHASE (3/9)** |
+| [`PHASE_15_4_MULTI_PROTOCOL_AND_IGNORE_PURGE.md`](./PHASE_15_4_MULTI_PROTOCOL_AND_IGNORE_PURGE.md) | Multi-Protocol & Ignore Purge | MCP, A2A, ACP, stdio, SSE, HTTP across all tools; `.gitignore`/`.ignore` support with dynamic vector & embedding cache purge | **ACTIVE PHASE (4/9)** |
+| [`PHASE_15_5_TOKEN_ACCOUNTING_AND_NETWORK_HEALING.md`](./PHASE_15_5_TOKEN_ACCOUNTING_AND_NETWORK_HEALING.md) | Token Accounting & Auto-Heal | Ground-truth session tokens, real SSE usage/quotas, zero virtual math, network reconnect auto-recovery watchdog, rules sync | **ACTIVE PHASE (5/9)** |
+| [`PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md`](./PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md) | Vault Intelligence Engines | Consolidation of TokenTracker, jcodemunch-mcp, Repomix, ast-grep, SCIP, mem0, Chroma | **ACTIVE PHASE (6/9)** |
+| [`PHASE_16_1_MOUSE_CAPABLE_TUI.md`](./PHASE_16_1_MOUSE_CAPABLE_TUI.md) | Mouse-Capable TUI | Crossterm `EnableMouseCapture`, tab clicks, row selection, action buttons, scrollable views, fix input locks & tab freezes | **ACTIVE PHASE (7/9)** |
+| [`PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`](./PHASE_16_2_WEB_COCKPIT_DASHBOARD.md) | Web Cockpit Dashboard | Background Web UI on `:9100`, 17-agent live observation grid, realistic savings, quota gauges, routing/loadbalancer controls | **ACTIVE PHASE (8/9)** |
+| [`PHASE_16_3_OPEN_AGENTS_AND_README_VERIFICATION.md`](./PHASE_16_3_OPEN_AGENTS_AND_README_VERIFICATION.md) | Open Agents & Verification | Support `.agents/` and vendor layouts, selective user vs workspace auto-install, comprehensive technical README, 100% tests pass | **ACTIVE PHASE (9/9)** |
 
 ---
 

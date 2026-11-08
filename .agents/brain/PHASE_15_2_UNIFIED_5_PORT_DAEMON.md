@@ -48,23 +48,41 @@ pub fn daemon_run_foreground() -> i32 {
     let _ = ensure_dir(&headroom_paths_resolved().root);
     let _ = write_file_atomic(daemon_pid_file(), &pid.to_string());
 
-    crate::env_injector::register_teardown_handlers();
-    let mut teardown_guard = crate::env_injector::TeardownGuard::new();
-    let _ = crate::env_injector::inject_proxy_env();
+    let (tx, rx) = std::sync::mpsc::channel();
+    let r1 = tx.clone();
+    let r2 = tx.clone();
+    let r3 = tx.clone();
+    let r4 = tx.clone();
+    let r5 = tx.clone();
 
-    // Ensure all 5 endpoints are running:
-    // 1. Port 8787: Headroom Streaming Proxy
-    // 2. Port 8789: Copilot VS Code Proxy
-    // 3. Port 8790: Copilot CLI Proxy
-    // 4. Port 9099: AI Gateway & Drop-in SDKs
-    // 5. Port 9100: Web Telemetry Cockpit
-    ...
+    // 1. Headroom streaming proxy (:8787)
+    std::thread::spawn(move || {
+        let _ = r1.send(run_proxy_listener(8787));
+    });
+
+    // 2. Copilot VS Code proxy (:8789)
+    std::thread::spawn(move || {
+        let _ = r2.send(run_copilot_proxy(8789));
+    });
+
+    // 3. Copilot CLI proxy (:8790)
+    std::thread::spawn(move || {
+        let _ = r3.send(run_copilot_proxy(8790));
+    });
+
+    // 4. AI Gateway & /metrics (:9099)
+    std::thread::spawn(move || {
+        let _ = r4.send(run_gateway_listener(9099));
+    });
+
+    // 5. Web Telemetry Cockpit (:9100)
+    std::thread::spawn(move || {
+        let _ = r5.send(run_dashboard_listener(9100));
+    });
+
+    match rx.recv() {
+        Ok(code) => code,
+        Err(_) => 0,
+    }
 }
 ```
-
-### 2. Dual-Port Copilot Supervisor in `copilot_daemon.rs`
-- Add `ensure_copilot_cli_proxy_up()` for port 8790 alongside `ensure_copilot_proxy_up()` for port 8789.
-- Distinct PID and log files:
-  * `copilot-vscode.pid` & `copilot-vscode.log` (Port 8789)
-  * `copilot-cli.pid` & `copilot-cli.log` (Port 8790)
-

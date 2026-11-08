@@ -8,28 +8,19 @@ Execute Phase 16.1: Mouse-Capable Interactive TUI.
 Targets:
   - crates/toksi/src/tui/mod.rs
   - crates/toksi/src/tui/app.rs
-  - crates/toksi/src/tui/views/mod.rs
-  - crates/toksi/src/tui/views/monitor.rs
-  - crates/toksi/src/tui/views/agents.rs
-  - crates/toksi/src/tui/views/gateway.rs
-  - crates/toksi/src/tui/widgets/mod.rs
+  - crates/toksi/src/tui/views/*
+  - crates/toksi/src/tui/widgets/*
   - crates/toksi/src/commands/tui.rs
 
 Requirements:
-1. Mouse Capture Enablement:
-   - In `tui/mod.rs`, enable mouse capture during terminal initialization:
-     `execute!(stdout, EnterAlternateScreen, Hide, EnableMouseCapture)?;`
-   - Ensure `TerminalGuard::drop` cleanly restores terminal state:
-     `let _ = execute!(stdout(), Show, LeaveAlternateScreen, DisableMouseCapture);`
-2. Interactive Mouse Event Handling in `tui/app.rs`:
-   - Handle `Event::Mouse(MouseEvent)`:
-     * Tab Switching: Clicking the tab bar detects column bounds and switches active tab (Monitor, Agents, Gateway, Memory, CodeGraph, Headroom, Logs).
-     * Row Selection: Clicking a row in the agent table or provider list selects that entity and shows its detail inspector.
-     * Action Buttons: Clicking UI action buttons (e.g. `[Wire]`, `[Unwire]`, `[Precheck]`, `[Test Provider]`, `[Sync Rules]`) triggers the corresponding action.
-     * Mouse Wheel: Scrolling mouse wheel up/down scrolls the active list, log stream, or detail panel.
-3. Aesthetic Visual Polish:
-   - High-contrast, clean dark theme styling with Ratatui blocks, sparklines, gauges, and tables.
-   - Display real connected agent status, live token savings, and provider health.
+1. Mouse-Enabled Interactive TUI:
+   - Enable mouse capture in Crossterm (`EnableMouseCapture` on start, `DisableMouseCapture` on exit).
+   - Route mouse click events in `app.rs`: clicking tabs switches tabs, clicking rows selects agents/providers, mouse wheel scrolls logs.
+2. Fix Terminal Hangs & Input Locking:
+   - Replace blocking event calls with non-blocking async event polling in the TUI event loop.
+   - Ensure switching between tabs (Monitor, Agents, Memory, Graph, Headroom, Logs) and clicking buttons never hangs or locks keyboard input.
+3. Realistic Real-Time Telemetry:
+   - Show true token consumption, ground-truth savings, and active BYOK quota gauges. When zero agents are running, stats read 0.
 4. Verification:
    - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
 ```
@@ -38,38 +29,38 @@ Requirements:
 
 ## Technical Specifications & Details
 
-### 1. Terminal Mouse Setup in `tui/mod.rs`
+### 1. Crossterm Mouse Capture in `tui/mod.rs`
 ```rust
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
-
-pub fn run_tui() -> Result<(), Box<dyn std::error::Error>> {
-    let mut stdout = std::io::stdout();
+pub fn init_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>, std::io::Error> {
     crossterm::terminal::enable_raw_mode()?;
-    crossterm::execute!(stdout, EnterAlternateScreen, Hide, EnableMouseCapture)?;
+    let mut stdout = std::io::stdout();
+    crossterm::execute!(
+        stdout,
+        crossterm::terminal::EnterAlternateScreen,
+        crossterm::event::EnableMouseCapture
+    )?;
+    let backend = CrosstermBackend::new(stdout);
+    Terminal::new(backend)
+}
 
-    let mut guard = TerminalGuard;
-    ...
+pub fn restore_terminal(mut terminal: Terminal<CrosstermBackend<Stdout>>) -> Result<(), std::io::Error> {
+    crossterm::terminal::disable_raw_mode()?;
+    crossterm::execute!(
+        terminal.backend_mut(),
+        crossterm::terminal::LeaveAlternateScreen,
+        crossterm::event::DisableMouseCapture
+    )?;
+    terminal.show_cursor()
 }
 ```
 
-### 2. Mouse Click Dispatch in `tui/app.rs`
+### 2. Non-Blocking Event Polling in `tui/mod.rs`
 ```rust
-match event {
-    Event::Mouse(mouse_event) => {
-        match mouse_event.kind {
-            MouseEventKind::Down(MouseButton::Left) => {
-                app.handle_mouse_click(mouse_event.column, mouse_event.row);
-            }
-            MouseEventKind::ScrollDown => {
-                app.scroll_down();
-            }
-            MouseEventKind::ScrollUp => {
-                app.scroll_up();
-            }
-            _ => {}
-        }
+if crossterm::event::poll(std::time::Duration::from_millis(50))? {
+    match crossterm::event::read()? {
+        Event::Key(key) => app.handle_key(key),
+        Event::Mouse(mouse) => app.handle_mouse(mouse),
+        _ => {}
     }
-    _ => {}
 }
 ```
-
