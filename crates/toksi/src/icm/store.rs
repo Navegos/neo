@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/icm/store.rs
 // created: 2026-10-28
-// lastModified: 2026-11-05
+// lastModified: 2026-11-08
 
 use std::path::{Path, PathBuf};
 use chrono::Utc;
@@ -29,7 +29,8 @@ pub struct IcmStore {
 
 impl IcmStore {
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self, rusqlite::Error> {
-        let path = path.as_ref().to_path_buf();
+        let norm = crate::util::paths::normalize_path(&path.as_ref().to_string_lossy());
+        let path = PathBuf::from(norm);
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }

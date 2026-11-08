@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/icm/mcp.rs
 // created: 2026-10-28
-// lastModified: 2026-11-05
+// lastModified: 2026-11-08
 
 use std::env;
 use std::io::{self, BufRead, Write};
@@ -19,18 +19,19 @@ use crate::icm::store::{compute_summary_hash, IcmStore, DEFAULT_DB_FILENAME};
 pub fn resolve_icm_db_path() -> PathBuf {
     if let Ok(p) = env::var("ICM_DB_PATH") {
         if !p.trim().is_empty() {
-            return PathBuf::from(p);
+            let norm = crate::util::paths::normalize_path(&p);
+            return PathBuf::from(norm);
         }
     }
     let h = crate::util::paths::home();
     if !h.is_empty() {
-        let home_mem = PathBuf::from(&h).join(".toksi").join("memory.db");
-        if home_mem.exists() {
-            return home_mem;
-        }
         let home_icm = PathBuf::from(&h).join(".toksi").join("icm").join(DEFAULT_DB_FILENAME);
         if home_icm.exists() {
             return home_icm;
+        }
+        let home_mem = PathBuf::from(&h).join(".toksi").join("memory.db");
+        if home_mem.exists() {
+            return home_mem;
         }
     }
     if let Ok(root) = env::var("PROJECTMEM_ROOT") {
@@ -46,7 +47,7 @@ pub fn resolve_icm_db_path() -> PathBuf {
         }
     }
     if !h.is_empty() {
-        return PathBuf::from(&h).join(".toksi").join("memory.db");
+        return PathBuf::from(&h).join(".toksi").join("icm").join(DEFAULT_DB_FILENAME);
     }
     if let Ok(cwd) = env::current_dir() {
         let cwd_icm = cwd.join(".toksi").join("icm").join(DEFAULT_DB_FILENAME);
@@ -55,7 +56,7 @@ pub fn resolve_icm_db_path() -> PathBuf {
         }
         return cwd.join(".toksi").join(DEFAULT_DB_FILENAME);
     }
-    PathBuf::from(".toksi").join(DEFAULT_DB_FILENAME)
+    PathBuf::from(".toksi").join("icm").join(DEFAULT_DB_FILENAME)
 }
 
 pub fn run_mcp_server() -> i32 {
@@ -92,7 +93,8 @@ pub fn run_mcp_server() -> i32 {
                     "id": Value::Null,
                     "error": { "code": -32700, "message": "Parse error" }
                 });
-                let _ = writeln!(stdout_lock, "{}", serde_json::to_string(&err_resp).unwrap());
+                let serialized = serde_json::to_string(&err_resp).unwrap_or_else(|_| "{}".to_string());
+                let _ = writeln!(stdout_lock, "{}", serialized);
                 let _ = stdout_lock.flush();
                 line.clear();
                 continue;
@@ -101,7 +103,8 @@ pub fn run_mcp_server() -> i32 {
 
         let resp = handle_mcp_request(&mut store, &req);
         if let Some(r) = resp {
-            let _ = writeln!(stdout_lock, "{}", serde_json::to_string(&r).unwrap());
+            let serialized = serde_json::to_string(&r).unwrap_or_else(|_| "{}".to_string());
+            let _ = writeln!(stdout_lock, "{}", serialized);
             let _ = stdout_lock.flush();
         }
 

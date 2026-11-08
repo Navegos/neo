@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-11-05
+// lastModified: 2026-11-08
 
 use std::collections::HashMap;
 use std::env;
@@ -13,7 +13,7 @@ use toksi::agents;
 use toksi::commands::{
     run_codegraph_index_hook, run_codex_perm_hook, run_ctx_hook,
     run_cursor_project_rules_hook, run_daemon_cli, run_disable, run_doctor,
-    run_grok_session_start_hook, run_index, run_info, run_init, run_mcp, run_prime,
+    run_grok_session_start_hook, run_icm_hook, run_index, run_info, run_init, run_mcp, run_prime,
     run_projectmem_hook, run_proxy_cli, run_rtk_cli, run_rtk_hook,
     run_rtk_hook_cline, run_rtk_hook_codex, run_rtk_hook_copilot, run_rtk_hook_cursor,
     run_rtk_hook_droid, run_rtk_hook_dsh, run_rtk_hook_grok, run_rtk_rewrite, run_self_update,
@@ -169,12 +169,13 @@ fn is_session_boot_arg(args: &[String]) -> bool {
     match args {
         [cmd, ..] if cmd == "run-mcp" || cmd == "rtk-hook" || cmd == "grok-hook" || cmd == "codex-perm"
             || cmd == "agy-hook" || cmd == "cursor-hook" || cmd == "copilot-hook"
-            || cmd == "projectmem-hook" || cmd == "ctx-hook" || cmd == "context-mode-hook" => true,
-        [a, b, ..] if (a == "rtk" || a == "ctx" || a == "context-mode") && b == "hook" => true,
+            || cmd == "projectmem-hook" || cmd == "ctx-hook" || cmd == "context-mode-hook"
+            || cmd == "icm-hook" => true,
+        [a, b, ..] if (a == "rtk" || a == "ctx" || a == "context-mode" || a == "icm") && b == "hook" => true,
         [a, b, ..] if a == "mem" && b == "mcp" => true,
         [a, b, ..] if (a == "ctx" || a == "context-mode") && b == "mcp" => true,
         [a, b, ..] if a == "graph" && b == "mcp" => true,
-        [a, b, ..] if (a == "icm" || a == "handoff") && b == "mcp" => true,
+        [a, b, ..] if (a == "icm" || a == "handoff" || a == "aimemory") && b == "mcp" => true,
         _ => false,
     }
 }
@@ -276,6 +277,13 @@ fn run() -> i32 {
     }
     if args.len() >= 3 && args[1] == "projectmem-hook" {
         return run_projectmem_hook(&args[2]);
+    }
+    if args.len() >= 3 && args[1] == "icm-hook" {
+        return run_icm_hook(&args[2]);
+    }
+    if args.len() >= 3 && args[1] == "icm" && args[2] == "hook" {
+        let agent = args.get(3).map(|s| s.as_str()).unwrap_or("generic");
+        return run_icm_hook(agent);
     }
     if args.len() >= 2 && (args[1] == "ctx-hook" || args[1] == "context-mode-hook") {
         return run_ctx_hook(&args[2..]);

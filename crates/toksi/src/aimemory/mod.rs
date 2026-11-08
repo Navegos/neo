@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/aimemory/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 pub mod handoff;
 pub mod tiered;
@@ -21,7 +21,8 @@ use std::path::PathBuf;
 pub fn default_handoffs_dir() -> PathBuf {
     if let Ok(p) = env::var("TOKSI_HANDOFF_DIR") {
         if !p.trim().is_empty() {
-            return PathBuf::from(p);
+            let norm = crate::util::paths::normalize_path(&p);
+            return PathBuf::from(norm);
         }
     }
     if let Ok(root) = env::var("PROJECTMEM_ROOT") {
@@ -30,7 +31,11 @@ pub fn default_handoffs_dir() -> PathBuf {
             if aimem_dir.exists() {
                 return aimem_dir;
             }
-            return PathBuf::from(root).join(".toksi").join("handoffs");
+            let legacy_dir = PathBuf::from(&root).join(".toksi").join("handoffs");
+            if legacy_dir.exists() {
+                return legacy_dir;
+            }
+            return aimem_dir;
         }
     }
     let h = crate::util::paths::home();
@@ -39,22 +44,31 @@ pub fn default_handoffs_dir() -> PathBuf {
         if home_aimem.exists() {
             return home_aimem;
         }
-        return PathBuf::from(h).join(".toksi").join("handoffs");
+        let legacy_dir = PathBuf::from(&h).join(".toksi").join("handoffs");
+        if legacy_dir.exists() {
+            return legacy_dir;
+        }
+        return home_aimem;
     }
     if let Ok(cwd) = env::current_dir() {
         let cwd_aimem = cwd.join(".toksi").join("ai-memory").join("handoffs");
         if cwd_aimem.exists() {
             return cwd_aimem;
         }
-        return cwd.join(".toksi").join("handoffs");
+        let legacy_dir = cwd.join(".toksi").join("handoffs");
+        if legacy_dir.exists() {
+            return legacy_dir;
+        }
+        return cwd_aimem;
     }
-    PathBuf::from(".toksi").join("handoffs")
+    PathBuf::from(".toksi").join("ai-memory").join("handoffs")
 }
 
 pub fn default_wiki_dir() -> PathBuf {
     if let Ok(p) = env::var("TOKSI_WIKI_DIR") {
         if !p.trim().is_empty() {
-            return PathBuf::from(p);
+            let norm = crate::util::paths::normalize_path(&p);
+            return PathBuf::from(norm);
         }
     }
     if let Ok(root) = env::var("PROJECTMEM_ROOT") {
@@ -63,7 +77,11 @@ pub fn default_wiki_dir() -> PathBuf {
             if aimem_wiki.exists() {
                 return aimem_wiki;
             }
-            return PathBuf::from(root).join(".toksi").join("wiki");
+            let legacy_wiki = PathBuf::from(&root).join(".toksi").join("wiki");
+            if legacy_wiki.exists() {
+                return legacy_wiki;
+            }
+            return aimem_wiki;
         }
     }
     let h = crate::util::paths::home();
@@ -72,16 +90,24 @@ pub fn default_wiki_dir() -> PathBuf {
         if home_aimem.exists() {
             return home_aimem;
         }
-        return PathBuf::from(h).join(".toksi").join("wiki");
+        let legacy_wiki = PathBuf::from(&h).join(".toksi").join("wiki");
+        if legacy_wiki.exists() {
+            return legacy_wiki;
+        }
+        return home_aimem;
     }
     if let Ok(cwd) = env::current_dir() {
         let cwd_aimem = cwd.join(".toksi").join("ai-memory").join("wiki");
         if cwd_aimem.exists() {
             return cwd_aimem;
         }
-        return cwd.join(".toksi").join("wiki");
+        let legacy_wiki = cwd.join(".toksi").join("wiki");
+        if legacy_wiki.exists() {
+            return legacy_wiki;
+        }
+        return cwd_aimem;
     }
-    PathBuf::from(".toksi").join("wiki")
+    PathBuf::from(".toksi").join("ai-memory").join("wiki")
 }
 
 #[cfg(test)]

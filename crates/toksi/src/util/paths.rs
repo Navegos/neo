@@ -22,6 +22,16 @@ pub fn temp_dir() -> String {
     std::env::temp_dir().to_string_lossy().to_string()
 }
 
+pub fn normalize_path(p: &str) -> String {
+    let trimmed = p.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let replaced = trimmed.replace('\\', "/");
+    // If windows drive letter like C:/, ensure proper format
+    replaced
+}
+
 pub use crate::util::exec::{
     find_binary, prepend_process_path, resolve_bun_binary, resolve_codegraph_bin,
     resolve_node_binary, resolve_npm_binary, resolve_rtk_bin, rtk_install_dirs, run_cmd,

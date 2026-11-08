@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/aimemory/handoff.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -107,7 +107,8 @@ pub struct HandoffStore {
 
 impl HandoffStore {
     pub fn new<P: AsRef<Path>>(base_dir: P) -> Self {
-        let dir = base_dir.as_ref().to_path_buf();
+        let norm = crate::util::paths::normalize_path(&base_dir.as_ref().to_string_lossy());
+        let dir = PathBuf::from(norm);
         let _ = fs::create_dir_all(&dir);
         Self { base_dir: dir }
     }
@@ -116,8 +117,14 @@ impl HandoffStore {
         Self::new(crate::aimemory::default_handoffs_dir())
     }
 
+    pub fn base_dir(&self) -> &Path {
+        &self.base_dir
+    }
+
     fn handoff_path(&self, id: &str) -> PathBuf {
-        self.base_dir.join(format!("{}.json", id))
+        let norm_id = crate::util::paths::normalize_path(id);
+        let cleaned_id = norm_id.trim_matches('/').replace('/', "_");
+        self.base_dir.join(format!("{}.json", cleaned_id))
     }
 
     pub fn offer(&self, input: NewHandoff) -> Result<Handoff, String> {

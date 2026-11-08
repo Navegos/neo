@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/aimemory/wiki.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -27,7 +27,8 @@ pub struct WikiStore {
 
 impl WikiStore {
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
-        let dir = root_dir.as_ref().to_path_buf();
+        let norm = crate::util::paths::normalize_path(&root_dir.as_ref().to_string_lossy());
+        let dir = PathBuf::from(norm);
         let _ = fs::create_dir_all(&dir);
         Self { root_dir: dir }
     }
@@ -36,8 +37,14 @@ impl WikiStore {
         Self::new(crate::aimemory::default_wiki_dir())
     }
 
+    pub fn root_dir(&self) -> &Path {
+        &self.root_dir
+    }
+
     fn page_path(&self, slug: &str) -> PathBuf {
-        self.root_dir.join(format!("{}.md", slug))
+        let norm_slug = crate::util::paths::normalize_path(slug);
+        let cleaned_slug = norm_slug.trim_matches('/').replace('/', "_");
+        self.root_dir.join(format!("{}.md", cleaned_slug))
     }
 
     pub fn write_page(&self, page: &WikiPage) -> Result<(), String> {

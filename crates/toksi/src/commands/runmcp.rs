@@ -216,3 +216,39 @@ pub fn run_projectmem_hook(agent: &str) -> i32 {
     }
     0
 }
+
+pub fn run_icm_hook(agent: &str) -> i32 {
+    ensure_process_path();
+    let mut input = Vec::new();
+    let _ = io::stdin().read_to_end(&mut input);
+    let raw = String::from_utf8_lossy(&input);
+    let root = resolve_hook_project_dir_from_input(&raw);
+    if !looks_like_project(&root) {
+        return 0;
+    }
+
+    let brief = crate::headroom::adaptive_mem::build_adaptive_memory_brief(10_000, 128_000).0;
+    if brief.is_empty() {
+        return 0;
+    }
+
+    match agent {
+        "claude" | "codex" | "droid" | "grok" | "copilot" => {
+            let mut hook_out = OrderedMap::new();
+            hook_out.insert("hookEventName".into(), Value::String("SessionStart".into()));
+            hook_out.insert("additionalContext".into(), Value::String(brief));
+            let mut resp = OrderedMap::new();
+            resp.insert("hookSpecificOutput".into(), Value::Object(hook_out));
+            println!("{}", stringify_json(&Value::Object(resp)));
+        }
+        "antigravity" | "agy" => {
+            let mut resp = OrderedMap::new();
+            resp.insert("additionalContext".into(), Value::String(brief));
+            println!("{}", stringify_json(&Value::Object(resp)));
+        }
+        _ => {
+            println!("{}", brief);
+        }
+    }
+    0
+}
