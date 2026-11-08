@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-04
+// lastModified: 2026-11-08
 
 #[macro_export]
 macro_rules! stack_guard {
@@ -92,14 +92,32 @@ pub fn extract_file(file_path: &str, content: &str, language: &str) -> Result<Fi
     decode_buffers(file_path, &out)
 }
 
+#[inline(always)]
+fn le_u16(slice: &[u8]) -> u16 {
+    if slice.len() >= 2 {
+        u16::from_le_bytes([slice[0], slice[1]])
+    } else {
+        0
+    }
+}
+
+#[inline(always)]
+fn le_u32(slice: &[u8]) -> u32 {
+    if slice.len() >= 4 {
+        u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]])
+    } else {
+        0
+    }
+}
+
 pub fn decode_buffers(file_path: &str, out: &buffers::EmitOut) -> Result<FileExtraction, String> {
     if out.meta.len() < buffers::META_SIZE {
         return Err("corrupt extraction meta".into());
     }
 
-    let node_count = u32::from_le_bytes(out.meta[4..8].try_into().unwrap()) as usize;
-    let edge_count = u32::from_le_bytes(out.meta[8..12].try_into().unwrap()) as usize;
-    let ref_count = u32::from_le_bytes(out.meta[12..16].try_into().unwrap()) as usize;
+    let node_count = le_u32(&out.meta[4..8]) as usize;
+    let edge_count = le_u32(&out.meta[8..12]) as usize;
+    let ref_count = le_u32(&out.meta[12..16]) as usize;
     let arena = &out.arena;
 
     let mut nodes = Vec::with_capacity(node_count);
@@ -111,24 +129,24 @@ pub fn decode_buffers(file_path: &str, out: &buffers::EmitOut) -> Result<FileExt
         let row = &out.nodes[off..off + buffers::NODE_ROW_SIZE];
         let kind_idx = row[0] as usize;
         let vis_code = row[1];
-        let flags_val = u16::from_le_bytes(row[2..4].try_into().unwrap());
-        let start_line = u32::from_le_bytes(row[4..8].try_into().unwrap());
-        let end_line = u32::from_le_bytes(row[8..12].try_into().unwrap());
-        let start_col = u32::from_le_bytes(row[12..16].try_into().unwrap());
-        let end_col = u32::from_le_bytes(row[16..20].try_into().unwrap());
+        let flags_val = le_u16(&row[2..4]);
+        let start_line = le_u32(&row[4..8]);
+        let end_line = le_u32(&row[8..12]);
+        let start_col = le_u32(&row[12..16]);
+        let end_col = le_u32(&row[16..20]);
 
-        let name_off = u32::from_le_bytes(row[20..24].try_into().unwrap());
-        let name_len = u32::from_le_bytes(row[24..28].try_into().unwrap());
-        let qn_off = u32::from_le_bytes(row[28..32].try_into().unwrap());
-        let qn_len = u32::from_le_bytes(row[32..36].try_into().unwrap());
-        let id_off = u32::from_le_bytes(row[36..40].try_into().unwrap());
-        let id_len = u32::from_le_bytes(row[40..44].try_into().unwrap());
-        let doc_off = u32::from_le_bytes(row[44..48].try_into().unwrap());
-        let doc_len = u32::from_le_bytes(row[48..52].try_into().unwrap());
-        let sig_off = u32::from_le_bytes(row[52..56].try_into().unwrap());
-        let sig_len = u32::from_le_bytes(row[56..60].try_into().unwrap());
-        let ret_off = u32::from_le_bytes(row[76..80].try_into().unwrap());
-        let ret_len = u32::from_le_bytes(row[80..84].try_into().unwrap());
+        let name_off = le_u32(&row[20..24]);
+        let name_len = le_u32(&row[24..28]);
+        let qn_off = le_u32(&row[28..32]);
+        let qn_len = le_u32(&row[32..36]);
+        let id_off = le_u32(&row[36..40]);
+        let id_len = le_u32(&row[40..44]);
+        let doc_off = le_u32(&row[44..48]);
+        let doc_len = le_u32(&row[48..52]);
+        let sig_off = le_u32(&row[52..56]);
+        let sig_len = le_u32(&row[56..60]);
+        let ret_off = le_u32(&row[76..80]);
+        let ret_len = le_u32(&row[80..84]);
 
         let kind = buffers::NODE_KINDS.get(kind_idx).copied().unwrap_or("symbol").to_string();
         let visibility = match vis_code {
@@ -180,16 +198,16 @@ pub fn decode_buffers(file_path: &str, out: &buffers::EmitOut) -> Result<FileExt
             break;
         }
         let row = &out.edges[off..off + buffers::EDGE_ROW_SIZE];
-        let src_idx = u32::from_le_bytes(row[0..4].try_into().unwrap());
-        let tgt_idx = u32::from_le_bytes(row[4..8].try_into().unwrap());
+        let src_idx = le_u32(&row[0..4]);
+        let tgt_idx = le_u32(&row[4..8]);
         let kind_idx = row[8] as usize;
-        let line = u32::from_le_bytes(row[12..16].try_into().unwrap());
-        let col = u32::from_le_bytes(row[16..20].try_into().unwrap());
+        let line = le_u32(&row[12..16]);
+        let col = le_u32(&row[16..20]);
 
-        let src_str_off = u32::from_le_bytes(row[28..32].try_into().unwrap());
-        let src_str_len = u32::from_le_bytes(row[32..36].try_into().unwrap());
-        let tgt_str_off = u32::from_le_bytes(row[36..40].try_into().unwrap());
-        let tgt_str_len = u32::from_le_bytes(row[40..44].try_into().unwrap());
+        let src_str_off = le_u32(&row[28..32]);
+        let src_str_len = le_u32(&row[32..36]);
+        let tgt_str_off = le_u32(&row[36..40]);
+        let tgt_str_len = le_u32(&row[40..44]);
 
         let source_id = if src_idx != buffers::NONE && (src_idx as usize) < nodes.len() {
             nodes[src_idx as usize].id.clone()
@@ -223,14 +241,14 @@ pub fn decode_buffers(file_path: &str, out: &buffers::EmitOut) -> Result<FileExt
             break;
         }
         let row = &out.refs[off..off + buffers::REF_ROW_SIZE];
-        let from_idx = u32::from_le_bytes(row[0..4].try_into().unwrap());
+        let from_idx = le_u32(&row[0..4]);
         let kind_code = row[4];
-        let line = u32::from_le_bytes(row[8..12].try_into().unwrap());
-        let col = u32::from_le_bytes(row[12..16].try_into().unwrap());
-        let name_off = u32::from_le_bytes(row[16..20].try_into().unwrap());
-        let name_len = u32::from_le_bytes(row[20..24].try_into().unwrap());
-        let from_str_off = u32::from_le_bytes(row[32..36].try_into().unwrap());
-        let from_str_len = u32::from_le_bytes(row[36..40].try_into().unwrap());
+        let line = le_u32(&row[8..12]);
+        let col = le_u32(&row[12..16]);
+        let name_off = le_u32(&row[16..20]);
+        let name_len = le_u32(&row[20..24]);
+        let from_str_off = le_u32(&row[32..36]);
+        let from_str_len = le_u32(&row[36..40]);
 
         let from_node_id = if from_idx != buffers::NONE && (from_idx as usize) < nodes.len() {
             nodes[from_idx as usize].id.clone()

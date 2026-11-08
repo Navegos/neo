@@ -17,7 +17,7 @@ _Loose thoughts, not yet committed to._
 - **Safe Rust (Edition 2024)**: `#![deny(unsafe_code)]` crate-wide. Unsafe permitted exclusively in isolated OS FFI leaf modules (`src/keyring/os_windows.rs`, `src/env_injector/windows.rs`) with mandatory `// SAFETY:` proofs.
 - **Zero Warnings Policy**: Code must compile cleanly under `RUSTFLAGS="-D warnings"` with zero Clippy lints (`cargo clippy -p toksi --all-targets -- -D warnings`).
 - **Strict Error Handling**: Prohibit `.unwrap()`, `.expect()`, `panic!()`, `unreachable!()` in production. Typed errors via `thiserror` in libraries; `anyhow::Result` with `.context()` in CLI.
-- **Continuous Reference Vault Re-Audit**: All 20+ reference vaults in `neo/inspect-vault/*` (`tokless`, `bifrost`, `headroom`, `rtk`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `andrej-karpathy-skills`, `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm`, `agents-structures`) are ALWAYS treated as new/updated code to inspect, convert, and import, verifying against missing features, addons, updates, new agents, and bugfixes.
+- **Continuous Reference Vault Re-Audit**: All 23 reference vaults in `neo/inspect-vault/*` (`tokless`, `bifrost`, `headroom`, `rtk`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `andrej-karpathy-skills`, `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm`, `TokenEconomizer`, `agent-opt`, `agents-structures`) are ALWAYS treated as new/updated code to inspect, convert, and import, verifying against missing features, addons, updates, new agents, and bugfixes.
 - **Cross-Platform Portability (Windows, Linux, macOS)**:
   * Universal forward-slash `/` paths standard (`normalize_path(&str)`). Escaped `\\` allowed ONLY in `cmd.exe` commands inside JSON5/TOML configs.
   * Filesystem case-insensitivity handling: normalize search terms before lookup.
@@ -105,6 +105,8 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
     * `mem0` -> `crates/toksi/src/aimemory/mem0_bridge.rs`
     * `chroma` -> `crates/toksi/src/gateway/semantic_cache.rs`
     * `litellm` -> `crates/toksi/src/gateway/normalizer/litellm.rs`
+    * `TokenEconomizer` -> `crates/toksi/src/headroom/compression/economizer.rs`
+    * `agent-opt` -> `crates/toksi/src/agents/opt.rs`
   - [ ] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
 - [ ] Phase 16.1: High-Performance Mouse-Capable Interactive TUI:
   > Plan 16.1: `.agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md`

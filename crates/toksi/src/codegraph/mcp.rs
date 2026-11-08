@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/mcp.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -266,8 +266,8 @@ pub(crate) fn handle_explore(cg: &CodeGraph, args: &Value) -> String {
 
     // Group symbols by file
     let mut file_groups: HashMap<String, Vec<&super::kernel::SymbolNode>> = HashMap::new();
-    for node in matched_nodes {
-        file_groups.entry(node.file_path.clone()).or_default().push(node);
+    for node in &matched_nodes {
+        file_groups.entry(node.file_path.clone()).or_default().push(*node);
     }
 
     let mut sorted_files: Vec<(String, Vec<&super::kernel::SymbolNode>)> = file_groups.into_iter().collect();
@@ -313,6 +313,24 @@ pub(crate) fn handle_explore(cg: &CodeGraph, args: &Value) -> String {
             out.push_str(&format!("- {}\n", c));
         }
         out.push('\n');
+    }
+
+    // Blast radius impact summary for focal symbol
+    if let Some(primary) = matched_nodes.first() {
+        if let Some(report) = cg.engine.compute_blast_radius(&primary.id, 2) {
+            out.push_str(&format!(
+                "### Blast Radius: `{}` (risk: {:.1}/100)\n\
+                 - Upstream Callers: {}\n\
+                 - Downstream Dependencies: {}\n\
+                 - Affected Files ({}): {}\n\n",
+                primary.name,
+                report.risk_score,
+                report.upstream_dependents.len(),
+                report.downstream_dependencies.len(),
+                report.affected_files.len(),
+                report.affected_files.join(", ")
+            ));
+        }
     }
 
     // Verbatim source code slices

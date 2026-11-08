@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/rustlang.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 //! Rust-language extraction — a faithful port of `TreeSitterExtractor`'s rust
 //! paths (src/extraction/tree-sitter.ts) plus languages/rust.ts. ("rustlang"
@@ -945,11 +945,9 @@ impl<'t> Walker<'t> {
                                 // chain; any other instance chain the bare
                                 // method name.
                                 let inner_fn = r.child_by_field_name("function").map(unwrap_generic_function);
-                                let reencode =
-                                    inner_fn.map(|f| f.kind() == "scoped_identifier").unwrap_or(false);
-                                if reencode {
+                                if let Some(f) = inner_fn.filter(|f| f.kind() == "scoped_identifier") {
                                     let inner: String = self
-                                        .text(inner_fn.unwrap())
+                                        .text(f)
                                         .replace("->", ".")
                                         .chars()
                                         .filter(|c| !c.is_whitespace())

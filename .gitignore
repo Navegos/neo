@@ -442,15 +442,19 @@ inspect-files/
 
 # Ignore .codegraph
 .codegraph/
+.toksi/codegraph/
+crates/*/.codegraph/
+crates/*/.toksi/codegraph/
 
 # Ignore clinerules
-.clinerules
+.clinerules/
 
 # Ignore cursor rules
-.cursor/rules
+.cursor/rules/
+crates/*/.cursor/rules/
 
 # Ignore grok  rules
-.grok/rules
+.grok/rules/
 
 # Ignore release artifacts
 dist/

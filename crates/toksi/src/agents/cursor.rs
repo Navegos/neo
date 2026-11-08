@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/cursor.rs
 // created: 2026-10-11
-// lastModified: 2026-11-06
+// lastModified: 2026-11-08
 
 use std::collections::HashSet;
 use std::fs;
@@ -678,7 +678,7 @@ fn cursor_rtk_hook_command_for(bridge: bool) -> String {
 }
 
 fn cursor_codegraph_hook_command_for(bridge: bool) -> String {
-    let args = ["cursor-hook", "codegraph-index"];
+    let args = ["codegraph-hook", "cursor"];
     if bridge {
         let mut wsl = vec!["--".to_string()];
         if let Ok(distro) = std::env::var("WSL_DISTRO_NAME") {
@@ -740,7 +740,8 @@ fn cursor_owned_codegraph_hook_entry_for(v: &Value, want: &str) -> bool {
     if e.len() != 1 {
         return false;
     }
-    e.get("command").and_then(|c| c.as_str()) == Some(want)
+    let cmd = e.get("command").and_then(|c| c.as_str()).unwrap_or("");
+    cmd == want || cmd.contains("codegraph-hook cursor") || cmd.contains("cursor-hook codegraph-index")
 }
 
 pub fn has_cursor_codegraph_index_hook() -> bool {

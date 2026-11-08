@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/walker.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -47,6 +47,7 @@ pub fn walk_project_files(root: &Path) -> Vec<WalkedFile> {
         .git_ignore(true)
         .git_global(true)
         .git_exclude(true)
+        .add_custom_ignore_filename(".ignore")
         .filter_entry(|entry| {
             let name = entry.file_name().to_string_lossy();
             if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
@@ -98,11 +99,11 @@ pub fn walk_project_files(root: &Path) -> Vec<WalkedFile> {
             .map(|d| d.as_secs())
             .unwrap_or(0);
 
-        let rel_path = p
+        let rel_raw = p
             .strip_prefix(root)
             .unwrap_or(p)
-            .to_string_lossy()
-            .replace('\\', "/");
+            .to_string_lossy();
+        let rel_path = crate::util::paths::normalize_path(&rel_raw);
 
         if crate::codegraph::kernel::textutil::is_generated_file(&rel_path) {
             continue;

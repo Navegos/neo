@@ -3,7 +3,7 @@
 // project: toksi
 // file: crates/toksi/src/agents/antigravity.rs
 // created: 2026-10-11
-// lastModified: 2026-11-02
+// lastModified: 2026-11-08
 
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
@@ -620,7 +620,7 @@ fn has_codegraph_index_entry(group: &OrderedMap, event: &str) -> bool {
         return false;
     };
     if let Some(cmd_str) = entry.get("command").and_then(|v| v.as_str()) {
-        return cmd_str.contains("agy-hook codegraph-index");
+        return cmd_str.contains("codegraph-hook agy") || cmd_str.contains("agy-hook codegraph-index");
     }
     let Some(hooks_arr) = entry.get("hooks").and_then(|v| v.as_array()) else {
         return false;
@@ -630,7 +630,7 @@ fn has_codegraph_index_entry(group: &OrderedMap, event: &str) -> bool {
     };
     hook.get("command")
         .and_then(|v| v.as_str())
-        .is_some_and(|s| s.contains("agy-hook codegraph-index"))
+        .is_some_and(|s| s.contains("codegraph-hook agy") || s.contains("agy-hook codegraph-index"))
 }
 
 pub fn remove_antigravity_codegraph_index_hook() {
@@ -641,13 +641,13 @@ pub fn remove_antigravity_codegraph_index_hook() {
     let Some(mut cfg) = try_parse_jsonc(&raw) else {
         return;
     };
-    if cfg.shift_remove("toksi-codegraph-index").is_some() {
+    if cfg.shift_remove("codegraph").is_some() || cfg.shift_remove("toksi-codegraph-index").is_some() {
         let _ = paths::write_file(&hooks_file, &stringify_json(&Value::Object(cfg)));
     }
 }
 
 pub fn install_antigravity_codegraph_index_hook() {
-    let (command, ok) = toksi_command_ok(&["agy-hook", "codegraph-index"]);
+    let (command, ok) = toksi_command_ok(&["codegraph-hook", "agy"]);
     if !ok {
         return;
     }

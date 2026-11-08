@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-05
+// lastModified: 2026-11-08
 
 pub mod cache;
 pub mod graph;
@@ -26,19 +26,27 @@ pub use graph::{BlastRadiusReport, CodeGraphEngine, ImpactedNode};
 pub use kernel::{FileExtraction, SymbolEdge, SymbolNode, SymbolRef};
 
 pub fn resolve_db_path(root: &Path) -> PathBuf {
-    let toksi_db = root.join(".toksi").join("codegraph").join("symbols.db");
+    let toksi_dir = root.join(".toksi").join("codegraph");
+    let toksi_db = toksi_dir.join("symbols.db");
     if toksi_db.exists() {
         return toksi_db;
     }
-    let legacy_db = root.join(".codegraph").join("symbols.db");
+    let legacy_dir = root.join(".codegraph");
+    let legacy_db = legacy_dir.join("symbols.db");
     if legacy_db.exists() {
+        let _ = fs::create_dir_all(&toksi_dir);
+        if fs::copy(&legacy_db, &toksi_db).is_ok() {
+            let _ = fs::remove_file(&legacy_db);
+            let _ = fs::remove_dir(&legacy_dir);
+            return toksi_db;
+        }
         return legacy_db;
     }
-    if root.join(".toksi").is_dir() {
-        toksi_db
-    } else {
-        legacy_db
-    }
+    toksi_db
+}
+
+pub fn user_home_db_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".toksi").join("codegraph").join("symbols.db"))
 }
 
 pub struct CodeGraph {
@@ -149,26 +157,26 @@ impl CodeGraph {
 pub fn resolve_coordinate(root: &Path, file_path: &str, line: u32) -> Option<String> {
     let mut cg = CodeGraph::open(root).ok()?;
     let path = Path::new(file_path);
+    let norm = crate::util::paths::normalize_path(file_path);
     let rel = if path.is_absolute() {
         path.strip_prefix(&cg.root)
             .ok()
-            .map(|p| p.to_string_lossy().to_string())
+            .map(|p| crate::util::paths::normalize_path(&p.to_string_lossy()))
     } else {
         Some(
-            file_path
-                .trim_start_matches("./")
+            norm.trim_start_matches("./")
                 .trim_start_matches(".\\")
                 .to_string(),
         )
     };
-    let rel_str = rel.as_deref().unwrap_or(file_path).replace('\\', "/");
+    let rel_str = rel.as_deref().unwrap_or(&norm);
 
-    if let Some(node) = cg.engine.resolve_coordinate(&rel_str, line) {
+    if let Some(node) = cg.engine.resolve_coordinate(rel_str, line) {
         return Some(node.qualified_name.clone());
     }
 
     if cg.ensure_indexed().unwrap_or(false) {
-        if let Some(node) = cg.engine.resolve_coordinate(&rel_str, line) {
+        if let Some(node) = cg.engine.resolve_coordinate(rel_str, line) {
             return Some(node.qualified_name.clone());
         }
     }

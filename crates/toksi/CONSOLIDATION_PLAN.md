@@ -1,7 +1,7 @@
 # Toksi Native Consolidation Master Architecture Plan (v3.4)
 **Project:** `neo/crates/toksi`  
 **Status:** Approved Master Architectural Blueprint & Implementation Specification  
-**Objective:** 100% Native Rust consolidation of all token-optimization, memory, code-intelligence, rules, gateway, load-balancer, and telemetry engines directly embedded into `crates/toksi/src/*` (consolidating tokless/toksi, bifrost, context-mode, codegraph, headroom, projectmem, ai-memory, icm, rtk, caveman, ponytail, andrej-karpathy-skills, TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, and agents-structures). Complete removal of external package manager downloads (npm, pip, uv, curl). Pure in-process execution, zero missing code, full feature parity, Git Bash friendly forward-slash (`/`) directory normalization, default SQLite storage in user home (`~/.toksi/toksi.db`), single-daemon zero-touch launch, mouse-capable interactive TUI, dedicated high-performance 5-port network topology, ground-truth session token accounting, strict paid-quota verification for all BYOK providers (with graceful inform and zero-fail fallback), workspace root `.toksi` consolidation, standardized tool hook syntax (`<tool>-hook <agent>`), normalized MCP naming, multi-protocol architecture (MCP, A2A, ACP, stdio, SSE, HTTP), `.gitignore` dynamic vector cache purging, Open Agents directory structure support, and enterprise-grade background Web UI Telemetry & Control Cockpit.
+**Objective:** 100% Native Rust consolidation of all token-optimization, memory, code-intelligence, rules, gateway, load-balancer, and telemetry engines directly embedded into `crates/toksi/src/*` (consolidating tokless/toksi, bifrost, context-mode, codegraph, headroom, projectmem, ai-memory, icm, rtk, caveman, ponytail, andrej-karpathy-skills, TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt, and agents-structures). Complete removal of external package manager downloads (npm, pip, uv, curl). Pure in-process execution, zero missing code, full feature parity, Git Bash friendly forward-slash (`/`) directory normalization, default SQLite storage in user home (`~/.toksi/toksi.db`), single-daemon zero-touch launch, mouse-capable interactive TUI, dedicated high-performance 5-port network topology, ground-truth session token accounting, strict paid-quota verification for all BYOK providers (with graceful inform and zero-fail fallback), workspace root `.toksi` consolidation, standardized tool hook syntax (`<tool>-hook <agent>`), normalized MCP naming, multi-protocol architecture (MCP, A2A, ACP, stdio, SSE, HTTP), `.gitignore` dynamic vector cache purging, Open Agents directory structure support, and enterprise-grade background Web UI Telemetry & Control Cockpit.
 
 ---
 
@@ -415,52 +415,328 @@ crates/toksi/src/
 ```
 
 ### 3.2 Agent Directory Layout Conventions
-Toksi directly understands, reads, writes, and synchronizes the standardized agent directory layouts:
+Toksi directly understands, reads, writes, and synchronizes the standardized agent directory layouts across user home (`~/.<agent>/` or `~/.agents/`) and workspace root (`<root>/.<agent>/` or `<root>/.agents/`):
 
 1. **OpenAgents Standard (`.agents/`)**:
    - `~/.agents/` (Global User) & `<root>/.agents/` (Workspace Root)
    - Layout:
      ```
      .agents/
-     ├── speakmcp-settings.json     # General settings
-     ├── mcp.json                   # MCP servers (projectmem, context, codegraph)
-     ├── models.json                # Model presets, routing configs, API keys
-     ├── system-prompt.md           # Baseline persona & system override
-     ├── agents.md                  # Project instructions & style guide
-     ├── dotagents-settings.json    # Engine runner configuration
-     ├── agents/<agent-id>/agent.md # Subagent definitions & config.json
-     ├── skills/<tool-id>/skill.md  # Procedural recipes (codegraph, context, projectmem)
-     ├── tasks/<task-id>/task.md    # Scheduled execution workflows
-     ├── knowledge/                 # Persistent markdown vector context
-     └── memories/                  # Semantic notes & arch decisions
+     ├── speakmcp-settings.json      # General settings
+     ├── mcp.json                    # MCP servers & tool connector definitions (projectmem, context, codegraph)
+     ├── models.json                 # Model presets, routing configurations, & API keys
+     ├── system-prompt.md            # Global baseline persona or system instruction override
+     ├── agents.md                   # Core project instructions & style guides (AGENTS.md)
+     ├── dotagents-settings.json     # Protocol runner configuration & engine preferences
+     ├── layouts/
+     │   └── ui.json                 # UI, terminal, & canvas layout preferences
+     ├── agents/                     # Multi-Agent ecosystem definitions (ACP compatible)
+     │   ├── <agent-id>/
+     │   │   ├── agent.md            # Sub-agent profile & local system prompt (with Frontmatter)
+     │   │   └── config.json         # Agent-specific tool permissions & routing limits
+     │   └── deploy-specialist/
+     │       └── agent.md
+     ├── skills/                     # Composable, codified procedural workflows
+     │   ├── <skill-id>/
+     │   │   └── skill.md            # Execution recipe, rules, & step-by-step logic
+     │   ├── codegraph/
+     │   ├── context/
+     │   └── projectmem/
+     ├── tasks/                      # Automations, loops, & scheduled execution contexts
+     │   └── <task-id>/
+     │       └── task.md             # Declarative definition & loop triggers (e.g. cron interval)
+     ├── knowledge/                  # Persistent semantic memory & multi-modal documentation
+     │   └── <knowledge-domain>/
+     │       ├── architecture.md     # Markdown-based vector context injection files
+     │       ├── diagram.png         # Contextual domain asset (image/diagram support)
+     │       └── db-schema.pdf       # Dense technical documentation payload
+     ├── memories/                   # Persistent memory notes & architectural decisions
+     │   ├── arch-decisions.md
+     │   └── user-prefs.md
+     └── .backups/                   # Auto-rotated, timestamped system snapshots
+         ├── skills/
+         └── memories/
      ```
 
 2. **Google Antigravity (`.gemini/`)**:
    - `~/.gemini/` (Global User) & `<root>/.gemini/` (Workspace Root)
-   - Layout: `hooks.json`, `mcp_config.json`, `settings.json`, `agents/`, `rules/`, `skills/`, `GEMINI.md`, `plugins/`.
+   - Layout:
+     ```
+     .gemini/ (also supporting .gemini/config/, .gemini/antigravity/, .gemini/antigravity-cli/, .gemini/antigravity-ide/)
+     ├── hooks.json                  # Lifecycle hooks (preToolUse, postToolUse, stop)
+     ├── mcp_config.json             # Model Context Protocol servers
+     ├── settings.json               # CLI & IDE configuration
+     ├── GEMINI.md                   # Project & global system instructions
+     ├── rules.json / skills.json    # Rules and skills metadata registry
+     ├── rules/                      # Topic-specific instruction markdown files
+     │   └── <rule-name>.md
+     ├── skills/                     # Modular skills & workflows
+     │   └── <skill-name>/SKILL.md
+     ├── agents/                     # Subagent persona profiles
+     │   └── <agent-name>.md
+     └── plugins/                    # Integrated plugin bundles
+     ```
 
 3. **GitHub Copilot (`.copilot/` & `.github/`)**:
    - `~/.copilot/` (User CLI), `~/.github/` (User Global), `<root>/.github/` (Workspace Root)
-   - Layout: `agents/`, `hooks/`, `instructions/`, `skills/`, `copilot-instructions.md`, `mcp-config.json`, `providers.json`, `settings.json`.
+   - Layout:
+     ```
+     .copilot/ (User CLI & runtime state):
+     ├── agents/                     # Personal custom agents
+     ├── extensions/                 # Personal extensions
+     ├── hooks/                      # User-level hooks
+     ├── instructions/               # Personal *.instructions.md files
+     ├── skills/                     # Personal skills
+     ├── copilot-instructions.md     # Global instructions across all sessions
+     ├── mcp-config.json             # User-level MCP servers
+     ├── lsp-config.json             # User-level LSP servers
+     ├── providers.json              # BYOK providers and models
+     ├── settings.json               # Personal CLI settings
+     ├── permissions-config.json     # Saved tool permissions
+     ├── session-state/              # Active session telemetry & state
+     └── config.json                 # Automatically managed application state
+
+     .github/ (Workspace & Team configuration):
+     ├── agents/                     # Workspace subagents (e.g. reviewer.agent.md)
+     ├── hooks/                      # Workspace lifecycle hooks (*.json)
+     ├── instructions/               # Path-gated instructions (e.g. frontend.instructions.md)
+     ├── copilot-instructions.md     # Workspace repository instructions
+     ├── mcp.json                    # Workspace MCP servers
+     ├── skills/                     # Workspace skills (<skill>/SKILL.md)
+     └── copilot/
+         ├── settings.json           # Shared team settings
+         └── settings.local.json     # Gitignored local overrides
+     ```
 
 4. **Claude Code (`.claude/`)**:
    - `~/.claude/` (Global User) & `<root>/.claude/` (Workspace Root)
-   - Layout: `CLAUDE.md`, `settings.json`, `.mcp.json`, `rules/`, `skills/`, `agents/`, `agent-memory/`.
+   - Layout:
+     ```
+     .claude/ (or ~/.claude/)
+     ├── CLAUDE.md                   # Core project or global instructions loaded every session
+     ├── settings.json               # Shared configuration: permissions, hooks, env vars, model defaults
+     ├── settings.local.json         # Personal local overrides (gitignored)
+     ├── .mcp.json                   # Team-shared Model Context Protocol (MCP) servers
+     ├── .worktreeinclude            # Files to carry over into new git worktrees
+     ├── rules/                      # Topic-scoped or path-gated markdown rules
+     │   ├── testing.md
+     │   └── security-design.md
+     ├── skills/                     # Reusable workflows/prompts invoked via /name or auto-invoked
+     │   └── <skill-name>/SKILL.md
+     ├── commands/                   # Single-file custom slash commands (.md)
+     │   └── <command-name>.md
+     ├── agents/                     # Specialized AI subagent definitions (YAML/Markdown)
+     │   └── code-reviewer.md
+     ├── workflows/                  # Multi-step automated agent procedures
+     └── agent-memory/               # Persistent auto-memory storage
+         └── <agent-name>/MEMORY.md
+     ```
 
 5. **OpenAI Codex (`.codex/`)**:
    - `~/.codex/` (Global User) & `<root>/.codex/` (Workspace Root)
-   - Layout: `config.toml`, `AGENTS.md`, `hooks.json`, `agents/`, `rules/`, `auth.json`.
+   - Layout:
+     ```
+     .codex/
+     ├── config.toml                 # Personal & team configuration defaults
+     ├── AGENTS.md                   # Primary instructions & system prompt
+     ├── AGENTS.override.md          # Local override instructions
+     ├── hooks.json                  # Codex lifecycle hooks
+     ├── auth.json                   # OAuth credentials & session tokens
+     ├── history.jsonl               # Session prompt & turn telemetry
+     ├── agents/                     # Modular subagent definitions (*.toml)
+     │   ├── architect.toml
+     │   ├── backend.toml
+     │   ├── reviewer.toml
+     │   └── tester.toml
+     ├── rules/                      # Gated rules (*.rules)
+     │   ├── default.rules
+     │   ├── shell.rules
+     │   └── security.rules
+     ├── worktrees/                  # Isolated git worktrees for subagents
+     ├── plugins/                    # Codex plugin packages
+     └── logs/                       # Diagnostics & tool execution logs
+     ```
 
 6. **Cursor (`.cursor/`)**:
    - `~/.cursor/` (Global User) & `<root>/.cursor/` (Workspace Root)
-   - Layout: `rules/*.mdc`, `skills/`, `agents/`, `commands/`, `hooks.json`, `mcp.json`.
+   - Layout:
+     ```
+     .cursor/
+     ├── rules/                      # AI rules applied across projects (*.mdc)
+     │   ├── universal-styling.mdc
+     │   └── coding-safety.mdc
+     ├── skills/                     # Modular skills (<skill>/SKILL.md)
+     ├── agents/                     # Custom agent blueprints (.md files)
+     ├── commands/                   # Slash commands invoked via menu (.md)
+     ├── hooks.json                  # Tool & prompt execution hooks
+     ├── cli-config.json             # CLI preferences & terminal sync rules
+     ├── mcp.json                    # Global Model Context Protocol integrations
+     └── permissions.json            # Tool authorization rules
+     ```
 
-7. **Grok (`.grok/`)**:
+7. **xAI Grok (`.grok/`)**:
    - `~/.grok/` (Global User) & `<root>/.grok/` (Workspace Root)
-   - Layout: `config.toml`, `mcp_credentials.json`, `skills/`, `hooks/*.json`, `agents/`.
+   - Layout:
+     ```
+     .grok/                          # Config root (override with GROK_HOME)
+     ├── config.toml                 # Personal defaults (full config)
+     ├── managed_config.toml         # Enterprise managed defaults
+     ├── requirements.toml           # User policy pins
+     ├── sandbox.toml                # Custom sandbox profiles
+     ├── trusted_folders.toml        # /hooks-trust and --trust decisions
+     ├── mcp_credentials.json        # OAuth tokens for remote MCP servers
+     ├── auth.json                   # Session credentials
+     ├── hooks-paths                 # Extra hook discovery roots
+     ├── skills/                     # User skills (<skill>/SKILL.md)
+     ├── plugins/                    # User plugins & marketplaces
+     ├── hooks/*.json                # Personal lifecycle hooks
+     ├── agents/                     # Custom subagent types
+     ├── personas/*.toml             # Persona overlays
+     ├── sessions/                   # Conversations, keyed by working directory
+     ├── worktrees/<repo>/<name>/    # Git worktrees for isolated sessions
+     ├── logs/mcp/<server>.stderr.log# stdio MCP stderr
+     └── crash/                      # Panic reports (GROK_CRASH_HANDLER=1)
+     ```
 
 ---
 
+### 3.3 Polyglot Tree-Sitter Parsers (37 Languages) & Kernel Architecture
+Toksi consolidates native Tree-sitter parsers directly into safe Rust without Node.js, Python, or external CLI shims. CodeGraph, ContextMode, Repomix, ast-grep, and SCIP leverage these 37 language grammars for AST extraction, symbol outlining, dependency graphs, and token estimation:
+
+| Category | Languages Supported | Grammars & AST Nodes Extracted |
+|---|---|---|
+| **Systems & Native** | Rust, C, C++, Zig | Functions, structs, traits, impls, macros, modules, pointers, memory models |
+| **Managed & Enterprise** | Go, Java, C#, Kotlin, Scala | Packages, classes, interfaces, methods, annotations, goroutines, records |
+| **Web & Scripting** | TypeScript, JavaScript, Python, PHP, Ruby, Lua, Julia | Modules, classes, functions, decorators, async/await, lambdas, type signatures |
+| **Functional & Concurrent**| Elixir, Erlang, OCaml, Haskell, Swift | Pattern matching, modules, protocols, immutability graphs, actors, algebraic types |
+| **Web UI & Modern Frontend**| TSX, Vue, Svelte, HTML, CSS, SCSS, GraphQL | Components, templates, props, reactive bindings, styles, queries, mutations |
+| **Infra & Shell** | Bash, Dockerfile, HCL (Terraform), Nix, Make, CMake | Shell pipelines, container stages, resources, derivations, build targets |
+| **Data & Config Formats** | JSON, YAML, TOML, Protocol Buffers, SQL | Schemas, key-value trees, entities, tables, indexes, RPC service definitions |
+| **Documentation & Science**| Markdown, LaTeX | Headings, sections, KaTeX equations, references, citations, documentation AST |
+
+---
+
+### 3.4 Comprehensive Agentic Provider Catalogs & Universal Lifecycle Hooks (5 Categories)
+
+Toksi provides first-class support, bi-directional hook interception, and gateway routing across all 5 categories of agentic coding systems:
+
+#### CATEGORY 1: AGENTIC CLI & BRIDGE PROVIDERS
+1. **GitHub Copilot CLI** (`.github/hooks/*.json` / CLI daemon):
+   `sessionStart`, `sessionEnd`, `userPromptSubmitted`, `userPromptTransformed`, `preToolUse`, `postToolUse`, `agentStop`, `subagentStop`, `preCompact`, `errorOccurred`.
+2. **Claude Code (Anthropic)** (`.claude/settings.json` / `hooks.json`):
+   `SessionStart`, `SessionEnd`, `Setup`, `UserPromptSubmit`, `UserPromptExpansion`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PostToolBatch`, `PermissionRequest`, `PermissionDenied`, `SubagentStart`, `SubagentStop`, `TaskCreated`, `TaskCompleted`, `Stop`, `StopFailure`, `TeammateIdle`, `InstructionsLoaded`, `ConfigChange`, `CwdChanged`, `DirectoryAdded`, `FileChanged`, `WorktreeCreate`, `WorktreeRemove`, `PreCompact`, `PostCompact`, `Elicitation`, `ElicitationResult`, `Notification`, `MessageDisplay`.
+3. **OpenAI Codex CLI** (`~/.codex/hooks.json` / project config):
+   `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PermissionRequest`, `PreCompact`, `PostCompact`, `Interrupt`, `Stop`.
+4. **Gemini CLI / Antigravity CLI (Google)** (`~/.gemini/hooks.json` / `antigravity.yaml`):
+   `SessionStart`, `SessionEnd`, `PreInvocation`, `PostInvocation`, `PreToolUse`, `PostToolUse`, `PreCompact`, `PostCompact`, `Stop`.
+5. **Grok Build (xAI)** (`~/.grok/hooks.json`):
+   `SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionDenied`, `SubagentStart`, `SubagentStop`, `PreCompact`, `PostCompact`, `Stop`, `StopFailure`, `Notification`.
+6. **Bifrost CLI (Maxim AI Bridge)** (`.bifrost/hooks.yaml`):
+   `on_gateway_connect`, `pre_route_request`, `post_route_response`, `pre_mcp_forward`, `post_mcp_forward`, `on_gateway_disconnect`.
+7. **Aider** (`.aider.conf.yml` / git-hooks):
+   `pre-commit`, `post-commit`, `pre-run`, `post-run`, `on-auto-test`.
+8. **Goose (Block / Linux Foundation)** (`~/.config/goose/hooks` / `config.yaml`):
+   `session_created`, `before_prompt_submit`, `before_tool_call`, `after_tool_call`, `on_error`, `session_closed`.
+9. **Kilo CLI** (`.kilo/hooks.json`):
+   `on_init`, `before_agent_step`, `pre_command`, `post_command`, `on_finish`.
+10. **OpenCode** (`.opencode/hooks.json`):
+    `session_start`, `session_shutdown`, `before_agent_start`, `turn_start`, `turn_end`, `tool_call`, `tool_result`, `shell.env`.
+11. **Qwen Code (Alibaba Cloud)** (`~/.qwencode/hooks.json`):
+    `SessionInit`, `PreToolExecute`, `PostToolExecute`, `PromptPreprocess`, `TurnFinalize`.
+12. **Amazon Q Developer CLI** (`~/.aws/amazon-q/hooks.json`):
+    `onSessionStart`, `onCommandBefore`, `onCommandAfter`, `onToolInvocation`, `onSessionEnd`.
+13. **Warp AI / Agentic Terminal** (Warp Workflows / Rule Hooks):
+    `onTerminalLaunch`, `onCommandSuggested`, `beforeCommandRun`, `onCommandFailure`, `onContextCompaction`.
+14. **Mentat** (`.mentat/hooks.py`):
+    `on_session_start`, `before_action`, `after_action`, `on_session_stop`.
+15. **Plandex** (`.plandex/hooks`):
+    `on_plan_created`, `before_apply_change`, `after_apply_change`, `on_revert`.
+16. **Crush** (`.crush/hooks.json`):
+    `on_session_boot`, `pre_patch`, `post_patch`, `on_exit`.
+17. **Devika** (`devika/agent/hooks.py`):
+    `on_project_init`, `on_agent_state_change`, `before_browser_action`, `before_shell_execution`, `on_agent_completed`.
+18. **OpenHands CLI / OpenDevin** (`openhands/events/hooks.py`):
+    `ActionStartHook`, `ActionFinishedHook`, `StateChangeHook`, `SecurityAnalyzerHook`, `ContextTruncationHook`.
+19. **SWE-agent** (`sweagent/environment/hooks.py`):
+    `on_init`, `on_setup_env`, `on_action_start`, `on_action_end`, `on_turn_end`, `on_task_completed`.
+20. **GPT-Engineer** (`gpt_engineer/core/hooks.py`):
+    `pre_generate`, `post_generate`, `pre_apply_code`, `post_apply_code`.
+21. **Shell-Genie** (`~/.config/shell-genie/hooks`):
+    `on_prompt`, `pre_exec`, `post_exec`.
+
+#### CATEGORY 2: AGENTIC LSP & PROTOCOL PROVIDERS
+1. **Continue.dev (LSP Sidecar & Daemon)** (`config.ts` / `config.yaml`):
+   `modifyConfig`, `onDidReceiveMessage`, `onDidSendMessage`, `beforeModelRequest`, `afterModelResponse`, `onContextLoad`, `onAutocompleteTrigger`, `onAutocompleteAccept`, `onSessionClose`.
+2. **Cline (MCP-Native Extension)** (`cline_hooks` / custom instructions):
+   `onAgentModeSwitch`, `onPromptPrepared`, `preToolExecution`, `postToolExecution`, `onMcpServerConnected`, `onMcpToolExecuted`, `onTaskCompleted`.
+3. **Roo Code (Roo Clinic)** (`roo_hooks` / `settings.json`):
+   `onRoleChange`, `beforeToolRun`, `afterToolRun`, `onCustomInstructionsLoad`, `onCheckpointRestore`, `onTaskFinish`.
+4. **lsp-ai (Language Server)** (`lsp-ai.json`):
+   `onInitialize`, `textDocument/didOpen`, `textDocument/didChange`, `preTransformCompletion`, `postTransformCompletion`, `textDocument/didSave`.
+5. **Tabby (Self-hosted Engine)** (`config.toml` / `tabby-agent`):
+   `onAgentStartup`, `onDocumentOpen`, `onCompletionRequest`, `onCompletionDelivered`, `onCompletionAccepted`, `onCompletionDismissed`.
+6. **Model Context Protocol (MCP Bridges & LSP Daemons)**:
+   `notifications/initialized`, `prompts/list_changed`, `resources/list_changed`, `resources/subscribe`, `resources/updated`, `tools/list_changed`, `roots/list_changed`, `ping`.
+7. **FauxPilot LSP**:
+   `on_init`, `on_completion_query`, `on_filter_response`, `on_disconnect`.
+8. **Sourcegraph Cody Agent / LSP Daemon**:
+   `initialized`, `textDocument/didFocus`, `chat/submitMessage`, `edit/taskCreated`, `edit/taskApplied`, `autocomplete/execute`, `telemetry/recordEvent`.
+9. **Supermaven Engine** (`sm_agent` daemon):
+   `sm/init`, `sm/file_context_update`, `sm/completion_request`, `sm/completion_accepted`, `sm/state_reset`.
+
+#### CATEGORY 3: AGENTIC EDITORS & IDE PROVIDERS
+1. **Cursor (Anysphere)** (`.cursor/hooks.json` / workspace config):
+   `sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `beforeReadFile`, `beforeShellExecution`, `afterShellExecution`, `beforeMCPExecution`, `afterMCPExecution`, `preToolUse`, `postToolUse`, `afterFileEdit`, `subagentStart`, `subagentStop`, `preCompact`, `stop`.
+2. **Windsurf / Cascade (Cognition / Codeium)** (`.codeium/windsurf/hooks.json`):
+   `onCascadeStart`, `onCascadeEnd`, `preActionExecute`, `postActionExecute`, `onCommandRun`, `onFileModify`, `onMCPToolCall`, `onRuleLoad`, `onContextExhausted`.
+3. **GitHub Copilot Workspace & Agent Mode** (`.github/copilot-agent-mode.json`):
+   `onSessionStart`, `onUserPrompt`, `onPlanGenerated`, `onPlanStepExecute`, `onFileEditProposed`, `onFileEditApplied`, `onTerminalCommand`, `onAgentFinish`.
+4. **Void Editor** (`.void/hooks.json`):
+   `onEditorBoot`, `beforePromptSend`, `beforeToolCall`, `afterToolCall`, `onDiffApply`.
+5. **Zed (Zed AI / Assistant Mode)** (`~/.config/zed/settings.json` / slash commands):
+   `assistant:before-query`, `assistant:after-query`, `slash-command:invoked`, `context-provider:resolve`, `tool:before-execute`, `tool:after-execute`.
+6. **Trae (ByteDance)** (`~/.trae/hooks.json`):
+   `onSessionOpen`, `onUserQuery`, `beforeToolExecution`, `afterToolExecution`, `onCodeApply`, `onSessionClose`.
+7. **Replit Agent** (`.replit/agent_hooks.json`):
+   `onAgentBoot`, `onCheckpointCreate`, `beforeShellCommand`, `afterShellCommand`, `onPackageInstall`, `onDeploymentTrigger`, `onAgentHalted`.
+8. **Positron AI (Posit)** (`~/.positron/agent/hooks`):
+   `onSessionStart`, `onPromptSubmit`, `beforeKernelExecution`, `afterKernelExecution`, `onVariableInspect`, `onSessionEnd`.
+9. **PearAI** (`.pearai/hooks.json`):
+   `onAgentInit`, `beforeMessageSend`, `preToolCall`, `postToolCall`, `onTaskComplete`.
+10. **Melty** (`.melty/hooks.py`):
+    `on_boot`, `before_commit_generation`, `after_commit_generation`, `on_compiler_check`, `on_finish`.
+11. **Amazon Q Developer (JetBrains & VS Code)** (`~/.aws/q-ide/hooks.json`):
+    `onAgentInit`, `onChatPromptSubmit`, `onCodeTransformStart`, `onCodeTransformStep`, `onSecurityScanStart`, `onSecurityScanComplete`, `onInlineAccepted`, `onInlineRejected`.
+
+#### CATEGORY 4: AGENTIC SERVICE & PLATFORM PROVIDERS
+- **Cognition AI (Devin)**: Autonomous software engineer platform, cloud sandbox execution.
+- **Factory AI (Code Droids)**: Enterprise mission-driven agents for migration and code refactoring.
+- **All-Hands AI (OpenHands Cloud)**: Scalable cloud agent runtime with containerized environments.
+- **Augment Code**: Enterprise AI developer assistant with codebase-wide context.
+- **Magic.dev**: Ultra-long context neural code synthesis and pair programming.
+- **Poolside AI**: Large-scale reasoning and code generation models for automated software engineering.
+- **Sweep AI**: Automated bug-fixing and GitHub issue resolution agent.
+- **CodeRabbit**: AI-powered code review and PR summary engine.
+- **Qodo (formerly CodiumAI)**: Test generation, PR analysis, and code integrity verification.
+- **Grit.io**: Automated codebase migrations, dependency upgrades, and technical debt elimination.
+- **Ellipsis**: Autonomous PR review, bug fixes, and comment conversion into commits.
+- **GitHub Copilot Agent HQ**: Centralized organizational agent hub and workflow manager.
+
+#### CATEGORY 5: AGENTIC PROXY, GATEWAY & ROUTER PROVIDERS
+- **Bifrost (Maxim AI)**: High-performance LLM/MCP/agent gateway with unified protocol routing.
+- **OpenRouter**: Unified API aggregator routing across 200+ models with automatic fallback.
+- **Portkey**: AI Gateway with load balancing, caching, fallback cascades, and guardrails.
+- **LiteLLM Proxy**: Universal drop-in proxy mapping OpenAI format to 100+ LLM backends.
+- **Cloudflare AI Gateway**: Edge caching, rate limiting, and observability for AI workloads.
+- **Helicone**: LLM monitoring, cost tracking, prompt caching, and analytics gateway.
+- **Martian**: Model routing gateway routing prompts to the most capable and cost-effective model.
+- **Vercel AI Gateway**: Edge routing and streaming SDK integration for modern frontend stacks.
+- **BerriAI**: Open-source gateway and fine-tuned routing pipelines.
+- **APIClaw**: Enterprise LLM proxy with dynamic failover and quota control.
+- **Langfuse**: Observability, prompt management, and evaluation gateway.
+- **Unify AI**: Dynamic model benchmarks, smart routing, and performance optimization gateway.
+
+---
 ## 4. Dedicated 5-Port Network Topology & Isolation
 
 ```mermaid
@@ -636,7 +912,7 @@ Toksi ensures that all 17 supported agents have their instruction, skill, and ru
 
 ---
 
-## 8. Upstream Vaults Audit, Missing Features & Bugfix Matrix (20 Reference Engines)
+## 8. Upstream Vaults Audit, Missing Features & Bugfix Matrix (23 Reference Engines)
 
 Continuous re-audit against reference implementations in `neo/inspect-vault/*` to guarantee full feature parity, upstream bug fixes, and zero omitted capabilities:
 
@@ -647,7 +923,7 @@ Continuous re-audit against reference implementations in `neo/inspect-vault/*` t
 | `neo/inspect-vault/headroom` | `crates/toksi/src/headroom/` | Dynamic MCP schema pruner (saves 5k-15k tokens/turn), AST-aware whitespace/code minifier, prompt cache 1024-token aligner, Copilot dual-port supervisor (8789 VS Code, 8790 CLI). | Complete |
 | `neo/inspect-vault/rtk` | `crates/toksi/src/rtk/` | 100+ command output filters (git, cargo, pytest, docker, npm), zero-allocation ANSI stripper, streaming chunk filter. | Complete |
 | `neo/inspect-vault/context-mode` | `crates/toksi/src/contextmode/` | Polyglot sandbox runner with CPU timeout & memory limits, SQLite FTS5 search index, async HTTP fetcher, in-process `ctx_*` MCP tools. | Complete |
-| `neo/inspect-vault/codegraph` | `crates/toksi/src/codegraph/` | Embedded Tree-sitter parsers (Rust, TS/JS, Python, Go, C/C++), petgraph dependency/blast-radius engine, incremental AST symbol cache. | Complete |
+| `neo/inspect-vault/codegraph` | `crates/toksi/src/codegraph/` | Embedded Tree-sitter parsers (37 polyglot languages), petgraph dependency/blast-radius engine, incremental AST symbol cache. | Complete |
 | `neo/inspect-vault/projectmem` | `crates/toksi/src/projectmem/` | Atomic JSONL append-only store with cross-platform file locking, zero-LLM summary, git staged diff precheck, in-process `projectmem` MCP server. | Complete |
 | `neo/inspect-vault/ai-memory` | `crates/toksi/src/aimemory/` | Open Knowledge Format (OKF v0.2) wiki store, claim-once multi-agent handoff state machine, progressive L0/L1/L2 disclosure briefs. | Complete |
 | `neo/inspect-vault/icm` | `crates/toksi/src/icm/` | Instant Context Memory with local SQLite FTS5 BM25 search, sub-10ms zero-token recall (`~/.toksi/icm/memory.db`). | Complete |
@@ -662,10 +938,11 @@ Continuous re-audit against reference implementations in `neo/inspect-vault/*` t
 | `neo/inspect-vault/mem0` | `crates/toksi/src/aimemory/mem0_bridge.rs` | Long-term personalized memory extraction, entity tracking, and cross-session user preferences. | In Progress |
 | `neo/inspect-vault/chroma` | `crates/toksi/src/gateway/semantic_cache.rs` | Embedding vector similarity indexing and dual-tier semantic cache backing store. | In Progress |
 | `neo/inspect-vault/litellm` | `crates/toksi/src/gateway/normalizer/`, `crates/toksi/src/gateway/compat/` | 100+ model naming aliases, standard request/response mapping, token billing rates, and drop-in OpenAI/Anthropic/Gemini compatibility. | In Progress |
+| `neo/inspect-vault/TokenEconomizer` | `crates/toksi/src/headroom/compression/economizer.rs` | Dynamic token economizer, prompt minification, redundant instruction deduping, structured output token pruning. | In Progress |
+| `neo/inspect-vault/agent-opt` | `crates/toksi/src/agents/opt.rs` | Agent prompt and tool execution optimizer, automated step pruning, latency and token budget enforcement. | In Progress |
 | `neo/inspect-vault/agents-structures` | `crates/toksi/src/agents/` | Reference configurations, schemas, and layouts for `.agents/`, `.gemini/`, `.copilot/`, `.claude/`, `.codex/`, `.cursor/`, `.grok/`. | In Progress |
 
 ---
-
 ## 9. Chronological Execution Roadmap (Phases 1–16.3)
 
 | Phase | Subsystem | Core Focus & Actions | Key Deliverable | Status |
@@ -823,19 +1100,27 @@ Requirements:
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_05_CODEGRAPH_PURE_RUST.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
-The code in Source: neo/inspect-vault/codegraph as updated please rerun
+Always treat Source: neo/inspect-vault/codegraph as newly added/updated code that we must inspect, convert, and import into consolidated toksi, checking for missing features, addons, updates, and bugfixes.
 
 Execute Phase 05: CodeGraph Pure Rust Engine.
 Source: neo/inspect-vault/codegraph (codegraph-kernel in Rust + TS wrapper)
 Target: crates/toksi/src/codegraph/
 
+Disciplinary & Portability Requirements:
+1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
+2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors and anyhow::Result with .context() in CLI.
+3. Universal Forward-Slash (/) Standard: Use normalize_path() for all AST nodes, file coordinates, and symbols.
+4. Directory Consolidation: Place storage in .toksi/codegraph/ (symbols.db, graph cache) in workspace root (<root>/.toksi/codegraph/) and user home (~/.toksi/codegraph/).
+5. Dynamic Ignore Purging: Integrate ripgrep-grade ignore walker respecting .gitignore and .ignore; purge matching indexed symbols dynamically when ignore rules change.
+6. Standardized Naming: Tool identifier is `codegraph` (not `toksi-codegraph-index`). Hook syntax is `codegraph-hook <agent>`.
+
 Requirements:
 1. Eliminate Node.js and TypeScript wrapper completely.
-2. Integrate embedded Tree-sitter parsers directly via Rust dependencies (Rust, TS/JS, Python, Go, C/C++).
-3. Implement high-speed file traversal using the `ignore` crate (respecting .gitignore and hidden files).
-4. Build AST dependency, call-path, and blast-radius engine using `petgraph`.
-5. Implement incremental AST symbol cache in .codegraph/symbols.db.
-6. Serve `codegraph_explore`, `codegraph_impact`, and `codegraph_symbol` via in-process MCP server.
+2. In-Tree Tree-sitter parsers supporting 37 polyglot languages: Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, C#, Kotlin, Scala, PHP, Ruby, Swift, Zig, Elixir, Erlang, OCaml, Haskell, Lua, Julia, HTML, CSS, SCSS, TSX, Vue, Svelte, GraphQL, Bash, Dockerfile, HCL, Nix, Make, CMake, JSON, YAML, TOML, Protocol Buffers, SQL, Markdown, LaTeX.
+3. High-speed file traversal using the `ignore` crate (respecting .gitignore and hidden files).
+4. Petgraph AST dependency, call-path, and blast-radius engine.
+5. Incremental AST symbol cache in .toksi/codegraph/symbols.db.
+6. Serve `codegraph_explore`, `codegraph_impact`, and `codegraph_symbol` via in-process multi-protocol MCP server.
 7. Connect to crates/toksi/src/projectmem/ to auto-resolve `location: "file:line"` coordinates to AST symbol names.
 8. Expose the native CLI command `toksi graph ...`.
 9. Ensure 0 compiler warnings and passing unit tests.
@@ -1265,6 +1550,8 @@ Requirements:
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
+Always treat all reference vaults in neo/inspect-vault/* (TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt) as newly added/updated code that we must inspect, convert, and import into consolidated toksi, checking for missing features, addons, updates, and bugfixes.
+
 Execute Phase 15.6: Advanced Vault Intelligence Engines Consolidation.
 Targets:
   - crates/toksi/src/telemetry/tokentracker.rs
@@ -1275,6 +1562,8 @@ Targets:
   - crates/toksi/src/aimemory/mem0_bridge.rs
   - crates/toksi/src/gateway/semantic_cache.rs
   - crates/toksi/src/gateway/normalizer/litellm.rs
+  - crates/toksi/src/headroom/compression/economizer.rs
+  - crates/toksi/src/agents/opt.rs
 
 Requirements:
 1. Ingest & Consolidate Remaining Inspect-Vault Engines:
@@ -1286,6 +1575,8 @@ Requirements:
    - mem0 (`neo/inspect-vault/mem0`): Personalized long-term memory extraction.
    - Chroma (`neo/inspect-vault/chroma`): Vector embedding similarity search backing semantic cache.
    - LiteLLM (`neo/inspect-vault/litellm`): 100+ model alias mapping, token pricing tables, and drop-in format conversions.
+   - TokenEconomizer (`neo/inspect-vault/TokenEconomizer`): Dynamic token economizer, prompt minification, redundant instruction deduping.
+   - agent-opt (`neo/inspect-vault/agent-opt`): Agent prompt and tool execution optimizer, automated step pruning, latency and token budget enforcement.
 2. Verification:
    - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
 ```

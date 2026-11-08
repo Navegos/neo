@@ -11,8 +11,8 @@ High-performance headroom proxy, token optimizer, native AI gateway, multi-proto
 `toksi` slashes token consumption by 30-70% through intelligent prompt compression, tool output condensing (RTK), code graph indexing, and structured cross-session project memory.
 
 ### Core Architectural Mandates:
-1. **100% Native In-Tree Rust**: Complete removal of external package manager downloads (npm, pip, uv, curl). Pure in-process execution with zero missing code and full feature parity across all 20+ reference engines in `inspect-vault/*`.
-2. **Continuous Reference Vault Re-Audit**: All folders in `neo/inspect-vault/*` (`tokless`, `bifrost`, `headroom`, `rtk`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `andrej-karpathy-skills`, `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm`, `agents-structures`) are ALWAYS treated as new/updated code to inspect, convert, import, and recheck for new features, bugfixes, and agent capabilities.
+1. **100% Native In-Tree Rust**: Complete removal of external package manager downloads (npm, pip, uv, curl). Pure in-process execution with zero missing code and full feature parity across all 23 reference engines in `inspect-vault/*`.
+2. **Continuous Reference Vault Re-Audit**: All folders in `neo/inspect-vault/*` (`tokless`, `bifrost`, `headroom`, `rtk`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `andrej-karpathy-skills`, `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm`, `TokenEconomizer`, `agent-opt`, `agents-structures`) are ALWAYS treated as new/updated code to inspect, convert, import, and recheck for new features, bugfixes, and agent capabilities.
 3. **Smart Unified Single-Daemon Launch (`toksi daemon start`)**: One background daemon command initializes and coordinates all core subsystems simultaneously across dedicated, isolated network ports.
 4. **Environment PATH Verification Mandate ("Rule of Test and Inform User")**: For all external binaries, commands, shells, tools, and agent CLIs, Toksi verifies their presence in `PATH`. Never hardcode absolute binary paths everywhere. If missing, log a clean, actionable error instruction and do not fail silently.
 5. **Universal Forward-Slash (`/`) Path Standard**: Strict prohibition of backward slashes (`\`) in all internal directory structures, path joins, logs, configuration files, SQLite records, and CLI outputs across Windows, Linux, and macOS. Escaped `\\` is permitted exclusively in `cmd.exe` commands inside JSON5/TOML configs (`hooks.json`).
@@ -216,6 +216,8 @@ All tasks are critical and must be executed with strict technical precision.
   * `mem0` -> `crates/toksi/src/aimemory/mem0_bridge.rs`
   * `chroma` -> `crates/toksi/src/gateway/semantic_cache.rs`
   * `litellm` -> `crates/toksi/src/gateway/normalizer/litellm.rs`
+  * `TokenEconomizer` -> `crates/toksi/src/headroom/compression/economizer.rs`
+  * `agent-opt` -> `crates/toksi/src/agents/opt.rs`
 - **Verification**: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
 
 ### Phase 16.1: High-Performance Mouse-Capable Interactive TUI

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/ccpp/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-04
+// lastModified: 2026-11-08
 
 //! C / C++ extraction — a faithful Rust port of `TreeSitterExtractor`'s c/cpp
 //! paths (src/extraction/tree-sitter.ts) plus languages/c-cpp.ts, one dual-
@@ -932,14 +932,13 @@ impl<'t> Walker<'t> {
             return None;
         }
         let lone_ident_text = |p: Node| -> Option<&'t str> {
-            if p.kind() == "parameter_declaration"
-                && p.named_child_count() == 1
-                && p.named_child(0).map(|c| c.kind() == "type_identifier").unwrap_or(false)
-            {
-                Some(self.text(p.named_child(0).unwrap()))
-            } else {
-                None
+            if p.kind() == "parameter_declaration" && p.named_child_count() == 1 {
+                let first = p.named_child(0)?;
+                if first.kind() == "type_identifier" {
+                    return Some(self.text(first));
+                }
             }
+            None
         };
         let name = params.named_child(0).and_then(lone_ident_text)?;
         if !has_lower_re().is_match(name) {
@@ -1504,8 +1503,7 @@ impl<'t> Walker<'t> {
             }
         }
 
-        if matches!(resolved, Some("struct") | Some("union")) {
-            let kind = resolved.unwrap();
+        if let Some(kind @ ("struct" | "union")) = resolved {
             let Some(row) = self.create_node(
                 kind,
                 &name,
@@ -1742,19 +1740,19 @@ impl<'t> Walker<'t> {
                             return; // #1230: literal receivers emit nothing
                         }
                     }
-                    match receiver.map(|r| r.kind()) {
-                        Some("identifier") | Some("simple_identifier") | Some("field_identifier") => {
-                            let receiver_name = self.text(receiver.unwrap());
+                    match receiver {
+                        Some(r) if matches!(r.kind(), "identifier" | "simple_identifier" | "field_identifier") => {
+                            let receiver_name = self.text(r);
                             if !matches!(receiver_name, "self" | "this" | "cls" | "super") {
                                 callee_name = format!("{receiver_name}.{method_name}");
                             } else {
                                 callee_name = method_name.to_string();
                             }
                         }
-                        Some("call_expression") => {
+                        Some(r) if r.kind() == "call_expression" => {
                             // Call-result receiver (#645/#608): re-encode as
                             // `<innerCallee>().<method>` — C/C++ re-encode any inner.
-                            let inner_fn = receiver.unwrap().child_by_field_name("function");
+                            let inner_fn = r.child_by_field_name("function");
                             let inner_callee =
                                 inner_fn.map(|f| arrow_dot_no_ws(self.text(f))).unwrap_or_default();
                             if !inner_callee.is_empty() {

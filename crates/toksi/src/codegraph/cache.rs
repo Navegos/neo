@@ -118,6 +118,10 @@ impl SymbolCache {
         tx.execute("DELETE FROM files WHERE file_path = ?1", params![file_path])?;
         tx.execute("DELETE FROM nodes WHERE file_path = ?1", params![file_path])?;
         tx.execute("DELETE FROM refs WHERE file_path = ?1", params![file_path])?;
+        tx.execute(
+            "DELETE FROM edges WHERE source_id NOT IN (SELECT id FROM nodes) OR target_id NOT IN (SELECT id FROM nodes)",
+            [],
+        )?;
         tx.commit()?;
         Ok(())
     }

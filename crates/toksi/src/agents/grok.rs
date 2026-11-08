@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/grok.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use std::collections::HashMap;
 use std::fs::{self, File};
@@ -229,7 +229,7 @@ pub fn has_grok_rtk_hook() -> bool {
 }
 
 pub fn install_grok_codegraph_session_hook() -> Result<(), String> {
-    let (command, ok) = toksi_command_ok(&["grok-hook", "codegraph-index"]);
+    let (command, ok) = toksi_command_ok(&["codegraph-hook", "grok"]);
     if !ok {
         return Err(ERR_NO_STABLE_TOKSI.to_string());
     }
@@ -249,7 +249,8 @@ fn is_grok_rtk_command(cmd: &str) -> bool {
 }
 
 fn is_grok_codegraph_session_command(cmd: &str) -> bool {
-    toksi_managed_command(cmd, &["grok-hook", "codegraph-index"])
+    toksi_managed_command(cmd, &["codegraph-hook", "grok"])
+        || toksi_managed_command(cmd, &["grok-hook", "codegraph-index"])
 }
 
 fn unquote_toml_str(s: &str) -> String {

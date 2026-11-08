@@ -4,7 +4,7 @@
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
-The code in Sources: neo/inspect-vault/TokenTracker, neo/inspect-vault/jcodemunch-mcp, neo/inspect-vault/repomix, neo/inspect-vault/ast-grep, neo/inspect-vault/scip, neo/inspect-vault/mem0, neo/inspect-vault/chroma, neo/inspect-vault/litellm is updated; treat as newly added/updated code that must be converted, imported, and rechecked for new features, bugfixes, and engine capabilities into consolidated toksi.
+Always treat all reference vaults in neo/inspect-vault/* (TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt) as newly added/updated code that we must inspect, convert, and import into consolidated toksi, checking for missing features, addons, updates, and bugfixes.
 
 Execute Phase 15.6: Advanced Vault Intelligence Engines Consolidation.
 Sources:
@@ -16,11 +16,15 @@ Sources:
   - neo/inspect-vault/mem0 -> crates/toksi/src/aimemory/mem0_bridge.rs
   - neo/inspect-vault/chroma -> crates/toksi/src/gateway/semantic_cache.rs
   - neo/inspect-vault/litellm -> crates/toksi/src/gateway/normalizer/litellm.rs
+  - neo/inspect-vault/TokenEconomizer -> crates/toksi/src/headroom/compression/economizer.rs
+  - neo/inspect-vault/agent-opt -> crates/toksi/src/agents/opt.rs
 Targets:
   - crates/toksi/src/telemetry/tokentracker.rs
   - crates/toksi/src/codegraph/
   - crates/toksi/src/aimemory/
   - crates/toksi/src/gateway/
+  - crates/toksi/src/headroom/compression/
+  - crates/toksi/src/agents/
 
 Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
@@ -39,6 +43,8 @@ Requirements:
    - **mem0** (`neo/inspect-vault/mem0`): Personalized long-term entity-fact memory extractor.
    - **Chroma** (`neo/inspect-vault/chroma`): Embedding vector similarity indexing and dual-tier semantic cache backing store.
    - **LiteLLM** (`neo/inspect-vault/litellm`): 100+ model naming aliases, standard request/response mapping, token billing rates, and drop-in compatibility.
+   - **TokenEconomizer** (`neo/inspect-vault/TokenEconomizer`): Dynamic token economizer, prompt minification, redundant instruction deduping, structured output token pruning.
+   - **agent-opt** (`neo/inspect-vault/agent-opt`): Agent prompt and tool execution optimizer, automated step pruning, latency and token budget enforcement.
 2. Verification:
    - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
 ```
@@ -52,6 +58,8 @@ Requirements:
 - **Codebase Packager** (`src/codegraph/repomix.rs`): Packages relevant files into structured XML/markdown context payloads with accurate token counts.
 - **SCIP Graph Indexer** (`src/codegraph/scip.rs`): Generates and queries SCIP symbol graphs for exact cross-file symbol definition lookups.
 - **LiteLLM Model Compatibility Matrix** (`src/gateway/normalizer/litellm.rs`): Maps 100+ model names to provider-specific endpoints and token pricing tiers.
+- **Token Economizer** (`src/headroom/compression/economizer.rs`): Eliminates repetitive instructions and strips schema overhead.
+- **Agent Optimizer** (`src/agents/opt.rs`): Prunes intermediate redundant execution turns and bounds latency.
 
 ### 2. Verification Criteria
 - `cargo check -p toksi` passes with 0 warnings.

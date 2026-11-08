@@ -1,4 +1,4 @@
-# Toksi Native Consolidation: Phase Index & Execution Guide (v3.4)
+# Toksi Native Consolidation: Phase Index & Execution Guide (v3.5)
 
 > **Zero Token-Waste Execution Policy**:  
 > To prevent context saturation and token budget exhaustion, **run one phase per chat session**.  
@@ -14,11 +14,15 @@ All worker agents executing any phase in this roadmap must adhere strictly to th
 3. **Strict Error Handling**: Zero panics, zero `.unwrap()` or `.expect()` in production library and daemon code. Typed domain errors via `thiserror`; CLI errors via `anyhow::Result` with `.context()`.
 4. **Universal Forward-Slash (`/`) Path Standard**: Strict prohibition of backward slashes (`\`) across Windows, Linux, and macOS. Escaped `\\` allowed exclusively in `cmd.exe` command strings in JSON5/TOML configs (`hooks.json`).
 5. **Environment PATH Verification Mandate ("Rule of Test and Inform User")**: For all external binaries, tools, shells, and agent CLIs, test their presence in system `PATH`. Never encode absolute paths. If missing, log clean actionable remediation instruction.
-6. **Continuous Reference Vault Re-Audit**: All 20+ reference vaults in `neo/inspect-vault/*` must ALWAYS be treated as updated/new code to inspect, convert, and import, verifying against missing features, addons, updates, new agents, and bugfixes.
+6. **Continuous Reference Vault Re-Audit**: All 23 reference vaults in `neo/inspect-vault/*` (`tokless`, `bifrost`, `headroom`, `rtk`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `andrej-karpathy-skills`, `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm`, `TokenEconomizer`, `agent-opt`, `agents-structures`) must ALWAYS be treated as updated/new code to inspect, convert, and import, verifying against missing features, addons, updates, new agents, and bugfixes.
 7. **Single Root `.toksi` Directory**: Workspace root contains the only `.toksi` directory. Subfolder `.toksi` folders are auto-discovered, table rows merged into root SQLite DBs, and subfolders deleted.
-8. **Consolidated Sub-Tool Layout**: `.toksi/{codegraph, headroom, projectmem, context, icm, ai-memory, rtk}` in user home and workspace root.
+8. **Consolidated Sub-Tool Layout**: `.toksi/{codegraph, headroom, projectmem, context, icm, ai-memory, rtk}` in user home (`~/.toksi/`) and workspace root (`<root>/.toksi/`).
 9. **Multi-Protocol Standardization**: Every tool exposes MCP, A2A, ACP, stdio, SSE, and HTTP interfaces.
 10. **Strict Paid Quota Enforcement**: All BYOK providers must have active paid commercial tiers. Free-tier accounts are gracefully disqualified without failure, logging an informative notice and falling back cleanly.
+11. **Ground-Truth Session Token Accounting**: Zero synthetic/virtual guesses. Real SSE stream usage, real rate-limit headers, free AI API quota queries.
+12. **Dedicated 5-Port Network Topology**: Dedicated ports (:8787 Headroom, :8789 Copilot VS Code, :8790 Copilot CLI, :9099 AI Gateway, :9100 Web Cockpit) guaranteeing zero thread pool contention and sub-10µs inference latency.
+13. **37 Polyglot Tree-Sitter Parsers**: Native AST support for Systems, Managed, Web/Scripting, Functional, Frontend (TSX, Vue, Svelte), Infra/Shell, Data/Config, and Documentation formats.
+14. **Universal Agentic Provider & Hooks Support**: Full bi-directional hook interception across 5 provider categories (CLI & Bridges, LSP & Protocol, Editors & IDEs, Service & Platforms, Proxy & Gateways).
 
 ---
 
@@ -30,7 +34,7 @@ All worker agents executing any phase in this roadmap must adhere strictly to th
 | [`PHASE_02_PROJECTMEM_PURE_RUST.md`](./PHASE_02_PROJECTMEM_PURE_RUST.md) | ProjectMem Port | Pure safe Rust port of ProjectMem (~v0.3.4), JSONL file locking (`fs2`), deterministic summary, precheck, MCP server | Implemented & Tested |
 | [`PHASE_03_CONTEXTMODE_PURE_RUST.md`](./PHASE_03_CONTEXTMODE_PURE_RUST.md) | Context-Mode Port | Subprocess sandbox, CPU/memory limits, FTS5 document chunker, async fetcher, SSRF per-hop guard, `ctx_*` MCP suite | Implemented & Tested |
 | [`PHASE_04_ICM_AND_AIMEMORY.md`](./PHASE_04_ICM_AND_AIMEMORY.md) | ICM & ai-memory | SQLite FTS5 BM25 memory (`~/.toksi/icm/memory.db`), claim-once cross-agent handoffs, tiered L0/L1/L2 briefs | Implemented & Tested |
-| [`PHASE_05_CODEGRAPH_PURE_RUST.md`](./PHASE_05_CODEGRAPH_PURE_RUST.md) | CodeGraph Engine | Tree-sitter AST parsers (Rust, TS/JS, Py, Go, C/C++), petgraph blast radius, AST symbol cache, suffix coordinate resolution | Implemented & Tested |
+| [`PHASE_05_CODEGRAPH_PURE_RUST.md`](./PHASE_05_CODEGRAPH_PURE_RUST.md) | CodeGraph Engine | Tree-sitter AST parsers (37 polyglot languages), petgraph blast radius, AST symbol cache, suffix coordinate resolution | Implemented & Tested |
 | [`PHASE_06_IN_TREE_RULES_AND_SKILLS.md`](./PHASE_06_IN_TREE_RULES_AND_SKILLS.md) | In-Tree Rules & Skills | Compile-time embedded guidelines (`include_str!`): Karpathy principles, Caveman ASD-STE100, Ponytail build discipline | Implemented & Tested |
 | [`PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md`](./PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md) | Headroom & Gateway | Lossless log/JSON/code compression, MCP schema pruner (saves 5k-15k tokens/turn), 39+ BYOK providers, semantic cache | Implemented & Tested |
 | [`PHASE_08_DOWNLOADER_PURGE.md`](./PHASE_08_DOWNLOADER_PURGE.md) | Downloader Purge | Purge npminstall, nodewin, uv, python runtimes; 100% native in-tree compilation with zero package manager dependencies | Implemented & Tested |
@@ -45,7 +49,7 @@ All worker agents executing any phase in this roadmap must adhere strictly to th
 | [`PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`](./PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md) | Smart CLI & Paid Quota | Local Agent CLI providers (`agy`, `copilot`, `claude`, `codex`, `cursor`, `grok`), smart launch, paid tier mandate, graceful bypass, Bifrost provider | **ACTIVE PHASE (3/9)** |
 | [`PHASE_15_4_MULTI_PROTOCOL_AND_IGNORE_PURGE.md`](./PHASE_15_4_MULTI_PROTOCOL_AND_IGNORE_PURGE.md) | Multi-Protocol & Ignore Purge | MCP, A2A, ACP, stdio, SSE, HTTP across all tools; `.gitignore`/`.ignore` support with dynamic vector & embedding cache purge | **ACTIVE PHASE (4/9)** |
 | [`PHASE_15_5_TOKEN_ACCOUNTING_AND_NETWORK_HEALING.md`](./PHASE_15_5_TOKEN_ACCOUNTING_AND_NETWORK_HEALING.md) | Token Accounting & Auto-Heal | Ground-truth session tokens, real SSE usage/quotas, zero virtual math, network reconnect auto-recovery watchdog, rules sync | **ACTIVE PHASE (5/9)** |
-| [`PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md`](./PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md) | Vault Intelligence Engines | Consolidation of TokenTracker, jcodemunch-mcp, Repomix, ast-grep, SCIP, mem0, Chroma, LiteLLM | **ACTIVE PHASE (6/9)** |
+| [`PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md`](./PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md) | Vault Intelligence Engines | Consolidation of all remaining vaults: TokenTracker, jcodemunch-mcp, Repomix, ast-grep, SCIP, mem0, Chroma, LiteLLM, TokenEconomizer, agent-opt | **ACTIVE PHASE (6/9)** |
 | [`PHASE_16_1_MOUSE_CAPABLE_TUI.md`](./PHASE_16_1_MOUSE_CAPABLE_TUI.md) | Mouse-Capable TUI | Crossterm `EnableMouseCapture`, tab clicks, row selection, action buttons, scrollable views, fix input locks & tab freezes | **ACTIVE PHASE (7/9)** |
 | [`PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`](./PHASE_16_2_WEB_COCKPIT_DASHBOARD.md) | Web Cockpit Dashboard | Background Web UI on `:9100`, 17-agent live observation grid, realistic savings, quota gauges, routing/loadbalancer controls | **ACTIVE PHASE (8/9)** |
 | [`PHASE_16_3_OPEN_AGENTS_AND_README_VERIFICATION.md`](./PHASE_16_3_OPEN_AGENTS_AND_README_VERIFICATION.md) | Open Agents & Verification | Support `.agents/` and vendor layouts, selective user vs workspace auto-install, comprehensive technical README, 100% tests pass | **ACTIVE PHASE (9/9)** |

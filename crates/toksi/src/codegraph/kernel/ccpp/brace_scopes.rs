@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/ccpp/brace_scopes.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 //! C++ scopes read from the source's braces, for a file whose parse tree has
 //! errors — a port of src/extraction/languages/cpp-brace-scopes.ts (read its
@@ -394,9 +394,10 @@ pub fn scan(src: &str) -> Option<BraceScopes> {
         if c == b'{' {
             open.push(i);
             if pending_namespace.as_ref().is_some_and(|(_, brace)| *brace == i) {
-                let (name, _) = pending_namespace.take().unwrap();
-                if !name.is_empty() {
-                    namespace_at.push((i, name));
+                if let Some((name, _)) = pending_namespace.take() {
+                    if !name.is_empty() {
+                        namespace_at.push((i, name));
+                    }
                 }
             }
         } else if c == b'}' {

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/copilot.rs
 // created: 2026-10-11
-// lastModified: 2026-11-02
+// lastModified: 2026-11-08
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -479,7 +479,7 @@ pub fn install_copilot_codegraph_index_hook() {
 pub fn install_copilot_codegraph_index_hook_safe() -> Result<(), String> {
     let p = paths::copilot_paths_resolved();
     paths::ensure_dir(&p.hooks_dir).map_err(|e| e.to_string())?;
-    let cmd = toksi_command(&["copilot-hook", "codegraph-index"]);
+    let cmd = toksi_command(&["codegraph-hook", "copilot"]);
     if cmd.is_empty() {
         return Err(ERR_NO_STABLE_TOKSI.to_string());
     }
@@ -497,7 +497,7 @@ pub fn install_copilot_codegraph_index_hook_safe() -> Result<(), String> {
     write_owned_copilot_hook(
         &copilot_hooks_file("toksi-codegraph-index.json"),
         &stringify_json(&Value::Object(root)),
-        "copilot-hook codegraph-index",
+        "codegraph-hook copilot",
     )
 }
 
@@ -506,6 +506,10 @@ pub fn remove_copilot_codegraph_index_hook() {
 }
 
 pub fn remove_copilot_codegraph_index_hook_safe() -> Result<(), String> {
+    let _ = remove_owned_copilot_hook(
+        &copilot_hooks_file("toksi-codegraph-index.json"),
+        "codegraph-hook copilot",
+    );
     remove_owned_copilot_hook(
         &copilot_hooks_file("toksi-codegraph-index.json"),
         "copilot-hook codegraph-index",
@@ -801,7 +805,8 @@ pub fn has_copilot_codegraph_index_hook() -> bool {
     let Some(cfg) = try_parse_jsonc(&raw) else {
         return false;
     };
-    copilot_hook_owned(&cfg, "copilot-hook codegraph-index")
+    copilot_hook_owned(&cfg, "codegraph-hook copilot")
+        || copilot_hook_owned(&cfg, "copilot-hook codegraph-index")
 }
 
 pub fn install_copilot_projectmem_hook_safe() -> Result<(), String> {

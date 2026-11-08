@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/graph.rs
 // created: 2026-10-28
-// lastModified: 2026-11-05
+// lastModified: 2026-11-08
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -104,7 +104,7 @@ impl CodeGraphEngine {
     }
 
     pub fn get_file_symbols(&self, file_path: &str) -> Vec<&SymbolNode> {
-        let normalized = file_path.replace('\\', "/");
+        let normalized = crate::util::paths::normalize_path(file_path);
         if let Some(indices) = self.file_to_indices.get(&normalized) {
             return indices.iter().map(|&idx| &self.graph[idx]).collect();
         }

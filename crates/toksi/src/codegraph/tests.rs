@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/tests.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 #[cfg(test)]
 mod tests {
@@ -777,14 +777,17 @@ struct Server {
         let dir = tempdir().unwrap();
         let root = dir.path();
 
-        // Default legacy fallback
+        // Default consolidated path: .toksi/codegraph/symbols.db
         let p1 = crate::codegraph::resolve_db_path(root);
-        assert_eq!(p1, root.join(".codegraph").join("symbols.db"));
+        assert_eq!(p1, root.join(".toksi").join("codegraph").join("symbols.db"));
 
-        // When .toksi exists
-        fs::create_dir_all(root.join(".toksi")).unwrap();
+        // Auto-migrate legacy .codegraph/symbols.db if it exists
+        let legacy_dir = root.join(".codegraph");
+        fs::create_dir_all(&legacy_dir).unwrap();
+        fs::write(legacy_dir.join("symbols.db"), "legacy-test-db").unwrap();
         let p2 = crate::codegraph::resolve_db_path(root);
         assert_eq!(p2, root.join(".toksi").join("codegraph").join("symbols.db"));
+        assert!(root.join(".toksi").join("codegraph").join("symbols.db").exists());
 
         // File symbols suffix fallback
         let mut engine = CodeGraphEngine::new();
@@ -817,6 +820,130 @@ struct Server {
         let res = engine.resolve_coordinate("worker.rs", 15);
         assert!(res.is_some());
         assert_eq!(res.unwrap().name, "deep_worker");
+    }
+
+    #[test]
+    fn test_dynamic_ignore_purging() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        fs::create_dir_all(root.join(".git")).unwrap();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/keep.rs"),
+            "pub fn keep_fn() -> i32 { 1 }\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("src/drop.rs"),
+            "pub fn drop_fn() -> i32 { 2 }\n",
+        )
+        .unwrap();
+
+        let mut cg = CodeGraph::open(root).expect("open codegraph");
+        let initial_indexed = cg.ensure_indexed().expect("initial index");
+        assert!(initial_indexed);
+
+        let initial_stats = cg.cache.get_stats();
+        assert_eq!(initial_stats.file_count, 2);
+        assert_eq!(initial_stats.node_count, 4); // 2 file nodes + 2 function nodes
+
+        // Now dynamically add src/drop.rs to .gitignore
+        fs::write(root.join(".gitignore"), "src/drop.rs\n").unwrap();
+
+        // Re-index: walker respects .gitignore and dynamically purges drop.rs
+        let second_indexed = cg.ensure_indexed().expect("second index with ignore");
+        assert!(second_indexed, "index should reflect purged file");
+
+        let purged_stats = cg.cache.get_stats();
+        assert_eq!(purged_stats.file_count, 1);
+        assert_eq!(purged_stats.node_count, 2); // 1 file node + 1 function node
+
+        let remaining = cg.cache.get_all_nodes();
+        assert!(remaining.iter().any(|n| n.name == "keep_fn"));
+        assert!(!remaining.iter().any(|n| n.name == "drop_fn"));
+        assert!(cg.engine.find_symbols_by_name("drop_fn").is_empty());
+    }
+
+    #[test]
+    fn test_projectmem_coordinate_autoresolve() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/auth.rs"),
+            r#"
+pub struct AuthManager;
+
+impl AuthManager {
+    pub fn verify_token(&self, token: &str) -> bool {
+        token == "secret"
+    }
+}
+"#,
+        )
+        .unwrap();
+
+        // Prime the index
+        let mut cg = CodeGraph::open(root).expect("open");
+        cg.ensure_indexed().expect("index");
+
+        // Resolve coordinate using resolve_coordinate
+        let resolved = crate::codegraph::resolve_coordinate(root, "src/auth.rs", 6);
+        assert!(resolved.is_some());
+        assert_eq!(resolved.as_deref(), Some("AuthManager::verify_token"));
+
+        // Coordinate with projectmem auto_resolve_location
+        let loc_resolved = crate::projectmem::schema::auto_resolve_location(root, "src/auth.rs:6");
+        assert_eq!(loc_resolved, "src/auth.rs:6 (AuthManager::verify_token)");
+    }
+
+    #[test]
+    fn test_explore_mcp_with_blast_radius() {
+        use crate::codegraph::mcp::handle_mcp_message;
+        use serde_json::json;
+
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        let root_str = root.to_string_lossy().to_string();
+
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/api.rs"),
+            r#"
+pub fn handle_request() {
+    process_order();
+}
+
+pub fn process_order() {
+    save_order();
+}
+
+pub fn save_order() {}
+"#,
+        )
+        .unwrap();
+
+        let req = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "codegraph_explore",
+                "arguments": {
+                    "query": "process_order",
+                    "projectPath": root_str
+                }
+            }
+        });
+
+        let resp = handle_mcp_message(&req).expect("mcp response");
+        let text = resp["result"]["content"][0]["text"].as_str().expect("text");
+        assert!(text.contains("Matched Symbols"));
+        assert!(text.contains("process_order"));
+        assert!(text.contains("Blast Radius:"));
+        assert!(text.contains("Source Snippets"));
     }
 }
 

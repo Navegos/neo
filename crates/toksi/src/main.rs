@@ -303,6 +303,12 @@ fn run() -> i32 {
     if args.len() >= 3 && args[1] == "codex-perm" && args[2] == "codex" {
         return run_codex_perm_hook();
     }
+    if args.len() >= 2 && args[1] == "codegraph-hook" {
+        return run_codegraph_index_hook();
+    }
+    if args.len() >= 3 && args[1] == "codegraph" && args[2] == "hook" {
+        return run_codegraph_index_hook();
+    }
     if args.len() >= 3 && (args[1] == "agy-hook" || args[1] == "cursor-hook" || args[1] == "copilot-hook") && args[2] == "codegraph-index" {
         return run_codegraph_index_hook();
     }

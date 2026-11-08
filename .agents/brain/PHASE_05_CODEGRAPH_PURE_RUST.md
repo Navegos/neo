@@ -4,7 +4,7 @@
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_05_CODEGRAPH_PURE_RUST.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
-The code in Source: neo/inspect-vault/codegraph is updated; treat as newly added/updated code that must be converted, imported, and rechecked for new features, bugfixes, and parser enhancements into consolidated toksi.
+Always treat Source: neo/inspect-vault/codegraph as newly added/updated code that we must inspect, convert, and import into consolidated toksi, checking for missing features, addons, updates, and bugfixes.
 
 Execute Phase 05: CodeGraph Pure Rust Engine.
 Source: neo/inspect-vault/codegraph (codegraph-kernel in Rust + TS wrapper)
@@ -20,16 +20,14 @@ Disciplinary & Portability Requirements:
 
 Requirements:
 1. Eliminate Node.js and TypeScript wrapper completely.
-2. In-Tree Tree-sitter parsers: Rust, TypeScript, JavaScript, Python, Go, C, C++.
-3. Petgraph AST dependency, call-path, and blast-radius graph engine.
-4. Incremental AST symbol cache in .toksi/codegraph/symbols.db.
-5. In-process multi-protocol MCP server serving:
-   - `codegraph_explore` (source, call path, blast radius in one call)
-   - `codegraph_impact` (symbol change impact analysis)
-   - `codegraph_symbol` (definition & reference navigation)
-6. Expose the native CLI command `toksi graph ...`.
-7. Coordinate with crates/toksi/src/projectmem/ to auto-resolve `location: "file:line"` coordinates to AST symbol names.
-8. Ensure 0 compiler warnings and passing unit tests.
+2. In-Tree Tree-sitter parsers supporting 37 polyglot languages: Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, C#, Kotlin, Scala, PHP, Ruby, Swift, Zig, Elixir, Erlang, OCaml, Haskell, Lua, Julia, HTML, CSS, SCSS, TSX, Vue, Svelte, GraphQL, Bash, Dockerfile, HCL, Nix, Make, CMake, JSON, YAML, TOML, Protocol Buffers, SQL, Markdown, LaTeX.
+3. High-speed file traversal using the `ignore` crate (respecting .gitignore and hidden files).
+4. Petgraph AST dependency, call-path, and blast-radius engine.
+5. Incremental AST symbol cache in .toksi/codegraph/symbols.db.
+6. Serve `codegraph_explore`, `codegraph_impact`, and `codegraph_symbol` via in-process multi-protocol MCP server.
+7. Connect to crates/toksi/src/projectmem/ to auto-resolve `location: "file:line"` coordinates to AST symbol names.
+8. Expose the native CLI command `toksi graph ...`.
+9. Ensure 0 compiler warnings and passing unit tests.
 ```
 
 ---
@@ -37,7 +35,7 @@ Requirements:
 ## Technical Specifications & Details
 
 ### 1. Architectural Scope & Subsystems
-- **Tree-sitter AST Kernel** (`src/codegraph/kernel/`): Native parser integrations for polyglot languages extracting symbols, functions, classes, imports, and calls.
+- **Tree-sitter AST Kernel** (`src/codegraph/kernel/`): Native parser integrations for 37 polyglot languages extracting symbols, functions, classes, imports, and calls.
 - **Dependency & Blast Radius Graph** (`src/codegraph/graph.rs`): Petgraph directed graph computing upstream callers, downstream dependencies, and transitive impact sets.
 - **Dynamic Ignore Walker & Purge** (`src/codegraph/walker.rs`): High-speed crawler ignoring build artifacts (`target/`, `node_modules/`, `dist/`). Purges indexed symbols when `.gitignore` changes.
 - **Multi-Protocol Dispatch** (`src/codegraph/mcp.rs`): Handles `codegraph_explore`, `codegraph_impact`, and `codegraph_symbol` over MCP, A2A, ACP, stdio, and HTTP.
