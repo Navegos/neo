@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/rtk_hook.rs
 // created: 2026-10-05
-// lastModified: 2026-11-01
+// lastModified: 2026-11-08
 
 use std::env;
 use std::fs::OpenOptions;
@@ -281,29 +281,27 @@ pub fn cline_rewrite_commands_input(tool_input: &OrderedMap) -> Option<Value> {
 }
 
 pub fn cline_tool_input(req: &OrderedMap) -> Option<(String, OrderedMap)> {
-    if let Some(Value::Object(tc)) = req.get("tool_call") {
-        if let Some(name) = tc.get("name").and_then(|v| v.as_str())
-            && !name.is_empty()
-        {
-            let input = tc
-                .get("input")
-                .and_then(|v| v.as_object())
-                .cloned()
-                .unwrap_or_default();
-            return Some((name.to_string(), input));
-        }
+    if let Some(Value::Object(tc)) = req.get("tool_call")
+        && let Some(name) = tc.get("name").and_then(|v| v.as_str())
+        && !name.is_empty()
+    {
+        let input = tc
+            .get("input")
+            .and_then(|v| v.as_object())
+            .cloned()
+            .unwrap_or_default();
+        return Some((name.to_string(), input));
     }
-    if let Some(Value::Object(pt)) = req.get("preToolUse") {
-        if let Some(name) = pt.get("toolName").and_then(|v| v.as_str())
-            && !name.is_empty()
-        {
-            let params = pt
-                .get("parameters")
-                .and_then(|v| v.as_object())
-                .cloned()
-                .unwrap_or_default();
-            return Some((name.to_string(), params));
-        }
+    if let Some(Value::Object(pt)) = req.get("preToolUse")
+        && let Some(name) = pt.get("toolName").and_then(|v| v.as_str())
+        && !name.is_empty()
+    {
+        let params = pt
+            .get("parameters")
+            .and_then(|v| v.as_object())
+            .cloned()
+            .unwrap_or_default();
+        return Some((name.to_string(), params));
     }
     None
 }
@@ -325,18 +323,17 @@ pub fn copilot_rtk_trace_cmd(cmd_line: &str) {
 }
 
 pub fn copilot_rtk_trace(stage: &str, cmd_line: &str, rewritten: &str, changed: bool) {
-    if let Ok(trace_path) = env::var("TOKSI_COPILOT_RTK_TRACE") {
-        if !trace_path.is_empty() {
-            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&trace_path) {
-                let entry = serde_json::json!({
-                    "stage": stage,
-                    "command": cmd_line,
-                    "rewritten": rewritten,
-                    "changed": changed,
-                });
-                let _ = writeln!(f, "{}", entry);
-            }
-        }
+    if let Ok(trace_path) = env::var("TOKSI_COPILOT_RTK_TRACE")
+        && !trace_path.is_empty()
+        && let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&trace_path)
+    {
+        let entry = serde_json::json!({
+            "stage": stage,
+            "command": cmd_line,
+            "rewritten": rewritten,
+            "changed": changed,
+        });
+        let _ = writeln!(f, "{}", entry);
     }
 }
 
