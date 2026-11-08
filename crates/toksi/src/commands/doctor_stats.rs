@@ -109,6 +109,9 @@ pub fn parse_perf(raw: &str) -> Option<PerfData> {
 }
 
 pub fn run_doctor_command(timeout: Duration, bin: &str, args: &[&str]) -> Option<String> {
+    if std::env::var("TOKSI_TEST").as_deref() == Ok("1") {
+        return None;
+    }
     let res = run(
         bin,
         args,

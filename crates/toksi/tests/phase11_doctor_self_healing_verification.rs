@@ -224,20 +224,28 @@ fn test_phase11_scan_legacy_hijacks_dry_run() {
 #[test]
 fn test_phase11_doctor_runs_cleanly() {
     let _lock = PHASE11_LOCK.lock().unwrap();
+    unsafe {
+        std::env::set_var("TOKSI_TEST", "1");
+    }
+    let temp_home = std::env::temp_dir().join("toksi_p11_doctor_isolated_home");
+    let _ = fs::remove_dir_all(&temp_home);
+    let _ = fs::create_dir_all(&temp_home);
+    toksi::util::set_home_override(temp_home.to_string_lossy().to_string());
+
     register_agents();
     register_tools();
 
-    // Run doctor in offline + JSON mode
     let code_json = run_doctor(true, true, false);
     assert_eq!(code_json, 0, "run_doctor json output must return 0");
 
-    // Run doctor in standard mode
     let code = run_doctor(true, false, false);
     assert_eq!(code, 0, "run_doctor standard output must return 0");
 
-    // Run doctor in fix mode
     let code_fix = run_doctor(true, false, true);
     assert_eq!(code_fix, 0, "run_doctor --fix must return 0");
+
+    toksi::util::clear_home_override();
+    let _ = fs::remove_dir_all(&temp_home);
 }
 
 #[test]

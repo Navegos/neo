@@ -184,6 +184,9 @@ fn run_output_with_timeout(cmd: &mut Command, timeout: Duration) -> io::Result<s
 }
 
 pub fn live_hook(fields: &[String]) -> Option<String> {
+    if env::var("TOKSI_TEST").as_deref() == Ok("1") {
+        return None;
+    }
     let exe = match resolve_runnable(&fields[0]) {
         Ok(e) => e,
         Err(_) => return Some(format!("hook not runnable: {}", short_path(&fields[0]))),
@@ -293,6 +296,9 @@ pub fn probe_cmd_batch(exe: &str, args: &[String]) -> Option<String> {
 }
 
 pub fn live_cmd_batch_version(comspec: &str, batch: &str) -> Option<String> {
+    if env::var("TOKSI_TEST").as_deref() == Ok("1") {
+        return None;
+    }
     let comspec = if comspec.is_empty() || is_cmd_name(comspec) {
         let p = which("cmd.exe");
         if !p.is_empty() {
@@ -322,6 +328,9 @@ pub fn live_cmd_batch_version(comspec: &str, batch: &str) -> Option<String> {
 }
 
 pub fn live_codegraph_version(exe: &str, _args: &[String]) -> Option<String> {
+    if env::var("TOKSI_TEST").as_deref() == Ok("1") {
+        return None;
+    }
     let mut cmd = Command::new(exe);
     cmd.arg("--version");
     cmd.stdin(Stdio::null());

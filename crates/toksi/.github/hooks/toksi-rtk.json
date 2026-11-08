@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "hooks": {
+    "PreToolUse": [
+      {
+        "type": "command",
+        "command": "D:/AI/neo/target/debug/toksi.exe rtk-hook copilot"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "type": "command",
+        "command": "D:/AI/neo/target/debug/toksi.exe rtk-hook copilot"
+      }
+    ]
+  }
+}

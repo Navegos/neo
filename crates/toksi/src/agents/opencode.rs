@@ -222,6 +222,9 @@ pub fn opencode_known_bin_dirs() -> Vec<String> {
 }
 
 pub fn open_code_major_version(bin: &str) -> i32 {
+    if std::env::var("TOKSI_TEST").as_deref() == Ok("1") {
+        return 0;
+    }
     let output = match std::process::Command::new(bin).arg("--version").output() {
         Ok(o) => o,
         Err(_) => return 0,

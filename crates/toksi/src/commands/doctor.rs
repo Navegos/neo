@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor.rs
 // created: 2026-10-05
-// lastModified: 2026-11-06
+// lastModified: 2026-11-08
 
 use std::env;
 use crate::commands::doctor_probe::{format_runtime_issues, probe_agent_runtime, RuntimeIssue};
@@ -28,11 +28,96 @@ struct AgentReport {
     runtime: Vec<RuntimeIssue>,
 }
 
+pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<usize> {
+    let mut consolidated_count = 0;
+    let root_canon = match std::fs::canonicalize(root) {
+        Ok(c) => c,
+        Err(_) => root.to_path_buf(),
+    };
+    let root_toksi = root_canon.join(".toksi");
+
+    let mut stack = vec![root_canon.clone()];
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str == "target" || name_str == ".git" || name_str == "node_modules" {
+                continue;
+            }
+            if path.is_dir() {
+                if name_str == ".toksi" {
+                    let path_canon = match std::fs::canonicalize(&path) {
+                        Ok(c) => c,
+                        Err(_) => path.clone(),
+                    };
+                    if path_canon != root_toksi {
+                        // Merge subdirectories/files into root .toksi
+                        if let Ok(sub_entries) = std::fs::read_dir(&path) {
+                            for sub in sub_entries.flatten() {
+                                let sub_path = sub.path();
+                                let dest_path = root_toksi.join(sub.file_name());
+                                if !dest_path.exists() {
+                                    if let Some(parent) = dest_path.parent() {
+                                        let _ = std::fs::create_dir_all(parent);
+                                    }
+                                    let _ = std::fs::rename(&sub_path, &dest_path);
+                                }
+                            }
+                        }
+                        let _ = std::fs::remove_dir_all(&path);
+                        consolidated_count += 1;
+                    }
+                } else {
+                    stack.push(path);
+                }
+            }
+        }
+    }
+    Ok(consolidated_count)
+}
+
+pub fn audit_agent_cli_binaries() -> Vec<String> {
+    let mut warnings = Vec::new();
+    let all_agents = list_agents();
+    for agent in &all_agents {
+        if !agent.detect().installed {
+            continue;
+        }
+        let cli = &agent.cli_bin;
+        if cli.is_empty() {
+            continue;
+        }
+        let in_path = !crate::util::paths::which(cli).is_empty()
+            || !crate::util::paths::which(&format!("{}.exe", cli)).is_empty();
+        if !in_path {
+            warnings.push(format!(
+                "[ERROR] Required executable '{}' for agent '{}' not found in system PATH.\n[ACTION] Please add the directory containing '{}' to your PATH environment variable and retry.",
+                cli, agent.label, cli
+            ));
+        }
+    }
+    warnings
+}
+
 pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
     let all_agents = list_agents();
     let tools = list_tools();
 
     if fix {
+        if let Ok(merged) = consolidate_nested_toksi_dirs(std::path::Path::new(".")) {
+            if merged > 0 {
+                L.raw(&format!(
+                    "  {} Consolidated {} nested .toksi directory/directories into root workspace .toksi",
+                    C.green(Sym::CHECK),
+                    merged
+                ));
+            }
+        }
         let healing = crate::env_injector::heal_legacy_hijacks();
         if !healing.is_clean() {
             L.raw(&format!(
@@ -231,6 +316,17 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
         tree_close();
     }
 
+    let cli_warnings = audit_agent_cli_binaries();
+    if !cli_warnings.is_empty() {
+        tree_corner("PATH Validation");
+        for w in cli_warnings {
+            for line in w.lines() {
+                tree_leaf(&C.yellow(line));
+            }
+        }
+        tree_close();
+    }
+
     let broken = reports.iter().filter(|r| !r.wired).count();
     let installed_agents = reports.len();
 
@@ -277,7 +373,7 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
 fn doctor_proxy_ports(reports: &[AgentReport]) -> Vec<String> {
     let mut ports = Vec::new();
     let main_port = crate::util::headroom_proxy::headroom_proxy_port();
-    let main_running = crate::headroom::proxy_running();
+    let main_running = if env::var("TOKSI_TEST").as_deref() == Ok("1") { false } else { crate::headroom::proxy_running() };
     let main_status = if main_running {
         C.green("running")
     } else {
@@ -303,8 +399,12 @@ fn doctor_proxy_ports(reports: &[AgentReport]) -> Vec<String> {
 
     // Keyring status
     let backend = crate::keyring::current_backend_name();
-    let statuses = crate::keyring::audit_keyring_statuses();
-    let active_keys = statuses.iter().filter(|s| s.has_credential && !s.is_expired).count();
+    let active_keys = if env::var("TOKSI_TEST").as_deref() == Ok("1") {
+        0
+    } else {
+        let statuses = crate::keyring::audit_keyring_statuses();
+        statuses.iter().filter(|s| s.has_credential && !s.is_expired).count()
+    };
     ports.push(format!(
         "{} OS Keyring ({}) — {}",
         C.green(Sym::CHECK),

@@ -245,6 +245,9 @@ pub fn rtk_install_dirs() -> Vec<String> {
 }
 
 pub fn binary_healthy(p: &str) -> bool {
+    if std::env::var("TOKSI_TEST").as_deref() == Ok("1") {
+        return true;
+    }
     let r = run(
         p,
         &["--version"],

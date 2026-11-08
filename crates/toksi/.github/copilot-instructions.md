@@ -7,13 +7,18 @@ Apply on every coding task:
 - Response Style (caveman) — terse prose, full technical accuracy.
 - Build Discipline (ponytail) — reuse first, write only what must exist.
 
+**Tools (call):**
+- Code Index (codegraph) — MCP `codegraph_explore` for structure, flows, dependencies.
+- Context Tools (context-mode) — MCP `ctx_*` for large, uncertain, multi-source analysis.
+- Project Memory (projectmem) — MCP tools log issues, attempts, fixes, decisions, gotchas.
+
 ## Principles
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
-## 1. Think Before Coding
+### 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
 
@@ -23,7 +28,7 @@ Before implementing:
 - If a simpler approach exists, say so. Push back when warranted.
 - If something is unclear, stop. Name what's confusing. Ask.
 
-## 2. Simplicity First
+### 2. Simplicity First
 
 **Minimum code that solves the problem. Nothing speculative.**
 
@@ -35,7 +40,7 @@ Before implementing:
 
 Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
-## 3. Surgical Changes
+### 3. Surgical Changes
 
 **Touch only what you must. Clean up only your own mess.**
 
@@ -51,7 +56,7 @@ When your changes create orphans:
 
 The test: Every changed line should trace directly to the user's request.
 
-## 4. Goal-Driven Execution
+### 4. Goal-Driven Execution
 
 **Define success criteria. Loop until verified.**
 
@@ -193,3 +198,62 @@ Stop at the first rung that holds:
 ### Example
 
 "Add a cache for these API responses.": `@lru_cache(maxsize=1000)` on the fetch function. Skipped custom cache class; add one when `lru_cache` measurably falls short.
+
+## Code Index (codegraph)
+
+MCP tool `codegraph_explore` gives source, call path, and blast radius in one call.
+
+### Rules
+
+- `.codegraph/` index exists: use CodeGraph first.
+  - Use for: how X works, flows, architecture, callers, blast radius, symbols.
+  - Trust results — no re-read/re-grep. Stale banner? Read only listed files.
+  - Result spilled? Search only needed symbol; never read whole spill. Use context-mode when spill is large.
+  - Configs/docs/.env/non-indexed: use normal tools.
+- No `.codegraph/`: run `git ls-files | wc -l`.
+  - ≤5 files or no git: use normal tools.
+  - Otherwise: run `toksi index` once.
+    - Ready: use CodeGraph.
+    - Fails/CLI missing: use normal tools; do not retry.
+
+### Examples
+
+- `codegraph_explore("how does auth middleware validate a JWT")`
+- `codegraph_explore("flow from HTTP request to DB query")`
+- `codegraph_explore("OrderService.createOrder callers and blast radius")`
+
+## Project Memory (projectmem)
+
+MCP tools record what broke, what was tried, and what was decided, across sessions, in `.projectmem/`.
+
+### Rules
+
+| Event | Tool | Rule |
+|-------|------|------|
+| Bug found | `log_issue` | Trigger: bug, unclear behavior, hypothesis, or investigation topic. |
+| Fix tried | `record_attempt` | `outcome`: `worked`, `failed`, or `partial`. One call per attempt. |
+| Fix proven | `record_fix` | Needs evidence: test passes, error gone, or user confirms. Closes issue. |
+| Design choice | `add_decision` | Replaces older decision: set `supersedes` to old event id — the old one retires from the summary, history is never rewritten; two disagreeing decisions corrupt trust. |
+| Gotcha found | `add_note` | Prefix `gotcha:`. Shared across projects. Also use for notes and key files future contributors should read first. |
+
+- Log as soon as a trigger fires — before any other work.
+- One call per event, decisions and gotchas alike; never batch writer calls.
+- Use only the fixed event vocabulary; never invent new event types.
+- Log every fix, small ones too. Keep entries short and specific: file, error, test name.
+- All writers accept `location: "file:line"`.
+- Never log secrets, credentials, customer data, tokens, or large transcripts.
+- Edit `PROJECT_MAP.md` and `plan.md` directly. Never log plans as events — a user's idea or plan belongs in `plan.md`.
+- Never edit `summary.md` (derived) or `events.jsonl` (append-only). Stale detail there → record the correction with a writer tool.
+- Superseding a decision? Get the old event id from `events.jsonl`, pass it as `supersedes`.
+- Trust recorded memory over recall; don't re-derive answers by re-reading `summary.md` or source files.
+- Before exiting: memory must reflect what actually happened.
+
+### Examples
+
+```
+log_issue(summary: "JWT parse fails on expired token", location: "auth/middleware.go:42")
+record_attempt(summary: "Moved expiry check before signature verify", outcome: "failed", issue_id: "0001")
+record_fix(summary: "Use leeway comparison at boundary", issue_id: "0001")
+add_decision(summary: "Use pgx pool over database/sql", supersedes: "<old event id>")
+add_note(summary: "gotcha: local CI skips integration tests without TEST_DB set")
+```

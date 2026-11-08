@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/codex.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -1566,7 +1566,7 @@ pub fn codex_perm_hook_command() -> String {
 }
 
 pub fn codex_projectmem_hook_command() -> String {
-    toksi_command(&["projectmem-hook", "claude"])
+    toksi_command(&["projectmem-hook", "codex"])
 }
 
 pub fn codex_hook_trust_hash(command: &str) -> String {
@@ -2336,7 +2336,7 @@ pub fn install_codex_projectmem_hook() -> bool {
     let (new_arr, pos, moved, removed) = codex_transform_managed_groups(
         &arr,
         "",
-        &["projectmem-hook", "claude"],
+        &["projectmem-hook", "codex"],
         Some(codex_projectmem_group(&command)),
     );
     hooks.insert("SessionStart".to_string(), Value::Array(new_arr));
@@ -2389,7 +2389,7 @@ pub fn remove_codex_projectmem_hook() {
         return;
     };
     let (kept, _, moved, removed) =
-        codex_transform_managed_groups(&arr, "", &["projectmem-hook", "claude"], None);
+        codex_transform_managed_groups(&arr, "", &["projectmem-hook", "codex"], None);
     if removed.is_empty() {
         return;
     }
@@ -2436,7 +2436,7 @@ pub fn has_codex_projectmem_hook() -> bool {
                 continue;
             };
             let cmd = hm.get("command").and_then(|v| v.as_str()).unwrap_or("");
-            if !toksi_managed_command(cmd, &["projectmem-hook", "claude"]) {
+            if !toksi_managed_command(cmd, &["projectmem-hook", "codex"]) && !toksi_managed_command(cmd, &["projectmem-hook", "claude"]) {
                 continue;
             }
             let craw = read_file_safe(codex_paths_resolved().config).unwrap_or_default();

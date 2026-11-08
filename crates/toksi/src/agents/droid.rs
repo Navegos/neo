@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/droid.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, OpenOptions};
@@ -682,7 +682,7 @@ pub fn install_droid_projectmem_hook() -> bool {
     let Some(mut cfg) = droid_hooks_load() else {
         return false;
     };
-    let projectmem_cmd = toksi_command(&["projectmem-hook", "claude"]);
+    let projectmem_cmd = toksi_command(&["projectmem-hook", "droid"]);
     if projectmem_cmd.is_empty() {
         return false;
     }
@@ -695,7 +695,7 @@ pub fn install_droid_projectmem_hook() -> bool {
         &mut cfg,
         "SessionStart",
         "",
-        &["projectmem-hook", "claude"],
+        &["projectmem-hook", "droid"],
         hook_cfg,
     ) {
         return false;
@@ -712,13 +712,20 @@ pub fn remove_droid_projectmem_hook() {
         &mut cfg,
         "SessionStart",
         "",
+        &["projectmem-hook", "droid"],
+    );
+    droid_remove_hook_group(
+        &mut cfg,
+        "SessionStart",
+        "",
         &["projectmem-hook", "claude"],
     );
     droid_hooks_save(&cfg, &raw);
 }
 
 pub fn has_droid_projectmem_hook() -> bool {
-    droid_has_hook("SessionStart", "projectmem-hook claude")
+    droid_has_hook("SessionStart", "projectmem-hook droid")
+        || droid_has_hook("SessionStart", "projectmem-hook claude")
 }
 
 // --- Context-Mode: MCP + AGENTS.md instruction only, no PreToolUse hook ---

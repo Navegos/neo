@@ -522,7 +522,7 @@ pub fn install_copilot_ide_codegraph_index_hook() {
 
 pub fn install_copilot_ide_codegraph_index_hook_safe() -> Result<(), String> {
     paths::ensure_dir(&copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
-    let cmd = toksi_command(&["copilot-hook", "codegraph-index", "--vscode"]);
+    let cmd = toksi_command(&["codegraph-hook", "copilot", "--vscode"]);
     if cmd.is_empty() {
         return Err(ERR_NO_STABLE_TOKSI.to_string());
     }
@@ -541,7 +541,7 @@ pub fn install_copilot_ide_codegraph_index_hook_safe() -> Result<(), String> {
     write_owned_copilot_hook(
         &copilot_ide_hooks_file("toksi-codegraph-index.json"),
         &stringify_json(&Value::Object(root)),
-        "copilot-hook codegraph-index",
+        "codegraph-hook copilot",
     )
 }
 
@@ -664,7 +664,7 @@ fn copilot_hook_owned(cfg: &OrderedMap, marker: &str) -> bool {
                 expected.extend(["PreToolUse", "preToolUse", "PostToolUse", "postToolUse"]);
             }
         }
-        "projectmem-hook flat" => {
+        "projectmem-hook copilot" | "projectmem-hook flat" => {
             if hooks.contains_key("SessionStart") {
                 expected.insert("SessionStart");
                 expected_timeout = 10;
@@ -672,7 +672,7 @@ fn copilot_hook_owned(cfg: &OrderedMap, marker: &str) -> bool {
                 expected.insert("sessionStart");
             }
         }
-        "copilot-hook codegraph-index" => {
+        "codegraph-hook copilot" | "copilot-hook codegraph-index" => {
             if copilot_hook_command_marker(cfg).contains("--vscode") {
                 expected.insert("SessionStart");
                 expected_timeout = 120;
@@ -753,9 +753,13 @@ fn copilot_hook_command_owned(command: &str, marker: &str) -> bool {
             &["pretooluse", "posttooluse", "sessionstart", "stop"],
         ),
         "rtk-hook copilot" => toksi_managed_command(command, &["rtk-hook", "copilot"]),
-        "projectmem-hook flat" => toksi_managed_command(command, &["projectmem-hook", "flat"]),
-        "copilot-hook codegraph-index" => {
-            toksi_managed_command(command, &["copilot-hook", "codegraph-index"])
+        "projectmem-hook copilot" | "projectmem-hook flat" => {
+            toksi_managed_command(command, &["projectmem-hook", "copilot"])
+                || toksi_managed_command(command, &["projectmem-hook", "flat"])
+        }
+        "codegraph-hook copilot" | "copilot-hook codegraph-index" => {
+            toksi_managed_command(command, &["codegraph-hook", "copilot"])
+                || toksi_managed_command(command, &["copilot-hook", "codegraph-index"])
                 || toksi_managed_command(
                     command,
                     &["copilot-hook", "codegraph-index", "--vscode"],
@@ -780,6 +784,10 @@ pub fn remove_copilot_ide_codegraph_index_hook() {
 }
 
 pub fn remove_copilot_ide_codegraph_index_hook_safe() -> Result<(), String> {
+    let _ = remove_owned_copilot_hook(
+        &copilot_ide_hooks_file("toksi-codegraph-index.json"),
+        "codegraph-hook copilot",
+    );
     remove_owned_copilot_hook(
         &copilot_ide_hooks_file("toksi-codegraph-index.json"),
         "copilot-hook codegraph-index",
@@ -794,7 +802,8 @@ pub fn has_copilot_ide_codegraph_index_hook() -> bool {
     let Some(cfg) = try_parse_jsonc(&raw) else {
         return false;
     };
-    copilot_hook_owned(&cfg, "copilot-hook codegraph-index")
+    copilot_hook_owned(&cfg, "codegraph-hook copilot")
+        || copilot_hook_owned(&cfg, "copilot-hook codegraph-index")
 }
 
 pub fn has_copilot_codegraph_index_hook() -> bool {
@@ -813,7 +822,7 @@ pub fn install_copilot_projectmem_hook_safe() -> Result<(), String> {
     let p = paths::copilot_paths_resolved();
     paths::ensure_dir(&p.hooks_dir).map_err(|e| e.to_string())?;
     let _ = fs::remove_file(copilot_hooks_file("toksi-projectmem.json"));
-    let projectmem_cmd = toksi_command(&["projectmem-hook", "flat"]);
+    let projectmem_cmd = toksi_command(&["projectmem-hook", "copilot"]);
     if projectmem_cmd.is_empty() {
         return Err(ERR_NO_STABLE_TOKSI.to_string());
     }
@@ -831,11 +840,15 @@ pub fn install_copilot_projectmem_hook_safe() -> Result<(), String> {
     write_owned_copilot_hook(
         &copilot_hooks_file("projectmem-context.json"),
         &stringify_json(&Value::Object(root)),
-        "projectmem-hook flat",
+        "projectmem-hook copilot",
     )
 }
 
 pub fn remove_copilot_projectmem_hook_safe() -> Result<(), String> {
+    let _ = remove_owned_copilot_hook(
+        &copilot_hooks_file("projectmem-context.json"),
+        "projectmem-hook copilot",
+    );
     let res = remove_owned_copilot_hook(
         &copilot_hooks_file("projectmem-context.json"),
         "projectmem-hook flat",
@@ -851,12 +864,13 @@ pub fn has_copilot_projectmem_hook() -> bool {
     let Some(cfg) = try_parse_jsonc(&raw) else {
         return false;
     };
-    copilot_hook_owned(&cfg, "projectmem-hook flat")
+    copilot_hook_owned(&cfg, "projectmem-hook copilot")
+        || copilot_hook_owned(&cfg, "projectmem-hook flat")
 }
 
 pub fn install_copilot_ide_projectmem_hook_safe() -> Result<(), String> {
     paths::ensure_dir(&copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
-    let projectmem_cmd = toksi_command(&["projectmem-hook", "flat"]);
+    let projectmem_cmd = toksi_command(&["projectmem-hook", "copilot"]);
     if projectmem_cmd.is_empty() {
         return Err(ERR_NO_STABLE_TOKSI.to_string());
     }
@@ -875,11 +889,15 @@ pub fn install_copilot_ide_projectmem_hook_safe() -> Result<(), String> {
     write_owned_copilot_hook(
         &copilot_ide_hooks_file("projectmem-context.json"),
         &stringify_json(&Value::Object(root)),
-        "projectmem-hook flat",
+        "projectmem-hook copilot",
     )
 }
 
 pub fn remove_copilot_ide_projectmem_hook_safe() -> Result<(), String> {
+    let _ = remove_owned_copilot_hook(
+        &copilot_ide_hooks_file("projectmem-context.json"),
+        "projectmem-hook copilot",
+    );
     remove_owned_copilot_hook(
         &copilot_ide_hooks_file("projectmem-context.json"),
         "projectmem-hook flat",
@@ -894,7 +912,8 @@ pub fn has_copilot_ide_projectmem_hook() -> bool {
     let Some(cfg) = try_parse_jsonc(&raw) else {
         return false;
     };
-    copilot_hook_owned(&cfg, "projectmem-hook flat")
+    copilot_hook_owned(&cfg, "projectmem-hook copilot")
+        || copilot_hook_owned(&cfg, "projectmem-hook flat")
 }
 
 pub fn has_copilot_rtk_hook() -> bool {
