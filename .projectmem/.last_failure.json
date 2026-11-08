@@ -1,6 +1,6 @@
 {
-  "command": "cargo run -p toksi -- ctx execute --cmd echo hello",
-  "root_cause": "error: process didn't exit successfully: `target\\debug\\toksi.exe ctx execute --cmd echo hello` (exit code: 1)",
-  "raw_output": "toksi ctx — isolated sandbox execution and SQLite FTS5 knowledge base\n\nUsage:\ntoksi ctx eval <code|cmd> [--lang <lang>] [--file <path>]  Run code or command in sandbox with RTK filter\ntoksi ctx search <query> [--limit <n>] [--source <label>]  Search indexed chunks using BM25 ranking\ntoksi ctx index <file-or-dir> [label]                      Chunk and store file or directory into FTS5 index\ntoksi ctx mcp                                              Run in-process JSON-RPC 2.0 MCP server (ctx_* tools)\ntoksi ctx stats                                            Display session token savings and cache statistics\ntoksi ctx doctor                                           Check available runtimes and database readiness\ntoksi ctx purge                                            Purge cached knowledge base chunks\n\n\n    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.95s\n     Running `target\\debug\\toksi.exe ctx execute --cmd echo hello`\nUnknown subcommand: execute\n\nerror: process didn't exit successfully: `target\\debug\\toksi.exe ctx execute --cmd echo hello` (exit code: 1)\n",
-  "timestamp": "2026-11-08T16:19:37Z"
+  "command": "cargo clippy -p toksi --lib -- rules",
+  "root_cause": "error: multiple input filenames provided (first two filenames are `crates\\toksi\\build.rs` and `rules`)",
+  "raw_output": "   Compiling toksi v2.7.0 (D:\\AI\\neo\\crates\\toksi)\nerror: multiple input filenames provided (first two filenames are `crates\\toksi\\build.rs` and `rules`)\n\nerror: could not compile `toksi` (build script) due to 1 previous error\n",
+  "timestamp": "2026-11-08T17:50:17Z"
 }

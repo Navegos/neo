@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rules/embedded/principles.rs
 // created: 2026-10-29
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 //! Karpathy behavioral coding guidelines.
 //! Think before coding, simplicity first, surgical changes, goal-driven execution.
@@ -13,9 +13,11 @@ pub const TITLE: &str = "Principles";
 pub const DESCRIPTION: &str = "Coding principles: think first, simplify, edit surgically, verify.";
 pub const SECTION_HEADER: &str = "## Principles";
 pub const CURSOR_FILENAME: &str = "principles.mdc";
+pub const SKILL_DIR_NAME: &str = "principles";
 
 pub const RAW_MARKDOWN: &str = include_str!("../assets/principles.md");
 pub const CURSOR_RULE: &str = include_str!("../assets/principles.mdc");
+pub const SKILL_DEFINITION: &str = include_str!("../assets/principles.skill.md");
 
 /// Returns the raw markdown guidelines.
 pub fn markdown() -> &'static str {
@@ -25,6 +27,11 @@ pub fn markdown() -> &'static str {
 /// Returns the Cursor project rule (.mdc format with YAML frontmatter).
 pub fn cursor_rule() -> &'static str {
     CURSOR_RULE
+}
+
+/// Returns the standalone skill definition (SKILL.md format with YAML frontmatter).
+pub fn skill_definition() -> &'static str {
+    SKILL_DEFINITION
 }
 
 /// Returns the formatted section body suitable for inclusion under `## Principles`.
@@ -45,12 +52,15 @@ mod tests {
     fn test_principles_embedded_assets() {
         assert!(!markdown().is_empty());
         assert!(!cursor_rule().is_empty());
+        assert!(!skill_definition().is_empty());
         assert!(markdown().contains("Think Before Coding"));
         assert!(markdown().contains("Simplicity First"));
         assert!(markdown().contains("Surgical Changes"));
         assert!(markdown().contains("Goal-Driven Execution"));
         assert!(cursor_rule().starts_with("---\n"));
         assert!(cursor_rule().contains("alwaysApply: true"));
+        assert!(skill_definition().starts_with("---\n"));
+        assert!(skill_definition().contains("name: principles"));
     }
 
     #[test]
@@ -60,4 +70,3 @@ mod tests {
         assert!(body.contains("Behavioral guidelines to reduce common LLM coding mistakes"));
     }
 }
-

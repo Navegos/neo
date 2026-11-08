@@ -100,6 +100,24 @@ impl RuleKind {
         }
     }
 
+    /// Returns the skill directory name (e.g. `principles`).
+    pub const fn skill_dir_name(&self) -> &'static str {
+        match self {
+            RuleKind::Principles => embedded::principles::SKILL_DIR_NAME,
+            RuleKind::Caveman => embedded::caveman::SKILL_DIR_NAME,
+            RuleKind::Ponytail => embedded::ponytail::SKILL_DIR_NAME,
+        }
+    }
+
+    /// Returns the standalone skill definition (`SKILL.md` format with YAML frontmatter).
+    pub fn skill_definition(&self) -> &'static str {
+        match self {
+            RuleKind::Principles => embedded::principles::skill_definition(),
+            RuleKind::Caveman => embedded::caveman::skill_definition(),
+            RuleKind::Ponytail => embedded::ponytail::skill_definition(),
+        }
+    }
+
     /// Returns the embedded raw markdown string for the rule.
     pub fn markdown(&self) -> &'static str {
         match self {
@@ -573,6 +591,35 @@ pub fn patch_cursor_rules(target: impl AsRef<Path>, rules: &[RuleKind]) -> Resul
     for &rule in rules {
         let file_path = rules_dir.join(rule.cursor_filename());
         let content = rule.cursor_rule();
+        fs::write(&file_path, content)?;
+        written.push(file_path);
+    }
+
+    Ok(written)
+}
+
+/// Injects or writes in-tree skills into a target `skills/` directory.
+///
+/// Accepts either an agent directory (e.g. `.agents`, `.gemini`, `.copilot`, `.claude`)
+/// or a direct path to a `skills` directory.
+/// Writes each skill as `<skills_dir>/<skill_dir_name>/SKILL.md`.
+/// Returns the list of written skill file paths.
+pub fn patch_skills_dir(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<Vec<PathBuf>, DynError> {
+    let p = target.as_ref();
+    let skills_dir = if p.ends_with("skills") {
+        p.to_path_buf()
+    } else {
+        p.join("skills")
+    };
+
+    fs::create_dir_all(&skills_dir)?;
+
+    let mut written = Vec::new();
+    for &rule in rules {
+        let skill_dir = skills_dir.join(rule.skill_dir_name());
+        fs::create_dir_all(&skill_dir)?;
+        let file_path = skill_dir.join("SKILL.md");
+        let content = rule.skill_definition();
         fs::write(&file_path, content)?;
         written.push(file_path);
     }

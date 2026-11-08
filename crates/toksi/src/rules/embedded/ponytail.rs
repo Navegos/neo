@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rules/embedded/ponytail.rs
 // created: 2026-10-29
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 //! Lazy senior developer build discipline ladder (Ponytail mode).
 //! The best code is the code never written. Reuse first, minimal diffs, runnable verification.
@@ -13,9 +13,11 @@ pub const TITLE: &str = "Build Discipline (ponytail)";
 pub const DESCRIPTION: &str = "Minimal-code rules: reuse first, avoid speculative work (the Ladder).";
 pub const SECTION_HEADER: &str = "## Build Discipline (ponytail)";
 pub const CURSOR_FILENAME: &str = "build-discipline.mdc";
+pub const SKILL_DIR_NAME: &str = "ponytail";
 
 pub const RAW_MARKDOWN: &str = include_str!("../assets/ponytail.md");
 pub const CURSOR_RULE: &str = include_str!("../assets/ponytail.mdc");
+pub const SKILL_DEFINITION: &str = include_str!("../assets/ponytail.skill.md");
 
 /// Returns the raw markdown guidelines.
 pub fn markdown() -> &'static str {
@@ -25,6 +27,11 @@ pub fn markdown() -> &'static str {
 /// Returns the Cursor project rule (.mdc format with YAML frontmatter).
 pub fn cursor_rule() -> &'static str {
     CURSOR_RULE
+}
+
+/// Returns the standalone skill definition (SKILL.md format with YAML frontmatter).
+pub fn skill_definition() -> &'static str {
+    SKILL_DEFINITION
 }
 
 /// Returns the formatted section body suitable for inclusion under `## Build Discipline (ponytail)`.
@@ -45,11 +52,14 @@ mod tests {
     fn test_ponytail_embedded_assets() {
         assert!(!markdown().is_empty());
         assert!(!cursor_rule().is_empty());
+        assert!(!skill_definition().is_empty());
         assert!(markdown().contains("The Ladder"));
         assert!(markdown().contains("lazy senior developer"));
         assert!(markdown().contains("Does this need to exist at all?"));
         assert!(cursor_rule().starts_with("---\n"));
         assert!(cursor_rule().contains("alwaysApply: true"));
+        assert!(skill_definition().starts_with("---\n"));
+        assert!(skill_definition().contains("name: ponytail"));
     }
 
     #[test]
@@ -59,4 +69,3 @@ mod tests {
         assert!(body.contains("lazy senior developer"));
     }
 }
-

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rules/embedded/caveman.rs
 // created: 2026-10-29
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 //! ASD-STE100 primitive English compression guidelines (Caveman style).
 //! Maximum density, zero fluff, all technical substance preserved.
@@ -13,9 +13,11 @@ pub const TITLE: &str = "Response Style (caveman)";
 pub const DESCRIPTION: &str = "Compressed agent prompts through primitive English (ASD-STE100).";
 pub const SECTION_HEADER: &str = "## Response Style (caveman)";
 pub const CURSOR_FILENAME: &str = "response-style.mdc";
+pub const SKILL_DIR_NAME: &str = "caveman";
 
 pub const RAW_MARKDOWN: &str = include_str!("../assets/caveman.md");
 pub const CURSOR_RULE: &str = include_str!("../assets/caveman.mdc");
+pub const SKILL_DEFINITION: &str = include_str!("../assets/caveman.skill.md");
 
 /// Returns the raw markdown guidelines.
 pub fn markdown() -> &'static str {
@@ -25,6 +27,11 @@ pub fn markdown() -> &'static str {
 /// Returns the Cursor project rule (.mdc format with YAML frontmatter).
 pub fn cursor_rule() -> &'static str {
     CURSOR_RULE
+}
+
+/// Returns the standalone skill definition (SKILL.md format with YAML frontmatter).
+pub fn skill_definition() -> &'static str {
+    SKILL_DEFINITION
 }
 
 /// Returns the formatted section body suitable for inclusion under `## Response Style (caveman)`.
@@ -45,11 +52,14 @@ mod tests {
     fn test_caveman_embedded_assets() {
         assert!(!markdown().is_empty());
         assert!(!cursor_rule().is_empty());
+        assert!(!skill_definition().is_empty());
         assert!(markdown().contains("ASD-STE100"));
         assert!(markdown().contains("Respond terse like smart caveman"));
         assert!(markdown().contains("Auto-Clarity"));
         assert!(cursor_rule().starts_with("---\n"));
         assert!(cursor_rule().contains("alwaysApply: true"));
+        assert!(skill_definition().starts_with("---\n"));
+        assert!(skill_definition().contains("name: caveman"));
     }
 
     #[test]
@@ -59,4 +69,3 @@ mod tests {
         assert!(body.contains("Respond terse like smart caveman"));
     }
 }
-
