@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/fts.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -565,12 +565,7 @@ impl ContentStore {
                 content_hash: row.get(6)?,
             })
         })?;
-        let mut out = Vec::new();
-        for r in rows {
-            if let Ok(m) = r {
-                out.push(m);
-            }
-        }
+        let out = rows.flatten().collect();
         Ok(out)
     }
 
@@ -725,10 +720,7 @@ impl ContentStore {
         sql.push_str(" ORDER BY rank ASC LIMIT ");
         sql.push_str(&limit.to_string());
 
-        let mut stmt = match self.conn.prepare(&sql) {
-            Ok(s) => s,
-            Err(e) => return Err(e),
-        };
+        let mut stmt = self.conn.prepare(&sql)?;
 
         let params_slice: Vec<&dyn rusqlite::ToSql> = param_values.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
 
@@ -773,8 +765,8 @@ impl ContentStore {
             .max_depth(Some(max_depth))
             .filter_entry(|entry| {
                 let name = entry.file_name().to_string_lossy();
-                if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
-                    if name == ".git"
+                if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
+                    && (name == ".git"
                         || name == "node_modules"
                         || name == "target"
                         || name == ".codegraph"
@@ -785,10 +777,9 @@ impl ContentStore {
                         || name == "vendor"
                         || name == "__pycache__"
                         || name == ".venv"
-                        || name == "venv"
-                    {
-                        return false;
-                    }
+                        || name == "venv")
+                {
+                    return false;
                 }
                 true
             })
@@ -833,10 +824,8 @@ impl ContentStore {
                 continue;
             }
 
-            if let Ok(meta) = std::fs::metadata(path) {
-                if meta.len() > 2 * 1024 * 1024 {
-                    continue;
-                }
+            if std::fs::metadata(path).is_ok_and(|meta| meta.len() > 2 * 1024 * 1024) {
+                continue;
             }
 
             let content = match std::fs::read_to_string(path) {
@@ -898,15 +887,65 @@ impl ContentStore {
     }
 }
 
-/// Resolves standard content store DB path for a given project or global config.
-pub fn resolve_content_store_path(project_dir: Option<&Path>) -> PathBuf {
-    if let Some(root) = project_dir {
-        root.join(".toksi").join("content.db")
-    } else if let Ok(cwd) = std::env::current_dir() {
-        cwd.join(".toksi").join("content.db")
-    } else if let Ok(h) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
-        PathBuf::from(h).join(".toksi").join("content.db")
-    } else {
-        PathBuf::from(".toksi").join("content.db")
+/// D-1330-RECALL-PROMPT-1 (#1330): Build post-compact recall query from the current prompt only.
+/// Extracts at most 64 distinct non-stopword words from the prompt.
+pub fn build_recall_query(prompt: &str) -> String {
+    let cleaned = prompt.replace(['\'', '"', '(', ')', '{', '}', '[', ']', '*', ':', '^', '~', '`', '#', '<', '>'], " ");
+    let mut words: Vec<String> = Vec::new();
+    let mut seen = HashSet::new();
+
+    for w in cleaned.split_whitespace() {
+        if words.len() >= 64 {
+            break;
+        }
+        let lower = w.to_lowercase();
+        if lower.len() >= 2 && !STOPWORDS.contains(lower.as_str()) && seen.insert(lower) {
+            words.push(format!("\"{}\"", w));
+        }
     }
+
+    if words.is_empty() {
+        sanitize_query(prompt, "OR")
+    } else {
+        words.join(" OR ")
+    }
+}
+
+/// Resolves standard content store DB path for a given project or global config.
+/// Prefers `.toksi/context/context.db` per master consolidation plan,
+/// falling back to legacy `.toksi/content.db` or `~/.context-mode/context.db`.
+pub fn resolve_content_store_path(project_dir: Option<&Path>) -> PathBuf {
+    let base = if let Some(root) = project_dir {
+        root.to_path_buf()
+    } else if let Ok(cwd) = std::env::current_dir() {
+        cwd
+    } else if let Some(home) = dirs::home_dir() {
+        home
+    } else {
+        PathBuf::from(".")
+    };
+
+    let context_dir = base.join(".toksi").join("context");
+    let target = context_dir.join("context.db");
+    if target.exists() {
+        return target;
+    }
+
+    let legacy_toksi = base.join(".toksi").join("content.db");
+    if legacy_toksi.exists() {
+        return legacy_toksi;
+    }
+
+    if let Some(home) = dirs::home_dir() {
+        let home_target = home.join(".toksi").join("context").join("context.db");
+        if home_target.exists() {
+            return home_target;
+        }
+        let legacy_cm = home.join(".context-mode").join("context.db");
+        if legacy_cm.exists() {
+            return legacy_cm;
+        }
+    }
+
+    target
 }

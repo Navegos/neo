@@ -40,7 +40,6 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - Refactor: Refactor and consolidate documentation and architecture for Toksi v3.4 [crates/toksi/CONSOLIDATION_PLAN.md]
 
 ## Notes
-- feat(rtk): refresh RTK filter engine from inspect-vault with git ls-tree/ls-files fold, cargo nextest retry filtering, enhanced ruff JSON/text filters, and expanded root-cause extractions [crates/toksi/src/rtk/filters/git.rs:25 (filter_git)]
 - New feature: feat(rtk): enhance git, nextest, and ruff filters with root-cause adapters [crates/toksi/src/rtk/filters/build.rs]
 - New feature: feat(projectmem): align edge cases with v0.3.5 and sync phase prompt docs [crates/toksi/src/projectmem/mcp.rs]
 - feat(contextmode): enhance SSRF guard with RFC ranges (shared 100.64.0.0/10, bench 198.18.0.0/15, broadcast 240.0.0.0/4, NAT64, 6to4) and per-hop redirect validation [crates/toksi/src/contextmode/fetch.rs:80 (ssrf_guard)]
@@ -50,6 +49,7 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - New feature: feat(env_injector): add launchctl support, unix signal handlers, and registry teardown guards [crates/toksi/src/env_injector/mod.rs]
 - New feature: feat(doctor): add rules audit/sync, agent instruction probes, and multi-format MCP resolution [crates/toksi/src/agents/cursor.rs]
 - New feature: feat(toksi): Enhance TUI with Governance Management and Metrics [crates/toksi/src/commands/tui.rs]
+- New feature: feat(rtk): add JSON and log filtering capabilities, enhance command normalization [crates/toksi/src/commands/rtk.rs]
 
 ## Key files
 - `.editorconfig`

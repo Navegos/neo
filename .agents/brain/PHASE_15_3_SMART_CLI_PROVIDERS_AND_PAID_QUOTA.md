@@ -8,7 +8,7 @@ Execute Phase 15.3: Smart Agent CLI Providers & Paid Quota Enforcement.
 Targets:
   - crates/toksi/src/gateway/agent_cli/mod.rs
   - crates/toksi/src/gateway/agent_cli/tier_check.rs
-  - crates/toksi/src/gateway/agent_cli/{antigravity.rs, copilot.rs, claude.rs, cursor.rs, grok.rs}
+  - crates/toksi/src/gateway/agent_cli/{antigravity.rs, copilot.rs, claude.rs, codex.rs, cursor.rs, grok.rs}
   - crates/toksi/src/gateway/providers/aggregators/bifrost.rs
   - crates/toksi/src/gateway/loadbalancer.rs
   - crates/toksi/src/gateway/keys.rs
@@ -16,10 +16,11 @@ Targets:
 
 Requirements:
 1. First-Class Local Agent CLI Providers:
-   - Secure and register all 5 Local Agent CLIs as first-class peer BYOK providers:
+   - Secure and register all 6 Local Agent CLIs as first-class peer BYOK providers:
      * AntigravityCli (agy.exe)
      * CopilotCli (copilot.exe)
      * ClaudeCli (claude)
+     * CodexCli (codex)
      * CursorBridge (cursor)
      * GrokCli (grok.exe)
    - When authenticated via OS Keyring/session tokens, smart-launch the CLI helper process in the background and verify chat endpoint reachability (/livez / ConnectRPC).
@@ -68,6 +69,44 @@ pub fn check_provider_tier(provider_name: &str, metadata: &serde_json::Value) ->
             let plan = metadata.get("plan").and_then(|v| v.as_str()).unwrap_or("");
             if plan.contains("business") || plan.contains("enterprise") || plan.contains("individual") {
                 ProviderBillingTier::PaidSubscription
+            } else {
+                ProviderBillingTier::FreeTierDisqualified
+            }
+        }
+        "claude" | "claude_cli" => {
+            // Check Claude Pro, Team, or Enterprise
+            let plan = metadata.get("plan").and_then(|v| v.as_str()).unwrap_or("");
+            if plan.contains("pro") || plan.contains("team") || plan.contains("enterprise") {
+                ProviderBillingTier::PaidSubscription
+            } else {
+                ProviderBillingTier::FreeTierDisqualified
+            }
+        }
+        "codex" | "codex_cli" => {
+            // Check OpenAI paid billing tier or ChatGPT Plus/Team/Enterprise
+            let plan = metadata.get("plan").and_then(|v| v.as_str()).unwrap_or("");
+            let has_credits = metadata.get("has_paid_credits").and_then(|v| v.as_bool()).unwrap_or(false);
+            if has_credits || plan.contains("plus") || plan.contains("team") || plan.contains("enterprise") || plan.contains("paid") {
+                ProviderBillingTier::PaidCommercial
+            } else {
+                ProviderBillingTier::FreeTierDisqualified
+            }
+        }
+        "cursor" | "cursor_bridge" => {
+            // Check Cursor Pro or Business
+            let plan = metadata.get("plan").and_then(|v| v.as_str()).unwrap_or("");
+            if plan.contains("pro") || plan.contains("business") {
+                ProviderBillingTier::PaidSubscription
+            } else {
+                ProviderBillingTier::FreeTierDisqualified
+            }
+        }
+        "grok" | "grok_cli" => {
+            // Check Grok paid subscription or active API credits
+            let plan = metadata.get("plan").and_then(|v| v.as_str()).unwrap_or("");
+            let has_credits = metadata.get("has_paid_credits").and_then(|v| v.as_bool()).unwrap_or(false);
+            if has_credits || plan.contains("premium") || plan.contains("supergrok") || plan.contains("paid") {
+                ProviderBillingTier::PaidCommercial
             } else {
                 ProviderBillingTier::FreeTierDisqualified
             }

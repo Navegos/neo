@@ -106,13 +106,14 @@
     - **Dynamic Vector Purging**: When `.gitignore` or `.ignore` patterns are added or modified, Toksi automatically purges already-indexed files matching the new rules from SQLite FTS5 indexes and vector embedding caches, reclaiming storage and preventing context clutter.
 
 11. **Guaranteed Local Agent CLIs as First-Class BYOK Providers**:
-    - The 5 primary Local Agent CLIs are securely registered as first-class, peer BYOK providers in Toksi's routing table:
+    - The 6 primary Local Agent CLIs are securely registered as first-class, peer BYOK providers in Toksi's routing table:
       1. `AntigravityCli` (`agy.exe` / Google Gemini Code Assist)
       2. `CopilotCli` (`copilot.exe` / GitHub Copilot CLI)
       3. `ClaudeCli` (`claude` / Claude Code CLI)
-      4. `CursorBridge` (`cursor` / Cursor IDE RPC Bridge)
-      5. `GrokCli` (`grok.exe` / xAI Grok CLI)
-    - **Smart Background Launch**: Toksi queries OS Keyring credentials (`advapi32.dll` on Windows, Keychain on macOS, Secret Service on Linux) and local session states (`~/.gemini/`, `~/.claude.json`, `gh auth token`). When authenticated, Toksi smart-launches the CLI bridge process in the background in detached mode and verifies that chat message endpoints are reachable (`/livez` and ConnectRPC health checks).
+      4. `CodexCli` (`codex` / OpenAI Codex CLI)
+      5. `CursorBridge` (`cursor` / Cursor IDE RPC Bridge)
+      6. `GrokCli` (`grok.exe` / xAI Grok CLI)
+    - **Smart Background Launch**: Toksi queries OS Keyring credentials (`advapi32.dll` on Windows, Keychain on macOS, Secret Service on Linux) and local session states (`~/.gemini/`, `~/.claude.json`, `~/.codex/`, `gh auth token`). When authenticated, Toksi smart-launches the CLI bridge process in the background in detached mode and verifies that chat message endpoints are reachable (`/livez` and ConnectRPC health checks).
 
 12. **Strict Paid Quota Enforcement (No Free Accounts for BYOK Providers)**:
     - **Commercial / Paid Quota Mandate**: All BYOK providers (both remote API keys and Local Agent CLI providers) **must have an active, paid commercial tier or active subscription quota**. Free-tier accounts (e.g. unbilled Google AI Studio trial keys with 15 RPM throttles, expired OpenAI trial credits, free Copilot trials, or unbilled accounts) are **strictly disqualified from active BYOK gateway rotation**.
@@ -149,9 +150,87 @@
 
 ---
 
-## 2. Directory Topology & Protocol Convention Mappings
+## 2. Disciplinary Coding Standards, System Conventions & Cross-Platform Portability (Windows, Linux, macOS)
 
-### 2.1 Workspace & User Directory Layout
+To guarantee that autonomous agents and human engineers deliver bulletproof, technically correct, and cross-platform portable implementations, all code across `crates/toksi` must strictly conform to these non-negotiable engineering mandates:
+
+### 2.1 Rust Core Disciplines & Quality Standards
+1. **Safe Rust & Edition 2024**:
+   - The codebase is standard Safe Rust (Edition 2024).
+   - `#![deny(unsafe_code)]` is enforced crate-wide.
+   - The ONLY permissible exceptions are strictly isolated, leaf OS-FFI modules:
+     * Windows Credential Manager FFI (`src/keyring/os_windows.rs` calling `advapi32.dll`)
+     * Windows Registry & Setting Change Broadcast FFI (`src/env_injector/windows.rs` calling `advapi32.dll` and `user32.dll`)
+   - Every unsafe block must be preceded by an explicit, rigorous `// SAFETY:` comment proving memory safety, pointer validity, null-termination, and buffer size invariants.
+2. **Zero Compiler Warnings & Clippy Cleanliness**:
+   - Code must compile under `RUSTFLAGS="-D warnings"` with zero compiler warnings and zero Clippy lints (`cargo clippy -p toksi --all-targets -- -D warnings`).
+   - Zero dead code (`#[allow(dead_code)]` prohibited unless explicitly annotated for conditional cross-platform target builds `#[cfg(...)]`).
+   - All unused imports, variables, and traits must be pruned immediately.
+3. **Strict Error Handling (Zero Panics, Zero Unwraps in Production)**:
+   - Prohibited in all library, server, proxy, and daemon execution paths: `.unwrap()`, `.expect()`, `panic!()`, `unreachable!()`.
+   - Domain-specific typed errors via `thiserror` for all core subsystems (`GatewayError`, `HeadroomError`, `KeyringError`, `CodeGraphError`, `ProjectMemError`, `ContextModeError`, `IcmError`).
+   - CLI and top-level command handlers use `anyhow::Result` with rich `.context("...")` messages.
+   - Fallible operations must bubble errors cleanly via `?` or handle them with deterministic fallbacks.
+4. **Async Runtime & Concurrency Isolation**:
+   - High-throughput asynchronous runtime built on `tokio` (multi-threaded work-stealing scheduler).
+   - Dedicated reactor thread pools: Port 9099 (AI Gateway streaming) is strictly isolated from Port 9100 (Web Dashboard Cockpit) and background disk I/O.
+   - Synchronous blocking operations (SQLite disk transactions, JSONL file-locking appends, tree-sitter AST parsing of massive repositories) must execute inside `tokio::task::spawn_blocking` to prevent starving the Tokio async event reactor.
+   - Inter-thread telemetry and state communication uses bounded, lock-free channels (`tokio::sync::mpsc`) and atomic primitives (`AtomicBool`, `AtomicU64`).
+5. **Structured Logging & Observability**:
+   - All events, traces, and errors run through `tracing` (`tracing::info!`, `tracing::warn!`, `tracing::error!`, `tracing::debug!`).
+   - Never emit raw, unformatted `println!` or `eprintln!` inside internal library modules; standard output is reserved strictly for CLI command outputs and user-facing interactive TUI.
+   - Include structured key-value fields: `tracing::info!(agent = %agent_id, provider = %provider, tokens_saved = %savings, "Headroom compression completed")`.
+
+### 2.2 Cross-Platform Portability Matrix (Windows, Linux, macOS)
+Every subsystem must execute seamlessly and natively across Windows 10/11, Ubuntu/Debian/Arch Linux, and macOS (x86_64 and Apple Silicon arm64):
+
+| Architectural Concern | Windows Standard | Linux Standard | macOS Standard | Unified Toksi Abstraction |
+|---|---|---|---|---|
+| **Path Separator** | Universal forward-slash `/` (`C:/Users/...`) | Standard forward-slash `/` (`/home/...`) | Standard forward-slash `/` (`/Users/...`) | `src/util/paths.rs`: `normalize_path(&str)` strips backward slashes everywhere. Escaped `\\` permitted ONLY in cmd.exe commands inside JSON5/TOML configs. |
+| **Filesystem Casing** | Case-preserving, Case-insensitive | Case-sensitive | Case-preserving, Case-insensitive | All internal comparisons for tool names, agent configs, and ignore patterns are normalized to lowercase. |
+| **Database Storage** | `C:/Users/<User>/.toksi/toksi.db` | `$HOME/.toksi/toksi.db` | `$HOME/.toksi/toksi.db` | `dirs::home_dir()` + `.toksi/toksi.db` (NOT `AppData/Local` or `~/.cache`). Auto-migrates legacy paths. |
+| **File Locking** | Win32 `LockFileEx` (Mandatory locking) | POSIX `flock` / `fcntl` (Advisory locking) | POSIX `flock` / `fcntl` (Advisory locking) | `fs2::FileExt` (`lock_exclusive`, `lock_shared`) wrapped in RAII guards for JSONL append and SQLite WAL checkpoints. |
+| **OS Keyring** | `advapi32.dll` (`CredReadW`, `CredWriteW`, `CredDeleteW`) | Secret Service API / `secret-tool` / D-Bus | macOS Keychain (`/usr/bin/security`) | `src/keyring/mod.rs`: Cross-platform `KeyringManager` with base64 OAuth envelope parser. Zeroize in-memory credentials on drop. |
+| **Environment Injection** | `HKCU\Environment` Registry + `WM_SETTINGCHANGE` broadcast | `systemd --user set-environment` / `~/.config/environment.d/` | `launchctl setenv` / User session export | `src/env_injector/mod.rs`: Non-destructive injection with RAII `TeardownGuard` clearing variables on daemon shutdown. |
+| **Background Daemon Process** | `CREATE_NO_WINDOW (0x08000000)` & `DETACHED_PROCESS (0x00000008)` | `setsid()`, redirect stdin/stdout/stderr to `/dev/null` or logs | `setsid()`, redirect stdin/stdout/stderr to `/dev/null` or logs | Detached process spawning without console windows or zombie processes; PID tracking in `~/.toksi/headroom/daemon.pid`. |
+| **Process Signals** | `tokio::signal::ctrl_c()` | `SIGINT`, `SIGTERM`, `SIGHUP` via `tokio::signal::unix` | `SIGINT`, `SIGTERM`, `SIGHUP` via `tokio::signal::unix` | Graceful shutdown handler invoking `TeardownGuard`, flushing SQLite WALs, and closing socket listeners. |
+| **Local Network Binding** | Bind strictly to `127.0.0.1` / `::1` | Bind strictly to `127.0.0.1` / `::1` | Bind strictly to `127.0.0.1` / `::1` | Prohibit default `0.0.0.0` binding to prevent Windows Defender / macOS Firewall popups and external exposure. Set `SO_REUSEADDR`. |
+| **Line Endings** | Handles `\r\n` and `\n` transparently | Native `\n` | Native `\n` | All text parsers, JSONL parsers, and prompt compressors sanitize `\r\n` to `\n` before processing and token accounting. |
+| **Binary Executable Names** | Appends `.exe` (`toksi.exe`, `agy.exe`, `grok.exe`) | Bare name (`toksi`, `claude`, `cursor`) | Bare name (`toksi`, `claude`, `cursor`) | `std::env::consts::EXE_SUFFIX` used dynamically; `check_executable_in_path` tests both forms on Windows. |
+
+### 2.3 Cross-Tool Coupling & Architectural Invariants
+1. **Single Root `.toksi` Consolidation Invariant**:
+   - Only ONE `.toksi` directory exists per workspace, placed strictly at the repository root.
+   - Sub-crates and nested directories (`crates/toksi/.toksi`, `crates/nbuild/.toksi`) must NEVER have separate `.toksi` directories.
+   - `toksi init` and `toksi doctor --fix` automatically crawl the workspace, extract any data from nested `.toksi` databases, merge rows into `<root>/.toksi/`, and delete the nested folders.
+2. **Consolidated Tool Layout Under `.toksi/<tool>`**:
+   - Dedicated tool subdirectories live strictly within `.toksi/`:
+     * `.toksi/codegraph/`: AST cache, Tree-sitter symbols (`symbols.db`), SCIP index.
+     * `.toksi/headroom/`: Daemon PID, runtime proxy state, streaming compression logs.
+     * `.toksi/projectmem/`: Atomic JSONL events (`events.jsonl`), deterministic summary (`summary.md`), plan (`plan.md`), project map (`PROJECT_MAP.md`).
+     * `.toksi/context/`: Context-mode FTS5 database (`context.db`), scratch files, execution sandbox logs.
+     * `.toksi/icm/`: Instant Context Memory SQLite FTS5 database (`memory.db`).
+     * `.toksi/ai-memory/`: Open Knowledge Format wiki store (`wiki/`), handoff claim tokens (`handoffs/`).
+     * `.toksi/rtk/`: Command filter telemetry, token reduction metrics.
+   - Legacy loose folders (`.codegraph`, `.projectmem`, `.context-mode`, `.icm`, `.ai-memory`, `.rtk`) are automatically migrated into `.toksi/<tool>` and deleted.
+3. **Root-Only Agent Configuration Placement**:
+   - Agent configurations (`.claude`, `.cursor`, `.vscode`, `.grok`, `.cline`, `.gemini`, `.github`, `.agents`) are allowed ONLY at the workspace root.
+4. **Standardized Tool Hook Syntax & MCP Naming**:
+   - Hook syntax is strictly standardized as `<tool>-hook <agent>` (e.g. `codegraph-hook agy`, `projectmem-hook agy`, `context-hook agy`, `rtk-hook agy`).
+   - MCP tool naming is normalized without prefixes: `projectmem`, `context`, `codegraph`.
+   - MCP instruction directories: `context-mode` -> `context`.
+   - MCP settings to skills mapping: `.gemini/mcp`, `.copilot/mcp`, `.claude/mcp` are routed to `skills/<tool>`.
+5. **Strict Paid Quota Enforcement & Zero-Fail Policy**:
+   - Free accounts, trial keys, and unbilled projects are strictly disqualified from active BYOK rotation.
+   - Detecting an unpaid account MUST NEVER panic, crash, or return a fatal error. Emit a clear non-blocking informative log and gracefully fall back to the next paid provider or direct agent execution.
+6. **Ground-Truth Session Token Accounting**:
+   - Real tokens, real quotas, zero virtual math. Counter stays at 0 when idle. Tokens and rate limits extracted directly from live SSE response streams.
+
+---
+
+## 3. Directory Topology & Protocol Convention Mappings
+
+### 3.1 Workspace & User Directory Layout
 ```
 crates/toksi/src/
 ├── main.rs                   # Unified CLI entrypoint & full usage help
@@ -222,12 +301,13 @@ crates/toksi/src/
 │   │   ├── multimodal/       # ElevenLabs, Runware, Runway ML
 │   │   ├── local/            # llama.cpp, Ollama, SGLang, vLLM
 │   │   └── ecosystem/        # GitHub Copilot, OpenCode
-│   ├── agent_cli/            # Local Agent CLI Providers (AntigravityCli, CopilotCli, ClaudeCli, CursorBridge, GrokCli)
+│   ├── agent_cli/            # Local Agent CLI Providers (AntigravityCli, CopilotCli, ClaudeCli, CodexCli, CursorBridge, GrokCli)
 │   │   ├── mod.rs            # CLI provider registry & smart background launcher
 │   │   ├── tier_check.rs     # Paid quota & billing tier validator (rejects free accounts gracefully)
 │   │   ├── antigravity.rs    # agy.exe background bridge with Google Cloud paid project check
 │   │   ├── copilot.rs        # copilot.exe background bridge with paid subscription check
 │   │   ├── claude.rs         # claude background bridge with Pro/Team/Enterprise check
+│   │   ├── codex.rs          # codex background bridge with paid OpenAI tier check
 │   │   ├── cursor.rs         # cursor background bridge with Pro/Business active check
 │   │   └── grok.rs           # grok.exe background bridge with paid credit check
 │   ├── cascade.rs            # Dynamic failover engine & 8-mode failure classifier
@@ -334,7 +414,7 @@ crates/toksi/src/
     └── mod.rs
 ```
 
-### 2.2 Agent Directory Layout Conventions
+### 3.2 Agent Directory Layout Conventions
 Toksi directly understands, reads, writes, and synchronizes the standardized agent directory layouts:
 
 1. **OpenAgents Standard (`.agents/`)**:
@@ -381,7 +461,7 @@ Toksi directly understands, reads, writes, and synchronizes the standardized age
 
 ---
 
-## 3. Dedicated 5-Port Network Topology & Isolation
+## 4. Dedicated 5-Port Network Topology & Isolation
 
 ```mermaid
 flowchart TD
@@ -412,7 +492,7 @@ flowchart TD
 
     subgraph Providers["39+ Upstream BYOK Providers & Paid Agent CLI Bridges"]
         Upstream["Anthropic, OpenAI, Gemini, Bedrock, Groq, Cerebras, DeepSeek, Bifrost, etc."]
-        AgentCLIs["Smart Local Agent CLI Bridges (agy.exe, copilot.exe, claude, cursor, grok)"]
+        AgentCLIs["Smart Local Agent CLI Bridges (agy.exe, copilot.exe, claude, codex, cursor, grok)"]
     end
 
     Antigravity -->|"GOOGLE_GEMINI_BASE_URL"| P8787
@@ -443,7 +523,7 @@ flowchart TD
 
 ---
 
-## 4. BYOK Providers, Smart Agent CLI Bridges & Paid Quota Enforcement
+## 5. BYOK Providers, Smart Agent CLI Bridges & Paid Quota Enforcement
 
 ### 39+ Supported BYOK Providers:
 1. `Anthropic` (Claude 3.7 Sonnet, 3.5 Sonnet / Haiku / Opus)
@@ -487,13 +567,14 @@ flowchart TD
 39. `xAI` (Grok 2, Grok 3, Grok Beta)
 
 ### Guaranteed Local Agent CLIs as First-Class BYOK Providers:
-- The 5 primary Local Agent CLIs are registered as full first-class BYOK providers:
+- The 6 primary Local Agent CLIs are registered as full first-class BYOK providers:
   * `AntigravityCli`: Manages Google Cloud / Gemini AI Code streaming bridge.
   * `CopilotCli`: Manages GitHub Copilot CLI chat and language model streaming.
   * `ClaudeCli`: Manages Claude Code CLI bridge via local OAuth session.
+  * `CodexCli`: Manages OpenAI Codex CLI bridge via local session tokens.
   * `CursorBridge`: Manages Cursor IDE language model RPC socket.
   * `GrokCli`: Manages xAI Grok CLI streaming bridge.
-- **Smart Background Launch**: If authenticated via OS Keyring (`advapi32.dll` / Keychain / Secret Service) or session JSON (`~/.gemini/`, `~/.claude.json`, `gh auth token`), Toksi auto-starts the CLI helper in the background, waits for its health probe (`livez`), and routes queries through it.
+- **Smart Background Launch**: If authenticated via OS Keyring (`advapi32.dll` / Keychain / Secret Service) or session JSON (`~/.gemini/`, `~/.claude.json`, `~/.codex/`, `gh auth token`), Toksi auto-starts the CLI helper in the background, waits for its health probe (`livez`), and routes queries through it.
 
 ### Paid Quota Verification & Free-Tier Disqualification Policy:
 - **Strict Paid Tier Requirement**:
@@ -502,8 +583,9 @@ flowchart TD
     1. `AntigravityCli`: Checks for paid Google Cloud project billing, Google One AI Premium, or Gemini Code Assist Enterprise/Standard license. Free unbilled projects are disqualified.
     2. `CopilotCli`: Checks for active Copilot Business, Enterprise, or Pro paid subscription. Free accounts are disqualified.
     3. `ClaudeCli`: Checks for active Claude Pro, Team, or Enterprise paid quota. Free accounts are disqualified.
-    4. `CursorBridge`: Checks for active Cursor Pro or Business subscription. Free trial tiers are disqualified.
-    5. `GrokCli`: Checks for active paid credits or commercial xAI tier.
+    4. `CodexCli`: Checks for active OpenAI paid billing tier / platform credits or paid Plus/Team/Enterprise plan. Free trial or unbilled accounts are disqualified.
+    5. `CursorBridge`: Checks for active Cursor Pro or Business subscription. Free trial tiers are disqualified.
+    6. `GrokCli`: Checks for active paid credits or commercial xAI tier.
 - **Graceful Inform & Zero-Fail Policy**:
   * Detecting a free tier **never causes a crash, panic, fatal error, or broken session**.
   * Toksi logs a clear, human-readable status:
@@ -515,7 +597,7 @@ flowchart TD
 
 ---
 
-## 5. Ground-Truth Session Token Accounting
+## 6. Ground-Truth Session Token Accounting
 
 ### Real Tokens, Real Savings, Real Quotas:
 1. **Payload Extraction**:
@@ -537,7 +619,7 @@ flowchart TD
 
 ---
 
-## 6. Complete In-Tree Rules, Skills & Instructions Synchronization
+## 7. Complete In-Tree Rules, Skills & Instructions Synchronization
 
 Toksi ensures that all 17 supported agents have their instruction, skill, and rule files synchronized across project workspaces and user config homes:
 
@@ -554,7 +636,7 @@ Toksi ensures that all 17 supported agents have their instruction, skill, and ru
 
 ---
 
-## 7. Upstream Vaults Audit, Missing Features & Bugfix Matrix (20 Reference Engines)
+## 8. Upstream Vaults Audit, Missing Features & Bugfix Matrix (20 Reference Engines)
 
 Continuous re-audit against reference implementations in `neo/inspect-vault/*` to guarantee full feature parity, upstream bug fixes, and zero omitted capabilities:
 
@@ -584,7 +666,7 @@ Continuous re-audit against reference implementations in `neo/inspect-vault/*` t
 
 ---
 
-## 8. Chronological Execution Roadmap (Phases 1–16.3)
+## 9. Chronological Execution Roadmap (Phases 1–16.3)
 
 | Phase | Subsystem | Core Focus & Actions | Key Deliverable | Status |
 |---|---|---|---|---|
@@ -604,7 +686,7 @@ Continuous re-audit against reference implementations in `neo/inspect-vault/*` t
 | **Phase 14** | **OS Keyring & Config SQLite DB** | Native Windows Credential Manager, macOS Keychain, Linux Secret Service; SQLite DB in `~/.toksi/toksi.db`; pre-registration pipeline. | `toksi auth` & `toksi db` CLI; secure credential storage. | Done |
 | **Phase 15.1** | **Workspace Topology & Standards** | Forward-slash `/` paths standard, default SQLite in `~/.toksi/toksi.db`, single root `.toksi` consolidation, tool layout, hook syntax (`<tool>-hook <agent>`), MCP renaming (`projectmem`, `context`, `codegraph`), PATH validation mandate ("rule of test and inform user"). | Standardized root repository topology, Git Bash path compatibility, safe SQLite table merge, PATH validation. | **ACTIVE (1/9)** |
 | **Phase 15.2** | **Unified 5-Port Daemon & Copilot** | Single-command daemon launch (`toksi daemon start`) supervising all 5 ports (:8787, :8789, :8790, :9099, :9100); Copilot dual-port verification; latency performance isolation. | Zero-friction 5-port daemon supervisor; zero socket contention between inference and browser. | **ACTIVE (2/9)** |
-| **Phase 15.3** | **Smart Agent CLI Providers & Paid Quota** | Local Agent CLI providers (`agy`, `copilot`, `claude`, `cursor`, `grok`) registered as peer BYOK providers; smart background launch; strict paid quota enforcement with non-blocking inform and zero-fail fallback; Bifrost integration. | Reliable CLI agent bridges, paid commercial tier verification, graceful unbilled bypass. | **ACTIVE (3/9)** |
+| **Phase 15.3** | **Smart Agent CLI Providers & Paid Quota** | Local Agent CLI providers (`agy`, `copilot`, `claude`, `codex`, `cursor`, `grok`) registered as peer BYOK providers; smart background launch; strict paid quota enforcement with non-blocking inform and zero-fail fallback; Bifrost integration. | Reliable CLI agent bridges, paid commercial tier verification, graceful unbilled bypass. | **ACTIVE (3/9)** |
 | **Phase 15.4** | **Multi-Protocol & Dynamic Ignore Purge** | Multi-protocol architecture (MCP, A2A, ACP, stdio, SSE, HTTP) across all tools; `.gitignore` and `.ignore` integration with dynamic vector/embedding cache purge. | Multi-protocol interoperability; zero junk in vector cache. | **ACTIVE (4/9)** |
 | **Phase 15.5** | **Token Accounting & Network Healing** | Ground-truth session token accounting from live SSE streams; upstream rate-limit headers; zero-math stats; AI channel quota check; network reconnect auto-healing watchdog; universal rules/skills sync. | Real token/quota telemetry; auto-reconnect recovery; pristine synchronized agent guidelines. | **ACTIVE (5/9)** |
 | **Phase 15.6** | **Advanced Vault Intelligence Engines** | Pure Rust consolidation of `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm` into `crates/toksi`. | Complete feature parity with all 20 reference vaults; zero missing capabilities. | **ACTIVE (6/9)** |
@@ -614,7 +696,7 @@ Continuous re-audit against reference implementations in `neo/inspect-vault/*` t
 
 ---
 
-## 9. Master-Plan-Aware Ready-to-Run Prompts
+## 10. Master-Plan-Aware Ready-to-Run Prompts
 
 > **Modular Brain Execution Policy**:  
 > To execute without context saturation, each phase prompt is isolated in `.agents/brain/*.md`. Copy and paste the prompt into a fresh chat session:
@@ -732,7 +814,7 @@ Execute Phase 15.3: Smart Agent CLI Providers & Paid Quota Enforcement.
 Targets:
   - crates/toksi/src/gateway/agent_cli/mod.rs
   - crates/toksi/src/gateway/agent_cli/tier_check.rs
-  - crates/toksi/src/gateway/agent_cli/{antigravity.rs, copilot.rs, claude.rs, cursor.rs, grok.rs}
+  - crates/toksi/src/gateway/agent_cli/{antigravity.rs, copilot.rs, claude.rs, codex.rs, cursor.rs, grok.rs}
   - crates/toksi/src/gateway/providers/aggregators/bifrost.rs
   - crates/toksi/src/gateway/loadbalancer.rs
   - crates/toksi/src/gateway/keys.rs
@@ -740,10 +822,11 @@ Targets:
 
 Requirements:
 1. First-Class Local Agent CLI Providers:
-   - Secure and register all 5 Local Agent CLIs as first-class peer BYOK providers:
+   - Secure and register all 6 Local Agent CLIs as first-class peer BYOK providers:
      * AntigravityCli (agy.exe)
      * CopilotCli (copilot.exe)
      * ClaudeCli (claude)
+     * CodexCli (codex)
      * CursorBridge (cursor)
      * GrokCli (grok.exe)
    - When authenticated via OS Keyring/session tokens, smart-launch the CLI helper process in the background and verify chat endpoint reachability (/livez / ConnectRPC).

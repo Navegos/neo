@@ -238,6 +238,15 @@ pub fn require_mem_dir(root: Option<&Path>) -> Result<PathBuf, String> {
         return Err(format!("No .projectmem directory found in {}. Run `toksi mem init`.", r.display()));
     }
 
+    if let Ok(lock) = MEM_ROOT_OVERRIDE.read() {
+        if let Some(ref p) = *lock {
+            let path = p.join(MEM_DIR);
+            if path.exists() {
+                return Ok(path);
+            }
+        }
+    }
+
     if let Ok(env_root) = env::var("PROJECTMEM_ROOT") {
         if !env_root.trim().is_empty() {
             let path = PathBuf::from(env_root.trim()).join(MEM_DIR);

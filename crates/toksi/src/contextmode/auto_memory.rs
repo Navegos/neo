@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/auto_memory.rs
 // created: 2026-11-04
-// lastModified: 2026-11-04
+// lastModified: 2026-11-08
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -46,17 +46,15 @@ pub fn read_auto_memory(worktree: &Path) -> Vec<MemoryFile> {
             rel.push(p);
         }
         let full_path = abs_worktree.join(&rel);
-        if full_path.is_file() {
-            if let Ok(canon) = full_path.canonicalize() {
-                if canon.starts_with(&abs_worktree) {
-                    if let Ok(content) = fs::read_to_string(&canon) {
-                        let label = parts.join("/");
-                        files.push(MemoryFile {
-                            label,
-                            path: canon,
-                            content,
-                        });
-                    }
+        if let Ok(canon) = full_path.canonicalize() {
+            if canon.is_file() && canon.starts_with(&abs_worktree) {
+                if let Ok(content) = fs::read_to_string(&canon) {
+                    let label = parts.join("/");
+                    files.push(MemoryFile {
+                        label,
+                        path: canon,
+                        content,
+                    });
                 }
             }
         }
@@ -76,15 +74,13 @@ pub fn read_auto_memory(worktree: &Path) -> Vec<MemoryFile> {
             for path in steering_entries {
                 if let Ok(canon) = path.canonicalize() {
                     if canon.starts_with(&abs_worktree) {
-                        if let Ok(content) = fs::read_to_string(&canon) {
-                            if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                                let label = format!(".kiro/steering/{}", file_name);
-                                files.push(MemoryFile {
-                                    label,
-                                    path: canon,
-                                    content,
-                                });
-                            }
+                        if let (Ok(content), Some(file_name)) = (fs::read_to_string(&canon), path.file_name().and_then(|n| n.to_str())) {
+                            let label = format!(".kiro/steering/{}", file_name);
+                            files.push(MemoryFile {
+                                label,
+                                path: canon,
+                                content,
+                            });
                         }
                     }
                 }

@@ -312,12 +312,15 @@ fn test_mcp_all_tools() {
 
 #[test]
 fn test_cli_execution_suite() {
+    let _guard = TEST_MUTEX.lock().unwrap();
     let tmp = tempdir().unwrap();
     let root = tmp.path();
 
+    set_mem_root_override(Some(root.to_path_buf()));
     assert_eq!(run_mem_cli(&["init".into(), "--purpose".into(), "CLI test".into()]), 0);
     assert_eq!(run_mem_cli(&["help".into()]), 0);
     assert!(root.exists());
+    set_mem_root_override(None);
 }
 
 #[test]

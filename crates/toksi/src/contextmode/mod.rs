@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/mod.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 pub mod auto_memory;
 pub mod cli;
@@ -21,12 +21,14 @@ mod tests;
 pub use auto_memory::{query_auto_memory, read_auto_memory, MemoryFile, MEMORY_LABEL_PREFIX};
 pub use cli::run_ctx_cli;
 pub use fetch::{html_to_markdown, ssrf_guard, WebFetcher};
-pub use filter::{filter_and_pipe_rtk, process_sandbox_output, slice_lines};
+pub use filter::{filter_and_pipe_rtk, get_replace_trigger_bytes, process_sandbox_output, slice_lines};
 pub use fts::{
-    chunk_json, chunk_markdown, chunk_plain_text, ContentStore, DirectoryIndexResult,
-    IndexResult, SearchOptions, SearchResult, DEFAULT_INDEX_EXTENSIONS,
+    build_recall_query, chunk_json, chunk_markdown, chunk_plain_text, resolve_content_store_path,
+    ContentStore, DirectoryIndexResult, IndexResult, SearchOptions, SearchResult,
+    DEFAULT_INDEX_EXTENSIONS,
 };
 pub use mcp::{run_mcp_server, ContextMcpServer};
 pub use sandbox::{detect_runtimes, ExecRequest, ExecResult, PolyglotSandbox};
+pub use security::{check_boundary, check_command_deny, check_path_deny, is_own_file, own_dirs_of, read_deny_message};
 pub use stats::{get_stats, ContextStats};
 

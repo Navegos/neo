@@ -541,4 +541,38 @@ mod tests {
         let res = server.execute_tool("ctx_upgrade", &json!({}));
         assert!(res.contains("pure native Rust engine embedded in Toksi"));
     }
+
+    #[test]
+    fn test_replace_trigger_bytes_and_recall_query() {
+        use super::super::filter::get_replace_trigger_bytes;
+        use super::super::fts::build_recall_query;
+
+        assert_eq!(get_replace_trigger_bytes(), 4096);
+
+        let query = build_recall_query("How does JWT authentication work with session cookies in rust?");
+        assert!(query.contains("\"authentication\""));
+        assert!(query.contains("\"session\""));
+        assert!(query.contains("\"cookies\""));
+        assert!(!query.contains("\"how\""));
+        assert!(!query.contains("\"does\""));
+        assert!(!query.contains("\"with\""));
+    }
+
+    #[test]
+    fn test_security_is_own_file_and_deny_route() {
+        use super::super::security::{is_own_file, read_deny_message};
+        use std::path::PathBuf;
+
+        // Non-markdown file should not be own file
+        assert!(!is_own_file("claude-code", &PathBuf::from("/any/path/binary.exe")));
+
+        // Read deny route formatting
+        let inside = read_deny_message("src/main.rs", 24000, true, "");
+        assert!(inside.contains("over the one-read limit"));
+        assert!(inside.contains("ctx_execute(language, code, file=\"src/main.rs\")"));
+
+        let outside = read_deny_message("/etc/hosts", 24000, false, "");
+        assert!(outside.contains("over the one-read limit"));
+        assert!(outside.contains("Read \"/etc/hosts\" in parts with offset and limit, or sed -n '1,200p'"));
+    }
 }

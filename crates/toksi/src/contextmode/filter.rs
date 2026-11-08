@@ -12,7 +12,23 @@ pub const DEFAULT_MAX_BYTES: usize = 64 * 1024; // 64KB max output per tool call
 pub const OUTPUT_CAP: usize = 16384; // 16KB cap for single tool output
 pub const EXEC_PREVIEW_BYTES: usize = 4096; // 4KB preview budget when output exceeds cap
 pub const REPLACE_TRIGGER_BYTES: usize = 4096;
+pub const REPLACE_TRIGGER_BYTES_DEFAULT: usize = 4096;
+pub const REPLACE_RETURN_BYTES: usize = 96; // D-M7-SV-3
+pub const SHAPE_RETURN_BYTES: usize = 256; // D-M2-JSON-1
+pub const REPLACE_CHUNK_BYTES: usize = 48; // D-M7-SV-3
 pub const MAX_CHUNK_BYTES: usize = 4096;
+pub const RANGE_READ_TOOLS: &[&str] = &["Read", "view"];
+pub const READ_RANGE_KEYS: &[&str] = &["offset", "limit", "view_range"];
+pub const RECALL_QUERY_MAX_TERMS: usize = 64;
+
+/// Read CTX_REPLACE_TRIGGER_BYTES from environment (defaults to 4096).
+pub fn get_replace_trigger_bytes() -> usize {
+    std::env::var("CTX_REPLACE_TRIGGER_BYTES")
+        .ok()
+        .and_then(|val| val.trim().parse::<usize>().ok())
+        .filter(|&n| n > 0)
+        .unwrap_or(REPLACE_TRIGGER_BYTES_DEFAULT)
+}
 
 /// Context-mode handle line referencing full indexed output via ctx_search.
 pub fn replace_handle_line(intent: &str, handle: &str, bytes: usize) -> String {

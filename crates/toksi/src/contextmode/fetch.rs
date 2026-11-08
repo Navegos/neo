@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/fetch.rs
 // created: 2026-10-27
-// lastModified: 2026-11-05
+// lastModified: 2026-11-08
 
 use std::net::IpAddr;
 use std::sync::Arc;
@@ -80,10 +80,8 @@ pub fn ssrf_guard(target_url: &str) -> Result<Url, String> {
             } else {
                 domain
             };
-            if let Ok(ip) = bare.parse::<IpAddr>() {
-                if is_private_or_restricted_ip(ip) {
-                    return Err(format!("SSRF block: private/internal IP address '{}' is forbidden", ip));
-                }
+            if bare.parse::<IpAddr>().is_ok_and(is_private_or_restricted_ip) {
+                return Err(format!("SSRF block: private/internal IP address '{}' is forbidden", bare));
             }
         }
         None => return Err("SSRF block: missing hostname".to_string()),
@@ -171,7 +169,7 @@ pub fn html_to_markdown(html: &str) -> String {
         let pattern = format!(r"(?is)<h{h}[^>]*>(.*?)</h{h}>", h = h);
         if let Ok(re) = Regex::new(&pattern) {
             clean = re.replace_all(&clean, |caps: &regex::Captures| {
-                format!("\n\n{} {}\n\n", hashes, &caps[1].trim())
+                format!("\n\n{} {}\n\n", hashes, caps[1].trim())
             }).to_string();
         }
     }
@@ -543,9 +541,7 @@ impl WebFetcher {
                     handles.push((
                         idx,
                         std::thread::spawn(move || {
-                            if let Err(e) = ssrf_guard(&req.url) {
-                                return Err(e);
-                            }
+                            ssrf_guard(&req.url)?;
                             let resp = client
                                 .get(&req.url)
                                 .header(USER_AGENT, "Mozilla/5.0 (compatible; toksi-contextmode/1.0)")

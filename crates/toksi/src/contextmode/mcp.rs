@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/mcp.rs
 // created: 2026-10-27
-// lastModified: 2026-11-04
+// lastModified: 2026-11-08
 
 use std::fs;
 use std::io::{self, BufRead, Write};
@@ -356,12 +356,35 @@ impl ContextMcpServer {
 
         match self.sandbox.execute_file(&target_path, code, lang, cwd.as_deref(), timeout) {
             Ok(res) => {
-                if res.exit_code != 0 {
+                let out_body = if res.exit_code != 0 {
                     format!("Exit code {}:\n{}\n{}", res.exit_code, res.stderr, res.stdout)
                 } else if res.stdout.is_empty() && !res.stderr.is_empty() {
                     res.stderr
                 } else {
                     res.stdout
+                };
+
+                if out_body.len() > OUTPUT_CAP {
+                    let source_label = format!(
+                        "ctx_execute_file:{}",
+                        target_path.file_name().and_then(|n| n.to_str()).unwrap_or("file")
+                    );
+                    if let Ok(mut store) = self.store.lock() {
+                        let _ = store.index(&out_body, &source_label, Some("prose"), None);
+                    }
+                    let preview = if out_body.len() > EXEC_PREVIEW_BYTES {
+                        let mut end = EXEC_PREVIEW_BYTES;
+                        while end > 0 && !out_body.is_char_boundary(end) {
+                            end -= 1;
+                        }
+                        &out_body[..end]
+                    } else {
+                        &out_body
+                    };
+                    let handle_line = replace_handle_line("", &source_label, out_body.len());
+                    format!("{}\n\n{}", preview, handle_line)
+                } else {
+                    out_body
                 }
             }
             Err(e) => format!("File execution error: {}", e),
@@ -553,18 +576,14 @@ impl ContextMcpServer {
     fn tool_ctx_search(&self, args: &Value) -> String {
         let mut query_list: Vec<String> = Vec::new();
 
-        if let Some(q) = args.get("query").and_then(|v| v.as_str()) {
-            if !q.trim().is_empty() {
-                query_list.push(q.trim().to_string());
-            }
+        if let Some(q) = args.get("query").and_then(|v| v.as_str()).filter(|s| !s.trim().is_empty()) {
+            query_list.push(q.trim().to_string());
         }
 
         if let Some(arr) = args.get("queries").and_then(|v| v.as_array()) {
             for v in arr {
-                if let Some(s) = v.as_str() {
-                    if !s.trim().is_empty() {
-                        query_list.push(s.trim().to_string());
-                    }
+                if let Some(s) = v.as_str().filter(|s| !s.trim().is_empty()) {
+                    query_list.push(s.trim().to_string());
                 }
             }
         }
@@ -770,7 +789,7 @@ impl ContextMcpServer {
             format!("  Rust compiler:      {}", runtimes.rust.as_deref().unwrap_or("none")),
             format!("  Database path:      {}", db_path.display()),
             format!("  Database exists:    {}", db_path.exists()),
-            format!("  Sandbox readiness:  READY (pure Rust in-process runner)"),
+            "  Sandbox readiness:  READY (pure Rust in-process runner)".to_string(),
         ];
 
         lines.join("\n")

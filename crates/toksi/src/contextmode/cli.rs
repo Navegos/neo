@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/cli.rs
 // created: 2026-10-27
-// lastModified: 2026-11-04
+// lastModified: 2026-11-08
 
 use std::path::PathBuf;
 use super::fts::{resolve_content_store_path, ContentStore, SearchOptions};
@@ -303,17 +303,15 @@ pub fn run_ctx_cli(args: &[String]) -> i32 {
     }
 }
 
-fn ctx_help() -> String {
-    format!(
-        "toksi ctx — isolated sandbox execution and SQLite FTS5 knowledge base\n\n\
-        Usage:\n\
-          toksi ctx eval <code|cmd> [--lang <lang>] [--file <path>]  Run code or command in sandbox with RTK filter\n\
-          toksi ctx search <query> [--limit <n>] [--source <label>]  Search indexed chunks using BM25 ranking\n\
-          toksi ctx index <file-or-dir> [label]                      Chunk and store file or directory into FTS5 index\n\
-          toksi ctx mcp                                              Run in-process JSON-RPC 2.0 MCP server (ctx_* tools)\n\
-          toksi ctx stats                                            Display session token savings and cache statistics\n\
-          toksi ctx doctor                                           Check available runtimes and database readiness\n\
-          toksi ctx purge                                            Purge cached knowledge base chunks\n"
-    )
+fn ctx_help() -> &'static str {
+    "toksi ctx — isolated sandbox execution and SQLite FTS5 knowledge base\n\n\
+    Usage:\n\
+      toksi ctx eval <code|cmd> [--lang <lang>] [--file <path>]  Run code or command in sandbox with RTK filter\n\
+      toksi ctx search <query> [--limit <n>] [--source <label>]  Search indexed chunks using BM25 ranking\n\
+      toksi ctx index <file-or-dir> [label]                      Chunk and store file or directory into FTS5 index\n\
+      toksi ctx mcp                                              Run in-process JSON-RPC 2.0 MCP server (ctx_* tools)\n\
+      toksi ctx stats                                            Display session token savings and cache statistics\n\
+      toksi ctx doctor                                           Check available runtimes and database readiness\n\
+      toksi ctx purge                                            Purge cached knowledge base chunks\n"
 }
 
