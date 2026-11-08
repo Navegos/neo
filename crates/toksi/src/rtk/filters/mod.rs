@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/mod.rs
 // created: 2026-10-27
-// lastModified: 2026-11-04
+// lastModified: 2026-11-08
 
 pub mod build;
 pub mod git;
@@ -17,6 +17,28 @@ use self::system::filter_system;
 use self::test::filter_test;
 use self::toml::{apply_filter, find_matching_filter};
 
+/// Normalize an executable path to its canonical base name.
+/// Strips quotes, directory components (both `/` and `\`), and file extensions (`.exe`, `.cmd`, `.bat`).
+pub fn normalize_bin_name(bin: &str) -> &str {
+    let mut s = bin.trim();
+    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
+        if s.len() >= 2 {
+            s = &s[1..s.len() - 1];
+        }
+    }
+    if let Some(idx) = s.rfind(['/', '\\']) {
+        s = &s[idx + 1..];
+    }
+    if let Some(stripped) = s.strip_suffix(".exe") {
+        s = stripped;
+    } else if let Some(stripped) = s.strip_suffix(".cmd") {
+        s = stripped;
+    } else if let Some(stripped) = s.strip_suffix(".bat") {
+        s = stripped;
+    }
+    s
+}
+
 /// Check if a command can be filtered by either native filters or declarative TOML filters.
 pub fn is_filterable_command(cmd_line: &str) -> bool {
     let trimmed = cmd_line.trim();
@@ -27,7 +49,8 @@ pub fn is_filterable_command(cmd_line: &str) -> bool {
     if parts.iter().any(|&p| p == "--version" || p == "-V" || p == "--help" || p == "-h" || p == "help") {
         return false;
     }
-    let bin = parts.first().copied().unwrap_or("");
+    let raw_bin = parts.first().copied().unwrap_or("");
+    let bin = normalize_bin_name(raw_bin);
     let sub = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
 
     match bin {
@@ -45,8 +68,8 @@ pub fn is_filterable_command(cmd_line: &str) -> bool {
         "dotnet" if sub == "test" || sub == "build" => true,
         "mvn" | "mvn.cmd" | "gradle" | "gradlew" | "sbt" => true,
         "rspec" | "phpunit" | "pest" | "rake" | "artisan" | "paratest" => true,
-        "docker" | "podman" | "kubectl" | "curl" | "wget" | "ls" | "tree" | "find" | "wc" | "env" | "psql"
-        | "aws" | "ast-grep" | "sg" | "black" => true,
+        "docker" | "podman" | "kubectl" | "curl" | "wget" | "ls" | "dir" | "tree" | "find" | "wc" | "env" | "psql"
+        | "aws" | "ast-grep" | "sg" | "black" | "json" | "log" => true,
         _ => find_matching_filter(trimmed).is_some(),
     }
 }
@@ -58,7 +81,8 @@ pub fn filter_command_output(cmd_line: &str, stdout: &str, stderr: &str, exit_co
     if parts.iter().any(|&p| p == "--version" || p == "-V" || p == "--help" || p == "-h" || p == "help") {
         return if !stdout.is_empty() { stdout.to_string() } else { stderr.to_string() };
     }
-    let bin = parts.first().copied().unwrap_or("");
+    let raw_bin = parts.first().copied().unwrap_or("");
+    let bin = normalize_bin_name(raw_bin);
     let sub = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
 
     match bin {
@@ -93,8 +117,8 @@ pub fn filter_command_output(cmd_line: &str, stdout: &str, stderr: &str, exit_co
         "dotnet" => filter_build(trimmed, stdout, stderr, exit_code),
         "mvn" | "mvn.cmd" | "gradle" | "gradlew" => filter_build(trimmed, stdout, stderr, exit_code),
         "rspec" | "phpunit" | "pest" | "paratest" => filter_test(trimmed, stdout, stderr, exit_code),
-        "docker" | "podman" | "kubectl" | "curl" | "wget" | "ls" | "tree" | "find" | "wc" | "env" | "psql"
-        | "aws" | "ast-grep" | "sg" | "black" => filter_system(trimmed, stdout, stderr, exit_code),
+        "docker" | "podman" | "kubectl" | "curl" | "wget" | "ls" | "dir" | "tree" | "find" | "wc" | "env" | "psql"
+        | "aws" | "ast-grep" | "sg" | "black" | "json" | "log" => filter_system(trimmed, stdout, stderr, exit_code),
         _ => {
             if let Some(toml_filter) = find_matching_filter(trimmed) {
                 let combined = if toml_filter.filter_stderr && !stderr.is_empty() {

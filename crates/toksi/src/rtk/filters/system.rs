@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/system.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use crate::rtk::ansi::strip_ansi;
 
@@ -18,7 +18,7 @@ pub fn filter_system(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> S
     };
     let clean = strip_ansi(&combined);
     let parts: Vec<&str> = cmd.split_whitespace().collect();
-    let bin = parts.first().copied().unwrap_or("");
+    let bin = super::normalize_bin_name(parts.first().copied().unwrap_or(""));
     let sub = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
 
     match bin {
@@ -35,6 +35,8 @@ pub fn filter_system(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> S
         "aws" => filter_aws(cmd, &clean, exit_code),
         "ast-grep" | "sg" => filter_ast_grep(&clean, exit_code),
         "black" => filter_black(&clean, exit_code),
+        "json" => filter_json(&clean, sub == "--keys-only" || sub == "schema"),
+        "log" => filter_log(&clean),
         _ => clean,
     }
 }
@@ -387,6 +389,218 @@ pub fn filter_black(raw: &str, exit_code: i32) -> String {
     }
 }
 
+/// Filter JSON string into a compact representation or key schema.
+pub fn filter_json(raw: &str, schema_only: bool) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    // Strip leading BOM if present
+    let content = trimmed.strip_prefix('\u{feff}').unwrap_or(trimmed);
+    let val: serde_json::Value = match serde_json::from_str(content) {
+        Ok(v) => v,
+        Err(_) => return raw.to_string(),
+    };
+
+    if schema_only {
+        extract_json_schema(&val, 0, 5)
+    } else {
+        compact_json_value(&val, 0, 4)
+    }
+}
+
+fn extract_json_schema(value: &serde_json::Value, depth: usize, max_depth: usize) -> String {
+    if depth > max_depth {
+        return "...".to_string();
+    }
+    match value {
+        serde_json::Value::Null => "null".to_string(),
+        serde_json::Value::Bool(_) => "bool".to_string(),
+        serde_json::Value::Number(n) => {
+            if n.is_i64() || n.is_u64() {
+                "int".to_string()
+            } else {
+                "float".to_string()
+            }
+        }
+        serde_json::Value::String(s) => {
+            if s.len() > 50 {
+                format!("string[{}]", s.len())
+            } else if s.is_empty() {
+                "string".to_string()
+            } else if s.starts_with("http://") || s.starts_with("https://") {
+                "url".to_string()
+            } else {
+                "string".to_string()
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            if arr.is_empty() {
+                "[]".to_string()
+            } else {
+                format!("[{}]", extract_json_schema(&arr[0], depth + 1, max_depth))
+            }
+        }
+        serde_json::Value::Object(map) => {
+            if map.is_empty() {
+                "{}".to_string()
+            } else {
+                let mut parts = Vec::new();
+                for (i, (k, v)) in map.iter().enumerate() {
+                    if i >= 16 {
+                        parts.push(format!("...+{}", map.len() - i));
+                        break;
+                    }
+                    parts.push(format!("{}:{}", k, extract_json_schema(v, depth + 1, max_depth)));
+                }
+                format!("{{{}}}", parts.join(","))
+            }
+        }
+    }
+}
+
+fn compact_json_value(value: &serde_json::Value, depth: usize, max_depth: usize) -> String {
+    let indent = "  ".repeat(depth);
+    if depth > max_depth {
+        return format!("{}...", indent);
+    }
+    match value {
+        serde_json::Value::Null => format!("{}null", indent),
+        serde_json::Value::Bool(b) => format!("{}{}", indent, b),
+        serde_json::Value::Number(n) => format!("{}{}", indent, n),
+        serde_json::Value::String(s) => {
+            if s.len() > 80 {
+                let end = s.char_indices().map(|(i, _)| i).nth(77).unwrap_or(s.len());
+                format!("{}\"{}...\"", indent, &s[..end])
+            } else {
+                format!("{}\"{}\"", indent, s)
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            if arr.is_empty() {
+                format!("{}[]", indent)
+            } else if arr.len() > 5 {
+                let first = compact_json_value(&arr[0], depth + 1, max_depth);
+                format!("{}[{}, ... +{} more items]", indent, first.trim(), arr.len() - 1)
+            } else {
+                let items: Vec<String> = arr.iter().map(|v| compact_json_value(v, depth + 1, max_depth)).collect();
+                let all_simple = arr.iter().all(|v| matches!(v, serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) | serde_json::Value::String(_)));
+                if all_simple {
+                    let inline: Vec<&str> = items.iter().map(|s| s.trim()).collect();
+                    format!("{}[{}]", indent, inline.join(", "))
+                } else {
+                    let mut lines = vec![format!("{}[", indent)];
+                    for item in &items {
+                        lines.push(format!("{},", item));
+                    }
+                    lines.push(format!("{}]", indent));
+                    lines.join("\n")
+                }
+            }
+        }
+        serde_json::Value::Object(map) => {
+            if map.is_empty() {
+                format!("{}{{}}", indent)
+            } else {
+                let mut lines = vec![format!("{}{{", indent)];
+                let mut keys: Vec<_> = map.keys().collect();
+                keys.sort();
+                for (i, key) in keys.iter().enumerate() {
+                    let val = &map[*key];
+                    let is_simple = matches!(val, serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) | serde_json::Value::String(_));
+                    if is_simple {
+                        let val_str = compact_json_value(val, 0, max_depth);
+                        lines.push(format!("{}  {}: {}", indent, key, val_str.trim()));
+                    } else {
+                        lines.push(format!("{}  {}:", indent, key));
+                        lines.push(compact_json_value(val, depth + 1, max_depth));
+                    }
+                    if i >= 20 {
+                        lines.push(format!("{}  ... +{} more keys", indent, keys.len() - i - 1));
+                        break;
+                    }
+                }
+                lines.push(format!("{}}}", indent));
+                lines.join("\n")
+            }
+        }
+    }
+}
+
+/// Filter repeated log lines into deduplicated counts and summary.
+pub fn filter_log(raw: &str) -> String {
+    use std::collections::HashMap;
+
+    let mut error_counts: HashMap<String, usize> = HashMap::new();
+    let mut warn_counts: HashMap<String, usize> = HashMap::new();
+    let mut info_count = 0usize;
+    let mut unique_errors: Vec<String> = Vec::new();
+    let mut unique_warnings: Vec<String> = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let lower = trimmed.to_lowercase();
+        let normalized = if let Some(idx) = trimmed.find(|c: char| c.is_alphabetic()) {
+            &trimmed[idx..]
+        } else {
+            trimmed
+        };
+
+        if lower.contains("error") || lower.contains("fatal") || lower.contains("panic") || lower.contains("critical") {
+            let count = error_counts.entry(normalized.to_string()).or_insert(0);
+            if *count == 0 {
+                unique_errors.push(trimmed.to_string());
+            }
+            *count += 1;
+        } else if lower.contains("warn") {
+            let count = warn_counts.entry(normalized.to_string()).or_insert(0);
+            if *count == 0 {
+                unique_warnings.push(trimmed.to_string());
+            }
+            *count += 1;
+        } else {
+            info_count += 1;
+        }
+    }
+
+    let total_errors: usize = error_counts.values().sum();
+    let total_warns: usize = warn_counts.values().sum();
+
+    if total_errors == 0 && total_warns == 0 {
+        return raw.lines().take(20).collect::<Vec<&str>>().join("\n");
+    }
+
+    let mut out = Vec::new();
+    out.push(format!("Log Summary: {} errors ({} unique), {} warnings ({} unique), {} info lines",
+        total_errors, error_counts.len(), total_warns, warn_counts.len(), info_count));
+
+    if !unique_errors.is_empty() {
+        out.push(String::new());
+        out.push("[ERRORS]".to_string());
+        let mut err_list: Vec<_> = error_counts.iter().collect();
+        err_list.sort_by(|a, b| b.1.cmp(a.1));
+        for (norm, count) in err_list.iter().take(15) {
+            let orig = unique_errors.iter().find(|e| e.contains(norm.as_str())).map(|s| s.as_str()).unwrap_or(norm);
+            let display_msg = if orig.len() > 120 {
+                let end = orig.char_indices().map(|(i, _)| i).nth(117).unwrap_or(orig.len());
+                format!("{}...", &orig[..end])
+            } else {
+                orig.to_string()
+            };
+            if **count > 1 {
+                out.push(format!("  [x{}] {}", count, display_msg));
+            } else {
+                out.push(format!("  {}", display_msg));
+            }
+        }
+    }
+
+    out.join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -435,5 +649,29 @@ mod tests {
         let raw = "reformatted /path/to/script.py\nAll done! ✨ 🍰 ✨\n1 file reformatted, 3 files left unchanged.\n";
         let out = filter_black(raw, 0);
         assert_eq!(out, "black: 1 file reformatted, 3 files left unchanged.");
+    }
+
+    #[test]
+    fn test_filter_json_compact() {
+        let raw = r#"{"name": "toksi", "items": [1, 2, 3, 4, 5, 6, 7], "active": true}"#;
+        let out = filter_json(raw, false);
+        assert!(out.contains("toksi"));
+        assert!(out.contains("+6 more items"));
+    }
+
+    #[test]
+    fn test_filter_json_schema() {
+        let raw = r#"{"name": "toksi", "id": 42, "tags": ["a", "b"]}"#;
+        let out = filter_json(raw, true);
+        assert!(out.contains("name:string"));
+        assert!(out.contains("id:int"));
+    }
+
+    #[test]
+    fn test_filter_log() {
+        let raw = "2026-11-08 12:00:00 [ERROR] Connection refused to db\n2026-11-08 12:00:01 [ERROR] Connection refused to db\n2026-11-08 12:00:02 [WARN] Retrying...";
+        let out = filter_log(raw);
+        assert!(out.contains("2 errors"));
+        assert!(out.contains("[x2]"));
     }
 }

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/engine.rs
 // created: 2026-10-27
-// lastModified: 2026-11-04
+// lastModified: 2026-11-08
 
 use std::process::{Command, Stdio};
 use crate::rtk::ansi::strip_ansi;
@@ -161,7 +161,7 @@ pub fn list_supported_commands() -> Vec<&'static str> {
         "npm", "pnpm", "yarn", "bun", "deno", "pip", "uv", "prisma", "next", "ng",
         "rspec", "rake", "phpunit", "pest", "artisan",
         "docker", "docker ps", "docker compose", "podman", "kubectl",
-        "curl", "wget", "ls", "tree", "cat", "find", "wc", "env", "psql", "aws", "ast-grep", "black",
+        "curl", "wget", "ls", "tree", "cat", "find", "wc", "env", "psql", "aws", "ast-grep", "black", "json", "log",
     ];
 
     cmds.extend(list_filter_names());

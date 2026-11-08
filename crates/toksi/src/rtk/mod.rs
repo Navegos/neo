@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/mod.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 pub mod ansi;
 pub mod engine;
@@ -40,7 +40,8 @@ pub fn compress_tool_output(cmd_or_tool: &str, output: &str) -> String {
 pub fn extract_root_cause(cmd: &str, output: &str) -> Option<String> {
     let clean = strip_ansi(output);
     let parts: Vec<&str> = cmd.split_whitespace().collect();
-    let bin = parts.first().copied().unwrap_or("");
+    let raw_bin = parts.first().copied().unwrap_or("");
+    let bin = filters::normalize_bin_name(raw_bin);
 
     for line in clean.lines() {
         let trimmed = line.trim();
@@ -194,6 +195,32 @@ mod tests {
             extract_root_cause("artisan test", php_err),
             Some("Fatal error: Uncaught Error: Call to undefined function foo()".to_string())
         );
+
+        // Path normalization checks
+        let path_cargo_err = "error[E0433]: failed to resolve";
+        assert_eq!(
+            extract_root_cause("C:\\tools\\cargo.exe test", path_cargo_err),
+            Some("error[E0433]: failed to resolve".to_string())
+        );
+        assert_eq!(
+            extract_root_cause("/usr/bin/cargo test", path_cargo_err),
+            Some("error[E0433]: failed to resolve".to_string())
+        );
+    }
+
+    #[test]
+    fn test_normalize_bin_name() {
+        assert_eq!(filters::normalize_bin_name("/usr/bin/git"), "git");
+        assert_eq!(filters::normalize_bin_name("C:\\tools\\git.exe"), "git");
+        assert_eq!(filters::normalize_bin_name("\"./node_modules/.bin/eslint\""), "eslint");
+        assert_eq!(filters::normalize_bin_name("cargo.cmd"), "cargo");
+    }
+
+    #[test]
+    fn test_path_invoked_command_filtering() {
+        let raw = "## main...origin/main\nM  foo.rs\n";
+        let out = filter_sandbox_output("/usr/bin/git status", raw);
+        assert!(out.contains("staged (1):"));
     }
 }
 

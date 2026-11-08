@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/toml.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use regex::{Regex, RegexSet};
 use serde::Deserialize;
@@ -187,10 +187,35 @@ pub fn find_matching_filter(command: &str) -> Option<&'static CompiledFilter> {
     if trimmed.is_empty() {
         return None;
     }
-    TOML_REGISTRY
+    if let Some(f) = TOML_REGISTRY
         .filters
         .iter()
         .find(|f| f.match_command.is_match(trimmed))
+    {
+        return Some(f);
+    }
+
+    // Try matching with normalized binary name if the binary contains path separators or extensions
+    if let Some((raw_bin, rest)) = trimmed.split_once(char::is_whitespace) {
+        let bin = super::normalize_bin_name(raw_bin);
+        if bin != raw_bin {
+            let normalized = format!("{} {}", bin, rest);
+            return TOML_REGISTRY
+                .filters
+                .iter()
+                .find(|f| f.match_command.is_match(&normalized));
+        }
+    } else {
+        let bin = super::normalize_bin_name(trimmed);
+        if bin != trimmed {
+            return TOML_REGISTRY
+                .filters
+                .iter()
+                .find(|f| f.match_command.is_match(bin));
+        }
+    }
+
+    None
 }
 
 /// Check if a command line matches any declarative TOML filter.

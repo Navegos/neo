@@ -1,6 +1,6 @@
 {
-  "command": "cargo test -p toksi --lib telemetry tui dashboard",
-  "root_cause": "error: unexpected argument 'tui' found",
-  "raw_output": "error: unexpected argument 'tui' found\n\nUsage: cargo.exe test [OPTIONS] [TESTNAME] [-- [ARGS]...]\n\nFor more information, try '--help'.\n",
-  "timestamp": "2026-11-06T14:06:04Z"
+  "command": "git checkout crates/toksi/.projectmem/summary.md",
+  "root_cause": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied",
+  "raw_output": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied\n",
+  "timestamp": "2026-11-08T01:37:13Z"
 }

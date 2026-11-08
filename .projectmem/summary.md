@@ -1,10 +1,10 @@
 # projectmem - neo
 
-_Last updated: 2026-11-07_
+_Last updated: 2026-11-08_
 
 ## Project purpose
 --------------------------------------------------------------------------------
-Enterprise-grade native Rust tooling, token-optimization, and headroom gateway pipeline for AI coding assistants. Transparently sits between 17 coding agents and 39+ upstream LLM providers to cut token spend by 30-70%, enforce latency/cost/concurrency quotas, and provide zero-latency memory, AST code intelligence, and real-time telemetry across dedicated isolated ports.
+Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent wire integration, and headroom gateway pipeline for AI coding assistants. Transparently sits between 17 coding agents and 39+ upstream LLM providers to cut token spend by 30-70%, enforce latency/cost/concurrency quotas, and provide zero-latency memory, AST code intelligence, and real-time telemetry across dedicated isolated ports.
 
 ## Recent issues
 - [OPEN] #0034 Bypass non-LLM authentication and ConnectRPC management endpoints directly without intercepting headers or proxying, capturing only LLM processing in and out [crates/toksi/src/headroom/proxy.rs:615 (serve_headroom_connection)] (open)
@@ -22,13 +22,11 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - ...and 23 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...57 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Master architecture v3.3: unified 5-port daemon (:8787,:8789,:8790,:9099,:9100), root .toksi workspace consolidation, normalized hooks (<tool>-hook <agent>) and MCP names, 39+ BYOK providers with Bifrost and smart CLI bridges, strict paid quota enforcement with zero-fail fallback, ground-truth... [crates/toksi/CONSOLIDATION_PLAN.md:1]
+- ...58 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Master architecture v3.3 plan approved: unified 5-port daemon (:8787,:8789,:8790,:9099,:9100), root .toksi workspace consolidation, normalized hooks (<tool>-hook <agent>) and MCP names (projectmem, context, codegraph), 39+ BYOK providers with Bifrost and smart CLI bridges, strict paid quota... [crates/toksi/CONSOLIDATION_PLAN.md:1]
 - Consolidated Toksi v3.3 Master Architecture & Execution Plan across 5 dedicated ports, root .toksi workspace topology, normalized tool hooks (<tool>-hook <agent>) and MCP names, 39+ BYOK providers with smart background CLI bridges, strict paid quota enforcement with zero-fail fallback... [crates/toksi/CONSOLIDATION_PLAN.md:1]
 - Toksi v3.3 Disciplinary Coding Standards and Conventions Consolidation [crates/toksi/CONSOLIDATION_PLAN.md:1]
-- Master architecture v3.4: unified 5-port daemon (:8787,:8789,:8790,:9099,:9100), root .toksi workspace consolidation, normalized hooks (<tool>-hook <agent>) and MCP names, 39+ BYOK providers with Bifrost and smart CLI bridges, strict paid quota enforcement with zero-fail fallback, ground-truth session tokens, 20 reference engines (including litellm), and modular prompts in .agents/brain/*.md [crates/toksi/CONSOLIDATION_PLAN.md:1]
-- Modularized Phase 15 and 16 into discrete ready-to-run subphase prompt files in .agents/brain/*.md for token-isolated per-chat execution [crates/toksi/CONSOLIDATION_PLAN.md:1]
+- Modularized Phase 15 and 16 into discrete ready-to-run subphase prompt files in .gemini/antigravity/brain/*.md for token-isolated per-chat execution [crates/toksi/CONSOLIDATION_PLAN.md:1]
 - Phase 03 refresh: verified full Context-Mode parity in pure Rust with strict CPU/memory limits, in-memory RTK pipe, SQLite FTS5 BM25 search, SSRF per-hop enforcement, and in-process ctx_* MCP suite [crates/toksi/src/contextmode/mod.rs:1]
 - Phase 04 rerun: hardened ICM FTS5 BM25 token sanitization with operator stripping, prioritized ~/.toksi/memory.db, added memory_handoff_accept MCP alias, and added extractive leading_prose fallback for tiered progressive disclosure [crates/toksi/src/icm/store.rs:593 (sanitize_fts5_query)]
 - Phase 05: CodeGraph Pure Rust Engine executed and verified with upstream inspect-vault parity, dual-path .toksi/codegraph/symbols.db and .codegraph/symbols.db support, petgraph blast-radius, and file-suffix coordinate resolution [crates/toksi/src/codegraph/mod.rs:1]
@@ -39,6 +37,7 @@ Enterprise-grade native Rust tooling, token-optimization, and headroom gateway p
 - Phase 10: Non-destructive user environment management verified across Windows (direct HKCU\Environment registry + WM_SETTINGCHANGE SendMessageTimeoutW broadcast) and Unix (systemd/launchctl/environment.d). Connected to toksi daemon start and graceful teardown guard. Explicitly unsets... [crates/toksi/src/env_injector/mod.rs:1]
 - Phase 11: Agent Doctor & Self-Healing completed. Upgraded toksi doctor and toksi doctor --fix to audit all 17 agents, purge broken legacy MCP runners across TOML/YAML/JSON, sync in-tree rules, and report environment and process proxies.
 - Phase 12: TUI, Prometheus Telemetry & Web Dashboard refreshed with upstream bifrost dropped-request metric isolation, 7-tab interactive TUI with Governance & Quotas, and embedded SPA dashboard [crates/toksi/src/telemetry/mod.rs:1]
+- Refactor: Refactor and consolidate documentation and architecture for Toksi v3.4 [crates/toksi/CONSOLIDATION_PLAN.md]
 
 ## Notes
 - feat(rtk): refresh RTK filter engine from inspect-vault with git ls-tree/ls-files fold, cargo nextest retry filtering, enhanced ruff JSON/text filters, and expanded root-cause extractions [crates/toksi/src/rtk/filters/git.rs:25 (filter_git)]
