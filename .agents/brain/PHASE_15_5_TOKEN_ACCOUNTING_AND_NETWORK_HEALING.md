@@ -6,27 +6,33 @@ Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.
 
 Execute Phase 15.5: Ground-Truth Token Accounting & Network Reconnect Healing.
 Targets:
-  - crates/toksi/src/telemetry/collector.rs
   - crates/toksi/src/telemetry/tokentracker.rs
+  - crates/toksi/src/telemetry/collector.rs
   - crates/toksi/src/gateway/reconnect.rs
-  - crates/toksi/src/gateway/proxy.rs
   - crates/toksi/src/rules/sync.rs
   - crates/toksi/src/main.rs
 
+Disciplinary & Portability Requirements:
+1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
+2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors.
+3. Ground-Truth Accounting: Real tokens parsed from live SSE streams. Strict prohibition of synthetic/virtual tokens (counter reads exactly 0 when idle).
+4. Network Healing Watchdog: Automatically recover from connection drops, VPN disconnects, and socket timeouts without dormant process locking.
+5. Comprehensive Usage Help: Detailed CLI `--help` text documenting all commands, ports, flags, tools, and conventions.
+
 Requirements:
 1. Ground-Truth Session Token Accounting:
-   - Extract real prompt/completion/cached tokens directly from live SSE response streams and upstream response headers:
-     * `usage.prompt_tokens`, `usage.completion_tokens`, `cache_read_input_tokens`
-     * `x-ratelimit-remaining-tokens`, `anthropic-ratelimit-requests-remaining`
-   - Strict prohibition of synthetic or virtual math: when no agent is streaming, token savings counter must read 0.
-   - Query provider quota status via free agent AI API channels without incurring token waste.
-2. Network Reconnection Auto-Healing Watchdog:
-   - Implement `gateway/reconnect.rs` detecting network interface disconnects, VPN toggles, and socket timeouts.
-   - Automatically refresh connection pools and reconnect to upstream endpoints without entering a dormant state or locking out agents.
+   - Parse actual prompt tokens, completion tokens, and cached tokens directly from live SSE response streams (`usage.prompt_tokens`, `usage.completion_tokens`, `cache_read_input_tokens`, Google `candidatesTokenCount`).
+   - Extract upstream provider rate limits and quotas from HTTP response headers: `x-ratelimit-remaining-tokens`, `x-ratelimit-remaining-requests`, `anthropic-ratelimit-requests-remaining`.
+   - Calculate true headroom token savings as byte reduction (`raw_bytes - compressed_bytes`) and exact counts of pruned MCP tool schemas.
+   - Query provider quota status via free agent AI API channels without incurring additional token costs.
+2. Network Reconnection Auto-Healing Watchdog (`crates/toksi/src/gateway/reconnect.rs`):
+   - Detects connection drops, DNS invalidation, or network interface toggles.
+   - Automatically invalidates stale socket connection pools and reconnects upstream client pools without requiring process restarts.
+   - Eliminates dormant states where agents are locked out after Wi-Fi or VPN reconnects.
 3. Universal Rules, Skills & Instructions Sync:
-   - Implement universal synchronizer updating `rules*.md`, `skills*.md`, `instructions*.md`, `agents*.md` across both workspace directories and user config homes for all 17 agents.
-4. Complete Usage Help:
-   - Update `help_text()` in `crates/toksi/src/main.rs` with comprehensive details on all commands, tools, ports, flags, and conventions.
+   - Implement universal synchronizer updating `rules*.md`, `skills*.md`, `instructions*.md`, `agents*.md` across both workspace roots and user config homes for all 17 agents.
+4. Comprehensive CLI Help:
+   - Update `help_text()` in `crates/toksi/src/main.rs` with exhaustive documentation of all commands, tools, ports, flags, and conventions.
 5. Verification:
    - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
 ```
@@ -35,34 +41,13 @@ Requirements:
 
 ## Technical Specifications & Details
 
-### 1. Reconnection Watchdog in `gateway/reconnect.rs`
-```rust
-pub struct NetworkWatchdog {
-    last_probe: std::time::Instant,
-    is_healthy: std::sync::atomic::AtomicBool,
-}
+### 1. Architectural Scope & Subsystems
+- **SSE Stream Token Parser** (`src/telemetry/tokentracker.rs`): Inspects chunks in-flight, parsing provider JSON usage blocks without buffering the entire stream.
+- **Network Reconnect Watchdog** (`src/gateway/reconnect.rs`): Monitors upstream TCP connections using keep-alive probes and connection pool TTLs. On connection reset, resets connection pool and retries smoothly.
+- **Universal Synchronizer** (`src/rules/sync.rs`): Distributes embedded guidelines across all agent config paths.
+- **CLI Usage Help** (`src/main.rs`): Formats clean terminal help with commands, flags, examples, and port assignments.
 
-impl NetworkWatchdog {
-    pub fn new() -> Self {
-        Self {
-            last_probe: std::time::Instant::now(),
-            is_healthy: std::sync::atomic::AtomicBool::new(true),
-        }
-    }
-
-    pub async fn check_and_reload_if_needed(&self, client_pool: &mut reqwest::Client) {
-        if self.last_probe.elapsed() > std::time::Duration::from_secs(15) {
-            // Probe reachability
-            let probe_res = client_pool.get("http://127.0.0.1:9099/metrics").timeout(std::time::Duration::from_millis(500)).send().await;
-            if probe_res.is_err() {
-                // Reinitialize pool to purge stale sockets
-                *client_pool = reqwest::Client::builder()
-                    .pool_idle_timeout(std::time::Duration::from_secs(30))
-                    .tcp_keepalive(std::time::Duration::from_secs(15))
-                    .build()
-                    .unwrap_or_default();
-            }
-        }
-    }
-}
-```
+### 2. Verification Criteria
+- `cargo check -p toksi` passes with 0 warnings.
+- `cargo test -p toksi -- tokentracker` and `cargo test -p toksi -- reconnect` pass 100%.
+- `toksi --help` prints full usage manual without truncation or syntax errors.

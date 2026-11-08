@@ -700,6 +700,20 @@ Continuous re-audit against reference implementations in `neo/inspect-vault/*` t
 
 > **Modular Brain Execution Policy**:  
 > To execute without context saturation, each phase prompt is isolated in `.agents/brain/*.md`. Copy and paste the prompt into a fresh chat session:
+> - **Phase 01**: [`.agents/brain/PHASE_01_RTK_FILTER_ENGINE.md`](../../.agents/brain/PHASE_01_RTK_FILTER_ENGINE.md)
+> - **Phase 02**: [`.agents/brain/PHASE_02_PROJECTMEM_PURE_RUST.md`](../../.agents/brain/PHASE_02_PROJECTMEM_PURE_RUST.md)
+> - **Phase 03**: [`.agents/brain/PHASE_03_CONTEXTMODE_PURE_RUST.md`](../../.agents/brain/PHASE_03_CONTEXTMODE_PURE_RUST.md)
+> - **Phase 04**: [`.agents/brain/PHASE_04_ICM_AND_AIMEMORY.md`](../../.agents/brain/PHASE_04_ICM_AND_AIMEMORY.md)
+> - **Phase 05**: [`.agents/brain/PHASE_05_CODEGRAPH_PURE_RUST.md`](../../.agents/brain/PHASE_05_CODEGRAPH_PURE_RUST.md)
+> - **Phase 06**: [`.agents/brain/PHASE_06_IN_TREE_RULES_AND_SKILLS.md`](../../.agents/brain/PHASE_06_IN_TREE_RULES_AND_SKILLS.md)
+> - **Phase 07**: [`.agents/brain/PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md`](../../.agents/brain/PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md)
+> - **Phase 08**: [`.agents/brain/PHASE_08_DOWNLOADER_PURGE.md`](../../.agents/brain/PHASE_08_DOWNLOADER_PURGE.md)
+> - **Phase 09**: [`.agents/brain/PHASE_09_LEGACY_HEALING_UNHIJACK.md`](../../.agents/brain/PHASE_09_LEGACY_HEALING_UNHIJACK.md)
+> - **Phase 10**: [`.agents/brain/PHASE_10_NON_DESTRUCTIVE_ENV_INJECTION.md`](../../.agents/brain/PHASE_10_NON_DESTRUCTIVE_ENV_INJECTION.md)
+> - **Phase 11**: [`.agents/brain/PHASE_11_AGENT_DOCTOR_SELF_HEALING.md`](../../.agents/brain/PHASE_11_AGENT_DOCTOR_SELF_HEALING.md)
+> - **Phase 12**: [`.agents/brain/PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md`](../../.agents/brain/PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md)
+> - **Phase 13**: [`.agents/brain/PHASE_13_E2E_VERIFICATION_BENCHMARKS.md`](../../.agents/brain/PHASE_13_E2E_VERIFICATION_BENCHMARKS.md)
+> - **Phase 14**: [`.agents/brain/PHASE_14_KEYRING_AND_CONFIG_SQLITE_DB.md`](../../.agents/brain/PHASE_14_KEYRING_AND_CONFIG_SQLITE_DB.md)
 > - **Phase 15.1**: [`.agents/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md`](../../.agents/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md)
 > - **Phase 15.2**: [`.agents/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`](../../.agents/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md)
 > - **Phase 15.3**: [`.agents/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`](../../.agents/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md)
@@ -709,6 +723,339 @@ Continuous re-audit against reference implementations in `neo/inspect-vault/*` t
 > - **Phase 16.1**: [`.agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md`](../../.agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md)
 > - **Phase 16.2**: [`.agents/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`](../../.agents/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md)
 > - **Phase 16.3**: [`.agents/brain/PHASE_16_3_OPEN_AGENTS_AND_README_VERIFICATION.md`](../../.agents/brain/PHASE_16_3_OPEN_AGENTS_AND_README_VERIFICATION.md)
+
+---
+
+### Prompt: Phase 01 — RTK Engine Integration
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_01_RTK_FILTER_ENGINE.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/rtk as updated please rerun
+
+Execute Phase 01: RTK Engine Integration.
+Source: neo/inspect-vault/rtk
+Target: crates/toksi/src/rtk/
+
+Requirements:
+1. Full port and embed of RTK's 100+ command-specific output filters (git, cargo, test runners, system tools) and zero-allocation ANSI stripper into crates/toksi/src/rtk/.
+2. Adapt RTK to serve as the shared in-process filter engine for:
+   - crates/toksi/src/contextmode/ (filtering sandbox outputs)
+   - crates/toksi/src/projectmem/ (extracting root-cause failure traces)
+   - crates/toksi/src/headroom/ (pre-filtering tool outputs)
+3. Expose the native CLI command `toksi rtk <command...>`.
+4. Ensure 100% functional parity, zero missing filter code, zero external binary spawns, 0 compiler warnings, and passing unit tests.
+```
+
+---
+
+### Prompt: Phase 02 — ProjectMem Pure Rust Port
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_02_PROJECTMEM_PURE_RUST.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/projectmem as updated please rerun
+
+Execute Phase 02: ProjectMem Pure Rust Port.
+Source: neo/inspect-vault/projectmem (~v0.3.4, Python)
+Target: crates/toksi/src/projectmem/
+
+Requirements:
+1. Full port of ProjectMem from Python to pure safe Rust in crates/toksi/src/projectmem/:
+   - schema.rs (Event, Issue, Attempt, Fix, Decision, Note)
+   - store.rs (atomic append to .projectmem/events.jsonl, Windows LockFileEx and Unix fcntl locking, atomic markdown updates)
+   - summary.rs (deterministic zero-LLM summary generator from README, active issues, fixes, decision DAG, and gotchas)
+   - precheck.rs (git staged diff scanner vs gotchas and historical failure locations)
+   - redaction.rs (zero-allocation regex secret/token sanitizer)
+   - heatmap.rs (failure clustering & ROI metrics)
+   - global.rs (cross-project ~/.toksi/projectmem store)
+   - mcp.rs (multi-protocol in-process MCP server with tools: log_issue, record_attempt, record_fix, add_decision, add_note, etc.)
+2. Expose the native CLI command `toksi mem ...`.
+3. Ensure zero external Python runtimes, 0 compiler warnings, and passing unit tests.
+```
+
+---
+
+### Prompt: Phase 03 — Context-Mode Pure Rust Port
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_03_CONTEXTMODE_PURE_RUST.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/context-mode as updated please rerun
+
+Execute Phase 03: Context-Mode Pure Rust Port.
+Source: neo/inspect-vault/context-mode (TypeScript)
+Target: crates/toksi/src/contextmode/
+
+Requirements:
+1. Full port of Context-Mode from TypeScript to pure Rust in crates/toksi/src/contextmode/:
+   - sandbox.rs (isolated subprocess runner with strict CPU timeout and memory bounds)
+   - filter.rs (output slicing, head/tail truncation, 98% context reduction)
+   - fts.rs (SQLite FTS5 document chunker & BM25 search)
+   - fetch.rs (async reqwest HTTP fetcher with clean markdown extraction)
+   - mcp.rs (in-process ctx_* MCP tools: ctx_execute, ctx_execute_file, ctx_batch_execute, ctx_index, ctx_search, ctx_fetch_and_index)
+2. Pipe all sandbox execution stdout directly through crates/toksi/src/rtk/ filters in-memory.
+3. Expose the native CLI command `toksi ctx ...`.
+4. Ensure zero Node.js runtime dependency, 0 compiler warnings, and passing unit tests.
+```
+
+---
+
+### Prompt: Phase 04 — ICM & ai-memory Integration
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_04_ICM_AND_AIMEMORY.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/icm, neo/inspect-vault/ai-memory as updated please rerun
+
+Execute Phase 04: ICM & ai-memory Integration.
+Sources:
+  - neo/inspect-vault/icm (Rust) -> crates/toksi/src/icm/
+  - neo/inspect-vault/ai-memory (Rust, v3.2.8) -> crates/toksi/src/aimemory/
+
+Requirements:
+1. From ICM: Embed single-file SQLite database (~/.toksi/memory.db) with bundled FTS5 BM25 search. Guarantee zero LLM token spend on store and recall with sub-10ms latency.
+2. From ai-memory: Embed claim-once multi-agent handoff state machine and tiered L0 (TOC) / L1 (Abstracts) / L2 (Full bodies) progressive disclosure packer.
+3. Strictly enforce the Zero-LLM token rule: no background LLM re-summarization loops.
+4. Coordinate with crates/toksi/src/projectmem/ and prepare hooks for headroom dynamic memory budgeting.
+5. Ensure zero compiler warnings and passing unit tests.
+```
+
+---
+
+### Prompt: Phase 05 — CodeGraph Pure Rust Engine
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_05_CODEGRAPH_PURE_RUST.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/codegraph as updated please rerun
+
+Execute Phase 05: CodeGraph Pure Rust Engine.
+Source: neo/inspect-vault/codegraph (codegraph-kernel in Rust + TS wrapper)
+Target: crates/toksi/src/codegraph/
+
+Requirements:
+1. Eliminate Node.js and TypeScript wrapper completely.
+2. Integrate embedded Tree-sitter parsers directly via Rust dependencies (Rust, TS/JS, Python, Go, C/C++).
+3. Implement high-speed file traversal using the `ignore` crate (respecting .gitignore and hidden files).
+4. Build AST dependency, call-path, and blast-radius engine using `petgraph`.
+5. Implement incremental AST symbol cache in .codegraph/symbols.db.
+6. Serve `codegraph_explore`, `codegraph_impact`, and `codegraph_symbol` via in-process MCP server.
+7. Connect to crates/toksi/src/projectmem/ to auto-resolve `location: "file:line"` coordinates to AST symbol names.
+8. Expose the native CLI command `toksi graph ...`.
+9. Ensure 0 compiler warnings and passing unit tests.
+```
+
+---
+
+### Prompt: Phase 06 — In-Tree Rules & Skills Integration
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_06_IN_TREE_RULES_AND_SKILLS.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/andrej-karpathy-skills, neo/inspect-vault/caveman, neo/inspect-vault/ponytail as updated please rerun
+
+Execute Phase 06: In-Tree Rules & Skills Integration.
+Sources: neo/inspect-vault/andrej-karpathy-skills, neo/inspect-vault/caveman, neo/inspect-vault/ponytail
+Target: crates/toksi/src/rules/
+
+Requirements:
+1. Ingest instructions and guidelines directly into crates/toksi/src/rules/embedded/:
+   - principles.rs (Karpathy guidelines: think, simplify, surgical changes, verify)
+   - caveman.rs (ASD-STE100 primitive English compression guidelines)
+   - ponytail.rs (lazy senior developer build discipline ladder)
+2. Compile markdown assets into the binary using `include_str!`.
+3. Eliminate all external repository clone links. All rules must be distributed inside the single toksi binary and accessible from the repo project directory.
+4. Expose clean functions to inject or patch instructions into agent configs (CLAUDE.md, .cursor/rules/, AGENTS.md).
+5. Ensure 0 compiler warnings and passing tests.
+```
+
+---
+
+### Prompt: Phase 07 — Headroom Deep Integration & Gateway Catalog
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/headroom, neo/inspect-vault/bifrost, neo\inspect-vault\tokless as updated please rerun
+
+Execute Phase 07: Headroom Deep Integration & Gateway Catalog.
+Sources: neo/inspect-vault/headroom (crates/headroom-core), neo/inspect-vault/bifrost (core/providers/, plugins/), and neo\inspect-vault\tokless (crates/toksi/src/)
+Targets: crates/toksi/src/headroom/, crates/toksi/src/gateway/, crates/toksi/src/
+
+Requirements:
+1. Drop Python headroom-py completely.
+2. Implement core token compression in crates/toksi/src/headroom/:
+   - compression/log.rs: repetition-collapsing log compressor; guarantees FATAL, ERROR, and panic lines survive byte-for-byte.
+   - compression/code.rs: AST-aware whitespace and comment pruner.
+   - compression/json.rs: structural JSON minifier.
+   - pruner/mcp_pruner.rs: dynamic MCP tool schema optimizer (slashes 5,000–15,000 wasted input tokens per turn).
+   - cache_align.rs: 1024-token prompt cache alignment for 90% cache discounts on Anthropic, OpenAI, Gemini.
+   - adaptive_mem.rs: dynamic memory governor (scales injected memory between L0/L1/L2 based on headroom).
+3. Implement Native Enterprise AI Gateway (crates/toksi/src/gateway/):
+   - providers/: 39+ in-tree provider clients (reqwest, async streaming).
+   - cascade.rs: dynamic failover with 8 failure categories.
+   - loadbalancer.rs: round-robin, least-latency, lowest-cost, weighted selectors.
+   - routing.rs: task complexity router (SIMPLE, MEDIUM, COMPLEX).
+   - governance.rs: virtual keys (x-toksi-vk), USD budgets, TPM/RPM limits.
+   - semantic_cache.rs: dual-tier caching (Direct SHA-256 + vector similarity >= 0.92).
+   - compat/: drop-in SDK endpoints (/v1/chat/completions, /v1/messages, /v1beta/models/*).
+4. Verification:
+   - Ensure 0 compiler warnings and passing unit tests.
+```
+
+---
+
+### Prompt: Phase 08 — Downloader Purge & System Refactor
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_08_DOWNLOADER_PURGE.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+Execute Phase 08: Downloader Purge & System Refactor.
+Target: crates/toksi/src/util/ and tool wiring harnesses
+
+Requirements:
+1. Completely delete runtime downloader and installer modules:
+   - crates/toksi/src/util/npminstall.rs
+   - crates/toksi/src/util/nodewin.rs
+   - crates/toksi/src/util/nodelinux.rs
+   - crates/toksi/src/util/uv.rs
+   - crates/toksi/src/util/projectmem.rs
+2. Rewire all 17 agent harnesses (crates/toksi/src/agents/) and tool harnesses to call native in-tree Rust modules directly (projectmem, icm, aimemory, codegraph, contextmode, headroom, rtk, rules).
+3. Enforce system detection policy: optional tools must only be detected on system PATH via `which::which`. Toksi never downloads or installs runtimes.
+4. Clean up Cargo.toml, purge unused dependencies, remove dead code, and ensure 0 compiler warnings with all tests passing.
+```
+
+---
+
+### Prompt: Phase 09 — Legacy Healing & Binary Un-Hijack
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_09_LEGACY_HEALING_UNHIJACK.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+Execute Phase 09: Legacy Healing & Binary Un-Hijack.
+Target: crates/toksi/src/env_injector/heal.rs, crates/toksi/src/agents/{antigravity.rs, grok.rs, copilot.rs}
+
+Requirements:
+1. Purge destructive binary hijacking from Toksi:
+   - Stop renaming agy.exe to agy.real.exe or agy to agy.real.
+   - Stop renaming grok.exe to grok.real.exe or copilot to copilot.real.
+   - Delete all shim batch wrappers (agy.cmd, grok.cmd, shell wrappers) that collide with IDE extensions.
+2. Build automated self-healing engine in `crates/toksi/src/env_injector/heal.rs`:
+   - Detect and restore any legacy `*.real` and `*.real.exe` binaries back to original pristine filenames.
+   - Remove leftover `.cmd` and shell wrapper scripts from agent bin directories.
+3. Reconfigure agents to point to Toksi via non-destructive environment variables or standard proxy configs without binary renaming.
+4. Verify 0 warnings and passing tests.
+```
+
+---
+
+### Prompt: Phase 10 — Non-Destructive Environment Injection & Lifecycle Teardown
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_10_NON_DESTRUCTIVE_ENV_INJECTION.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+Execute Phase 10: Non-Destructive Environment Injection & Lifecycle Teardown.
+Target: crates/toksi/src/env_injector/{windows.rs, unix.rs, teardown.rs}, crates/toksi/src/commands/daemon.rs
+
+Requirements:
+1. Implement non-destructive user environment management without modifying any agent binaries:
+   - On Windows (windows.rs): Manage HKEY_CURRENT_USER\Environment directly via Windows APIs.
+     Inject proxy environment variables (GOOGLE_GEMINI_BASE_URL, etc.) with TOKSI_OWNED=1 markers. We are not injecting CLOUD_CODE_URL in windows and unix so auth/quota checks bypass proxy.
+     Broadcast WM_SETTINGCHANGE via SendMessageTimeoutW so new VS Code and terminal windows pick up the proxy immediately without restart.
+   - On Linux/macOS (unix.rs): Inject variables into user session environment.
+2. Build graceful lifecycle TeardownGuard:
+   - Listen for SIGINT / SIGTERM / process exit.
+   - Cleanly remove injected proxy variables from user environment and re-broadcast WM_SETTINGCHANGE on shutdown.
+3. Ensure 0 compiler warnings and passing tests.
+```
+
+---
+
+### Prompt: Phase 11 — Agent Doctor & Self-Healing Parity
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_11_AGENT_DOCTOR_SELF_HEALING.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+Execute Phase 11: Agent Doctor & Self-Healing Parity.
+Target: crates/toksi/src/commands/doctor.rs, crates/toksi/src/commands/init.rs, crates/toksi/src/agents/
+
+Requirements:
+1. Upgrade `toksi doctor` and `toksi doctor --fix`:
+   - Audit all 17 agent configurations (Claude Code, Cursor, Codex, OpenCode, Antigravity, Copilot, Cline, Droid, Grok, Kilo, OMP, Pi, Amp, Kimi, ZCode, DSH).
+   - Verify all rules and instructions point to the native compiled in-tree rules (Karpathy guidelines, Caveman, Ponytail).
+   - Verify all MCP server entries point to in-process native Toksi MCP handlers; automatically unwire and purge broken legacy entries.
+   - Check and report environment proxy status.
+2. Connect `toksi init` to auto-provision and wire agents seamlessly.
+3. Ensure 0 compiler warnings and passing tests.
+```
+
+---
+
+### Prompt: Phase 12 — TUI, Prometheus Telemetry & Web Dashboard
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+The code in Source: neo/inspect-vault/bifrost as updated please rerun
+
+Execute Phase 12: TUI, Prometheus Telemetry & Web Dashboard.
+Sources: neo/inspect-vault/bifrost (plugins/telemetry/, ui/)
+Targets: crates/toksi/src/telemetry/, crates/toksi/src/tui/, crates/toksi/src/dashboard/
+
+Requirements:
+1. Implement Native Prometheus Telemetry Subsystem:
+   - prometheus.rs: Native metrics exposition in Prometheus text format at HTTP endpoint http://127.0.0.1:9099/metrics.
+   - collector.rs: Lock-free asynchronous metric collector.
+   - cost.rs: Real-time USD token cost and savings tracker across in-tree model pricing tables.
+2. Interactive Multi-Tab TUI (`toksi tui` / `toksi top`):
+   - Ratatui terminal dashboard with views for Monitor, Agents, Memory, Graph, Headroom, and Logs.
+3. Embedded Background Web Dashboard (`toksi dashboard`):
+   - Embedded single-page application at http://127.0.0.1:9100.
+4. Ensure 0 compiler warnings and passing tests.
+```
+
+---
+
+### Prompt: Phase 13 — End-to-End System Verification & Benchmarks
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_13_E2E_VERIFICATION_BENCHMARKS.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+Execute Phase 13: End-to-End System Verification & Benchmarks.
+
+Requirements:
+1. Perform end-to-end integration tests across all 17 supported agent harnesses (Claude Code, Cursor, Codex, OpenCode, Antigravity, Copilot, Cline, Droid, Grok, Kilo, OMP, Pi, Amp, Kimi, ZCode, DSH).
+2. Verify all unified CLI commands: `toksi mem`, `toksi graph`, `toksi ctx`, `toksi rtk`, `toksi proxy`, `toksi doctor`, `toksi tui`, `toksi dashboard`.
+3. Verify streaming proxy compression and in-process MCP multiplexer with live simulated agent requests.
+4. Verify non-destructive environment injection and clean shutdown (confirming no .real binary renames and clean user environment teardown).
+5. Run `cargo test --workspace` and verify:
+   - 0 compiler warnings
+   - 100% test pass rate
+   - Verified token reduction benchmarks (30–70% reduction).
+```
+
+---
+
+### Prompt: Phase 14 — OS Keyring Integration, Config SQLite DB & BYOK Gateway Pre-Registration
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_14_KEYRING_AND_CONFIG_SQLITE_DB.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+
+Execute Phase 14: OS Keyring Integration, Config SQLite DB & BYOK Gateway Pre-Registration.
+Targets:
+  - crates/toksi/src/keyring/{mod.rs, os_windows.rs, os_macos.rs, os_linux.rs, envelope.rs}
+  - crates/toksi/src/db/{mod.rs, schema.rs, operations.rs, migrate.rs}
+  - crates/toksi/src/gateway/agent_cli/{gemini_agy.rs, claude_code.rs, copilot.rs, cursor.rs, mod.rs}
+  - crates/toksi/src/headroom/{byok_gateway.rs, proxy.rs}
+  - crates/toksi/src/commands/{auth.rs, db.rs, doctor_probe.rs}
+
+Requirements:
+1. Native Cross-Platform OS Keyring Manager:
+   - Windows: Query and store via native advapi32.dll APIs (CredReadW, CredWriteW, CredDeleteW, CredFree).
+   - macOS: Delegate to system Keychain via /usr/bin/security CLI.
+   - Linux: Delegate to Secret Service API backend (libsecret / secret-tool).
+   - Base64 OAuth Envelope Parser: Decode base64 envelopes, extract OAuth access_token and expiration, validate freshness.
+2. Persistent SQLite Configuration Database (~/.toksi/toksi.db):
+   - Replace flat JSON files with high-performance SQLite database running in WAL mode.
+   - Tables: providers, provider_keys, provider_models, byok_routes, agent_configs, gateway_configs.
+   - Support zero-downtime operations: export, import, backup, restore, sync.
+3. BYOK Gateway Pre-Registration Pipeline:
+   - Enforce route validation and commitment to SQLite byok_routes before traffic dispatch.
+   - Inject authenticated headers (Authorization: Bearer <token>, x-goog-api-client, x-api-key) into requests when local agents omit credentials.
+4. CLI Subcommands & Diagnostics:
+   - toksi auth [status|get|set|delete|sync]
+   - toksi db [status|export|import|backup|restore]
+   - toksi doctor keyring and config DB probes.
+5. Verification:
+   - Ensure 0 compiler warnings and passing tests.
+```
 
 ---
 

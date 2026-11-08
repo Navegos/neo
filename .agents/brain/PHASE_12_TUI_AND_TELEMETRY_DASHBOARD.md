@@ -4,29 +4,58 @@
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
-The code in Source: neo/inspect-vault/bifrost as updated please rerun
+The code in Sources: neo/inspect-vault/TokenTracker, neo/inspect-vault/bifrost is updated; treat as newly added/updated code that must be converted, imported, and rechecked for new features, bugfixes, and telemetry metrics into consolidated toksi.
 
 Execute Phase 12: TUI, Prometheus Telemetry & Web Dashboard.
-Sources: neo/inspect-vault/bifrost (plugins/telemetry/, ui/)
-Targets: crates/toksi/src/telemetry/, crates/toksi/src/tui/, crates/toksi/src/dashboard/
+Sources:
+  - neo/inspect-vault/TokenTracker
+  - neo/inspect-vault/bifrost (dashboard assets, metrics)
+Targets:
+  - crates/toksi/src/telemetry/
+  - crates/toksi/src/tui/
+  - crates/toksi/src/dashboard/
+
+Disciplinary & Portability Requirements:
+1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
+2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors.
+3. Dedicated Port Isolation:
+   - Port 9099: Dedicated strictly to LLM inference and Prometheus metrics exposition (`/metrics`).
+   - Port 9100: Dedicated strictly to Web Dashboard Cockpit. Large browser downloads or open SSE tabs must NEVER introduce TCP backpressure on LLM streaming on 9099.
+4. Ground-Truth Token Accounting: Real tokens parsed from live SSE streams. Strict prohibition of synthetic/virtual tokens (idle reads exactly 0).
+5. Non-Blocking TUI Event Loop: Non-blocking event polling to prevent terminal hangs and input freezing.
 
 Requirements:
-1. Implement Native Prometheus Telemetry Subsystem:
-   - prometheus.rs: Native metrics exposition in Prometheus text format at HTTP endpoint http://127.0.0.1:9099/metrics.
-   - collector.rs: Asynchronous, lock-free non-blocking channel collector (<10 µs latency overhead).
-   - cost.rs: In-tree model catalog pricing table with real-time financial tracking ($ USD spend and savings).
-   - tracker.rs: Multi-level latency breakdown (transport, provider, internal overhead).
-2. Implement full multi-tab interactive TUI in crates/toksi/src/tui/ using `ratatui` and `crossterm`:
-   - Tab 1: Live Monitor & Waterfall
-   - Tab 2: Agent Wire Manager (17 agents)
-   - Tab 3: Gateway & Provider Key Manager
-   - Tab 4: Memory Explorer
-   - Tab 5: CodeGraph Visualizer
-   - Tab 6: Governance & Quotas
-   - Tab 7: Diagnostic Logs
-3. Implement embedded local Web server (127.0.0.1:9099) in crates/toksi/src/dashboard/:
-   - Single-page application embedded via `include_str!` (zero npm/node build dependencies).
-   - Live token savings waterfall, dollar counter, agent fleet grid, and SVG decision DAG visualizer.
-4. Ensure zero compiler warnings and passing tests.
+1. Telemetry Subsystem (`crates/toksi/src/telemetry/`):
+   - Native Prometheus `/metrics` exposition on Port 9099.
+   - Lock-free, zero-latency async metrics collector channel (`tokio::sync::mpsc`).
+   - Ground-truth token tracking: prompt tokens, completion tokens, cached tokens, and headroom compression savings.
+   - Real-time USD cost and savings calculator using official model pricing catalogs.
+2. Terminal UI (`crates/toksi/src/tui/`):
+   - Interactive multi-tab TUI built on `ratatui` + `crossterm`.
+   - Views: Monitor, Agents, Memory, Graph, Headroom, Governance, Logs.
+   - Fix terminal hangs: non-blocking async event loop.
+3. Web Telemetry Cockpit (`crates/toksi/src/dashboard/`):
+   - Embedded local HTTP server on `127.0.0.1:9100` (`toksi dashboard`).
+   - Bundled SPA assets (HTML/CSS/JS) embedded via `include_str!`.
+   - Live SSE metrics feed broadcasting ground-truth token savings, active agent observation grid, and BYOK quota gauges.
+4. Ensure 0 compiler warnings and passing unit tests.
 ```
 
+---
+
+## Technical Specifications & Details
+
+### 1. Architectural Scope & Subsystems
+- **Prometheus Text Exporter** (`src/telemetry/prometheus.rs`): Formats counters, gauges, and histograms (`toksi_prompt_tokens_total`, `toksi_savings_tokens_total`, `toksi_request_duration_seconds`) for scraping.
+- **Lock-Free Collector** (`src/telemetry/collector.rs`): Worker task draining bounded channel events into atomic counters and rolling latency buffers without blocking the request pipeline.
+- **TUI State Machine** (`src/tui/app.rs`): Renders responsive terminal layouts with tab navigation and auto-resizing.
+- **Web Telemetry Server** (`src/dashboard/`): Lightweight Axum/Hyper listener on Port 9100 streaming SSE events to browser clients.
+
+### 2. Disciplinary Standards & Invariants
+- When no inference traffic is active, total token savings must read 0. Zero phantom token counting.
+- Web assets must be self-contained; zero external CDN dependencies at runtime.
+
+### 3. Verification Criteria
+- `cargo check -p toksi` passes with 0 warnings.
+- `cargo test -p toksi -- telemetry` passes 100%.
+- `curl http://127.0.0.1:9099/metrics` returns valid Prometheus text metrics.

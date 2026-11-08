@@ -12,6 +12,7 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - **Strict Error Handling**: Zero panics, zero `.unwrap()` or `.expect()` in production. Typed errors via `thiserror` for library domains; `anyhow::Result` with `.context()` for CLI.
 - **Async Concurrency**: Tokio work-stealing reactor. Synchronous blocking operations (disk I/O, SQLite, file locks) run inside `tokio::task::spawn_blocking`. Lock-free mpsc channels and atomics for telemetry.
 - **Structured Logging**: Standardized on `tracing` with structured key-value context. Zero unstructured `println!` in library code.
+- **Continuous Reference Vault Re-Audit**: All 20+ reference vaults in `neo/inspect-vault/*` (`tokless`, `bifrost`, `headroom`, `rtk`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `andrej-karpathy-skills`, `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm`, `agents-structures`) are ALWAYS treated as new/updated code to inspect, convert, and import, verifying against missing features, addons, updates, new agents, and bugfixes.
 
 ## Cross-Platform Portability (Windows, Linux, macOS)
 - **Path convention**: Universal forward slashes (`/`) across Windows, Linux, and macOS for Git Bash / POSIX compatibility via `src/util/paths.rs` (`normalize_path(&str)`). Escaped `\\` preserved exclusively in cmd.exe command strings in JSON5/TOML configs (`hooks.json`).

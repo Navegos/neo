@@ -11,20 +11,21 @@ High-performance headroom proxy, token optimizer, native AI gateway, multi-proto
 `toksi` slashes token consumption by 30-70% through intelligent prompt compression, tool output condensing (RTK), code graph indexing, and structured cross-session project memory.
 
 ### Core Architectural Mandates:
-1. **100% Native In-Tree Rust**: Complete removal of external package manager downloads (npm, pip, uv, curl). Pure in-process execution with zero missing code and full feature parity across all 20 reference engines in `inspect-vault/*`.
-2. **Smart Unified Single-Daemon Launch (`toksi daemon start`)**: One background daemon command initializes and coordinates all core subsystems simultaneously across dedicated, isolated network ports.
-3. **Environment PATH Verification Mandate ("Rule of Test and Inform User")**: For all external binaries, commands, shells, tools, and agent CLIs, Toksi verifies their presence in `PATH`. Never hardcode absolute binary paths everywhere. If missing, log a clean, actionable error instruction and do not fail silently.
-4. **Universal Forward-Slash (`/`) Path Standard**: Strict prohibition of backward slashes (`\`) in all internal directory structures, path joins, logs, configuration files, SQLite records, and CLI outputs across Windows, Linux, and macOS. Escaped `\\` is permitted exclusively in cmd.exe commands inside JSON5/TOML configs (`hooks.json`).
-5. **User Home Database Storage (`~/.toksi/toksi.db`)**: Default configuration database stored in user home, NOT in `localdata/toksi`, with automated migration from legacy paths.
-6. **Workspace Root Consolidation**: Only ONE `.toksi` directory exists per workspace, strictly in the primary root directory. Nested subfolder `.toksi` directories are auto-merged row-by-row into root SQLite DBs and deleted. Sub-tool layouts are consolidated under `.toksi/<tool>`.
-7. **Standardized Tool Hook Syntax & MCP Naming**: Standard `<tool>-hook <agent>` syntax (e.g., `codegraph-hook agy`, `projectmem-hook agy`, `context-hook agy`, `rtk-hook agy`). Normalized MCP tool identifiers: `projectmem`, `context`, `codegraph`.
-8. **Multi-Protocol Standardization**: All tools and agent connectors support MCP, A2A, ACP, stdio, SSE, and HTTP.
-9. **Dynamic Ignore Purging**: Automatically purges already-indexed files from SQLite FTS5 indexes and vector embedding caches when `.gitignore` or `.ignore` patterns change.
-10. **Guaranteed Local Agent CLIs as First-Class BYOK Providers**: `AntigravityCli`, `CopilotCli`, `ClaudeCli`, `CodexCli`, `CursorBridge`, and `GrokCli` are first-class BYOK routing peers with smart background launch.
-11. **Strict Paid Quota Enforcement**: Free-tier and unbilled trial accounts are strictly disqualified from active BYOK gateway rotation. Graceful inform and zero-fail fallback: never crash or panic; emit informative notice and route to next paid provider or direct agent execution.
-12. **Ground-Truth Session Token Accounting**: Real tokens parsed from live SSE completion chunks and upstream headers. Strict prohibition of synthetic or virtual tokens (counter stays at 0 when idle).
-13. **Mouse-Capable Interactive TUI**: `ratatui` + `crossterm` with `EnableMouseCapture` and non-blocking asynchronous event loop, eliminating terminal hangs.
-14. **Isolated Background Web Telemetry Cockpit**: Dedicated listener on port 9100 for browser dashboards, preventing socket or thread contention with LLM inference streams on port 9099.
+1. **100% Native In-Tree Rust**: Complete removal of external package manager downloads (npm, pip, uv, curl). Pure in-process execution with zero missing code and full feature parity across all 20+ reference engines in `inspect-vault/*`.
+2. **Continuous Reference Vault Re-Audit**: All folders in `neo/inspect-vault/*` (`tokless`, `bifrost`, `headroom`, `rtk`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `andrej-karpathy-skills`, `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm`, `agents-structures`) are ALWAYS treated as new/updated code to inspect, convert, import, and recheck for new features, bugfixes, and agent capabilities.
+3. **Smart Unified Single-Daemon Launch (`toksi daemon start`)**: One background daemon command initializes and coordinates all core subsystems simultaneously across dedicated, isolated network ports.
+4. **Environment PATH Verification Mandate ("Rule of Test and Inform User")**: For all external binaries, commands, shells, tools, and agent CLIs, Toksi verifies their presence in `PATH`. Never hardcode absolute binary paths everywhere. If missing, log a clean, actionable error instruction and do not fail silently.
+5. **Universal Forward-Slash (`/`) Path Standard**: Strict prohibition of backward slashes (`\`) in all internal directory structures, path joins, logs, configuration files, SQLite records, and CLI outputs across Windows, Linux, and macOS. Escaped `\\` is permitted exclusively in `cmd.exe` commands inside JSON5/TOML configs (`hooks.json`).
+6. **User Home Database Storage (`~/.toksi/toksi.db`)**: Default configuration database stored in user home, NOT in `localdata/toksi`, with automated migration from legacy paths.
+7. **Workspace Root Consolidation**: Only ONE `.toksi` directory exists per workspace, strictly in the primary root directory. Nested subfolder `.toksi` directories are auto-merged row-by-row into root SQLite DBs and deleted. Sub-tool layouts are consolidated under `.toksi/<tool>`.
+8. **Standardized Tool Hook Syntax & MCP Naming**: Standard `<tool>-hook <agent>` syntax (e.g., `codegraph-hook agy`, `projectmem-hook agy`, `context-hook agy`, `rtk-hook agy`). Normalized MCP tool identifiers: `projectmem`, `context`, `codegraph`. MCP instruction directory is `context`.
+9. **Multi-Protocol Standardization**: All tools and agent connectors support MCP, A2A, ACP, stdio, SSE, and HTTP.
+10. **Dynamic Ignore Purging**: Automatically purges already-indexed files from SQLite FTS5 indexes and vector embedding caches when `.gitignore` or `.ignore` patterns change.
+11. **Guaranteed Local Agent CLIs as First-Class BYOK Providers**: `AntigravityCli`, `CopilotCli`, `ClaudeCli`, `CodexCli`, `CursorBridge`, and `GrokCli` are first-class BYOK routing peers with smart background launch.
+12. **Strict Paid Quota Enforcement**: Free-tier and unbilled trial accounts are strictly disqualified from active BYOK gateway rotation. Graceful inform and zero-fail fallback: never crash or panic; emit informative notice and route to next paid provider or direct agent execution.
+13. **Ground-Truth Session Token Accounting**: Real tokens parsed from live SSE completion chunks and upstream headers. Strict prohibition of synthetic or virtual tokens (counter stays at 0 when idle).
+14. **Mouse-Capable Interactive TUI**: `ratatui` + `crossterm` with `EnableMouseCapture` and non-blocking asynchronous event loop, eliminating terminal hangs.
+15. **Isolated Background Web Telemetry Cockpit**: Dedicated listener on port 9100 for browser dashboards, preventing socket or thread contention with LLM inference streams on port 9099.
 
 ---
 

@@ -6,29 +6,36 @@ Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.
 
 Execute Phase 15.4: Multi-Protocol Architecture & Dynamic Ignore Purging.
 Targets:
+  - crates/toksi/src/tools/multi_protocol.rs
   - crates/toksi/src/codegraph/walker.rs
   - crates/toksi/src/codegraph/cache.rs
   - crates/toksi/src/contextmode/fts.rs
   - crates/toksi/src/icm/store.rs
   - crates/toksi/src/aimemory/wiki.rs
-  - crates/toksi/src/projectmem/precheck.rs
-  - crates/toksi/src/tools/multi_protocol.rs
+
+Disciplinary & Portability Requirements:
+1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
+2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors.
+3. Multi-Protocol Standard: All tools (rtk, codegraph, context, projectmem, icm, aimemory) must support MCP, A2A, ACP, stdio, SSE, and HTTP.
+4. Universal Forward-Slash (/) Standard: Use normalize_path() across all ignore matchers and vector index paths.
+5. Dynamic Vector & Cache Purging: When ignore rules change, automatically purge matching records from SQLite FTS5 search indexes and vector embedding caches.
 
 Requirements:
-1. Multi-Protocol Capabilities Across All Tools:
-   - Expose unified multi-protocol interfaces for all tools (`rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`):
-     * MCP (Model Context Protocol)
-     * A2A (Agent-to-Agent / Agent2Agent protocol)
-     * ACP (Agent Communication Protocol / Agent Client Protocol)
-     * stdio (Standard Input / Standard Output stream)
-     * SSE (Server-Sent Events)
-     * HTTP (RESTful & chunked streaming)
-2. .gitignore & .ignore Optimization:
-   - Integrate ripgrep-grade ignore walker to respect `.gitignore` and `.ignore` files.
-   - Exclude build outputs (`target/`, `node_modules/`, `dist/`, `*.lock`), vendor bundles, and massive asset folders from indexing.
-3. Dynamic Vector & Cache Purging:
-   - When `.gitignore` or `.ignore` patterns are added or modified, automatically detect newly ignored files and purge their existing records from SQLite FTS5 BM25 search indexes and vector embedding caches.
-   - Prevents memory databases from hoarding dead or excluded file representations.
+1. Multi-Protocol Engine (`crates/toksi/src/tools/multi_protocol.rs`):
+   - Expose unified dispatcher routing incoming requests across all 6 protocols:
+     * **MCP** (Model Context Protocol - tools, resources, prompts)
+     * **A2A** (Agent-to-Agent / Agent2Agent collaborative message protocol)
+     * **ACP** (Agent Communication Protocol / Agent Client Protocol)
+     * **stdio** (Standard Input / Standard Output streaming bridge)
+     * **SSE** (Server-Sent Events real-time event streaming)
+     * **HTTP** (RESTful endpoints and chunked stream transport)
+   - Implement handlers across all tools: `rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`.
+2. Ripgrep-Grade Ignore Walker:
+   - High-performance respect of `.gitignore` and `.ignore` rules across indexing subsystems (`codegraph`, `context`, `icm`, `aimemory`).
+   - Hides build artifacts (`target/`, `node_modules/`, `dist/`, `*.lock`) and vendor bundles from LLM context.
+3. Dynamic Vector Index Purging:
+   - Watch `.gitignore` and `.ignore` files for modifications.
+   - Automatically delete already-indexed files matching new ignore patterns from SQLite FTS5 indexes and vector embedding caches.
 4. Verification:
    - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
 ```
@@ -37,36 +44,12 @@ Requirements:
 
 ## Technical Specifications & Details
 
-### 1. Dynamic Ignore Purge in `walker.rs` & `cache.rs`
-```rust
-pub fn purge_ignored_entries(db: &rusqlite::Connection, root: &std::path::Path) -> rusqlite::Result<usize> {
-    use ignore::WalkBuilder;
-    let mut allowed_files = std::collections::HashSet::new();
-    let walker = WalkBuilder::new(root)
-        .standard_filters(true) // respects .gitignore, .ignore
-        .hidden(true)
-        .build();
+### 1. Architectural Scope & Subsystems
+- **Multi-Protocol Multiplexer** (`src/tools/multi_protocol.rs`): Abstract protocol transport layer mapping JSON-RPC MCP frames, A2A messages, and HTTP REST requests to identical tool logic.
+- **Dynamic Ignore Purger**: When a new pattern (e.g. `/build/`) is appended to `.gitignore`, a background sweep identifies all entries in SQLite FTS5 matching the pattern and issues `DELETE FROM fts_index WHERE path LIKE 'build/%'`.
+- **Embedding Cache Cleanup**: Drops orphaned vector embeddings corresponding to purged files.
 
-    for result in walker {
-        if let Ok(entry) = result {
-            if entry.file_type().map_or(false, |ft| ft.is_file()) {
-                if let Ok(canon) = entry.path().canonicalize() {
-                    allowed_files.insert(normalize_path(&canon.to_string_lossy()));
-                }
-            }
-        }
-    }
-
-    // Purge rows from symbols / documents that are not in allowed_files
-    let mut stmt = db.prepare("SELECT file_path FROM documents")?;
-    let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
-    let mut purged = 0;
-    for file in rows.flatten() {
-        if !allowed_files.contains(&file) {
-            db.execute("DELETE FROM documents WHERE file_path = ?1", [&file])?;
-            purged += 1;
-        }
-    }
-    Ok(purged)
-}
-```
+### 2. Verification Criteria
+- `cargo check -p toksi` passes with 0 warnings.
+- `cargo test -p toksi -- multi_protocol` passes 100%.
+- Adding `*.tmp` to `.gitignore` triggers automatic removal of `.tmp` records from FTS5 index.

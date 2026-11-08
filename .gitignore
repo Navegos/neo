@@ -446,11 +446,11 @@ inspect-files/
 # Ignore clinerules
 .clinerules
 
-# Ignore cursor
-.cursor
+# Ignore cursor rules
+.cursor/rules
 
-# Ignore grok
-.grok
+# Ignore grok  rules
+.grok/rules
 
 # Ignore release artifacts
 dist/

@@ -15,6 +15,13 @@ Targets:
   - crates/toksi/src/agents/mcp_adapters.rs
   - crates/toksi/src/agents/hooks.rs
 
+Disciplinary & Portability Requirements:
+1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
+2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors and anyhow::Result with .context() in CLI.
+3. Universal Forward-Slash (/) Standard: Use normalize_path() for all paths across Windows, Linux, and macOS. Escaped \\ permitted exclusively in cmd.exe commands inside JSON5/TOML configs.
+4. PATH Validation Mandate: Validate required binaries in system PATH. Never hardcode absolute paths. On missing binary, log clean remediation instruction.
+5. Workspace Topology: Single root .toksi directory rule. Subfolder .toksi folders are auto-discovered, table rows merged into root SQLite DBs, and subfolders deleted.
+
 Requirements:
 1. Universal Forward-Slash (/) Path Standard:
    - Ensure `normalize_path(p: &str) -> String` converts all backward slashes `\` to `/` across all operating systems (Windows, Linux, macOS) for Git Bash and POSIX compatibility.
@@ -98,7 +105,7 @@ pub fn check_executable_in_path(cmd: &str) -> Result<(), String> {
 }
 ```
 
-### 3. User Home Database Storage
-In `crates/toksi/src/util/paths.rs` and `crates/toksi/src/db/mod.rs`:
-- Update `default_toksi_data_dir()` to return `~/.toksi` (i.e. `format!("{}/.toksi", normalize_path(&home()))`).
-- On startup, check if legacy `LOCALAPPDATA/toksi/toksi.db` exists. If so, copy or merge into `~/.toksi/toksi.db`.
+### 3. Verification Criteria
+- `cargo check -p toksi` passes with 0 warnings.
+- `cargo test -p toksi -- paths` and `cargo test -p toksi -- env_path` pass 100%.
+- Single `.toksi` workspace invariant successfully enforced.

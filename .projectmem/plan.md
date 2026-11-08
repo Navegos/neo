@@ -17,8 +17,9 @@ _Loose thoughts, not yet committed to._
 - **Safe Rust (Edition 2024)**: `#![deny(unsafe_code)]` crate-wide. Unsafe permitted exclusively in isolated OS FFI leaf modules (`src/keyring/os_windows.rs`, `src/env_injector/windows.rs`) with mandatory `// SAFETY:` proofs.
 - **Zero Warnings Policy**: Code must compile cleanly under `RUSTFLAGS="-D warnings"` with zero Clippy lints (`cargo clippy -p toksi --all-targets -- -D warnings`).
 - **Strict Error Handling**: Prohibit `.unwrap()`, `.expect()`, `panic!()`, `unreachable!()` in production. Typed errors via `thiserror` in libraries; `anyhow::Result` with `.context()` in CLI.
+- **Continuous Reference Vault Re-Audit**: All 20+ reference vaults in `neo/inspect-vault/*` (`tokless`, `bifrost`, `headroom`, `rtk`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `andrej-karpathy-skills`, `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm`, `agents-structures`) are ALWAYS treated as new/updated code to inspect, convert, and import, verifying against missing features, addons, updates, new agents, and bugfixes.
 - **Cross-Platform Portability (Windows, Linux, macOS)**:
-  * Universal forward-slash `/` paths standard (`normalize_path(&str)`). Escaped `\\` allowed ONLY in cmd.exe commands inside JSON5/TOML configs.
+  * Universal forward-slash `/` paths standard (`normalize_path(&str)`). Escaped `\\` allowed ONLY in `cmd.exe` commands inside JSON5/TOML configs.
   * Filesystem case-insensitivity handling: normalize search terms before lookup.
   * User home DB storage (`~/.toksi/toksi.db`) with automatic migration from legacy paths.
   * Cross-platform file locking (`fs2`) for JSONL appends and SQLite WAL checkpoints.

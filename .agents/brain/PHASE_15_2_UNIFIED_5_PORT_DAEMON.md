@@ -8,31 +8,32 @@ Execute Phase 15.2: Unified 5-Port Daemon & Copilot Supervision.
 Targets:
   - crates/toksi/src/commands/daemon.rs
   - crates/toksi/src/headroom/copilot_daemon.rs
-  - crates/toksi/src/agents/copilot.rs
-  - crates/toksi/src/headroom/proxy.rs
   - crates/toksi/src/gateway/mod.rs
   - crates/toksi/src/dashboard/mod.rs
+  - crates/toksi/src/env_injector/teardown.rs
+
+Disciplinary & Portability Requirements:
+1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
+2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors and anyhow::Result with .context() in CLI.
+3. Dedicated Port Isolation Guarantee:
+   - Port 8787: Streaming Headroom Proxy (Antigravity, Grok)
+   - Port 8789: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`)
+   - Port 8790: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`)
+   - Port 9099: Enterprise AI Gateway & Drop-in SDKs (Dedicated inference thread pool, <10 µs latency overhead)
+   - Port 9100: Web Dashboard Cockpit (Non-blocking background service, zero TCP backpressure on inference)
+4. Non-Destructive Environment Lifecycle: Clean teardown of Windows `HKCU\Environment` variables (`WM_SETTINGCHANGE` broadcast) and Unix environment on daemon shutdown.
 
 Requirements:
-1. Unified 5-Port Daemon Supervision (`toksi daemon start`):
-   - Supervise all 5 dedicated endpoints simultaneously in the background:
-     * Port 8787: Headroom Streaming Proxy (Antigravity, Grok)
-     * Port 8789: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`)
-     * Port 8790: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`)
-     * Port 9099: Enterprise AI Gateway & Drop-in SDKs (`/v1/chat/completions`, `/v1/messages`, `/metrics`)
-     * Port 9100: Web Telemetry & Control Dashboard Cockpit (non-blocking background service)
-   - Zero multi-command manual steps. One daemon launch prepares the entire system for all 17 AI coding assistants.
-2. Network Port Separation for Maximum Latency Performance:
-   - Port 9099 strictly dedicated to high-throughput streaming LLM inference, SSE token forwarding, and protocol translation (<10 µs latency overhead).
-   - Port 9100 dedicated to Web Dashboard Cockpit, SSE metrics broadcasting, static assets, and SQLite DB backup/export.
-   - Eliminates socket buffer and thread pool contention between browser clients and AI completion streams.
-3. Copilot Wiring & Dual-Port Isolation:
-   - Ensure both Port 8789 (VS Code proxy) and Port 8790 (CLI proxy) are launched, supervised, and verified.
-   - `validate_copilot_proxy_ports()` guarantees ports never collide.
-   - Live health checks (`/livez`) for both Copilot proxies.
-4. Process Lifecycle & Non-Destructive Environment Cleanup:
-   - Upgrade `is_daemon_running()`, `daemon_status()`, and `daemon_stop()`.
-   - `daemon_stop()` terminates all 5 background listeners cleanly and removes Windows `HKCU\Environment` variables (`WM_SETTINGCHANGE` broadcast).
+1. Master Daemon Supervisor (`toksi daemon start`):
+   - Supervise all 5 dedicated endpoints simultaneously in a single background process.
+   - Non-blocking asynchronous task supervision using Tokio tasks.
+2. Copilot Dual-Port Supervision:
+   - Manage Port 8789 for Copilot VS Code extension and Port 8790 for Copilot CLI.
+   - Live `/livez` health probes and port collision prevention.
+3. Thread & Socket Isolation:
+   - Guarantee complete socket buffer and thread isolation between Port 9099 (LLM streaming inference) and Port 9100 (browser web cockpit).
+4. Environment Teardown:
+   - Cleanly uninject all proxy environment variables on daemon exit or SIGINT/SIGTERM.
 5. Verification:
    - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
 ```
@@ -41,48 +42,12 @@ Requirements:
 
 ## Technical Specifications & Details
 
-### 1. 5-Port Supervisor in `daemon.rs`
-```rust
-pub fn daemon_run_foreground() -> i32 {
-    let pid = std::process::id();
-    let _ = ensure_dir(&headroom_paths_resolved().root);
-    let _ = write_file_atomic(daemon_pid_file(), &pid.to_string());
+### 1. Architectural Scope & Subsystems
+- **Daemon Master Supervisor** (`src/commands/daemon.rs`): Spawns independent Tokio listener tasks for Ports 8787, 8789, 8790, 9099, and 9100.
+- **Port Latency Isolation Rationale**: Web dashboards require serving HTML, CSS, JS, and high-frequency SSE UI streams. Placing the dashboard on Port 9100 prevents slow browser clients from starving the Tokio reactor threads processing LLM tokens on Port 9099.
+- **Copilot Dual-Port Manager** (`src/headroom/copilot_daemon.rs`): Directs VS Code requests to 8789 and CLI tool requests to 8790, handling their distinct header framing transparently.
 
-    let (tx, rx) = std::sync::mpsc::channel();
-    let r1 = tx.clone();
-    let r2 = tx.clone();
-    let r3 = tx.clone();
-    let r4 = tx.clone();
-    let r5 = tx.clone();
-
-    // 1. Headroom streaming proxy (:8787)
-    std::thread::spawn(move || {
-        let _ = r1.send(run_proxy_listener(8787));
-    });
-
-    // 2. Copilot VS Code proxy (:8789)
-    std::thread::spawn(move || {
-        let _ = r2.send(run_copilot_proxy(8789));
-    });
-
-    // 3. Copilot CLI proxy (:8790)
-    std::thread::spawn(move || {
-        let _ = r3.send(run_copilot_proxy(8790));
-    });
-
-    // 4. AI Gateway & /metrics (:9099)
-    std::thread::spawn(move || {
-        let _ = r4.send(run_gateway_listener(9099));
-    });
-
-    // 5. Web Telemetry Cockpit (:9100)
-    std::thread::spawn(move || {
-        let _ = r5.send(run_dashboard_listener(9100));
-    });
-
-    match rx.recv() {
-        Ok(code) => code,
-        Err(_) => 0,
-    }
-}
-```
+### 2. Verification Criteria
+- `cargo check -p toksi` passes with 0 warnings.
+- `cargo test -p toksi -- daemon` passes 100%.
+- Simultaneous curl requests to :9099/healthz and :9100/api/status return 200 OK without mutual interference.
