@@ -360,6 +360,13 @@ mod tests {
             super::super::cli::run_ctx_cli(&["eval".to_string(), "echo 'ctx-cli-ok'".to_string()])
         };
         assert_eq!(eval_code, 0);
+
+        let exec_cmd_code = super::super::cli::run_ctx_cli(&[
+            "execute".to_string(),
+            "--cmd".to_string(),
+            if cfg!(windows) { "Write-Output 'ctx-exec-ok'".to_string() } else { "echo 'ctx-exec-ok'".to_string() },
+        ]);
+        assert_eq!(exec_cmd_code, 0);
     }
 
     #[test]

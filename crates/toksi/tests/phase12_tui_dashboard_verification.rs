@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase12_tui_dashboard_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-08
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -39,7 +39,7 @@ fn test_phase12_tui_initialization_and_tabs() {
 
     let app = App::new();
     assert_eq!(app.current_tab, 0);
-    assert_eq!(app.tab_names.len(), 6);
+    assert_eq!(app.tab_names.len(), 7);
     assert!(!app.should_quit);
 
     // Tab 1: Live Monitor & Waterfall
@@ -112,7 +112,7 @@ fn test_phase12_tui_navigation_and_interactions() {
     assert_eq!(app.agents.items[app.agents.selected].wired, prev_wired);
 
     // 3. Memory tab: filter cycling, search, precheck modal
-    app.current_tab = 2;
+    app.current_tab = 3;
     app.handle_key(press_key(KeyCode::Char('f')));
     assert_eq!(app.memory.filter, MemoryFilter::Issues);
     app.handle_key(press_key(KeyCode::Char('f')));
@@ -134,18 +134,18 @@ fn test_phase12_tui_navigation_and_interactions() {
     assert!(app.memory.precheck_result.is_none(), "Esc closes precheck modal");
 
     // 4. CodeGraph tab: blast tree toggle
-    app.current_tab = 3;
+    app.current_tab = 4;
     let prev_tree = app.graph.show_tree_view;
     app.handle_key(press_key(KeyCode::Char('b')));
     assert_ne!(app.graph.show_tree_view, prev_tree, "'b' toggles blast radius tree");
 
-    // 5. Headroom tab: cache alignment test
-    app.current_tab = 4;
+    // 5. Headroom tab (Tab 2): cache alignment test
+    app.current_tab = 2;
     app.handle_key(press_key(KeyCode::Char('c')));
     assert!(app.status_message.as_ref().map(|s| s.contains("aligned to 1024")).unwrap_or(false));
 
-    // 6. Logs tab: follow toggle and clear
-    app.current_tab = 5;
+    // 6. Logs tab (Tab 6): follow toggle and clear
+    app.current_tab = 6;
     let prev_follow = app.logs.follow;
     app.handle_key(press_key(KeyCode::Char('f')));
     assert_ne!(app.logs.follow, prev_follow, "'f' toggles follow mode");

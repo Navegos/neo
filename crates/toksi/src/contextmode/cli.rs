@@ -184,9 +184,9 @@ pub fn run_ctx_cli(args: &[String]) -> i32 {
                 }
             }
         }
-        "eval" | "exec" => {
+        "eval" | "exec" | "execute" => {
             if args.len() < 2 {
-                eprintln!("Usage: toksi ctx eval <code/command> [--lang <lang>] [--file <path>] [--timeout <secs>] [--max-lines <lines>]");
+                eprintln!("Usage: toksi ctx execute --cmd <command> (or toksi ctx eval <code/command> [--lang <lang>] [--file <path>] [--timeout <secs>] [--max-lines <lines>])");
                 return 1;
             }
 
@@ -194,11 +194,15 @@ pub fn run_ctx_cli(args: &[String]) -> i32 {
             let mut file_path: Option<PathBuf> = None;
             let mut timeout = 30u64;
             let mut max_lines = 200usize;
+            let mut explicit_cmd: Option<String> = None;
             let mut code_parts = Vec::new();
 
             let mut i = 1;
             while i < args.len() {
-                if (args[i] == "--lang" || args[i] == "-l") && i + 1 < args.len() {
+                if (args[i] == "--cmd" || args[i] == "-c") && i + 1 < args.len() {
+                    explicit_cmd = Some(args[i + 1].clone());
+                    i += 2;
+                } else if (args[i] == "--lang" || args[i] == "-l") && i + 1 < args.len() {
                     lang = args[i + 1].clone();
                     i += 2;
                 } else if (args[i] == "--file" || args[i] == "-f") && i + 1 < args.len() {
@@ -223,7 +227,7 @@ pub fn run_ctx_cli(args: &[String]) -> i32 {
             let sandbox = PolyglotSandbox::new();
 
             if let Some(ref fp) = file_path {
-                let code_str = code_parts.join(" ");
+                let code_str = explicit_cmd.unwrap_or_else(|| code_parts.join(" "));
                 match sandbox.execute_file(fp, &code_str, Some(&lang), None, Some(timeout)) {
                     Ok(res) => {
                         if !res.stdout.is_empty() {
@@ -240,7 +244,7 @@ pub fn run_ctx_cli(args: &[String]) -> i32 {
                     }
                 }
             } else {
-                let cmd = code_parts.join(" ");
+                let cmd = explicit_cmd.unwrap_or_else(|| code_parts.join(" "));
                 if cmd.is_empty() {
                     eprintln!("Error: no code or command provided to eval");
                     return 1;
@@ -306,6 +310,7 @@ pub fn run_ctx_cli(args: &[String]) -> i32 {
 fn ctx_help() -> &'static str {
     "toksi ctx — isolated sandbox execution and SQLite FTS5 knowledge base\n\n\
     Usage:\n\
+      toksi ctx execute --cmd <command>                          Execute command in sandbox with RTK filter\n\
       toksi ctx eval <code|cmd> [--lang <lang>] [--file <path>]  Run code or command in sandbox with RTK filter\n\
       toksi ctx search <query> [--limit <n>] [--source <label>]  Search indexed chunks using BM25 ranking\n\
       toksi ctx index <file-or-dir> [label]                      Chunk and store file or directory into FTS5 index\n\

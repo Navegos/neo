@@ -169,11 +169,11 @@ fn is_session_boot_arg(args: &[String]) -> bool {
     match args {
         [cmd, ..] if cmd == "run-mcp" || cmd == "rtk-hook" || cmd == "grok-hook" || cmd == "codex-perm"
             || cmd == "agy-hook" || cmd == "cursor-hook" || cmd == "copilot-hook"
-            || cmd == "projectmem-hook" || cmd == "ctx-hook" || cmd == "context-mode-hook"
+            || cmd == "projectmem-hook" || cmd == "ctx-hook" || cmd == "context-hook" || cmd == "context-mode-hook"
             || cmd == "icm-hook" => true,
-        [a, b, ..] if (a == "rtk" || a == "ctx" || a == "context-mode" || a == "icm") && b == "hook" => true,
+        [a, b, ..] if (a == "rtk" || a == "ctx" || a == "context" || a == "context-mode" || a == "icm") && b == "hook" => true,
         [a, b, ..] if a == "mem" && b == "mcp" => true,
-        [a, b, ..] if (a == "ctx" || a == "context-mode") && b == "mcp" => true,
+        [a, b, ..] if (a == "ctx" || a == "context" || a == "context-mode") && b == "mcp" => true,
         [a, b, ..] if a == "graph" && b == "mcp" => true,
         [a, b, ..] if (a == "icm" || a == "handoff" || a == "aimemory") && b == "mcp" => true,
         _ => false,
@@ -285,10 +285,10 @@ fn run() -> i32 {
         let agent = args.get(3).map(|s| s.as_str()).unwrap_or("generic");
         return run_icm_hook(agent);
     }
-    if args.len() >= 2 && (args[1] == "ctx-hook" || args[1] == "context-mode-hook") {
+    if args.len() >= 2 && (args[1] == "ctx-hook" || args[1] == "context-hook" || args[1] == "context-mode-hook") {
         return run_ctx_hook(&args[2..]);
     }
-    if args.len() >= 3 && (args[1] == "ctx" || args[1] == "context-mode") && args[2] == "hook" {
+    if args.len() >= 3 && (args[1] == "ctx" || args[1] == "context" || args[1] == "context-mode") && args[2] == "hook" {
         return run_ctx_hook(&args[3..]);
     }
     if args.len() >= 3 && args[1] == "grok-hook" && args[2] == "session-start" {
@@ -324,7 +324,7 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "mem" {
         return toksi::projectmem::run_mem_cli(&args[2..]);
     }
-    if args.len() >= 2 && (args[1] == "ctx" || args[1] == "context-mode") {
+    if args.len() >= 2 && (args[1] == "ctx" || args[1] == "context" || args[1] == "context-mode") {
         return toksi::contextmode::run_ctx_cli(&args[2..]);
     }
     if args.len() >= 2 && args[1] == "graph" {

@@ -22,8 +22,7 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - ...and 23 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...60 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Toksi v3.3 Disciplinary Coding Standards and Conventions Consolidation [crates/toksi/CONSOLIDATION_PLAN.md:1]
+- ...61 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Modularized Phase 15 and 16 into discrete ready-to-run subphase prompt files in .gemini/antigravity/brain/*.md for token-isolated per-chat execution [crates/toksi/CONSOLIDATION_PLAN.md:1]
 - Phase 03 refresh: verified full Context-Mode parity in pure Rust with strict CPU/memory limits, in-memory RTK pipe, SQLite FTS5 BM25 search, SSRF per-hop enforcement, and in-process ctx_* MCP suite [crates/toksi/src/contextmode/mod.rs:1]
 - Phase 04 rerun: hardened ICM FTS5 BM25 token sanitization with operator stripping, prioritized ~/.toksi/memory.db, added memory_handoff_accept MCP alias, and added extractive leading_prose fallback for tiered progressive disclosure [crates/toksi/src/icm/store.rs:593 (sanitize_fts5_query)]
@@ -38,6 +37,7 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - Refactor: Refactor and consolidate documentation and architecture for Toksi v3.4 [crates/toksi/CONSOLIDATION_PLAN.md]
 - Refactor: Refactor context mode components for improved readability and functionality [crates/toksi/src/contextmode/auto_memory.rs]
 - Refactor: Refactor codegraph hook commands and improve database path resolution [crates/toksi/src/agents/antigravity.rs]
+- Refactor: refactor: streamline tool input handling and enhance trace command logging [crates/toksi/src/commands/rtk_hook.rs]
 
 ## Notes
 - feat(contextmode): enhance SSRF guard with RFC ranges (shared 100.64.0.0/10, bench 198.18.0.0/15, broadcast 240.0.0.0/4, NAT64, 6to4) and per-hop redirect validation [crates/toksi/src/contextmode/fetch.rs:80 (ssrf_guard)]
