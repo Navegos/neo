@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/build.rs
 // created: 2026-10-27
-// lastModified: 2026-11-05
+// lastModified: 2026-11-08
 
 use std::collections::BTreeMap;
 use crate::rtk::ansi::strip_ansi;
@@ -334,41 +334,41 @@ pub fn filter_ruff(raw: &str, exit_code: i32) -> String {
     }
 
     // Try parsing JSON diagnostics: [{"code": "F401", "message": "...", "filename": "...", "fix": ...}]
-    if trimmed.starts_with('[') && trimmed.ends_with(']') {
-        if let Ok(items) = serde_json::from_str::<Vec<serde_json::Value>>(trimmed) {
-            if items.is_empty() {
-                return "Ruff: No issues found".to_string();
-            }
-            let total = items.len();
-            let mut unique_files = std::collections::HashSet::new();
-            let mut fixable = 0;
-            let mut by_rule = BTreeMap::new();
-
-            for item in &items {
-                if let Some(f) = item.get("filename").and_then(|v| v.as_str()) {
-                    unique_files.insert(f.to_string());
-                }
-                if item.get("fix").map_or(false, |v| !v.is_null()) {
-                    fixable += 1;
-                }
-                if let Some(code) = item.get("code").and_then(|v| v.as_str()) {
-                    *by_rule.entry(code.to_string()).or_insert(0) += 1;
-                }
-            }
-
-            let mut out = format!("Ruff: {} issues in {} files", total, unique_files.len());
-            if fixable > 0 {
-                out.push_str(&format!(" ({} fixable)", fixable));
-            }
-            out.push('\n');
-
-            let mut sorted_rules: Vec<_> = by_rule.into_iter().collect();
-            sorted_rules.sort_by(|a, b| b.1.cmp(&a.1));
-            for (code, count) in sorted_rules.iter().take(10) {
-                out.push_str(&format!("  {:<8}  {}\n", code, count));
-            }
-            return out.trim_end().to_string();
+    if trimmed.starts_with('[') && trimmed.ends_with(']')
+        && let Ok(items) = serde_json::from_str::<Vec<serde_json::Value>>(trimmed)
+    {
+        if items.is_empty() {
+            return "Ruff: No issues found".to_string();
         }
+        let total = items.len();
+        let mut unique_files = std::collections::HashSet::new();
+        let mut fixable = 0;
+        let mut by_rule = BTreeMap::new();
+
+        for item in &items {
+            if let Some(f) = item.get("filename").and_then(|v| v.as_str()) {
+                unique_files.insert(f.to_string());
+            }
+            if item.get("fix").is_some_and(|v| !v.is_null()) {
+                fixable += 1;
+            }
+            if let Some(code) = item.get("code").and_then(|v| v.as_str()) {
+                *by_rule.entry(code.to_string()).or_insert(0) += 1;
+            }
+        }
+
+        let mut out = format!("Ruff: {} issues in {} files", total, unique_files.len());
+        if fixable > 0 {
+            out.push_str(&format!(" ({} fixable)", fixable));
+        }
+        out.push('\n');
+
+        let mut sorted_rules: Vec<_> = by_rule.into_iter().collect();
+        sorted_rules.sort_by_key(|a| std::cmp::Reverse(a.1));
+        for (code, count) in sorted_rules.iter().take(10) {
+            out.push_str(&format!("  {:<8}  {}\n", code, count));
+        }
+        return out.trim_end().to_string();
     }
 
     // Text format parsing

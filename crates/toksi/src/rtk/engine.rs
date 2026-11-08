@@ -32,8 +32,7 @@ pub fn tokenize_command(cmd_line: &str) -> Vec<String> {
             }
             c if c.is_whitespace() && !in_single_quote && !in_double_quote => {
                 if !current.is_empty() {
-                    args.push(current);
-                    current = String::new();
+                    args.push(std::mem::take(&mut current));
                 }
             }
             _ => {
@@ -115,33 +114,33 @@ pub fn handle_failed_command_trace(cmd_line: &str, stdout: &str, stderr: &str) {
         format!("{}\n{}", stdout, stderr)
     };
 
-    if let Some(cause) = super::extract_root_cause(cmd_line, &combined) {
-        if let Some(mem_dir) = crate::projectmem::store::discover_mem_dir(None) {
-            let root = mem_dir.parent().unwrap_or(&mem_dir);
-            let trace = crate::projectmem::store::LastFailureTrace {
-                command: cmd_line.to_string(),
-                root_cause: cause.clone(),
-                raw_output: combined.clone(),
-                timestamp: crate::projectmem::schema::utc_now_iso(),
-            };
-            let _ = crate::projectmem::store::write_last_failure_trace(&trace, Some(root));
+    if let Some(cause) = super::extract_root_cause(cmd_line, &combined)
+        && let Some(mem_dir) = crate::projectmem::store::discover_mem_dir(None)
+    {
+        let root = mem_dir.parent().unwrap_or(&mem_dir);
+        let trace = crate::projectmem::store::LastFailureTrace {
+            command: cmd_line.to_string(),
+            root_cause: cause.clone(),
+            raw_output: combined.clone(),
+            timestamp: crate::projectmem::schema::utc_now_iso(),
+        };
+        let _ = crate::projectmem::store::write_last_failure_trace(&trace, Some(root));
 
-            let events = crate::projectmem::store::read_events(Some(root)).unwrap_or_default();
-            if let Some(active_id) = crate::projectmem::store::active_issue_marker(&events, Some(root)) {
-                let mut attempt_ev = crate::projectmem::schema::Event::new("attempt", &format!("Failed: {}", cause));
-                attempt_ev.issue_id = Some(active_id.clone());
-                attempt_ev.outcome = Some("failed".to_string());
-                attempt_ev.command = Some(cmd_line.to_string());
-                attempt_ev.notes = Some(combined);
-                attempt_ev.auto_captured = true;
-                attempt_ev.capture_source = Some("rtk".to_string());
-                attempt_ev.capture_confidence = Some("high".to_string());
-                attempt_ev.git_commit = crate::projectmem::store::get_git_commit(Some(root));
+        let events = crate::projectmem::store::read_events(Some(root)).unwrap_or_default();
+        if let Some(active_id) = crate::projectmem::store::active_issue_marker(&events, Some(root)) {
+            let mut attempt_ev = crate::projectmem::schema::Event::new("attempt", &format!("Failed: {}", cause));
+            attempt_ev.issue_id = Some(active_id.clone());
+            attempt_ev.outcome = Some("failed".to_string());
+            attempt_ev.command = Some(cmd_line.to_string());
+            attempt_ev.notes = Some(combined);
+            attempt_ev.auto_captured = true;
+            attempt_ev.capture_source = Some("rtk".to_string());
+            attempt_ev.capture_confidence = Some("high".to_string());
+            attempt_ev.git_commit = crate::projectmem::store::get_git_commit(Some(root));
 
-                if crate::projectmem::store::append_event(&mut attempt_ev, Some(root)).is_ok() {
-                    let _ = crate::projectmem::summary::regenerate_summary(Some(root));
-                    eprintln!("[toksi rtk] Auto-populated failure trace into projectmem attempt on #{}", active_id);
-                }
+            if crate::projectmem::store::append_event(&mut attempt_ev, Some(root)).is_ok() {
+                let _ = crate::projectmem::summary::regenerate_summary(Some(root));
+                eprintln!("[toksi rtk] Auto-populated failure trace into projectmem attempt on #{}", active_id);
             }
         }
     }

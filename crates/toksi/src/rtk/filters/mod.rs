@@ -21,10 +21,10 @@ use self::toml::{apply_filter, find_matching_filter};
 /// Strips quotes, directory components (both `/` and `\`), and file extensions (`.exe`, `.cmd`, `.bat`).
 pub fn normalize_bin_name(bin: &str) -> &str {
     let mut s = bin.trim();
-    if (s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')) {
-        if s.len() >= 2 {
-            s = &s[1..s.len() - 1];
-        }
+    if ((s.starts_with('"') && s.ends_with('"')) || (s.starts_with('\'') && s.ends_with('\'')))
+        && s.len() >= 2
+    {
+        s = &s[1..s.len() - 1];
     }
     if let Some(idx) = s.rfind(['/', '\\']) {
         s = &s[idx + 1..];

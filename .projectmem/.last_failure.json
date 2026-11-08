@@ -1,6 +1,6 @@
 {
-  "command": "cargo test -p toksi --test phase07_headroom_gateway_verification -- test_phase07 --exact",
-  "root_cause": "error: no test target named `phase07_headroom_gateway_verification` in `toksi` package",
-  "raw_output": "error: no test target named `phase07_headroom_gateway_verification` in `toksi` package\nhelp: available test targets:\n    antigravity_auth_verification\n    keyring_db_byok_verification\n    phase10_env_injector_verification\n    phase11_doctor_self_healing_verification\n    phase12_tui_dashboard_verification\n    phase13_e2e_verification\n    phase1_rtk_verification\n    phase2_projectmem_verification\n    phase3_contextmode_verification\n    phase4_icm_aimemory_verification\n    phase5_codegraph_verification\n    phase6_rules_verification\n    phase7_gateway_verification\n    phase7_headroom_verification\n    phase7_system_verification\n    phase8_downloader_purge_verification\n    phase9_legacy_healing_verification\n",
-  "timestamp": "2026-11-08T11:19:26Z"
+  "command": "git checkout .projectmem/.last_failure.json",
+  "root_cause": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied",
+  "raw_output": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied\n",
+  "timestamp": "2026-11-08T12:39:13Z"
 }

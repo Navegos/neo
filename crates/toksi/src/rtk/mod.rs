@@ -50,13 +50,12 @@ pub fn extract_root_cause(cmd: &str, output: &str) -> Option<String> {
         {
             return Some(trimmed.to_string());
         }
-        if bin == "cargo" || cmd.contains("cargo") {
-            if trimmed.contains("assertion `left == right` failed")
+        if (bin == "cargo" || cmd.contains("cargo"))
+            && (trimmed.contains("assertion `left == right` failed")
                 || trimmed.contains("panicked at")
-                || (trimmed.starts_with("thread '") && trimmed.contains("panicked"))
-            {
-                return Some(trimmed.to_string());
-            }
+                || (trimmed.starts_with("thread '") && trimmed.contains("panicked")))
+        {
+            return Some(trimmed.to_string());
         }
         if (bin == "pytest" || bin == "python" || cmd.contains("pytest")) && trimmed.starts_with("E   ") {
             return Some(trimmed.trim_start_matches("E   ").trim().to_string());

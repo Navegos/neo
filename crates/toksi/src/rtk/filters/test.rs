@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/test.rs
 // created: 2026-10-27
-// lastModified: 2026-11-05
+// lastModified: 2026-11-08
 
 use crate::rtk::ansi::strip_ansi;
 
@@ -260,16 +260,16 @@ pub fn filter_cargo_nextest(raw: &str, exit_code: i32) -> String {
         if exit_code == 0 {
             if !summary_line.is_empty() {
                 // Example: Summary [ 2.503s] 2 tests run: 2 passed (1 slow), 0 skipped
-                if let Some(dur_start) = summary_line.find('[') {
-                    if let Some(dur_end) = summary_line.find(']') {
-                        let dur = summary_line[dur_start + 1..dur_end].trim();
-                        let bin_str = if binaries > 0 {
-                            format!(" ({} binary, {})", binaries, dur)
-                        } else {
-                            format!(" ({})", dur)
-                        };
-                        return format!("cargo nextest: {} passed{}", passed_count.max(1), bin_str);
-                    }
+                if let Some(dur_start) = summary_line.find('[')
+                    && let Some(dur_end) = summary_line.find(']')
+                {
+                    let dur = summary_line[dur_start + 1..dur_end].trim();
+                    let bin_str = if binaries > 0 {
+                        format!(" ({} binary, {})", binaries, dur)
+                    } else {
+                        format!(" ({})", dur)
+                    };
+                    return format!("cargo nextest: {} passed{}", passed_count.max(1), bin_str);
                 }
                 return format!("cargo nextest: {}", summary_line);
             }

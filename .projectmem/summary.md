@@ -37,11 +37,9 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - Phase 11: Agent Doctor & Self-Healing completed. Upgraded toksi doctor and toksi doctor --fix to audit all 17 agents, purge broken legacy MCP runners across TOML/YAML/JSON, sync in-tree rules, and report environment and process proxies.
 - Phase 12: TUI, Prometheus Telemetry & Web Dashboard refreshed with upstream bifrost dropped-request metric isolation, 7-tab interactive TUI with Governance & Quotas, and embedded SPA dashboard [crates/toksi/src/telemetry/mod.rs:1]
 - Refactor: Refactor and consolidate documentation and architecture for Toksi v3.4 [crates/toksi/CONSOLIDATION_PLAN.md]
-- Consolidated and standardized all 23 Phase prompt blueprints in .agents/brain/*.md and Master Consolidation Plan v3.4 [crates/toksi/CONSOLIDATION_PLAN.md:1]
 - Refactor: Refactor context mode components for improved readability and functionality [crates/toksi/src/contextmode/auto_memory.rs]
 
 ## Notes
-- New feature: feat(rtk): enhance git, nextest, and ruff filters with root-cause adapters [crates/toksi/src/rtk/filters/build.rs]
 - New feature: feat(projectmem): align edge cases with v0.3.5 and sync phase prompt docs [crates/toksi/src/projectmem/mcp.rs]
 - feat(contextmode): enhance SSRF guard with RFC ranges (shared 100.64.0.0/10, bench 198.18.0.0/15, broadcast 240.0.0.0/4, NAT64, 6to4) and per-hop redirect validation [crates/toksi/src/contextmode/fetch.rs:80 (ssrf_guard)]
 - New feature: feat(contextmode): harden SSRF guard, add ctx_batch/ctx_upgrade tools, and update tests [crates/toksi/src/contextmode/fetch.rs]
@@ -51,6 +49,7 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - New feature: feat(doctor): add rules audit/sync, agent instruction probes, and multi-format MCP resolution [crates/toksi/src/agents/cursor.rs]
 - New feature: feat(toksi): Enhance TUI with Governance Management and Metrics [crates/toksi/src/commands/tui.rs]
 - New feature: feat(rtk): add JSON and log filtering capabilities, enhance command normalization [crates/toksi/src/commands/rtk.rs]
+- New feature: Add agent instructions and consolidate phase prompts in documentation [AGENTS.md]
 
 ## Key files
 - `.editorconfig`

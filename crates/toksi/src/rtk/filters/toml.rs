@@ -282,30 +282,30 @@ pub fn apply_filter(filter: &CompiledFilter, stdout: &str) -> String {
             processed_lines.truncate(head);
             processed_lines.push(format!("[... omitted {} lines]", omitted));
         }
-    } else if let Some(tail) = filter.tail_lines {
-        if processed_lines.len() > tail {
-            let omitted = processed_lines.len() - tail;
-            let start = processed_lines.len() - tail;
-            let mut new_lines = vec![format!("[... omitted {} lines]", omitted)];
-            new_lines.extend_from_slice(&processed_lines[start..]);
-            processed_lines = new_lines;
-        }
+    } else if let Some(tail) = filter.tail_lines
+        && processed_lines.len() > tail
+    {
+        let omitted = processed_lines.len() - tail;
+        let start = processed_lines.len() - tail;
+        let mut new_lines = vec![format!("[... omitted {} lines]", omitted)];
+        new_lines.extend_from_slice(&processed_lines[start..]);
+        processed_lines = new_lines;
     }
 
     // Stage 7: max_lines cap
-    if let Some(max_l) = filter.max_lines {
-        if processed_lines.len() > max_l {
-            let omitted = processed_lines.len() - max_l;
-            processed_lines.truncate(max_l);
-            processed_lines.push(format!("[... capped: {} lines omitted]", omitted));
-        }
+    if let Some(max_l) = filter.max_lines
+        && processed_lines.len() > max_l
+    {
+        let omitted = processed_lines.len() - max_l;
+        processed_lines.truncate(max_l);
+        processed_lines.push(format!("[... capped: {} lines omitted]", omitted));
     }
 
     // Stage 8: on_empty
-    if processed_lines.is_empty() {
-        if let Some(on_empty) = &filter.on_empty {
-            return on_empty.clone();
-        }
+    if processed_lines.is_empty()
+        && let Some(on_empty) = &filter.on_empty
+    {
+        return on_empty.clone();
     }
 
     processed_lines.join("\n")
