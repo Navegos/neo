@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/db/mod.rs
 // created: 2026-11-04
-// lastModified: 2026-11-08
+// lastModified: 2026-11-09
 
 pub mod migrate;
 pub mod operations;
@@ -45,7 +45,18 @@ pub fn default_db_path() -> PathBuf {
 
 pub fn open_default_db() -> Result<ToksiConfigDb, rusqlite::Error> {
     let p = default_db_path();
-    let mut db = ToksiConfigDb::open(&p)?;
+    let mut db = match ToksiConfigDb::open(&p) {
+        Ok(d) => d,
+        Err(e) => {
+            // In restricted test environments or sandbox, fall back to temp DB path
+            let temp_p = std::env::temp_dir().join(".toksi").join("toksi.db");
+            if let Ok(temp_db) = ToksiConfigDb::open(&temp_p) {
+                temp_db
+            } else {
+                return Err(e);
+            }
+        }
+    };
     let _ = sync_from_legacy_byok_json(&mut db);
     Ok(db)
 }

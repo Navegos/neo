@@ -70,6 +70,14 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       System Controls
     </button>
+    <button class="tab-btn" data-tab="tab-gateway">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+      AI Gateway &amp; Quotas
+    </button>
+    <button class="tab-btn" data-tab="tab-keyring-db">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1-1l-3 3m5 0l-3-3m-3 3l-2 2M3 13a4 4 0 1 0 8 0 4 4 0 0 0-8 0z"/><path d="M7 17l9-9"/></svg>
+      Keyring &amp; Database
+    </button>
   </nav>
 
   <!-- Main Content -->
@@ -491,6 +499,138 @@
             <input type="text" id="byok-new-upstream" class="input-text" placeholder="https://api.openai.com/v1" style="flex: 1;">
             <button class="btn btn-success" onclick="app.addByokRoute()">Add / Switch Route</button>
           </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Tab 8: AI Gateway & Quotas -->
+    <section id="tab-gateway" class="tab-pane">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem;">
+        
+        <!-- Live Upstream Quota Gauges -->
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="card-header">
+            <div class="card-title">Live Upstream Provider Quota Gauges</div>
+            <span class="badge badge-green">REAL-TIME RATE-LIMIT HEADERS</span>
+          </div>
+          <div id="quota-gauges-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem;">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+
+        <!-- Load Balancer & Complexity Routing -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Dynamic Complexity Routing &amp; Algorithm</div>
+            <span class="badge badge-cyan">MODEL ROUTER</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            <div>
+              <label style="font-size: 0.8rem; color: var(--text-muted);">Active Balancing Algorithm</label>
+              <select id="lb-algorithm-select" style="width: 100%; margin-top: 0.25rem;">
+                <option value="RoundRobin">RoundRobin (Deterministic)</option>
+                <option value="LeastLatency">LeastLatency (Fastest Response)</option>
+                <option value="LowestCost">LowestCost (Maximum Savings)</option>
+                <option value="LeastInFlight">LeastInFlight (Concurrency Balanced)</option>
+                <option value="Weighted">Weighted (Priority &amp; Weight Based)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size: 0.8rem; color: var(--text-muted);">Simple Task Tier Model</label>
+              <input type="text" id="tier-simple-model" class="input-text" style="width: 100%; margin-top: 0.25rem;" value="gemini-2.0-flash">
+            </div>
+            <div>
+              <label style="font-size: 0.8rem; color: var(--text-muted);">Medium Task Tier Model</label>
+              <input type="text" id="tier-medium-model" class="input-text" style="width: 100%; margin-top: 0.25rem;" value="claude-3-5-haiku">
+            </div>
+            <div>
+              <label style="font-size: 0.8rem; color: var(--text-muted);">Complex Task Tier Model</label>
+              <input type="text" id="tier-complex-model" class="input-text" style="width: 100%; margin-top: 0.25rem;" value="claude-3-7-sonnet">
+            </div>
+            <button class="btn btn-primary" onclick="app.updateComplexityTiers()">Apply Router Settings</button>
+          </div>
+        </div>
+
+        <!-- Interactive Gateway Provider Controls -->
+        <div class="card" style="grid-column: 2 / -1;">
+          <div class="card-header">
+            <div class="card-title">Interactive Gateway Provider Controls</div>
+            <span class="badge badge-purple">FAILOVER &amp; WEIGHTS</span>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Provider</th>
+                  <th>Category</th>
+                  <th>Status</th>
+                  <th>Weight</th>
+                  <th>Priority</th>
+                  <th>Avg Latency</th>
+                  <th>Cost / 1M</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="providers-controls-tbody">
+                <!-- Rendered via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Tab 9: OS Keyring & Database Management -->
+    <section id="tab-keyring-db" class="tab-pane">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem;">
+        
+        <!-- OS Keyring Status -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">OS Keyring Credentials</div>
+            <span class="badge badge-cyan" id="keyring-backend-badge">KEYRING</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            Secure credential envelope storage powered by native OS security backends.
+          </p>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Agent</th>
+                  <th>Service</th>
+                  <th>Account</th>
+                  <th>Status</th>
+                  <th>Preview</th>
+                </tr>
+              </thead>
+              <tbody id="keyring-status-tbody">
+                <!-- Rendered via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Database Maintenance & Backup -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Toksi Configuration SQLite DB</div>
+            <span class="badge badge-green">PERSISTENCE</span>
+          </div>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+            SQLite embedded state holding registered providers, BYOK routes, virtual keys, and agents.
+          </p>
+          <div id="db-stats-container" style="font-size: 0.85rem; font-family: var(--font-mono); color: var(--text-secondary); margin-bottom: 1rem; line-height: 1.6;">
+            <!-- Loaded via JS -->
+          </div>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <button class="btn btn-primary" onclick="app.dbBackup()">Backup Database</button>
+            <button class="btn btn-success" onclick="app.dbExport()">Export JSON</button>
+            <button class="btn btn-neutral" onclick="app.dbImportPrompt()">Import JSON</button>
+          </div>
+          <div id="db-action-result" style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--accent-green); font-family: var(--font-mono);"></div>
         </div>
 
       </div>

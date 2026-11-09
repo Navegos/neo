@@ -13,6 +13,7 @@ use tokio::sync::broadcast;
 
 use super::api::*;
 use super::assets::{APP_JS, INDEX_HTML, STYLE_CSS};
+use super::sse::{handle_sse_stream, start_sse_ticker};
 
 pub struct DashboardServer {
     pub host: String,
@@ -222,32 +223,7 @@ impl DashboardServer {
         let (broadcast_tx, _) = broadcast::channel::<String>(32);
 
         // Background SSE ticker broadcaster broadcasting ground-truth session metrics
-        let ticker_tx = broadcast_tx.clone();
-        tokio::spawn(async move {
-            loop {
-                tokio::time::sleep(Duration::from_millis(1500)).await;
-                let collector = crate::telemetry::global_collector();
-                let tokens_saved: u64 = collector.tokens_saved_total.read().map(|m| m.values().sum()).unwrap_or(0);
-                let cost_saved = collector.cost_savings_usd_micros.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1_000_000.0;
-                let total_calls: u64 = collector.upstream_requests_total.read().map(|m| m.values().sum()).unwrap_or(0);
-                let input_tokens: u64 = collector.input_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
-                let output_tokens: u64 = collector.output_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
-                let cached_tokens: u64 = collector.cached_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
-
-                let payload = serde_json::json!({
-                    "type": "tick",
-                    "payload": {
-                        "tokens_saved_lifetime": tokens_saved,
-                        "cost_saved_usd": (cost_saved * 100.0).round() / 100.0,
-                        "total_calls": total_calls,
-                        "input_tokens": input_tokens,
-                        "output_tokens": output_tokens,
-                        "cached_tokens": cached_tokens
-                    }
-                });
-                let _ = ticker_tx.send(payload.to_string());
-            }
-        });
+        let _ticker_handle = start_sse_ticker(broadcast_tx.clone());
 
         let mut shutdown_rx = self.shutdown_tx.as_ref().map(|tx| tx.subscribe());
         loop {
@@ -325,52 +301,6 @@ async fn handle_connection(
     }
 }
 
-async fn handle_sse_stream(
-    mut stream: TcpStream,
-    broadcast_tx: broadcast::Sender<String>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let header = "HTTP/1.1 200 OK\r\n\
-        Content-Type: text/event-stream\r\n\
-        Cache-Control: no-cache\r\n\
-        Connection: keep-alive\r\n\
-        Access-Control-Allow-Origin: *\r\n\r\n";
-
-    stream.write_all(header.as_bytes()).await?;
-    stream.flush().await?;
-
-    let mut rx = broadcast_tx.subscribe();
-
-    // Send initial handshake tick
-    let initial_msg = format!("data: {}\n\n", serde_json::json!({
-        "type": "tick",
-        "payload": {
-            "tokens_saved_lifetime": 14_892_104,
-            "cost_saved_usd": 184.26,
-            "total_calls": 1284
-        }
-    }));
-    stream.write_all(initial_msg.as_bytes()).await?;
-    stream.flush().await?;
-
-    loop {
-        match rx.recv().await {
-            Ok(msg) => {
-                let sse_line = format!("data: {}\n\n", msg);
-                if let Err(_) = stream.write_all(sse_line.as_bytes()).await {
-                    break;
-                }
-                if let Err(_) = stream.flush().await {
-                    break;
-                }
-            }
-            Err(broadcast::error::RecvError::Lagged(_)) => continue,
-            Err(_) => break,
-        }
-    }
-
-    Ok(())
-}
-
 fn route_request(req: &HttpRequest) -> HttpResponse {
     if req.method == "OPTIONS" {
         return HttpResponse::no_content();
@@ -418,6 +348,29 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
         ("POST", "/api/system/proxy-restart") => HttpResponse::ok_json(handle_proxy_restart()),
         ("POST", "/api/system/proxy-stop") => HttpResponse::ok_json(handle_proxy_stop()),
         ("POST", "/api/system/cache-vacuum") => HttpResponse::ok_json(handle_cache_vacuum()),
+
+        ("GET", "/api/providers") => HttpResponse::ok_json(handle_providers_get()),
+        ("POST", "/api/providers/update") => match handle_provider_update(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
+
+        ("GET", "/api/complexity") => HttpResponse::ok_json(handle_complexity_get()),
+        ("POST", "/api/complexity/update") => match handle_complexity_update(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
+
+        ("GET", "/api/quotas") => HttpResponse::ok_json(handle_quotas_get()),
+        ("GET", "/api/keyring/status") => HttpResponse::ok_json(handle_keyring_status()),
+
+        ("GET", "/api/db/status") => HttpResponse::ok_json(handle_db_status()),
+        ("POST", "/api/db/backup") => HttpResponse::ok_json(handle_db_backup()),
+        ("GET", "/api/db/export") => HttpResponse::ok_json(handle_db_export()),
+        ("POST", "/api/db/import") => match handle_db_import(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
 
         ("GET", "/api/system/byok") => HttpResponse::ok_json(handle_byok_get()),
         ("POST", "/api/system/byok-switch") => match handle_byok_switch(&req.body) {

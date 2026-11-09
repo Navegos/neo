@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/assets/app.js
 // created: 2026-10-30
-// lastModified: 2026-11-08
+// lastModified: 2026-11-09
 
 // toksi dashboard client application - pure vanilla ES6+ with zero external npm dependencies
 
@@ -94,6 +94,8 @@ found 0 vulnerabilities`,
     this.loadMemory();
     this.loadCodeGraph();
     this.loadByokRoutes();
+    this.loadGatewayControls();
+    this.loadKeyringAndDb();
     this.applySandboxPreset('cargo');
 
     // Polling fallback if SSE drops
@@ -129,15 +131,20 @@ found 0 vulnerabilities`,
         this.state.sse_connected = true;
         if (ssePill) {
           ssePill.className = 'status-pill online';
-          sseText.textContent = 'LIVE SSE (9099)';
+          sseText.textContent = 'LIVE SSE (9100)';
         }
       };
 
       evtSource.onmessage = (e) => {
         try {
           const data = JSON.parse(e.data);
-          if (data.type === 'tick') {
-            this.handleLiveTick(data.payload);
+          if (data.type === 'tick' || data.type === 'snapshot') {
+            if (data.payload) {
+              this.handleLiveTick(data.payload);
+              if (data.payload.quotas) {
+                this.renderQuotaGauges(data.payload.quotas);
+              }
+            }
           } else if (data.type === 'waterfall_item') {
             this.prependWaterfallItem(data.payload);
           }
@@ -301,13 +308,18 @@ found 0 vulnerabilities`,
         </div>
         <div class="agent-details">
           <div>Port: <strong style="color: ${ag.wired ? 'var(--accent-green)' : 'var(--text-muted)'};">${ag.port}</strong></div>
-          <div>Tools: ${ag.tools_summary || 'RTK, CodeGraph, ProjectMem'}</div>
+          <div>Provider: <strong style="color: var(--accent-cyan);">${ag.connected_provider || 'Bifrost'}</strong> (${ag.active_model || 'auto'})</div>
+          <div>Latency: <span style="font-family: var(--font-mono); font-size: 0.75rem;">${ag.latency_breakdown_ms ? ag.latency_breakdown_ms.total_roundtrip_ms.toFixed(1) + 'ms (AST: ' + ag.latency_breakdown_ms.ast_compression_ms.toFixed(2) + 'ms)' : 'idle'}</span></div>
+          <div>Savings: <span style="color: #34d399; font-weight: 600;">+${Number(ag.tokens_saved_ground_truth || 0).toLocaleString()} tok ($${(ag.cost_saved_usd || 0).toFixed(2)})</span></div>
           <div style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${ag.config_path}">
             Cfg: ${ag.config_path}
           </div>
         </div>
         <div class="agent-action">
-          <span class="badge ${ag.wired ? 'badge-green' : 'badge-amber'}">${ag.wired ? 'WIRED' : 'UNWIRED'}</span>
+          <div style="display: flex; gap: 0.4rem; align-items: center;">
+            <span class="badge ${ag.wired ? 'badge-green' : 'badge-amber'}">${ag.wired ? 'WIRED' : 'UNWIRED'}</span>
+            <span class="badge ${ag.paid_quota_status === '[PAID]' ? 'badge-green' : 'badge-amber'}">${ag.paid_quota_status || '[PAID]'}</span>
+          </div>
           <button class="btn ${ag.wired ? 'btn-danger' : 'btn-success'}" onclick="app.toggleAgent('${ag.id}')">
             ${ag.wired ? 'Unwire' : 'Wire Agent'}
           </button>
@@ -714,6 +726,309 @@ found 0 vulnerabilities`,
     } catch (e) {
       this.showToast('Failed to delete route', 'error');
     }
+  }
+
+  // --- AI Gateway & Quotas ---
+  async loadGatewayControls() {
+    await Promise.all([
+      this.loadQuotaGauges(),
+      this.loadComplexityTiers(),
+      this.loadProviderControls()
+    ]);
+  }
+
+  async loadQuotaGauges() {
+    try {
+      const res = await fetch('/api/quotas');
+      if (res.ok) {
+        const quotas = await res.json();
+        this.renderQuotaGauges(quotas);
+      }
+    } catch (e) {
+      console.error('loadQuotaGauges error:', e);
+    }
+  }
+
+  renderQuotaGauges(quotas) {
+    const container = document.getElementById('quota-gauges-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    quotas.forEach(q => {
+      const reqPct = Math.round((q.remaining_requests / Math.max(q.limit_requests, 1)) * 100);
+      const tokPct = Math.round((q.remaining_tokens / Math.max(q.limit_tokens, 1)) * 100);
+      const isPaid = q.tier_badge === '[PAID]';
+
+      const card = document.createElement('div');
+      card.style.background = '#0f172a';
+      card.style.padding = '1rem';
+      card.style.borderRadius = '8px';
+      card.style.border = '1px solid var(--border-color)';
+      card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <strong style="color: var(--text-primary); font-size: 1rem;">${q.provider}</strong>
+          <span class="badge ${isPaid ? 'badge-green' : 'badge-amber'}">${q.tier_badge}</span>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+          Req Remaining: <strong style="color: var(--accent-cyan);">${Number(q.remaining_requests).toLocaleString()}</strong> / ${Number(q.limit_requests).toLocaleString()} (${reqPct}%)
+          <div style="width: 100%; height: 6px; background: #1e293b; border-radius: 3px; overflow: hidden; margin-top: 0.25rem;">
+            <div style="width: ${reqPct}%; height: 100%; background: ${reqPct > 20 ? 'var(--accent-cyan)' : 'var(--accent-amber)'};"></div>
+          </div>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+          Token Headroom: <strong style="color: #34d399;">${Number(q.remaining_tokens).toLocaleString()}</strong> / ${Number(q.limit_tokens).toLocaleString()} (${tokPct}%)
+          <div style="width: 100%; height: 6px; background: #1e293b; border-radius: 3px; overflow: hidden; margin-top: 0.25rem;">
+            <div style="width: ${tokPct}%; height: 100%; background: ${tokPct > 20 ? '#34d399' : 'var(--accent-red)'};"></div>
+          </div>
+        </div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+          <span>Window Reset: ${q.reset_tokens_secs}s</span>
+          <span style="color: ${isPaid ? 'var(--accent-green)' : 'var(--accent-amber)'};">Status: ${isPaid ? 'Operational' : 'Disqualified Free'}</span>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
+
+  async loadComplexityTiers() {
+    try {
+      const res = await fetch('/api/complexity');
+      if (res.ok) {
+        const c = await res.json();
+        const algo = document.getElementById('lb-algorithm-select');
+        const s = document.getElementById('tier-simple-model');
+        const m = document.getElementById('tier-medium-model');
+        const comp = document.getElementById('tier-complex-model');
+        if (algo) algo.value = c.active_algorithm || 'RoundRobin';
+        if (s) s.value = c.simple_model || 'gemini-2.0-flash';
+        if (m) m.value = c.medium_model || 'claude-3-5-haiku';
+        if (comp) comp.value = c.complex_model || 'claude-3-7-sonnet';
+      }
+    } catch (e) {
+      console.error('loadComplexityTiers error:', e);
+    }
+  }
+
+  async updateComplexityTiers() {
+    const active_algorithm = document.getElementById('lb-algorithm-select').value;
+    const simple_model = document.getElementById('tier-simple-model').value.trim();
+    const medium_model = document.getElementById('tier-medium-model').value.trim();
+    const complex_model = document.getElementById('tier-complex-model').value.trim();
+
+    try {
+      const res = await fetch('/api/complexity/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active_algorithm, simple_model, medium_model, complex_model })
+      });
+      if (res.ok) {
+        this.showToast('Complexity router settings updated', 'success');
+      } else {
+        this.showToast('Failed updating complexity tiers', 'error');
+      }
+    } catch (e) {
+      this.showToast(`Error: ${e.message}`, 'error');
+    }
+  }
+
+  async loadProviderControls() {
+    try {
+      const res = await fetch('/api/providers');
+      if (res.ok) {
+        const provs = await res.json();
+        const tbody = document.getElementById('providers-controls-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        provs.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><strong>${p.name}</strong> <span style="font-size: 0.75rem; color: var(--text-muted);">(${p.id})</span></td>
+            <td><span class="badge badge-cyan">${p.category}</span></td>
+            <td><span class="badge ${p.enabled ? 'badge-green' : 'badge-gray'}">${p.enabled ? 'ACTIVE' : 'DISABLED'}</span></td>
+            <td><input type="number" min="1" max="500" value="${p.weight}" style="width: 60px;" class="input-text" onchange="app.updateProviderWeight('${p.id}', this.value)"></td>
+            <td><input type="number" min="1" max="10" value="${p.priority}" style="width: 50px;" class="input-text" onchange="app.updateProviderPriority('${p.id}', this.value)"></td>
+            <td style="font-family: var(--font-mono); font-size: 0.8rem;">${p.avg_latency_ms.toFixed(0)} ms</td>
+            <td style="font-family: var(--font-mono); font-size: 0.8rem; color: #34d399;">$${p.cost_per_mtoken.toFixed(2)}</td>
+            <td>
+              <button class="btn ${p.enabled ? 'btn-danger' : 'btn-success'}" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="app.toggleProvider('${p.id}', ${!p.enabled})">
+                ${p.enabled ? 'Disable' : 'Enable'}
+              </button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    } catch (e) {
+      console.error('loadProviderControls error:', e);
+    }
+  }
+
+  async toggleProvider(providerId, enabled) {
+    try {
+      const res = await fetch('/api/providers/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: providerId, enabled })
+      });
+      if (res.ok) {
+        this.showToast(`Provider ${providerId} ${enabled ? 'enabled' : 'disabled'}`, 'success');
+        this.loadProviderControls();
+      }
+    } catch (e) {
+      this.showToast(`Error: ${e.message}`, 'error');
+    }
+  }
+
+  async updateProviderWeight(providerId, weight) {
+    try {
+      const w = parseInt(weight, 10);
+      await fetch('/api/providers/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: providerId, weight: w })
+      });
+      this.showToast(`Updated weight for ${providerId}`, 'success');
+    } catch (e) {
+      this.showToast('Failed to update weight', 'error');
+    }
+  }
+
+  async updateProviderPriority(providerId, priority) {
+    try {
+      const p = parseInt(priority, 10);
+      await fetch('/api/providers/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: providerId, priority: p })
+      });
+      this.showToast(`Updated priority for ${providerId}`, 'success');
+    } catch (e) {
+      this.showToast('Failed to update priority', 'error');
+    }
+  }
+
+  // --- OS Keyring & Database Management ---
+  async loadKeyringAndDb() {
+    await Promise.all([
+      this.loadKeyringStatus(),
+      this.loadDbStatus()
+    ]);
+  }
+
+  async loadKeyringStatus() {
+    try {
+      const res = await fetch('/api/keyring/status');
+      if (res.ok) {
+        const data = await res.json();
+        const badge = document.getElementById('keyring-backend-badge');
+        if (badge) badge.textContent = data.backend || 'OS KEYRING';
+
+        const tbody = document.getElementById('keyring-status-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+
+        (data.credentials || []).forEach(c => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><strong>${c.agent}</strong></td>
+            <td style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary);">${c.service}</td>
+            <td style="font-family: var(--font-mono); font-size: 0.8rem;">${c.account}</td>
+            <td><span class="badge ${c.has_credential ? 'badge-green' : 'badge-gray'}">${c.has_credential ? 'STORED' : 'EMPTY'}</span></td>
+            <td style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted);">${c.token_preview || 'None'}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      }
+    } catch (e) {
+      console.error('loadKeyringStatus error:', e);
+    }
+  }
+
+  async loadDbStatus() {
+    try {
+      const res = await fetch('/api/db/status');
+      if (res.ok) {
+        const stats = await res.json();
+        const container = document.getElementById('db-stats-container');
+        if (!container) return;
+        if (stats.error) {
+          container.textContent = `Status: ${stats.error}`;
+          return;
+        }
+        container.innerHTML = `
+          <div>DB Path: <strong>${stats.db_path || 'Default'}</strong></div>
+          <div>Size: <strong>${((stats.file_size_bytes || 0) / 1024).toFixed(2)} KB</strong></div>
+          <div>Entities: Providers: ${stats.providers_count || 0} | Keys: ${stats.keys_count || 0} | Models: ${stats.models_count || 0} | BYOK: ${stats.routes_count || 0}</div>
+        `;
+      }
+    } catch (e) {
+      console.error('loadDbStatus error:', e);
+    }
+  }
+
+  async dbBackup() {
+    try {
+      const res = await fetch('/api/db/backup', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        const resDiv = document.getElementById('db-action-result');
+        if (resDiv) resDiv.textContent = `✓ Backup created at: ${data.backup_path}`;
+        this.showToast('SQLite backup completed', 'success');
+      }
+    } catch (e) {
+      this.showToast(`Backup error: ${e.message}`, 'error');
+    }
+  }
+
+  async dbExport() {
+    try {
+      const res = await fetch('/api/db/export');
+      if (res.ok) {
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data.data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `toksi_config_export_${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.showToast('Config exported to JSON', 'success');
+      }
+    } catch (e) {
+      this.showToast(`Export error: ${e.message}`, 'error');
+    }
+  }
+
+  dbImportPrompt() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const parsed = JSON.parse(evt.target.result);
+          const res = await fetch('/api/db/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: parsed, overwrite: true })
+          });
+          if (res.ok) {
+            this.showToast('Database imported successfully', 'success');
+            this.loadDbStatus();
+          } else {
+            this.showToast('Import failed', 'error');
+          }
+        } catch (err) {
+          this.showToast('Invalid JSON file', 'error');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   }
 
   // --- Toast Notifications ---

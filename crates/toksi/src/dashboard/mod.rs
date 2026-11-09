@@ -3,17 +3,21 @@
 // project: neo
 // file: crates/toksi/src/dashboard/mod.rs
 // created: 2026-10-30
-// lastModified: 2026-11-08
+// lastModified: 2026-11-09
 
 pub mod api;
 pub mod assets;
 pub mod server;
+pub mod sse;
+pub mod state;
 #[cfg(test)]
 pub mod tests;
 
 pub use api::*;
 pub use assets::*;
 pub use server::*;
+pub use sse::*;
+pub use state::*;
 
 use crate::util::colors::*;
 use crate::util::logger::L;
@@ -75,12 +79,14 @@ pub fn open_browser(url: &str) {
 pub fn run_dashboard_cli(argv: &[String]) -> i32 {
     let mut port: u16 = DEFAULT_DASHBOARD_PORT;
     let mut open = false;
+    let mut foreground = false;
 
     let mut i = 0;
     while i < argv.len() {
         let arg = &argv[i];
         if arg == "--help" || arg == "-h" {
-            println!("Usage: toksi dashboard [--port <port>] [--open]");
+            println!("Usage: toksi dashboard [--port <port>] [--open] [--foreground]");
+            println!("Runs the Web Telemetry Cockpit on Port 9100 in the background by default.");
             return 0;
         } else if arg == "--port" || arg == "-p" {
             if i + 1 < argv.len() {
@@ -95,8 +101,73 @@ pub fn run_dashboard_cli(argv: &[String]) -> i32 {
             }
         } else if arg == "--open" || arg == "-o" {
             open = true;
+        } else if arg == "--foreground" || arg == "-f" || arg == "__run-foreground" {
+            foreground = true;
         }
         i += 1;
+    }
+
+    let url = format!("http://127.0.0.1:{}", port);
+
+    // If already running
+    if is_dashboard_running() {
+        println!(
+            "\n  {} {}\n  {} {}\n",
+            C.cyan("toksi"),
+            C.bold("Web Cockpit already running in background"),
+            C.dim("Local Dashboard:"),
+            C.cyan(&url)
+        );
+        if open {
+            open_browser(&url);
+        }
+        return 0;
+    }
+
+    // Default to background spawning unless --foreground requested
+    if !foreground {
+        let exe = match std::env::current_exe() {
+            Ok(p) => p,
+            Err(_) => std::path::PathBuf::from("toksi"),
+        };
+        let mut cmd = std::process::Command::new(&exe);
+        cmd.args(["dashboard", "--foreground", &format!("--port={}", port)]);
+        cmd.stdin(std::process::Stdio::null());
+        cmd.stdout(std::process::Stdio::null());
+        cmd.stderr(std::process::Stdio::null());
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const DETACHED_PROCESS: u32 = 0x00000008;
+            const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
+            cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+        }
+
+        match cmd.spawn() {
+            Ok(_) => {
+                std::thread::sleep(std::time::Duration::from_millis(600));
+                println!(
+                    "\n  {} {}\n  {} {}\n  {} {}\n  {} {}\n",
+                    C.cyan("toksi"),
+                    C.bold("Enterprise Web Telemetry Cockpit (Background)"),
+                    C.dim("Local Dashboard:"),
+                    C.cyan(&url),
+                    C.dim("Prometheus Metrics:"),
+                    C.cyan(&format!("{}/metrics", url)),
+                    C.dim("SSE Live Stream:"),
+                    C.cyan(&format!("{}/api/events", url))
+                );
+
+                if open {
+                    open_browser(&url);
+                }
+                return 0;
+            }
+            Err(e) => {
+                L.warn(&format!("Could not spawn background process, running in foreground: {}", e));
+            }
+        }
     }
 
     let rt = match tokio::runtime::Runtime::new() {
@@ -107,11 +178,10 @@ pub fn run_dashboard_cli(argv: &[String]) -> i32 {
         }
     };
 
-    let url = format!("http://127.0.0.1:{}", port);
     println!(
         "\n  {} {}\n  {} {}\n  {} {}\n  {} {}\n\n  {}",
         C.cyan("toksi"),
-        C.bold("Telemetry & Control Cockpit (Phase 12)"),
+        C.bold("Telemetry & Control Cockpit (Phase 16.2)"),
         C.dim("Local Dashboard:"),
         C.cyan(&url),
         C.dim("Prometheus Metrics:"),

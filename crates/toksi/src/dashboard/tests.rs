@@ -26,6 +26,8 @@ fn test_embedded_assets_presence() {
 
     assert!(!APP_JS.is_empty(), "app.js must not be empty");
     assert!(APP_JS.contains("ToksiApp"), "app.js must define ToksiApp class");
+    assert!(APP_JS.contains("loadGatewayControls"), "app.js must load gateway controls");
+    assert!(APP_JS.contains("loadKeyringAndDb"), "app.js must load keyring and db");
 }
 
 #[test]
@@ -155,4 +157,58 @@ fn test_api_cache_vacuum() {
     let res = handle_cache_vacuum();
     assert_eq!(res["success"], true);
     assert!(res["freed_kb"].as_u64().unwrap_or(0) > 0);
+}
+
+#[test]
+fn test_api_providers_controls() {
+    let provs = handle_providers_get();
+    let arr = provs.as_array().expect("providers must be array");
+    assert!(!arr.is_empty());
+
+    let update_payload = serde_json::json!({
+        "id": "anthropic",
+        "weight": 150,
+        "priority": 2
+    });
+    let bytes = serde_json::to_vec(&update_payload).unwrap();
+    let res = handle_provider_update(&bytes).expect("update provider must succeed");
+    assert_eq!(res["success"], true);
+    assert_eq!(res["provider"]["weight"], 150);
+    assert_eq!(res["provider"]["priority"], 2);
+}
+
+#[test]
+fn test_api_complexity_router() {
+    let comp = handle_complexity_get();
+    assert!(comp.get("active_algorithm").is_some());
+
+    let update_payload = serde_json::json!({
+        "active_algorithm": "LeastLatency",
+        "complex_model": "claude-3-7-sonnet"
+    });
+    let bytes = serde_json::to_vec(&update_payload).unwrap();
+    let res = handle_complexity_update(&bytes).expect("update complexity must succeed");
+    assert_eq!(res["success"], true);
+    assert_eq!(res["complexity"]["active_algorithm"], "LeastLatency");
+}
+
+#[test]
+fn test_api_quotas_and_keyring() {
+    let quotas = handle_quotas_get();
+    let arr = quotas.as_array().expect("quotas array");
+    assert!(!arr.is_empty());
+
+    let keyring = handle_keyring_status();
+    assert!(keyring.get("backend").is_some());
+    assert!(keyring.get("credentials").is_some());
+}
+
+#[test]
+fn test_api_db_status_and_export() {
+    let status = handle_db_status();
+    println!("DB status response: {:?}", status);
+    assert!(status.is_object());
+
+    let export = handle_db_export();
+    assert_eq!(export["success"], true);
 }

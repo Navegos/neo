@@ -636,3 +636,22 @@ tr:hover td {
   to { transform: translateX(0); opacity: 1; }
 }
 
+/* Glassmorphism Accents */
+.card {
+  background: rgba(17, 24, 39, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.stat-card {
+  background: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(8px);
+}
+
+header {
+  background: rgba(10, 14, 23, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+
