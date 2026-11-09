@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase8_downloader_purge_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-11-05
+// lastModified: 2026-11-09
 
 use std::path::Path;
 use toksi::agents::register as register_all_agents;
@@ -58,13 +58,14 @@ fn test_phase8_all_17_agents_registered() {
         "zcode",
         "dsh",
         "amp",
+        "openagents",
     ];
 
     let registered = list_agents();
     assert_eq!(
         registered.len(),
-        17,
-        "Expected exactly 17 agent harnesses registered, found {}",
+        18,
+        "Expected all agent harnesses registered, found {}",
         registered.len()
     );
 

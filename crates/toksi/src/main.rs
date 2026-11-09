@@ -110,6 +110,7 @@ fn help_text() -> String {
           {cmd_proxy}             Manage streaming Headroom and Copilot proxy supervisors: up|down|status\n\
           {cmd_auth}              OS Keyring credential manager: status|get|set|delete|sync\n\
           {cmd_db}                SQLite config database: status|export|import|backup|restore\n\
+          {cmd_agent}             Agent directory lifecycle: install|health|mismatch|upgrade|fix|restore|remove|edit\n\
           {cmd_self_update}       In-place binary self-update to latest release\n\n\
         {sec_ports}\n\
           {p8787}           Streaming Headroom Proxy (Antigravity, Grok, and IDE base URL overrides)\n\
@@ -163,6 +164,7 @@ fn help_text() -> String {
         cmd_proxy = cy("toksi proxy"),
         cmd_auth = cy("toksi auth"),
         cmd_db = cy("toksi db"),
+        cmd_agent = cy("toksi agent"),
         cmd_self_update = cy("toksi self-update"),
         sec_ports = bd("Dedicated 5-Port Network Topology:"),
         p8787 = yl("Port 8787"),
@@ -391,6 +393,9 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "db" {
         return toksi::commands::run_db_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "agent" {
+        return toksi::commands::run_agent_cli(&args[2..]);
+    }
 
     let p = parse_args(&args[1..]);
     if p.bools.get("verbose") == Some(&true) {
@@ -469,6 +474,7 @@ fn run() -> i32 {
         "rules" => toksi::rules::run_rules_cli(&args[2..]),
         "auth" => toksi::commands::run_auth_cli(&args[2..]),
         "db" => toksi::commands::run_db_cli(&args[2..]),
+        "agent" => toksi::commands::run_agent_cli(&args[2..]),
         "self-update" => run_self_update(p.bools.get("check") == Some(&true)),
         _ => {
             println!("{}", help_text());

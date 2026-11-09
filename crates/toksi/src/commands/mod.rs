@@ -5,6 +5,7 @@
 // created: 2026-10-05
 // lastModified: 2026-10-31
 
+pub mod agent;
 pub mod auth;
 pub mod codex_perm_hook;
 pub mod ctx;
@@ -30,6 +31,7 @@ pub mod top;
 pub mod tui;
 pub mod update;
 
+pub use agent::*;
 pub use auth::*;
 pub use codex_perm_hook::*;
 pub use ctx::*;

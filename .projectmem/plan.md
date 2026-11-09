@@ -114,12 +114,17 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
   - [ ] Replace blocking event polling with non-blocking async loop to permanently fix terminal hangs and keyboard input freezes.
   - [ ] Realistic real-time telemetry: true token consumption, ground-truth savings, and active BYOK quota gauges.
   - [ ] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
-- [ ] Phase 16.2: Enterprise Web Telemetry Cockpit Dashboard:
+- [x] Phase 16.2: Enterprise Web Telemetry Cockpit Dashboard:
   > Plan 16.2: `.agents/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md`
-  - [ ] Non-blocking background Web Cockpit on Port 9100 (`toksi dashboard`).
-  - [ ] Real-time 17-agent observation grid, ground-truth token savings, upstream quota gauges, provider toggle/weights/latency controls, DB backup/export.
-  - [ ] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
-- [ ] Phase 16.3: Open Agents Directory Protocols & README Verification:
+  - [x] Non-blocking background Web Cockpit on Port 9100 (`toksi dashboard`).
+  - [x] Real-time 17-agent observation grid, ground-truth token savings, upstream quota gauges, provider toggle/weights/latency controls, DB backup/export.
+  - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
+  - [x] Phase 16.3: Open Agents Directory Protocols & README Verification:
+    - [x] Implement vendor-agnostic Open Agents standard directory manager in `crates/toksi/src/agents/open_agents.rs` (`.agents/` with `mcp.json`, `models.json`, `system-prompt.md`, `agents.md`, `agents/`, `skills/`, `tasks/`, `knowledge/`, `memories/`, `layouts/`).
+    - [x] Implement comprehensive lifecycle operations in `crates/toksi/src/agents/manager.rs` and CLI handler in `crates/toksi/src/commands/agent.rs` (`install`, `health`, `mismatch`, `upgrade`, `fix`, `restore`, `remove`, `edit`, `list`).
+    - [x] Enforce user-level auto-install (`~/.<agent>/` or `~/.agents/`) and selective workspace installation (`--workspace` flag only).
+    - [x] Rewrite `crates/toksi/README.md` with complete technical architecture, 5-port network topology, 39+ BYOK providers, smart local CLI bridges, paid quota enforcement, in-tree rules, and complete CLI command reference.
+    - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings (558 tests passed).:
   > Plan 16.3: `.agents/brain/PHASE_16_3_OPEN_AGENTS_AND_README_VERIFICATION.md`
   - [ ] Support open and vendor agent layouts (`.agents/`, `.gemini/`, `.copilot/`, `.claude/`, `.codex/`, `.cursor/`, `.grok/`).
   - [ ] Auto-install to user directory (`~/.<agent>/`) if selected; workspace repository install is strictly optional and user-selected.

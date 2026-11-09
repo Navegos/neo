@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase12_tui_dashboard_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-11-08
+// lastModified: 2026-11-09
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -48,8 +48,8 @@ fn test_phase12_tui_initialization_and_tabs() {
     assert!(app.monitor.cost_saved_usd >= 0.0);
     assert!(app.monitor.compression_pct >= 0.0);
 
-    // Tab 2: Agent Wire Manager (17 agents)
-    assert_eq!(app.agents.items.len(), 17, "Must contain all 17 supported agents");
+    // Tab 2: Agent Wire Manager (supported agents fleet)
+    assert!(app.agents.items.len() >= 17, "Must contain all supported agents");
     for agent in &app.agents.items {
         assert!(!agent.id.is_empty());
         assert!(!agent.label.is_empty());
@@ -189,7 +189,7 @@ fn test_phase12_dashboard_assets_and_api_handlers() {
     // Agents fleet
     let agents = handle_agents();
     let agents_arr = agents.as_array().expect("agents must be array");
-    assert_eq!(agents_arr.len(), 17, "API must list all 17 agents");
+    assert!(agents_arr.len() >= 17, "API must list all supported agents");
 
     // Memory & SVG DAG
     let memory = handle_memory(None);

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase11_doctor_self_healing_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-09
 
 use std::fs;
 use std::sync::Mutex;
@@ -24,7 +24,7 @@ use toksi::tools::{
     has_owner_at_path, write_owner_at_path, register as register_tools,
 };
 
-const ALL_17_AGENTS: [&str; 17] = [
+const ALL_AGENTS: [&str; 18] = [
     "claude",
     "cursor",
     "codex",
@@ -42,6 +42,7 @@ const ALL_17_AGENTS: [&str; 17] = [
     "zcode",
     "dsh",
     "amp",
+    "openagents",
 ];
 
 #[test]
@@ -51,9 +52,9 @@ fn test_phase11_all_17_agents_manifests_and_rules() {
     register_tools();
 
     let all_agents = list_agents();
-    assert_eq!(all_agents.len(), 17, "All 17 agent manifests must be registered");
+    assert_eq!(all_agents.len(), 18, "All agent manifests must be registered");
 
-    for agent_id in ALL_17_AGENTS {
+    for agent_id in ALL_AGENTS {
         let manifest = get_agent(agent_id);
         assert!(manifest.is_some(), "Agent {} must be registered", agent_id);
         let m = manifest.unwrap();

@@ -19,9 +19,11 @@ pub mod grok;
 pub mod hooks;
 pub mod kilo;
 pub mod kimi;
+pub mod manager;
 pub mod mcp_adapters;
 pub mod omp;
 pub mod opencode;
+pub mod open_agents;
 pub mod opt;
 pub mod pi;
 pub mod proxy_agent;
@@ -45,9 +47,11 @@ pub use grok::*;
 pub use hooks::CursorHookSnapshot;
 pub use kilo::*;
 pub use kimi::*;
+pub use manager::*;
 pub use mcp_adapters::*;
 pub use omp::*;
 pub use opencode::*;
+pub use open_agents::*;
 pub use opt::*;
 pub use pi::*;
 pub use proxy_agent::*;
@@ -145,6 +149,7 @@ pub fn register() {
     register_agent(zcode_manifest());
     register_agent(dsh_manifest());
     register_agent(amp_manifest());
+    register_agent(openagents_manifest());
 }
 
 #[cfg(test)]
