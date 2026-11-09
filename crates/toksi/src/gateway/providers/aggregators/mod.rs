@@ -3,7 +3,11 @@
 // project: neo
 // file: crates/toksi/src/gateway/providers/aggregators/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-09
+
+pub mod bifrost;
+
+pub use bifrost::BifrostProviderClient;
 
 use std::collections::HashMap;
 use serde_json::{json, Value};
@@ -76,4 +80,3 @@ impl ProviderClient for AggregatorProvider {
         })
     }
 }
-

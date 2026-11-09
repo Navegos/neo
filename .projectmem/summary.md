@@ -1,6 +1,6 @@
 # projectmem - neo
 
-_Last updated: 2026-11-08_
+_Last updated: 2026-11-09_
 
 ## Project purpose
 --------------------------------------------------------------------------------
@@ -40,7 +40,6 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - Refactor: Refactor context mode CLI to support 'execute' command and enhance test coverage [crates/toksi/src/contextmode/cli.rs]
 
 ## Notes
-- New feature: feat(toksi): Enhance TUI with Governance Management and Metrics [crates/toksi/src/commands/tui.rs]
 - New feature: feat(rtk): add JSON and log filtering capabilities, enhance command normalization [crates/toksi/src/commands/rtk.rs]
 - New feature: Add agent instructions and consolidate phase prompts in documentation [AGENTS.md]
 - New feature: feat: add ICM hook functionality and normalize path handling across modules [crates/toksi/src/aimemory/handoff.rs]
@@ -50,6 +49,7 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - New feature: feat: update last_failure.json command and add benchmarks and e2e tests [crates/toksi/tests/benchmarks.rs]
 - New feature: feat: update last_failure.json command and remove obsolete database files [crates/toksi/src/db/mod.rs]
 - New feature: feat: Enhance workspace management and tool normalization [crates/toksi/src/agents/hooks.rs]
+- New feature: feat: Add gateway server with health and chat completion endpoints [crates/toksi/src/commands/daemon.rs]
 
 ## Key files
 - `.editorconfig`

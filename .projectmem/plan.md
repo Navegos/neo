@@ -72,15 +72,15 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
   - [x] Verify Copilot dual-port wiring (8789 & 8790) with health probes (`/livez`) and collision prevention.
   - [x] Ensure non-destructive environment lifecycle: clean teardown of Windows `HKCU\Environment` variables (`WM_SETTINGCHANGE` broadcast) and Unix session env on daemon shutdown.
   - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
-- [ ] Phase 15.3: Smart Agent CLI Providers & Paid Quota Enforcement:
+- [x] Phase 15.3: Smart Agent CLI Providers & Paid Quota Enforcement:
   > Plan 15.3: `.agents/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`
-  - [ ] Securely register 6 Local Agent CLIs as first-class peer BYOK providers (`agy.exe`, `copilot.exe`, `claude`, `codex`, `cursor`, `grok.exe`).
-  - [ ] Implement smart background launch in detached mode (`CREATE_NO_WINDOW`/`DETACHED_PROCESS` on Windows, `setsid()` on Unix) when authenticated via OS Keyring/session tokens; verify chat endpoint reachability (`/livez` / ConnectRPC).
-  - [ ] Integrate Bifrost provider client into `gateway/providers/aggregators/bifrost.rs` with health probes, routing, and load balancing.
-  - [ ] Enforce strict paid commercial quota mandate: disqualify free accounts (unbilled AI Studio trial keys, expired credits, free Copilot trials) from active rotation.
-  - [ ] Graceful Inform & Zero-Fail Policy: never crash, panic, or fail; emit informative notice (`[INFO] Provider 'X' is on Free tier... Bypassing from active pool without error.`) and smoothly fall back to next paid provider or direct agent execution.
-  - [ ] Gateway activation guard: engage when `active_paid_providers >= 1`; graceful passthrough if zero.
-  - [ ] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
+  - [x] Securely register 6 Local Agent CLIs as first-class peer BYOK providers (`agy.exe`, `copilot.exe`, `claude`, `codex`, `cursor`, `grok.exe`).
+  - [x] Implement smart background launch in detached mode (`CREATE_NO_WINDOW`/`DETACHED_PROCESS` on Windows, `setsid()` on Unix) when authenticated via OS Keyring/session tokens; verify chat endpoint reachability (`/livez` / ConnectRPC).
+  - [x] Integrate Bifrost provider client into `gateway/providers/aggregators/bifrost.rs` with health probes, routing, and load balancing.
+  - [x] Enforce strict paid commercial quota mandate: disqualify free accounts (unbilled AI Studio trial keys, expired credits, free Copilot trials) from active rotation.
+  - [x] Graceful Inform & Zero-Fail Policy: never crash, panic, or fail; emit informative notice (`[INFO] Provider 'X' is on Free tier... Bypassing from active pool without error.`) and smoothly fall back to next paid provider or direct agent execution.
+  - [x] Gateway activation guard: engage when `active_paid_providers >= 1`; graceful passthrough if zero.
+  - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
 - [ ] Phase 15.4: Multi-Protocol Architecture & Dynamic Ignore Purging:
   > Plan 15.4: `.agents/brain/PHASE_15_4_MULTI_PROTOCOL_AND_IGNORE_PURGE.md`
   - [ ] Expose unified multi-protocol interfaces (MCP, A2A, ACP, stdio, SSE, HTTP) across all tools (`rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`).
