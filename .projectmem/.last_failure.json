@@ -1,6 +1,6 @@
 {
-  "command": "cargo test -p toksi --lib -- aimemory::wiki::tests::test_wiki_purge_ignored_pages",
-  "root_cause": "thread 'aimemory::wiki::tests::test_wiki_purge_ignored_pages' (26788) panicked at crates\\toksi\\src\\aimemory\\wiki.rs:226:9:",
-  "raw_output": "\nrunning 1 test\ntest aimemory::wiki::tests::test_wiki_purge_ignored_pages ... FAILED\n\nfailures:\n\n---- aimemory::wiki::tests::test_wiki_purge_ignored_pages stdout ----\n\nthread 'aimemory::wiki::tests::test_wiki_purge_ignored_pages' (26788) panicked at crates\\toksi\\src\\aimemory\\wiki.rs:226:9:\nassertion `left == right` failed\n  left: 0\n right: 1\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    aimemory::wiki::tests::test_wiki_purge_ignored_pages\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 371 filtered out; finished in 0.01s\n\n\n   Compiling toksi v2.9.5 (D:\\AI\\neo\\crates\\toksi)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.35s\n     Running unittests src\\lib.rs (target\\debug\\build\\toksi/edc28db8446ffe75\\out\\toksi-edc28db8446ffe75.exe)\nerror: test failed, to rerun pass `-p toksi --lib`\n",
-  "timestamp": "2026-11-09T01:42:09Z"
+  "command": "git checkout -- crates/toksi/.codex crates/toksi/.copilot crates/toksi/.cursor crates/toksi/.gemini crates/toksi/.github crates/toksi/.grok",
+  "root_cause": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied",
+  "raw_output": "fatal: Unable to create 'D:/AI/neo/.git/index.lock': Permission denied\n",
+  "timestamp": "2026-11-09T02:25:28Z"
 }

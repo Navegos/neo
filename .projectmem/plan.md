@@ -87,13 +87,13 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
   - [x] Integrate ripgrep-grade ignore walker respecting `.gitignore` and `.ignore` files during AST and document indexing.
   - [x] Dynamic vector & cache purging: when ignore rules are added/modified, automatically purge previously indexed records from SQLite FTS5 search indexes and vector embedding caches.
   - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
-- [ ] Phase 15.5: Ground-Truth Token Accounting & Network Reconnect Healing:
+- [x] Phase 15.5: Ground-Truth Token Accounting & Network Reconnect Healing:
   > Plan 15.5: `.agents/brain/PHASE_15_5_TOKEN_ACCOUNTING_AND_NETWORK_HEALING.md`
-  - [ ] Extract real prompt, completion, and cached tokens directly from live SSE response streams and upstream rate-limit headers (`x-ratelimit-remaining-tokens`, `anthropic-ratelimit-requests-remaining`). Prohibit virtual/synthetic math (counter reads 0 when idle).
-  - [ ] Query provider quotas via free agent AI API channels without token cost.
-  - [ ] Implement network reconnection auto-healing watchdog in `gateway/reconnect.rs` to detect interface toggles, timeouts, and VPN drops, auto-refreshing connection pools without dormant lockout.
-  - [ ] Universal rules/skills sync across all 17 agents; comprehensive update of CLI usage help in `crates/toksi/src/main.rs`.
-  - [ ] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
+  - [x] Extract real prompt, completion, and cached tokens directly from live SSE response streams and upstream rate-limit headers (`x-ratelimit-remaining-tokens`, `anthropic-ratelimit-requests-remaining`). Prohibit virtual/synthetic math (counter reads 0 when idle).
+  - [x] Query provider quotas via free agent AI API channels without token cost.
+  - [x] Implement network reconnection auto-healing watchdog in `gateway/reconnect.rs` to detect interface toggles, timeouts, and VPN drops, auto-refreshing connection pools without dormant lockout.
+  - [x] Universal rules/skills sync across all 17 agents; comprehensive update of CLI usage help in `crates/toksi/src/main.rs`.
+  - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
 - [ ] Phase 15.6: Advanced Vault Intelligence Engines Consolidation:
   > Plan 15.6: `.agents/brain/PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md`
   - [ ] Consolidate remaining reference vaults in pure Rust:

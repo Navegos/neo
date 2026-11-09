@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rules/mod.rs
 // created: 2026-10-29
-// lastModified: 2026-11-05
+// lastModified: 2026-11-09
 
 //! In-tree rules and skills engine for AI coding agents.
 //!
@@ -27,7 +27,10 @@ pub use cli::run_rules_cli;
 pub use embedded::caveman as caveman_rule;
 pub use embedded::ponytail as ponytail_rule;
 pub use embedded::principles as principles_rule;
-pub use sync::{sync_all_rules, sync_global_rules, sync_workspace_rules, SyncReport};
+pub use sync::{
+    matches_sync_target_filename, sync_all_rules, sync_global_rules, sync_workspace_rules,
+    SyncReport, MANAGED_MCP_TOOLS, SUPPORTED_AGENT_DIRS,
+};
 
 pub type DynError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -325,6 +328,35 @@ fn safe_write_file(path: &Path, content: &str) -> Result<(), DynError> {
     }
     fs::write(path, content)?;
     Ok(())
+}
+
+/// Injects or patches in-tree rules into any markdown file (e.g. `rules*.md`, `instructions*.md`, `agents*.md`),
+/// preserving existing user preamble and custom instructions.
+pub fn patch_markdown_file(file_path: impl AsRef<Path>, rules: &[RuleKind]) -> Result<bool, DynError> {
+    let p = file_path.as_ref();
+    let existing = if p.exists() {
+        fs::read_to_string(p)?
+    } else {
+        String::new()
+    };
+
+    let (preamble, mut current_rules) = parse_content_sections(&existing);
+    let mut modified = false;
+
+    for &r in rules {
+        if !current_rules.contains(&r) {
+            current_rules.push(r);
+            modified = true;
+        }
+    }
+
+    if modified || !p.exists() {
+        let rendered = render_rules_markdown(&current_rules, if preamble.is_empty() { None } else { Some(&preamble) });
+        safe_write_file(p, &rendered)?;
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 /// Injects or patches in-tree rules into `CLAUDE.md`.

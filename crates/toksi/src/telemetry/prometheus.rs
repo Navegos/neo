@@ -136,6 +136,22 @@ pub fn render_metrics_from(c: &MetricsCollector) -> String {
         }
     }
 
+    let raw_bytes = c.headroom_raw_bytes_total.load(Ordering::Relaxed);
+    let compressed_bytes = c.headroom_compressed_bytes_total.load(Ordering::Relaxed);
+    let pruned_schemas = c.headroom_mcp_pruned_tools_total.load(Ordering::Relaxed);
+
+    let _ = writeln!(out, "# HELP toksi_headroom_raw_bytes_total Cumulative prompt and tool bytes before compression");
+    let _ = writeln!(out, "# TYPE toksi_headroom_raw_bytes_total counter");
+    let _ = writeln!(out, "toksi_headroom_raw_bytes_total {}", raw_bytes);
+
+    let _ = writeln!(out, "# HELP toksi_headroom_compressed_bytes_total Cumulative prompt and tool bytes after headroom compression");
+    let _ = writeln!(out, "# TYPE toksi_headroom_compressed_bytes_total counter");
+    let _ = writeln!(out, "toksi_headroom_compressed_bytes_total {}", compressed_bytes);
+
+    let _ = writeln!(out, "# HELP toksi_headroom_mcp_pruned_tools_total Cumulative MCP tool schemas pruned from prompt context");
+    let _ = writeln!(out, "# TYPE toksi_headroom_mcp_pruned_tools_total counter");
+    let _ = writeln!(out, "toksi_headroom_mcp_pruned_tools_total {}", pruned_schemas);
+
     // -------------------------------------------------------------------------
     // 4. Costs & ROI Metrics
     // -------------------------------------------------------------------------

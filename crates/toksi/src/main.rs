@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-11-08
+// lastModified: 2026-11-09
 
 use std::collections::HashMap;
 use std::env;
@@ -79,62 +79,102 @@ fn parse_args(argv: &[String]) -> ParsedArgs {
 
 fn help_text() -> String {
     let cy = |s: &str| C.cyan(s);
+    let yl = |s: &str| C.yellow(s);
+    let gr = |s: &str| C.gray(s);
+    let bd = |s: &str| C.bold(s);
+
     format!(
-        "{} — token-saving for AI coding agents (Claude Code, OpenCode, Codex, Antigravity, GitHub Copilot, Cursor, Factory Droid, Grok, Pi, OMP, Kilo, Cline, Amp, Kimi, ZCode, DSH)\n\n\
-        {}\n  {}              Install + wire everything (default; safe to re-run)\n\
-          {}       Update the toksi CLI, then show version diff and upgrade tools\n\
-          {}       Show what's wired up; warn about anything broken\n\
-          {}         Display token savings dashboard across tools\n\
-          {}          Live interactive terminal monitor for proxies and agents\n\
-          {}          Full multi-tab interactive terminal control center\n\
-          {}    Embedded web telemetry & control cockpit (--port, --open)\n\
-          {}        Generate unified context primer for AI agent sessions\n\
-          {}       Manage background proxy supervisor: start|stop|status\n\
-          {}         Show how toksi was installed, plus paths and config locations\n\
-          {}        Build per-project indexes (codegraph) in the current dir\n\
-          {}    Remove everything toksi ever touched\n\
-          {}          Manage project memory, failure prevention, and MCP server\n\
-          {}          Isolated sandbox execution and SQLite FTS5 knowledge base\n\
-          {}          Tree-sitter AST call-graph, blast-radius, and code explorer\n\
-          {}          Instant Context Memory (ICM) SQLite FTS5 BM25 knowledge engine\n\
-          {}      Multi-agent claim-once context handoffs across 17+ agents\n\
-          {}        Manage in-tree coding rules & skills (principles, caveman, ponytail)\n\
-          {}          Execute command and apply token-reduction filters\n\
-          {}      Manage the headroom HTTP proxy: up|down|status\n\
-          {}       OS Keyring credential manager: status|get|set|delete|sync\n\
-          {}         SQLite config database: status|export|import|backup|restore\n\n\
-        {}\n  --agents <list>     Limit to a subset: claude,opencode,opencode2,codex,antigravity,copilot,cursor,droid,grok,pi,omp,kilo,cline,amp,kimi,zcode,dsh\n\
-          --tools <list>      Limit to a subset: rtk,caveman,ponytail,codegraph,context-mode,headroom,projectmem\n\
+        "{title} — High-Performance Headroom Proxy, Token Optimizer & Multi-Protocol AI Gateway\n\
+        {tagline}\n\n\
+        {sec_usage}\n\
+          {cmd_init}              Install + wire all agents and tools (default; safe to re-run)\n\
+          {cmd_update}            Update Toksi CLI, inspect version diff, and upgrade tools\n\
+          {cmd_doctor}            Audit 17 agents, purge broken MCP runners, fix configuration regressions\n\
+          {cmd_gain}              Display ground-truth token savings & ROI metrics across tools and models\n\
+          {cmd_top}               Live interactive terminal monitor for proxies and active agent requests\n\
+          {cmd_tui}               Full mouse-capable multi-tab interactive terminal control center\n\
+          {cmd_dashboard}         Embedded web telemetry & control cockpit (--port, --open)\n\
+          {cmd_prime}             Generate unified context primer for AI agent sessions\n\
+          {cmd_daemon}            Unified 5-port background supervisor with auto-healing network watchdog\n\
+          {cmd_info}              Show installation details, paths, config locations, and database status\n\
+          {cmd_index}             Build per-project AST code graph index in current directory\n\
+          {cmd_disable}           Disable agent hooks and proxy routing without removing files\n\
+          {cmd_uninstall}         Remove everything Toksi ever touched, hooks, and environment variables\n\
+          {cmd_rtk}               Execute command with token-reduction filters and ANSI stripping\n\
+          {cmd_mem}               ProjectMem persistent memory, failure prevention, and MCP server\n\
+          {cmd_ctx}               Context-mode isolated sandbox execution and SQLite FTS5 chunker\n\
+          {cmd_graph}             CodeGraph Tree-sitter AST call-graph, blast-radius, and code explorer\n\
+          {cmd_icm}               Instant Context Memory (ICM) SQLite FTS5 BM25 knowledge engine\n\
+          {cmd_handoff}           Multi-agent claim-once context handoffs across 17+ agents\n\
+          {cmd_rules}             Manage in-tree coding rules & skills (principles, caveman, ponytail)\n\
+          {cmd_proxy}             Manage streaming Headroom and Copilot proxy supervisors: up|down|status\n\
+          {cmd_auth}              OS Keyring credential manager: status|get|set|delete|sync\n\
+          {cmd_db}                SQLite config database: status|export|import|backup|restore\n\
+          {cmd_self_update}       In-place binary self-update to latest release\n\n\
+        {sec_ports}\n\
+          {p8787}           Streaming Headroom Proxy (Antigravity, Grok, and IDE base URL overrides)\n\
+          {p8789}           GitHub Copilot VS Code Proxy (DEFAULT_COPILOT_PROXY_PORT)\n\
+          {p8790}           GitHub Copilot CLI Proxy (DEFAULT_COPILOT_CLI_PROXY_PORT)\n\
+          {p9099}           Enterprise AI Gateway & Drop-in SDKs (/v1/chat/completions, /v1/messages, /metrics)\n\
+          {p9100}           Web Telemetry & Control Dashboard Cockpit (non-blocking background service)\n\n\
+        {sec_agents}\n\
+          claude, opencode, opencode2, codex, antigravity, copilot, cursor, droid, grok,\n\
+          pi, omp, kilo, cline, amp, kimi, zcode, dsh, openagents\n\n\
+        {sec_tools}\n\
+          rtk, codegraph, context, projectmem, icm, aimemory, headroom\n\n\
+        {sec_flags}\n\
+          --agents <list>     Limit to a subset of agents (comma-separated)\n\
+          --tools <list>      Limit to a subset of tools (comma-separated)\n\
           -j, --jobs <n>      Number of parallel threads for agent wiring\n\
-          --dry-run           Show what would change without writing anything\n\
-          --verbose           Show every step\n\n\
-        {}",
-        C.bold(&cy("toksi")),
-        C.bold("Usage:"),
-        cy("toksi"),
-        cy("toksi update"),
-        cy("toksi doctor"),
-        cy("toksi gain"),
-        cy("toksi top"),
-        cy("toksi tui"),
-        cy("toksi dashboard"),
-        cy("toksi prime"),
-        cy("toksi daemon"),
-        cy("toksi info"),
-        cy("toksi index"),
-        cy("toksi uninstall"),
-        cy("toksi mem"),
-        cy("toksi ctx"),
-        cy("toksi graph"),
-        cy("toksi icm"),
-        cy("toksi handoff"),
-        cy("toksi rules"),
-        cy("toksi rtk"),
-        cy("toksi proxy"),
-        cy("toksi auth"),
-        cy("toksi db"),
-        C.bold("Flags:"),
-        C.gray("Docs: https://github.com/Navegos/neo/#toksi")
+          --dry-run           Show proposed changes without writing anything to disk\n\
+          --verbose           Show detailed execution steps and debug information\n\
+          -v, --version       Show version and build metadata\n\
+          -h, --help          Show this comprehensive usage help\n\n\
+        {sec_disciplines}\n\
+          * Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced crate-wide.\n\
+          * Zero Panics Policy: typed domain errors via thiserror; no panics in production.\n\
+          * Universal Forward Slashes (/): normalized across Windows, Linux, and macOS.\n\
+          * Ground-Truth Token Accounting: real tokens parsed from live SSE streams; 0 when idle.\n\
+          * Network Reconnect Healing: auto-recovers from connection drops and VPN toggles.\n\n\
+        {footer}",
+        title = bd(&cy("toksi")),
+        tagline = gr("Slashes token consumption by 30-70% for AI coding agents via prompt compression, AST indexing & memory"),
+        sec_usage = bd("Commands:"),
+        cmd_init = cy("toksi [init]"),
+        cmd_update = cy("toksi update"),
+        cmd_doctor = cy("toksi doctor"),
+        cmd_gain = cy("toksi gain"),
+        cmd_top = cy("toksi top"),
+        cmd_tui = cy("toksi tui"),
+        cmd_dashboard = cy("toksi dashboard"),
+        cmd_prime = cy("toksi prime"),
+        cmd_daemon = cy("toksi daemon"),
+        cmd_info = cy("toksi info"),
+        cmd_index = cy("toksi index"),
+        cmd_disable = cy("toksi disable"),
+        cmd_uninstall = cy("toksi uninstall"),
+        cmd_rtk = cy("toksi rtk"),
+        cmd_mem = cy("toksi mem"),
+        cmd_ctx = cy("toksi ctx"),
+        cmd_graph = cy("toksi graph"),
+        cmd_icm = cy("toksi icm"),
+        cmd_handoff = cy("toksi handoff"),
+        cmd_rules = cy("toksi rules"),
+        cmd_proxy = cy("toksi proxy"),
+        cmd_auth = cy("toksi auth"),
+        cmd_db = cy("toksi db"),
+        cmd_self_update = cy("toksi self-update"),
+        sec_ports = bd("Dedicated 5-Port Network Topology:"),
+        p8787 = yl("Port 8787"),
+        p8789 = yl("Port 8789"),
+        p8790 = yl("Port 8790"),
+        p9099 = yl("Port 9099"),
+        p9100 = yl("Port 9100"),
+        sec_agents = bd("Supported Agents (17):"),
+        sec_tools = bd("Managed Tools:"),
+        sec_flags = bd("Flags & Options:"),
+        sec_disciplines = bd("Disciplinary Standards & Architecture:"),
+        footer = gr("Docs: https://github.com/Navegos/neo/#toksi")
     )
 }
 

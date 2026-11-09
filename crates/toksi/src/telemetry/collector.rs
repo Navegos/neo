@@ -116,6 +116,11 @@ pub enum TelemetryEvent {
         provider: String,
         attempt: u32,
     },
+    HeadroomOptimization {
+        raw_bytes: usize,
+        compressed_bytes: usize,
+        pruned_tools: usize,
+    },
 }
 
 /// High-performance metrics collector
@@ -138,6 +143,11 @@ pub struct MetricsCollector {
     pub output_tokens_total: RwLock<HashMap<String, u64>>,
     pub cached_tokens_total: RwLock<HashMap<String, u64>>,
     pub tokens_saved_total: RwLock<HashMap<String, u64>>,
+
+    // 3.1 Ground-Truth Headroom Byte Reduction & Pruned Tool Schemas
+    pub headroom_raw_bytes_total: AtomicU64,
+    pub headroom_compressed_bytes_total: AtomicU64,
+    pub headroom_mcp_pruned_tools_total: AtomicU64,
 
     // 4. Costs & ROI (stored in micro-USD for lock-free atomic arithmetic)
     pub cost_usd_micros: AtomicU64,
@@ -180,6 +190,10 @@ impl MetricsCollector {
             output_tokens_total: RwLock::new(HashMap::new()),
             cached_tokens_total: RwLock::new(HashMap::new()),
             tokens_saved_total: RwLock::new(HashMap::new()),
+
+            headroom_raw_bytes_total: AtomicU64::new(0),
+            headroom_compressed_bytes_total: AtomicU64::new(0),
+            headroom_mcp_pruned_tools_total: AtomicU64::new(0),
 
             cost_usd_micros: AtomicU64::new(0),
             cost_savings_usd_micros: AtomicU64::new(0),
@@ -322,6 +336,13 @@ impl MetricsCollector {
         self.cost_savings_usd_micros.fetch_add(savings_micros, Ordering::Relaxed);
     }
 
+    /// Record headroom token and byte reductions
+    pub fn record_headroom_reduction(&self, raw_bytes: usize, compressed_bytes: usize, pruned_tools: usize) {
+        self.headroom_raw_bytes_total.fetch_add(raw_bytes as u64, Ordering::Relaxed);
+        self.headroom_compressed_bytes_total.fetch_add(compressed_bytes as u64, Ordering::Relaxed);
+        self.headroom_mcp_pruned_tools_total.fetch_add(pruned_tools as u64, Ordering::Relaxed);
+    }
+
     /// Record internal Toksi overhead latency breakdown
     pub fn record_latency_breakdown(&self, record: &LatencyRecord) {
         self.overhead_latency_seconds.observe(record.overhead_seconds());
@@ -441,6 +462,13 @@ impl MetricsCollector {
             }
             TelemetryEvent::Retry { provider, attempt } => {
                 self.record_retry(&provider, attempt);
+            }
+            TelemetryEvent::HeadroomOptimization {
+                raw_bytes,
+                compressed_bytes,
+                pruned_tools,
+            } => {
+                self.record_headroom_reduction(raw_bytes, compressed_bytes, pruned_tools);
             }
         }
     }

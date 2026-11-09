@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/byok_gateway.rs
 // created: 2026-10-05
-// lastModified: 2026-11-04
+// lastModified: 2026-11-09
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -1561,17 +1561,7 @@ pub async fn forward_to_byok_target(
         }
     }
 
-    let Ok(client) = reqwest::Client::builder()
-        .no_proxy()
-        .timeout(Duration::from_secs(120))
-        .build()
-    else {
-        return (
-            502,
-            vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
-            b"BYOK upstream unavailable\n".to_vec(),
-        );
-    };
+    let client = crate::gateway::reconnect::auto_healing_async_client();
 
     let req_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
     let mut req_builder = client.request(req_method.clone(), target_url);
@@ -1592,12 +1582,16 @@ pub async fn forward_to_byok_target(
         req_builder = req_builder.body(outgoing_body.clone());
     }
 
-    let Ok(resp) = req_builder.send().await else {
-        return (
-            502,
-            vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
-            b"BYOK upstream unavailable\n".to_vec(),
-        );
+    let resp = match req_builder.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            crate::gateway::reconnect::report_network_transport_error(&e.to_string());
+            return (
+                502,
+                vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
+                b"BYOK upstream unavailable\n".to_vec(),
+            );
+        }
     };
 
     let status = resp.status().as_u16();
@@ -1747,25 +1741,7 @@ pub async fn forward_streaming_to_byok_target(
         }
     }
 
-    let Ok(client) = reqwest::Client::builder()
-        .no_proxy()
-        .timeout(Duration::from_secs(300))
-        .build()
-    else {
-        if is_proto {
-            let (h, b) = format_connect_error(502, "failed initializing HTTP upstream client");
-            write_http_response(client_stream, 502, "Bad Gateway", &h, &b).await?;
-        } else {
-            write_http_response(
-                client_stream,
-                502,
-                "Bad Gateway",
-                &[("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
-                b"BYOK upstream unavailable\n",
-            ).await?;
-        }
-        return Ok(());
-    };
+    let client = crate::gateway::reconnect::auto_healing_async_client();
 
     let req_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
     let mut req_builder = client.request(req_method.clone(), target_url);
@@ -1789,6 +1765,7 @@ pub async fn forward_streaming_to_byok_target(
     let resp = match req_builder.send().await {
         Ok(r) => r,
         Err(e) => {
+            crate::gateway::reconnect::report_network_transport_error(&e.to_string());
             if is_proto {
                 let (h, b) = format_connect_error(502, &format!("BYOK upstream connection failed: {}", e));
                 write_http_response(client_stream, 502, "Bad Gateway", &h, &b).await?;
