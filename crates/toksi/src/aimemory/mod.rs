@@ -3,17 +3,19 @@
 // project: neo
 // file: crates/toksi/src/aimemory/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-08
+// lastModified: 2026-11-09
 
+pub mod cli;
 pub mod handoff;
+pub mod mem0_bridge;
 pub mod tiered;
 pub mod wiki;
-pub mod cli;
 
+pub use cli::*;
 pub use handoff::*;
+pub use mem0_bridge::*;
 pub use tiered::*;
 pub use wiki::*;
-pub use cli::*;
 
 use std::env;
 use std::path::PathBuf;

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/semantic_cache.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-09
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -11,6 +11,34 @@ use std::sync::{Mutex, RwLock};
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum SemanticCacheError {
+    #[error("Database error: {0}")]
+    Sqlite(#[from] rusqlite::Error),
+    #[error("Internal lock poisoned")]
+    LockPoisoned,
+    #[error("Dimension mismatch: expected {expected}, got {actual}")]
+    DimensionMismatch { expected: usize, actual: usize },
+}
+
+/// Supported Chroma-style distance metrics for vector similarity calculations.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DistanceMetric {
+    Cosine,
+    L2,
+    Ip,
+}
+
+/// Metadata and definition for a Chroma vector collection.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChromaCollection {
+    pub name: String,
+    pub dimension: usize,
+    pub metric: DistanceMetric,
+    pub metadata: HashMap<String, String>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedEntry {
@@ -22,11 +50,13 @@ pub struct CachedEntry {
     pub hit_count: u64,
 }
 
+/// Dual-tier semantic cache backing store inspired by Chroma vector database.
 pub struct DualTierSemanticCache {
     exact_cache: RwLock<HashMap<String, CachedEntry>>,
     semantic_entries: RwLock<Vec<CachedEntry>>,
     db_conn: Mutex<Option<Connection>>,
     similarity_threshold: f32,
+    metric: DistanceMetric,
 }
 
 impl Default for DualTierSemanticCache {
@@ -37,16 +67,21 @@ impl Default for DualTierSemanticCache {
 
 impl DualTierSemanticCache {
     pub fn new(similarity_threshold: f32) -> Self {
+        Self::with_metric(similarity_threshold, DistanceMetric::Cosine)
+    }
+
+    pub fn with_metric(similarity_threshold: f32, metric: DistanceMetric) -> Self {
         Self {
             exact_cache: RwLock::new(HashMap::new()),
             semantic_entries: RwLock::new(Vec::new()),
             db_conn: Mutex::new(None),
             similarity_threshold,
+            metric,
         }
     }
 
-    pub fn init_db(&self, db_path: &Path) -> Result<(), String> {
-        let conn = Connection::open(db_path).map_err(|e| e.to_string())?;
+    pub fn init_db(&self, db_path: &Path) -> Result<(), SemanticCacheError> {
+        let conn = Connection::open(db_path)?;
         conn.execute(
             "CREATE TABLE IF NOT EXISTS semantic_cache (
                 hash TEXT PRIMARY KEY,
@@ -56,10 +91,9 @@ impl DualTierSemanticCache {
                 hit_count INTEGER DEFAULT 0
             )",
             [],
-        )
-        .map_err(|e| e.to_string())?;
+        )?;
 
-        let mut lock = self.db_conn.lock().unwrap();
+        let mut lock = self.db_conn.lock().unwrap_or_else(|e| e.into_inner());
         *lock = Some(conn);
         Ok(())
     }
@@ -76,7 +110,7 @@ impl DualTierSemanticCache {
     /// Fast Tier-1 direct exact SHA-256 match (<1ms)
     pub fn lookup_exact(&self, model: &str, prompt: &str) -> Option<String> {
         let hash = Self::compute_prompt_hash(model, prompt);
-        let mut cache = self.exact_cache.write().unwrap();
+        let mut cache = self.exact_cache.write().unwrap_or_else(|e| e.into_inner());
         if let Some(entry) = cache.get_mut(&hash) {
             entry.hit_count += 1;
             return Some(entry.response.clone());
@@ -84,17 +118,25 @@ impl DualTierSemanticCache {
         None
     }
 
-    /// Tier-2 Semantic Cosine Similarity match
+    /// Tier-2 Semantic Vector Similarity match based on configured distance metric.
     pub fn lookup_semantic(&self, query_embedding: &[f32], model: &str) -> Option<(String, f32)> {
-        let entries = self.semantic_entries.read().unwrap();
+        let entries = self.semantic_entries.read().unwrap_or_else(|e| e.into_inner());
         let mut best_match: Option<(String, f32)> = None;
 
         for e in entries.iter().filter(|e| e.model == model) {
             if let Some(ref emb) = e.embedding {
-                let sim = cosine_similarity(query_embedding, emb);
-                if sim >= self.similarity_threshold {
-                    if best_match.as_ref().map(|(_, best)| sim > *best).unwrap_or(true) {
-                        best_match = Some((e.response.clone(), sim));
+                let score = match self.metric {
+                    DistanceMetric::Cosine => cosine_similarity(query_embedding, emb),
+                    DistanceMetric::Ip => inner_product(query_embedding, emb),
+                    DistanceMetric::L2 => {
+                        let dist = l2_distance(query_embedding, emb);
+                        1.0 / (1.0 + dist)
+                    }
+                };
+
+                if score >= self.similarity_threshold {
+                    if best_match.as_ref().map(|(_, best)| score > *best).unwrap_or(true) {
+                        best_match = Some((e.response.clone(), score));
                     }
                 }
             }
@@ -114,16 +156,16 @@ impl DualTierSemanticCache {
         };
 
         {
-            let mut cache = self.exact_cache.write().unwrap();
+            let mut cache = self.exact_cache.write().unwrap_or_else(|e| e.into_inner());
             cache.insert(hash.clone(), entry.clone());
         }
 
         if embedding.is_some() {
-            let mut sem = self.semantic_entries.write().unwrap();
+            let mut sem = self.semantic_entries.write().unwrap_or_else(|e| e.into_inner());
             sem.push(entry);
         }
 
-        // Async write to SQLite if available
+        // Write to SQLite WAL if available
         if let Ok(guard) = self.db_conn.lock() {
             if let Some(ref conn) = *guard {
                 let _ = conn.execute(
@@ -134,15 +176,14 @@ impl DualTierSemanticCache {
         }
     }
 
-    /// Dynamic purge: purge cached entries whose prompts or responses match ignored paths or patterns
+    /// Dynamic purge: purge cached entries whose prompts or responses match ignored paths or patterns.
     pub fn purge_ignored_entries(&self, root: &Path) -> usize {
         let ignore = crate::codegraph::walker::build_project_ignore(root);
         let mut purged_hashes = Vec::new();
 
         {
-            let cache = self.exact_cache.read().unwrap();
+            let cache = self.exact_cache.read().unwrap_or_else(|e| e.into_inner());
             for (hash, entry) in cache.iter() {
-                // Check if prompt or response contains any path matching ignore rules
                 let words: Vec<&str> = entry.prompt.split_whitespace()
                     .chain(entry.response.split_whitespace())
                     .collect();
@@ -170,8 +211,8 @@ impl DualTierSemanticCache {
 
         let purged_count = purged_hashes.len();
         if !purged_hashes.is_empty() {
-            let mut cache = self.exact_cache.write().unwrap();
-            let mut sem = self.semantic_entries.write().unwrap();
+            let mut cache = self.exact_cache.write().unwrap_or_else(|e| e.into_inner());
+            let mut sem = self.semantic_entries.write().unwrap_or_else(|e| e.into_inner());
             for h in &purged_hashes {
                 cache.remove(h);
             }
@@ -207,6 +248,20 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     } else {
         dot / (norm_a.sqrt() * norm_b.sqrt())
     }
+}
+
+pub fn inner_product(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() {
+        return 0.0;
+    }
+    a.iter().zip(b.iter()).map(|(x, y)| x * y).sum()
+}
+
+pub fn l2_distance(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() {
+        return f32::MAX;
+    }
+    a.iter().zip(b.iter()).map(|(x, y)| (x - y) * (x - y)).sum::<f32>().sqrt()
 }
 
 #[cfg(test)]
@@ -251,9 +306,10 @@ mod tests {
         let query_similar = vec![0.94, 0.11, 0.04];
         let hit = cache.lookup_semantic(&query_similar, model);
         assert!(hit.is_some());
-        let (resp, sim) = hit.unwrap();
-        assert_eq!(resp, response);
-        assert!(sim >= 0.92);
+        if let Some((resp, sim)) = hit {
+            assert_eq!(resp, response);
+            assert!(sim >= 0.92);
+        }
 
         // Orthogonal embedding
         let query_dissimilar = vec![0.0, 1.0, 0.0];
@@ -262,7 +318,7 @@ mod tests {
 
     #[test]
     fn test_sqlite_semantic_cache_persistence() {
-        let tmp = tempfile::tempdir().unwrap();
+        let tmp = tempfile::tempdir().expect("tempdir");
         let db_path = tmp.path().join("cache.db");
 
         let cache = DualTierSemanticCache::new(0.92);
@@ -277,7 +333,7 @@ mod tests {
         let temp_dir = std::env::temp_dir().join("toksi_sem_cache_purge_test");
         let _ = std::fs::create_dir_all(&temp_dir);
         let gitignore = temp_dir.join(".gitignore");
-        std::fs::write(&gitignore, "target/\n").unwrap();
+        let _ = std::fs::write(&gitignore, "target/\n");
 
         let cache = DualTierSemanticCache::new(0.92);
         cache.store("gpt-4o", "read file target/debug/build.log", "output content", None);

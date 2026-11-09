@@ -440,12 +440,6 @@ inspect-files/
 .github/context-mode/
 .github/appmod/
 
-# Ignore .codegraph
-.codegraph/
-.toksi/codegraph/
-crates/*/.codegraph/
-crates/*/.toksi/codegraph/
-
 # Ignore clinerules
 .clinerules/
 
@@ -456,13 +450,25 @@ crates/*/.cursor/rules/
 # Ignore grok  rules
 .grok/rules/
 
-# Ignore release artifacts
-dist/
-release-assets/
-release_notes.md
+# Ignore .codegraph
+.codegraph/
+.toksi/codegraph/
+crates/*/.codegraph/
+crates/*/.toksi/codegraph/
+
+# Ignore .context
+.context/
+.toksi/context/
+crates/*/.context/
+crates/*/.toksi/context/
 
 # Ignore projectmem
 .projectmem/events.jsonl
 .projectmem/watch.pid
 .projectmem/watch.log
 .projectmem/structure.json
+
+# Ignore release artifacts
+dist/
+release-assets/
+release_notes.md

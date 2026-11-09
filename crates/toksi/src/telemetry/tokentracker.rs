@@ -221,6 +221,196 @@ impl TokenTrackerEngine {
 }
 
 // ---------------------------------------------------------------------------
+// Content Type Aware Byte-to-Token Ratio Calculators
+// ---------------------------------------------------------------------------
+
+/// Content type categorization for refined byte-to-token ratio estimation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ContentType {
+    Prose,
+    Code,
+    Json,
+    Cjk,
+    Markdown,
+}
+
+impl ContentType {
+    /// Nominal average bytes per token for typical model tokenizers (tiktoken, sentencepiece).
+    pub fn bytes_per_token(&self) -> f64 {
+        match self {
+            Self::Prose => 4.0,
+            Self::Code => 3.2,
+            Self::Json => 2.8,
+            Self::Cjk => 1.5,
+            Self::Markdown => 3.8,
+        }
+    }
+}
+
+/// Detects the probable content type based on character distribution.
+pub fn detect_content_type(sample: &str) -> ContentType {
+    if sample.is_empty() {
+        return ContentType::Prose;
+    }
+
+    let trimmed = sample.trim();
+    if (trimmed.starts_with('{') && trimmed.ends_with('}'))
+        || (trimmed.starts_with('[') && trimmed.ends_with(']'))
+    {
+        return ContentType::Json;
+    }
+
+    let mut cjk_count = 0usize;
+    let mut json_indicator = 0usize;
+    let mut code_indicator = 0usize;
+    let total_chars = sample.chars().count();
+
+    for c in sample.chars() {
+        if ('\u{4e00}'..='\u{9fff}').contains(&c)
+            || ('\u{3040}'..='\u{30ff}').contains(&c)
+            || ('\u{ac00}'..='\u{d7af}').contains(&c)
+        {
+            cjk_count += 1;
+        } else if matches!(c, '{' | '}' | '[' | ']' | '"' | ':') {
+            json_indicator += 1;
+        } else if matches!(c, ';' | '(' | ')' | '=' | '<' | '>' | '&' | '|' | '`') {
+            code_indicator += 1;
+        }
+    }
+
+    let code_keywords = [
+        "fn ", "def ", "class ", "function", "pub ", "struct ", "impl ", "let ",
+        "var ", "val ", "const ", "import ", "export ", "return ", "package ",
+    ];
+    let has_code_keyword = code_keywords.iter().any(|k| sample.contains(k));
+
+    if cjk_count * 10 >= total_chars * 2 {
+        ContentType::Cjk
+    } else if json_indicator * 10 >= total_chars * 3 && (trimmed.starts_with('{') || trimmed.starts_with('[')) {
+        ContentType::Json
+    } else if has_code_keyword || code_indicator * 10 >= total_chars * 15 / 10 {
+        ContentType::Code
+    } else if sample.contains("# ") || sample.contains("```") || sample.contains("- ") {
+        ContentType::Markdown
+    } else {
+        ContentType::Prose
+    }
+}
+
+/// Calculates token count from byte size according to specific content type ratio.
+pub fn calculate_tokens_from_bytes(bytes: usize, content_type: ContentType) -> u64 {
+    let ratio = content_type.bytes_per_token();
+    if ratio <= 0.0 {
+        return (bytes / BYTES_PER_TOKEN) as u64;
+    }
+    ((bytes as f64) / ratio).round() as u64
+}
+
+/// Known agent plan quotas and limits for popular coding assistants and providers.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentPlanTier {
+    ClaudePro,
+    ClaudeTeam,
+    OpenAiPlus,
+    OpenAiTeam,
+    CursorPro,
+    CursorBusiness,
+    CodexPaid,
+    DeepSeekPaid,
+    Custom { name: String, limit_requests: u64, window_secs: u64 },
+}
+
+impl AgentPlanTier {
+    pub fn window_duration_secs(&self) -> u64 {
+        match self {
+            Self::ClaudePro | Self::ClaudeTeam => 5 * 3600, // 5 hours rolling
+            Self::OpenAiPlus | Self::OpenAiTeam => 3 * 3600, // 3 hours rolling
+            Self::CursorPro | Self::CursorBusiness => 30 * 86400, // monthly
+            Self::CodexPaid => 86400, // daily
+            Self::DeepSeekPaid => 60, // per minute TPM/RPM
+            Self::Custom { window_secs, .. } => *window_secs,
+        }
+    }
+
+    pub fn nominal_request_limit(&self) -> u64 {
+        match self {
+            Self::ClaudePro => 45,
+            Self::ClaudeTeam => 150,
+            Self::OpenAiPlus => 40,
+            Self::OpenAiTeam => 100,
+            Self::CursorPro => 500,
+            Self::CursorBusiness => 2000,
+            Self::CodexPaid => 1000,
+            Self::DeepSeekPaid => 60,
+            Self::Custom { limit_requests, .. } => *limit_requests,
+        }
+    }
+}
+
+/// Tracks rolling quota consumption for agent subscription plans.
+#[derive(Debug, Clone)]
+pub struct RollingQuotaTracker {
+    pub plan: AgentPlanTier,
+    pub request_timestamps: Vec<u64>, // epoch seconds
+    pub token_history: Vec<(u64, u64)>, // (epoch seconds, tokens consumed)
+}
+
+impl RollingQuotaTracker {
+    pub fn new(plan: AgentPlanTier) -> Self {
+        Self {
+            plan,
+            request_timestamps: Vec::new(),
+            token_history: Vec::new(),
+        }
+    }
+
+    /// Records a request invocation and its tokens.
+    pub fn record_turn(&mut self, now_epoch_secs: u64, tokens: u64) {
+        self.request_timestamps.push(now_epoch_secs);
+        self.token_history.push((now_epoch_secs, tokens));
+        self.prune(now_epoch_secs);
+    }
+
+    /// Prunes timestamps older than the plan's rolling window.
+    pub fn prune(&mut self, now_epoch_secs: u64) {
+        let window = self.plan.window_duration_secs();
+        let cutoff = now_epoch_secs.saturating_sub(window);
+        self.request_timestamps.retain(|&ts| ts >= cutoff);
+        self.token_history.retain(|&(ts, _)| ts >= cutoff);
+    }
+
+    /// Returns the number of requests used in the current rolling window.
+    pub fn current_window_requests(&self, now_epoch_secs: u64) -> usize {
+        let window = self.plan.window_duration_secs();
+        let cutoff = now_epoch_secs.saturating_sub(window);
+        self.request_timestamps.iter().filter(|&&ts| ts >= cutoff).count()
+    }
+
+    /// Returns the total tokens consumed in the current rolling window.
+    pub fn current_window_tokens(&self, now_epoch_secs: u64) -> u64 {
+        let window = self.plan.window_duration_secs();
+        let cutoff = now_epoch_secs.saturating_sub(window);
+        self.token_history
+            .iter()
+            .filter(|&&(ts, _)| ts >= cutoff)
+            .map(|&(_, tok)| tok)
+            .sum()
+    }
+
+    /// Evaluates quota consumption status: (used_requests, limit_requests, percentage_consumed).
+    pub fn consumption_ratio(&self, now_epoch_secs: u64) -> (usize, u64, f64) {
+        let used = self.current_window_requests(now_epoch_secs);
+        let limit = self.plan.nominal_request_limit();
+        let ratio = if limit > 0 {
+            (used as f64) / (limit as f64)
+        } else {
+            0.0
+        };
+        (used, limit, (ratio * 100.0).min(100.0))
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Rate Limits Extraction from Upstream HTTP Response Headers
 // ---------------------------------------------------------------------------
 
@@ -789,5 +979,40 @@ mod tests {
         let sse = format!("data: {}", raw);
         let p2 = parse_gemini_chunk(&sse);
         assert_eq!(p1, p2);
+    }
+
+    #[test]
+    fn test_content_type_detection_and_ratios() {
+        let code = "fn main() { println!(\"Hello World\"); let x = 42; }";
+        assert_eq!(detect_content_type(code), ContentType::Code);
+        let tokens = calculate_tokens_from_bytes(code.len(), ContentType::Code);
+        assert!(tokens > 0);
+
+        let json = "{\"name\": \"toksi\", \"status\": \"ok\", \"count\": 12}";
+        assert_eq!(detect_content_type(json), ContentType::Json);
+
+        let cjk = "这是一个测试，测试中文分词与标记化。";
+        assert_eq!(detect_content_type(cjk), ContentType::Cjk);
+    }
+
+    #[test]
+    fn test_rolling_quota_tracker() {
+        let mut tracker = RollingQuotaTracker::new(AgentPlanTier::ClaudePro);
+        let now = 100000;
+        tracker.record_turn(now, 500);
+        tracker.record_turn(now + 60, 800);
+        assert_eq!(tracker.current_window_requests(now + 120), 2);
+        assert_eq!(tracker.current_window_tokens(now + 120), 1300);
+
+        let (used, limit, pct) = tracker.consumption_ratio(now + 120);
+        assert_eq!(used, 2);
+        assert_eq!(limit, 45);
+        assert!(pct > 4.0 && pct < 5.0);
+
+        // Advance past 5-hour window for all recorded turns
+        let past = now + 60 + 5 * 3600 + 10;
+        tracker.prune(past);
+        assert_eq!(tracker.current_window_requests(past), 0);
+        assert_eq!(tracker.current_window_tokens(past), 0);
     }
 }

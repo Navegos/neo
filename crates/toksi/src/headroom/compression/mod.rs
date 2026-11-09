@@ -6,10 +6,12 @@
 // lastModified: 2026-10-31
 
 pub mod code;
+pub mod economizer;
 pub mod json;
 pub mod log;
 
 pub use code::{compress_code, detect_code_language, CodeCompressorConfig, CodeLanguage};
+pub use economizer::*;
 pub use json::{prune_embedded_json, prune_json, JsonPrunerConfig};
 pub use log::{classify_line, compress_logs, deduplicate_logs, detect_format, LogCompressorConfig, LogFormat, LogLevel};
 

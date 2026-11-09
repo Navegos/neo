@@ -94,9 +94,9 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
   - [x] Implement network reconnection auto-healing watchdog in `gateway/reconnect.rs` to detect interface toggles, timeouts, and VPN drops, auto-refreshing connection pools without dormant lockout.
   - [x] Universal rules/skills sync across all 17 agents; comprehensive update of CLI usage help in `crates/toksi/src/main.rs`.
   - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
-- [ ] Phase 15.6: Advanced Vault Intelligence Engines Consolidation:
+- [x] Phase 15.6: Advanced Vault Intelligence Engines Consolidation:
   > Plan 15.6: `.agents/brain/PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md`
-  - [ ] Consolidate remaining reference vaults in pure Rust:
+  - [x] Consolidate remaining reference vaults in pure Rust:
     * `TokenTracker` -> `crates/toksi/src/telemetry/tokentracker.rs`
     * `jcodemunch-mcp` -> `crates/toksi/src/codegraph/jcodemunch.rs`
     * `repomix` -> `crates/toksi/src/codegraph/repomix.rs`
@@ -107,7 +107,7 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
     * `litellm` -> `crates/toksi/src/gateway/normalizer/litellm.rs`
     * `TokenEconomizer` -> `crates/toksi/src/headroom/compression/economizer.rs`
     * `agent-opt` -> `crates/toksi/src/agents/opt.rs`
-  - [ ] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
+  - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
 - [ ] Phase 16.1: High-Performance Mouse-Capable Interactive TUI:
   > Plan 16.1: `.agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md`
   - [ ] Enable crossterm `EnableMouseCapture`: interactive tab clicks, entity row selection, action buttons, scrollable inspection panels.

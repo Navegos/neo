@@ -5,10 +5,14 @@
 // created: 2026-10-28
 // lastModified: 2026-11-08
 
+pub mod ast_grep;
 pub mod cache;
 pub mod graph;
+pub mod jcodemunch;
 pub mod kernel;
 pub mod mcp;
+pub mod repomix;
+pub mod scip;
 pub mod walker;
 
 #[cfg(test)]
@@ -21,9 +25,13 @@ use std::path::{Path, PathBuf};
 use crate::core::DynError;
 use crate::util::colors::C;
 
+pub use ast_grep::{AstGrepEngine, AstMatch, AstRule};
 pub use cache::{CacheStats, SymbolCache};
 pub use graph::{BlastRadiusReport, CodeGraphEngine, ImpactedNode};
+pub use jcodemunch::{extract_file_outline, generate_repo_outline, summarize_code_for_prompt, FileOutline, RepoOutline, SymbolOutline};
 pub use kernel::{FileExtraction, SymbolEdge, SymbolNode, SymbolRef};
+pub use repomix::{package_files, pack_workspace, RepomixBundle, RepomixFormat, RepomixOptions};
+pub use scip::{format_scip_symbol, parse_scip_symbol, ScipDocument, ScipIndex, ScipOccurrence, ScipSymbolInformation, SymbolRole};
 
 pub fn resolve_db_path(root: &Path) -> PathBuf {
     let toksi_dir = root.join(".toksi").join("codegraph");

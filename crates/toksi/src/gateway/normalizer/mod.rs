@@ -5,6 +5,10 @@
 // created: 2026-10-31
 // lastModified: 2026-10-31
 
+pub mod litellm;
+
+pub use litellm::*;
+
 use serde_json::{json, Value};
 use crate::gateway::providers::UnifiedRequest;
 
