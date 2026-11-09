@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/mod.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-09
 
 pub mod adaptive_mem;
 pub mod autostart;
@@ -28,9 +28,13 @@ pub use cache_align::*;
 pub use cloudcode_patch::*;
 pub use compression::*;
 pub use copilot_daemon::{
-    copilot_proxy_args, copilot_proxy_files, copilot_proxy_live_z, copilot_proxy_owned,
-    copilot_proxy_ownership_valid, copilot_proxy_port, copilot_proxy_running,
-    rollback_copilot_proxy, start_copilot_proxy, stop_copilot_proxy, DEFAULT_COPILOT_PROXY_PORT,
+    copilot_cli_proxy_args, copilot_cli_proxy_files, copilot_cli_proxy_live_z,
+    copilot_cli_proxy_owned, copilot_cli_proxy_ownership_valid, copilot_cli_proxy_port,
+    copilot_cli_proxy_running, copilot_port_live_z, copilot_proxy_args, copilot_proxy_files,
+    copilot_proxy_live_z, copilot_proxy_owned, copilot_proxy_ownership_valid, copilot_proxy_port,
+    copilot_proxy_running, rollback_copilot_proxy, run_native_copilot_proxy, start_copilot_cli_proxy,
+    start_copilot_proxy, stop_copilot_cli_proxy, stop_copilot_proxy, validate_copilot_ports,
+    DEFAULT_COPILOT_CLI_PROXY_PORT, DEFAULT_COPILOT_PROXY_PORT,
 };
 pub use grok_daemon::*;
 pub use headroom::*;

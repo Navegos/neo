@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/server.rs
 // created: 2026-10-30
-// lastModified: 2026-11-08
+// lastModified: 2026-11-09
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -249,20 +249,35 @@ impl DashboardServer {
             }
         });
 
+        let mut shutdown_rx = self.shutdown_tx.as_ref().map(|tx| tx.subscribe());
         loop {
-            match listener.accept().await {
-                Ok((stream, _peer)) => {
-                    let btx = broadcast_tx.clone();
-                    tokio::spawn(async move {
-                        let _ = handle_connection(stream, btx).await;
-                    });
+            tokio::select! {
+                res = listener.accept() => {
+                    match res {
+                        Ok((stream, _peer)) => {
+                            let btx = broadcast_tx.clone();
+                            tokio::spawn(async move {
+                                let _ = handle_connection(stream, btx).await;
+                            });
+                        }
+                        Err(e) => {
+                            eprintln!("Dashboard server accept error: {}", e);
+                            tokio::time::sleep(Duration::from_millis(50)).await;
+                        }
+                    }
                 }
-                Err(e) => {
-                    eprintln!("Dashboard server accept error: {}", e);
-                    tokio::time::sleep(Duration::from_millis(50)).await;
+                _ = async {
+                    if let Some(ref mut rx) = shutdown_rx {
+                        let _ = rx.changed().await;
+                    } else {
+                        std::future::pending::<()>().await;
+                    }
+                } => {
+                    break;
                 }
             }
         }
+        Ok(())
     }
 }
 

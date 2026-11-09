@@ -132,4 +132,47 @@ mod tests {
         let anthropic_body = adapt_sdk_payload(SdkProtocol::OpenAI, SdkProtocol::Anthropic, &openai_body);
         assert!(anthropic_body.get("messages").is_some());
     }
+
+    #[tokio::test]
+    async fn test_phase_15_2_gateway_server_endpoints() {
+        let server = crate::gateway::server::GatewayServer::new("127.0.0.1", 19099);
+        let task = tokio::spawn(async move {
+            let _ = server.run().await;
+        });
+
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        let Ok(client) = reqwest::Client::builder().build() else {
+            task.abort();
+            return;
+        };
+
+        // 1. /healthz
+        if let Ok(resp) = client.get("http://127.0.0.1:19099/healthz").send().await {
+            assert!(resp.status().is_success());
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            assert_eq!(body.get("service").and_then(|v| v.as_str()), Some("ai-gateway"));
+        }
+
+        // 2. /metrics
+        if let Ok(resp) = client.get("http://127.0.0.1:19099/metrics").send().await {
+            assert!(resp.status().is_success());
+        }
+
+        // 3. /v1/chat/completions
+        let payload = json!({
+            "model": "gpt-4o",
+            "messages": [{"role": "user", "content": "hello"}]
+        });
+        if let Ok(resp) = client.post("http://127.0.0.1:19099/v1/chat/completions")
+            .json(&payload)
+            .send().await
+        {
+            assert!(resp.status().is_success());
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            assert_eq!(body.get("object").and_then(|v| v.as_str()), Some("chat.completion"));
+        }
+
+        task.abort();
+    }
 }

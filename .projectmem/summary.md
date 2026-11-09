@@ -40,7 +40,6 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - Refactor: Refactor context mode CLI to support 'execute' command and enhance test coverage [crates/toksi/src/contextmode/cli.rs]
 
 ## Notes
-- New feature: feat(doctor): add rules audit/sync, agent instruction probes, and multi-format MCP resolution [crates/toksi/src/agents/cursor.rs]
 - New feature: feat(toksi): Enhance TUI with Governance Management and Metrics [crates/toksi/src/commands/tui.rs]
 - New feature: feat(rtk): add JSON and log filtering capabilities, enhance command normalization [crates/toksi/src/commands/rtk.rs]
 - New feature: Add agent instructions and consolidate phase prompts in documentation [AGENTS.md]
@@ -50,6 +49,7 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - New feature: feat: add new skills for AI coding agents - Ponytail and Principles [crates/toksi/src/agents/codex.rs]
 - New feature: feat: update last_failure.json command and add benchmarks and e2e tests [crates/toksi/tests/benchmarks.rs]
 - New feature: feat: update last_failure.json command and remove obsolete database files [crates/toksi/src/db/mod.rs]
+- New feature: feat: Enhance workspace management and tool normalization [crates/toksi/src/agents/hooks.rs]
 
 ## Key files
 - `.editorconfig`

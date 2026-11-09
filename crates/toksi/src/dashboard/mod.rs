@@ -20,6 +20,41 @@ use crate::util::logger::L;
 
 pub const DEFAULT_DASHBOARD_PORT: u16 = 9100;
 
+pub fn dashboard_port() -> u16 {
+    if let Ok(raw) = std::env::var("TOKSI_DASHBOARD_PORT") {
+        if let Ok(p) = raw.trim().parse::<u16>() {
+            if p > 0 {
+                return p;
+            }
+        }
+    }
+    DEFAULT_DASHBOARD_PORT
+}
+
+pub fn dashboard_live_z(port: u16, timeout: std::time::Duration) -> bool {
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let Ok(mut stream) = std::net::TcpStream::connect_timeout(&addr, timeout) else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(timeout));
+    let _ = stream.set_write_timeout(Some(timeout));
+    use std::io::{Read, Write};
+    let req = format!("GET /api/status HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n", port);
+    if stream.write_all(req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut resp = [0u8; 256];
+    let Ok(n) = stream.read(&mut resp) else {
+        return false;
+    };
+    let s = String::from_utf8_lossy(&resp[..n]);
+    s.starts_with("HTTP/1.1 200") || s.starts_with("HTTP/1.0 200")
+}
+
+pub fn is_dashboard_running() -> bool {
+    dashboard_live_z(dashboard_port(), std::time::Duration::from_millis(500))
+}
+
 pub fn open_browser(url: &str) {
     #[cfg(target_os = "windows")]
     {

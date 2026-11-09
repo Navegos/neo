@@ -60,18 +60,18 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
   - [x] Standardize tool hook syntax: `<tool>-hook <agent>` (e.g. `codegraph-hook agy`, `projectmem-hook agy`, `context-hook agy`, `rtk-hook agy`).
   - [x] Normalize MCP tool identifiers: `toksi-projectmem` -> `projectmem`, `toksi-context-mode` -> `context`, `toksi-codegraph-index` -> `codegraph`. Map MCP settings to `skills/<tool>`.
   - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
-- [ ] Phase 15.2: Unified 5-Port Daemon & Copilot Supervision:
+- [x] Phase 15.2: Unified 5-Port Daemon & Copilot Supervision:
   > Plan 15.2: `.agents/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md`
-  - [ ] Supervise all 5 dedicated endpoints simultaneously in `toksi daemon start`:
+  - [x] Supervise all 5 dedicated endpoints simultaneously in `toksi daemon start`:
     * Port 8787: Headroom Streaming Proxy (Antigravity, Grok)
     * Port 8789: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`)
     * Port 8790: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`)
     * Port 9099: Enterprise AI Gateway & Drop-in SDKs (`/v1/chat/completions`, `/v1/messages`, `/metrics`)
     * Port 9100: Web Telemetry & Control Dashboard Cockpit (non-blocking background service)
-  - [ ] Guarantee port latency isolation: port 9099 strictly dedicated to streaming inference (<10 µs latency overhead); port 9100 strictly dedicated to web dashboard cockpit.
-  - [ ] Verify Copilot dual-port wiring (8789 & 8790) with health probes (`/livez`) and collision prevention.
-  - [ ] Ensure non-destructive environment lifecycle: clean teardown of Windows `HKCU\Environment` variables (`WM_SETTINGCHANGE` broadcast) and Unix session env on daemon shutdown.
-  - [ ] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
+  - [x] Guarantee port latency isolation: port 9099 strictly dedicated to streaming inference (<10 µs latency overhead); port 9100 strictly dedicated to web dashboard cockpit.
+  - [x] Verify Copilot dual-port wiring (8789 & 8790) with health probes (`/livez`) and collision prevention.
+  - [x] Ensure non-destructive environment lifecycle: clean teardown of Windows `HKCU\Environment` variables (`WM_SETTINGCHANGE` broadcast) and Unix session env on daemon shutdown.
+  - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
 - [ ] Phase 15.3: Smart Agent CLI Providers & Paid Quota Enforcement:
   > Plan 15.3: `.agents/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md`
   - [ ] Securely register 6 Local Agent CLIs as first-class peer BYOK providers (`agy.exe`, `copilot.exe`, `claude`, `codex`, `cursor`, `grok.exe`).

@@ -17,6 +17,7 @@ pub mod providers;
 pub mod proxy;
 pub mod routing;
 pub mod semantic_cache;
+pub mod server;
 
 pub use agent_cli::*;
 pub use cascade::*;
@@ -30,6 +31,7 @@ pub use providers::*;
 pub use proxy::*;
 pub use routing::*;
 pub use semantic_cache::*;
+pub use server::*;
 
 #[cfg(test)]
 mod tests;
