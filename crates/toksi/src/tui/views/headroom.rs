@@ -3,13 +3,13 @@
 // project: neo
 // file: crates/toksi/src/tui/views/headroom.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-09
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Gauge, Paragraph, Row, Table, Wrap},
+    widgets::{Block, Borders, Cell, Gauge, Paragraph, Row, Table, Widget, Wrap},
     Frame,
 };
 
@@ -22,6 +22,7 @@ pub fn render_headroom_view(f: &mut Frame, area: Rect, app: &App) {
             Constraint::Length(8), // Cache Alignment Gauge & Memory Scaling
             Constraint::Length(8), // Fallback Cascades & War Room
             Constraint::Min(8),    // BYOK Provider Routes Table
+            Constraint::Length(3), // Action Buttons Bar
         ])
         .split(area);
 
@@ -123,6 +124,7 @@ pub fn render_headroom_view(f: &mut Frame, area: Rect, app: &App) {
 
     let header_row = Row::new(vec![
         Cell::from("Provider").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Cell::from("Tier").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Cell::from("Target Upstream URL").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Cell::from("Virtual Prefix").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Cell::from("Health (/livez)").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
@@ -144,8 +146,17 @@ pub fn render_headroom_view(f: &mut Frame, area: Rect, app: &App) {
                 Style::default()
             };
 
+            let tier_style = if route.tier_badge == "[PAID]" {
+                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            } else if route.tier_badge == "[DISQUALIFIED-FREE]" {
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+
             Row::new(vec![
                 Cell::from(Span::styled(&route.provider, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+                Cell::from(Span::styled(&route.tier_badge, tier_style)),
                 Cell::from(Span::styled(&route.target_url, Style::default().fg(Color::White))),
                 Cell::from(Span::styled(&route.virtual_prefix, Style::default().fg(Color::Yellow))),
                 Cell::from(if route.healthy {
@@ -161,11 +172,12 @@ pub fn render_headroom_view(f: &mut Frame, area: Rect, app: &App) {
         .collect();
 
     let widths = [
-        Constraint::Length(16),
+        Constraint::Length(14),
+        Constraint::Length(21),
         Constraint::Length(28),
         Constraint::Length(22),
-        Constraint::Length(16),
-        Constraint::Length(16),
+        Constraint::Length(14),
+        Constraint::Length(14),
         Constraint::Min(20),
     ];
 
@@ -174,4 +186,28 @@ pub fn render_headroom_view(f: &mut Frame, area: Rect, app: &App) {
         .block(table_block);
 
     f.render_widget(table, chunks[2]);
+
+    // Section 4: Action Buttons Bar
+    let btn_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(Color::DarkGray));
+    let btn_area = chunks[3];
+    let btn_sub = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(22),
+            Constraint::Length(20),
+            Constraint::Min(10),
+        ])
+        .split(btn_block.inner(btn_area));
+
+    crate::tui::widgets::Button::new("Test Cache Align (c)")
+        .style(crate::tui::widgets::ButtonStyle::Primary)
+        .render(btn_sub[0], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Reload Routes (r)")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[1], f.buffer_mut());
+
+    f.render_widget(btn_block, btn_area);
 }

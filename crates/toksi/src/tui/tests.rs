@@ -3,10 +3,11 @@
 // project: neo
 // file: crates/toksi/src/tui/tests.rs
 // created: 2026-10-30
-// lastModified: 2026-11-06
+// lastModified: 2026-11-09
 
 use super::app::*;
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use ratatui::layout::Rect;
 
 fn press_key(code: KeyCode) -> KeyEvent {
     KeyEvent {
@@ -142,5 +143,114 @@ fn test_agent_selection_and_modal() {
         // Close modal with Esc
         app.handle_key(press_key(KeyCode::Esc));
         assert!(app.agents.inspect_mcp.is_none());
+    }
+}
+
+#[test]
+fn test_mouse_tab_switching() {
+    let mut app = App::new();
+    assert_eq!(app.current_tab, 0);
+
+    let area = Rect::new(0, 0, 140, 40);
+
+    // Tab 2 (col ~30, row 2)
+    let mouse_tab2 = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 25,
+        row: 2,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(mouse_tab2, area);
+    assert_eq!(app.current_tab, 1);
+
+    // Tab 4 (col ~65, row 2)
+    let mouse_tab4 = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 65,
+        row: 2,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(mouse_tab4, area);
+    assert_eq!(app.current_tab, 3);
+}
+
+#[test]
+fn test_mouse_action_buttons() {
+    let mut app = App::new();
+    let area = Rect::new(0, 0, 120, 40);
+
+    // Tab 0 Monitor: Proxy Up button at footer_start - 2, col 10
+    app.current_tab = 0;
+    app.monitor.proxy_up = false;
+    let btn_click = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 10,
+        row: 36, // button row
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(btn_click, area);
+    assert!(app.monitor.proxy_up);
+
+    // Tab 3 Memory: Precheck button
+    app.current_tab = 3;
+    let precheck_click = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 10,
+        row: 36,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(precheck_click, area);
+    assert!(app.memory.precheck_result.is_some());
+
+    // Dismiss modal on outside click
+    let modal_dismiss = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 10,
+        row: 1, // outside
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(modal_dismiss, area);
+    assert!(app.memory.precheck_result.is_none());
+}
+
+#[test]
+fn test_mouse_wheel_scroll() {
+    let mut app = App::new();
+    app.current_tab = 6; // Logs
+    app.logs.follow = true;
+    app.logs.scroll_offset = 0;
+
+    let area = Rect::new(0, 0, 120, 40);
+
+    let scroll_down = MouseEvent {
+        kind: MouseEventKind::ScrollDown,
+        column: 50,
+        row: 20,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(scroll_down, area);
+    assert!(!app.logs.follow);
+    assert_eq!(app.logs.scroll_offset, 3);
+
+    let scroll_up = MouseEvent {
+        kind: MouseEventKind::ScrollUp,
+        column: 50,
+        row: 20,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(scroll_up, area);
+    assert_eq!(app.logs.scroll_offset, 0);
+}
+
+#[test]
+fn test_byok_tier_badges() {
+    let app = App::new();
+    assert!(!app.headroom.routes.is_empty());
+    for r in &app.headroom.routes {
+        assert!(
+            r.tier_badge == "[PAID]"
+                || r.tier_badge == "[DISQUALIFIED-FREE]"
+                || r.tier_badge == "[UNKNOWN]"
+        );
     }
 }

@@ -3,13 +3,13 @@
 // project: neo
 // file: crates/toksi/src/tui/views/monitor.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-09
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Gauge, Paragraph, Row, Sparkline, Table},
+    widgets::{Block, Borders, Cell, Gauge, Paragraph, Row, Sparkline, Table, Widget},
     Frame,
 };
 
@@ -21,6 +21,7 @@ pub fn render_monitor_view(f: &mut Frame, area: Rect, app: &App) {
         .constraints([
             Constraint::Length(7), // Metric Cards
             Constraint::Min(10),   // Waterfall Table
+            Constraint::Length(3), // Action Buttons
         ])
         .split(area);
 
@@ -218,6 +219,43 @@ pub fn render_monitor_view(f: &mut Frame, area: Rect, app: &App) {
         .block(waterfall_block);
 
     f.render_widget(table, chunks[1]);
+
+    // Section 3: Action Buttons Bar
+    let btn_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(Color::DarkGray));
+    let btn_area = chunks[2];
+    let btn_sub = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(20),
+            Constraint::Length(20),
+            Constraint::Length(18),
+            Constraint::Min(10),
+        ])
+        .split(btn_block.inner(btn_area));
+
+    crate::tui::widgets::Button::new("Proxy Up (u)")
+        .style(if app.monitor.proxy_up {
+            crate::tui::widgets::ButtonStyle::Success
+        } else {
+            crate::tui::widgets::ButtonStyle::Primary
+        })
+        .render(btn_sub[0], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Proxy Down (d)")
+        .style(if !app.monitor.proxy_up {
+            crate::tui::widgets::ButtonStyle::Danger
+        } else {
+            crate::tui::widgets::ButtonStyle::Neutral
+        })
+        .render(btn_sub[1], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Refresh (r)")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[2], f.buffer_mut());
+
+    f.render_widget(btn_block, btn_area);
 }
 
 fn format_count(n: i64) -> String {

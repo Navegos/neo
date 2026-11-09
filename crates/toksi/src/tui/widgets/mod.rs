@@ -3,7 +3,11 @@
 // project: neo
 // file: crates/toksi/src/tui/widgets/mod.rs
 // created: 2026-10-30
-// lastModified: 2026-11-06
+// lastModified: 2026-11-09
+
+pub mod button;
+pub use button::{Button, ButtonStyle};
+
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},

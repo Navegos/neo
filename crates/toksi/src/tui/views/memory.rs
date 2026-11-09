@@ -3,13 +3,13 @@
 // project: neo
 // file: crates/toksi/src/tui/views/memory.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-09
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, Widget, Wrap},
     Frame,
 };
 
@@ -22,6 +22,7 @@ pub fn render_memory_view(f: &mut Frame, area: Rect, app: &App) {
         .constraints([
             Constraint::Length(3), // Search bar & filter pills
             Constraint::Min(10),   // Split between Table and Detail
+            Constraint::Length(3), // Action Buttons Bar
         ])
         .split(area);
 
@@ -197,6 +198,35 @@ pub fn render_memory_view(f: &mut Frame, area: Rect, app: &App) {
         .block(detail_block);
         f.render_widget(empty_p, body_chunks[1]);
     }
+
+    // Section 3: Action Buttons Bar
+    let btn_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(Color::DarkGray));
+    let btn_area = chunks[2];
+    let btn_sub = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(22),
+            Constraint::Length(18),
+            Constraint::Length(18),
+            Constraint::Min(10),
+        ])
+        .split(btn_block.inner(btn_area));
+
+    crate::tui::widgets::Button::new("Run Precheck (p)")
+        .style(crate::tui::widgets::ButtonStyle::Primary)
+        .render(btn_sub[0], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Cycle Filter (f)")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[1], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Search (/)")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[2], f.buffer_mut());
+
+    f.render_widget(btn_block, btn_area);
 
     // Precheck Result Modal if open
     if let Some(ref precheck) = app.memory.precheck_result {

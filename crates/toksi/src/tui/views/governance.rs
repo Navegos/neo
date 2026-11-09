@@ -3,13 +3,13 @@
 // project: neo
 // file: crates/toksi/src/tui/views/governance.rs
 // created: 2026-11-06
-// lastModified: 2026-11-06
+// lastModified: 2026-11-09
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Gauge, Paragraph, Row, Table, Wrap},
+    widgets::{Block, Borders, Cell, Gauge, Paragraph, Row, Table, Widget, Wrap},
     Frame,
 };
 
@@ -22,6 +22,7 @@ pub fn render_governance_view(f: &mut Frame, area: Rect, app: &App) {
             Constraint::Length(7), // Section 1: Overview Cards & Budget Gauge
             Constraint::Min(10),   // Section 2: Virtual Keys & Governance Quotas Table
             Constraint::Length(6), // Section 3: Selected Key Detail & Circuit Breakers
+            Constraint::Length(3), // Section 4: Action Buttons Bar
         ])
         .split(area);
 
@@ -225,4 +226,28 @@ pub fn render_governance_view(f: &mut Frame, area: Rect, app: &App) {
     };
 
     f.render_widget(Paragraph::new(detail_text).block(detail_block).wrap(Wrap { trim: false }), chunks[2]);
+
+    // Section 4: Action Buttons Bar
+    let btn_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(Color::DarkGray));
+    let btn_area = chunks[3];
+    let btn_sub = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(24),
+            Constraint::Length(24),
+            Constraint::Min(10),
+        ])
+        .split(btn_block.inner(btn_area));
+
+    crate::tui::widgets::Button::new("Reset Windows (r)")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[0], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Clear Breakers (c)")
+        .style(crate::tui::widgets::ButtonStyle::Warning)
+        .render(btn_sub[1], f.buffer_mut());
+
+    f.render_widget(btn_block, btn_area);
 }

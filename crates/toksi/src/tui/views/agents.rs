@@ -3,13 +3,13 @@
 // project: neo
 // file: crates/toksi/src/tui/views/agents.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-09
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, Widget},
     Frame,
 };
 
@@ -22,6 +22,7 @@ pub fn render_agents_view(f: &mut Frame, area: Rect, app: &App) {
         .constraints([
             Constraint::Length(3), // Instructions & summary
             Constraint::Min(10),   // Agent Table
+            Constraint::Length(3), // Action Buttons
         ])
         .split(area);
 
@@ -112,6 +113,40 @@ pub fn render_agents_view(f: &mut Frame, area: Rect, app: &App) {
         );
 
     f.render_widget(table, chunks[1]);
+
+    // Section 3: Action Buttons Bar
+    let btn_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(Color::DarkGray));
+    let btn_area = chunks[2];
+    let btn_sub = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(24),
+            Constraint::Length(24),
+            Constraint::Length(18),
+            Constraint::Min(10),
+        ])
+        .split(btn_block.inner(btn_area));
+
+    let selected_agent_wired = app.agents.items.get(app.agents.selected).map(|a| a.wired).unwrap_or(false);
+    crate::tui::widgets::Button::new(if selected_agent_wired { "Unwire Agent (Space)" } else { "Wire Agent (Space)" })
+        .style(if selected_agent_wired {
+            crate::tui::widgets::ButtonStyle::Warning
+        } else {
+            crate::tui::widgets::ButtonStyle::Success
+        })
+        .render(btn_sub[0], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Inspect MCP (Enter)")
+        .style(crate::tui::widgets::ButtonStyle::Primary)
+        .render(btn_sub[1], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Rescan Fleet (r)")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[2], f.buffer_mut());
+
+    f.render_widget(btn_block, btn_area);
 
     // Render MCP Config Modal if open
     if let Some(ref mcp_info) = app.agents.inspect_mcp {

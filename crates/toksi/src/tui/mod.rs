@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/mod.rs
 // created: 2026-10-30
-// lastModified: 2026-11-08
+// lastModified: 2026-11-09
 
 pub mod app;
 pub mod views;
@@ -74,7 +74,7 @@ pub fn run_tui_with_tab(initial_tab: usize) -> i32 {
     let mut app = App::new();
     app.current_tab = initial_tab.min(app.tab_names.len().saturating_sub(1));
 
-    let frame_duration = Duration::from_millis(16); // ~60fps target
+    let poll_timeout = Duration::from_millis(50);
 
     while !app.should_quit {
         if let Err(e) = terminal.draw(|f| render_ui(f, &mut app)) {
@@ -82,8 +82,8 @@ pub fn run_tui_with_tab(initial_tab: usize) -> i32 {
             break;
         }
 
-        // 60fps non-blocking event polling
-        if event::poll(frame_duration).unwrap_or(false) {
+        // Non-blocking event polling (50ms responsive timeout)
+        if event::poll(poll_timeout).unwrap_or(false) {
             if let Ok(ev) = event::read() {
                 match ev {
                     Event::Key(key) => {
@@ -93,18 +93,8 @@ pub fn run_tui_with_tab(initial_tab: usize) -> i32 {
                         }
                     }
                     Event::Mouse(mouse) => {
-                        use crossterm::event::MouseEventKind;
-                        if mouse.kind == MouseEventKind::Down(crossterm::event::MouseButton::Left) {
-                            // Row 2 is tab bar (y == 2)
-                            if mouse.row == 2 {
-                                let width = terminal.size().map(|s| s.width).unwrap_or(80);
-                                let tab_width = (width / app.tab_names.len() as u16).max(1);
-                                let clicked_tab = (mouse.column / tab_width) as usize;
-                                if clicked_tab < app.tab_names.len() {
-                                    app.current_tab = clicked_tab;
-                                }
-                            }
-                        }
+                        let area = terminal.size().map(|s| ratatui::layout::Rect::new(0, 0, s.width, s.height)).unwrap_or_default();
+                        app.handle_mouse(mouse, area);
                     }
                     Event::Resize(_, _) => {
                         // Terminal resize is automatically redrawn next loop iteration

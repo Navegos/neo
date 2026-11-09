@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/app.rs
 // created: 2026-10-30
-// lastModified: 2026-11-08
+// lastModified: 2026-11-09
 
 use std::env;
 use std::fs;
@@ -12,7 +12,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
+use ratatui::layout::Rect;
 
 use crate::agents::proxy_agent_wired;
 use crate::core::{list_agents, list_tools, RunOpts};
@@ -181,6 +182,7 @@ pub struct ByokRouteItem {
     pub target_url: String,
     pub virtual_prefix: String,
     pub healthy: bool,
+    pub tier_badge: String,
     pub quota_display: String,
     pub agents_assigned: String,
 }
@@ -933,13 +935,25 @@ impl App {
         if !routes.is_empty() {
             self.headroom.routes = routes
                 .into_iter()
-                .map(|r| ByokRouteItem {
-                    provider: r.protocol.clone(),
-                    target_url: r.upstream.clone(),
-                    virtual_prefix: format!("/byok/{}/", r.id),
-                    healthy: true,
-                    quota_display: "Unlimited".into(),
-                    agents_assigned: format!("Route ID: {}", r.id),
+                .map(|r| {
+                    let env_key = format!("{}_API_KEY", r.protocol.to_uppercase());
+                    let key_val = std::env::var(&env_key).unwrap_or_default();
+                    let tier = crate::gateway::agent_cli::tier_check::inspect_provider_tier(&r.protocol, &key_val);
+                    let badge = match tier {
+                        crate::gateway::agent_cli::tier_check::AccountTier::PaidCommercial => "[PAID]",
+                        crate::gateway::agent_cli::tier_check::AccountTier::FreeTierDisqualified => "[DISQUALIFIED-FREE]",
+                        crate::gateway::agent_cli::tier_check::AccountTier::Unknown => "[UNKNOWN]",
+                    };
+
+                    ByokRouteItem {
+                        provider: r.protocol.clone(),
+                        target_url: r.upstream.clone(),
+                        virtual_prefix: format!("/byok/{}/", r.id),
+                        healthy: true,
+                        tier_badge: badge.to_string(),
+                        quota_display: "Unlimited".into(),
+                        agents_assigned: format!("Route ID: {}", r.id),
+                    }
                 })
                 .collect();
         } else {
@@ -949,6 +963,7 @@ impl App {
                     target_url: "https://api.anthropic.com".into(),
                     virtual_prefix: "/toksi/byok/anthropic/".into(),
                     healthy: true,
+                    tier_badge: "[PAID]".into(),
                     quota_display: "92.4% left".into(),
                     agents_assigned: "claude, cursor".into(),
                 },
@@ -957,6 +972,7 @@ impl App {
                     target_url: "https://api.openai.com".into(),
                     virtual_prefix: "/toksi/byok/openai/".into(),
                     healthy: true,
+                    tier_badge: "[PAID]".into(),
                     quota_display: "88.1% left".into(),
                     agents_assigned: "cursor, codex".into(),
                 },
@@ -965,6 +981,7 @@ impl App {
                     target_url: "https://generativelanguage.googleapis.com".into(),
                     virtual_prefix: "/toksi/byok/gemini/".into(),
                     healthy: true,
+                    tier_badge: "[DISQUALIFIED-FREE]".into(),
                     quota_display: "98.5% left".into(),
                     agents_assigned: "antigravity".into(),
                 },
@@ -973,6 +990,7 @@ impl App {
                     target_url: "https://api.deepseek.com".into(),
                     virtual_prefix: "/toksi/byok/deepseek/".into(),
                     healthy: true,
+                    tier_badge: "[PAID]".into(),
                     quota_display: "95.0% left".into(),
                     agents_assigned: "opencode".into(),
                 },
@@ -1373,6 +1391,286 @@ impl App {
             KeyCode::Char('2') => { self.logs.source = LogSource::Proxy; }
             KeyCode::Char('3') => { self.logs.source = LogSource::Daemon; }
             KeyCode::Char('4') => { self.logs.source = LogSource::Watchdog; }
+            _ => {}
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Mouse Event Handler
+    // -------------------------------------------------------------------------
+
+    pub fn handle_mouse(&mut self, mouse: MouseEvent, area: Rect) {
+        match mouse.kind {
+            MouseEventKind::ScrollDown => {
+                if self.agents.inspect_mcp.is_some() {
+                    if let Some(ref mut m) = self.agents.inspect_mcp {
+                        m.scroll = m.scroll.saturating_add(3);
+                    }
+                } else if self.memory.precheck_result.is_some() {
+                    if let Some(ref mut p) = self.memory.precheck_result {
+                        p.scroll = p.scroll.saturating_add(3);
+                    }
+                } else if self.current_tab == 6 {
+                    self.logs.follow = false;
+                    self.logs.scroll_offset = self.logs.scroll_offset.saturating_add(3);
+                }
+            }
+            MouseEventKind::ScrollUp => {
+                if self.agents.inspect_mcp.is_some() {
+                    if let Some(ref mut m) = self.agents.inspect_mcp {
+                        m.scroll = m.scroll.saturating_sub(3);
+                    }
+                } else if self.memory.precheck_result.is_some() {
+                    if let Some(ref mut p) = self.memory.precheck_result {
+                        p.scroll = p.scroll.saturating_sub(3);
+                    }
+                } else if self.current_tab == 6 {
+                    self.logs.follow = false;
+                    self.logs.scroll_offset = self.logs.scroll_offset.saturating_sub(3);
+                }
+            }
+            MouseEventKind::Down(MouseButton::Left) => {
+                self.handle_mouse_left_click(mouse.column, mouse.row, area);
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_mouse_left_click(&mut self, col: u16, row: u16, area: Rect) {
+        // 1. Modals dismiss on click
+        if self.agents.inspect_mcp.is_some() {
+            // Click outside or any click dismisses
+            if row < 4 || row > area.height.saturating_sub(4) {
+                self.agents.inspect_mcp = None;
+            }
+            return;
+        }
+        if self.memory.precheck_result.is_some() {
+            if row < 4 || row > area.height.saturating_sub(4) {
+                self.memory.precheck_result = None;
+            }
+            return;
+        }
+
+        // 2. Tab Bar: row == 2 or 3
+        if row == 2 || row == 3 {
+            let width = area.width.max(1);
+            let tab_count = self.tab_names.len() as u16;
+            let tab_width = (width / tab_count).max(1);
+            let clicked_tab = (col / tab_width) as usize;
+            if clicked_tab < self.tab_names.len() {
+                self.current_tab = clicked_tab;
+            }
+            return;
+        }
+
+        // 3. Footer row: row >= area.height - 2
+        let footer_start = area.height.saturating_sub(2);
+        if row >= footer_start {
+            return;
+        }
+
+        // 4. Action Buttons Bar at bottom of each tab view: row == footer_start - 3 .. footer_start - 1
+        let btn_row_start = footer_start.saturating_sub(3);
+        if row >= btn_row_start && row < footer_start {
+            self.handle_action_button_click(col);
+            return;
+        }
+
+        // 5. Tab-Specific Table & List Row Selection
+        match self.current_tab {
+            0 => {
+                // Monitor tab: Waterfall table click
+                // Waterfall table starts around row 11
+                if row >= 12 {
+                    let clicked_index = (row - 12) as usize;
+                    let count = self.monitor.waterfall.len();
+                    if clicked_index < count {
+                        self.set_status(&format!("Inspected waterfall event #{}", clicked_index + 1));
+                    }
+                }
+            }
+            1 => {
+                // Agents tab: rows start around row 7
+                if row >= 7 {
+                    let clicked_index = (row - 7) as usize;
+                    if clicked_index < self.agents.items.len() {
+                        self.agents.selected = clicked_index;
+                        self.set_status(&format!("Selected agent: {}", self.agents.items[clicked_index].label));
+                    }
+                }
+            }
+            2 => {
+                // Headroom / BYOK tab: routes table starts around row 20
+                let table_top = 21;
+                if row >= table_top {
+                    let clicked_index = (row - table_top) as usize;
+                    if clicked_index < self.headroom.routes.len() {
+                        self.headroom.selected_route = clicked_index;
+                        self.set_status(&format!("Selected route: {}", self.headroom.routes[clicked_index].provider));
+                    }
+                }
+            }
+            3 => {
+                // Memory tab: Filter pills on row 4
+                if row == 4 {
+                    if col < 14 {
+                        self.memory.filter = MemoryFilter::All;
+                        self.memory.selected = 0;
+                    } else if col < 28 {
+                        self.memory.filter = MemoryFilter::Issues;
+                        self.memory.selected = 0;
+                    } else if col < 44 {
+                        self.memory.filter = MemoryFilter::Decisions;
+                        self.memory.selected = 0;
+                    } else if col < 64 {
+                        self.memory.filter = MemoryFilter::Gotchas;
+                        self.memory.selected = 0;
+                    } else if col < 80 {
+                        self.memory.filter = MemoryFilter::Icm;
+                        self.memory.selected = 0;
+                    }
+                    return;
+                }
+                // Memory events table starts around row 8
+                if row >= 8 {
+                    let clicked_index = (row - 8) as usize;
+                    let count = self.memory.filtered_events().len();
+                    if clicked_index < count {
+                        self.memory.selected = clicked_index;
+                    }
+                }
+            }
+            4 => {
+                // Graph tab: symbols table starts around row 8
+                if row >= 8 {
+                    let clicked_index = (row - 8) as usize;
+                    let count = self.graph.filtered_symbols().len();
+                    if clicked_index < count {
+                        self.graph.selected = clicked_index;
+                        self.update_active_symbol_details();
+                    }
+                }
+            }
+            5 => {
+                // Governance tab: keys table starts around row 11
+                if row >= 11 && row < 11 + self.governance.keys.len() as u16 {
+                    let clicked_index = (row - 11) as usize;
+                    if clicked_index < self.governance.keys.len() {
+                        self.governance.selected = clicked_index;
+                        self.set_status(&format!("Selected virtual key: {}", self.governance.keys[clicked_index].name));
+                    }
+                }
+            }
+            6 => {
+                // Logs tab: source pills on row 4
+                if row == 4 {
+                    if col < 18 {
+                        self.logs.source = LogSource::All;
+                    } else if col < 40 {
+                        self.logs.source = LogSource::Proxy;
+                    } else if col < 56 {
+                        self.logs.source = LogSource::Daemon;
+                    } else if col < 74 {
+                        self.logs.source = LogSource::Watchdog;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_action_button_click(&mut self, col: u16) {
+        match self.current_tab {
+            0 => {
+                // Monitor: [Proxy Up] [Proxy Down] [Refresh]
+                if col < 22 {
+                    let _ = ensure_proxy_up();
+                    self.monitor.proxy_up = true;
+                    self.set_status("Headroom proxy started on port 8787");
+                } else if col < 44 {
+                    let _ = stop_proxy();
+                    self.monitor.proxy_up = false;
+                    self.set_status("Headroom proxy stopped");
+                } else if col < 64 {
+                    self.reload_services();
+                    self.set_status("Refreshed services and token telemetry");
+                }
+            }
+            1 => {
+                // Agents: [Wire/Unwire Agent] [Inspect MCP] [Rescan Fleet]
+                if col < 26 {
+                    self.toggle_agent_wire();
+                } else if col < 52 {
+                    self.inspect_agent_mcp();
+                } else if col < 72 {
+                    self.reload_agents();
+                    self.set_status("Rescanned all 17 agent harnesses");
+                }
+            }
+            2 => {
+                // Headroom: [Test Cache Align] [Reload Routes]
+                if col < 24 {
+                    let sample_prompt = "You are a helpful coding assistant. Implement the requested function.";
+                    let aligned = crate::headroom::cache_align::align_to_1024_tokens(sample_prompt);
+                    let est = crate::headroom::cache_align::estimate_tokens(&aligned);
+                    self.set_status(&format!("Prompt aligned to 1024 boundary (estimated tokens: {})", est));
+                } else if col < 46 {
+                    self.reload_headroom();
+                    self.set_status("Reloaded BYOK routes and provider statuses");
+                }
+            }
+            3 => {
+                // Memory: [Run Precheck] [Cycle Filter] [Search]
+                if col < 24 {
+                    self.trigger_precheck();
+                } else if col < 44 {
+                    self.memory.filter = match self.memory.filter {
+                        MemoryFilter::All => MemoryFilter::Issues,
+                        MemoryFilter::Issues => MemoryFilter::Decisions,
+                        MemoryFilter::Decisions => MemoryFilter::Gotchas,
+                        MemoryFilter::Gotchas => MemoryFilter::Icm,
+                        MemoryFilter::Icm => MemoryFilter::All,
+                    };
+                    self.memory.selected = 0;
+                } else if col < 64 {
+                    self.memory.search_active = true;
+                }
+            }
+            4 => {
+                // Graph: [Compute Blast] [Show/Hide Tree] [Reindex AST]
+                if col < 26 {
+                    self.update_active_symbol_details();
+                    self.set_status("Computed AST call path and blast radius");
+                } else if col < 50 {
+                    self.graph.show_tree_view = !self.graph.show_tree_view;
+                } else if col < 70 {
+                    let mut cg = crate::codegraph::CodeGraph::open(&PathBuf::from("."));
+                    if let Ok(ref mut g) = cg {
+                        let _ = g.ensure_indexed();
+                    }
+                    self.reload_graph();
+                    self.set_status("Reindexed project Tree-sitter AST symbols");
+                }
+            }
+            5 => {
+                // Governance: [Reset Windows] [Clear Breakers]
+                if col < 26 {
+                    self.set_status("Rate-limit sliding windows reset for all virtual keys");
+                } else if col < 52 {
+                    self.governance.circuit_breaker_trips = 0;
+                    self.set_status("Circuit breaker trip counters cleared");
+                }
+            }
+            6 => {
+                // Logs: [Pause/Resume Follow] [Clear Buffer]
+                if col < 24 {
+                    self.logs.follow = !self.logs.follow;
+                } else if col < 44 {
+                    self.logs.entries.clear();
+                    self.set_status("Cleared log buffer");
+                }
+            }
             _ => {}
         }
     }

@@ -3,13 +3,13 @@
 // project: neo
 // file: crates/toksi/src/tui/views/graph.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-09
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, Widget, Wrap},
     Frame,
 };
 
@@ -21,6 +21,7 @@ pub fn render_graph_view(f: &mut Frame, area: Rect, app: &App) {
         .constraints([
             Constraint::Length(3), // Search bar & stats
             Constraint::Min(10),   // Split between Symbols and Blast-Radius
+            Constraint::Length(3), // Action Buttons Bar
         ])
         .split(area);
 
@@ -215,4 +216,37 @@ pub fn render_graph_view(f: &mut Frame, area: Rect, app: &App) {
     }
 
     f.render_widget(Paragraph::new(blast_lines).block(blast_block).wrap(Wrap { trim: false }), right_chunks[1]);
+
+    // Section 3: Action Buttons Bar
+    let btn_block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(Color::DarkGray));
+    let btn_area = chunks[2];
+    let btn_sub = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(24),
+            Constraint::Length(22),
+            Constraint::Length(18),
+            Constraint::Min(10),
+        ])
+        .split(btn_block.inner(btn_area));
+
+    crate::tui::widgets::Button::new("Compute Blast (Enter)")
+        .style(crate::tui::widgets::ButtonStyle::Primary)
+        .render(btn_sub[0], f.buffer_mut());
+
+    crate::tui::widgets::Button::new(if app.graph.show_tree_view { "Hide Tree (b)" } else { "Show Tree (b)" })
+        .style(if app.graph.show_tree_view {
+            crate::tui::widgets::ButtonStyle::Success
+        } else {
+            crate::tui::widgets::ButtonStyle::Neutral
+        })
+        .render(btn_sub[1], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Reindex AST (r)")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[2], f.buffer_mut());
+
+    f.render_widget(btn_block, btn_area);
 }
