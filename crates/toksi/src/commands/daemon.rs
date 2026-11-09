@@ -324,6 +324,9 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
     ));
 
     // Supervisor watch loop
+    let mut last_ignore_check = std::time::Instant::now();
+    let mut last_gitignore_mtime = std::collections::HashMap::<String, std::time::SystemTime>::new();
+
     loop {
         if Path::new(&daemon_stop_file()).exists() {
             let _ = fs::remove_file(daemon_pid_file());
@@ -335,6 +338,58 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
             _ = tokio::time::sleep(Duration::from_secs(2)) => {}
             _ = tokio::signal::ctrl_c() => {
                 break;
+            }
+        }
+
+        // Periodic Dynamic Ignore Purging (every 5 seconds)
+        if last_ignore_check.elapsed() >= Duration::from_secs(5) {
+            last_ignore_check = std::time::Instant::now();
+            if let Ok(curr_dir) = std::env::current_dir() {
+                let gitignore_path = curr_dir.join(".gitignore");
+                let ignore_path = curr_dir.join(".ignore");
+
+                let mut changed = false;
+                for p in &[&gitignore_path, &ignore_path] {
+                    if p.exists() {
+                        let path_key = p.to_string_lossy().to_string();
+                        if let Ok(meta) = fs::metadata(p) {
+                            if let Ok(mtime) = meta.modified() {
+                                if let Some(prev) = last_gitignore_mtime.get(&path_key) {
+                                    if *prev != mtime {
+                                        changed = true;
+                                        last_gitignore_mtime.insert(path_key, mtime);
+                                    }
+                                } else {
+                                    last_gitignore_mtime.insert(path_key, mtime);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if changed {
+                    // Trigger dynamic purge across all indexing subsystems
+                    let cg_db = crate::codegraph::resolve_db_path(&curr_dir);
+                    if cg_db.exists() {
+                        if let Ok(mut cg_cache) = crate::codegraph::cache::SymbolCache::open(&cg_db) {
+                            let _ = cg_cache.purge_ignored_files(&curr_dir);
+                        }
+                    }
+
+                    let ctx_db = crate::contextmode::fts::resolve_content_store_path(Some(&curr_dir));
+                    if ctx_db.exists() {
+                        if let Ok(mut ctx_fts) = crate::contextmode::fts::ContentStore::open(&ctx_db) {
+                            let _ = ctx_fts.purge_ignored_sources(&curr_dir);
+                        }
+                    }
+
+                    if let Ok(mut icm_store) = crate::icm::store::IcmStore::open_default() {
+                        let _ = icm_store.purge_ignored_memories(&curr_dir);
+                    }
+
+                    let wiki_store = crate::aimemory::wiki::WikiStore::open_default();
+                    let _ = wiki_store.purge_ignored_pages(&curr_dir);
+                }
             }
         }
 

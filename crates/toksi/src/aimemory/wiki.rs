@@ -102,6 +102,44 @@ impl WikiStore {
             })
             .collect())
     }
+
+    pub fn delete_page(&self, slug: &str) -> Result<bool, String> {
+        let path = self.page_path(slug);
+        if path.exists() {
+            fs::remove_file(&path).map_err(|e| e.to_string())?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Dynamic purge: delete wiki pages referencing or generated from ignored files/directories
+    pub fn purge_ignored_pages(&self, root: &Path) -> Result<usize, String> {
+        let ignore = crate::codegraph::walker::build_project_ignore(root);
+        let pages = self.list_pages()?;
+        let mut purged = 0;
+
+        for page in pages {
+            let norm_slug = crate::util::paths::normalize_path(&page.slug);
+            let restored_path = norm_slug.replace('_', "/");
+            let full = if Path::new(&norm_slug).is_absolute() {
+                PathBuf::from(&norm_slug)
+            } else {
+                root.join(&restored_path)
+            };
+            let is_dir = full.is_dir();
+            let is_ignored = ignore.matched_path_or_any_parents(&full, is_dir).is_ignore()
+                || crate::codegraph::walker::is_build_or_vendor_artifact(&norm_slug)
+                || crate::codegraph::walker::is_build_or_vendor_artifact(&restored_path)
+                || restored_path.split('/').any(crate::codegraph::walker::is_build_or_vendor_artifact)
+                || norm_slug.split('/').any(crate::codegraph::walker::is_build_or_vendor_artifact);
+
+            if is_ignored && self.delete_page(&page.slug)? {
+                purged += 1;
+            }
+        }
+        Ok(purged)
+    }
 }
 
 fn parse_markdown_page(slug: &str, content: &str) -> WikiPage {
@@ -148,6 +186,52 @@ fn parse_markdown_page(slug: &str, content: &str) -> WikiPage {
         summary_text,
         tags,
         body,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wiki_purge_ignored_pages() {
+        let temp_dir = std::env::temp_dir().join("toksi_wiki_purge_test");
+        let _ = fs::create_dir_all(&temp_dir);
+        let store = WikiStore::new(temp_dir.join("wiki"));
+
+        let page1 = WikiPage {
+            slug: "src/engine.rs".to_string(),
+            title: "Engine Page".to_string(),
+            abstract_text: None,
+            summary_text: None,
+            tags: Vec::new(),
+            body: "docs".to_string(),
+        };
+
+        let page2 = WikiPage {
+            slug: "target/temp_out.md".to_string(),
+            title: "Temp Out".to_string(),
+            abstract_text: None,
+            summary_text: None,
+            tags: Vec::new(),
+            body: "temp docs".to_string(),
+        };
+
+        store.write_page(&page1).unwrap();
+        store.write_page(&page2).unwrap();
+        assert_eq!(store.list_pages().unwrap().len(), 2);
+
+        // Add gitignore
+        let gitignore = temp_dir.join(".gitignore");
+        fs::write(&gitignore, "target/\n").unwrap();
+
+        let purged = store.purge_ignored_pages(&temp_dir).unwrap();
+        assert_eq!(purged, 1);
+        let remaining = store.list_pages().unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].slug, "src_engine.rs");
+
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }
 

@@ -81,12 +81,12 @@ _What we're working toward now. Use `- [ ]` / `- [x]` checklists._
   - [x] Graceful Inform & Zero-Fail Policy: never crash, panic, or fail; emit informative notice (`[INFO] Provider 'X' is on Free tier... Bypassing from active pool without error.`) and smoothly fall back to next paid provider or direct agent execution.
   - [x] Gateway activation guard: engage when `active_paid_providers >= 1`; graceful passthrough if zero.
   - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
-- [ ] Phase 15.4: Multi-Protocol Architecture & Dynamic Ignore Purging:
+- [x] Phase 15.4: Multi-Protocol Architecture & Dynamic Ignore Purging:
   > Plan 15.4: `.agents/brain/PHASE_15_4_MULTI_PROTOCOL_AND_IGNORE_PURGE.md`
-  - [ ] Expose unified multi-protocol interfaces (MCP, A2A, ACP, stdio, SSE, HTTP) across all tools (`rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`).
-  - [ ] Integrate ripgrep-grade ignore walker respecting `.gitignore` and `.ignore` files during AST and document indexing.
-  - [ ] Dynamic vector & cache purging: when ignore rules are added/modified, automatically purge previously indexed records from SQLite FTS5 search indexes and vector embedding caches.
-  - [ ] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
+  - [x] Expose unified multi-protocol interfaces (MCP, A2A, ACP, stdio, SSE, HTTP) across all tools (`rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`).
+  - [x] Integrate ripgrep-grade ignore walker respecting `.gitignore` and `.ignore` files during AST and document indexing.
+  - [x] Dynamic vector & cache purging: when ignore rules are added/modified, automatically purge previously indexed records from SQLite FTS5 search indexes and vector embedding caches.
+  - [x] Verify: `cargo check -p toksi` and `cargo test -p toksi` pass with 0 warnings.
 - [ ] Phase 15.5: Ground-Truth Token Accounting & Network Reconnect Healing:
   > Plan 15.5: `.agents/brain/PHASE_15_5_TOKEN_ACCOUNTING_AND_NETWORK_HEALING.md`
   - [ ] Extract real prompt, completion, and cached tokens directly from live SSE response streams and upstream rate-limit headers (`x-ratelimit-remaining-tokens`, `anthropic-ratelimit-requests-remaining`). Prohibit virtual/synthetic math (counter reads 0 when idle).

@@ -22,6 +22,7 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - ...and 23 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
+- Phase 15.4: Multi-Protocol Architecture & Dynamic Ignore Purging implemented and verified with unified multiplexer routing across 6 protocols (MCP, A2A, ACP, stdio, SSE, HTTP), ripgrep-grade ignore walker, and automated dynamic vector/cache purging across CodeGraph, Context-Mode FTS5, ICM, ai-memory, and Semantic Cache [crates/toksi/src/tools/multi_protocol.rs:1]
 - ...62 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 03 refresh: verified full Context-Mode parity in pure Rust with strict CPU/memory limits, in-memory RTK pipe, SQLite FTS5 BM25 search, SSRF per-hop enforcement, and in-process ctx_* MCP suite [crates/toksi/src/contextmode/mod.rs:1]
 - Phase 04 rerun: hardened ICM FTS5 BM25 token sanitization with operator stripping, prioritized ~/.toksi/memory.db, added memory_handoff_accept MCP alias, and added extractive leading_prose fallback for tiered progressive disclosure [crates/toksi/src/icm/store.rs:593 (sanitize_fts5_query)]
@@ -40,7 +41,6 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - Refactor: Refactor context mode CLI to support 'execute' command and enhance test coverage [crates/toksi/src/contextmode/cli.rs]
 
 ## Notes
-- New feature: feat(rtk): add JSON and log filtering capabilities, enhance command normalization [crates/toksi/src/commands/rtk.rs]
 - New feature: Add agent instructions and consolidate phase prompts in documentation [AGENTS.md]
 - New feature: feat: add ICM hook functionality and normalize path handling across modules [crates/toksi/src/aimemory/handoff.rs]
 - New feature: Add new skills: Ponytail and Principles; enhance Caveman integration [crates/toksi/src/rules/embedded/caveman.rs]
@@ -50,6 +50,7 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - New feature: feat: update last_failure.json command and remove obsolete database files [crates/toksi/src/db/mod.rs]
 - New feature: feat: Enhance workspace management and tool normalization [crates/toksi/src/agents/hooks.rs]
 - New feature: feat: Add gateway server with health and chat completion endpoints [crates/toksi/src/commands/daemon.rs]
+- New feature: feat: Update project summary and version, add new agent CLI integrations [crates/toksi/src/gateway/agent_cli/antigravity.rs]
 
 ## Key files
 - `.editorconfig`

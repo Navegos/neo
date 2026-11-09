@@ -234,6 +234,60 @@ impl IcmStore {
         Ok(count > 0)
     }
 
+    /// Dynamic purge: purge memories whose source_data or topic reference paths matching ignore rules
+    pub fn purge_ignored_memories(&mut self, root: &Path) -> Result<usize, rusqlite::Error> {
+        let ignore = crate::codegraph::walker::build_project_ignore(root);
+        let items: Vec<(String, String, Option<String>)> = {
+            let mut stmt = self.conn.prepare("SELECT id, topic, source_data FROM memories")?;
+            let rows = stmt.query_map([], |row| {
+                let id: String = row.get(0)?;
+                let topic: String = row.get(1)?;
+                let source_data: Option<String> = row.get(2)?;
+                Ok((id, topic, source_data))
+            })?;
+            rows.flatten().collect()
+        };
+
+        let mut to_delete = Vec::new();
+        for (id, topic, source_data) in items {
+            let check_path = |p_str: &str| -> bool {
+                let norm = crate::util::paths::normalize_path(p_str);
+                let full = if Path::new(&norm).is_absolute() {
+                    PathBuf::from(&norm)
+                } else {
+                    root.join(&norm)
+                };
+                let is_dir = full.is_dir();
+                ignore.matched_path_or_any_parents(&full, is_dir).is_ignore()
+                    || crate::codegraph::walker::is_build_or_vendor_artifact(&norm)
+                    || norm.split('/').any(crate::codegraph::walker::is_build_or_vendor_artifact)
+            };
+
+            let mut matched = check_path(&topic);
+            if !matched {
+                if let Some(sd) = source_data {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&sd) {
+                        if let Some(file_str) = v.get("file").and_then(|f| f.as_str()) {
+                            matched = check_path(file_str);
+                        }
+                    }
+                }
+            }
+
+            if matched {
+                to_delete.push(id);
+            }
+        }
+
+        let mut purged = 0;
+        for id in to_delete {
+            if self.delete_memory(&id)? {
+                purged += 1;
+            }
+        }
+        Ok(purged)
+    }
+
     pub fn touch_memory(&mut self, id: &str) -> Result<(), rusqlite::Error> {
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
@@ -634,4 +688,69 @@ fn rand_u64() -> u64 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default();
     d.as_nanos() as u64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_icm_purge_ignored_memories() {
+        let temp_dir = std::env::temp_dir().join("toksi_icm_purge_test");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let db_path = temp_dir.join("memory.db");
+        let mut store = IcmStore::open(&db_path).unwrap();
+
+        let mem1 = Memory {
+            id: "mem1".to_string(),
+            created_at: Utc::now().to_rfc3339(),
+            updated_at: String::new(),
+            last_accessed: Utc::now().to_rfc3339(),
+            access_count: 0,
+            weight: 1.0,
+            topic: "src/main.rs".to_string(),
+            summary: "entry point".to_string(),
+            raw_excerpt: None,
+            keywords: vec!["main".to_string()],
+            importance: Importance::High,
+            source_type: "code".to_string(),
+            source_data: Some(r#"{"file": "src/main.rs"}"#.to_string()),
+            related_ids: Vec::new(),
+            summary_hash: None,
+        };
+
+        let mem2 = Memory {
+            id: "mem2".to_string(),
+            created_at: Utc::now().to_rfc3339(),
+            updated_at: String::new(),
+            last_accessed: Utc::now().to_rfc3339(),
+            access_count: 0,
+            weight: 1.0,
+            topic: "target/debug/build.log".to_string(),
+            summary: "build logs".to_string(),
+            raw_excerpt: None,
+            keywords: vec!["build".to_string()],
+            importance: Importance::Low,
+            source_type: "build".to_string(),
+            source_data: Some(r#"{"file": "target/debug/build.log"}"#.to_string()),
+            related_ids: Vec::new(),
+            summary_hash: None,
+        };
+
+        store.insert_or_update_memory(&mem1).unwrap();
+        store.insert_or_update_memory(&mem2).unwrap();
+        assert_eq!(store.list_topics().unwrap().len(), 2);
+
+        // Add gitignore rule
+        let gitignore = temp_dir.join(".gitignore");
+        std::fs::write(&gitignore, "target/\n").unwrap();
+
+        let purged = store.purge_ignored_memories(&temp_dir).unwrap();
+        assert_eq!(purged, 1);
+        let topics = store.list_topics().unwrap();
+        assert_eq!(topics.len(), 1);
+        assert_eq!(topics[0].name, "src/main.rs");
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
 }

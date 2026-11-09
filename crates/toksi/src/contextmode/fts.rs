@@ -885,6 +885,33 @@ impl ContentStore {
         tx.commit()?;
         Ok(count)
     }
+
+    /// Dynamic purge: delete indexed sources matching .gitignore or .ignore patterns
+    pub fn purge_ignored_sources(&mut self, root: &Path) -> Result<usize, rusqlite::Error> {
+        let ignore = crate::codegraph::walker::build_project_ignore(root);
+        let sources = self.list_sources()?;
+        let mut purged = 0;
+
+        for src in sources {
+            let label_path = src.file_path.as_deref().unwrap_or(&src.label);
+            let normalized = crate::util::paths::normalize_path(label_path);
+            let full_path = if Path::new(&normalized).is_absolute() {
+                PathBuf::from(&normalized)
+            } else {
+                root.join(&normalized)
+            };
+            let is_dir = full_path.is_dir();
+            let is_ignored = ignore.matched_path_or_any_parents(&full_path, is_dir).is_ignore()
+                || crate::codegraph::walker::is_build_or_vendor_artifact(&normalized)
+                || normalized.split('/').any(crate::codegraph::walker::is_build_or_vendor_artifact);
+
+            if is_ignored {
+                self.delete_source(&src.label)?;
+                purged += 1;
+            }
+        }
+        Ok(purged)
+    }
 }
 
 /// D-1330-RECALL-PROMPT-1 (#1330): Build post-compact recall query from the current prompt only.
@@ -948,4 +975,35 @@ pub fn resolve_content_store_path(project_dir: Option<&Path>) -> PathBuf {
     }
 
     target
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_contextmode_purge_ignored_sources() {
+        let temp_dir = std::env::temp_dir().join("toksi_ctx_purge_test");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let db_path = temp_dir.join("context.db");
+        let mut store = ContentStore::open(&db_path).unwrap();
+
+        // Index two sources
+        let _ = store.index("console.log('hello')", "src/app.ts", Some("prose"), None).unwrap();
+        let _ = store.index("build artifact data", "target/output.tmp", Some("prose"), None).unwrap();
+        assert_eq!(store.list_sources().unwrap().len(), 2);
+
+        // Add gitignore rule
+        let gitignore = temp_dir.join(".gitignore");
+        std::fs::write(&gitignore, "target/\n*.tmp\n").unwrap();
+
+        // Purge
+        let purged = store.purge_ignored_sources(&temp_dir).unwrap();
+        assert_eq!(purged, 1);
+        let remaining = store.list_sources().unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].label, "src/app.ts");
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
 }

@@ -133,6 +133,61 @@ impl DualTierSemanticCache {
             }
         }
     }
+
+    /// Dynamic purge: purge cached entries whose prompts or responses match ignored paths or patterns
+    pub fn purge_ignored_entries(&self, root: &Path) -> usize {
+        let ignore = crate::codegraph::walker::build_project_ignore(root);
+        let mut purged_hashes = Vec::new();
+
+        {
+            let cache = self.exact_cache.read().unwrap();
+            for (hash, entry) in cache.iter() {
+                // Check if prompt or response contains any path matching ignore rules
+                let words: Vec<&str> = entry.prompt.split_whitespace()
+                    .chain(entry.response.split_whitespace())
+                    .collect();
+                for w in words {
+                    let cleaned = w.trim_matches(|c| c == '\'' || c == '"' || c == '`' || c == '(' || c == ')' || c == ':');
+                    if cleaned.contains('/') || cleaned.contains('\\') || cleaned.ends_with(".lock") {
+                        let norm = crate::util::paths::normalize_path(cleaned);
+                        let full = if Path::new(&norm).is_absolute() {
+                            std::path::PathBuf::from(&norm)
+                        } else {
+                            root.join(&norm)
+                        };
+                        let is_dir = full.is_dir();
+                        if ignore.matched_path_or_any_parents(&full, is_dir).is_ignore()
+                            || crate::codegraph::walker::is_build_or_vendor_artifact(&norm)
+                            || norm.split('/').any(crate::codegraph::walker::is_build_or_vendor_artifact)
+                        {
+                            purged_hashes.push(hash.clone());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        let purged_count = purged_hashes.len();
+        if !purged_hashes.is_empty() {
+            let mut cache = self.exact_cache.write().unwrap();
+            let mut sem = self.semantic_entries.write().unwrap();
+            for h in &purged_hashes {
+                cache.remove(h);
+            }
+            sem.retain(|e| !purged_hashes.contains(&e.hash));
+
+            if let Ok(guard) = self.db_conn.lock() {
+                if let Some(ref conn) = *guard {
+                    for h in &purged_hashes {
+                        let _ = conn.execute("DELETE FROM semantic_cache WHERE hash = ?1", params![h]);
+                    }
+                }
+            }
+        }
+
+        purged_count
+    }
 }
 
 pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
@@ -215,5 +270,24 @@ mod tests {
 
         cache.store("gpt-4o", "test query", "cached response", None);
         assert_eq!(cache.lookup_exact("gpt-4o", "test query").as_deref(), Some("cached response"));
+    }
+
+    #[test]
+    fn test_purge_ignored_entries() {
+        let temp_dir = std::env::temp_dir().join("toksi_sem_cache_purge_test");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let gitignore = temp_dir.join(".gitignore");
+        std::fs::write(&gitignore, "target/\n").unwrap();
+
+        let cache = DualTierSemanticCache::new(0.92);
+        cache.store("gpt-4o", "read file target/debug/build.log", "output content", None);
+        cache.store("gpt-4o", "read file src/main.rs", "main content", None);
+
+        let purged = cache.purge_ignored_entries(&temp_dir);
+        assert_eq!(purged, 1);
+        assert!(cache.lookup_exact("gpt-4o", "read file target/debug/build.log").is_none());
+        assert!(cache.lookup_exact("gpt-4o", "read file src/main.rs").is_some());
+
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }

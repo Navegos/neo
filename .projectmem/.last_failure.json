@@ -1,6 +1,6 @@
 {
-  "command": "cargo check -p toksi",
-  "root_cause": "error[E0425]: cannot find type `ToksiDb` in module `crate::db::operations`",
-  "raw_output": "    Checking toksi v2.9.0 (D:\\AI\\neo\\crates\\toksi)\nerror[E0425]: cannot find type `ToksiDb` in module `crate::db::operations`\n   --> crates\\toksi\\src\\gateway\\agent_cli\\tier_check.rs:124:37\n    |\n124 |     db: &mut crate::db::operations::ToksiDb,\n    |                                     ^^^^^^^ not found in `crate::db::operations`\n\nFor more information about this error, try `rustc --explain E0425`.\nerror: could not compile `toksi` (lib) due to 1 previous error\n",
-  "timestamp": "2026-11-09T01:01:52Z"
+  "command": "cargo test -p toksi --lib -- aimemory::wiki::tests::test_wiki_purge_ignored_pages",
+  "root_cause": "thread 'aimemory::wiki::tests::test_wiki_purge_ignored_pages' (26788) panicked at crates\\toksi\\src\\aimemory\\wiki.rs:226:9:",
+  "raw_output": "\nrunning 1 test\ntest aimemory::wiki::tests::test_wiki_purge_ignored_pages ... FAILED\n\nfailures:\n\n---- aimemory::wiki::tests::test_wiki_purge_ignored_pages stdout ----\n\nthread 'aimemory::wiki::tests::test_wiki_purge_ignored_pages' (26788) panicked at crates\\toksi\\src\\aimemory\\wiki.rs:226:9:\nassertion `left == right` failed\n  left: 0\n right: 1\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    aimemory::wiki::tests::test_wiki_purge_ignored_pages\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 371 filtered out; finished in 0.01s\n\n\n   Compiling toksi v2.9.5 (D:\\AI\\neo\\crates\\toksi)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.35s\n     Running unittests src\\lib.rs (target\\debug\\build\\toksi/edc28db8446ffe75\\out\\toksi-edc28db8446ffe75.exe)\nerror: test failed, to rerun pass `-p toksi --lib`\n",
+  "timestamp": "2026-11-09T01:42:09Z"
 }

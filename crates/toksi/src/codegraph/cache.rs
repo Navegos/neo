@@ -348,6 +348,27 @@ impl SymbolCache {
 
         iter.into_iter().flat_map(|res| res.flatten()).collect()
     }
+
+    /// Dynamic purge: delete indexed files that match ignore rules
+    pub fn purge_ignored_files(&mut self, root: &Path) -> Result<usize, rusqlite::Error> {
+        let ignore = super::walker::build_project_ignore(root);
+        let files = self.get_cached_files();
+        let mut purged = 0;
+        for (rel_path, _) in files {
+            let normalized = crate::util::paths::normalize_path(&rel_path);
+            let full_path = root.join(&normalized);
+            let is_dir = full_path.is_dir();
+            let is_ignored = ignore.matched_path_or_any_parents(&full_path, is_dir).is_ignore()
+                || super::walker::is_build_or_vendor_artifact(&normalized)
+                || normalized.split('/').any(super::walker::is_build_or_vendor_artifact);
+
+            if is_ignored {
+                self.remove_file(&rel_path)?;
+                purged += 1;
+            }
+        }
+        Ok(purged)
+    }
 }
 
 pub fn content_hash(content: &[u8]) -> String {
@@ -359,4 +380,44 @@ pub fn content_hash(content: &[u8]) -> String {
         hex.push_str(&format!("{b:02x}"));
     }
     hex
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_purge_ignored_files() {
+        let temp_dir = std::env::temp_dir().join("toksi_cg_cache_purge_test");
+        let _ = fs::create_dir_all(&temp_dir);
+        let db_path = temp_dir.join("symbols.db");
+        let mut cache = SymbolCache::open(&db_path).unwrap();
+
+        // Seed file in cache
+        let file = WalkedFile {
+            path: temp_dir.join("temp_build.tmp"),
+            rel_path: "temp_build.tmp".to_string(),
+            language: "rust",
+            mtime: 100,
+            size: 50,
+        };
+        let extraction = FileExtraction {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            refs: Vec::new(),
+        };
+        cache.save_extraction(&file, "hash123", &extraction).unwrap();
+        assert_eq!(cache.get_stats().file_count, 1);
+
+        // Add gitignore rule
+        let gitignore = temp_dir.join(".gitignore");
+        fs::write(&gitignore, "*.tmp\n").unwrap();
+
+        // Purge
+        let purged = cache.purge_ignored_files(&temp_dir).unwrap();
+        assert_eq!(purged, 1);
+        assert_eq!(cache.get_stats().file_count, 0);
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
 }

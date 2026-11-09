@@ -3,12 +3,13 @@
 // project: neo
 // file: crates/toksi/src/codegraph/walker.rs
 // created: 2026-10-28
-// lastModified: 2026-11-08
+// lastModified: 2026-11-09
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use ignore::WalkBuilder;
 
 pub const MAX_SOURCE_FILE_SIZE: u64 = 2 * 1024 * 1024; // 2 MB
@@ -38,6 +39,36 @@ pub fn detect_language(path: &Path) -> Option<&'static str> {
     }
 }
 
+pub fn is_build_or_vendor_artifact(name: &str) -> bool {
+    name == ".git"
+        || name == "node_modules"
+        || name == "target"
+        || name == ".codegraph"
+        || name == ".projectmem"
+        || name == ".toksi"
+        || name == "dist"
+        || name == "build"
+        || name == "out"
+        || name == "vendor"
+        || name == "__pycache__"
+        || name == ".venv"
+        || name == "venv"
+        || name.ends_with(".lock")
+}
+
+pub fn build_project_ignore(root: &Path) -> Gitignore {
+    let mut builder = GitignoreBuilder::new(root);
+    let gitignore_path = root.join(".gitignore");
+    if gitignore_path.exists() {
+        let _ = builder.add(&gitignore_path);
+    }
+    let ignore_path = root.join(".ignore");
+    if ignore_path.exists() {
+        let _ = builder.add(&ignore_path);
+    }
+    builder.build().unwrap_or_else(|_| Gitignore::empty())
+}
+
 pub fn walk_project_files(root: &Path) -> Vec<WalkedFile> {
     let mut files = Vec::new();
     let walker = WalkBuilder::new(root)
@@ -50,22 +81,11 @@ pub fn walk_project_files(root: &Path) -> Vec<WalkedFile> {
         .add_custom_ignore_filename(".ignore")
         .filter_entry(|entry| {
             let name = entry.file_name().to_string_lossy();
-            if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
-                if name == ".git"
-                    || name == "node_modules"
-                    || name == "target"
-                    || name == ".codegraph"
-                    || name == ".projectmem"
-                    || name == ".toksi"
-                    || name == "dist"
-                    || name == "build"
-                    || name == "vendor"
-                    || name == "__pycache__"
-                    || name == ".venv"
-                    || name == "venv"
-                {
-                    return false;
-                }
+            if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) && is_build_or_vendor_artifact(&name) {
+                return false;
+            }
+            if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) && name.ends_with(".lock") {
+                return false;
             }
             true
         })
@@ -122,3 +142,41 @@ pub fn walk_project_files(root: &Path) -> Vec<WalkedFile> {
     files
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_walker_detect_language() {
+        assert_eq!(detect_language(Path::new("main.rs")), Some("rust"));
+        assert_eq!(detect_language(Path::new("app.ts")), Some("typescript"));
+        assert_eq!(detect_language(Path::new("script.py")), Some("python"));
+        assert_eq!(detect_language(Path::new("readme.txt")), None);
+    }
+
+    #[test]
+    fn test_build_or_vendor_artifact() {
+        assert!(is_build_or_vendor_artifact("node_modules"));
+        assert!(is_build_or_vendor_artifact("target"));
+        assert!(is_build_or_vendor_artifact(".git"));
+        assert!(is_build_or_vendor_artifact("Cargo.lock"));
+        assert!(!is_build_or_vendor_artifact("src"));
+    }
+
+    #[test]
+    fn test_build_project_ignore() {
+        let temp_dir = std::env::temp_dir().join("toksi_walker_test");
+        let _ = fs::create_dir_all(&temp_dir);
+        let gitignore = temp_dir.join(".gitignore");
+        let _ = fs::write(&gitignore, "*.tmp\nbuild/\n");
+
+        let gi = build_project_ignore(&temp_dir);
+        let test_file = temp_dir.join("test.tmp");
+        assert!(gi.matched_path_or_any_parents(&test_file, false).is_ignore());
+
+        let ok_file = temp_dir.join("test.rs");
+        assert!(!gi.matched_path_or_any_parents(&ok_file, false).is_ignore());
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+}
