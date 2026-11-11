@@ -24,20 +24,21 @@ Disciplinary & Portability Requirements:
    - Workspace rules are placed strictly in the first workspace root directory.
 
 Requirements:
-1. Ingest guidelines directly into crates/toksi/src/rules/embedded/:
-   - principles.rs (Karpathy engineering principles: think before coding, simplicity first, surgical changes, goal-driven execution)
-   - caveman.rs (ASD-STE100 primitive English compression: terseness, zero fluff, full technical accuracy)
-   - ponytail.rs (lazy senior developer build discipline ladder: reuse first, minimal runnable checks, YAGNI)
-2. Implement universal synchronizer in `crates/toksi/src/rules/sync.rs` targeting all 17 supported agents and open conventions:
-   - `.agents/` (OpenAgents: `agents.md`, `system-prompt.md`, `skills/`)
-   - `.gemini/` (Antigravity: `GEMINI.md`, `rules/`, `skills/`)
-   - `.copilot/` & `.github/` (Copilot: `copilot-instructions.md`, `skills/`)
-   - `.claude/` (Claude Code: `CLAUDE.md`, `rules/`, `skills/`)
+1. Ingest guidelines directly into `crates/toksi/src/rules/embedded/`:
+   - `principles.rs` (Karpathy engineering principles: think before coding, simplicity first, surgical changes, goal-driven execution)
+   - `caveman.rs` (ASD-STE100 primitive English compression + Wave 17 v4 modes: `/ultracave`, `/megacave`, `caveman-commit`, `caveman-review`, `caveman-compress`, `shrink`, `browse`, `.blocks`)
+   - `ponytail.rs` (lazy senior developer build discipline ladder + mode variants, companion skills, and statusline telemetry)
+2. Implement universal synchronizer in `crates/toksi/src/rules/sync.rs` strictly for **user-configured/selected** agents across `18+` built-in harnesses and open conventions (`agents-structures/` parity) with **granular component toggles** (`hooks`, `mcp`, `skills`, `rules`, `instructions`, `configs`):
+   - `.agents/` (OpenAgents: `agents.md`, `system-prompt.md`, `skills/`, `.agents/mcp`)
+   - `.gemini/` (Antigravity: `GEMINI.md`, `settings.json`, `commands/*.toml`, `rules/`, `skills/`)
+   - `.copilot/` & `.github/` (Copilot: `copilot-instructions.md`, `hooks/`, `skills/`)
+   - `.claude/` (Claude Code: `CLAUDE.md`, `.mcp.json`, `rules/`, `skills/`)
    - `.codex/` (Codex: `AGENTS.md`, `rules/`)
    - `.cursor/` (Cursor: `.cursorrules`, `rules/*.mdc`, `skills/`)
-   - `.grok/` (Grok: `skills/`, `rules/`)
-3. Support skill wiring from MCP settings: map `.gemini/mcp`, `.copilot/mcp`, `.claude/mcp` to `skills/<tool>`.
-4. Ensure 0 compiler warnings and passing unit tests.
+   - `.grok/` (Grok: `hooks/*.json`, `skills/`, `rules/`)
+   Plus auto-merge nested subfolder `.toksi/` / `.<agent>/` dirs into root `<repo>/` cleanly.
+3. Support skill wiring from MCP settings: map `.gemini/mcp`, `.copilot/mcp`, `.claude/mcp`, `.agents/mcp` to `skills/<tool>`.
+4. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
 ---

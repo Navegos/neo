@@ -17,13 +17,15 @@ Disciplinary & Portability Requirements:
 4. Non-Destructive Operation: Safely restore original binaries from `.real` backups, clean up hijack shims, and never delete non-shim files.
 
 Requirements:
-1. Implement `crates/toksi/src/env_injector/heal.rs` to audit and auto-heal hijacked binaries and shims:
+1. Implement `crates/toksi/src/env_injector/heal.rs` + `agents/manager.rs` healing to audit and auto-heal hijacked binaries, shims, and legacy config names:
    - Identify `.real` binaries created by legacy proxy injectors (e.g. `agy.real`, `copilot.real`, `grok.real`).
    - Atomically restore `.real` binaries to their original filenames (`agy.exe`, `copilot.exe`, `grok.exe`).
-   - Remove lingering `.cmd`, `.bat`, or shell script shims that hijacked PATH.
+   - Remove lingering `.cmd`, `.bat`, or shell script shims that hijacked `PATH`.
    - Clean up hijacked symlinks or junction points across Windows, Linux, and macOS.
-2. Hook into `toksi doctor --fix` and `toksi daemon stop`.
-3. Ensure 0 compiler warnings and passing unit tests.
+   - Purge legacy strings/keys across configs & codebase: `tokless_*` (`paths.rs`), `toksi-projectmem`, `toksi-codegraph`, `toksi-codegraph-index`, `agy-hook codegraph-index`, `rtk hook cursor` (`main.rs:340`), `toksi-codegraph-init.js`.
+   - Migrate legacy `.gemini/mcp`, `.copilot/mcp`, `.claude/mcp`, `.agents/mcp` folders to `skills/<tool>`, standardize hook invocation to `<tool>-hook <agent>`, and merge nested crate `.toksi/` / `.<agent>/` DBs/files cleanly into root `<repo>/.toksi/<tool>` / `<repo>/.<agent>`.
+2. Hook into `toksi doctor --fix` and `toksi daemon stop` (plus PATH verification via `check_executable_in_path`).
+3. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
 ---

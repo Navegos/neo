@@ -16,28 +16,29 @@ Targets:
 Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
 2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors.
-3. Multi-Protocol Standard: All tools (rtk, codegraph, context, projectmem, icm, aimemory) must support MCP, A2A, ACP, stdio, SSE, and HTTP.
-4. Universal Forward-Slash (/) Standard: Use normalize_path() across all ignore matchers and vector index paths.
-5. Dynamic Vector & Cache Purging: When ignore rules change, automatically purge matching records from SQLite FTS5 search indexes and vector embedding caches.
+3. Multi-Protocol & DirectWire Standard: All tools (`rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`) MUST support **real** `MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, and `HTTP`, plus config-less `DirectWireBus` (`direct-wired`) alongside `config-wired`.
+4. Universal Forward-Slash (`/`) Standard: Use `normalize_path()` across all ignore matchers and vector index paths.
+5. Repo-Only & Dynamic Vector Purge: Restrict indexing strictly inside `<repo>` (never outside `.git` repo root and never inside `<repo>/.git/`), store caches only in `<repo>/.toksi/<tool>`, track monorepo `subproject_id`, and automatically purge SQLite FTS5 & Chroma ANN embedding caches when `.gitignore` / `.ignore` rules change.
 
 Requirements:
-1. Multi-Protocol Engine (`crates/toksi/src/tools/multi_protocol.rs`):
+1. Multi-Protocol Engine (`crates/toksi/src/tools/multi_protocol.rs` & `direct_wire.rs`):
    - Expose unified dispatcher routing incoming requests across all 6 protocols:
-     * **MCP** (Model Context Protocol - tools, resources, prompts)
-     * **A2A** (Agent-to-Agent / Agent2Agent collaborative message protocol)
-     * **ACP** (Agent Communication Protocol / Agent Client Protocol)
+     * **MCP** (Model Context Protocol — tools, resources, prompts; fix `commands/runmcp.rs` `aimemory->icm` misroute!)
+     * **A2A** v1.0 JSON-RPC 2.0 (`A2aTaskStore`: `SendMessage`/`GetTask` + `"message/send"`/`"tasks/get"` aliases, SHA-256 constant-time bearer auth, 1 MiB cap, `(peer, messageId)` dedupe)
+     * **ACP** v2.0 (`SessionActorQueue` per-session serialized dispatch)
      * **stdio** (Standard Input / Standard Output streaming bridge)
      * **SSE** (Server-Sent Events real-time event streaming)
      * **HTTP** (RESTful endpoints and chunked stream transport)
-   - Implement handlers across all tools: `rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`.
+   - Ship `DirectWireBus` so configured/hooked agents can invoke `toksi` tools & agent-to-agent commands directly in-process without needing config-file entries (`direct-wired` status).
+   - Implement real handlers across all tools: `rtk`, `codegraph`, `context` (fix `ctx-hook` passthrough `0` stub), `projectmem`, `icm`, `aimemory`.
 2. Ripgrep-Grade Ignore Walker:
-   - High-performance respect of `.gitignore` and `.ignore` rules across indexing subsystems (`codegraph`, `context`, `icm`, `aimemory`).
-   - Hides build artifacts (`target/`, `node_modules/`, `dist/`, `*.lock`) and vendor bundles from LLM context.
+   - Respect `.gitignore` and `.ignore` rules across indexing subsystems (`codegraph`, `context`, `icm`, `aimemory`).
+   - Refuse to index outside `.git` repo roots or inside `.git/`, hiding build artifacts (`target/`, `node_modules/`, `dist/`, `*.lock`).
 3. Dynamic Vector Index Purging:
    - Watch `.gitignore` and `.ignore` files for modifications.
-   - Automatically delete already-indexed files matching new ignore patterns from SQLite FTS5 indexes and vector embedding caches.
+   - Automatically delete already-indexed files matching new ignore patterns from SQLite FTS5 indexes (`context`, `icm`), `symbols.db`, and Chroma ANN vector embedding caches.
 4. Verification:
-   - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
+   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```
 
 ---

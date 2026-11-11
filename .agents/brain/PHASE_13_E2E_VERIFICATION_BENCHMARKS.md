@@ -18,19 +18,20 @@ Disciplinary & Portability Requirements:
 5. High-Performance Benchmarks: Verify sub-10ms memory recall, <10 µs gateway proxy overhead, and 30-70% token savings.
 
 Requirements:
-1. Execute full workspace test suite across all consolidated subsystems:
-   - RTK command output filters
-   - ProjectMem JSONL append, locking, and summary generation
-   - Context-Mode sandbox execution and FTS5 search
-   - ICM BM25 search and ai-memory handoffs
-   - CodeGraph Tree-sitter parsing and petgraph blast radius
-   - Headroom lossless compression and dynamic MCP schema pruner
-   - Enterprise Gateway 39+ provider routing and failover cascades
-   - Non-destructive environment lifecycle and teardown
-2. Verify token reduction benchmarks:
-   - Prove 30-70% token savings on realistic agent trace payloads.
-   - Prove zero latency regression on streaming SSE responses (<10 µs proxy overhead).
-3. Ensure 100% test pass rate with 0 compiler warnings.
+1. Execute full incremental workspace test suite across all consolidated subsystems (`phase1..phase17_7`):
+   - RTK command output filters & SQLite `Tracker` gain/tee/discover
+   - ProjectMem JSONL append, safe `File::lock()`/`fs2`, repo-only storage, and clickable heatmap
+   - Context-Mode sandbox execution, `ctx-hook` policy/journal/compaction, and FTS5 `.ignore` purge
+   - ICM BM25 search (`memory.db`), missing 23 MCP tools, and `ai-memory` handoffs
+   - CodeGraph 41+ Tree-sitter parsing, monorepo subproject partitioning, `ast-grep`, `scip`, `jcodemunch`, `repomix`
+   - Headroom `live_zone` cache preservation, `CcrStore`, `TokenEconomizer`, and mandatory `/byok/` compression pass
+   - Enterprise Gateway (`:9099`/`:18787`) 65/90+ ecosystem & 22 local engines, `<byok, model, effort>` routing, zero paid-tier gates
+   - Native `toksi` Coding CLI/Swarm (`src/agent_runtime/`), `DirectWireBus`, 10 `/...` slash commands, and non-destructive env teardown
+2. Incremental Test Skip Policy (`.toksi/test-baseline.json`):
+   - Compute BLAKE3 digest over `Cargo.lock` + each suite's `watched_paths`; log `[SKIP-UNCHANGED] <suite>` for already-confirmed passing suites whose code paths and dependencies are unmodified (`--all`/`--force` runs everything). Never strip or weaken assertions!
+   - Always run `cargo check --workspace` and `cargo clippy --workspace --all-targets -- -D warnings`.
+3. Verify token reduction & latency benchmarks (`>30%` savings, `<10 µs` proxy overhead, `<5ms` slash/TUI latency).
+4. Ensure 100% relevant test pass rate with 0 compiler warnings.
 ```
 
 ---

@@ -1,10 +1,10 @@
 # projectmem - neo
 
-_Last updated: 2026-11-09_
+_Last updated: 2026-11-11_
 
 ## Project purpose
 --------------------------------------------------------------------------------
-Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent wire integration, and headroom gateway pipeline for AI coding assistants. Transparently sits between 17 coding agents and 39+ upstream LLM providers to cut token spend by 30-70%, enforce latency/cost/concurrency quotas, and provide zero-latency memory, AST code intelligence, and real-time telemetry across dedicated isolated ports.
+Enterprise-grade native Safe Rust (`#![deny(unsafe_code)]`) token optimization, intelligent multi-port proxying, native coding CLI/swarm runtime (`toksi chat|run|exec|swarm`), multi-protocol agent wire integration (`MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`, `DirectWireBus`), polyglot AST/SCIP code intelligence, and 9-tab telemetry cockpits connecting **18+ registered & 65/90+ ecosystem AI coding assistants** with **22 local engines** and multi-instance `<byok, model, effort>` upstream providers.
 
 ## Recent issues
 - [OPEN] #0034 Bypass non-LLM authentication and ConnectRPC management endpoints directly without intercepting headers or proxying, capturing only LLM processing in and out [crates/toksi/src/headroom/proxy.rs:615 (serve_headroom_connection)] (open)
@@ -23,9 +23,6 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 
 ## Decisions
 - ...62 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Phase 03 refresh: verified full Context-Mode parity in pure Rust with strict CPU/memory limits, in-memory RTK pipe, SQLite FTS5 BM25 search, SSRF per-hop enforcement, and in-process ctx_* MCP suite [crates/toksi/src/contextmode/mod.rs:1]
-- Phase 04 rerun: hardened ICM FTS5 BM25 token sanitization with operator stripping, prioritized ~/.toksi/memory.db, added memory_handoff_accept MCP alias, and added extractive leading_prose fallback for tiered progressive disclosure [crates/toksi/src/icm/store.rs:593 (sanitize_fts5_query)]
-- Phase 05: CodeGraph Pure Rust Engine executed and verified with upstream inspect-vault parity, dual-path .toksi/codegraph/symbols.db and .codegraph/symbols.db support, petgraph blast-radius, and file-suffix coordinate resolution [crates/toksi/src/codegraph/mod.rs:1]
 - Phase 06 rerun: In-Tree Rules & Skills Integration verified with embedded Karpathy principles, Caveman ASD-STE100, and Ponytail build discipline compiled via include_str! and zero warnings [crates/toksi/src/rules/mod.rs:1]
 - Phase 07 rerun: Headroom Deep Integration & Gateway Catalog verified with 39+ in-tree provider catalog, 8-class failure cascade, dynamic load balancer, task complexity router, virtual key governance, dual-tier semantic cache (SHA-256 + Cosine Similarity >= 0.92), AST code/whitespace pruning... [crates/toksi/src/headroom/mod.rs:1]
 - Phase 07: Headroom Deep Integration & Gateway Catalog verified. Dropped headroom-py; implemented core token compression (log deduplication with byte-for-byte error/fatal/panic survival, AST code pruner, JSON minifier, dynamic MCP schema pruner, 1024-token prompt cache alignment, adaptive memory... [crates/toksi/src/headroom/mod.rs:1]
@@ -33,14 +30,16 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - Phase 10: Non-destructive user environment management verified across Windows (direct HKCU\Environment registry + WM_SETTINGCHANGE SendMessageTimeoutW broadcast) and Unix (systemd/launchctl/environment.d). Connected to toksi daemon start and graceful teardown guard. Explicitly unsets... [crates/toksi/src/env_injector/mod.rs:1]
 - Phase 11: Agent Doctor & Self-Healing completed. Upgraded toksi doctor and toksi doctor --fix to audit all 17 agents, purge broken legacy MCP runners across TOML/YAML/JSON, sync in-tree rules, and report environment and process proxies.
 - Phase 12: TUI, Prometheus Telemetry & Web Dashboard refreshed with upstream bifrost dropped-request metric isolation, 7-tab interactive TUI with Governance & Quotas, and embedded SPA dashboard [crates/toksi/src/telemetry/mod.rs:1]
-- Refactor: Refactor and consolidate documentation and architecture for Toksi v3.4 [crates/toksi/CONSOLIDATION_PLAN.md]
 - Refactor: Refactor context mode components for improved readability and functionality [crates/toksi/src/contextmode/auto_memory.rs]
 - Refactor: Refactor codegraph hook commands and improve database path resolution [crates/toksi/src/agents/antigravity.rs]
 - Refactor: refactor: streamline tool input handling and enhance trace command logging [crates/toksi/src/commands/rtk_hook.rs]
 - Refactor: Refactor context mode CLI to support 'execute' command and enhance test coverage [crates/toksi/src/contextmode/cli.rs]
+- Wave 17 v4.0 Master Architecture: 36 inspect-vault engines, genuine #![deny(unsafe_code)] via crates/toksi-sys and crates/toksi-grammars leaf crates, 41+ Tree-sitter languages, ~/.toksi/config.toml, native coding CLI src/agent_runtime/, DirectWireBus, and 9-tab UI parity [crates/toksi/research/RESEARCHPLAN.md:1228]
+- Workspace-only brain prompts inside <repo>/.agents/brain/ (31 files: INDEX_AND_EXECUTION_GUIDE.md plus PHASE_01 through PHASE_17_7), retiring user-home plan paths [.agents/brain/INDEX_AND_EXECUTION_GUIDE.md:1]
+- Strict <repo>/.toksi/<tool> repo-only storage for codegraph, projectmem, context, icm, and ai-memory (never ~/.toksi/<tool> or nested crates); walk to .git root with monorepo subproject_id and dynamic .gitignore/.ignore purge [crates/toksi/src/commands/index.rs:1]
+- Unified 7-port topology (:8787 Headroom, :8788 Grok OAuth, :8789/:8790 Copilot, :18787 BYOK, :9099 Gateway, :9100 Cockpit), zero paid-tier restrictions (FreeTierDisqualified removed), multi-instance <byok, model, effort> SQLite profiles, and 65/90+ Categories 1-5 + 22 local engines [crates/toksi/CONSOLIDATION_PLAN.md:1]
 
 ## Notes
-- New feature: feat: add new skills for AI coding agents - Ponytail and Principles [crates/toksi/src/agents/codex.rs]
 - New feature: feat: update last_failure.json command and add benchmarks and e2e tests [crates/toksi/tests/benchmarks.rs]
 - New feature: feat: update last_failure.json command and remove obsolete database files [crates/toksi/src/db/mod.rs]
 - New feature: feat: Enhance workspace management and tool normalization [crates/toksi/src/agents/hooks.rs]
@@ -50,6 +49,7 @@ Enterprise-grade native Rust tooling, token-optimization, multi-protocol agent w
 - New feature: feat: add token economizer for prompt optimization and instruction deduplication [crates/toksi/src/agents/mod.rs]
 - New feature: feat: Bump version to 3.0.0 and update dependencies [crates/toksi/src/tui/app.rs]
 - New feature: feat(dashboard): Enhance dashboard with AI Gateway and Keyring management [crates/toksi/src/dashboard/api.rs]
+- New feature: feat: introduce Agent Manager for lifecycle management of agents [crates/toksi/src/agents/manager.rs]
 
 ## Key files
 - `.editorconfig`

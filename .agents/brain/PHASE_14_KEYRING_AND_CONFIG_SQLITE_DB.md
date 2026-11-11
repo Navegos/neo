@@ -12,12 +12,12 @@ Targets:
   - crates/toksi/src/commands/db.rs
 
 Disciplinary & Portability Requirements:
-1. Safe Rust (Edition 2024): Safe Rust enforced crate-wide. Unsafe code permitted exclusively in isolated Win32 Credential Manager FFI calls (`os_windows.rs`: advapi32.dll) accompanied by explicit `// SAFETY:` rationale.
+1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly across `crates/toksi/src/`. Isolate unavoidable Windows Credential Manager Win32 FFI calls (`advapi32.dll`: `CredReadW`, `CredWriteW`, `CredDeleteW`) inside leaf crate `crates/toksi-sys` with explicit `// SAFETY:` proofs.
 2. Zero Warnings Policy: Compile cleanly under `RUSTFLAGS="-D warnings"`.
-3. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors.
-4. Database Storage Mandate: Store `toksi.db` by default in user home (`~/.toksi/toksi.db`), NOT in `localdata/toksi` (`AppData/Local/toksi`).
-5. Migration Invariant: Auto-migrate existing configurations from legacy `LOCALAPPDATA/toksi/toksi.db` and JSON registries on startup.
-6. Zeroize Memory: In-memory credential buffers must implement `Zeroize` to scrub secrets from RAM on drop.
+3. Zero Panics Policy: Strictly prohibit `.unwrap()`, `.expect()`, `panic!()`. Use `thiserror` for domain errors.
+4. Database Storage Mandate: Store `toksi.db` by default in user home (`~/.toksi/toksi.db`), NOT in `localdata/toksi` (`AppData/Local/toksi`). Multi-instance `<byok, model, effort>` support via `byok_profiles` table (`UNIQUE(provider_id, instance_label, model_id, thinking_effort)`), `agent_profile_bindings`, and `quota_windows`.
+5. Migration & Transfer Invariant: Auto-migrate legacy `LOCALAPPDATA/toksi/toksi.db` and JSON registries on startup; fix `db/operations.rs` `export_dump()` (must include `provider_models`, `byok_profiles`, `gateway_configs`, `agent_profile_bindings`, `quota_windows`) and `import_dump(..., overwrite: true)`.
+6. Keyring Normalization & Privacy: Fix `keyring/mod.rs:216` broken `("antigravity", "gemini", "antigravity")` lookup so `gemini:antigravity` alias resolves cleanly; display ONLY user-configured agents/BYOK credentials in UI/CLI; zeroize all secret buffers on drop.
 
 Requirements:
 1. Native OS Keyring Integration (`crates/toksi/src/keyring/`):

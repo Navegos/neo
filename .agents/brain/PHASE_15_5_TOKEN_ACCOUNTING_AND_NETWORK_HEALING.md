@@ -20,21 +20,21 @@ Disciplinary & Portability Requirements:
 5. Comprehensive Usage Help: Detailed CLI `--help` text documenting all commands, ports, flags, tools, and conventions.
 
 Requirements:
-1. Ground-Truth Session Token Accounting:
-   - Parse actual prompt tokens, completion tokens, and cached tokens directly from live SSE response streams (`usage.prompt_tokens`, `usage.completion_tokens`, `cache_read_input_tokens`, Google `candidatesTokenCount`).
-   - Extract upstream provider rate limits and quotas from HTTP response headers: `x-ratelimit-remaining-tokens`, `x-ratelimit-remaining-requests`, `anthropic-ratelimit-requests-remaining`.
-   - Calculate true headroom token savings as byte reduction (`raw_bytes - compressed_bytes`) and exact counts of pruned MCP tool schemas.
-   - Query provider quota status via free agent AI API channels without incurring additional token costs.
+1. Ground-Truth Session Token Accounting (`telemetry/{tokentracker,collector}.rs` + `headroom/proxy.rs`):
+   - Parse actual prompt, completion, reasoning, `cache_creation_input_tokens`, Responses API usage, and Google `candidatesTokenCount` directly from live SSE streams and non-stream responses (47 `TokenTracker` parsers).
+   - Extract upstream provider rate limits and quotas from HTTP response headers (`x-ratelimit-remaining-*`, `anthropic-ratelimit-*`) into `quota_windows` (`hour|day|week|month|year`).
+   - Calculate true headroom token savings as exact compressed delta (`raw_tokens - compressed_tokens`) and exact pruned MCP schema tokens (`0` when idle; zero synthetic placeholders).
+   - Query `/v1/models` and free provider quota endpoints without spending inference tokens.
 2. Network Reconnection Auto-Healing Watchdog (`crates/toksi/src/gateway/reconnect.rs`):
-   - Detects connection drops, DNS invalidation, or network interface toggles.
-   - Automatically invalidates stale socket connection pools and reconnects upstream client pools without requiring process restarts.
-   - Eliminates dormant states where agents are locked out after Wi-Fi or VPN reconnects.
-3. Universal Rules, Skills & Instructions Sync:
-   - Implement universal synchronizer updating `rules*.md`, `skills*.md`, `instructions*.md`, `agents*.md` across both workspace roots and user config homes for all 17 agents.
-4. Comprehensive CLI Help:
-   - Update `help_text()` in `crates/toksi/src/main.rs` with exhaustive documentation of all commands, tools, ports, flags, and conventions.
+   - Detects connection drops, DNS invalidation, sleep/wake transitions, or VPN interface toggles.
+   - Atomically swaps `ArcSwap<reqwest::Client>` pools and closes/re-arms stale connections without requiring daemon restarts.
+   - Preserves HTTP/2 ConnectRPC framing & streaming headers cleanly (resolving `#0033`/`#0034`).
+3. Universal Rules, Skills & Instructions Sync (`rules/sync.rs` + `agents/manager.rs`):
+   - Sync embedded `Karpathy`, `Caveman` v4, and `Ponytail` guidelines across ONLY user-configured/selected agents (`18+` built-in + `.agents` + Category 1–5) with granular component toggles (`hooks|mcp|skills|rules|instructions|configs`), respecting `user` auto-install vs explicit `repo` opt-in.
+4. Comprehensive CLI Help (`crates/toksi/src/main.rs`):
+   - Update `help_text()` with exhaustive documentation of all commands (`chat|run|exec|swarm`, `daemon|proxy|dashboard start|stop|restart --agents`, `config`, `byok`, `db`, `auth`, `agent`, `mem`, `graph`, `ctx`, `rtk`, `doctor`), 7 ports (`8787..18787`), `~/.toksi/config.toml`, 10 slash commands, `direct-wired` bus, and `<repo>/.toksi/<tool>` rules.
 5. Verification:
-   - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
+   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```
 
 ---

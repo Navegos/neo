@@ -13,23 +13,23 @@ Sources:
 Target: crates/toksi/src/commands/doctor.rs, crates/toksi/src/agents/
 
 Disciplinary & Portability Requirements:
-1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
-2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors and anyhow::Result with .context() in CLI.
-3. Universal Forward-Slash (/) Standard: Use normalize_path() for all discovered agent directories.
-4. PATH Validation Mandate: Validate agent CLI executables (`agy.exe`, `copilot.exe`, `claude`, `cursor`, `grok`, etc.) in system PATH.
-5. Workspace Topology: Enforce single root `.toksi` and root-only workspace agent directories (`.claude`, `.cursor`, `.vscode`, `.grok`, `.cline`, `.gemini`, `.github`, `.agents`).
-6. Standardized Naming: Hook syntax is `<tool>-hook <agent>`. Normalized MCP identifiers: `projectmem`, `context`, `codegraph`.
+1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly. Zero compiler warnings (`RUSTFLAGS="-D warnings"`).
+2. Zero Panics Policy: Strictly prohibit `.unwrap()`, `.expect()`, `panic!()`. Use `thiserror` for domain errors and `anyhow::Result` with `.context()` in CLI.
+3. Universal Forward-Slash (`/`) Standard: Use `normalize_path()` for all discovered agent directories.
+4. PATH Validation Mandate: Validate agent CLI executables (`agy`, `copilot`, `claude`, `codex`, `cursor`, `grok`, etc.) in system `PATH` cleanly via `check_executable_in_path` without blocking errors.
+5. Workspace Topology: Enforce single root `<repo>/.toksi/<tool>` (never `~/.toksi/<tool>`) and root-only workspace agent directories (`.claude`, `.cursor`, `.vscode`, `.grok`, `.cline`, `.gemini`, `.github`, `.agents`).
+6. Standardized Naming: Hook syntax is `<tool>-hook <agent>`, separated `antigravity-cli` / `antigravity-ide` & `copilot-cli` / `copilot-vscode`, `agents-structures` parity, `skills/<tool>` MCP dir, and `DirectWireBus` (`direct-wired`) support. Normalized MCP identifiers: `projectmem`, `context`, `codegraph`, `icm`, `aimemory`, `rtk` (purge legacy `toksi-*` & `tokless_*`).
 
 Requirements:
-1. Implement full self-healing audit in `crates/toksi/src/commands/doctor.rs`:
-   - Audit and verify all 17 agent configurations across user homes and workspace roots.
-   - Detect and fix broken legacy MCP configurations (purge stale `node`, `npx`, `python`, `uvx` commands, replacing with native `toksi <tool>`).
-   - Standardize hook configurations across all agents to `<tool>-hook <agent>` (e.g. `codegraph-hook agy`, `projectmem-hook agy`).
-   - Validate presence of required in-tree rules, skills, and instructions.
+1. Implement full self-healing audit in `crates/toksi/src/commands/doctor.rs` & `agents/manager.rs`:
+   - Audit and verify configured agent configurations (`18+` built-in adapters including `"openagents"` + Category 1–5 layouts) across user homes and workspace roots.
+   - Detect and fix broken legacy MCP configurations (purge stale `node`, `npx`, `python`, `uvx`, `toksi-*`, `tokless_*`, `toksi-codegraph-init.js` commands, replacing with native `toksi <tool>` / `DirectWireBus`).
+   - Standardize hook configurations across all agents to `<tool>-hook <agent>` (e.g. `codegraph-hook agy`, `projectmem-hook agy`; purge `agy-hook codegraph-index` and `rtk hook cursor`).
+   - Validate presence of required in-tree rules (`Karpathy`, `Caveman` v4, `Ponytail`), skills, and instructions (`~/.toksi/config.toml` compliant).
 2. Implement `toksi doctor --fix`:
-   - Automatically repairs misconfigured MCP configs, repairs legacy hooks, removes stale shims, and synchronizes rules.
-   - Merges any nested subfolder `.toksi` directories into `<root>/.toksi/` and cleans them up.
-3. Ensure 0 compiler warnings and passing unit tests.
+   - Automatically repairs misconfigured MCP configs, repairs legacy hooks, removes stale shims, and synchronizes rules strictly for configured agents (never touching workspace repo automatically without explicit opt-in).
+   - Merges any nested subfolder `.toksi` / `.<agent>` directories into root `<repo>/.toksi/` / `<repo>/.<agent>/` and cleans them up.
+3. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
 ---

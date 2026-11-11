@@ -20,44 +20,44 @@ Disciplinary & Portability Requirements:
 2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors and anyhow::Result with .context() in CLI.
 3. Universal Forward-Slash (/) Standard: Use normalize_path() for all paths across Windows, Linux, and macOS. Escaped \\ permitted exclusively in cmd.exe commands inside JSON5/TOML configs.
 4. PATH Validation Mandate: Validate required binaries in system PATH. Never hardcode absolute paths. On missing binary, log clean remediation instruction.
-5. Workspace Topology: Single root .toksi directory rule. Subfolder .toksi folders are auto-discovered, table rows merged into root SQLite DBs, and subfolders deleted.
+5. Workspace Topology: Strict `<repo>/.toksi/<tool>` repo-only storage (NEVER in `~/.toksi/<tool>` for workspace tools, NEVER outside `.git` repo root, NEVER inside `<repo>/.git/` or subfolder crates). `commands/index.rs::find_project_dir()` walks to `.git` root and partitions `<repo>/crates/*` via `subproject_id`. Subfolder `.toksi/` and `.<agent>/` dirs are merged into root and deleted.
 
 Requirements:
-1. Universal Forward-Slash (/) Path Standard:
+1. Universal Forward-Slash (`/`) Path Standard:
    - Ensure `normalize_path(p: &str) -> String` converts all backward slashes `\` to `/` across all operating systems (Windows, Linux, macOS) for Git Bash and POSIX compatibility.
    - Exception for Shell & Config Escapes: For JavaScript / TypeScript / Node.js / Python (hook, MCP) JSON5 / TOML configurations requiring cmd execution (e.g., `.agents/hooks.json` or `settings.json` command strings executing via Windows `cmd.exe`), use default escaped double backslashes: `C:\\Programs\\neo\\bin\\toksi.exe`.
 2. Environment PATH Validation Mandate ("Rule of Test and Inform User"):
    - Implement `check_executable_in_path(cmd: &str) -> Result<(), String>` in `src/util/env_path.rs`.
    - Never encode full paths in settings, configurations, or database records. Keep all references portable by using executable names.
-   - Test whether required binaries (`bash`, `cmd`, `toksi`, `agy.exe`, `copilot.exe`, `claude`, `cursor`, `grok`, etc.) exist in `PATH`.
-   - If missing from `PATH`, log: `[ERROR] Required executable '<cmd>' not found in system PATH. Please add '<cmd>' to your PATH environment variable and retry.`
-3. Default SQLite Database Location:
-   - Store `toksi.db` by default in `~/.toksi/toksi.db` (`users/.toksi/toksi.db`), NOT in `localdata/toksi` (`AppData/Local/toksi`).
+   - Test whether required binaries (`bash`, `cmd`, `toksi`, `agy`, `copilot`, `claude`, `codex`, `cursor`, `grok`, etc.) exist in `PATH`.
+   - If missing from `PATH`, log non-blocking actionable notice (and expose `in_path: false` in `AI Agent Fleet & Quotas` UI so missing agents appear greyed out cleanly).
+3. Default SQLite Database & TOML Location:
+   - Store global config DB by default in `~/.toksi/toksi.db` (`dirs::home_dir()`) + declarative overrides in `~/.toksi/config.toml` (`src/config/mod.rs`), NOT in `localdata/toksi` (`AppData/Local/toksi`).
    - Implement seamless startup migration from legacy `LOCALAPPDATA/toksi` to `~/.toksi/toksi.db`.
-4. Workspace Root Consolidation:
-   - In workspace directory structure, ONLY the first (root) workspace directory contains `.toksi/`.
-   - Subfolder `.toksi` directories (e.g., `crates/toksi/.toksi`) are automatically discovered by `toksi init` and `toksi doctor --fix`, imported into root `<root>/.toksi/`, and the legacy subfolder `.toksi` deleted.
-   - Crucial: Merge SQLite tables (`toksi.db`, `memory.db`, `symbols.db`) row-by-row without data loss during consolidation.
-5. Tool Directory Layout:
-   - All tool directories live strictly inside `.toksi/<tool>` in both user home and workspace root:
-     * `.toksi/codegraph`
-     * `.toksi/headroom`
-     * `.toksi/projectmem`
-     * `.toksi/context` (renamed from `.context-mode`)
-     * `.toksi/icm`
-     * `.toksi/ai-memory`
-     * `.toksi/rtk`
-   - Automatically migrate loose legacy folders (`.codegraph`, `.projectmem`, `.context-mode`, `.icm`, `.ai-memory`, `.rtk`) into `.toksi/<tool>`.
+4. Workspace Root Consolidation & Monorepo Partitioning:
+   - Fix `commands/index.rs::find_project_dir()` so it NEVER stops at nested `Cargo.toml`/`package.json` inside `<repo>/crates/*`; walk strictly to `.git` root.
+   - Only `<repo>/.toksi/` exists for project artifacts; if cwd is not inside a `.git` repo, refuse workspace indexing cleanly without creating home/folder stores.
+   - Auto-discover subfolder `.toksi/` (e.g. `crates/toksi/.toksi`) and `.projectmem/`, merge SQLite rows (`symbols.db`, `memory.db`, JSONL logs) tagged with `subproject_id`, and delete nested `.toksi` / `.<agent>` folders.
+5. Strict `<repo>/.toksi/<tool>` Layout:
+   - Project intelligence stores live strictly inside workspace root `<repo>/.toksi/<tool>/`:
+     * `<repo>/.toksi/codegraph`
+     * `<repo>/.toksi/headroom`
+     * `<repo>/.toksi/projectmem`
+     * `<repo>/.toksi/context` (renamed from `.context-mode`)
+     * `<repo>/.toksi/icm`
+     * `<repo>/.toksi/ai-memory`
+     * `<repo>/.toksi/rtk`
+   - Automatically migrate loose legacy folders (`.codegraph`, `.projectmem`, `.context-mode`, `.icm`, `.ai-memory`, `.rtk`) into `<repo>/.toksi/<tool>`. Remove home-dir workspace leakage (`~/.toksi/{projectmem,icm,ai-memory,context,codegraph}`).
 6. Root-Only Workspace Agent Dirs:
-   - Agent config folders (`.claude`, `.cursor`, `.vscode`, `.grok`, `.cline`, `.agents`) ONLY exist in the first (root) workspace directory.
+   - Agent config folders (`.claude`, `.cursor`, `.vscode`, `.grok`, `.cline`, `.agents`) ONLY exist in root `<repo>/` (or user `~/.<agent>/`), and are NEVER installed into `<repo>/` automatically unless the user opts into repo mode.
 7. Standardized Tool Hooks & MCP Naming:
-   - Uniform hook command syntax: `<tool>-hook <agent>` (e.g., `codegraph-hook agy`, `projectmem-hook agy`, `context-hook agy`, `rtk-hook agy`).
-   - Clean MCP tool identifiers: `toksi-projectmem` -> `projectmem`, `toksi-context-mode` -> `context`, `toksi-codegraph-index` -> `codegraph`.
+   - Uniform hook command syntax: `<tool>-hook <agent>` (e.g., `codegraph-hook agy`, `projectmem-hook agy`, `context-hook agy`, `rtk-hook agy`; purge `agy-hook codegraph-index` & `rtk hook cursor`).
+   - Clean MCP tool identifiers: `toksi-projectmem` -> `projectmem`, `toksi-context-mode` -> `context`, `toksi-codegraph` / `toksi-codegraph-index` -> `codegraph` (purge `tokless_*` in `paths.rs`).
    - MCP instruction directories: `context-mode` -> `context`.
-   - MCP settings to skills mapping: map `.gemini/mcp`, `.copilot/mcp`, `.claude/mcp` to `skills/<tool>`.
-   - Differentiate agent CLI vs agent editor: `antigravity;agy;antigravity-ide`, `copilot-cli;copilot-vscode`, `claude-cli;claude-desktop`, `cursor-cli;cursor-ide`, `grok-cli;grok-ide`.
+   - MCP settings to skills mapping: map `.gemini/mcp`, `.copilot/mcp`, `.claude/mcp`, `.agents/mcp` to `skills/<tool>`.
+   - Differentiate agent CLI vs agent editor: `antigravity-cli` vs `antigravity-ide` (fixing `hooks.rs` collapse), `copilot-cli` vs `copilot-vscode`, `claude-cli` vs `claude-desktop`, `cursor-cli` vs `cursor-ide`, `grok-cli` vs `grok-ide`, plus `"openagents"`.
 8. Verification:
-   - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
+   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```
 
 ---
@@ -71,7 +71,7 @@ pub fn normalize_path(path: &str) -> String {
     let replaced = path.replace('\\', "/");
     // Preserve Windows drive letter format C:/...
     if replaced.len() >= 2 && replaced.chars().nth(1) == Some(':') {
-        let drive = replaced.chars().next().unwrap().to_ascii_uppercase();
+        let drive = replaced.chars().next().map(|c| c.to_ascii_uppercase()).unwrap_or('C');
         format!("{}:{}", drive, &replaced[2..])
     } else {
         replaced

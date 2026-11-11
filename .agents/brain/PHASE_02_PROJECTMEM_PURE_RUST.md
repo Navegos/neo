@@ -11,26 +11,26 @@ Source: neo/inspect-vault/projectmem (~v0.3.4, Python)
 Target: crates/toksi/src/projectmem/
 
 Disciplinary & Portability Requirements:
-1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
-2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors and anyhow::Result with .context() in CLI.
-3. Cross-Platform File Locking: Use fs2 for advisory/mandatory locking on .toksi/projectmem/events.jsonl (LockFileEx on Windows, fcntl on Unix).
-4. Universal Forward-Slash (/) Standard: Use normalize_path() for all file locations and AST references.
-5. Directory Consolidation: Place storage in .toksi/projectmem/ in workspace root (<root>/.toksi/projectmem/) and user home (~/.toksi/projectmem/).
-6. Standardized Naming: Tool identifier is `projectmem` (not `toksi-projectmem`). Hook syntax is `projectmem-hook <agent>`.
+1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly in `crates/toksi`. Remove ALL raw `LockFileEx`/`OVERLAPPED`/`fcntl` `unsafe` blocks from `src/projectmem/store.rs` using safe `std::fs::File::lock()` / `fs2`. Zero compiler warnings (`RUSTFLAGS="-D warnings"`).
+2. Zero Panics Policy: Strictly prohibit `.unwrap()`, `.expect()`, `panic!()`. Use `thiserror` for domain errors and `anyhow::Result` with `.context()` in CLI.
+3. Cross-Platform File Locking: Safe `std::fs::File::lock()` / `fs2` locking on `<repo>/.toksi/projectmem/events.jsonl`.
+4. Universal Forward-Slash (`/`) Standard: Use `normalize_path()` for all file locations and AST references.
+5. Strict `<repo>/.toksi/projectmem/` Repo-Only Consolidation: Store ALL workspace ProjectMem events, summaries, and index metadata strictly inside workspace root `<repo>/.toksi/projectmem/` (NEVER in `~/.toksi/projectmem/`, NEVER inside non-`.git` folders, NEVER inside `<repo>/.git/` or subfolder crates). Merge any nested `.projectmem/` or subfolder `.toksi/projectmem/` into root `<repo>/.toksi/projectmem/` and tag monorepo `subproject_id` (`<repo>/crates/*`).
+6. Standardized Naming: Tool identifier is `projectmem` (purge legacy `toksi-projectmem` and `util/projectmem.rs`). Hook syntax is `projectmem-hook <agent>`.
 
 Requirements:
-1. Full pure safe Rust port of ProjectMem from Python into crates/toksi/src/projectmem/:
-   - schema.rs (Event, Issue, Attempt, Fix, Decision, Note)
-   - store.rs (atomic append to events.jsonl, cross-platform file locking, atomic markdown generation)
-   - summary.rs (deterministic zero-LLM summary generator from README, active issues, fixes, decision DAG, and gotchas)
-   - precheck.rs (git staged diff scanner vs gotchas and historical failure locations)
-   - redaction.rs (zero-allocation regex secret and API key sanitizer)
-   - heatmap.rs (failure clustering & ROI metrics)
-   - global.rs (cross-project ~/.toksi/projectmem store)
-   - mcp.rs (multi-protocol in-process MCP server with tools: log_issue, record_attempt, record_fix, add_decision, add_note, search_events, precheck)
-2. Support multi-protocol interfaces: MCP, A2A, ACP, stdio, SSE, HTTP.
+1. Full pure safe Rust port of ProjectMem from Python into `crates/toksi/src/projectmem/`:
+   - `schema.rs` (`Event`, `Issue`, `Attempt`, `Fix`, `Decision`, `Note`)
+   - `store.rs` (safe locked append to `<repo>/.toksi/projectmem/events.jsonl`, atomic markdown generation, `staleness`/`structure` metadata)
+   - `summary.rs` (deterministic zero-LLM summary generator from active issues, fixes, decision DAG, gotchas)
+   - `precheck.rs` (git staged diff scanner vs gotchas and historical failure locations)
+   - `redaction.rs` (zero-allocation regex secret and API key sanitizer)
+   - `heatmap.rs` (failure clustering, ROI metrics, clickable cell drilldown payloads for UI `Memory Decision DAG` modal)
+   - `global.rs` (repo-registry metadata index without duplicating workspace `events.jsonl` outside `<repo>/.toksi/projectmem/`)
+   - `mcp.rs` (all 16 `projectmem` MCP tools including `precheck_file`, `list_projects`, `current_project`, `staleness`, `structure`, `heatmap`) + `/projectmem` slash command integration.
+2. Support multi-protocol interfaces (`MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`) and `DirectWireBus`.
 3. Expose the native CLI command `toksi mem ...`.
-4. Ensure zero Python runtime dependency, 0 compiler warnings, and passing unit tests.
+4. Ensure zero Python runtime dependency, zero `unsafe`, 0 compiler warnings, and targeted `cargo test` pass.
 ```
 
 ---

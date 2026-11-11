@@ -25,21 +25,25 @@ Disciplinary & Portability Requirements:
    - Port 9100: Dedicated strictly to Web Dashboard Cockpit.
    - Non-blocking background execution: `toksi dashboard` runs in the background without locking the terminal window.
    - Zero socket and thread contention with LLM inference streams on Port 9099.
-4. Beautiful Dark Glassmorphic UI: High aesthetic finish, responsive grid, real-time micro-interactions.
-5. Realistic Telemetry: True token savings, upstream quota gauges, provider routing status.
+4. Futuristic Cyberpunk Glassmorphic UI (Exact 9 Tabs): `Savings`, `The War Room`, `AI Agent Fleet & Quotas`, `Memory Decision DAG`, `CodeGraph Explorer`, `Sandbox Inspector`, `System Controls`, `AI Gateway & Quotas`, `Keyring & Database`.
+5. Authentic Telemetry & Zero Synthetic Stubs: Delete fake waterfall ratios (`0.38/0.42/0.20`), hardcoded `68.0%`, fake agent latencies, `50/50`/`0.0005` gateway stubs, fake `1428 KB` vacuum savings, fake `:8788 BYOK` label, fake 6-symbol CodeGraph list, fake heatmap vec, and `[PAID]`/`[DISQUALIFIED-FREE]` badges.
 
 Requirements:
-1. Isolated Background Web Cockpit on Port 9100:
-   - Embedded local HTTP & SSE server running on `http://127.0.0.1:9100` (`toksi dashboard`).
-   - Run in the background by default (or `--foreground`). Open browser automatically with `--open`.
+1. Isolated Background Web Cockpit on Port `9100` (or `~/.toksi/config.toml` `[ports].dashboard`):
+   - Detached background execution by default via `toksi dashboard start|stop|restart` (`--foreground` stays attached; `--open` launches browser).
    - Single-page application assets (HTML/CSS/JS) embedded at compile-time via `include_str!`.
-2. Telemetry & Control Capabilities:
-   - Real-time 17-agent live observation grid displaying connected provider, model, latency breakdown, ground-truth token savings, and paid quota status.
-   - Live upstream quota gauges (remaining tokens, reset countdowns) parsed from rate-limit headers.
-   - Interactive Gateway & Load Balancer controls (toggle providers, adjust weights/priorities, switch algorithms, set complexity tiers).
-   - OS Keyring and SQLite DB management tools (Export, Import, Backup, Restore).
+2. Full Interactive Telemetry & Control Capabilities Across All 9 Tabs:
+   - **`Savings`**: Configured-only agents & `<byok, model, effort>` individual + overall token/USD savings (`0` at rest) and per-tool attribution (`rtk`, `headroom`, `mcp_pruner`, `ccr`, `cache_align`, `context`, `economizer`).
+   - **`The War Room`**: Live per-agent tool activity, real 429 backoff/failover cascade state, `ArcSwap` reconnect watchdog logs.
+   - **`AI Agent Fleet & Quotas`**: All supported agents across CLIs/IDEs (65/90+ catalog); grey out binaries missing from `PATH` with remediation hint; one-click `Direct-Wire`/`Config-Wire`/`Unwire`; read-only plan & `hour|day|week|month|year` quota gauges (zero paywall blocks).
+   - **`Memory Decision DAG`**: Real `projectmem` decision/issue/attempt/fix lineage + **clickable `.heatmap-cell` modal drilldown** (`GET /api/memory/heatmap/:cell_id`) + monorepo subproject filter.
+   - **`CodeGraph Explorer`**: Live `symbols.db` stats (`41+` Tree-sitter languages), caller/impact explorer, `ast-grep`/SCIP/Repomix preview, `.ignore` purge action.
+   - **`Sandbox Inspector`**: Real OS sandbox telemetry, `< 2KB` projected stdout, FTS5 search test bar, URL cache monitor.
+   - **`System Controls`**: Live `~/.toksi/config.toml` editor, `daemon|proxy|dashboard` controls, granular per-agent component installer (`hooks|mcp|skills|rules|instructions|configs`) for user-auto vs explicit-repo opt-in, live logs.
+   - **`AI Gateway & Quotas`**: Multi-instance `<byok, model, effort>` CRUD (multiple profiles per BYOK provider with editable custom `base_url` + zero-cost `/v1/models` refresh), per-agent & per-`<byok, model, effort>` Dynamic Complexity Routing & Load Balancer algorithm selector, Headroom bypass monitor.
+   - **`Keyring & Database`**: Configured-only OS Keyring entries (normalized `gemini:antigravity` alias), SQLite DB Export (`POST /api/db/export`), Import (`POST /api/db/import` with `overwrite`), Backup/Restore, legacy nested `<repo>` repair.
 3. Verification:
-   - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
+   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```
 
 ---

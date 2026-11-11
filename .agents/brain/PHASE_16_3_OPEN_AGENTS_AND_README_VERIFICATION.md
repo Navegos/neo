@@ -20,27 +20,27 @@ Targets:
 Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
 2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors and anyhow::Result with .context() in CLI.
-3. Universal Forward-Slash (/) Standard: Use normalize_path() for all directory joins and configuration paths.
-4. User-Level Auto-Install & Selective Workspace Installation:
-   - Agent hooks, MCPs, instructions, rules, skills, and configs are auto-installed to the user-level configuration directory (`~/.<agent>/` or `~/.agents/`) if selected for install.
-   - Workspace repository installation is NEVER automatic; it is only installed into `<root>/` if the user explicitly triggers it.
-5. Comprehensive Documentation: Rewrite `crates/toksi/README.md` with full technical specifications, configuration options, protocols, and agent preparation guides.
+3. Universal Forward-Slash (`/`) Standard: Use `normalize_path()` for all directory joins and configuration paths.
+4. Configured-Only & User-Level Auto-Install vs Explicit Repo Opt-In:
+   - Agent hooks, MCPs, instructions, rules, skills, and configs auto-install ONLY to user-level directories (`~/.<agent>/` or `~/.agents/`) ONLY for user-configured/selected agents, with granular component toggles (`hooks`, `mcp`, `skills`, `rules`, `instructions`, `configs`).
+   - Workspace repository installation (`<repo>/.<agent>/`) is NEVER automatic; it only installs into root `<repo>/` when explicitly selected by the user (and never into nested crate subfolders).
+5. Comprehensive Documentation: Rewrite `crates/toksi/README.md` with full Wave 17 technical specifications, configuration options, protocols, and agent preparation guides.
 
 Requirements:
-1. Open Agents & Vendor Agent Directory Support:
-   - Open standard directory convention: `.agents/` (`mcp.json`, `models.json`, `system-prompt.md`, `agents.md`, `agents/`, `skills/`, `tasks/`, `knowledge/`, `memories/`).
-   - Support all vendor protocols: `.gemini/` (Antigravity), `.copilot/` & `.github/` (Copilot), `.claude/` (Claude), `.codex/` (Codex), `.cursor/` (Cursor), `.grok/` (Grok).
+1. Open Agents & Vendor Agent Directory Support (`agents-structures/` parity):
+   - Open standard directory convention: `.agents/` (`mcp.json`, `models.json`, `system-prompt.md`, `agents.md`, `agents/`, `skills/`, `.agents/mcp -> skills/<tool>`, `tasks/`, `knowledge/`, `memories/`, plus working `"openagents"` adapter in `mcp_adapters.rs`).
+   - Vendor protocol alignment: `.gemini/` (`settings.json`, `commands/*.toml`, split `antigravity-cli` vs `antigravity-ide`), `.copilot/` (`hooks/`) & `.github/copilot/` (split `copilot-cli` vs `copilot-vscode`), `.claude/` (`.mcp.json`), `.codex/`, `.cursor/`, `.grok/` (`hooks/*.json`).
+   - Purge legacy `toksi-*` / `tokless_*` / `agy-hook codegraph-index` / `rtk hook cursor` references and auto-merge nested subfolder `.<agent>/` / `.toksi/` dirs.
    - Lifecycle management operations via CLI (`toksi agent ...`), TUI, and Web Dashboard: `install`, `health`, `mismatch`, `upgrade`, `fix`, `restore`, `remove`, `edit`.
 2. Comprehensive Technical README (`crates/toksi/README.md`):
-   - 5-port network architecture explanation.
-   - Single-daemon launch (`toksi daemon start`).
-   - 17 supported agent configurations and open protocols.
-   - 39+ BYOK providers and smart local agent CLI bridges.
-   - Paid quota enforcement and graceful free-tier disqualification.
-   - In-tree rules (Karpathy, Caveman, Ponytail) and dynamic ignore purging.
-   - Complete CLI command reference and environment variables.
+   - Unified 7-port network architecture (`:8787`, `:8788` Grok, `:8789`/`:8790` Copilot, `:18787` BYOK, `:9099` Gateway, `:9100` Cockpit).
+   - `~/.toksi/config.toml` reference & `toksi daemon|proxy|dashboard start|stop|restart --agents` CLI control.
+   - Native `toksi chat|run|exec|swarm` coding CLI (`src/agent_runtime/`), `DirectWireBus` (`direct-wired`), and 10 in-chat slash commands (`/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`).
+   - 65/90+ Categories 1–5 + 22 local engines, multi-instance `<byok, model, effort>` routing, **zero paid-tier restrictions**, read-only quota windows, and mandatory Headroom BYOK optimization.
+   - 41+ Tree-sitter languages, strict `<repo>/.toksi/<tool>` repo-only storage, monorepo subproject partitioning, `.gitignore`/`.ignore` dynamic purge, and 9-tab TUI/Web parity.
+   - Complete CLI command reference (`--help` matched 1:1) and `.toksi/test-baseline.json` incremental verification guide.
 3. Verification:
-   - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and 100% tests pass.
+   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and incremental `.toksi/test-baseline.json` `cargo test` ensuring 0 warnings and 100% pass rate.
 ```
 
 ---
@@ -49,7 +49,7 @@ Requirements:
 
 ### 1. Architectural Scope & Subsystems
 - **OpenAgents Directory Manager** (`src/agents/open_agents.rs`): Reads and writes vendor-agnostic `.agents/` folder structures.
-- **Agent Lifecycle Operations** (`src/agents/manager.rs`): Handles installation, health checks, version upgrades, and clean removals across all 17 agent directories.
+- **Agent Lifecycle Operations** (`src/agents/manager.rs`): Handles installation, health checks, version upgrades, and clean removals across configured agents (`18+` built-in harnesses + `.agents/` + Category 1–5 layouts).
 - **Technical Documentation** (`README.md`): Provides complete, professional reference documentation for developers and automated coding agents.
 
 ### 2. Verification Criteria

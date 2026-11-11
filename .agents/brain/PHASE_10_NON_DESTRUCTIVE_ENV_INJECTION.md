@@ -12,11 +12,11 @@ Targets:
   - crates/toksi/src/env_injector/mod.rs
 
 Disciplinary & Portability Requirements:
-1. Safe Rust (Edition 2024): Safe Rust enforced crate-wide. The ONLY permissible exceptions are strictly isolated Win32 FFI leaf calls in `windows.rs` (advapi32.dll, user32.dll) accompanied by explicit `// SAFETY:` rationale.
+1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly across `crates/toksi/src/`. Zero `unsafe` in `env_injector/{unix,windows,teardown}.rs` (eliminate ALL `std::env::set_var`/`remove_var` calls using `Command::env()`/`env_remove()` and isolate Windows Registry/Broadcast Win32 FFI (`advapi32`, `user32`) into leaf crate `crates/toksi-sys` with explicit `// SAFETY:` proofs). Replace `SetConsoleCtrlHandler`/`libc::signal` with `tokio::signal` + `ctrlc`.
 2. Zero Warnings Policy: Compile cleanly under `RUSTFLAGS="-D warnings"`.
-3. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors.
-4. Universal Forward-Slash (/) Standard: Use normalize_path() for all environment paths.
-5. Non-Destructive Invariant: Injected variables must be cleanly unset upon process exit or signal capture via RAII TeardownGuard.
+3. Zero Panics Policy: Strictly prohibit `.unwrap()`, `.expect()`, `panic!()`. Use `thiserror` for domain errors.
+4. Universal Forward-Slash (`/`) Standard: Use `normalize_path()` for all environment paths (keeping `\\` solely inside explicit `cmd.exe` hook strings) and respect `~/.toksi/config.toml` `[ports]` overrides (`:8787`, `:8788`, `:8789`, `:8790`, `:18787`, `:9099`, `:9100`).
+5. Non-Destructive & Auth Bypass Invariant: Injected variables must be cleanly unset upon process exit or signal capture via RAII `TeardownGuard`; verify `PATH` executables before spawning (`Rule of Test and Inform User`); set `GOOGLE_GEMINI_BASE_URL` cleanly and NEVER inject `CLOUD_CODE_URL` so auth/quota checks pass untouched.
 
 Requirements:
 1. Windows Implementation (`windows.rs`):

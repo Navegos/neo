@@ -4,7 +4,7 @@
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
-Always treat all reference vaults in neo/inspect-vault/* (TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt) as newly added/updated code that we must inspect, convert, and import into consolidated toksi, checking for missing features, addons, updates, and bugfixes.
+Always treat all 36 reference vaults in neo/inspect-vault/* — especially TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt, plus Wave 17 agentic vaults (hermes-agent, openclaw, openclaw-rs, mofa, mofa-engine, mofaclaw, codex, crustly, crush, goose, grok-build, gemini-cli, crewAI) — as active code to inspect, fix bugs in, and wire cleanly into consolidated toksi.
 
 Execute Phase 15.6: Advanced Vault Intelligence Engines Consolidation.
 Sources:
@@ -18,6 +18,7 @@ Sources:
   - neo/inspect-vault/litellm -> crates/toksi/src/gateway/normalizer/litellm.rs
   - neo/inspect-vault/TokenEconomizer -> crates/toksi/src/headroom/compression/economizer.rs
   - neo/inspect-vault/agent-opt -> crates/toksi/src/agents/opt.rs
+  - Wave 17 agentic & router vaults -> crates/toksi/src/agent_runtime/, crates/toksi/src/gateway/router.rs (`PHASE_17_5` / `PHASE_17_6`)
 Targets:
   - crates/toksi/src/telemetry/tokentracker.rs
   - crates/toksi/src/codegraph/
@@ -27,26 +28,26 @@ Targets:
   - crates/toksi/src/agents/
 
 Disciplinary & Portability Requirements:
-1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
-2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors.
+1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly. Zero compiler warnings (`RUSTFLAGS="-D warnings"`).
+2. Zero Panics Policy: Strictly prohibit `.unwrap()`, `.expect()`, `panic!()`. Use `thiserror` for domain errors.
 3. 100% Native Rust Implementation: Complete elimination of external language runtimes (Node.js, Python, TypeScript).
-4. Universal Forward-Slash (/) Standard: Use normalize_path() for all file trees, symbols, and SCIP documents.
-5. Dynamic Ignore Purging: Respect .gitignore and .ignore rules; dynamically purge vector caches and FTS5 records.
+4. Universal Forward-Slash (`/`) Standard: Use `normalize_path()` for all file trees, symbols, and SCIP documents.
+5. Repo-Only & Dynamic Ignore Purging: Store all workspace tool artifacts strictly inside `<repo>/.toksi/<tool>` (respecting `.gitignore`/`.ignore`/`.git/` boundaries & monorepo subprojects); dynamically purge vector caches and FTS5 records.
 
 Requirements:
-1. Ingest & Consolidate Reference Vaults into Pure Rust:
-   - **TokenTracker** (`neo/inspect-vault/TokenTracker`): Ground-truth real-time session prompt/completion metrics, quota tracker, and byte-to-token ratio calculators.
-   - **jcodemunch-mcp** (`neo/inspect-vault/jcodemunch-mcp`): AST outline navigation, semantic symbol chunking, token-efficient code extraction for prompts.
-   - **Repomix** (`neo/inspect-vault/repomix`): Full codebase packager, directory tree generator with exact token calculations and .gitignore filtering.
-   - **ast-grep** (`neo/inspect-vault/ast-grep`): Structural code search and AST pattern matching rules across polyglot trees.
-   - **scip** (`neo/inspect-vault/scip`): SCIP protocol code intelligence indexer for precise cross-file definition & reference graphs.
-   - **mem0** (`neo/inspect-vault/mem0`): Personalized long-term entity-fact memory extractor.
-   - **Chroma** (`neo/inspect-vault/chroma`): Embedding vector similarity indexing and dual-tier semantic cache backing store.
-   - **LiteLLM** (`neo/inspect-vault/litellm`): 100+ model naming aliases, standard request/response mapping, token billing rates, and drop-in compatibility.
-   - **TokenEconomizer** (`neo/inspect-vault/TokenEconomizer`): Dynamic token economizer, prompt minification, redundant instruction deduping, structured output token pruning.
-   - **agent-opt** (`neo/inspect-vault/agent-opt`): Agent prompt and tool execution optimizer, automated step pruning, latency and token budget enforcement.
+1. Ingest & Wire All Vaults End-to-End in Pure Rust (Eliminating Verified Stub Bugs):
+   - **TokenTracker**: 47 AI tool usage parsers, `cache_creation_input_tokens`, Responses SSE usage, zero-cost `limits-cache`.
+   - **jcodemunch-mcp**: Wire directly into `codegraph/mod.rs` + CLI + MCP using O(1) SQLite `byte_offset..byte_len` slices.
+   - **Repomix**: Wire directly into `codegraph/mod.rs` + A2A pack export with secretlint redaction, BPE counter, `.gitignore`/`.repomixignore`.
+   - **ast-grep**: Replace heuristic line matcher with real Tree-sitter CST metavariable engine (`$VAR`, `$$$`) + `MatchStrictness`.
+   - **scip**: Replace stub with real Protobuf wire encoding + descriptor AST extraction across all 41+ languages.
+   - **mem0**: Personalized long-term entity-fact memory synced with `icm`/`ai-memory` inside `<repo>/.toksi/`.
+   - **Chroma**: Upgrade `semantic_cache.rs` from linear JSON scan to ANN HNSW (`instant-distance`/`usearch`) + SPANN disk spill (`foyer`) and wire live `store()`/`lookup_semantic()` in `headroom/proxy.rs`.
+   - **LiteLLM**: 100+ model naming aliases, `/v1/chat/completions`, `/v1/messages`, `/v1/responses`, `/v1/embeddings` mapping, billing catalog across 65/90+ ecosystem + 22 local engines.
+   - **TokenEconomizer**: Fix empty-text stub bugs; implement 3-stage compression + `EnvFactsDistiller` + `ToolCompact` (11 formats) + `LoopGuard`.
+   - **agent-opt**: Fix randomized `DefaultHasher` bug using `SHA-256` 1-hop context dedup, AST outline slicing, and semantic oscillation detector (`max_repetitions: 3`).
 2. Verification:
-   - Run `cargo check -p toksi` and `cargo test -p toksi` ensuring 0 compiler warnings and all tests pass.
+   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```
 
 ---

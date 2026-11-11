@@ -15,24 +15,25 @@ Targets:
   - crates/toksi/src/aimemory/
 
 Disciplinary & Portability Requirements:
-1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
-2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors.
-3. Universal Forward-Slash (/) Standard: Use normalize_path() for all wiki pages, file coordinates, and DB paths.
-4. Directory Consolidation: Place storage in .toksi/icm/ (~/.toksi/icm/memory.db) and .toksi/ai-memory/ (~/.toksi/ai-memory/wiki/) in user home and workspace root.
-5. Multi-Protocol Support: Expose ICM and ai-memory tools over MCP, A2A, ACP, stdio, SSE, and HTTP.
-6. Standardized Naming: Tool identifiers are `icm` and `aimemory`. Hook syntax is `icm-hook <agent>`.
+1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly in `crates/toksi`. Zero compiler warnings (`RUSTFLAGS="-D warnings"`).
+2. Zero Panics Policy: Strictly prohibit `.unwrap()`, `.expect()`, `panic!()`. Use `thiserror` for domain errors.
+3. Universal Forward-Slash (`/`) Standard: Use `normalize_path()` for all wiki pages, file coordinates, and DB paths.
+4. Strict `<repo>/.toksi/` Repo-Only Consolidation: Store workspace `icm` SQLite DB strictly inside `<repo>/.toksi/icm/memory.db` and `ai-memory` wiki/handoffs strictly inside `<repo>/.toksi/ai-memory/wiki/` — NEVER in user home (`~/.toksi/icm` / `~/.toksi/ai-memory`), NEVER outside a `.git` repository root, NEVER inside `<repo>/.git/` or subfolder crates; purge entries matching `.gitignore`/`.ignore` dynamically and track monorepo `subproject_id`.
+5. Multi-Protocol & Fix `runmcp` Dispatch: Expose `icm` and `aimemory` tools over `MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`, and `DirectWireBus`. Fix `commands/runmcp.rs:167-174` so `aimemory`/`ai-memory`/`handoff` route to `aimemory::mcp`, NOT `icm::mcp`!
+6. Standardized Naming: Tool identifiers are `icm` and `ai-memory` (`aimemory`). Hook syntax is `icm-hook <agent>` and `ai-memory-hook <agent>`. Slash commands are `/icm` and `/ai-memory`.
 
 Requirements:
-1. From ICM:
-   - Single-file SQLite database (~/.toksi/icm/memory.db) with bundled FTS5 BM25 search.
+1. From ICM (`crates/toksi/src/icm/`):
+   - Single-file SQLite DB (`<repo>/.toksi/icm/memory.db`) with bundled FTS5 BM25 search.
    - Robust query sanitization stripping FTS5 control characters to prevent syntax panics.
-   - Sub-10ms zero-token recall; strictly enforce the Zero-LLM token rule (no background LLM summarization loops).
-2. From ai-memory:
-   - Open Knowledge Format (OKF v0.2) markdown wiki store and schema.
+   - Wave 17 parity: add all ~23 missing MCP tools (`memoir_*`, `feedback_*`, `transcript_*`, `icm_pin`, `icm_forget`, `icm_consolidate`), `temporal` decay, and RRF `fusion`.
+   - Sub-10ms zero-token recall; strictly enforce Zero-LLM token rule (no background LLM summarization loops).
+2. From `ai-memory` (`crates/toksi/src/aimemory/`):
+   - Open Knowledge Format (OKF v0.2) markdown wiki store inside `<repo>/.toksi/ai-memory/`.
    - Claim-once multi-agent handoff state machine with atomic file lock transitions (`pending` -> `claimed` -> `completed`).
-   - Progressive disclosure packer: Tiered L0 (Table of Contents), L1 (Abstracts), L2 (Full markdown bodies) based on headroom context budget.
+   - Progressive disclosure packer: Tiered L0 (TOC), L1 (Abstracts), L2 (Full markdown bodies) based on Headroom context budget.
 3. Prepare integration hooks for Headroom adaptive memory governor (`crates/toksi/src/headroom/adaptive_mem.rs`).
-4. Ensure 0 compiler warnings and passing unit tests.
+4. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
 ---

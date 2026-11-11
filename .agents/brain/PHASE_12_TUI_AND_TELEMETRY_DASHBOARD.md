@@ -26,19 +26,19 @@ Disciplinary & Portability Requirements:
 
 Requirements:
 1. Telemetry Subsystem (`crates/toksi/src/telemetry/`):
-   - Native Prometheus `/metrics` exposition on Port 9099.
-   - Lock-free, zero-latency async metrics collector channel (`tokio::sync::mpsc`).
-   - Ground-truth token tracking: prompt tokens, completion tokens, cached tokens, and headroom compression savings.
+   - Native Prometheus `/metrics` exposition on Port `9099` (or `config.toml` `[ports].gateway`).
+   - Lock-free, zero-latency async metrics collector channel (`tokio::sync::mpsc`) & `watch::Sender<DashboardSnapshot>`.
+   - Ground-truth token tracking (`TokenTracker` 47 parsers): prompt tokens, completion tokens, `cache_creation_input_tokens`, Responses usage, cached tokens, and headroom compression savings (`0` when idle; zero synthetic `0.38/0.42/0.20`, `1428 KB`, or `50/50`/`0.0005` stubs).
    - Real-time USD cost and savings calculator using official model pricing catalogs.
 2. Terminal UI (`crates/toksi/src/tui/`):
-   - Interactive multi-tab TUI built on `ratatui` + `crossterm`.
-   - Views: Monitor, Agents, Memory, Graph, Headroom, Governance, Logs.
-   - Fix terminal hangs: non-blocking async event loop.
+   - Interactive **9-tab** mouse-capable TUI built on `ratatui` + `crossterm::event::EnableMouseCapture`.
+   - Exact 9 views matching Web Cockpit verbatim: `Savings`, `The War Room`, `AI Agent Fleet & Quotas`, `Memory Decision DAG`, `CodeGraph Explorer`, `Sandbox Inspector`, `System Controls`, `AI Gateway & Quotas`, `Keyring & Database`.
+   - Fix terminal hangs: non-blocking async `watch::Receiver` event loop (`< 5ms` navigation).
 3. Web Telemetry Cockpit (`crates/toksi/src/dashboard/`):
-   - Embedded local HTTP server on `127.0.0.1:9100` (`toksi dashboard`).
-   - Bundled SPA assets (HTML/CSS/JS) embedded via `include_str!`.
-   - Live SSE metrics feed broadcasting ground-truth token savings, active agent observation grid, and BYOK quota gauges.
-4. Ensure 0 compiler warnings and passing unit tests.
+   - Detached background HTTP server on `127.0.0.1:9100` (`toksi dashboard start|stop|restart [--foreground]`).
+   - Bundled futuristic SPA assets (HTML/CSS/JS) embedded via `include_str!` with exact 9 tabs above.
+   - Live SSE metrics feed broadcasting authentic token savings (configured-only agents & `<byok, model, effort>` profiles), clickable `.heatmap-cell` modal, OS Keyring (`gemini:antigravity` normalized), and real DB Export/Import/Backup/Restore.
+4. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
 ---
