@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/projectmem/precheck.rs
 // created: 2026-10-27
-// lastModified: 2026-11-05
+// lastModified: 2026-11-12
+
+#![deny(unsafe_code)]
 
 use std::collections::HashSet;
 use std::fs;
@@ -13,10 +15,12 @@ use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
+use super::error::{ProjectMemError, Result};
 use super::schema::{location_to_file, superseded_ids, Event};
 use super::store::{
-    append_event, read_events, require_mem_dir, MEM_DIR,
+    append_event, read_events, require_mem_dir, LEGACY_MEM_DIR, TOKSI_MEM_SUBDIR,
 };
+use crate::util::paths::normalize_path;
 
 pub const HIGH_CHURN_THRESHOLD: usize = 4;
 pub const FAILED_ATTEMPT_BLOCK_COUNT: usize = 3;
@@ -38,7 +42,7 @@ pub struct PrecheckWarning {
 }
 
 pub fn lexical_normpath(path: &str) -> String {
-    let s = path.replace('\\', "/");
+    let s = normalize_path(path);
     let has_prefix_slash = s.starts_with('/');
     let drive_prefix = if s.len() >= 2 && s.as_bytes()[1] == b':' && s.as_bytes()[0].is_ascii_alphabetic() {
         if s.len() >= 3 && s.as_bytes()[2] == b'/' {
@@ -97,7 +101,7 @@ pub fn root_posix_of(root: Option<&Path>) -> String {
         None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
     };
     let canonical = fs::canonicalize(&p).unwrap_or(p);
-    let s = canonical.to_string_lossy().to_string().replace('\\', "/");
+    let s = normalize_path(&canonical.to_string_lossy());
     let clean = s.strip_prefix("//?/").unwrap_or(&s).to_string();
     lexical_normpath(&clean)
 }
@@ -128,7 +132,7 @@ pub fn project_relative(path: &str, root: Option<&Path>) -> String {
     }
 
     if let Ok(canon) = fs::canonicalize(Path::new(trimmed)) {
-        let canon_s = canon.to_string_lossy().to_string().replace('\\', "/");
+        let canon_s = normalize_path(&canon.to_string_lossy());
         let canon_clean = canon_s.strip_prefix("//?/").unwrap_or(&canon_s).to_string();
         let check_canon = if cfg!(windows) { canon_clean.to_lowercase() } else { canon_clean.clone() };
         if check_canon == check_root {
@@ -144,38 +148,42 @@ pub fn project_relative(path: &str, root: Option<&Path>) -> String {
 
 pub fn is_memory_path(path: &str, root: Option<&Path>) -> bool {
     let rel = project_relative(path, root);
-    if rel == MEM_DIR || rel.starts_with(&format!("{}/", MEM_DIR)) {
+    if rel == TOKSI_MEM_SUBDIR || rel.starts_with(&format!("{}/", TOKSI_MEM_SUBDIR)) {
+        return true;
+    }
+    if rel == LEGACY_MEM_DIR || rel.starts_with(&format!("{}/", LEGACY_MEM_DIR)) {
         return true;
     }
     let norm = lexical_normpath(path.trim());
-    if norm == MEM_DIR || norm.starts_with(&format!("{}/", MEM_DIR)) {
+    if norm.contains(TOKSI_MEM_SUBDIR) || norm.contains(LEGACY_MEM_DIR) {
         return true;
     }
     false
 }
 
-pub fn parse_snooze_duration(text: &str) -> Result<ChronoDuration, String> {
-    let re = Regex::new(r"(?i)^(\d+)\s*([mhd])$").unwrap();
+pub fn parse_snooze_duration(text: &str) -> Result<ChronoDuration> {
+    let re = Regex::new(r"(?i)^(\d+)\s*([mhd])$")
+        .map_err(|e| ProjectMemError::Regex(e))?;
     let caps = re
         .captures(text.trim())
-        .ok_or_else(|| format!("Invalid duration '{}' — use forms like 30m, 2h, or 1d.", text))?;
+        .ok_or_else(|| ProjectMemError::Validation(format!("Invalid duration '{}' — use forms like 30m, 2h, or 1d.", text)))?;
 
     let val: i64 = caps[1]
         .parse()
-        .map_err(|_| "Invalid number in duration".to_string())?;
+        .map_err(|_| ProjectMemError::Validation("Invalid number in duration".to_string()))?;
     if val <= 0 {
-        return Err("Snooze duration must be positive.".to_string());
+        return Err(ProjectMemError::Validation("Snooze duration must be positive.".to_string()));
     }
 
     match &caps[2].to_lowercase()[..] {
         "m" => Ok(ChronoDuration::minutes(val)),
         "h" => Ok(ChronoDuration::hours(val)),
         "d" => Ok(ChronoDuration::days(val)),
-        _ => Err("Invalid duration unit".to_string()),
+        _ => Err(ProjectMemError::Validation("Invalid duration unit".to_string())),
     }
 }
 
-pub fn snooze_path(root: Option<&Path>) -> Result<PathBuf, String> {
+pub fn snooze_path(root: Option<&Path>) -> Result<PathBuf> {
     Ok(require_mem_dir(root)?.join(SNOOZE_MARKER))
 }
 
@@ -196,12 +204,12 @@ pub fn active_snooze(root: Option<&Path>) -> Option<DateTime<Utc>> {
     Some(expiry)
 }
 
-pub fn set_snooze(duration_text: &str, root: Option<&Path>) -> Result<DateTime<Utc>, String> {
+pub fn set_snooze(duration_text: &str, root: Option<&Path>) -> Result<DateTime<Utc>> {
     let delta = parse_snooze_duration(duration_text)?;
     let expiry = Utc::now() + delta;
 
     let path = snooze_path(root)?;
-    fs::write(&path, expiry.to_rfc3339()).map_err(|e| e.to_string())?;
+    fs::write(&path, expiry.to_rfc3339())?;
 
     let mut note = Event::new(
         "note",
@@ -229,7 +237,7 @@ pub fn get_staged_files(root: &Path) -> Vec<String> {
         if output.status.success() {
             return String::from_utf8_lossy(&output.stdout)
                 .lines()
-                .map(|l| l.trim().replace('\\', "/"))
+                .map(|l| normalize_path(l.trim()))
                 .filter(|l| !l.is_empty())
                 .collect();
         }
@@ -245,7 +253,7 @@ pub fn get_working_tree_files(root: &Path) -> Vec<String> {
     if let Ok(output) = cmd.output() {
         if output.status.success() {
             for l in String::from_utf8_lossy(&output.stdout).lines() {
-                let trimmed = l.trim().replace('\\', "/");
+                let trimmed = normalize_path(l.trim());
                 if !trimmed.is_empty() {
                     files.insert(trimmed);
                 }
@@ -260,7 +268,7 @@ pub fn get_working_tree_files(root: &Path) -> Vec<String> {
         if output.status.success() {
             for l in String::from_utf8_lossy(&output.stdout).lines() {
                 if l.len() > 3 {
-                    let path_part = l[3..].trim().replace('\\', "/");
+                    let path_part = normalize_path(l[3..].trim());
                     if !path_part.is_empty() {
                         files.insert(path_part);
                     }
@@ -398,7 +406,7 @@ pub fn analyze_files(files: &[String], events: &[Event], root: Option<&Path>) ->
                 details.push(format!("x {}", s_trunc));
             }
             if count > 3 {
-                details.push(format!("  ... and {} more (pjm search --failed-only)", count - 3));
+                details.push(format!("  ... and {} more (toksi mem search --failed-only)", count - 3));
             }
 
             warnings.push(PrecheckWarning {
@@ -514,10 +522,10 @@ pub fn run_precheck(
     level: Option<&str>,
     quiet: bool,
     root: Option<&Path>,
-) -> Result<Vec<PrecheckWarning>, String> {
+) -> Result<Vec<PrecheckWarning>> {
     let target_root = match root {
         Some(r) => r.to_path_buf(),
-        None => std::env::current_dir().map_err(|e| e.to_string())?,
+        None => std::env::current_dir()?,
     };
 
     if active_snooze(Some(&target_root)).is_some() {
@@ -633,7 +641,6 @@ mod tests {
             assert!(evs.is_empty(), "events_for_file for '{}' should be empty", blank);
         }
 
-        // Surrounding whitespace is trimmed and matches
         let res_trimmed = analyze_files(&[" src/f.rs\n".to_string()], &events, None);
         assert!(!res_trimmed.is_empty(), "Surrounding whitespace should be trimmed and match");
     }

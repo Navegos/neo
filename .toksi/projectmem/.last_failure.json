@@ -1,0 +1,6 @@
+{
+  "command": "git grep -i record length",
+  "root_cause": "fatal: ambiguous argument 'length': unknown revision or path not in the working tree.",
+  "raw_output": "fatal: ambiguous argument 'length': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions, like this:\n'git <command> [<revision>...] -- [<file>...]'\n",
+  "timestamp": "2026-11-12T22:41:34Z"
+}

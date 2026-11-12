@@ -28,6 +28,7 @@ url = "2.5.8"
 toml = "0.8"
 rusqlite = { version = "0.31.0", features = ["bundled"] }
 thiserror = "2.0"
+fs2 = "0.4"
 zeroize = "1.9"
 ignore = "0.4"
 petgraph = "0.7"

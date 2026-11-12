@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/projectmem/redaction.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-12
+
+#![deny(unsafe_code)]
 
 use std::borrow::Cow;
 use std::env;
@@ -17,48 +19,26 @@ struct PatternDef {
 }
 
 static PATTERNS: LazyLock<Vec<PatternDef>> = LazyLock::new(|| {
-    vec![
-        PatternDef {
-            name: "openai_key",
-            regex: Regex::new(r"\bsk-[A-Za-z0-9_-]{40,}\b").unwrap(),
-        },
-        PatternDef {
-            name: "github_pat",
-            regex: Regex::new(r"\bgithub_pat_[A-Za-z0-9_]{82}\b").unwrap(),
-        },
-        PatternDef {
-            name: "github_token",
-            regex: Regex::new(r"\bgh[pousr]_[A-Za-z0-9]{36}\b").unwrap(),
-        },
-        PatternDef {
-            name: "aws_access_key",
-            regex: Regex::new(r"\bAKIA[0-9A-Z]{16}\b").unwrap(),
-        },
-        PatternDef {
-            name: "google_api_key",
-            regex: Regex::new(r"\bAIza[0-9A-Za-z_-]{35}\b").unwrap(),
-        },
-        PatternDef {
-            name: "slack_token",
-            regex: Regex::new(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b").unwrap(),
-        },
-        PatternDef {
-            name: "stripe_key",
-            regex: Regex::new(r"\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{24,}\b").unwrap(),
-        },
-        PatternDef {
-            name: "jwt",
-            regex: Regex::new(r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{10,}\b").unwrap(),
-        },
-        PatternDef {
-            name: "bearer_token",
-            regex: Regex::new(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=\-]{20,}").unwrap(),
-        },
-        PatternDef {
-            name: "private_key",
-            regex: Regex::new(r"-----BEGIN [A-Z ]*PRIVATE KEY-----").unwrap(),
-        },
-    ]
+    let raw = [
+        ("openai_key", r"\bsk-[A-Za-z0-9_-]{40,}\b"),
+        ("github_pat", r"\bgithub_pat_[A-Za-z0-9_]{82}\b"),
+        ("github_token", r"\bgh[pousr]_[A-Za-z0-9]{36}\b"),
+        ("aws_access_key", r"\bAKIA[0-9A-Z]{16}\b"),
+        ("google_api_key", r"\bAIza[0-9A-Za-z_-]{35}\b"),
+        ("slack_token", r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b"),
+        ("stripe_key", r"\b(?:sk|pk|rk)_(?:live|test)_[A-Za-z0-9]{24,}\b"),
+        ("jwt", r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{10,}\b"),
+        ("bearer_token", r"(?i)\bbearer\s+[A-Za-z0-9._~+/=\-]{20,}"),
+        ("private_key", r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
+    ];
+
+    let mut patterns = Vec::with_capacity(raw.len());
+    for (name, pat) in raw {
+        if let Ok(regex) = Regex::new(pat) {
+            patterns.push(PatternDef { name, regex });
+        }
+    }
+    patterns
 });
 
 pub fn is_redaction_enabled() -> bool {
@@ -114,42 +94,26 @@ pub fn redact_event_fields(event: &mut Event) -> Vec<String> {
 
     let mut all_fired = Vec::new();
 
-    let (s, f) = redact(&event.summary);
-    if !f.is_empty() {
-        event.summary = s;
-        all_fired.extend(f);
+    let (s, f1) = redact(&event.summary);
+    event.summary = s;
+    all_fired.extend(f1);
+
+    if let Some(ref n) = event.notes {
+        let (s, f2) = redact(n);
+        event.notes = Some(s);
+        all_fired.extend(f2);
     }
 
-    if let Some(ref notes) = event.notes {
-        let (s, f) = redact(notes);
-        if !f.is_empty() {
-            event.notes = Some(s);
-            all_fired.extend(f);
-        }
+    if let Some(ref l) = event.location {
+        let (s, f3) = redact(l);
+        event.location = Some(s);
+        all_fired.extend(f3);
     }
 
-    if let Some(ref cmd) = event.command {
-        let (s, f) = redact(cmd);
-        if !f.is_empty() {
-            event.command = Some(s);
-            all_fired.extend(f);
-        }
-    }
-
-    if let Some(ref gm) = event.git_message {
-        let (s, f) = redact(gm);
-        if !f.is_empty() {
-            event.git_message = Some(s);
-            all_fired.extend(f);
-        }
-    }
-
-    if let Some(ref loc) = event.location {
-        let (s, f) = redact(loc);
-        if !f.is_empty() {
-            event.location = Some(s);
-            all_fired.extend(f);
-        }
+    if let Some(ref c) = event.command {
+        let (s, f4) = redact(c);
+        event.command = Some(s);
+        all_fired.extend(f4);
     }
 
     all_fired
@@ -160,20 +124,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_redaction_patterns() {
-        let raw = "Tried fixing with sk-1234567890123456789012345678901234567890 and Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
-        let (redacted, fired) = redact(raw);
-        assert!(redacted.contains("[REDACTED:openai_key]"));
-        assert!(redacted.contains("[REDACTED:bearer_token]") || redacted.contains("[REDACTED:jwt]"));
-        assert!(!fired.is_empty());
+    fn test_zero_alloc_borrow() {
+        let clean = "This is a clean string without any tokens or keys.";
+        let (cow, fired) = redact_cow(clean);
+        assert!(matches!(cow, Cow::Borrowed(_)));
+        assert!(fired.is_empty());
     }
 
     #[test]
-    fn test_redact_event_fields() {
-        let mut evt = Event::new("issue", "Bug with AKIA1234567890123456 key");
-        let fired = redact_event_fields(&mut evt);
-        assert_eq!(fired, vec!["aws_access_key"]);
-        assert_eq!(evt.summary, "Bug with [REDACTED:aws_access_key] key");
+    fn test_redact_patterns() {
+        let raw = "sk-1234567890abcdef1234567890abcdef12345678 and AKIAIOSFODNN7EXAMPLE";
+        let (redacted, fired) = redact(raw);
+        assert!(redacted.contains("[REDACTED:openai_key]"));
+        assert!(redacted.contains("[REDACTED:aws_access_key]"));
+        assert_eq!(fired.len(), 2);
     }
 }
-

@@ -3,23 +3,24 @@
 // project: neo
 // file: crates/toksi/src/projectmem/store.rs
 // created: 2026-10-27
-// lastModified: 2026-11-04
+// lastModified: 2026-11-12
+
+#![deny(unsafe_code)]
 
 use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::thread;
-use std::time::{Duration, Instant};
-use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use regex::Regex;
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 
+use super::error::{ProjectMemError, Result};
 use super::redaction::redact_event_fields;
-use super::schema::{auto_resolve_location, normalize_timestamp, Event};
+use super::schema::{auto_resolve_location, Event};
 
-pub const MEM_DIR: &str = ".projectmem";
+pub const TOKSI_MEM_SUBDIR: &str = ".toksi/projectmem";
+pub const LEGACY_MEM_DIR: &str = ".projectmem";
 pub const SUMMARY_FILE: &str = "summary.md";
 pub const EVENTS_FILE: &str = "events.jsonl";
 pub const CONFIG_FILE: &str = "config.toml";
@@ -30,6 +31,12 @@ pub const PROJECT_MAP_FILE: &str = "PROJECT_MAP.md";
 pub const PLAN_FILE: &str = "plan.md";
 pub const CURRENT_ISSUE_MARKER: &str = ".current_issue";
 pub const LAST_FAILURE_FILE: &str = ".last_failure.json";
+pub const STRUCTURE_FILE: &str = "structure.json";
+
+pub const INSTRUCTIONS_VERSION: u32 = 2;
+pub const TITLE_CHARS: usize = 140;
+pub const RECORD_CHARS: usize = 300;
+pub const GLOBAL_MEMORY_HEADING: &str = "## Global Memory — Inherited Knowledge";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LastFailureTrace {
@@ -39,13 +46,13 @@ pub struct LastFailureTrace {
     pub timestamp: String,
 }
 
-pub fn write_last_failure_trace(trace: &LastFailureTrace, root: Option<&Path>) -> Result<(), String> {
+pub fn write_last_failure_trace(trace: &LastFailureTrace, root: Option<&Path>) -> Result<()> {
     let mem_dir = match discover_mem_dir(root) {
         Some(d) => d,
         None => return Ok(()),
     };
     let path = mem_dir.join(LAST_FAILURE_FILE);
-    let json = serde_json::to_string_pretty(trace).map_err(|e| e.to_string())?;
+    let json = serde_json::to_string_pretty(trace)?;
     atomic_write_file(&path, &json)
 }
 
@@ -58,69 +65,16 @@ pub fn read_last_failure_trace(root: Option<&Path>) -> Option<LastFailureTrace> 
     let raw = fs::read_to_string(path).ok()?;
     serde_json::from_str(&raw).ok()
 }
-pub const INSTRUCTIONS_VERSION: u32 = 2;
-pub const TITLE_CHARS: usize = 140;
-pub const RECORD_CHARS: usize = 300;
-pub const GLOBAL_MEMORY_HEADING: &str = "## Global Memory — Inherited Knowledge";
 
 pub struct FileLock {
     file: File,
-    #[cfg(windows)]
-    locked: bool,
 }
 
 impl FileLock {
-    pub fn acquire_exclusive(file: File) -> Self {
-        #[cfg(windows)]
-        {
-            use std::os::windows::io::AsRawHandle;
-            use windows_sys::Win32::Storage::FileSystem::{LockFileEx, LOCKFILE_EXCLUSIVE_LOCK};
-            use windows_sys::Win32::System::IO::OVERLAPPED;
-
-            let handle = file.as_raw_handle() as windows_sys::Win32::Foundation::HANDLE;
-            let start = Instant::now();
-            let mut locked = false;
-            while start.elapsed() < Duration::from_secs(5) {
-                let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
-                let ok = unsafe {
-                    LockFileEx(
-                        handle,
-                        LOCKFILE_EXCLUSIVE_LOCK,
-                        0,
-                        u32::MAX,
-                        u32::MAX,
-                        &mut overlapped,
-                    )
-                };
-                if ok != 0 {
-                    locked = true;
-                    break;
-                }
-                thread::sleep(Duration::from_millis(10));
-            }
-            Self { file, locked }
-        }
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::io::AsRawFd;
-            let mut fl = libc::flock {
-                l_type: libc::F_WRLCK as libc::c_short,
-                l_whence: libc::SEEK_SET as libc::c_short,
-                l_start: 0,
-                l_len: 0,
-                l_pid: 0,
-            };
-            unsafe {
-                libc::fcntl(file.as_raw_fd(), libc::F_SETLKW, &mut fl);
-            }
-            Self { file }
-        }
-
-        #[cfg(not(any(windows, unix)))]
-        {
-            Self { file }
-        }
+    pub fn acquire_exclusive(file: File) -> Result<Self> {
+        file.lock_exclusive()
+            .map_err(|e| ProjectMemError::Lock(format!("Failed to lock file: {}", e)))?;
+        Ok(Self { file })
     }
 
     pub fn file_mut(&mut self) -> &mut File {
@@ -130,283 +84,602 @@ impl FileLock {
 
 impl Drop for FileLock {
     fn drop(&mut self) {
-        #[cfg(windows)]
-        {
-            if self.locked {
-                use std::os::windows::io::AsRawHandle;
-                use windows_sys::Win32::Storage::FileSystem::UnlockFileEx;
-                use windows_sys::Win32::System::IO::OVERLAPPED;
-                let handle = self.file.as_raw_handle() as windows_sys::Win32::Foundation::HANDLE;
-                let mut overlapped: OVERLAPPED = unsafe { std::mem::zeroed() };
-                unsafe {
-                    UnlockFileEx(handle, 0, u32::MAX, u32::MAX, &mut overlapped);
-                }
-            }
-        }
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::io::AsRawFd;
-            let mut fl = libc::flock {
-                l_type: libc::F_UNLCK as libc::c_short,
-                l_whence: libc::SEEK_SET as libc::c_short,
-                l_start: 0,
-                l_len: 0,
-                l_pid: 0,
-            };
-            unsafe {
-                libc::fcntl(self.file.as_raw_fd(), libc::F_SETLK, &mut fl);
-            }
-        }
+        let _ = self.file.unlock();
     }
 }
 
 static MEM_ROOT_OVERRIDE: std::sync::RwLock<Option<PathBuf>> = std::sync::RwLock::new(None);
 
 pub fn set_mem_root_override(p: Option<PathBuf>) {
-    if let Ok(mut lock) = MEM_ROOT_OVERRIDE.write() {
-        *lock = p;
+    match MEM_ROOT_OVERRIDE.write() {
+        Ok(mut lock) => *lock = p,
+        Err(poisoned) => *poisoned.into_inner() = p,
     }
 }
 
-pub fn mem_path(root: Option<&Path>) -> PathBuf {
-    match root {
-        Some(r) => r.join(MEM_DIR),
-        None => {
-            if let Ok(lock) = MEM_ROOT_OVERRIDE.read() {
-                if let Some(ref p) = *lock {
-                    return p.join(MEM_DIR);
-                }
-            }
-            if let Ok(env_root) = env::var("PROJECTMEM_ROOT") {
-                if !env_root.trim().is_empty() {
-                    return PathBuf::from(env_root.trim()).join(MEM_DIR);
-                }
-            }
-            env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(MEM_DIR)
+pub fn find_repo_root(start: Option<&Path>) -> PathBuf {
+    if let Some(s) = start {
+        if is_project_mem_dir(s) {
+            return s.parent().unwrap_or(s).to_path_buf();
         }
+        if is_project_mem_dir(&s.join(TOKSI_MEM_SUBDIR)) || is_project_mem_dir(&s.join(LEGACY_MEM_DIR)) {
+            return s.to_path_buf();
+        }
+        let canonical = s.canonicalize().unwrap_or_else(|_| s.to_path_buf());
+        let mut current = canonical.as_path();
+        loop {
+            if current.join(".git").exists() {
+                return current.to_path_buf();
+            }
+            if is_project_mem_dir(&current.join(TOKSI_MEM_SUBDIR)) || is_project_mem_dir(&current.join(LEGACY_MEM_DIR)) {
+                return current.to_path_buf();
+            }
+            match current.parent() {
+                Some(parent) => current = parent,
+                None => break,
+            }
+        }
+        return canonical;
     }
-}
 
-pub fn is_project_mem_dir(candidate: &Path) -> bool {
-    candidate.is_dir() && candidate.join(CONFIG_FILE).exists()
-}
-
-pub fn discover_mem_dir(start: Option<&Path>) -> Option<PathBuf> {
-    if start.is_none() {
-        if let Ok(lock) = MEM_ROOT_OVERRIDE.read() {
-            if let Some(ref p) = *lock {
-                let candidate = p.join(MEM_DIR);
-                if is_project_mem_dir(&candidate) {
-                    return Some(candidate);
-                }
-            }
-        }
-        if let Ok(env_root) = env::var("PROJECTMEM_ROOT") {
-            if !env_root.trim().is_empty() {
-                let candidate = PathBuf::from(env_root.trim()).join(MEM_DIR);
-                if is_project_mem_dir(&candidate) {
-                    return Some(candidate);
-                }
-            }
-        }
-    }
-    let cur = match start {
-        Some(s) => s.to_path_buf(),
-        None => env::current_dir().ok()?,
+    let override_root = match MEM_ROOT_OVERRIDE.read() {
+        Ok(lock) => lock.clone(),
+        Err(poisoned) => poisoned.into_inner().clone(),
     };
-    let mut current: &Path = &cur;
+    if let Some(p) = override_root {
+        return p;
+    }
+    if let Ok(env_root) = env::var("PROJECTMEM_ROOT") {
+        let trimmed = env_root.trim();
+        if !trimmed.is_empty() {
+            let p = PathBuf::from(trimmed);
+            if p.exists() {
+                return p;
+            }
+        }
+    }
+
+    let initial = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let canonical = initial.canonicalize().unwrap_or(initial);
+    let mut current = canonical.as_path();
+
+    // Walk up looking for .git (repository root)
     loop {
-        let candidate = current.join(MEM_DIR);
-        if is_project_mem_dir(&candidate) {
-            return Some(candidate);
+        if current.join(".git").exists() {
+            return current.to_path_buf();
+        }
+        if is_project_mem_dir(&current.join(TOKSI_MEM_SUBDIR)) || is_project_mem_dir(&current.join(LEGACY_MEM_DIR)) {
+            return current.to_path_buf();
         }
         match current.parent() {
-            Some(p) => current = p,
+            Some(parent) => current = parent,
             None => break,
         }
     }
+
+    canonical
+}
+
+pub fn mem_path(root: Option<&Path>) -> PathBuf {
+    let repo_root = find_repo_root(root);
+    let toksi_mem = repo_root.join(TOKSI_MEM_SUBDIR);
+    if toksi_mem.is_dir() {
+        return toksi_mem;
+    }
+    // Check legacy .projectmem
+    let legacy = repo_root.join(LEGACY_MEM_DIR);
+    if legacy.is_dir() {
+        return legacy;
+    }
+    // Default to strict .toksi/projectmem
+    toksi_mem
+}
+
+pub fn is_project_mem_dir(candidate: &Path) -> bool {
+    candidate.is_dir() && (candidate.join(CONFIG_FILE).exists() || candidate.join(EVENTS_FILE).exists())
+}
+
+pub fn discover_mem_dir(start: Option<&Path>) -> Option<PathBuf> {
+    if let Some(s) = start {
+        if is_project_mem_dir(s) {
+            return Some(s.to_path_buf());
+        }
+        let toksi_mem = s.join(TOKSI_MEM_SUBDIR);
+        if is_project_mem_dir(&toksi_mem) {
+            return Some(toksi_mem);
+        }
+        let legacy = s.join(LEGACY_MEM_DIR);
+        if is_project_mem_dir(&legacy) {
+            let _ = migrate_legacy_mem_dir(&legacy, &toksi_mem);
+            if is_project_mem_dir(&toksi_mem) {
+                return Some(toksi_mem);
+            }
+            return Some(legacy);
+        }
+    } else {
+        let override_root = match MEM_ROOT_OVERRIDE.read() {
+            Ok(lock) => lock.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        };
+        if let Some(ref p) = override_root {
+            let toksi_mem = p.join(TOKSI_MEM_SUBDIR);
+            if is_project_mem_dir(&toksi_mem) {
+                return Some(toksi_mem);
+            }
+            let legacy = p.join(LEGACY_MEM_DIR);
+            if is_project_mem_dir(&legacy) {
+                return Some(legacy);
+            }
+        }
+    }
+
+    let repo_root = find_repo_root(start);
+    let toksi_mem = repo_root.join(TOKSI_MEM_SUBDIR);
+    if is_project_mem_dir(&toksi_mem) {
+        return Some(toksi_mem);
+    }
+    let legacy = repo_root.join(LEGACY_MEM_DIR);
+    if is_project_mem_dir(&legacy) {
+        // Auto-migrate legacy to canonical .toksi/projectmem
+        let _ = migrate_legacy_mem_dir(&legacy, &toksi_mem);
+        if is_project_mem_dir(&toksi_mem) {
+            return Some(toksi_mem);
+        }
+        return Some(legacy);
+    }
+
     None
 }
 
-pub fn require_mem_dir(root: Option<&Path>) -> Result<PathBuf, String> {
-    if let Some(r) = root {
-        let path = mem_path(Some(r));
-        if path.exists() {
-            return Ok(path);
-        }
-        return Err(format!("No .projectmem directory found in {}. Run `toksi mem init`.", r.display()));
+pub fn require_mem_dir(root: Option<&Path>) -> Result<PathBuf> {
+    if let Some(d) = discover_mem_dir(root) {
+        return Ok(d);
+    }
+    let repo_root = find_repo_root(root);
+    let toksi_mem = repo_root.join(TOKSI_MEM_SUBDIR);
+    if is_project_mem_dir(&toksi_mem) {
+        return Ok(toksi_mem);
+    }
+    let legacy = repo_root.join(LEGACY_MEM_DIR);
+    if is_project_mem_dir(&legacy) {
+        return Ok(legacy);
     }
 
-    if let Ok(lock) = MEM_ROOT_OVERRIDE.read() {
-        if let Some(ref p) = *lock {
-            let path = p.join(MEM_DIR);
-            if path.exists() {
-                return Ok(path);
-            }
-        }
-    }
-
-    if let Ok(env_root) = env::var("PROJECTMEM_ROOT") {
-        if !env_root.trim().is_empty() {
-            let path = PathBuf::from(env_root.trim()).join(MEM_DIR);
-            if path.exists() {
-                return Ok(path);
-            }
-        }
-    }
-
-    let cwd = env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let cwd_path = mem_path(Some(&cwd));
-    if is_project_mem_dir(&cwd_path) {
-        return Ok(cwd_path);
-    }
-
-    if let Some(found) = discover_mem_dir(Some(&cwd)) {
-        return Ok(found);
-    }
-
-    Err(format!(
-        "No .projectmem directory found in {} or any parent. Run `toksi mem init` to create one.",
-        cwd.display()
-    ))
+    Err(ProjectMemError::NotFound(format!(
+        "No project memory directory found in {} or any parent. Run `toksi mem init`.",
+        repo_root.display()
+    )))
 }
 
-pub fn events_path(root: Option<&Path>) -> Result<PathBuf, String> {
+pub fn events_path(root: Option<&Path>) -> Result<PathBuf> {
     Ok(require_mem_dir(root)?.join(EVENTS_FILE))
 }
 
-pub fn summary_path(root: Option<&Path>) -> Result<PathBuf, String> {
+pub fn summary_path(root: Option<&Path>) -> Result<PathBuf> {
     Ok(require_mem_dir(root)?.join(SUMMARY_FILE))
 }
 
-pub fn ai_instructions_path(root: Option<&Path>) -> Result<PathBuf, String> {
+pub fn ai_instructions_path(root: Option<&Path>) -> Result<PathBuf> {
     Ok(require_mem_dir(root)?.join(AI_INSTRUCTIONS_FILE))
 }
 
-pub fn project_map_path(root: Option<&Path>) -> Result<PathBuf, String> {
+pub fn project_map_path(root: Option<&Path>) -> Result<PathBuf> {
     Ok(require_mem_dir(root)?.join(PROJECT_MAP_FILE))
 }
 
-pub fn plan_path(root: Option<&Path>) -> Result<PathBuf, String> {
+pub fn plan_path(root: Option<&Path>) -> Result<PathBuf> {
     Ok(require_mem_dir(root)?.join(PLAN_FILE))
 }
 
-pub fn issues_dir(root: Option<&Path>) -> Result<PathBuf, String> {
+pub fn issues_dir(root: Option<&Path>) -> Result<PathBuf> {
     Ok(require_mem_dir(root)?.join(ISSUES_DIR))
 }
 
-pub fn current_issue_marker_path(root: Option<&Path>) -> Result<PathBuf, String> {
-    Ok(require_mem_dir(root)?.join(CURRENT_ISSUE_MARKER))
+pub fn structure_path(root: Option<&Path>) -> Result<PathBuf> {
+    Ok(require_mem_dir(root)?.join(STRUCTURE_FILE))
 }
 
-pub fn read_events(root: Option<&Path>) -> Result<Vec<Event>, String> {
-    let path = events_path(root)?;
-    if !path.exists() {
-        return Ok(Vec::new());
+pub fn migrate_legacy_mem_dir(legacy: &Path, target: &Path) -> Result<()> {
+    if !legacy.is_dir() {
+        return Ok(());
+    }
+    fs::create_dir_all(target)?;
+    fs::create_dir_all(target.join(ISSUES_DIR))?;
+
+    for item in &[
+        CONFIG_FILE,
+        EVENTS_FILE,
+        SUMMARY_FILE,
+        PROJECT_MAP_FILE,
+        PLAN_FILE,
+        AI_INSTRUCTIONS_FILE,
+        INSTRUCTIONS_BACKUP_FILE,
+        CURRENT_ISSUE_MARKER,
+        LAST_FAILURE_FILE,
+        STRUCTURE_FILE,
+    ] {
+        let src = legacy.join(item);
+        let dst = target.join(item);
+        if src.exists() && (!dst.exists() || dst.metadata()?.len() == 0) {
+            let _ = fs::copy(&src, &dst);
+        }
     }
 
-    let file = File::open(&path).map_err(|e| format!("Failed to open {}: {}", path.display(), e))?;
-    let mut reader = BufReader::new(file);
-
-    let mut events = Vec::new();
-    let mut line = String::new();
-    let mut line_no = 0;
-
-    while reader.read_line(&mut line).map_err(|e| e.to_string())? > 0 {
-        line_no += 1;
-        let mut trimmed = line.trim();
-        if trimmed.starts_with('\u{FEFF}') {
-            trimmed = &trimmed['\u{FEFF}'.len_utf8()..];
-        }
-        if !trimmed.is_empty() {
-            match serde_json::from_str::<Event>(trimmed) {
-                Ok(mut ev) => {
-                    ev.timestamp = normalize_timestamp(Some(&ev.timestamp));
-                    events.push(ev);
-                }
-                Err(e) => {
-                    return Err(format!("Invalid event at {}:{}: {}", path.display(), line_no, e));
+    let src_issues = legacy.join(ISSUES_DIR);
+    let dst_issues = target.join(ISSUES_DIR);
+    if src_issues.is_dir() {
+        if let Ok(entries) = fs::read_dir(src_issues) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_file() {
+                    let dest = dst_issues.join(entry.file_name());
+                    if !dest.exists() {
+                        let _ = fs::copy(&p, &dest);
+                    }
                 }
             }
-        }
-        line.clear();
-    }
-
-    Ok(events)
-}
-
-pub fn append_event(event: &mut Event, root: Option<&Path>) -> Result<(), String> {
-    event.validate()?;
-    let _ = redact_event_fields(event);
-
-    if let Some(ref loc) = event.location {
-        let mem_dir = discover_mem_dir(root);
-        let project_root = mem_dir
-            .as_deref()
-            .and_then(|p| p.parent())
-            .or(root)
-            .unwrap_or_else(|| Path::new("."));
-        let resolved = auto_resolve_location(project_root, loc);
-        if resolved != *loc {
-            event.location = Some(resolved);
-        }
-    }
-
-    let path = events_path(root)?;
-    let file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-        .map_err(|e| format!("Failed to open {}: {}", path.display(), e))?;
-
-    let mut lock = FileLock::acquire_exclusive(file);
-    let serialized = serde_json::to_string(event).map_err(|e| e.to_string())?;
-    writeln!(lock.file_mut(), "{}", serialized).map_err(|e| e.to_string())?;
-    lock.file_mut().flush().map_err(|e| e.to_string())?;
-    drop(lock);
-
-    // Best-effort auto-promote cross-project gotchas to global memory
-    let discovered = discover_mem_dir(root);
-    let project_root = discovered
-        .as_deref()
-        .and_then(|p| p.parent())
-        .or(root)
-        .unwrap_or_else(|| Path::new("."));
-    let project_name = project_root
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("project");
-    let detected = super::global::detect_stack(project_root);
-    let _ = super::global::auto_promote_event(
-        &event.summary,
-        &event.event_type,
-        project_name,
-        None,
-        Some(&detected.libraries),
-        event.outcome.as_deref(),
-    );
-
-    // Best-effort auto-sync event to ICM SQLite store (~/.toksi/memory.db) when in production context
-    #[cfg(not(test))]
-    if root.is_none() {
-        let icm_path = crate::icm::resolve_icm_db_path();
-        if let Ok(mut icm) = crate::icm::IcmStore::open(&icm_path) {
-            let _ = icm.sync_from_projectmem(&[event.clone()]);
         }
     }
 
     Ok(())
 }
 
+pub fn sync_to_legacy_mem_dir(source: &Path, legacy: &Path) -> Result<()> {
+    if !legacy.is_dir() {
+        return Ok(());
+    }
+    for item in &[
+        CONFIG_FILE,
+        EVENTS_FILE,
+        SUMMARY_FILE,
+        PROJECT_MAP_FILE,
+        PLAN_FILE,
+        AI_INSTRUCTIONS_FILE,
+        INSTRUCTIONS_BACKUP_FILE,
+        CURRENT_ISSUE_MARKER,
+        LAST_FAILURE_FILE,
+        STRUCTURE_FILE,
+    ] {
+        let src = source.join(item);
+        let dst = legacy.join(item);
+        if src.exists() {
+            let _ = fs::copy(&src, &dst);
+        }
+    }
+    Ok(())
+}
+
+pub fn extract_instructions_version(content: &str) -> u32 {
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("<!--") && trimmed.contains("projectmem-instructions:") {
+            if let Some(pos) = trimmed.find("projectmem-instructions:") {
+                let rest = &trimmed[pos + "projectmem-instructions:".len()..];
+                let num_str: String = rest.chars().filter(|c| c.is_ascii_digit()).collect();
+                if let Ok(v) = num_str.parse::<u32>() {
+                    return v;
+                }
+            }
+        }
+    }
+    0
+}
+
+pub fn initialize(root: Option<&Path>, project_purpose: Option<&str>) -> Result<PathBuf> {
+    let repo_root = match root {
+        Some(r) => r.to_path_buf(),
+        None => find_repo_root(None),
+    };
+    let project_dir = repo_root.join(TOKSI_MEM_SUBDIR);
+
+    // If legacy .projectmem exists, migrate it
+    let legacy = repo_root.join(LEGACY_MEM_DIR);
+    if legacy.is_dir() {
+        let _ = migrate_legacy_mem_dir(&legacy, &project_dir);
+    }
+
+    fs::create_dir_all(&project_dir)?;
+    fs::create_dir_all(project_dir.join(ISSUES_DIR))?;
+
+    let events_file = project_dir.join(EVENTS_FILE);
+    if !events_file.exists() {
+        File::create(&events_file)?;
+    }
+
+    let config_file = project_dir.join(CONFIG_FILE);
+    if !config_file.exists() {
+        let purpose = project_purpose.unwrap_or("").trim();
+        let content = format!(
+            "recent_days = 30\nproject_description = \"{}\"\n",
+            purpose.replace('"', "\\\"")
+        );
+        fs::write(&config_file, content)?;
+    }
+
+    let summary_file = project_dir.join(SUMMARY_FILE);
+    if !summary_file.exists() {
+        fs::write(&summary_file, initial_summary(&repo_root, project_purpose))?;
+    }
+
+    let instructions_file = project_dir.join(AI_INSTRUCTIONS_FILE);
+    if instructions_file.exists() {
+        let existing = fs::read_to_string(&instructions_file).unwrap_or_default();
+        let ver = extract_instructions_version(&existing);
+        if ver < INSTRUCTIONS_VERSION {
+            let bak = instructions_file.with_extension("md.bak");
+            let _ = fs::write(&bak, &existing);
+            fs::write(&instructions_file, ai_instructions())?;
+        }
+    } else {
+        fs::write(&instructions_file, ai_instructions())?;
+    }
+
+    let project_map_file = project_dir.join(PROJECT_MAP_FILE);
+    if !project_map_file.exists() {
+        fs::write(&project_map_file, initial_project_map(&repo_root))?;
+    }
+
+    let plan_file = project_dir.join(PLAN_FILE);
+    if !plan_file.exists() {
+        fs::write(&plan_file, initial_plan(&repo_root))?;
+    }
+
+    // Mirror to root .projectmem if .projectmem already exists
+    if legacy.is_dir() {
+        let _ = sync_to_legacy_mem_dir(&project_dir, &legacy);
+    }
+
+    ensure_gitignore_entry(&repo_root);
+    let _ = super::global::register_project(&repo_root);
+
+    Ok(project_dir)
+}
+
+pub fn initial_summary(root: &Path, purpose: Option<&str>) -> String {
+    let project_name = root.file_name().and_then(|s| s.to_str()).unwrap_or("project");
+    let default_purpose = "Replace this placeholder with a concise description of what this project does, who it serves, and the main technologies.";
+    let purpose_text = purpose.unwrap_or(default_purpose);
+    format!(
+        "# projectmem - {project_name}\n\n\
+        _Last updated: never (placeholder — populate via `toksi mem decision` / `toksi mem note` or MCP tools)._\n\n\
+        ## Project purpose\n\
+        {purpose_text}\n\n\
+        ## How to use this memory\n\
+        AI assistants and human contributors should read this file before making changes.\n\n\
+        ## Current issues\n\
+        - None logged yet.\n\n\
+        ## Recent fixes\n\
+        - None logged yet.\n\n\
+        ## Decisions\n\
+        - None logged yet.\n\n\
+        ## Known gotchas\n\
+        - None logged yet.\n\n\
+        ## Key files\n\
+        - None logged yet.\n\n\
+        ## Open questions\n\
+        - None logged yet.\n"
+    )
+}
+
+pub fn initial_project_map(root: &Path) -> String {
+    let project_name = root.file_name().and_then(|s| s.to_str()).unwrap_or("project");
+    format!(
+        "# Project Map - {project_name}\n\n\
+        Status: not created yet.\n\n\
+        ## Project purpose\n\
+        Not described yet.\n\n\
+        ## Structure\n\n\
+        ## Relationships\n"
+    )
+}
+
+pub fn initial_plan(root: &Path) -> String {
+    let project_name = root.file_name().and_then(|s| s.to_str()).unwrap_or("project");
+    format!(
+        "# {project_name} — plan\n\n\
+        > Editable **intent** file: ideas + plans — what we *mean to do*.\n\
+        > `events.jsonl` -> `summary.md` records what *happened*; this file records what we *intend*.\n\n\
+        ## Ideas\n\
+        _Loose thoughts, not yet committed to._\n\n\
+        ## Active plans\n\
+        _What we're working toward now. Use `- [ ]` / `- [x]` checklists._\n\n\
+        ## Next\n\
+        _Queued, but not started._\n\n\
+        ## Someday / maybe\n\n\
+        ## Shipped\n\
+        _Move completed plans here so the top stays about the future._\n"
+    )
+}
+
+pub fn ai_instructions() -> String {
+    format!(
+        "# projectmem AI Instructions\n\n\
+        <!-- projectmem-instructions: {INSTRUCTIONS_VERSION} -->\n\n\
+        These instructions are MANDATORY for all AI coding agents working in this project.\n\n\
+        ## Start of every session\n\
+        1. Read `.toksi/projectmem/summary.md` and `.toksi/projectmem/PROJECT_MAP.md` (or call MCP `get_summary()`).\n\
+        2. Identify your mode (Setup Mode vs Maintenance Mode).\n\
+        3. Work from map and memory, do not re-scan the entire repo.\n\n\
+        ## MANDATORY Triggers\n\
+        - Bug, error, or unexpected behavior -> `log_issue(summary, location)`\n\
+        - Fix attempt FAILED -> `record_attempt(summary, outcome=\"failed\")`\n\
+        - Fix attempt PARTIAL -> `record_attempt(summary, outcome=\"partial\")`\n\
+        - Fix attempt WORKED -> `record_attempt(summary, outcome=\"worked\")`\n\
+        - Fix confirmed -> `record_fix(summary)`\n\
+        - Architectural or design decision -> `add_decision(summary)`\n\
+        - Gotcha / setup detail / constraint -> `add_note(summary)`\n\n\
+        ## Record Length Guidance\n\
+        Keep an issue title under {TITLE_CHARS} characters and an attempt, fix, note or decision under {RECORD_CHARS}. summary.md clips longer records.\n"
+    )
+}
+
+pub fn ensure_gitignore_entry(root: &Path) {
+    if !root.join(".git").exists() && !root.join(".gitignore").exists() {
+        return;
+    }
+    let gitignore = root.join(".gitignore");
+    let entries = [
+        format!("{}/{}", TOKSI_MEM_SUBDIR, EVENTS_FILE),
+        format!("{}/watch.pid", TOKSI_MEM_SUBDIR),
+        format!("{}/watch.log", TOKSI_MEM_SUBDIR),
+        format!("{}/{}", TOKSI_MEM_SUBDIR, STRUCTURE_FILE),
+        format!("{}/{}", TOKSI_MEM_SUBDIR, LAST_FAILURE_FILE),
+        format!("{}/{}", LEGACY_MEM_DIR, EVENTS_FILE),
+        format!("{}/{}", LEGACY_MEM_DIR, STRUCTURE_FILE),
+    ];
+
+    let existing = fs::read_to_string(&gitignore).unwrap_or_default();
+    let existing_lines: Vec<&str> = existing.lines().map(|l| l.trim()).collect();
+    let mut to_add = Vec::new();
+
+    for e in &entries {
+        if !existing_lines.contains(&e.as_str()) {
+            to_add.push(e.clone());
+        }
+    }
+
+    if to_add.is_empty() {
+        return;
+    }
+
+    let prefix = if existing.is_empty() || existing.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+
+    let mut file = match OpenOptions::new().create(true).append(true).open(&gitignore) {
+        Ok(f) => f,
+        Err(_) => return,
+    };
+
+    let _ = write!(file, "{}{}\n", prefix, to_add.join("\n"));
+}
+
+pub fn read_events(root: Option<&Path>) -> Result<Vec<Event>> {
+    let path = events_path(root)?;
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let file = File::open(&path)?;
+    let mut reader = BufReader::new(file);
+
+    let mut events = Vec::new();
+    let mut line_number = 0;
+    let mut line_buf = String::new();
+
+    while reader.read_line(&mut line_buf)? > 0 {
+        line_number += 1;
+        let mut trimmed = line_buf.trim();
+        if trimmed.starts_with('\u{feff}') {
+            trimmed = &trimmed['\u{feff}'.len_utf8()..];
+        }
+        if !trimmed.is_empty() {
+            match serde_json::from_str::<Event>(trimmed) {
+                Ok(ev) => events.push(ev),
+                Err(e) => {
+                    return Err(ProjectMemError::Validation(format!(
+                        "Invalid event at {}:{}: {}",
+                        path.display(),
+                        line_number,
+                        e
+                    )));
+                }
+            }
+        }
+        line_buf.clear();
+    }
+
+    Ok(events)
+}
+
+pub fn append_event(event: &mut Event, root: Option<&Path>) -> Result<()> {
+    let _ = redact_event_fields(event);
+
+    let repo_root = find_repo_root(root);
+    if let Some(ref loc) = event.location {
+        event.location = Some(auto_resolve_location(&repo_root, loc));
+    }
+
+    let p = events_path(root)?;
+    if let Some(parent) = p.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .append(true)
+        .open(&p)?;
+
+    let mut lock = FileLock::acquire_exclusive(file)?;
+    let json = serde_json::to_string(event)?;
+    writeln!(lock.file_mut(), "{}", json)?;
+    lock.file_mut().flush()?;
+    drop(lock);
+
+    // If root .projectmem also exists, mirror event for backwards compatibility
+    let repo_root = find_repo_root(root);
+    let legacy_events = repo_root.join(LEGACY_MEM_DIR).join(EVENTS_FILE);
+    if legacy_events.exists() && legacy_events != p {
+        if let Ok(file_leg) = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .append(true)
+            .open(&legacy_events)
+        {
+            if let Ok(mut lock_leg) = FileLock::acquire_exclusive(file_leg) {
+                let _ = writeln!(lock_leg.file_mut(), "{}", json);
+                let _ = lock_leg.file_mut().flush();
+            }
+        }
+    }
+
+    // Auto-promote library mentions
+    if (event.event_type == "attempt" || event.event_type == "decision" || event.event_type == "note")
+        && !event.summary.is_empty()
+    {
+        let proj_name = repo_root
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("project");
+        let stack = super::global::detect_stack(&repo_root);
+        let mut libs = stack.libraries;
+        libs.extend(stack.tags);
+        super::global::auto_promote_event(
+            &event.summary,
+            &event.event_type,
+            proj_name,
+            event.location.as_deref(),
+            Some(&libs),
+            event.outcome.as_deref(),
+        );
+    }
+
+    Ok(())
+}
+
+pub fn atomic_write_file(path: &Path, content: &str) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let tmp_path = path.with_extension("tmp");
+    fs::write(&tmp_path, content)?;
+    fs::rename(&tmp_path, path)?;
+    Ok(())
+}
+
 pub fn next_issue_id(events: &[Event]) -> String {
-    let mut max_id = 0;
+    let mut max_id: u32 = 0;
     for e in events {
         if e.event_type == "issue" {
-            if let Some(ref id_str) = e.issue_id {
-                if let Ok(n) = id_str.parse::<u32>() {
-                    if n > max_id {
-                        max_id = n;
+            if let Some(ref iid) = e.issue_id {
+                let digits: String = iid.chars().filter(|c| c.is_ascii_digit()).collect();
+                if let Ok(num) = digits.parse::<u32>() {
+                    if num > max_id {
+                        max_id = num;
                     }
                 }
             }
@@ -424,9 +697,9 @@ pub fn current_issue_id(events: &[Event]) -> Option<String> {
 
     for e in events.iter().rev() {
         if e.event_type == "issue" {
-            if let Some(ref id) = e.issue_id {
-                if !closed.contains(id) {
-                    return Some(id.clone());
+            if let Some(ref iid) = e.issue_id {
+                if !closed.contains(iid) {
+                    return Some(iid.clone());
                 }
             }
         }
@@ -434,56 +707,68 @@ pub fn current_issue_id(events: &[Event]) -> Option<String> {
     None
 }
 
+pub fn current_issue_marker_path(root: Option<&Path>) -> Result<PathBuf> {
+    Ok(require_mem_dir(root)?.join(CURRENT_ISSUE_MARKER))
+}
+
 pub fn write_current_issue(issue_id: &str, root: Option<&Path>) {
-    if let Ok(path) = current_issue_marker_path(root) {
-        let _ = fs::write(path, issue_id.trim());
+    if let Ok(p) = current_issue_marker_path(root) {
+        let _ = fs::write(p, issue_id.trim());
     }
 }
 
 pub fn read_current_issue(root: Option<&Path>) -> Option<String> {
-    let path = current_issue_marker_path(root).ok()?;
-    if !path.exists() {
+    let p = current_issue_marker_path(root).ok()?;
+    if !p.exists() {
         return None;
     }
-    let content = fs::read_to_string(path).ok()?;
-    let trimmed = content.trim().to_string();
+    let s = fs::read_to_string(p).ok()?;
+    let trimmed = s.trim();
     if trimmed.is_empty() {
         None
     } else {
-        Some(trimmed)
-    }
-}
-
-pub fn clear_current_issue(root: Option<&Path>) {
-    if let Ok(path) = current_issue_marker_path(root) {
-        let _ = fs::remove_file(path);
+        Some(trimmed.to_string())
     }
 }
 
 pub fn normalize_issue_id(issue_id: Option<&str>) -> Option<String> {
-    let cleaned = issue_id?.trim().trim_start_matches('#');
-    if cleaned.is_empty() {
+    let raw = issue_id?.trim().trim_start_matches('#');
+    if raw.is_empty() {
         return None;
     }
-    if let Ok(num) = cleaned.parse::<u32>() {
-        return Some(format!("{:04}", num));
+    if raw.chars().all(|c| c.is_ascii_digit()) {
+        let num: u32 = raw.parse().ok()?;
+        Some(format!("{:04}", num))
+    } else {
+        Some(raw.to_string())
     }
-    Some(cleaned.to_string())
 }
 
 pub fn issue_exists(events: &[Event], issue_id: &str) -> bool {
-    events
-        .iter()
-        .any(|e| e.event_type == "issue" && e.issue_id.as_deref() == Some(issue_id))
+    let norm = normalize_issue_id(Some(issue_id)).unwrap_or_else(|| issue_id.to_string());
+    events.iter().any(|e| {
+        e.event_type == "issue"
+            && e.issue_id
+                .as_deref()
+                .map(|id| normalize_issue_id(Some(id)).unwrap_or_else(|| id.to_string()) == norm)
+                .unwrap_or(false)
+    })
 }
 
 pub fn active_issue_marker(events: &[Event], root: Option<&Path>) -> Option<String> {
     let marker = read_current_issue(root)?;
-    if !issue_exists(events, &marker) {
+    if issue_exists(events, &marker) {
+        Some(marker)
+    } else {
         clear_current_issue(root);
-        return None;
+        None
     }
-    Some(marker)
+}
+
+pub fn clear_current_issue(root: Option<&Path>) {
+    if let Ok(p) = current_issue_marker_path(root) {
+        let _ = fs::remove_file(p);
+    }
 }
 
 pub fn latest_open_issue_within(events: &[Event], minutes: i64) -> Option<String> {
@@ -493,340 +778,37 @@ pub fn latest_open_issue_within(events: &[Event], minutes: i64) -> Option<String
         .filter_map(|e| e.issue_id.clone())
         .collect();
 
-    let cutoff = Utc::now() - ChronoDuration::minutes(minutes);
+    let cutoff = chrono::Utc::now() - chrono::Duration::minutes(minutes);
 
     for e in events.iter().rev() {
-        if e.event_type != "issue" {
-            continue;
-        }
-        let Some(ref iid) = e.issue_id else { continue };
-        if closed.contains(iid) {
-            continue;
-        }
-
-        if let Ok(dt) = DateTime::parse_from_rfc3339(&e.timestamp) {
-            if dt.with_timezone(&Utc) >= cutoff {
-                return Some(iid.clone());
+        if e.event_type == "issue" {
+            if let Some(ref iid) = e.issue_id {
+                if !closed.contains(iid) {
+                    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&e.timestamp) {
+                        if dt.with_timezone(&chrono::Utc) >= cutoff {
+                            return Some(iid.clone());
+                        }
+                    }
+                    return None;
+                }
             }
-            return None;
         }
     }
     None
 }
 
 pub fn get_git_commit(root: Option<&Path>) -> Option<String> {
-    let mut cmd = Command::new("git");
-    cmd.args(["rev-parse", "--short", "HEAD"]);
-    if let Some(r) = root {
-        cmd.current_dir(r);
-    }
-    let output = cmd.output().ok()?;
-    if output.status.success() {
-        let commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if !commit.is_empty() {
-            return Some(commit);
+    let r = root.map(|p| p.to_path_buf()).unwrap_or_else(|| find_repo_root(root));
+    let out = Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .current_dir(r)
+        .output()
+        .ok()?;
+    if out.status.success() {
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if !s.is_empty() {
+            return Some(s);
         }
     }
     None
-}
-
-pub fn atomic_write_file(path: &Path, content: &str) -> Result<(), String> {
-    let parent = path.parent().unwrap_or_else(|| Path::new("."));
-    fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-
-    let tmp_name = format!(
-        ".tmp_{}_{}",
-        std::process::id(),
-        path.file_name().and_then(|s| s.to_str()).unwrap_or("file")
-    );
-    let tmp_path = parent.join(tmp_name);
-
-    fs::write(&tmp_path, content).map_err(|e| e.to_string())?;
-    if let Err(e) = fs::rename(&tmp_path, path) {
-        let _ = fs::remove_file(path);
-        fs::rename(&tmp_path, path).map_err(|_| e.to_string())?;
-    }
-    Ok(())
-}
-
-pub fn initial_summary(project_name: &str) -> String {
-    format!(
-        "# projectmem - {project_name}\n\n\
-        _Last updated: never (placeholder — populate via `pjm decision` / `pjm note` or the `add_decision` / `add_note` MCP tools)._\n\n\
-        ## Project purpose\n\
-        Replace this placeholder with a concise description of what this project does, who it serves, and the main technologies or runtime assumptions.\n\n\
-        ## How to use this memory\n\
-        AI assistants and human contributors should read this file before making changes. Keep it focused on durable context: current issues, decisions, failed attempts, gotchas, and files that matter.\n\n\
-        **For AI assistants finding this placeholder:** you are in Setup Mode. Read README, package metadata, and obvious entry points, then call `add_decision` and `add_note` (MCP) — or `pjm decision` / `pjm note` (CLI) — to record what you learned. Each call appends an event and auto-regenerates this summary. **Do NOT edit this file directly** — it is derived from `events.jsonl`. See `.projectmem/AI_INSTRUCTIONS.md` for the full Setup Mode workflow.\n\n\
-        ## Current issues\n\
-        - None logged yet.\n\n\
-        ## Recent fixes\n\
-        - None logged yet.\n\n\
-        ## Decisions\n\
-        - None logged yet.\n\n\
-        ## Known gotchas\n\
-        - None logged yet.\n\n\
-        ## Key files\n\
-        - None logged yet.\n\n\
-        ## Open questions\n\
-        - None logged yet.\n"
-    )
-}
-
-pub fn ai_instructions() -> String {
-    format!(
-        "# projectmem AI Instructions\n\n\
-        <!-- projectmem-instructions: {INSTRUCTIONS_VERSION} -->\n\n\
-        These instructions are MANDATORY for all AI coding agents working in this project. Failure to follow them means your work is incomplete and the audit trail is corrupted.\n\n\
-        This file is stable operating guidance. Do not rewrite it unless the user asks or projectmem itself changes.\n\n\
-        ## Start of every session\n\n\
-        **Step 1 — Identify your mode by reading `.projectmem/summary.md` and `.projectmem/PROJECT_MAP.md`.**\n\n\
-        - **Setup Mode** — `summary.md` and/or `PROJECT_MAP.md` still contain the **placeholder text** from `pjm init`.\n\
-        - **Maintenance Mode** — `summary.md` AND `PROJECT_MAP.md` contain real project content.\n\n\
-        **Step 2 — Read these files (or call the MCP equivalents):**\n\n\
-        | File | MCP tool | Purpose |\n\
-        | --- | --- | --- |\n\
-        | `.projectmem/AI_INSTRUCTIONS.md` | `get_instructions()` | Workflow rules (this file) |\n\
-        | `.projectmem/summary.md` | `get_summary()` | Distilled project memory (what HAPPENED) |\n\
-        | `.projectmem/PROJECT_MAP.md` | `get_project_map()` | Structural layout |\n\
-        | `.projectmem/plan.md` | `get_plan()` | Ideas + plans (what we INTEND to do) |\n\n\
-        Prefer the MCP tools when available — they're cheaper than reading files individually (the summary is a bounded snapshot, a few hundred tokens on a young project and a few thousand on an aged one) and they auto-resolve the project root regardless of your working directory.\n\n\
-        ## MANDATORY Triggers — You MUST act on these automatically\n\n\
-        | Trigger | MCP tool | CLI command |\n\
-        | --- | --- | --- |\n\
-        | Bug, error, or unexpected behavior | `log_issue(summary, location)` | `pjm log \"<text>\" --at \"<file:line>\"` |\n\
-        | Fix attempt FAILED | `record_attempt(summary, outcome=\"failed\")` | `pjm attempt \"<text>\" --failed --at \"<file:line>\"` |\n\
-        | Fix attempt PARTIAL | `record_attempt(summary, outcome=\"partial\")` | `pjm attempt \"<text>\" --partial --at \"<file:line>\"` |\n\
-        | Fix attempt WORKED | `record_attempt(summary, outcome=\"worked\")` | `pjm attempt \"<text>\" --worked --at \"<file:line>\"` |\n\
-        | Fix confirmed — close the issue | `record_fix(summary)` | `pjm fix \"<text>\" --at \"<file:line>\"` |\n\
-        | Architectural / design decision | `add_decision(summary)` | `pjm decision \"<text>\" --at \"<file:line>\"` |\n\
-        | Gotcha / setup detail / constraint discovered | `add_note(summary)` | `pjm note \"<text>\" --at \"<file:line>\"` |\n\
-        | Before finishing the session | `get_summary()` | `pjm show` |\n\n\
-        ## Record Length Guidance\n\n\
-        - Keep an issue title under {TITLE_CHARS} characters and an attempt, fix, note or decision under {RECORD_CHARS}. `summary.md` is read at every session start and clips longer records at {RECORD_CHARS} characters; put further evidence into another `record_attempt` instead of one long entry.\n\n\
-        All write tools auto-append to `events.jsonl` AND auto-regenerate `summary.md`.\n"
-    )
-}
-
-pub fn initial_project_map(project_name: &str) -> String {
-    format!(
-        "# Project Map - {project_name}\n\n\
-        Status: not created yet. Fill the sections below with the project's real structure and key relationships — the first AI session can do it (see `.projectmem/AI_INSTRUCTIONS.md`).\n\n\
-        ## Project purpose\n\
-        Not described yet.\n\n\
-        ## Structure\n\n\
-        ## Relationships\n"
-    )
-}
-
-pub fn initial_plan(project_name: &str) -> String {
-    format!(
-        "# {project_name} — plan\n\n\
-        > Editable **intent** file: ideas + plans — what we *mean to do*.\n\
-        > This is NOT the event log. `events.jsonl` -> `summary.md` records what\n\
-        > *happened*; this file records what we *intend*. The AI reads it at\n\
-        > session start and edits it directly (like `PROJECT_MAP.md`): add ideas\n\
-        > and plans, check items off, move done work down to Shipped. Plans are\n\
-        > never logged as events.\n\n\
-        ## Ideas\n\
-        _Loose thoughts, not yet committed to._\n\n\
-        ## Active plans\n\
-        _What we're working toward now. Use `- [ ]` / `- [x]` checklists._\n\n\
-        ## Next\n\
-        _Queued, but not started._\n\n\
-        ## Someday / maybe\n\n\
-        ## Shipped\n\
-        _Move completed plans here so the top stays about the future._\n"
-    )
-}
-
-pub fn instructions_version(text: &str) -> u32 {
-    let re = Regex::new(r"<!--\s*projectmem-instructions:\s*(\d+)\s*-->").unwrap();
-    if let Some(caps) = re.captures(text) {
-        if let Some(m) = caps.get(1) {
-            if let Ok(v) = m.as_str().parse::<u32>() {
-                return v;
-            }
-        }
-    }
-    0
-}
-
-pub fn refresh_ai_instructions(root: Option<&Path>) -> bool {
-    let Ok(path) = ai_instructions_path(root) else { return false };
-    if !path.exists() {
-        return false;
-    }
-    let current = fs::read_to_string(&path).unwrap_or_default();
-    if instructions_version(&current) >= INSTRUCTIONS_VERSION {
-        return false;
-    }
-
-    let backup = path.with_file_name(INSTRUCTIONS_BACKUP_FILE);
-    let _ = fs::write(&backup, &current);
-    let fresh = ai_instructions();
-    let _ = fs::write(&path, &fresh);
-    if let Some(r) = root {
-        ensure_gitignore_entry(r, &[&format!("{}/{}", MEM_DIR, INSTRUCTIONS_BACKUP_FILE)]);
-    }
-    true
-}
-
-pub fn ensure_gitignore_entry(root: &Path, extra: &[&str]) {
-    let gitignore = root.join(".gitignore");
-    let mut entries = vec![
-        format!("{}/{}", MEM_DIR, EVENTS_FILE),
-        format!("{}/watch.pid", MEM_DIR),
-        format!("{}/watch.log", MEM_DIR),
-        format!("{}/structure.json", MEM_DIR),
-        format!("{}/{}", MEM_DIR, LAST_FAILURE_FILE),
-    ];
-    for e in extra {
-        entries.push(e.to_string());
-    }
-
-    let existing = fs::read_to_string(&gitignore).unwrap_or_default();
-    let existing_lines: Vec<&str> = existing.lines().map(|l| l.trim()).collect();
-    let mut new_entries = Vec::new();
-    for e in &entries {
-        if !existing_lines.contains(&e.as_str()) {
-            new_entries.push(e.clone());
-        }
-    }
-
-    if new_entries.is_empty() {
-        return;
-    }
-
-    let mut updated = existing;
-    if !updated.is_empty() && !updated.ends_with('\n') {
-        updated.push('\n');
-    }
-    for e in new_entries {
-        updated.push_str(&e);
-        updated.push('\n');
-    }
-    let _ = fs::write(&gitignore, updated);
-}
-
-pub fn initialize(root: Option<&Path>, purpose: Option<&str>) -> Result<PathBuf, String> {
-    let target = match root {
-        Some(r) => r.to_path_buf(),
-        None => {
-            if let Ok(lock) = MEM_ROOT_OVERRIDE.read() {
-                if let Some(ref p) = *lock {
-                    p.clone()
-                } else if let Ok(env_root) = env::var("PROJECTMEM_ROOT") {
-                    if !env_root.trim().is_empty() {
-                        PathBuf::from(env_root.trim())
-                    } else {
-                        env::current_dir().map_err(|e| e.to_string())?
-                    }
-                } else {
-                    env::current_dir().map_err(|e| e.to_string())?
-                }
-            } else {
-                env::current_dir().map_err(|e| e.to_string())?
-            }
-        }
-    };
-
-    let dir = target.join(MEM_DIR);
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    fs::create_dir_all(dir.join(ISSUES_DIR)).map_err(|e| e.to_string())?;
-
-    let events = dir.join(EVENTS_FILE);
-    if !events.exists() {
-        fs::write(&events, "").map_err(|e| e.to_string())?;
-    }
-
-    let config = dir.join(CONFIG_FILE);
-    if !config.exists() {
-        let desc = purpose.unwrap_or("");
-        let content = format!("recent_days = 30\nproject_description = \"{}\"\n", desc);
-        fs::write(&config, content).map_err(|e| e.to_string())?;
-    }
-
-    let project_name = target
-        .file_name()
-        .and_then(|s| s.to_str())
-        .unwrap_or("project");
-
-    let summary = dir.join(SUMMARY_FILE);
-    if !summary.exists() {
-        let mut sum_content = initial_summary(project_name);
-        if let Some(p) = purpose {
-            if !p.trim().is_empty() {
-                sum_content = sum_content.replace(
-                    "Replace this placeholder with a concise description of what this project does, who it serves, and the main technologies or runtime assumptions.",
-                    p.trim(),
-                );
-            }
-        }
-        fs::write(&summary, sum_content).map_err(|e| e.to_string())?;
-    }
-
-    let instructions = dir.join(AI_INSTRUCTIONS_FILE);
-    if !instructions.exists() {
-        fs::write(&instructions, ai_instructions()).map_err(|e| e.to_string())?;
-    } else if let Ok(content) = fs::read_to_string(&instructions) {
-        let re = Regex::new(r"<!--\s*projectmem-instructions:\s*(\d+)\s*-->").unwrap();
-        let ver = re.captures(&content).and_then(|c| c[1].parse::<u32>().ok()).unwrap_or(0);
-        if ver < INSTRUCTIONS_VERSION {
-            let bak = dir.join(INSTRUCTIONS_BACKUP_FILE);
-            let _ = fs::write(&bak, &content);
-            let mut global_section = String::new();
-            if content.contains(GLOBAL_MEMORY_HEADING) {
-                if let Some(idx) = content.find(GLOBAL_MEMORY_HEADING) {
-                    global_section = format!("\n\n{}", content[idx..].trim());
-                }
-            }
-            let new_content = format!("{}{}", ai_instructions(), global_section);
-            let _ = fs::write(&instructions, new_content);
-        }
-    }
-
-    let project_map = dir.join(PROJECT_MAP_FILE);
-    if !project_map.exists() {
-        let mut map_content = initial_project_map(project_name);
-        if let Some(p) = purpose {
-            if !p.trim().is_empty() {
-                map_content = map_content.replace("Not described yet.", p.trim());
-            }
-        }
-        fs::write(&project_map, map_content).map_err(|e| e.to_string())?;
-    }
-
-    let plan = dir.join(PLAN_FILE);
-    if !plan.exists() {
-        fs::write(&plan, initial_plan(project_name)).map_err(|e| e.to_string())?;
-    }
-
-    ensure_gitignore_entry(&target, &[]);
-    Ok(dir)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    #[test]
-    fn test_initialize_and_store() {
-        let tmp = tempdir().unwrap();
-        let mem = initialize(Some(tmp.path()), Some("Testing store")).unwrap();
-        assert!(mem.exists());
-        assert!(mem.join(CONFIG_FILE).exists());
-        assert!(mem.join(SUMMARY_FILE).exists());
-        assert!(mem.join(EVENTS_FILE).exists());
-
-        let mut ev = Event::new("issue", "First bug");
-        ev.issue_id = Some("0001".into());
-        append_event(&mut ev, Some(tmp.path())).unwrap();
-
-        let events = read_events(Some(tmp.path())).unwrap();
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].summary, "First bug");
-        assert_eq!(next_issue_id(&events), "0002");
-    }
 }

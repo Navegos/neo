@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/projectmem/schema.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-12
+
+#![deny(unsafe_code)]
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -11,6 +13,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use chrono::{DateTime, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+
+use super::error::{ProjectMemError, Result};
+use crate::util::paths::normalize_path;
 
 pub const VALID_EVENT_TYPES: &[&str] = &[
     "issue",
@@ -40,8 +45,18 @@ pub fn default_event_id() -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     let counter = EVENT_COUNTER.fetch_add(1, Ordering::Relaxed);
-    let hex_part = format!("{:010x}{:06x}{:04x}", now.as_secs(), (now.subsec_nanos() >> 8) & 0xffffff, counter & 0xffff);
-    format!("evt_{}", &hex_part[..20])
+    let hex_part = format!(
+        "{:010x}{:06x}{:04x}",
+        now.as_secs(),
+        (now.subsec_nanos() >> 8) & 0xffffff,
+        counter & 0xffff
+    );
+    let prefix = if hex_part.len() >= 20 {
+        &hex_part[..20]
+    } else {
+        &hex_part
+    };
+    format!("evt_{}", prefix)
 }
 
 pub fn utc_now_iso() -> String {
@@ -80,26 +95,29 @@ pub fn location_to_file(location: Option<&str>) -> Option<String> {
         return None;
     }
 
-    let mut loc = base.to_string();
+    let mut loc = normalize_path(base);
     let mut drive = String::new();
 
-    // Check Windows drive letter: C:\ or C:/
+    // Check Windows drive letter: C:/
     let chars: Vec<char> = loc.chars().collect();
-    if chars.len() >= 3 && chars[0].is_ascii_alphabetic() && chars[1] == ':' && (chars[2] == '\\' || chars[2] == '/') {
+    if chars.len() >= 3 && chars[0].is_ascii_alphabetic() && chars[1] == ':' && chars[2] == '/' {
         drive = loc[..2].to_string();
         loc = loc[2..].to_string();
     }
 
     // Strip trailing line/col suffix :123 or :123:45
-    let line_re = Regex::new(r":\d+(?::\d+)?$").unwrap();
-    let stripped = line_re.replace(&loc, "").to_string();
+    let stripped = if let Ok(re) = Regex::new(r":\d+(?::\d+)?$") {
+        re.replace(&loc, "").to_string()
+    } else {
+        loc.clone()
+    };
     if stripped.is_empty() {
         return None;
     }
 
     let candidate = format!("{}{}", drive, stripped);
-    if stripped.contains('/') || stripped.contains('\\') {
-        return Some(candidate);
+    if stripped.contains('/') {
+        return Some(normalize_path(&candidate));
     }
 
     // No separator: only recognized source suffixes count as a file
@@ -134,7 +152,7 @@ pub fn parse_location_coordinate(location: &str) -> Option<(String, u32)> {
 
     let re = Regex::new(r"^(.*?):(\d+)(?::\d+)?$").ok()?;
     let caps = re.captures(base)?;
-    let file = caps.get(1)?.as_str().trim().to_string();
+    let file = normalize_path(caps.get(1)?.as_str().trim());
     let line: u32 = caps.get(2)?.as_str().parse().ok()?;
     if file.is_empty() {
         return None;
@@ -150,139 +168,124 @@ pub fn auto_resolve_location(root: &std::path::Path, location: &str) -> String {
     if raw.contains('(') && raw.ends_with(')') {
         return raw.to_string();
     }
+
     if let Some((file, line)) = parse_location_coordinate(raw) {
-        if let Some(sym) = crate::codegraph::resolve_coordinate(root, &file, line) {
-            return format!("{} ({})", raw, sym);
+        if let Some(symbol) = crate::codegraph::resolve_coordinate(root, &file, line) {
+            return format!("{}:{} ({})", file, line, symbol);
+        }
+        if let Some(symbol) = resolve_location_symbol(root, &file, line) {
+            return format!("{}:{} ({})", file, line, symbol);
         }
     }
     raw.to_string()
 }
 
-pub fn resolve_location_symbol(root: &std::path::Path, location: &str) -> Option<String> {
-    let (file, line) = parse_location_coordinate(location)?;
-    crate::codegraph::resolve_coordinate(root, &file, line)
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Issue {
-    pub summary: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub location: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Attempt {
-    pub summary: String,
-    pub outcome: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub issue_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub location: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub command: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Fix {
-    pub summary: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub issue_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub location: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Decision {
-    pub summary: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub supersedes: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub location: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Note {
-    pub summary: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub location: Option<String>,
-}
-
-impl From<Issue> for Event {
-    fn from(i: Issue) -> Self {
-        let mut ev = Event::new("issue", &i.summary);
-        ev.location = i.location;
-        ev
+pub fn resolve_location_symbol(root: &std::path::Path, file_path: &str, line: u32) -> Option<String> {
+    if line == 0 {
+        return None;
     }
-}
-
-impl From<Attempt> for Event {
-    fn from(a: Attempt) -> Self {
-        let mut ev = Event::new("attempt", &a.summary);
-        ev.outcome = Some(a.outcome);
-        ev.issue_id = a.issue_id;
-        ev.location = a.location;
-        ev.command = a.command;
-        ev
+    let p = root.join(file_path);
+    if !p.exists() || !p.is_file() {
+        return None;
     }
-}
 
-impl From<Fix> for Event {
-    fn from(f: Fix) -> Self {
-        let mut ev = Event::new("fix", &f.summary);
-        ev.issue_id = f.issue_id;
-        ev.location = f.location;
-        ev
+    let content = std::fs::read_to_string(&p).ok()?;
+    let lines: Vec<&str> = content.lines().collect();
+    if lines.is_empty() {
+        return None;
     }
-}
 
-impl From<Decision> for Event {
-    fn from(d: Decision) -> Self {
-        let mut ev = Event::new("decision", &d.summary);
-        ev.supersedes = d.supersedes;
-        ev.location = d.location;
-        ev
+    let target_idx = (line as usize).saturating_sub(1).min(lines.len() - 1);
+    let start_idx = target_idx.saturating_sub(50);
+
+    let re_fn_rs = Regex::new(r"(?:pub\s+)?(?:async\s+)?fn\s+([a-zA-Z0-9_]+)").ok()?;
+    let re_struct_rs = Regex::new(r"(?:pub\s+)?(?:struct|enum|trait)\s+([a-zA-Z0-9_]+)").ok()?;
+    let re_fn_py = Regex::new(r"def\s+([a-zA-Z0-9_]+)").ok()?;
+    let re_class_py = Regex::new(r"class\s+([a-zA-Z0-9_]+)").ok()?;
+    let re_fn_ts = Regex::new(r"(?:export\s+)?(?:async\s+)?function\s+([a-zA-Z0-9_]+)").ok()?;
+    let re_class_ts = Regex::new(r"(?:export\s+)?class\s+([a-zA-Z0-9_]+)").ok()?;
+
+    for i in (start_idx..=target_idx).rev() {
+        let l = lines[i].trim();
+        if let Some(caps) = re_fn_rs.captures(l) {
+            if let Some(m) = caps.get(1) {
+                return Some(m.as_str().to_string());
+            }
+        }
+        if let Some(caps) = re_struct_rs.captures(l) {
+            if let Some(m) = caps.get(1) {
+                return Some(m.as_str().to_string());
+            }
+        }
+        if let Some(caps) = re_fn_py.captures(l) {
+            if let Some(m) = caps.get(1) {
+                return Some(m.as_str().to_string());
+            }
+        }
+        if let Some(caps) = re_class_py.captures(l) {
+            if let Some(m) = caps.get(1) {
+                return Some(m.as_str().to_string());
+            }
+        }
+        if let Some(caps) = re_fn_ts.captures(l) {
+            if let Some(m) = caps.get(1) {
+                return Some(m.as_str().to_string());
+            }
+        }
+        if let Some(caps) = re_class_ts.captures(l) {
+            if let Some(m) = caps.get(1) {
+                return Some(m.as_str().to_string());
+            }
+        }
     }
+
+    None
 }
 
-impl From<Note> for Event {
-    fn from(n: Note) -> Self {
-        let mut ev = Event::new("note", &n.summary);
-        ev.location = n.location;
-        ev
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
-    #[serde(default = "default_event_id")]
     pub id: String,
-    #[serde(default = "utc_now_iso")]
     pub timestamp: String,
     #[serde(rename = "type")]
     pub event_type: String,
+    pub summary: String,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub issue_id: Option<String>,
-    pub summary: String,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outcome: Option<String>,
+
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub files: Vec<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub git_commit: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub location: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subproject_id: Option<String>,
+
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub auto_captured: bool,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capture_source: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capture_confidence: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub git_message: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supersedes: Option<String>,
 }
@@ -293,14 +296,15 @@ impl Event {
             id: default_event_id(),
             timestamp: utc_now_iso(),
             event_type: event_type.to_string(),
-            issue_id: None,
             summary: summary.trim().to_string(),
+            issue_id: None,
             outcome: None,
             files: Vec::new(),
             command: None,
             notes: None,
             git_commit: None,
             location: None,
+            subproject_id: None,
             auto_captured: false,
             capture_source: None,
             capture_confidence: None,
@@ -309,9 +313,53 @@ impl Event {
         }
     }
 
+    pub fn validate(&self) -> Result<()> {
+        if !VALID_EVENT_TYPES.contains(&self.event_type.as_str()) {
+            return Err(ProjectMemError::Validation(format!(
+                "Unsupported event type: '{}'",
+                self.event_type
+            )));
+        }
+
+        if let Some(ref o) = self.outcome {
+            if !VALID_OUTCOMES.contains(&o.as_str()) {
+                return Err(ProjectMemError::Validation(format!(
+                    "Unsupported outcome: '{}'",
+                    o
+                )));
+            }
+        }
+
+        if let Some(ref s) = self.capture_source {
+            if !VALID_CAPTURE_SOURCES.contains(&s.as_str()) {
+                return Err(ProjectMemError::Validation(format!(
+                    "Unsupported capture source: '{}'",
+                    s
+                )));
+            }
+        }
+
+        if let Some(ref c) = self.capture_confidence {
+            if !VALID_CONFIDENCE_LEVELS.contains(&c.as_str()) {
+                return Err(ProjectMemError::Validation(format!(
+                    "Unsupported confidence level: '{}'",
+                    c
+                )));
+            }
+        }
+
+        if self.summary.trim().is_empty() {
+            return Err(ProjectMemError::Validation(
+                "Event summary cannot be empty".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
     pub fn issue(summary: &str, location: Option<&str>) -> Self {
         let mut ev = Self::new("issue", summary);
-        ev.location = location.map(|s| s.to_string());
+        ev.location = location.map(|s| normalize_path(s));
         ev
     }
 
@@ -325,7 +373,7 @@ impl Event {
         let mut ev = Self::new("attempt", summary);
         ev.outcome = Some(outcome.to_string());
         ev.issue_id = issue_id.map(|s| s.to_string());
-        ev.location = location.map(|s| s.to_string());
+        ev.location = location.map(|s| normalize_path(s));
         ev.command = command.map(|s| s.to_string());
         ev
     }
@@ -333,46 +381,115 @@ impl Event {
     pub fn fix(summary: &str, issue_id: Option<&str>, location: Option<&str>) -> Self {
         let mut ev = Self::new("fix", summary);
         ev.issue_id = issue_id.map(|s| s.to_string());
-        ev.location = location.map(|s| s.to_string());
+        ev.location = location.map(|s| normalize_path(s));
         ev
     }
 
-    pub fn decision(summary: &str, supersedes: Option<&str>, location: Option<&str>) -> Self {
+    pub fn decision(summary: &str, location: Option<&str>, supersedes: Option<&str>) -> Self {
         let mut ev = Self::new("decision", summary);
+        ev.location = location.map(|s| normalize_path(s));
         ev.supersedes = supersedes.map(|s| s.to_string());
-        ev.location = location.map(|s| s.to_string());
         ev
     }
 
     pub fn note(summary: &str, location: Option<&str>) -> Self {
         let mut ev = Self::new("note", summary);
-        ev.location = location.map(|s| s.to_string());
+        ev.location = location.map(|s| normalize_path(s));
         ev
     }
+}
 
-    pub fn validate(&self) -> Result<(), String> {
-        if !VALID_EVENT_TYPES.contains(&self.event_type.as_str()) {
-            return Err(format!("Unsupported event type: {}", self.event_type));
-        }
-        if let Some(ref o) = self.outcome {
-            if !VALID_OUTCOMES.contains(&o.as_str()) {
-                return Err(format!("Unsupported outcome: {}", o));
-            }
-        }
-        if let Some(ref src) = self.capture_source {
-            if !VALID_CAPTURE_SOURCES.contains(&src.as_str()) {
-                return Err(format!("Unsupported capture source: {}", src));
-            }
-        }
-        if let Some(ref conf) = self.capture_confidence {
-            if !VALID_CONFIDENCE_LEVELS.contains(&conf.as_str()) {
-                return Err(format!("Unsupported confidence level: {}", conf));
-            }
-        }
-        if self.summary.trim().is_empty() {
-            return Err("Event summary cannot be empty".to_string());
-        }
-        Ok(())
+/// Typed Issue projection
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Issue {
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+}
+
+impl From<Issue> for Event {
+    fn from(item: Issue) -> Self {
+        let mut ev = Event::new("issue", &item.summary);
+        ev.location = item.location.map(|s| normalize_path(&s));
+        ev
+    }
+}
+
+/// Typed Attempt projection
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Attempt {
+    pub summary: String,
+    pub outcome: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issue_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+}
+
+impl From<Attempt> for Event {
+    fn from(item: Attempt) -> Self {
+        let mut ev = Event::new("attempt", &item.summary);
+        ev.outcome = Some(item.outcome);
+        ev.issue_id = item.issue_id;
+        ev.location = item.location.map(|s| normalize_path(&s));
+        ev.command = item.command;
+        ev
+    }
+}
+
+/// Typed Fix projection
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Fix {
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issue_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+}
+
+impl From<Fix> for Event {
+    fn from(item: Fix) -> Self {
+        let mut ev = Event::new("fix", &item.summary);
+        ev.issue_id = item.issue_id;
+        ev.location = item.location.map(|s| normalize_path(&s));
+        ev
+    }
+}
+
+/// Typed Decision projection
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Decision {
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supersedes: Option<String>,
+}
+
+impl From<Decision> for Event {
+    fn from(item: Decision) -> Self {
+        let mut ev = Event::new("decision", &item.summary);
+        ev.location = item.location.map(|s| normalize_path(&s));
+        ev.supersedes = item.supersedes;
+        ev
+    }
+}
+
+/// Typed Note projection
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Note {
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+}
+
+impl From<Note> for Event {
+    fn from(item: Note) -> Self {
+        let mut ev = Event::new("note", &item.summary);
+        ev.location = item.location.map(|s| normalize_path(&s));
+        ev
     }
 }
 
@@ -380,20 +497,22 @@ pub fn superseded_ids(events: &[Event]) -> HashSet<String> {
     events
         .iter()
         .filter_map(|e| e.supersedes.as_ref())
-        .filter(|s| !s.is_empty())
+        .filter(|s| !s.trim().is_empty())
         .cloned()
         .collect()
 }
 
-pub fn resolve_event_ref(events: &[Event], ref_str: &str) -> Result<Event, String> {
+pub fn resolve_event_ref(events: &[Event], ref_str: &str) -> Result<Event> {
     let needle = ref_str.trim();
     if needle.is_empty() {
-        return Err("Empty event reference".to_string());
+        return Err(ProjectMemError::EventRef(
+            "Empty event reference".to_string(),
+        ));
     }
 
     let exact: Vec<&Event> = events.iter().filter(|e| e.id == needle).collect();
     if exact.len() == 1 {
-        return Ok(exact[0].clone());
+        return Ok((*exact[0]).clone());
     }
 
     let bare = needle.strip_prefix("evt_").unwrap_or(needle);
@@ -406,60 +525,19 @@ pub fn resolve_event_ref(events: &[Event], ref_str: &str) -> Result<Event, Strin
         .collect();
 
     if candidates.is_empty() {
-        return Err(format!(
-            "No event matches '{}'. Use `pjm search <text>` to find the event id (shown as evt_...).",
+        return Err(ProjectMemError::EventRef(format!(
+            "No event matches '{}'. Use `toksi mem search <text>` to find the event id.",
             ref_str
-        ));
+        )));
     }
+
     if candidates.len() > 1 {
-        return Err(format!(
+        return Err(ProjectMemError::EventRef(format!(
             "Event reference '{}' is ambiguous ({} matches) — use more characters of the id.",
             ref_str,
             candidates.len()
-        ));
+        )));
     }
 
-    Ok(candidates[0].clone())
+    Ok((*candidates[0]).clone())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_location_to_file() {
-        assert_eq!(location_to_file(Some("src/auth.py")), Some("src/auth.py".into()));
-        assert_eq!(location_to_file(Some("src/auth.py:42")), Some("src/auth.py".into()));
-        assert_eq!(location_to_file(Some("src/auth.py:42 (AuthService::validate)")), Some("src/auth.py".into()));
-        assert_eq!(location_to_file(Some("C:\\src\\foo.rs:10:5")), Some("C:\\src\\foo.rs".into()));
-        assert_eq!(location_to_file(Some("C:\\src\\foo.rs:10:5 (Foo::bar)")), Some("C:\\src\\foo.rs".into()));
-        assert_eq!(location_to_file(Some("foo.rs")), Some("foo.rs".into()));
-        assert_eq!(location_to_file(Some("AuthService.validate")), None);
-        assert_eq!(location_to_file(Some("")), None);
-    }
-
-    #[test]
-    fn test_event_validation_and_id() {
-        let mut evt = Event::new("issue", "Test issue");
-        assert!(evt.id.starts_with("evt_"));
-        assert_eq!(evt.id.len(), 24);
-        assert!(evt.validate().is_ok());
-
-        evt.event_type = "invalid_type".into();
-        assert!(evt.validate().is_err());
-    }
-
-    #[test]
-    fn test_resolve_event_ref() {
-        let mut e1 = Event::new("decision", "first");
-        e1.id = "evt_abc12345678901234567".into();
-        let mut e2 = Event::new("decision", "second");
-        e2.id = "evt_def98765432109876543".into();
-
-        let events = vec![e1.clone(), e2];
-        assert_eq!(resolve_event_ref(&events, "evt_abc12345678901234567").unwrap().summary, "first");
-        assert_eq!(resolve_event_ref(&events, "abc12").unwrap().summary, "first");
-        assert!(resolve_event_ref(&events, "nonexistent").is_err());
-    }
-}
-

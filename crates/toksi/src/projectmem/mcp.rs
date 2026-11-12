@@ -3,33 +3,51 @@
 // project: neo
 // file: crates/toksi/src/projectmem/mcp.rs
 // created: 2026-10-27
-// lastModified: 2026-11-05
+// lastModified: 2026-11-12
+
+#![deny(unsafe_code)]
 
 use std::fs;
 use std::io::{self, BufRead, Write};
 use std::path::{Path, PathBuf};
 use serde_json::{json, Value};
 
-use super::heatmap::calculate_score;
+use super::error::Result;
+use super::heatmap::{calculate_score, generate_heatmap};
 use super::precheck::analyze_files;
 use super::schema::{resolve_event_ref, Event};
+use super::slash::handle_slash_command;
+use super::staleness::{find_stale_events, stale_label, STALE_COMMIT_THRESHOLD};
 use super::store::{
     active_issue_marker, ai_instructions_path, append_event, clear_current_issue,
     current_issue_id, get_git_commit, issue_exists, issues_dir, latest_open_issue_within,
     next_issue_id, normalize_issue_id, plan_path, project_map_path, read_events, require_mem_dir,
     summary_path, write_current_issue,
 };
+use super::structure::build_structure;
 use super::summary::regenerate_summary;
+use crate::util::paths::normalize_path;
 
-pub fn resolve_project_root(project_arg: Option<&str>) -> Result<PathBuf, String> {
+pub fn resolve_project_root(project_arg: Option<&str>) -> Result<PathBuf> {
     if let Some(p) = project_arg {
-        let pb = PathBuf::from(p);
-        if pb.exists() {
-            return Ok(pb);
+        let trimmed = p.trim();
+        if !trimmed.is_empty() {
+            if let Some(resolved) = super::global::resolve_project(Some(trimmed)) {
+                return Ok(resolved);
+            }
+            let pb = PathBuf::from(trimmed);
+            if pb.exists() {
+                return Ok(pb);
+            }
         }
     }
     let mem = require_mem_dir(None)?;
-    Ok(mem.parent().unwrap_or(&mem).to_path_buf())
+    let parent = mem.parent().unwrap_or(&mem);
+    if parent.ends_with(".toksi") {
+        Ok(parent.parent().unwrap_or(parent).to_path_buf())
+    } else {
+        Ok(parent.to_path_buf())
+    }
 }
 
 pub fn tool_get_instructions(root: &Path) -> String {
@@ -101,15 +119,16 @@ pub fn tool_precheck_file(root: &Path, file_path: &str) -> String {
 pub fn tool_get_issue(root: &Path, issue_id: &str) -> String {
     let idir = match issues_dir(Some(root)) {
         Ok(d) => d,
-        Err(e) => return e,
+        Err(e) => return format!("Error locating issues dir: {}", e),
     };
     let wanted = match normalize_issue_id(Some(issue_id)) {
         Some(w) => w,
         None => return format!("No issue found with ID {}.", issue_id),
     };
-    let re_id = regex::Regex::new(r"^[\w-]+$").unwrap();
-    if !re_id.is_match(&wanted) {
-        return format!("No issue found with ID {}.", issue_id);
+    if let Ok(re_id) = regex::Regex::new(r"^[\w-]+$") {
+        if !re_id.is_match(&wanted) {
+            return format!("No issue found with ID {}.", issue_id);
+        }
     }
     if let Ok(entries) = fs::read_dir(&idir) {
         for entry in entries.flatten() {
@@ -241,14 +260,47 @@ pub fn tool_get_global_gotchas(library: Option<&str>) -> String {
     lines.join("\n")
 }
 
-pub fn tool_log_issue(root: &Path, summary: &str, location: Option<&str>) -> Result<String, String> {
+pub fn tool_staleness(root: &Path, threshold: Option<usize>) -> String {
+    let events = match read_events(Some(root)) {
+        Ok(evs) => evs,
+        Err(e) => return format!("Failed to read memory: {}", e),
+    };
+    let thresh = threshold.unwrap_or(STALE_COMMIT_THRESHOLD);
+    let stale = find_stale_events(&events, Some(root), thresh, None);
+    if stale.is_empty() {
+        return "No stale memories found — all decisions and fixes match current code.".to_string();
+    }
+    let mut lines = vec![format!("Found {} potentially stale memory entry(ies):", stale.len())];
+    for s in stale.iter().take(15) {
+        lines.push(format!("- {}", stale_label(s)));
+    }
+    lines.join("\n")
+}
+
+pub fn tool_structure(root: &Path) -> String {
+    match build_structure(Some(root)) {
+        Ok(res) => serde_json::to_string_pretty(&res).unwrap_or_else(|_| "{}".to_string()),
+        Err(e) => format!("Failed to build structure: {}", e),
+    }
+}
+
+pub fn tool_heatmap(root: &Path) -> String {
+    let events = match read_events(Some(root)) {
+        Ok(evs) => evs,
+        Err(e) => return format!("Failed to read memory: {}", e),
+    };
+    let res = generate_heatmap(&events);
+    serde_json::to_string_pretty(&res).unwrap_or_else(|_| "{}".to_string())
+}
+
+pub fn tool_log_issue(root: &Path, summary: &str, location: Option<&str>) -> Result<String> {
     let events = read_events(Some(root))?;
     let issue_id = next_issue_id(&events);
 
     let mut event = Event::new("issue", summary);
     event.issue_id = Some(issue_id.clone());
     event.git_commit = get_git_commit(Some(root));
-    event.location = location.map(|s| s.to_string());
+    event.location = location.map(|s| normalize_path(s));
 
     append_event(&mut event, Some(root))?;
     write_current_issue(&issue_id, Some(root));
@@ -266,7 +318,7 @@ pub fn tool_record_attempt(
     issue_id_arg: Option<&str>,
     command: Option<&str>,
     notes: Option<&str>,
-) -> Result<String, String> {
+) -> Result<String> {
     let events = read_events(Some(root))?;
     let mut target_issue_id: Option<String> = None;
 
@@ -275,7 +327,7 @@ pub fn tool_record_attempt(
             if issue_exists(&events, &norm) {
                 target_issue_id = Some(norm);
             } else {
-                return Err(format!("Issue #{} was not found.", arg));
+                return Err(super::error::ProjectMemError::NotFound(format!("Issue #{} was not found.", arg)));
             }
         }
     }
@@ -285,7 +337,6 @@ pub fn tool_record_attempt(
             .or_else(|| latest_open_issue_within(&events, 5));
     }
 
-    // Check if auto-populating from last RTK failure trace when summary is empty or generic
     let (effective_summary, effective_cmd, fallback_notes) = if summary.trim().is_empty() || summary == "failed" || summary == "test failed" {
         if let Some(trace) = super::store::read_last_failure_trace(Some(root)) {
             let cmd = command.map(|s| s.to_string()).unwrap_or(trace.command);
@@ -298,7 +349,6 @@ pub fn tool_record_attempt(
     };
 
     if target_issue_id.is_none() {
-        // Auto-create parent issue
         let new_id = next_issue_id(&events);
         let issue_title = if effective_summary.trim().is_empty() {
             "Investigate failed attempt".to_string()
@@ -308,16 +358,18 @@ pub fn tool_record_attempt(
         let mut auto_issue = Event::new("issue", &issue_title);
         auto_issue.issue_id = Some(new_id.clone());
         auto_issue.git_commit = get_git_commit(Some(root));
-        auto_issue.location = location.map(|s| s.to_string());
+        auto_issue.location = location.map(|s| normalize_path(s));
         append_event(&mut auto_issue, Some(root))?;
         write_current_issue(&new_id, Some(root));
         target_issue_id = Some(new_id);
     }
 
-    let iid = target_issue_id.unwrap();
+    let iid = match target_issue_id {
+        Some(id) => id,
+        None => return Err(super::error::ProjectMemError::Execution("Failed to determine issue id".to_string())),
+    };
     let out = outcome.unwrap_or("failed");
 
-    // RTK root cause extraction: refine summary if raw error output or command is provided
     let cmd_str = effective_cmd.as_deref().unwrap_or("");
     let (final_summary, extracted_notes) = if out == "failed" {
         if let Some(root_cause) = crate::rtk::extract_root_cause(cmd_str, &effective_summary) {
@@ -337,7 +389,7 @@ pub fn tool_record_attempt(
     event.issue_id = Some(iid.clone());
     event.outcome = Some(out.to_string());
     event.git_commit = get_git_commit(Some(root));
-    event.location = location.map(|s| s.to_string());
+    event.location = location.map(|s| normalize_path(s));
     event.command = effective_cmd;
     event.notes = notes.map(|s| s.to_string()).or(extracted_notes).or(fallback_notes);
 
@@ -353,24 +405,24 @@ pub fn tool_record_fix(
     summary: &str,
     location: Option<&str>,
     issue_id_arg: Option<&str>,
-) -> Result<String, String> {
+) -> Result<String> {
     let events = read_events(Some(root))?;
     let target_issue_id = if let Some(arg) = issue_id_arg {
-        let norm = normalize_issue_id(Some(arg)).ok_or_else(|| "Invalid issue id".to_string())?;
+        let norm = normalize_issue_id(Some(arg)).ok_or_else(|| super::error::ProjectMemError::Validation("Invalid issue id".to_string()))?;
         if !issue_exists(&events, &norm) {
-            return Err(format!("Issue #{} was not found.", norm));
+            return Err(super::error::ProjectMemError::NotFound(format!("Issue #{} was not found.", norm)));
         }
         norm
     } else {
         active_issue_marker(&events, Some(root))
             .or_else(|| current_issue_id(&events))
-            .ok_or_else(|| "No open issue found. Run `toksi mem log <text>` first.".to_string())?
+            .ok_or_else(|| super::error::ProjectMemError::NotFound("No open issue found. Run `toksi mem log <text>` first.".to_string()))?
     };
 
     let mut event = Event::new("fix", summary);
     event.issue_id = Some(target_issue_id.clone());
     event.git_commit = get_git_commit(Some(root));
-    event.location = location.map(|s| s.to_string());
+    event.location = location.map(|s| normalize_path(s));
 
     append_event(&mut event, Some(root))?;
 
@@ -390,7 +442,7 @@ pub fn tool_add_decision(
     summary: &str,
     location: Option<&str>,
     supersedes: Option<&str>,
-) -> Result<String, String> {
+) -> Result<String> {
     let events = read_events(Some(root))?;
     let mut superseded_id = None;
     if let Some(ref_str) = supersedes {
@@ -400,7 +452,7 @@ pub fn tool_add_decision(
 
     let mut event = Event::new("decision", summary);
     event.git_commit = get_git_commit(Some(root));
-    event.location = location.map(|s| s.to_string());
+    event.location = location.map(|s| normalize_path(s));
     event.supersedes = superseded_id.clone();
 
     append_event(&mut event, Some(root))?;
@@ -414,10 +466,10 @@ pub fn tool_add_decision(
     }
 }
 
-pub fn tool_add_note(root: &Path, summary: &str, location: Option<&str>) -> Result<String, String> {
+pub fn tool_add_note(root: &Path, summary: &str, location: Option<&str>) -> Result<String> {
     let mut event = Event::new("note", summary);
     event.git_commit = get_git_commit(Some(root));
-    event.location = location.map(|s| s.to_string());
+    event.location = location.map(|s| normalize_path(s));
 
     append_event(&mut event, Some(root))?;
     let _ = regenerate_summary(Some(root));
@@ -534,6 +586,37 @@ pub fn mcp_tools_list() -> Value {
                 "type": "object",
                 "properties": {
                     "library": { "type": "string", "description": "Library filter" },
+                    "project": { "type": "string", "description": "Optional project root" }
+                }
+            }
+        },
+        {
+            "name": "staleness",
+            "description": "Scan project memory against git history for stale claims.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "threshold": { "type": "integer", "description": "Commit count threshold (default 3)" },
+                    "project": { "type": "string", "description": "Optional project root" }
+                }
+            }
+        },
+        {
+            "name": "structure",
+            "description": "Generate or retrieve project source tree and relationship structure.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "project": { "type": "string", "description": "Optional project root" }
+                }
+            }
+        },
+        {
+            "name": "heatmap",
+            "description": "Retrieve project failure heatmap and drilldown hotspots.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
                     "project": { "type": "string", "description": "Optional project root" }
                 }
             }
@@ -662,6 +745,12 @@ pub fn execute_mcp_tool(name: &str, args: &Value) -> String {
             let lib = args.get("library").and_then(|v| v.as_str());
             tool_get_global_gotchas(lib)
         }
+        "staleness" => {
+            let thresh = args.get("threshold").and_then(|v| v.as_u64()).map(|u| u as usize);
+            tool_staleness(&root, thresh)
+        }
+        "structure" => tool_structure(&root),
+        "heatmap" => tool_heatmap(&root),
         "log_issue" => {
             let summary = args.get("summary").and_then(|v| v.as_str()).unwrap_or("");
             let loc = args.get("location").and_then(|v| v.as_str());
@@ -697,12 +786,31 @@ pub fn execute_mcp_tool(name: &str, args: &Value) -> String {
             tool_add_note(&root, summary, loc).unwrap_or_else(|e| format!("projectmem tool error: {}", e))
         }
         "list_projects" => {
-            let name = root.file_name().and_then(|s| s.to_str()).unwrap_or("project");
-            format!("ACTIVE: {} — {}\n1 project(s)", name, root.display())
+            let projects = super::global::list_registered_projects();
+            if projects.is_empty() {
+                let name = root.file_name().and_then(|s| s.to_str()).unwrap_or("project");
+                format!("ACTIVE: {} — {}\n1 project(s)", name, normalize_path(&root.to_string_lossy()))
+            } else {
+                let mut lines = Vec::new();
+                for p in &projects {
+                    let active_tag = if normalize_path(&p.path) == normalize_path(&root.to_string_lossy()) {
+                        "ACTIVE: "
+                    } else {
+                        "  "
+                    };
+                    lines.push(format!("{}{}{} — {}", active_tag, p.id, p.alias.as_ref().map(|a| format!(" ({})", a)).unwrap_or_default(), p.path));
+                }
+                lines.push(format!("{} project(s)", projects.len()));
+                lines.join("\n")
+            }
         }
         "current_project" => {
             let name = root.file_name().and_then(|s| s.to_str()).unwrap_or("project");
-            format!("{} — {}", name, root.display())
+            format!("{} — {}", name, normalize_path(&root.to_string_lossy()))
+        }
+        "slash" => {
+            let cmd = args.get("command").and_then(|v| v.as_str()).unwrap_or("/projectmem help");
+            handle_slash_command(cmd, Some(&root))
         }
         _ => format!("projectmem tool error: Unknown tool '{}'", name),
     }
@@ -855,5 +963,14 @@ mod tests {
         assert!(sum.contains("- [DONE] #0001 Bug in MCP"));
         let issue_doc = tool_get_issue(root, "0001");
         assert!(issue_doc.contains("Fixed buffer handling"));
+
+        let stale_res = tool_staleness(root, None);
+        assert!(stale_res.contains("No stale memories found") || stale_res.contains("potentially stale"));
+
+        let struct_res = tool_structure(root);
+        assert!(struct_res.contains("stats") || struct_res.contains("root"));
+
+        let heat_res = tool_heatmap(root);
+        assert!(heat_res.contains("score") || heat_res.contains("top_hotspots"));
     }
 }

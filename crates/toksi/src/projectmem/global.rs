@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/projectmem/global.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-12
+
+#![deny(unsafe_code)]
 
 use std::collections::HashSet;
 use std::env;
@@ -14,10 +16,14 @@ use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
+use super::error::Result;
+use crate::util::paths::normalize_path;
+
 pub const PATTERNS_FILE: &str = "patterns.jsonl";
 pub const GOTCHAS_FILE: &str = "library_gotchas.jsonl";
 pub const PREFERENCES_FILE: &str = "stack_preferences.md";
 pub const PROMOTABLE_CACHE_FILE: &str = ".promotable.json";
+pub const PROJECTS_FILE: &str = "projects.json";
 
 pub const PROMOTABLE_SEED: &[&str] = &[
     "sqlalchemy", "pydantic", "fastapi", "flask", "django",
@@ -43,6 +49,29 @@ pub const GOTCHA_PREFIXES: &[&str] = &[
     "never ",
     "bug:",
 ];
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectRecord {
+    pub id: String,
+    pub path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alias: Option<String>,
+    #[serde(default)]
+    pub tags: Vec<String>,
+    #[serde(default)]
+    pub created_at: String,
+    #[serde(default)]
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Registry {
+    pub schema_version: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_project: Option<String>,
+    #[serde(default)]
+    pub projects: Vec<ProjectRecord>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobalPattern {
@@ -101,29 +130,31 @@ pub struct GlobalExport {
 static GLOBAL_DIR_OVERRIDE: std::sync::RwLock<Option<PathBuf>> = std::sync::RwLock::new(None);
 
 pub fn set_global_dir_override(p: Option<PathBuf>) {
-    if let Ok(mut lock) = GLOBAL_DIR_OVERRIDE.write() {
-        *lock = p;
+    match GLOBAL_DIR_OVERRIDE.write() {
+        Ok(mut lock) => *lock = p,
+        Err(poisoned) => *poisoned.into_inner() = p,
     }
 }
 
 pub fn global_dir() -> PathBuf {
-    if let Ok(lock) = GLOBAL_DIR_OVERRIDE.read() {
-        if let Some(ref p) = *lock {
-            let _ = fs::create_dir_all(p);
-            return p.clone();
-        }
+    let override_dir = match GLOBAL_DIR_OVERRIDE.read() {
+        Ok(lock) => lock.clone(),
+        Err(poisoned) => poisoned.into_inner().clone(),
+    };
+    if let Some(p) = override_dir {
+        let _ = fs::create_dir_all(&p);
+        return p;
     }
     if let Ok(home) = env::var("PROJECTMEM_HOME") {
-        if !home.trim().is_empty() {
-            let p = PathBuf::from(home.trim()).join("global");
+        let trimmed = home.trim();
+        if !trimmed.is_empty() {
+            let p = PathBuf::from(trimmed).join("global");
             let _ = fs::create_dir_all(&p);
             return p;
         }
     }
-    let base = dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".projectmem");
-    let p = base.join("global");
+    let repo_root = super::store::find_repo_root(None);
+    let p = repo_root.join(super::store::TOKSI_MEM_SUBDIR).join("global");
     let _ = fs::create_dir_all(&p);
     p
 }
@@ -144,6 +175,135 @@ pub fn promotable_cache_path() -> PathBuf {
     global_dir().join(PROMOTABLE_CACHE_FILE)
 }
 
+pub fn registry_path() -> PathBuf {
+    if let Ok(home) = env::var("PROJECTMEM_HOME") {
+        if !home.trim().is_empty() {
+            return PathBuf::from(home.trim()).join(PROJECTS_FILE);
+        }
+    }
+    dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(".projectmem")
+        .join(PROJECTS_FILE)
+}
+
+pub fn read_registry() -> Registry {
+    let p = registry_path();
+    if !p.exists() {
+        return Registry {
+            schema_version: 1,
+            active_project: None,
+            projects: Vec::new(),
+        };
+    }
+
+    let content = match fs::read_to_string(&p) {
+        Ok(c) => c,
+        Err(_) => return Registry::default(),
+    };
+
+    if let Ok(reg) = serde_json::from_str::<Registry>(&content) {
+        return reg;
+    }
+
+    // Back-compat: check if legacy list of strings
+    if let Ok(list) = serde_json::from_str::<Vec<String>>(&content) {
+        let mut projs = Vec::new();
+        for item in list {
+            let pb = PathBuf::from(&item);
+            let name = pb.file_name().and_then(|s| s.to_str()).unwrap_or("project").to_string();
+            projs.push(ProjectRecord {
+                id: name.to_lowercase().replace(' ', "-"),
+                path: normalize_path(&item),
+                alias: Some(name),
+                tags: Vec::new(),
+                created_at: Utc::now().to_rfc3339(),
+                updated_at: Utc::now().to_rfc3339(),
+            });
+        }
+        return Registry {
+            schema_version: 1,
+            active_project: None,
+            projects: projs,
+        };
+    }
+
+    Registry::default()
+}
+
+pub fn write_registry(reg: &Registry) -> Result<()> {
+    let p = registry_path();
+    if let Some(parent) = p.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let json = serde_json::to_string_pretty(reg)?;
+    super::store::atomic_write_file(&p, &json)?;
+    Ok(())
+}
+
+pub fn register_project(root: &Path) -> Result<ProjectRecord> {
+    let canonical = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    let path_str = normalize_path(&canonical.to_string_lossy());
+    let name = canonical.file_name().and_then(|s| s.to_str()).unwrap_or("project").to_string();
+    let slug = name.to_lowercase().replace(' ', "-");
+
+    let mut reg = read_registry();
+    if let Some(existing) = reg.projects.iter_mut().find(|p| p.path == path_str || p.id == slug) {
+        existing.path = path_str.clone();
+        existing.updated_at = Utc::now().to_rfc3339();
+        let clone = existing.clone();
+        write_registry(&reg)?;
+        return Ok(clone);
+    }
+
+    let rec = ProjectRecord {
+        id: slug,
+        path: path_str,
+        alias: Some(name),
+        tags: Vec::new(),
+        created_at: Utc::now().to_rfc3339(),
+        updated_at: Utc::now().to_rfc3339(),
+    };
+    reg.projects.push(rec.clone());
+    write_registry(&reg)?;
+    Ok(rec)
+}
+
+pub fn list_registered_projects() -> Vec<ProjectRecord> {
+    let reg = read_registry();
+    reg.projects
+        .into_iter()
+        .filter(|p| Path::new(&p.path).exists())
+        .collect()
+}
+
+pub fn resolve_project(identifier: Option<&str>) -> Option<PathBuf> {
+    let ident = identifier?.trim();
+    if ident.is_empty() {
+        return None;
+    }
+
+    let direct_p = PathBuf::from(ident);
+    if direct_p.exists() {
+        return Some(direct_p);
+    }
+
+    let reg = read_registry();
+    let lower = ident.to_lowercase();
+    for p in reg.projects {
+        if p.id.to_lowercase() == lower
+            || p.alias.as_deref().map(|a| a.to_lowercase() == lower).unwrap_or(false)
+            || p.path.to_lowercase() == lower
+        {
+            let candidate = PathBuf::from(&p.path);
+            if candidate.exists() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
 pub fn read_patterns() -> Vec<GlobalPattern> {
     let p = patterns_path();
     if !p.exists() {
@@ -155,7 +315,7 @@ pub fn read_patterns() -> Vec<GlobalPattern> {
     };
     let reader = BufReader::new(file);
     let mut out = Vec::new();
-    for line in reader.lines().map_while(Result::ok) {
+    for line in reader.lines().map_while(std::result::Result::ok) {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
@@ -178,7 +338,7 @@ pub fn read_gotchas() -> Vec<GlobalGotcha> {
     };
     let reader = BufReader::new(file);
     let mut out = Vec::new();
-    for line in reader.lines().map_while(Result::ok) {
+    for line in reader.lines().map_while(std::result::Result::ok) {
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
@@ -190,43 +350,41 @@ pub fn read_gotchas() -> Vec<GlobalGotcha> {
     out
 }
 
-fn write_patterns(patterns: &[GlobalPattern]) -> Result<(), String> {
+fn write_patterns(patterns: &[GlobalPattern]) -> Result<()> {
     let p = patterns_path();
     let tmp = p.with_extension("tmp");
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
-        .open(&tmp)
-        .map_err(|e| e.to_string())?;
+        .open(&tmp)?;
 
     for pat in patterns {
-        let line = serde_json::to_string(pat).map_err(|e| e.to_string())?;
-        writeln!(file, "{}", line).map_err(|e| e.to_string())?;
+        let line = serde_json::to_string(pat)?;
+        writeln!(file, "{}", line)?;
     }
-    file.flush().map_err(|e| e.to_string())?;
+    file.flush()?;
     drop(file);
-    fs::rename(&tmp, &p).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &p)?;
     Ok(())
 }
 
-fn write_gotchas(gotchas: &[GlobalGotcha]) -> Result<(), String> {
+fn write_gotchas(gotchas: &[GlobalGotcha]) -> Result<()> {
     let p = gotchas_path();
     let tmp = p.with_extension("tmp");
     let mut file = OpenOptions::new()
         .create(true)
         .write(true)
         .truncate(true)
-        .open(&tmp)
-        .map_err(|e| e.to_string())?;
+        .open(&tmp)?;
 
     for g in gotchas {
-        let line = serde_json::to_string(g).map_err(|e| e.to_string())?;
-        writeln!(file, "{}", line).map_err(|e| e.to_string())?;
+        let line = serde_json::to_string(g)?;
+        writeln!(file, "{}", line)?;
     }
-    file.flush().map_err(|e| e.to_string())?;
+    file.flush()?;
     drop(file);
-    fs::rename(&tmp, &p).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &p)?;
     Ok(())
 }
 
@@ -244,7 +402,7 @@ pub fn add_pattern(
     tags: Option<Vec<String>>,
     source_project: Option<String>,
     confidence: Option<&str>,
-) -> Result<GlobalPattern, String> {
+) -> Result<GlobalPattern> {
     let entry = GlobalPattern {
         id: generate_id("pat"),
         pattern: pattern.trim().to_string(),
@@ -259,10 +417,9 @@ pub fn add_pattern(
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(&p)
-        .map_err(|e| e.to_string())?;
-    let line = serde_json::to_string(&entry).map_err(|e| e.to_string())?;
-    writeln!(file, "{}", line).map_err(|e| e.to_string())?;
+        .open(&p)?;
+    let line = serde_json::to_string(&entry)?;
+    writeln!(file, "{}", line)?;
     Ok(entry)
 }
 
@@ -272,7 +429,7 @@ pub fn add_gotcha(
     tags: Option<Vec<String>>,
     source_project: Option<String>,
     version_range: Option<String>,
-) -> Result<GlobalGotcha, String> {
+) -> Result<GlobalGotcha> {
     let entry = GlobalGotcha {
         id: generate_id("got"),
         library: library.trim().to_lowercase(),
@@ -287,10 +444,9 @@ pub fn add_gotcha(
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(&p)
-        .map_err(|e| e.to_string())?;
-    let line = serde_json::to_string(&entry).map_err(|e| e.to_string())?;
-    writeln!(file, "{}", line).map_err(|e| e.to_string())?;
+        .open(&p)?;
+    let line = serde_json::to_string(&entry)?;
+    writeln!(file, "{}", line)?;
     Ok(entry)
 }
 
@@ -618,7 +774,7 @@ pub fn auto_promote_event(
     event_summary: &str,
     event_type: &str,
     project_name: &str,
-    tags: Option<Vec<String>>,
+    location: Option<&str>,
     project_libraries: Option<&[String]>,
     outcome: Option<&str>,
 ) -> Option<GlobalGotcha> {
@@ -646,25 +802,25 @@ pub fn auto_promote_event(
         return None;
     }
 
-    if let Some(proj_libs) = project_libraries {
-        let mut proj_set: HashSet<String> = proj_libs.iter().map(|s| s.to_lowercase()).collect();
-        let aliases = [
-            ("nextjs", "next"),
-            ("tailwind", "tailwindcss"),
-            ("actix-web", "actix"),
-        ];
-        for (tag, pkg) in aliases {
-            if proj_set.contains(tag) {
-                proj_set.insert(pkg.to_string());
-            }
-            if proj_set.contains(pkg) {
-                proj_set.insert(tag.to_string());
-            }
+    let empty_libs = Vec::new();
+    let libs_slice = project_libraries.unwrap_or(&empty_libs);
+    let mut proj_set: HashSet<String> = libs_slice.iter().map(|s| s.to_lowercase()).collect();
+    let aliases = [
+        ("nextjs", "next"),
+        ("tailwind", "tailwindcss"),
+        ("actix-web", "actix"),
+    ];
+    for (tag, pkg) in aliases {
+        if proj_set.contains(tag) {
+            proj_set.insert(pkg.to_string());
         }
-        matched_libs.retain(|lib| proj_set.contains(lib));
-        if matched_libs.is_empty() {
-            return None;
+        if proj_set.contains(pkg) {
+            proj_set.insert(tag.to_string());
         }
+    }
+    matched_libs.retain(|lib| proj_set.contains(lib));
+    if matched_libs.is_empty() {
+        return None;
     }
 
     matched_libs.sort_by_key(|b| std::cmp::Reverse(b.len()));
@@ -681,9 +837,9 @@ pub fn auto_promote_event(
     add_gotcha(
         &target_lib,
         event_summary,
-        tags,
-        Some(project_name.to_string()),
         None,
+        Some(project_name.to_string()),
+        location.map(|s| s.to_string()),
     ).ok()
 }
 

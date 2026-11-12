@@ -3,15 +3,19 @@
 // project: neo
 // file: crates/toksi/src/projectmem/heatmap.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-12
+
+#![deny(unsafe_code)]
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 
+use super::error::Result;
 use super::schema::{location_to_file, Event};
 use super::store::read_events;
+use crate::util::paths::normalize_path;
 
 pub const HOURS_PER_FAILED_APPROACH: f64 = 0.5;
 pub const HOURS_PER_FIX_WITH_CONTEXT: f64 = 0.25;
@@ -85,11 +89,46 @@ pub struct FileFailureStats {
     pub total_events: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DrilldownEvent {
+    pub id: String,
+    pub timestamp: String,
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub summary: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notes: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_commit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct FileDrilldown {
+    pub file: String,
+    pub failed_attempts: usize,
+    pub open_issues: usize,
+    pub resolved_issues: usize,
+    pub decisions: usize,
+    pub notes: usize,
+    pub total_events: usize,
+    pub events: Vec<DrilldownEvent>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub top_failure_causes: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct HeatmapResult {
     pub score: ScoreResult,
     pub top_hotspots: Vec<FileFailureStats>,
     pub directory_clusters: HashMap<String, usize>,
+    #[serde(default)]
+    pub drilldowns: HashMap<String, FileDrilldown>,
 }
 
 pub fn calculate_score(events: &[Event], since_days: Option<i64>) -> ScoreResult {
@@ -128,12 +167,13 @@ pub fn calculate_score(events: &[Event], since_days: Option<i64>) -> ScoreResult
 
         let mut event_files = e.files.clone();
         if let Some(f) = location_to_file(e.location.as_deref()) {
-            event_files.push(f);
+            event_files.push(normalize_path(&f));
         }
 
         for f in &event_files {
-            *file_event_counts.entry(f.clone()).or_insert(0) += 1;
-            files_with_gotchas.insert(f.clone());
+            let norm = normalize_path(f);
+            *file_event_counts.entry(norm.clone()).or_insert(0) += 1;
+            files_with_gotchas.insert(norm);
         }
 
         match e.event_type.as_str() {
@@ -141,7 +181,7 @@ pub fn calculate_score(events: &[Event], since_days: Option<i64>) -> ScoreResult
                 Some("failed") => {
                     failed_approaches += 1;
                     for f in &event_files {
-                        files_with_failures.insert(f.clone());
+                        files_with_failures.insert(normalize_path(f));
                     }
                 }
                 Some("worked") => {
@@ -247,11 +287,97 @@ pub fn calculate_score(events: &[Event], since_days: Option<i64>) -> ScoreResult
     }
 }
 
+pub fn generate_file_drilldown(events: &[Event], file_path: &str) -> FileDrilldown {
+    let norm_target = normalize_path(file_path);
+    let mut drilldown = FileDrilldown {
+        file: norm_target.clone(),
+        ..Default::default()
+    };
+
+    let open_issue_ids: HashSet<String> = {
+        let closed: HashSet<String> = events
+            .iter()
+            .filter(|e| e.event_type == "fix" && e.issue_id.is_some())
+            .filter_map(|e| e.issue_id.clone())
+            .collect();
+        events
+            .iter()
+            .filter(|e| e.event_type == "issue" && e.issue_id.is_some())
+            .filter_map(|e| e.issue_id.clone())
+            .filter(|iid| !closed.contains(iid))
+            .collect()
+    };
+
+    for e in events {
+        let mut matches = false;
+        for f in &e.files {
+            if normalize_path(f) == norm_target {
+                matches = true;
+                break;
+            }
+        }
+        if !matches {
+            if let Some(loc_f) = location_to_file(e.location.as_deref()) {
+                if normalize_path(&loc_f) == norm_target {
+                    matches = true;
+                }
+            }
+        }
+        if !matches && e.summary.contains(&norm_target) {
+            matches = true;
+        }
+
+        if matches {
+            drilldown.total_events += 1;
+            match e.event_type.as_str() {
+                "attempt" => match e.outcome.as_deref() {
+                    Some("failed") => drilldown.failed_attempts += 1,
+                    _ => {}
+                },
+                "issue" => {
+                    if let Some(ref iid) = e.issue_id {
+                        if open_issue_ids.contains(iid) {
+                            drilldown.open_issues += 1;
+                        } else {
+                            drilldown.resolved_issues += 1;
+                        }
+                    }
+                }
+                "decision" => drilldown.decisions += 1,
+                "note" => drilldown.notes += 1,
+                _ => {}
+            }
+
+            drilldown.events.push(DrilldownEvent {
+                id: e.id.clone(),
+                timestamp: e.timestamp.clone(),
+                event_type: e.event_type.clone(),
+                summary: e.summary.clone(),
+                outcome: e.outcome.clone(),
+                command: e.command.clone(),
+                notes: e.notes.clone(),
+                git_commit: e.git_commit.clone(),
+                location: e.location.clone(),
+            });
+        }
+    }
+
+    drilldown.top_failure_causes = drilldown
+        .events
+        .iter()
+        .filter(|ev| ev.event_type == "attempt" && ev.outcome.as_deref() == Some("failed"))
+        .map(|ev| ev.summary.clone())
+        .collect();
+
+    drilldown
+}
+
 pub fn generate_heatmap(events: &[Event]) -> HeatmapResult {
     let score = calculate_score(events, None);
 
     let mut file_map: HashMap<String, FileFailureStats> = HashMap::new();
     let mut dir_clusters: HashMap<String, usize> = HashMap::new();
+    let mut drilldowns: HashMap<String, FileDrilldown> = HashMap::new();
 
     let open_issue_ids: HashSet<String> = {
         let closed: HashSet<String> = events
@@ -270,14 +396,16 @@ pub fn generate_heatmap(events: &[Event]) -> HeatmapResult {
     for e in events {
         let mut target_files = e.files.clone();
         if let Some(f) = location_to_file(e.location.as_deref()) {
-            if !target_files.contains(&f) {
-                target_files.push(f);
+            let norm = normalize_path(&f);
+            if !target_files.contains(&norm) {
+                target_files.push(norm);
             }
         }
 
         for f in target_files {
-            let stats = file_map.entry(f.clone()).or_insert_with(|| FileFailureStats {
-                file: f.clone(),
+            let norm = normalize_path(&f);
+            let stats = file_map.entry(norm.clone()).or_insert_with(|| FileFailureStats {
+                file: norm.clone(),
                 ..Default::default()
             });
 
@@ -302,9 +430,9 @@ pub fn generate_heatmap(events: &[Event]) -> HeatmapResult {
                 _ => {}
             }
 
-            let p = Path::new(&f);
+            let p = Path::new(&norm);
             if let Some(parent) = p.parent() {
-                let dir_str = parent.to_string_lossy().replace('\\', "/");
+                let dir_str = normalize_path(&parent.to_string_lossy());
                 if !dir_str.is_empty() && dir_str != "." {
                     *dir_clusters.entry(dir_str).or_insert(0) += 1;
                 }
@@ -320,10 +448,16 @@ pub fn generate_heatmap(events: &[Event]) -> HeatmapResult {
             .then_with(|| b.total_events.cmp(&a.total_events))
     });
 
+    for h in hotspots.iter().take(20) {
+        let dd = generate_file_drilldown(events, &h.file);
+        drilldowns.insert(h.file.clone(), dd);
+    }
+
     HeatmapResult {
         score,
         top_hotspots: hotspots,
         directory_clusters: dir_clusters,
+        drilldowns,
     }
 }
 
@@ -332,7 +466,7 @@ pub fn format_score_text(res: &ScoreResult) -> String {
     out.push_str("========================================\n");
     out.push_str("  PROJECTMEM TOKEN ROI DASHBOARD\n");
     out.push_str("========================================\n");
-    out.push_str(&format!("  Score:                 {}/100 ({})\n", res.score, res.grade));
+    out.push_str(&format!("  Failure-prevention score: {}/100 ({})\n", res.score, res.grade));
     out.push_str(&format!("  Total Tokens Saved:    {}\n", res.tokens_saved));
     out.push_str(&format!("  Estimated USD Saved:   ${:.2}\n", res.usd_saved));
     out.push_str(&format!("  Debug Hours Saved:     ~{:.1}h\n", res.debugging_hours_saved));
@@ -346,7 +480,7 @@ pub fn format_score_text(res: &ScoreResult) -> String {
     out
 }
 
-pub fn compute_stats_for_root(root: Option<&Path>) -> Result<ScoreResult, String> {
+pub fn compute_stats_for_root(root: Option<&Path>) -> Result<ScoreResult> {
     let events = read_events(root)?;
     Ok(calculate_score(&events, None))
 }
@@ -385,6 +519,9 @@ mod tests {
         assert_eq!(heatmap.top_hotspots.len(), 1);
         assert_eq!(heatmap.top_hotspots[0].file, "src/auth.rs");
         assert_eq!(heatmap.top_hotspots[0].failed_attempts, 1);
+
+        assert!(heatmap.drilldowns.contains_key("src/auth.rs"));
+        let dd = &heatmap.drilldowns["src/auth.rs"];
+        assert_eq!(dd.events.len(), 4);
     }
 }
-

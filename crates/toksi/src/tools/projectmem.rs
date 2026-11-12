@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/projectmem.rs
 // created: 2026-10-05
-// lastModified: 2026-11-01
+// lastModified: 2026-11-12
 
 use std::env;
 use std::fs;
@@ -62,7 +62,8 @@ pub fn ensure_projectmem_project(root: &str) -> Result<(), String> {
         return Ok(());
     }
     let purpose = projectmem_seed_purpose(root);
-    crate::projectmem::store::initialize(Some(Path::new(root)), Some(&purpose))?;
+    crate::projectmem::store::initialize(Some(Path::new(root)), Some(&purpose))
+        .map_err(|e| e.to_string())?;
     projectmem_git_exclude(root);
     Ok(())
 }

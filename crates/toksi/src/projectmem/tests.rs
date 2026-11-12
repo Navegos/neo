@@ -3,20 +3,23 @@
 // project: neo
 // file: crates/toksi/src/projectmem/tests.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-12
 
 use chrono::Utc;
 use tempfile::tempdir;
 
 use super::cli::run_mem_cli;
-use super::heatmap::{calculate_score, generate_heatmap};
+use super::heatmap::*;
 use super::mcp::*;
 use super::precheck::{
     active_snooze, analyze_files, clear_snooze, parse_snooze_duration, set_snooze,
 };
 use super::redaction::{redact, redact_event_fields};
 use super::schema::*;
+use super::slash::*;
+use super::staleness::*;
 use super::store::*;
+use super::structure::*;
 use super::summary::*;
 
 #[test]
@@ -57,8 +60,8 @@ fn test_location_to_file_parsing() {
     assert_eq!(location_to_file(Some("src/core.rs:120")), Some("src/core.rs".into()));
     assert_eq!(location_to_file(Some("src/core.rs:120 (OrderService::process)")), Some("src/core.rs".into()));
     assert_eq!(location_to_file(Some("src/core.rs:120:15")), Some("src/core.rs".into()));
-    assert_eq!(location_to_file(Some("C:\\project\\src\\main.py:45")), Some("C:\\project\\src\\main.py".into()));
-    assert_eq!(location_to_file(Some("C:\\project\\src\\main.py:45 (charge)")), Some("C:\\project\\src\\main.py".into()));
+    assert_eq!(location_to_file(Some("C:\\project\\src\\main.py:45")), Some("C:/project/src/main.py".into()));
+    assert_eq!(location_to_file(Some("C:\\project\\src\\main.py:45 (charge)")), Some("C:/project/src/main.py".into()));
     assert_eq!(location_to_file(Some("D:/AI/neo/crates/toksi/Cargo.toml")), Some("D:/AI/neo/crates/toksi/Cargo.toml".into()));
     assert_eq!(location_to_file(Some("main.rs")), Some("main.rs".into()));
     assert_eq!(location_to_file(Some("app.py")), Some("app.py".into()));
@@ -305,9 +308,9 @@ fn test_mcp_all_tools() {
     let ctx_msg = tool_get_context(root, 2000, None);
     assert!(ctx_msg.contains("projectmem context"));
 
-    // Tools list
+    // Tools list (17 legacy tools + staleness + structure + heatmap = 20 tools)
     let list = mcp_tools_list();
-    assert_eq!(list.as_array().unwrap().len(), 17);
+    assert_eq!(list.as_array().unwrap().len(), 20);
 }
 
 #[test]
@@ -762,3 +765,130 @@ fn test_instructions_refresh_upgrade() {
     let bak_content = std::fs::read_to_string(&bak_path).unwrap();
     assert!(bak_content.contains("<!-- projectmem-instructions: 1 -->"));
 }
+
+#[test]
+fn test_structure_generation_and_saving() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+
+    let _ = initialize(Some(root), Some("Structure Test")).unwrap();
+    std::fs::create_dir_all(root.join("src/auth")).unwrap();
+    std::fs::write(root.join("src/lib.rs"), "pub mod auth;\n").unwrap();
+    std::fs::write(root.join("src/auth/mod.rs"), "pub fn check() {}\n").unwrap();
+    std::fs::write(root.join("src/auth/token.py"), "from auth import helper\n").unwrap();
+    std::fs::write(root.join("src/auth/helper.py"), "def helper(): pass\n").unwrap();
+
+    let res = generate_and_save_structure(Some(root)).unwrap();
+    assert!(res.stats.files >= 4);
+    assert!(res.stats.dirs >= 2);
+    assert!(!res.relationships.is_empty());
+
+    let mem_dir = require_mem_dir(Some(root)).unwrap();
+    let structure_file = mem_dir.join(STRUCTURE_FILE);
+    assert!(structure_file.exists());
+    let saved_json: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(structure_file).unwrap()).unwrap();
+    assert_eq!(saved_json["stats"]["files"], res.stats.files);
+}
+
+#[test]
+fn test_staleness_detection_and_formatting() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), None).unwrap();
+
+    let mut ev = Event::new("decision", "Use bcrypt with 12 rounds");
+    ev.id = "evt_dec_12345678901234567".into();
+    ev.location = Some("src/deleted_file.rs:10".into());
+    append_event(&mut ev, Some(root)).unwrap();
+
+    let events = read_events(Some(root)).unwrap();
+    let stale = find_stale_events(&events, Some(root), 1, None);
+
+    assert_eq!(stale.len(), 1);
+    assert_eq!(stale[0].event_id, "evt_dec_12345678901234567");
+    assert_eq!(stale[0].commits_since, -1);
+    let label = stale_label(&stale[0]);
+    assert!(label.contains("no longer exists"));
+    assert!(label.contains("evt_dec_12345678901234567"));
+}
+
+#[test]
+fn test_slash_commands() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), None).unwrap();
+
+    let help = handle_slash_command("/projectmem help", Some(root));
+    assert!(help.contains("/projectmem status"));
+    assert!(help.contains("/projectmem heatmap"));
+
+    let status = handle_slash_command("/projectmem status", Some(root));
+    assert!(status.contains("Location:"));
+
+    let score = handle_slash_command("/projectmem score", Some(root));
+    assert!(score.contains("Failure-prevention score:"));
+
+    let heatmap = handle_slash_command("/projectmem heatmap", Some(root));
+    assert!(heatmap.contains("No failure hotspots detected") || heatmap.contains("Top Failure Hotspots"));
+
+    let unknown = handle_slash_command("/projectmem invalid_cmd", Some(root));
+    assert!(unknown.contains("Unknown ProjectMem slash command"));
+}
+
+#[test]
+fn test_heatmap_drilldowns_and_roi() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), None).unwrap();
+
+    let mut iss = Event::new("issue", "Parser buffer overflow");
+    iss.issue_id = Some("0001".into());
+    iss.location = Some("crates/parser/src/lib.rs:42".into());
+    append_event(&mut iss, Some(root)).unwrap();
+
+    for i in 1..=3 {
+        let mut att = Event::new("attempt", &format!("Attempt #{} failed", i));
+        att.issue_id = Some("0001".into());
+        att.outcome = Some("failed".into());
+        att.location = Some("crates/parser/src/lib.rs:42".into());
+        append_event(&mut att, Some(root)).unwrap();
+    }
+
+    let mut fix = Event::new("fix", "Checked buffer bounds with saturating_add");
+    fix.issue_id = Some("0001".into());
+    fix.location = Some("crates/parser/src/lib.rs:42".into());
+    append_event(&mut fix, Some(root)).unwrap();
+
+    let events = read_events(Some(root)).unwrap();
+    let heatmap = generate_heatmap(&events);
+
+    assert_eq!(heatmap.top_hotspots.len(), 1);
+    let hs = &heatmap.top_hotspots[0];
+    assert_eq!(hs.file, "crates/parser/src/lib.rs");
+    assert_eq!(hs.failed_attempts, 3);
+    assert_eq!(hs.total_events, 5);
+    assert!(heatmap.score.tokens_saved > 0);
+
+    let dd = heatmap.drilldowns.get("crates/parser/src/lib.rs");
+    assert!(dd.is_some());
+    let drilldown = dd.unwrap();
+    assert_eq!(drilldown.events.len(), 5);
+    assert_eq!(drilldown.top_failure_causes.len(), 3);
+}
+
+#[test]
+fn test_cli_staleness_structure_slash() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), None).unwrap();
+
+    let prev_dir = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    let _ = std::env::set_current_dir(root);
+
+    assert_eq!(run_mem_cli(&["structure".to_string()]), 0);
+    assert_eq!(run_mem_cli(&["staleness".to_string()]), 0);
+    assert_eq!(run_mem_cli(&["slash".to_string(), "status".to_string()]), 0);
+
+    let _ = std::env::set_current_dir(prev_dir);
+}
+

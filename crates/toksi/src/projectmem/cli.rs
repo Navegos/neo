@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/projectmem/cli.rs
 // created: 2026-10-27
-// lastModified: 2026-10-31
+// lastModified: 2026-11-12
+
+#![deny(unsafe_code)]
 
 use std::fs;
 
@@ -11,12 +13,15 @@ use super::heatmap::{compute_stats_for_root, format_score_text, generate_heatmap
 use super::mcp::run_mcp_server;
 use super::precheck::{clear_snooze, run_precheck, set_snooze};
 use super::schema::{resolve_event_ref, Event};
+use super::slash::handle_slash_command;
+use super::staleness::{find_stale_events, stale_label, STALE_COMMIT_THRESHOLD};
 use super::store::{
     active_issue_marker, ai_instructions_path, append_event, clear_current_issue,
     current_issue_id, get_git_commit, initialize, issue_exists, latest_open_issue_within,
     next_issue_id, normalize_issue_id, plan_path, project_map_path, read_events, require_mem_dir,
     summary_path, write_current_issue,
 };
+use super::structure::generate_and_save_structure;
 use super::summary::regenerate_summary;
 
 pub fn print_mem_help() {
@@ -37,6 +42,9 @@ pub fn print_mem_help() {
           toksi mem regenerate\n\
           toksi mem stats | score [--format <text|json>]\n\
           toksi mem heatmap\n\
+          toksi mem staleness [--threshold <n>] [--json]\n\
+          toksi mem structure [--json]\n\
+          toksi mem slash <command>\n\
           toksi mem search <query> [--limit <n>]\n\
           toksi mem sync\n\
           toksi mem global <status|list|add|add-gotcha|remove|detect|prune>\n\
@@ -253,7 +261,13 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
                 issue_id = Some(new_id);
             }
 
-            let iid = issue_id.unwrap();
+            let iid = match issue_id {
+                Some(id) => id,
+                None => {
+                    eprintln!("Error: Failed to obtain active issue ID.");
+                    return 1;
+                }
+            };
             let cmd_str = command.as_deref().unwrap_or("");
             let (final_text, extracted_notes) = if outcome == "failed" {
                 if let Some(cause) = crate::rtk::extract_root_cause(cmd_str, &text) {
@@ -679,6 +693,92 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
                 println!("    - {}: {} events", dir, count);
             }
             println!("========================================");
+            0
+        }
+        "staleness" => {
+            let mut threshold = STALE_COMMIT_THRESHOLD;
+            let mut format_json = false;
+            let mut i = 0;
+            while i < rest.len() {
+                if rest[i] == "--threshold" && i + 1 < rest.len() {
+                    threshold = rest[i + 1].parse().unwrap_or(STALE_COMMIT_THRESHOLD);
+                    i += 2;
+                } else if rest[i] == "--json" || rest[i] == "json" {
+                    format_json = true;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            let events = match read_events(None) {
+                Ok(evs) => evs,
+                Err(e) => {
+                    eprintln!("Error reading events: {}", e);
+                    return 1;
+                }
+            };
+            let stale = find_stale_events(&events, None, threshold, None);
+            if format_json {
+                match serde_json::to_string_pretty(&stale) {
+                    Ok(json) => println!("{}", json),
+                    Err(e) => {
+                        eprintln!("Error serializing staleness result: {}", e);
+                        return 1;
+                    }
+                }
+            } else if stale.is_empty() {
+                println!("No stale memory events detected.");
+            } else {
+                println!("Found {} potentially stale memory event(s):", stale.len());
+                for s in &stale {
+                    println!("  - {}", stale_label(s));
+                }
+            }
+            0
+        }
+        "structure" => {
+            let mut format_json = false;
+            for arg in rest {
+                if arg == "--json" || arg == "json" {
+                    format_json = true;
+                }
+            }
+            match generate_and_save_structure(None) {
+                Ok(structure) => {
+                    if format_json {
+                        match serde_json::to_string_pretty(&structure) {
+                            Ok(json) => println!("{}", json),
+                            Err(e) => {
+                                eprintln!("Error serializing structure: {}", e);
+                                return 1;
+                            }
+                        }
+                    } else {
+                        println!("Generated repository structure map:");
+                        println!("  Files:         {}", structure.stats.files);
+                        println!("  Directories:   {}", structure.stats.dirs);
+                        println!("  Relationships: {}", structure.stats.relationships);
+                    }
+                    0
+                }
+                Err(e) => {
+                    eprintln!("Error generating structure: {}", e);
+                    1
+                }
+            }
+        }
+        "slash" => {
+            if rest.is_empty() {
+                println!("{}", handle_slash_command("/projectmem help", None));
+                return 0;
+            }
+            let input = rest.join(" ");
+            let full_cmd = if input.starts_with("/projectmem") {
+                input
+            } else {
+                format!("/projectmem {}", input)
+            };
+            println!("{}", handle_slash_command(&full_cmd, None));
             0
         }
         "search" => {
