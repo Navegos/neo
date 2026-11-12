@@ -462,6 +462,12 @@ crates/*/.toksi/codegraph/
 crates/*/.context/
 crates/*/.toksi/context/
 
+# Ignore .rtk
+.rtk/
+.toksi/rtk/
+crates/*/.rtk/
+crates/*/.toksi/rtk/
+
 # Ignore projectmem
 .projectmem/events.jsonl
 .projectmem/watch.pid

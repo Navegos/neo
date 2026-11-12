@@ -3,17 +3,31 @@
 // project: neo
 // file: crates/toksi/src/rtk/mod.rs
 // created: 2026-10-27
-// lastModified: 2026-11-08
+// lastModified: 2026-11-12
+
+#![deny(unsafe_code)]
 
 pub mod ansi;
+pub mod discover;
 pub mod engine;
 pub mod filters;
 pub mod hook;
+pub mod learn;
+pub mod slash;
+pub mod tee;
+pub mod tracker;
 
 pub use ansi::{has_ansi, strip_ansi, strip_ansi_cow, visible_len};
+pub use discover::{run_discover, scan_missed_savings, DiscoverReport, MissedCommandStat};
 pub use engine::{can_filter, filter_output, list_supported_commands, run_command_filtered, tokenize_command};
 pub use filters::{filter_command_output, is_filterable_command};
 pub use hook::{is_already_rtk, rtk_rewrite, run_rtk_rewrite};
+pub use learn::{detect_corrections, run_learn, CorrectionRule, LearnReport};
+pub use slash::handle_slash_command;
+pub use tee::{clear_recalls, list_recalls, recall_output, run_recall_cli, run_tee_cli, save_tee_output, TeeRecord};
+pub use tracker::{
+    estimate_tokens, resolve_rtk_dir, run_gain, CommandRecord, CommandStat, GainSummary, PeriodStat, RtkError, Tracker,
+};
 
 /// Cross-tool adapter for Context-Mode:
 /// Filters sandbox subprocess outputs through RTK command profiles.

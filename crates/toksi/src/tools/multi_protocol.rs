@@ -328,6 +328,61 @@ impl MultiProtocolDispatcher {
                     cause,
                 )
             }
+            "gain" | "rtk_gain" => {
+                let days = req.payload.get("days").and_then(|v| v.as_u64()).map(|d| d as u32);
+                match crate::rtk::Tracker::new().and_then(|t| t.get_summary(days)) {
+                    Ok(summary) => {
+                        let json = serde_json::to_value(&summary).unwrap_or_default();
+                        let text = format!("Total saved: {} tokens ({:.1}%)", summary.total_saved, summary.avg_savings_pct);
+                        UnifiedResponse::success(req.protocol, req.tool, json, Some(text))
+                    }
+                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, format!("Tracker error: {e}")),
+                }
+            }
+            "discover" | "rtk_discover" => {
+                let days = req.payload.get("since").and_then(|v| v.as_u64()).map(|d| d as u32).unwrap_or(30);
+                match crate::rtk::scan_missed_savings(None, days) {
+                    Ok(rep) => {
+                        let json = serde_json::to_value(&rep).unwrap_or_default();
+                        let text = format!("Missed savings: {} tokens across {} commands", rep.estimated_missed_tokens, rep.filterable_uncovered_count);
+                        UnifiedResponse::success(req.protocol, req.tool, json, Some(text))
+                    }
+                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, format!("Discover error: {e}")),
+                }
+            }
+            "learn" | "rtk_learn" => {
+                let days = req.payload.get("since").and_then(|v| v.as_u64()).map(|d| d as u32).unwrap_or(30);
+                match crate::rtk::detect_corrections(None, days) {
+                    Ok(rep) => {
+                        let json = serde_json::to_value(&rep).unwrap_or_default();
+                        let text = format!("Detected {} CLI corrections", rep.corrections_detected);
+                        UnifiedResponse::success(req.protocol, req.tool, json, Some(text))
+                    }
+                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, format!("Learn error: {e}")),
+                }
+            }
+            "recall" | "rtk_recall" => {
+                let hash = req.payload.get("hash").and_then(|v| v.as_str()).unwrap_or("");
+                match crate::rtk::recall_output(hash) {
+                    Ok(raw) => UnifiedResponse::success(
+                        req.protocol,
+                        req.tool,
+                        serde_json::json!({ "hash": hash, "output": raw }),
+                        Some(raw),
+                    ),
+                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, format!("Recall error: {e}")),
+                }
+            }
+            "slash" | "status" => {
+                let cmd = req.payload.get("command").and_then(|v| v.as_str()).unwrap_or("/rtk status");
+                let text = crate::rtk::handle_slash_command(cmd);
+                UnifiedResponse::success(
+                    req.protocol,
+                    req.tool,
+                    serde_json::json!({ "command": cmd, "response": text }),
+                    Some(text),
+                )
+            }
             other => UnifiedResponse::error(
                 req.protocol,
                 req.tool,

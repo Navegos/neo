@@ -126,8 +126,8 @@ crates/toksi/src/
 ├── telemetry/                # Ground-truth session metrics & TokenTracker (47 tool parsers + curated pricing)
 │   ├── mod.rs, prometheus.rs, collector.rs, tokentracker.rs, cost.rs, tracker.rs, cache_analytics.rs
 │
-├── rtk/                      # 100+ filters, ANSI stripper, SQLite Tracker (rtk gain), tee recovery
-│   ├── mod.rs, engine.rs, filters/, ansi.rs, hook.rs
+├── rtk/                      # 100+ filters, ANSI stripper, SQLite Tracker (rtk gain), tee recovery, discover, learn, slash
+│   ├── mod.rs, engine.rs, filters/, ansi.rs, hook.rs, tracker.rs, tee.rs, discover.rs, learn.rs, slash.rs
 │
 ├── rules/                    # In-tree rules (Karpathy, Caveman v4, Ponytail) & configured-only universal sync
 │   ├── mod.rs, sync.rs, principles.rs, caveman.rs, ponytail.rs, embedded/

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-11-09
+// lastModified: 2026-11-12
 
 use std::collections::HashMap;
 use std::env;
@@ -304,16 +304,33 @@ fn run() -> i32 {
     if args.len() >= 3 && args[1] == "rtk-rewrite" {
         return run_rtk_rewrite();
     }
+    if args.len() == 2 && args[1] == "rtk-hook" {
+        eprintln!("Usage: toksi rtk-hook <agent> (e.g., agy, antigravity-cli, copilot, cursor, claude, codex, droid, cline, grok)");
+        return 1;
+    }
     if args.len() >= 3 && args[1] == "rtk-hook" {
         return match args[2].as_str() {
-            "agy" => run_rtk_hook(),
-            "codex" | "claude" | "omp" | "zcode" => run_rtk_hook_codex(),
+            "agy" | "antigravity-cli" | "antigravity" | "antigravity-ide" => run_rtk_hook(),
+            "codex" | "codex-cli" | "claude" | "claude-cli" | "claude-code" | "omp" | "zcode" | "opencode" => run_rtk_hook_codex(),
             "dsh" | "cmd" | "kimi" => run_rtk_hook_dsh(),
-            "copilot" => run_rtk_hook_copilot(),
+            "copilot" | "copilot-cli" | "copilot-vscode" | "copilot-ide" => run_rtk_hook_copilot(),
             "droid" => run_rtk_hook_droid(),
             "cline" => run_rtk_hook_cline(),
-            "grok" => run_rtk_hook_grok(),
-            "cursor" => run_rtk_hook_cursor(),
+            "grok" | "grok-cli" | "grok-ide" => run_rtk_hook_grok(),
+            "cursor" | "cursor-cli" | "cursor-ide" => run_rtk_hook_cursor(),
+            _ => 1,
+        };
+    }
+    if args.len() >= 4 && args[1] == "rtk" && args[2] == "rtk-hook" {
+        return match args[3].as_str() {
+            "agy" | "antigravity-cli" | "antigravity" | "antigravity-ide" => run_rtk_hook(),
+            "codex" | "codex-cli" | "claude" | "claude-cli" | "claude-code" | "omp" | "zcode" | "opencode" => run_rtk_hook_codex(),
+            "dsh" | "cmd" | "kimi" => run_rtk_hook_dsh(),
+            "copilot" | "copilot-cli" | "copilot-vscode" | "copilot-ide" => run_rtk_hook_copilot(),
+            "droid" => run_rtk_hook_droid(),
+            "cline" => run_rtk_hook_cline(),
+            "grok" | "grok-cli" | "grok-ide" => run_rtk_hook_grok(),
+            "cursor" | "cursor-cli" | "cursor-ide" => run_rtk_hook_cursor(),
             _ => 1,
         };
     }
@@ -337,9 +354,6 @@ fn run() -> i32 {
         return run_grok_session_start_hook();
     }
     if args.len() >= 2 && args[1] == "rtk" {
-        if args.len() >= 4 && args[2] == "hook" && args[3] == "cursor" {
-            return run_rtk_hook_cursor();
-        }
         return run_rtk_cli(&args[2..]);
     }
     if args.len() >= 3 && args[1] == "codex-perm" && args[2] == "codex" {

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/toml.rs
 // created: 2026-10-27
-// lastModified: 2026-11-08
+// lastModified: 2026-11-12
 
 use regex::{Regex, RegexSet};
 use serde::Deserialize;
@@ -332,10 +332,11 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_filter_stages() {
-        let filter = find_matching_filter("df -h").expect("df filter should exist");
+    fn test_apply_filter_stages() -> Result<(), &'static str> {
+        let filter = find_matching_filter("df -h").ok_or("df filter should exist")?;
         let raw_output = "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda1        50G   20G   30G  40% /\ntmpfs           1.0G     0  1.0G   0% /dev/shm\n";
         let filtered = apply_filter(filter, raw_output);
         assert!(!filtered.is_empty());
+        Ok(())
     }
 }

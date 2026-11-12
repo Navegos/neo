@@ -3,11 +3,18 @@
 // project: neo
 // file: crates/toksi/src/rtk/engine.rs
 // created: 2026-10-27
-// lastModified: 2026-11-08
+// lastModified: 2026-11-12
+
+#![deny(unsafe_code)]
 
 use std::process::{Command, Stdio};
+use std::time::Instant;
+
 use crate::rtk::ansi::strip_ansi;
-use crate::rtk::filters::{filter_command_output, is_filterable_command, toml::list_filter_names};
+use crate::rtk::filters::{filter_command_output, is_filterable_command, normalize_bin_name, toml::list_filter_names};
+use crate::rtk::tee::save_tee_output;
+use crate::rtk::tracker::{estimate_tokens, Tracker};
+use crate::util::env_path::check_executable_in_path;
 
 /// Parse a shell command line string into arguments respecting quotes.
 pub fn tokenize_command(cmd_line: &str) -> Vec<String> {
@@ -80,22 +87,58 @@ pub fn run_command_filtered(cmd_line: &str) -> std::io::Result<i32> {
         return Ok(0);
     }
 
-    let program = &tokens[0];
+    let raw_program = &tokens[0];
+    let program = normalize_bin_name(raw_program);
     let args = &tokens[1..];
 
+    // PATH Validation Mandate: validate executable presence before spawning
+    if let Err(err_msg) = check_executable_in_path(program) {
+        eprintln!("{}", err_msg);
+        return Ok(127);
+    }
+
+    let start_time = Instant::now();
     let output = Command::new(program)
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()?;
+    let duration_ms = start_time.elapsed().as_millis() as u64;
 
     let exit_code = output.status.code().unwrap_or(1);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
 
-    let filtered = filter_output(cmd_line, &stdout, &stderr, exit_code);
+    let combined_raw = if stderr.is_empty() {
+        stdout.to_string()
+    } else if stdout.is_empty() {
+        stderr.to_string()
+    } else {
+        format!("{}\n{}", stdout, stderr)
+    };
+
+    let input_tokens = estimate_tokens(&combined_raw);
+    let mut filtered = filter_output(cmd_line, &stdout, &stderr, exit_code);
+
+    // If failed, save tee recovery log and append hint
+    if exit_code != 0
+        && let Ok(Some(hint)) = save_tee_output(cmd_line, &combined_raw, exit_code)
+    {
+        if !filtered.ends_with('\n') {
+            filtered.push('\n');
+        }
+        filtered.push_str(&hint);
+    }
+
     println!("{}", filtered);
+
+    // Record token reduction in SQLite Tracker
+    let output_tokens = estimate_tokens(&filtered);
+    if let Ok(tracker) = Tracker::new() {
+        let rtk_cmd = format!("toksi rtk {}", cmd_line);
+        let _ = tracker.record(cmd_line, &rtk_cmd, input_tokens, output_tokens, duration_ms, exit_code);
+    }
 
     if exit_code != 0 {
         handle_failed_command_trace(cmd_line, &stdout, &stderr);
