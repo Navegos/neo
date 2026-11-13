@@ -3,12 +3,15 @@
 // project: neo
 // file: crates/toksi/src/rules/embedded/principles.rs
 // created: 2026-10-29
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 //! Karpathy behavioral coding guidelines.
 //! Think before coding, simplicity first, surgical changes, goal-driven execution.
 
+use super::{extract_section_body, EmbeddedSkill};
+
 pub const ID: &str = "principles";
+pub const ALIASES: &[&str] = &["karpathy", "karpathy-guidelines"];
 pub const TITLE: &str = "Principles";
 pub const DESCRIPTION: &str = "Coding principles: think first, simplify, edit surgically, verify.";
 pub const SECTION_HEADER: &str = "## Principles";
@@ -34,14 +37,24 @@ pub fn skill_definition() -> &'static str {
     SKILL_DEFINITION
 }
 
+/// Returns the primary skill descriptor for directory installation.
+pub const fn primary_skill() -> EmbeddedSkill {
+    EmbeddedSkill {
+        dir_name: SKILL_DIR_NAME,
+        skill_md: SKILL_DEFINITION,
+    }
+}
+
+const SKILLS: &[EmbeddedSkill] = &[primary_skill()];
+
+/// Returns all skills bundled with Principles (`&'static` slice).
+pub const fn companion_skills() -> &'static [EmbeddedSkill] {
+    SKILLS
+}
+
 /// Returns the formatted section body suitable for inclusion under `## Principles`.
 pub fn section_body() -> String {
-    let raw = RAW_MARKDOWN.replace("\r\n", "\n");
-    if let Some(pos) = raw.find('\n') {
-        raw[pos + 1..].trim().to_string()
-    } else {
-        raw.trim().to_string()
-    }
+    extract_section_body(RAW_MARKDOWN)
 }
 
 #[cfg(test)]
@@ -57,6 +70,7 @@ mod tests {
         assert!(markdown().contains("Simplicity First"));
         assert!(markdown().contains("Surgical Changes"));
         assert!(markdown().contains("Goal-Driven Execution"));
+        assert!(markdown().contains("These guidelines are working if:"));
         assert!(cursor_rule().starts_with("---\n"));
         assert!(cursor_rule().contains("alwaysApply: true"));
         assert!(skill_definition().starts_with("---\n"));
@@ -68,5 +82,6 @@ mod tests {
         let body = section_body();
         assert!(!body.is_empty());
         assert!(body.contains("Behavioral guidelines to reduce common LLM coding mistakes"));
+        assert!(body.contains("These guidelines are working if:"));
     }
 }

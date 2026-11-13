@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/init.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::env;
@@ -381,9 +381,13 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
     }
     wire_bar.done("");
 
-    if !opts.dry_run {
-        let _ = crate::rules::sync_workspace_rules(".", crate::rules::RuleKind::all());
-        let _ = crate::rules::sync_global_rules(crate::rules::RuleKind::all());
+    if !opts.dry_run && !equipped_agents.is_empty() {
+        let selected_ids: Vec<String> = equipped_agents.iter().map(|a| a.id.clone()).collect();
+        let global_opts = crate::rules::SyncOptions::for_agents(selected_ids);
+        let _ = crate::rules::sync_global_rules_with_options(crate::rules::RuleKind::all(), &global_opts);
+        // Workspace rules only sync if user already configured workspace agent directories in root
+        let ws_opts = crate::rules::SyncOptions::default();
+        let _ = crate::rules::sync_workspace_rules_with_options(".", crate::rules::RuleKind::all(), &ws_opts);
     }
 
     if !opts.dry_run && tools.iter().any(|t| t.id == "projectmem") {

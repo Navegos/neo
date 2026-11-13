@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rules/mod.rs
 // created: 2026-10-29
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 //! In-tree rules and skills engine for AI coding agents.
 //!
@@ -12,6 +12,8 @@
 //!
 //! Exposes functions to inject, patch, and verify instructions across agent
 //! configs (`CLAUDE.md`, `.cursor/rules/`, `AGENTS.md`, and custom agent paths).
+
+#![deny(unsafe_code)]
 
 pub mod caveman;
 pub mod cli;
@@ -28,11 +30,42 @@ pub use embedded::caveman as caveman_rule;
 pub use embedded::ponytail as ponytail_rule;
 pub use embedded::principles as principles_rule;
 pub use sync::{
-    matches_sync_target_filename, sync_all_rules, sync_global_rules, sync_workspace_rules,
-    SyncReport, MANAGED_MCP_TOOLS, SUPPORTED_AGENT_DIRS,
+    matches_sync_target_filename, resolve_configured_agents, resolve_workspace_root,
+    sync_all_rules, sync_all_rules_with_options, sync_global_rules,
+    sync_global_rules_with_options, sync_user_dir_rules_with_options, sync_workspace_rules,
+    sync_workspace_rules_with_options, wire_mcp_skills, SyncComponents, SyncOptions, SyncReport,
+    SyncScope, MANAGED_MCP_TOOLS, SUPPORTED_AGENT_DIRS,
 };
 
 pub type DynError = Box<dyn std::error::Error + Send + Sync>;
+
+/// Domain errors for rule ingestion, patching, and multi-agent synchronization.
+#[derive(Debug, thiserror::Error)]
+pub enum RulesError {
+    #[error("I/O error for {path}: {source}")]
+    Io {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("JSON serialization error: {0}")]
+    Json(#[from] serde_json::Error),
+    #[error("Unknown sync component '{0}' (expected: hooks, mcp, skills, rules, instructions, configs)")]
+    InvalidComponent(String),
+    #[error("Unknown agent harness '{0}'")]
+    InvalidAgent(String),
+    #[error("User home directory could not be resolved")]
+    HomeUnavailable,
+}
+
+impl RulesError {
+    pub(crate) fn io(path: impl AsRef<Path>, source: std::io::Error) -> Self {
+        Self::Io {
+            path: crate::util::paths::normalize_path(&path.as_ref().to_string_lossy()),
+            source,
+        }
+    }
+}
 
 /// In-tree rule types supported by Toksi.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -136,6 +169,24 @@ impl RuleKind {
             RuleKind::Principles => embedded::principles::cursor_rule(),
             RuleKind::Caveman => embedded::caveman::cursor_rule(),
             RuleKind::Ponytail => embedded::ponytail::cursor_rule(),
+        }
+    }
+
+    /// Returns all primary and companion skills bundled with this rule kind.
+    pub fn skills(&self) -> &'static [embedded::EmbeddedSkill] {
+        match self {
+            RuleKind::Principles => embedded::principles::companion_skills(),
+            RuleKind::Caveman => embedded::caveman::companion_skills(),
+            RuleKind::Ponytail => embedded::ponytail::companion_skills(),
+        }
+    }
+
+    /// Returns Gemini custom `.toml` commands bundled with this rule kind.
+    pub fn gemini_commands(&self) -> &'static [embedded::EmbeddedCommand] {
+        match self {
+            RuleKind::Principles => &[],
+            RuleKind::Caveman => embedded::caveman::gemini_commands(),
+            RuleKind::Ponytail => embedded::ponytail::gemini_commands(),
         }
     }
 
@@ -606,7 +657,7 @@ pub fn patch_cursorrules(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result
 ///
 /// Accepts either the workspace directory, `.cursor` directory, or `.cursor/rules` directory.
 /// Writes each rule as an `.mdc` file with YAML frontmatter.
-/// Returns the list of written rule file paths.
+/// Returns the list of written rule file paths using normalized `/` separators.
 pub fn patch_cursor_rules(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<Vec<PathBuf>, DynError> {
     let p = target.as_ref();
     let rules_dir = if p.ends_with("rules") {
@@ -624,18 +675,20 @@ pub fn patch_cursor_rules(target: impl AsRef<Path>, rules: &[RuleKind]) -> Resul
         let file_path = rules_dir.join(rule.cursor_filename());
         let content = rule.cursor_rule();
         fs::write(&file_path, content)?;
-        written.push(file_path);
+        written.push(PathBuf::from(crate::util::paths::normalize_path(
+            &file_path.to_string_lossy(),
+        )));
     }
 
     Ok(written)
 }
 
-/// Injects or writes in-tree skills into a target `skills/` directory.
+/// Injects or writes in-tree skills (primary + companion Wave 17 v4 / Ponytail v5 skills)
+/// into a target `skills/` directory.
 ///
 /// Accepts either an agent directory (e.g. `.agents`, `.gemini`, `.copilot`, `.claude`)
 /// or a direct path to a `skills` directory.
-/// Writes each skill as `<skills_dir>/<skill_dir_name>/SKILL.md`.
-/// Returns the list of written skill file paths.
+/// Writes each skill as `<skills_dir>/<skill_dir_name>/SKILL.md` with normalized `/` paths.
 pub fn patch_skills_dir(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<Vec<PathBuf>, DynError> {
     let p = target.as_ref();
     let skills_dir = if p.ends_with("skills") {
@@ -648,12 +701,47 @@ pub fn patch_skills_dir(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<
 
     let mut written = Vec::new();
     for &rule in rules {
-        let skill_dir = skills_dir.join(rule.skill_dir_name());
-        fs::create_dir_all(&skill_dir)?;
-        let file_path = skill_dir.join("SKILL.md");
-        let content = rule.skill_definition();
-        fs::write(&file_path, content)?;
-        written.push(file_path);
+        for skill in rule.skills() {
+            let skill_dir = skills_dir.join(skill.dir_name);
+            fs::create_dir_all(&skill_dir)?;
+            let file_path = skill_dir.join("SKILL.md");
+            fs::write(&file_path, skill.skill_md)?;
+            written.push(PathBuf::from(crate::util::paths::normalize_path(
+                &file_path.to_string_lossy(),
+            )));
+        }
+    }
+
+    Ok(written)
+}
+
+/// Writes Gemini custom `.toml` slash commands into `.gemini/commands/` (or direct `commands/` dir).
+pub fn patch_gemini_commands(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<Vec<PathBuf>, DynError> {
+    let p = target.as_ref();
+    let commands_dir = if p.ends_with("commands") {
+        p.to_path_buf()
+    } else if p.ends_with(".gemini") {
+        p.join("commands")
+    } else {
+        p.join(".gemini").join("commands")
+    };
+
+    let has_commands = rules.iter().any(|r| !r.gemini_commands().is_empty());
+    if !has_commands {
+        return Ok(Vec::new());
+    }
+
+    fs::create_dir_all(&commands_dir)?;
+
+    let mut written = Vec::new();
+    for &rule in rules {
+        for cmd in rule.gemini_commands() {
+            let file_path = commands_dir.join(cmd.filename);
+            fs::write(&file_path, cmd.toml)?;
+            written.push(PathBuf::from(crate::util::paths::normalize_path(
+                &file_path.to_string_lossy(),
+            )));
+        }
     }
 
     Ok(written)

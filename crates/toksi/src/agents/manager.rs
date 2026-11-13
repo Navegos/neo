@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/manager.rs
 // created: 2026-11-09
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -144,12 +144,20 @@ impl AgentManager {
                 details.push(format!("Created directory: {}", normalize_path(&target_dir.to_string_lossy())));
             }
 
-            // Sync standard in-tree rules & skills
+            // Sync standard in-tree rules & skills strictly for this selected agent
+            let sync_opts = crate::rules::SyncOptions::for_agents([agent_id]);
             if workspace {
-                let _ = crate::rules::sync_workspace_rules(".", crate::rules::RuleKind::all());
+                let _ = crate::rules::sync_workspace_rules_with_options(
+                    ".",
+                    crate::rules::RuleKind::all(),
+                    &sync_opts,
+                );
                 details.push("Synced workspace rules (AGENTS.md, instructions, skills)".to_string());
             } else {
-                let _ = crate::rules::sync_global_rules(crate::rules::RuleKind::all());
+                let _ = crate::rules::sync_global_rules_with_options(
+                    crate::rules::RuleKind::all(),
+                    &sync_opts,
+                );
                 details.push(format!("Synced user-level rules into {}", normalize_path(&target_dir.to_string_lossy())));
             }
         }
@@ -257,8 +265,12 @@ impl AgentManager {
         let mut details = Vec::new();
 
         if user_dir.exists() {
-            // Re-sync rules and skills
-            let _ = crate::rules::sync_global_rules(crate::rules::RuleKind::all());
+            // Re-sync rules and skills for this agent
+            let sync_opts = crate::rules::SyncOptions::for_agents([agent_id]);
+            let _ = crate::rules::sync_global_rules_with_options(
+                crate::rules::RuleKind::all(),
+                &sync_opts,
+            );
             details.push("Refreshed user-level rules and skills".to_string());
 
             if agent_id == "openagents" {
@@ -287,8 +299,12 @@ impl AgentManager {
             details.push(format!("Purged legacy runner: {}", p));
         }
 
-        // Sync rules
-        let _ = crate::rules::sync_global_rules(crate::rules::RuleKind::all());
+        // Sync rules for this agent
+        let sync_opts = crate::rules::SyncOptions::for_agents([agent_id]);
+        let _ = crate::rules::sync_global_rules_with_options(
+            crate::rules::RuleKind::all(),
+            &sync_opts,
+        );
         details.push("Repaired in-tree rules and skills".to_string());
 
         if agent_id == "openagents" {

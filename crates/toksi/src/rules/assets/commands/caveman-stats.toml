@@ -1,0 +1,2 @@
+description = "Report session token usage and mode attribution; savings remain unknown."
+prompt = "Direct user to built-in /stats model or /stats session for live session metrics. Do not invent savings percentages, dollar figures, or cross-host estimates. Requested options: {{args}}"

@@ -3,13 +3,13 @@
 // project: neo
 // file: crates/toksi/src/rules/cli.rs
 // created: 2026-10-31
-// lastModified: 2026-11-05
+// lastModified: 2026-11-13
 
 use std::path::{Path, PathBuf};
 use crate::rules::{
-    inject_rule_at_path, inspect_agent_rules, patch_agents_md,
-    patch_all_agent_configs, patch_claude_md, remove_rule_from_path,
-    sync_all_rules, RuleKind,
+    caveman_rule, inject_rule_at_path, inspect_agent_rules, patch_agents_md,
+    patch_all_agent_configs, patch_claude_md, ponytail_rule, remove_rule_from_path,
+    sync_all_rules_with_options, RuleKind, SyncComponents, SyncOptions,
 };
 use crate::util::colors::*;
 
@@ -18,16 +18,16 @@ pub fn print_rules_help() {
         "toksi rules — Manage in-tree coding rules & skills (principles, caveman, ponytail)\n\n\
         Usage:\n\
           toksi rules list\n\
-          toksi rules show <rule> [--cursor] [--body]\n\
+          toksi rules show <rule|mode|spec> [--cursor] [--body]\n\
           toksi rules patch [target_dir_or_file] [--rules <r1,r2>]\n\
-          toksi rules sync [target_dir] [--rules <r1,r2>] [--global]\n\
+          toksi rules sync [target_dir] [--rules <r1,r2>] [--agents <a1,a2>] [--components <c1,c2>] [--workspace] [--global]\n\
           toksi rules inject <file> <rule>\n\
           toksi rules remove <file> <rule>\n\
           toksi rules status [target_dir]\n\n\
         Rules:\n\
           principles  Karpathy guidelines: think first, simplify, surgical changes, verify\n\
-          caveman     ASD-STE100 primitive English compression guidelines\n\
-          ponytail    Lazy senior developer build discipline ladder (the Ladder)\n"
+          caveman     ASD-STE100 + Wave 17 Caveman v4 modes (ultracave, megacave, shrink, browse, .blocks)\n\
+          ponytail    Lazy senior developer build discipline ladder v5 (lite/full/ultra/review)\n"
     );
 }
 
@@ -60,14 +60,21 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
         }
         "show" | "view" | "cat" => {
             if rest.is_empty() {
-                eprintln!("Error: 'toksi rules show <rule>' requires a rule name (principles, caveman, ponytail)");
+                eprintln!("Error: 'toksi rules show <rule>' requires a rule, mode, or spec name");
                 return 1;
             }
             let rule_name = &rest[0];
+            if let Some(asset) = caveman_rule::lookup_asset(rule_name)
+                .or_else(|| ponytail_rule::lookup_skill(rule_name))
+                .filter(|_| RuleKind::from_str(rule_name).is_none())
+            {
+                print!("{}", asset);
+                return 0;
+            }
             let rule = match RuleKind::from_str(rule_name) {
                 Some(r) => r,
                 None => {
-                    eprintln!("Error: unknown rule '{}'. Available: principles, caveman, ponytail", rule_name);
+                    eprintln!("Error: unknown rule '{}'. Available: principles, caveman, ponytail, ultracave, megacave, shrink, browse, .blocks", rule_name);
                     return 1;
                 }
             };
@@ -88,6 +95,7 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
             let mut target_dir = PathBuf::from(".");
             let mut selected_rules = RuleKind::all().to_vec();
             let mut include_global = false;
+            let mut opts = SyncOptions::default();
 
             let mut i = 0;
             while i < rest.len() {
@@ -107,6 +115,29 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
                         }
                         i += 1;
                     }
+                } else if arg == "--agents" || arg == "-a" {
+                    if i + 1 < rest.len() {
+                        let agents: Vec<String> = rest[i + 1]
+                            .split(',')
+                            .map(|s| s.trim().to_string())
+                            .filter(|s| !s.is_empty())
+                            .collect();
+                        opts.selected_agents = Some(agents);
+                        i += 1;
+                    }
+                } else if arg == "--components" || arg == "-c" {
+                    if i + 1 < rest.len() {
+                        match SyncComponents::from_csv(&rest[i + 1]) {
+                            Ok(comp) => opts.components = comp,
+                            Err(e) => {
+                                eprintln!("Error: {}", e);
+                                return 1;
+                            }
+                        }
+                        i += 1;
+                    }
+                } else if arg == "--workspace" || arg == "-w" {
+                    opts.allow_workspace_install = true;
                 } else if arg == "--global" || arg == "-g" {
                     include_global = true;
                 } else if !arg.starts_with('-') {
@@ -115,10 +146,13 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
                 i += 1;
             }
 
-            match sync_all_rules(&target_dir, include_global, &selected_rules) {
+            match sync_all_rules_with_options(&target_dir, include_global, &selected_rules, &opts) {
                 Ok(report) => {
                     println!("=== Rules Synchronized ===");
                     println!("  Workspace: {}", report.workspace.display());
+                    if !report.synced_agents.is_empty() {
+                        println!("  Agents: {}", report.synced_agents.join(", "));
+                    }
                     println!("  Updated: {}", report.updated_files.len());
                     for f in &report.updated_files {
                         println!("    {} {}", C.green(Sym::CHECK), f.display());
