@@ -1,0 +1,29 @@
+{
+  "antigravity.experimental.terminalHook": "toksi",
+  "antigravity.terminal.shellArgs.windows": [
+    "-ExecutionPolicy",
+    "Bypass",
+    "-NoExit",
+    "-Command",
+    "toksi alias"
+  ],
+  "model": "Gemini 3.8 Flash (Medium)",
+  "permissions": {
+    "allow": [
+      "command(toksi)",
+      "command(toksi )",
+      "command(rtk)",
+      "command(rtk )",
+      "mcp(codegraph:*)",
+      "mcp(codegraph/*)",
+      "mcp(context-mode:*)",
+      "mcp(context-mode/*)",
+      "mcp(projectmem:*)",
+      "mcp(projectmem/*)",
+      "mcp(ai-memory:*)",
+      "mcp(ai-memory/*)",
+      "mcp(icm:*)",
+      "mcp(icm/*)"
+    ]
+  }
+}

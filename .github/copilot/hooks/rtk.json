@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi rtk-hook copilot",
+            "timeoutSec": 120
+          }
+        ]
+      }
+    ],
+    "postToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi rtk-hook copilot",
+            "timeoutSec": 120
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,95 @@
+name: Release-plz
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release-plz-release:
+    name: Release-plz release
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'BrendanGraham14' }}
+    permissions:
+      contents: write
+      id-token: write
+    outputs:
+      steer_tag: ${{ steps.steer_tag.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Authenticate with crates.io
+        uses: rust-lang/crates-io-auth-action@v1
+        id: auth
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        id: release_plz
+      - name: Extract steer tag
+        id: steer_tag
+        run: |
+          releases='${{ steps.release_plz.outputs.releases }}'
+          if ! echo "$releases" | jq -e . >/dev/null 2>&1; then
+            echo "release-plz releases output is invalid JSON; treating as empty"
+            releases='[]'
+          fi
+
+          tag=$(echo "$releases" | jq -r 'map(select(.package_name=="steer"))[0].tag // empty')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ -z "$tag" ]; then
+            echo "No steer tag found in release-plz output"
+          else
+            echo "Found steer tag: $tag"
+          fi
+  release-plz-pr:
+    name: Release-plz PR
+    runs-on: ubuntu-latest
+    if: ${{ github.repository_owner == 'BrendanGraham14' }}
+    permissions:
+      pull-requests: write
+      contents: write
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  trigger-release:
+    name: Trigger dist release
+    needs: release-plz-release
+    if: ${{ needs.release-plz-release.outputs.steer_tag != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Trigger release workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.release-plz-release.outputs.steer_tag }}
+        run: |
+          echo "Dispatching release workflow for tag $TAG"
+          gh workflow run release.yml -R "$REPO" --ref main -f tag="$TAG"
+

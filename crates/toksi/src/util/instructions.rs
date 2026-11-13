@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/instructions.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::path::Path;
 use super::paths::ensure_dir;
@@ -16,8 +16,6 @@ pub const TOKSI_OWNERS: &[&str] = &[
     "context-mode",
     "projectmem",
 ];
-
-pub const TOKLESS_OWNERS: &[&str] = TOKSI_OWNERS;
 
 pub fn section_header_for_owner(owner: &str) -> &'static str {
     match owner {

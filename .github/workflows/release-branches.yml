@@ -1,0 +1,80 @@
+name: Build goose release candidate
+
+on:
+  push:
+    branches:
+      - 'release/**'
+  workflow_dispatch:
+    inputs:
+      release_branch:
+        description: 'Release branch whose PR receives the download link'
+        required: true
+        type: string
+      build_sha:
+        description: 'Exact commit SHA to build'
+        required: true
+        type: string
+
+concurrency:
+  group: release-candidate-${{ inputs.build_sha || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  bundle-desktop:
+    uses: ./.github/workflows/bundle-macos.yml
+    permissions:
+      contents: read
+    with:
+      ref: ${{ inputs.build_sha || github.sha }}
+      target: aarch64-apple-darwin
+      package_cli: false
+      package_desktop: true
+
+  comment-on-pr:
+    needs: bundle-desktop
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Find release PR
+        id: release-pr
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_BRANCH: ${{ inputs.release_branch || github.ref_name }}
+        with:
+          script: |
+            const { data: prs } = await github.rest.pulls.list({
+              ...context.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${process.env.RELEASE_BRANCH}`,
+            });
+            core.setOutput('number', prs[0]?.number ?? '');
+
+      - name: Comment with download link
+        if: steps.release-pr.outputs.number != ''
+        uses: peter-evans/create-or-update-comment@e8674b075228eee787fea43ef493e45ece1004c9  # v5.0.0
+        with:
+          issue-number: ${{ steps.release-pr.outputs.number }}
+          body: |
+            ### macOS ARM64 Desktop App (Apple Silicon)
+
+            [📱 Download macOS Desktop App (arm64, unsigned)](https://nightly.link/${{ github.repository }}/actions/runs/${{ github.run_id }}/Goose-darwin-arm64.zip)
+
+            **Instructions:**
+            
+            The easiest way is to just run the following script:
+            
+            `./scripts/pre-release.sh`
+            
+            script which will download the latest release (or you can specify the release you need), does the
+            unzip, xattr to get it out of quarantine and signs it.
+            
+            If you need to do this manually:
+            
+               * Download the file
+               * Unzip
+               * run `xattr -r -d com.apple.quarantine '/path/to/Goose.app'`
+               * optionally run `codesign --force --deep --sign - --entitlements ui/desktop/entitlements.plist '/path/to/Goose.app'`
+               * start the app
+            
+            The signing step is only needed if you do something that uses mac entitlements like speech to text

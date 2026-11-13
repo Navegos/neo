@@ -22,8 +22,7 @@ Enterprise-grade native Safe Rust (`#![deny(unsafe_code)]`) token optimization, 
 - ...and 23 older fixed issues not shown (`pjm search`, or `get_issue(issue_id)` via MCP)
 
 ## Decisions
-- ...62 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
-- Phase 06 rerun: In-Tree Rules & Skills Integration verified with embedded Karpathy principles, Caveman ASD-STE100, and Ponytail build discipline compiled via include_str! and zero warnings [crates/toksi/src/rules/mod.rs:1]
+- ...63 earlier decisions not shown (`pjm search`, or `search_events(query)` via MCP)
 - Phase 07 rerun: Headroom Deep Integration & Gateway Catalog verified with 39+ in-tree provider catalog, 8-class failure cascade, dynamic load balancer, task complexity router, virtual key governance, dual-tier semantic cache (SHA-256 + Cosine Similarity >= 0.92), AST code/whitespace pruning... [crates/toksi/src/headroom/mod.rs:1]
 - Phase 07: Headroom Deep Integration & Gateway Catalog verified. Dropped headroom-py; implemented core token compression (log deduplication with byte-for-byte error/fatal/panic survival, AST code pruner, JSON minifier, dynamic MCP schema pruner, 1024-token prompt cache alignment, adaptive memory... [crates/toksi/src/headroom/mod.rs:1]
 - Phase 10 executed: non-destructive environment injection via Windows HKCU\Environment registry direct Win32 APIs, broadcast WM_SETTINGCHANGE via SendMessageTimeoutW, Unix session env via systemd/launchctl/environment.d, and RAII TeardownGuard with process signal handlers (SIGINT, SIGTERM... [crates/toksi/src/env_injector/mod.rs:1]
@@ -38,6 +37,7 @@ Enterprise-grade native Safe Rust (`#![deny(unsafe_code)]`) token optimization, 
 - Workspace-only brain prompts inside <repo>/.agents/brain/ (31 files: INDEX_AND_EXECUTION_GUIDE.md plus PHASE_01 through PHASE_17_7), retiring user-home plan paths [.agents/brain/INDEX_AND_EXECUTION_GUIDE.md:1]
 - Strict <repo>/.toksi/<tool> repo-only storage for codegraph, projectmem, context, icm, and ai-memory (never ~/.toksi/<tool> or nested crates); walk to .git root with monorepo subproject_id and dynamic .gitignore/.ignore purge [crates/toksi/src/commands/index.rs:1]
 - Unified 7-port topology (:8787 Headroom, :8788 Grok OAuth, :8789/:8790 Copilot, :18787 BYOK, :9099 Gateway, :9100 Cockpit), zero paid-tier restrictions (FreeTierDisqualified removed), multi-instance <byok, model, effort> SQLite profiles, and 65/90+ Categories 1-5 + 22 local engines [crates/toksi/CONSOLIDATION_PLAN.md:1]
+- Refactor: refactor(tools): deprecate legacy node runtimes in favor of native in-tree tools [crates/toksi/src/agents/manager.rs]
 
 ## Notes
 - New feature: feat(dashboard): Enhance dashboard with AI Gateway and Keyring management [crates/toksi/src/dashboard/api.rs]

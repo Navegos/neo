@@ -1,0 +1,52 @@
+{
+  "mcpServers": {
+    "codegraph": {
+      "command": "toksi",
+      "args": [
+        "run-mcp",
+        "--agent",
+        "copilot",
+        "toksi",
+        "graph",
+        "mcp"
+      ],
+      "tools": [
+        "*"
+      ],
+      "timeoutSeconds": 120,
+      "trust": true
+    },
+    "context-mode": {
+      "command": "toksi",
+      "args": [
+        "run-mcp",
+        "--tool",
+        "context-mode",
+        "toksi",
+        "ctx",
+        "mcp"
+      ],
+      "tools": [
+        "*"
+      ],
+      "timeoutSeconds": 120,
+      "trust": true
+    },
+    "projectmem": {
+      "command": "toksi",
+      "args": [
+        "run-mcp",
+        "--tool",
+        "projectmem",
+        "toksi",
+        "mem",
+        "mcp"
+      ],
+      "tools": [
+        "*"
+      ],
+      "timeoutSeconds": 120,
+      "trust": true
+    }
+  }
+}

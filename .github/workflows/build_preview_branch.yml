@@ -1,0 +1,100 @@
+name: Build preview branch
+
+on:
+  push:
+    branches: [main]
+  pull_request_target:
+    types: [labeled, unlabeled, synchronize, reopened, closed]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Republish even when the preview tree is unchanged
+        type: boolean
+        default: false
+  schedule:
+    - cron: "4,19,34,49 * * * *"
+
+permissions:
+  contents: write
+  id-token: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: build-preview-branch
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Rebuild preview from main and labeled PRs
+    if: >-
+      github.event_name != 'pull_request_target'
+      || contains(github.event.pull_request.labels.*.name, 'preview')
+      || github.event.label.name == 'preview'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.assemble.outputs.changed }}
+      sha: ${{ steps.assemble.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || 'main' }}
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Reset the preview to main when due
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: uv run scripts/build_preview_branch.py reset
+      - name: Install the latest oswe
+        if: vars.OPEN_SWE_BACKEND_URL != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          tag="$(gh api "repos/${GH_REPO}/releases?per_page=30" --jq '[.[] | select(any(.assets[]; .name == "oswe-linux-x64.tar.gz"))][0].tag_name // ""')"
+          if [[ -z "$tag" ]]; then
+            echo "::warning::No release ships oswe yet; preview conflicts will not be resolved automatically."
+            exit 0
+          fi
+          dir="$RUNNER_TEMP/oswe"
+          gh release download "$tag" -p oswe-linux-x64.tar.gz -p oswe-SHA256SUMS -D "$dir"
+          (cd "$dir" && sha256sum --check --ignore-missing oswe-SHA256SUMS && tar -xzf oswe-linux-x64.tar.gz)
+          echo "$dir" >>"$GITHUB_PATH"
+          "$dir/oswe" --version
+      - name: Assemble and publish the preview tree
+        id: assemble
+        env:
+          FORCE: ${{ inputs.force }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          OPEN_SWE_BACKEND_URL: ${{ vars.OPEN_SWE_BACKEND_URL }}
+        run: uv run scripts/build_preview_branch.py build
+
+  deploy:
+    name: Deploy the preview tree
+    needs: build
+    if: needs.build.outputs.changed == 'true' && vars.PREVIEW_DEPLOYMENT_ID != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    concurrency:
+      group: deploy-preview
+      cancel-in-progress: false
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.ref || 'main' }}
+          persist-credentials: false
+          sparse-checkout: scripts
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - name: Roll out the preview revision
+        env:
+          DEPLOYMENT_ID: ${{ vars.PREVIEW_DEPLOYMENT_ID }}
+          EXPECTED_SHA: ${{ needs.build.outputs.sha }}
+          LANGSMITH_API_KEY: ${{ secrets.PREVIEW_DEPLOY_API_KEY || secrets.LANGSMITH_API_KEY }}
+          LANGSMITH_WORKSPACE_ID: ${{ vars.PREVIEW_WORKSPACE_ID }}
+        run: uv run scripts/deploy_preview.py

@@ -1,0 +1,843 @@
+name: Release App
+
+# Stable release for every platform. The macOS job creates the versioned release
+# via tauri-action as a PRERELEASE, so it is not `releases/latest` and no install
+# can see it; Windows and Linux then build and add their bundles to the same
+# release. The final publish job merges windows-x86_64, linux-x86_64 and
+# linux-x86_64-deb into latest.json and only then flips the release to latest.
+#
+# The manifest is published last on purpose. A latest.json that names a new
+# version but carries no entry for the reader's platform is an update *error*
+# there, not a no-op, so shipping the macOS-only manifest first stranded every
+# Windows install for the length of the Windows build. A Windows failure now
+# holds the whole release back instead, and `releases/latest` keeps serving the
+# previous stable until every platform is in.
+#
+# The staging-rolling mirror runs from the same publish job and carries every
+# platform, so a stable release no longer drops linux-x86_64 from that channel
+# (see release-macos-staging.yml).
+#
+# Per-platform release trains: a release commit can carry `[platforms: windows]`
+# (comma list of macos, windows, linux; default all) to ship a version only some
+# platforms are *offered*. Every platform is still built and attached to the
+# release, so direct downloads and the staging mirror stay complete -- only
+# latest.json is narrowed. Installs on an omitted platform see "no update"
+# (classify_update_check in lib.rs treats a missing platform entry as a no-op)
+# and stay put until the next full release converges everyone. Installs older
+# than 0.8.4 predate that no-op and will log an update-check error instead.
+#
+# Download-only publish: a release commit can carry `[publish: download-only]`
+# (or a manual run can pass publish=download-only) to build and attach every
+# platform but leave the release a PRERELEASE. `releases/latest` and its
+# latest.json keep naming the previous stable, so no existing install is
+# offered anything; only new downloads pinned to the tag get it (headroom-web
+# reads HEADROOM_DOWNLOAD_TAG for that). staging-rolling is not refreshed
+# either. Promote later without a rebuild:
+#   gh release edit vX.Y.Z --repo gglucass/headroom-desktop --prerelease=false --latest
+# Beta installs then pick it up on the next release's staging-rolling refresh.
+# Its rc releases are not pruned automatically; staging-rolling still points at
+# the last one, so delete them (`gh release delete vX.Y.Z-rc.N`) only after the
+# next release has moved staging-rolling on.
+#
+# A publish job that fails after flipping the release to `latest` is finished
+# with `gh run rerun <id> --failed`. A full re-run or a dispatch is refused
+# once the release is live: rebuilding would clobber signed bundles installs
+# are verifying against the live latest.json.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
+      - src-tauri/tauri.conf.json
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Platforms offered this update: "all", or a comma list of macos,windows,linux'
+        required: false
+        default: all
+      publish:
+        description: '"stable" flips the release to latest; "download-only" leaves it a prerelease no existing install is offered'
+        required: false
+        type: choice
+        options: [stable, download-only]
+        default: stable
+
+concurrency:
+  group: macos-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: read # the Test-workflow gate before publishing
+
+jobs:
+  release:
+    name: macOS Universal
+    runs-on: macos-latest
+    timeout-minutes: 45
+    outputs:
+      should_release: ${{ steps.release_guard.outputs.should_release }}
+      package_version: ${{ steps.release_guard.outputs.package_version }}
+      release_platforms: ${{ steps.release_guard.outputs.release_platforms }}
+      release_publish: ${{ steps.release_guard.outputs.release_publish }}
+
+    env:
+      HEADROOM_UPDATER_ENDPOINTS: '["https://github.com/gglucass/headroom-desktop/releases/latest/download/latest.json"]'
+      HEADROOM_UPDATER_STAGING_ENDPOINTS: '["https://github.com/gglucass/headroom-desktop/releases/download/staging-rolling/latest.json"]'
+      HEADROOM_UPDATER_PUBLIC_KEY: ${{ vars.HEADROOM_UPDATER_PUBLIC_KEY }}
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+      APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+      APPLE_API_PRIVATE_KEY_P8: ${{ secrets.APPLE_API_PRIVATE_KEY_P8 }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      HEADROOM_ACCOUNT_API_BASE_URL: ${{ vars.HEADROOM_ACCOUNT_API_BASE_URL }}
+      HEADROOM_APTABASE_APP_KEY: ${{ vars.HEADROOM_APTABASE_APP_KEY }}
+      VITE_HEADROOM_SALES_CONTACT_URL: ${{ vars.VITE_HEADROOM_SALES_CONTACT_URL }}
+      VITE_HEADROOM_CONTACT_FORM_URL: ${{ vars.VITE_HEADROOM_CONTACT_FORM_URL }}
+      HEADROOM_SENTRY_DSN: ${{ secrets.HEADROOM_SENTRY_DSN }}
+      VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: |
+            src-tauri -> target
+          env-vars: HEADROOM_SENTRY_DSN
+
+      - name: Validate release version state
+        id: release_guard
+        shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          DISPATCH_PLATFORMS: ${{ github.event.inputs.platforms }}
+          DISPATCH_PUBLISH: ${{ github.event.inputs.publish }}
+        run: |
+          set -euo pipefail
+          package_version="$(node -p "require('./package.json').version")"
+          tauri_version="$(node -p "JSON.parse(require('fs').readFileSync('./src-tauri/tauri.conf.json', 'utf8')).version")"
+          expected_tag="v${package_version}"
+          should_release=true
+
+          if [[ "$package_version" != "$tauri_version" ]]; then
+            echo "package.json version ($package_version) does not match src-tauri/tauri.conf.json version ($tauri_version)." >&2
+            exit 1
+          fi
+
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            before_sha="${BEFORE_SHA:-}"
+            if [[ -n "${before_sha}" ]] && [[ "${before_sha}" != "0000000000000000000000000000000000000000" ]] && git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+              previous_package_version="$(
+                git show "${before_sha}:package.json" \
+                  | node -e "const fs = require('fs'); console.log(JSON.parse(fs.readFileSync(0, 'utf8')).version);"
+              )"
+              previous_tauri_version="$(
+                git show "${before_sha}:src-tauri/tauri.conf.json" \
+                  | node -e "const fs = require('fs'); console.log(JSON.parse(fs.readFileSync(0, 'utf8')).version);"
+              )"
+
+              if [[ "${previous_package_version}" == "${package_version}" ]] && [[ "${previous_tauri_version}" == "${tauri_version}" ]]; then
+                should_release=false
+                echo "No app version bump detected relative to ${before_sha}; skipping release."
+              fi
+            fi
+          fi
+
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            if [[ "${GITHUB_REF_NAME}" != "$expected_tag" ]]; then
+              echo "Git tag ${GITHUB_REF_NAME} does not match app version ${expected_tag}." >&2
+              exit 1
+            fi
+          fi
+
+          if [[ ! "$package_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Stable release requires a plain X.Y.Z version (got: $package_version). Pre-release versions ship via the staging workflow." >&2
+            exit 1
+          fi
+
+          # Which platforms are *offered* this version. Manual runs pass an
+          # input; pushes carry `[platforms: windows]` in a release-branch commit
+          # message (a commit in the pushed range that is not on staging, so an
+          # rc-cycle commit quoting a marker cannot set it), and the newest
+          # marker wins. Default all, so forgetting the marker ships to everyone
+          # rather than stranding a platform.
+          release_platforms="${DISPATCH_PLATFORMS:-all}"
+          # Whether the finished release is flipped to `latest` (stable) or left
+          # a prerelease only pinned new downloads can reach (download-only).
+          # Same marker idiom: `[publish: download-only]`.
+          release_publish="${DISPATCH_PUBLISH:-stable}"
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            release_platforms=all
+            release_publish=stable
+            range_msgs="$(git log -1 --pretty=%B "${GITHUB_SHA}")"
+            if [[ -n "${before_sha:-}" ]] && git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+              range_msgs="$(git log --pretty=%B "${before_sha}..${GITHUB_SHA}" --not origin/staging)"
+            fi
+            # git log prints newest first.
+            marker="$(grep -oiE '\[platforms:[^]]+\]' <<< "$range_msgs" | head -1 || true)"
+            if [[ -n "$marker" ]]; then
+              release_platforms="$(sed -E 's/^\[[Pp]latforms:[[:space:]]*//; s/\][[:space:]]*$//; s/[[:space:]]//g' <<< "$marker")"
+            fi
+            marker="$(grep -oiE '\[publish:[^]]+\]' <<< "$range_msgs" | head -1 || true)"
+            if [[ -n "$marker" ]]; then
+              release_publish="$(sed -E 's/^\[[Pp]ublish:[[:space:]]*//; s/\][[:space:]]*$//; s/[[:space:]]//g' <<< "$marker")"
+            fi
+          fi
+
+          for family in ${release_platforms//,/ }; do
+            case "$family" in
+              all|macos|windows|linux) ;;
+              *)
+                echo "Unknown platform family '${family}' in scope '${release_platforms}'. Use 'all' or a comma list of macos,windows,linux." >&2
+                exit 1
+                ;;
+            esac
+          done
+          echo "Platforms offered this release: ${release_platforms}"
+          case "$release_publish" in
+            stable|download-only) ;;
+            *)
+              echo "Unknown publish mode '${release_publish}'. Use 'stable' or 'download-only'." >&2
+              exit 1
+              ;;
+          esac
+          echo "Publish mode: ${release_publish}"
+
+          echo "package_version=${package_version}" >> "$GITHUB_OUTPUT"
+          echo "should_release=${should_release}" >> "$GITHUB_OUTPUT"
+          echo "release_platforms=${release_platforms}" >> "$GITHUB_OUTPUT"
+          echo "release_publish=${release_publish}" >> "$GITHUB_OUTPUT"
+
+      - name: Require validated release candidate
+        if: steps.release_guard.outputs.should_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_VERSION: ${{ steps.release_guard.outputs.package_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Never rebuild into a release installs already trust (mirrors
+          # release-windows-download.yml): a full re-run or a dispatch after
+          # the publish job flipped it to `latest` would clobber the signed
+          # bundles under a latest.json that still carries the old signatures.
+          # Before [skip-rc-check], which would otherwise skip this.
+          if gh release view "v${PACKAGE_VERSION}" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq .isPrerelease 2>/dev/null | grep -qx false; then
+            echo "v${PACKAGE_VERSION} is already a published (non-prerelease) release. Refusing to rebuild into it; to finish a failed publish, re-run only the failed jobs (gh run rerun <id> --failed)." >&2
+            exit 1
+          fi
+
+          commit_message="$(git log -1 --pretty=%B "${GITHUB_SHA}")"
+          if [[ "$commit_message" == *"[skip-rc-check]"* ]]; then
+            echo "Commit message contains [skip-rc-check]; bypassing rc validation."
+            exit 0
+          fi
+
+          rc_tags="$(
+            gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,isPrerelease \
+              --jq ".[] | select(.isPrerelease) | .tagName" \
+              | grep -E "^v${PACKAGE_VERSION}-rc\.[0-9]+$" || true
+          )"
+
+          if [[ -z "$rc_tags" ]]; then
+            echo "No release candidate found for v${PACKAGE_VERSION}. Publish an rc via the staging branch first, or add [skip-rc-check] to the commit message to bypass." >&2
+            exit 1
+          fi
+
+          validated=false
+          while IFS= read -r rc_tag; do
+            [[ -z "$rc_tag" ]] && continue
+            rc_ref_json="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${rc_tag}")"
+            rc_sha="$(jq -r '.object.sha' <<< "$rc_ref_json")"
+            rc_type="$(jq -r '.object.type' <<< "$rc_ref_json")"
+            # Annotated tags need a second lookup to get the commit SHA.
+            # Lightweight tags already point directly at the commit.
+            if [[ "$rc_type" == "tag" ]]; then
+              rc_commit_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${rc_sha}" --jq '.object.sha')"
+            else
+              rc_commit_sha="$rc_sha"
+            fi
+            # Ask GitHub whether this rc commit is an ancestor of GITHUB_SHA.
+            # behind_by == 0 means GITHUB_SHA contains rc_commit_sha in its history.
+            # We query the API instead of `git merge-base --is-ancestor` because
+            # actions/checkout doesn't always make every tagged commit locally
+            # reachable, even with fetch-depth: 0.
+            behind_by="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${rc_commit_sha}...${GITHUB_SHA}" --jq '.behind_by')"
+            echo "Checking ${rc_tag} (${rc_commit_sha}): behind_by=${behind_by}"
+            if [[ "$behind_by" == "0" ]]; then
+              echo "Validated: ${rc_tag} (${rc_commit_sha}) is an ancestor of ${GITHUB_SHA}."
+              validated=true
+              break
+            fi
+          done <<< "$rc_tags"
+
+          if [[ "$validated" != "true" ]]; then
+            echo "Found rc tags for v${PACKAGE_VERSION} but none are ancestors of ${GITHUB_SHA}. Promote the tested commit, or add [skip-rc-check] to bypass." >&2
+            exit 1
+          fi
+
+      - name: Validate release configuration
+        if: steps.release_guard.outputs.should_release == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          required=(
+            HEADROOM_ACCOUNT_API_BASE_URL
+            HEADROOM_APTABASE_APP_KEY
+            HEADROOM_UPDATER_PUBLIC_KEY
+            APPLE_CERTIFICATE
+            APPLE_CERTIFICATE_PASSWORD
+            APPLE_SIGNING_IDENTITY
+            TAURI_SIGNING_PRIVATE_KEY
+            TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+            HEADROOM_SENTRY_DSN
+            VITE_SENTRY_DSN
+          )
+
+          for key in "${required[@]}"; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "Missing required secret or variable: $key" >&2
+              exit 1
+            fi
+          done
+
+          if [[ -n "${APPLE_API_ISSUER:-}" && -n "${APPLE_API_KEY:-}" && -n "${APPLE_API_PRIVATE_KEY_P8:-}" ]]; then
+            exit 0
+          fi
+
+          if [[ -n "${APPLE_ID:-}" && -n "${APPLE_PASSWORD:-}" && -n "${APPLE_TEAM_ID:-}" ]]; then
+            exit 0
+          fi
+
+          echo "Configure either App Store Connect notarization secrets or Apple ID notarization secrets." >&2
+          exit 1
+
+      - name: Debug secrets presence
+        if: steps.release_guard.outputs.should_release == 'true'
+        shell: bash
+        run: |
+          echo "APPLE_API_PRIVATE_KEY_P8 set: $([[ -n "${APPLE_API_PRIVATE_KEY_P8:-}" ]] && echo YES || echo NO)"
+          echo "APPLE_API_KEY set: $([[ -n "${APPLE_API_KEY:-}" ]] && echo YES || echo NO)"
+          echo "APPLE_API_ISSUER set: $([[ -n "${APPLE_API_ISSUER:-}" ]] && echo YES || echo NO)"
+
+      - name: Prepare App Store Connect API key
+        if: steps.release_guard.outputs.should_release == 'true' && env.APPLE_API_PRIVATE_KEY_P8 != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY}.p8"
+          printf '%s' "$APPLE_API_PRIVATE_KEY_P8" > "$key_path"
+          echo "APPLE_API_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Install frontend dependencies
+        if: steps.release_guard.outputs.should_release == 'true'
+        run: npm ci
+
+      - name: Load release notes
+        if: steps.release_guard.outputs.should_release == 'true'
+        id: release_notes
+        env:
+          PACKAGE_VERSION: ${{ steps.release_guard.outputs.package_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          notes_file=".github/release-notes/${PACKAGE_VERSION}.md"
+          # Body drives both the GitHub release page and latest.json `notes`,
+          # which the in-app update dialog renders. When the per-version file
+          # is missing, ship an empty body so the dialog skips the notes block.
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            if [[ -f "$notes_file" ]]; then
+              cat "$notes_file"
+            fi
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and publish Tauri release
+        if: steps.release_guard.outputs.should_release == 'true'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEADROOM_UPDATER_ENDPOINTS: ${{ env.HEADROOM_UPDATER_ENDPOINTS }}
+          HEADROOM_UPDATER_STAGING_ENDPOINTS: ${{ env.HEADROOM_UPDATER_STAGING_ENDPOINTS }}
+          HEADROOM_UPDATER_PUBLIC_KEY: ${{ env.HEADROOM_UPDATER_PUBLIC_KEY }}
+          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ env.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ env.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
+          APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          HEADROOM_SENTRY_DSN: ${{ env.HEADROOM_SENTRY_DSN }}
+          VITE_SENTRY_DSN: ${{ env.VITE_SENTRY_DSN }}
+        with:
+          projectPath: .
+          tagName: v__VERSION__
+          releaseName: Headroom v__VERSION__
+          releaseBody: ${{ steps.release_notes.outputs.body }}
+          generateReleaseNotes: false
+          releaseDraft: false
+          # Published but not `releases/latest`, so the stable updater endpoint
+          # keeps serving the previous version until the publish job flips this.
+          prerelease: true
+          releaseAssetNamePattern: '[name]_[version]_mac[ext]'
+          uploadUpdaterJson: true
+          args: --target universal-apple-darwin
+
+  windows:
+    name: Windows x64
+    needs: release
+    if: needs.release.outputs.should_release == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    env:
+      HEADROOM_UPDATER_ENDPOINTS: '["https://github.com/gglucass/headroom-desktop/releases/latest/download/latest.json"]'
+      HEADROOM_UPDATER_STAGING_ENDPOINTS: '["https://github.com/gglucass/headroom-desktop/releases/download/staging-rolling/latest.json"]'
+      HEADROOM_UPDATER_PUBLIC_KEY: ${{ vars.HEADROOM_UPDATER_PUBLIC_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # Authenticode via Azure Artifact Signing. tauri.conf.json's
+      # bundle.windows.signCommand shells out to artifact-signing-cli, which
+      # reads these three. Missing creds fail the build rather than silently
+      # shipping an unsigned installer.
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      HEADROOM_ACCOUNT_API_BASE_URL: ${{ vars.HEADROOM_ACCOUNT_API_BASE_URL }}
+      HEADROOM_APTABASE_APP_KEY: ${{ vars.HEADROOM_APTABASE_APP_KEY }}
+      VITE_HEADROOM_SALES_CONTACT_URL: ${{ vars.VITE_HEADROOM_SALES_CONTACT_URL }}
+      VITE_HEADROOM_CONTACT_FORM_URL: ${{ vars.VITE_HEADROOM_CONTACT_FORM_URL }}
+      HEADROOM_SENTRY_DSN: ${{ secrets.HEADROOM_SENTRY_DSN }}
+      VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: |
+            src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Azure Artifact Signing CLI
+        # Pinned on purpose: this binary runs with the signing secrets in env.
+        # crates.io versions are immutable; bump by hand after reviewing the diff.
+        run: cargo install artifact-signing-cli --version =0.11.0 --locked
+
+      - name: Build NSIS installer
+        shell: bash
+        # NSIS only: bundle.targets is "all", which also builds an MSI this
+        # workflow never publishes. signCommand signs both the inner .exe and
+        # the installer; SmartScreen still warns until reputation accrues; the release notes should keep saying so.
+        run: npx tauri build --target x86_64-pc-windows-msvc --bundles nsis
+
+      - name: Publish Windows installer to the stable release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STABLE_TAG: v${{ needs.release.outputs.package_version }}
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"
+          setup="$(ls "$bundle_dir"/*-setup.exe)"
+          sig="${setup}.sig"
+          [ -f "$sig" ] || { echo "updater signature missing: $sig" >&2; exit 1; }
+
+          # The release is still a prerelease, so nothing polls it yet. The
+          # publish job reads this .sig back out to build the manifest.
+          gh release upload "$STABLE_TAG" "$setup" "$sig" --clobber --repo "$GITHUB_REPOSITORY"
+
+  linux:
+    name: Linux x86_64
+    needs: release
+    if: needs.release.outputs.should_release == 'true'
+    # ubuntu-22.04 would give a lower glibc floor, but it enters brownout
+    # deprecation on 2026-09-17 (actions/runner-images#14254), so builds would
+    # start failing within weeks. 24.04 sets the floor at glibc 2.39: this
+    # AppImage will not start on Ubuntu 22.04 or Debian 12. To widen support
+    # later, build inside an older container (`container: ubuntu:22.04`)
+    # rather than pinning the runner.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    env:
+      HEADROOM_UPDATER_ENDPOINTS: '["https://github.com/gglucass/headroom-desktop/releases/latest/download/latest.json"]'
+      HEADROOM_UPDATER_STAGING_ENDPOINTS: '["https://github.com/gglucass/headroom-desktop/releases/download/staging-rolling/latest.json"]'
+      HEADROOM_UPDATER_PUBLIC_KEY: ${{ vars.HEADROOM_UPDATER_PUBLIC_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      HEADROOM_ACCOUNT_API_BASE_URL: ${{ vars.HEADROOM_ACCOUNT_API_BASE_URL }}
+      HEADROOM_APTABASE_APP_KEY: ${{ vars.HEADROOM_APTABASE_APP_KEY }}
+      VITE_HEADROOM_SALES_CONTACT_URL: ${{ vars.VITE_HEADROOM_SALES_CONTACT_URL }}
+      VITE_HEADROOM_CONTACT_FORM_URL: ${{ vars.VITE_HEADROOM_CONTACT_FORM_URL }}
+      HEADROOM_SENTRY_DSN: ${{ secrets.HEADROOM_SENTRY_DSN }}
+      VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Key the apt package cache
+        id: apt-cache-key
+        # Weekly and per Ubuntu release: a week's package updates download
+        # once, then every Linux job on the branch installs from the cache.
+        run: |
+          prefix="apt-$(. /etc/os-release && echo "$VERSION_ID")-"
+          echo "prefix=$prefix" >> "$GITHUB_OUTPUT"
+          echo "key=$prefix$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the apt packages
+        # The azure apt mirror sent these ~65 MB at 25-128 kB/s on 2026-10-22
+        # and 10-23 (8 to 35 minutes; the 35 came within 10 of the timeout),
+        # while the index update took a second. Only the .debs come from the
+        # cache, and apt checks each against the signed index's hash.
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/apt-archives
+          key: ${{ steps.apt-cache-key.outputs.key }}
+          restore-keys: ${{ steps.apt-cache-key.outputs.prefix }}
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo mkdir -p ~/apt-archives/partial
+          sudo apt-get update
+          sudo apt-get install -y \
+            -o Dir::Cache::Archives="$HOME/apt-archives" \
+            -o APT::Keep-Downloaded-Packages=true \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            pkg-config \
+            wget
+          # apt leaves root-owned files (its lock is 0640) the cache save cannot read.
+          sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: |
+            src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build AppImage and deb
+        shell: bash
+        env:
+          # linuxdeploy ships as an AppImage and needs FUSE to mount itself,
+          # which GitHub runners do not provide; extracting instead is the
+          # supported workaround.
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        # Both are updater targets: the plugin rewrites the AppImage in place,
+        # and installs the deb with `pkexec dpkg -i`. Each needs its own signed
+        # entry in the manifest (see the publish job below).
+        run: npx tauri build --target x86_64-unknown-linux-gnu --bundles deb,appimage
+
+      - name: Publish Linux bundles to the stable release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STABLE_TAG: v${{ needs.release.outputs.package_version }}
+        run: |
+          set -euo pipefail
+          bundle_dir="src-tauri/target/x86_64-unknown-linux-gnu/release/bundle"
+          appimage="$(ls "$bundle_dir"/appimage/*.AppImage)"
+          deb="$(ls "$bundle_dir"/deb/*.deb)"
+
+          # Only a bare .AppImage is installable: the app builds tauri-plugin-updater
+          # without its `zip` feature (Cargo.toml), so an .AppImage.tar.gz update
+          # would be written over the user's AppImage as-is. A bundler change then
+          # fails here instead of shipping that.
+          sig="$(ls "$bundle_dir"/appimage/*.AppImage.sig 2>/dev/null | head -1)"
+          [ -n "$sig" ] || { echo "no updater signature in $bundle_dir/appimage" >&2; exit 1; }
+          updater_artifact="${sig%.sig}"
+          [ -f "$updater_artifact" ] || { echo "signed artifact missing: $updater_artifact" >&2; exit 1; }
+
+          # The deb is a separate updater target: tauri resolves
+          # `linux-x86_64-deb` before falling back to `linux-x86_64`, so without
+          # its own signed entry a .deb install downloads the AppImage and dies
+          # with "update is not a valid deb package".
+          deb_sig="$(ls "$bundle_dir"/deb/*.deb.sig 2>/dev/null | head -1)"
+          [ -n "$deb_sig" ] || { echo "no updater signature in $bundle_dir/deb" >&2; exit 1; }
+
+          assets=("$appimage" "$sig" "$deb" "$deb_sig")
+          [ "$updater_artifact" = "$appimage" ] || assets+=("$updater_artifact")
+
+          # The release is still a prerelease, so nothing polls it yet. The
+          # publish job reads these .sigs back out to build the manifest.
+          gh release upload "$STABLE_TAG" "${assets[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+
+  publish:
+    name: Publish stable manifest
+    # Only after every platform bundle is in the release: this job writes the
+    # complete latest.json, then makes the release `latest` so installs see it.
+    needs: [release, windows, linux]
+    if: needs.release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45 # up to 30 of it waiting on Test
+    # A job-level block replaces the workflow's, so restate both of those.
+    # id-token + attestations are only for the provenance step below.
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Wait for the Test workflow on this commit
+        # The release builds compile no test code, so they pass where the
+        # Windows test build no longer compiles: rc8 and rc10 shipped that way.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          runs="repos/$GITHUB_REPOSITORY/actions/workflows/test.yml/runs?head_sha=$GITHUB_SHA&event=push&per_page=1"
+          for _ in $(seq 180); do
+            read -r status conclusion url < <(gh api "$runs" --jq '.workflow_runs[0] | "\(.status) \(.conclusion) \(.html_url)"') || true
+            if [ "$status" = completed ]; then
+              [ "$conclusion" = success ] && exit 0
+              echo "::error::Test finished $conclusion for $GITHUB_SHA: $url. Fix it (or re-run it), then re-run this job."
+              exit 1
+            fi
+            sleep 10
+          done
+          echo "::error::no finished Test run for $GITHUB_SHA after 30 minutes (last status: $status)"
+          exit 1
+
+      - name: Collect the installers for attestation
+        # Every platform job has uploaded by now. The updater payloads
+        # (.app.tar.gz, setup.exe, AppImage, deb) are attested alongside the
+        # download installers, so `gh attestation verify <file> --repo
+        # gglucass/headroom-desktop` works on anything a user or the updater
+        # fetches. Runs before publish on purpose: a failed attestation leaves
+        # the release a prerelease nobody is offered, like a failed Test gate.
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STABLE_TAG: v${{ needs.release.outputs.package_version }}
+        run: |
+          set -euo pipefail
+          gh release download "$STABLE_TAG" --repo "$GITHUB_REPOSITORY" --dir attest \
+            -p '*.dmg' -p '*_mac.app.tar.gz' -p '*-setup.exe' \
+            -p '*.AppImage' -p '*.AppImage.tar.gz' -p '*.deb'
+          ls -l attest
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: attest/*
+
+      - name: Complete the manifest and publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STABLE_TAG: v${{ needs.release.outputs.package_version }}
+          RELEASE_PLATFORMS: ${{ needs.release.outputs.release_platforms }}
+          RELEASE_PUBLISH: ${{ needs.release.outputs.release_publish }}
+        run: |
+          set -euo pipefail
+          workdir="$(mktemp -d)"
+          gh release download "$STABLE_TAG" --repo "$GITHUB_REPOSITORY" --dir "$workdir"
+
+          # tauri-action wrote a darwin-only manifest whose URLs point at this
+          # tag. Merge the other platforms the same way, so the one file is
+          # valid on the stable release and on staging-rolling (whose assets are
+          # pruned by the next rc, and so must never be a manifest target).
+          mac_sig="$(ls "$workdir"/*_mac.app.tar.gz.sig)"
+          win_sig="$(ls "$workdir"/*-setup.exe.sig)"
+          linux_sig="$(ls "$workdir"/*.AppImage.sig 2>/dev/null | head -1 || true)"
+          [ -n "$linux_sig" ] || { echo "no linux updater signature in $STABLE_TAG" >&2; exit 1; }
+          deb_sig="$(ls "$workdir"/*.deb.sig 2>/dev/null | head -1 || true)"
+          [ -n "$deb_sig" ] || { echo "no linux deb updater signature in $STABLE_TAG" >&2; exit 1; }
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${STABLE_TAG}"
+          jq \
+            --arg mac_sig "$(cat "$mac_sig")" \
+            --arg mac_url "${base}/$(basename "${mac_sig%.sig}")" \
+            --arg win_sig "$(cat "$win_sig")" \
+            --arg win_url "${base}/$(basename "${win_sig%.sig}")" \
+            --arg linux_sig "$(cat "$linux_sig")" \
+            --arg linux_url "${base}/$(basename "${linux_sig%.sig}")" \
+            --arg deb_sig "$(cat "$deb_sig")" \
+            --arg deb_url "${base}/$(basename "${deb_sig%.sig}")" \
+            '.platforms["darwin-aarch64"] = {signature: $mac_sig, url: $mac_url}
+            | .platforms["darwin-x86_64"] = {signature: $mac_sig, url: $mac_url}
+            | .platforms["windows-x86_64"] = {signature: $win_sig, url: $win_url}
+             | .platforms["linux-x86_64"] = {signature: $linux_sig, url: $linux_url}
+             | .platforms["linux-x86_64-deb"] = {signature: $deb_sig, url: $deb_url}' \
+            "$workdir/latest.json" > "$workdir/latest.merged.json"
+          mv "$workdir/latest.merged.json" "$workdir/latest.json"
+
+          # Narrow the manifest to this release's platform scope. The bundles
+          # stay attached either way; dropping a platform's entry only means its
+          # installs are not offered this version.
+          families="${RELEASE_PLATFORMS:-all}"
+          if [ "$families" = "all" ]; then families="macos,windows,linux"; fi
+          scope=()
+          for family in ${families//,/ }; do
+            case "$family" in
+              macos) scope+=(darwin-aarch64 darwin-x86_64) ;;
+              windows) scope+=(windows-x86_64) ;;
+              linux) scope+=(linux-x86_64 linux-x86_64-deb) ;;
+              *) echo "unknown platform family: $family" >&2; exit 1 ;;
+            esac
+          done
+          scope_json="$(printf '%s\n' "${scope[@]}" | jq -R . | jq -sc .)"
+          # The updater ignores unknown top-level fields; the beta-channel canary
+          # reads this one so a deliberate omission does not look like a platform
+          # that silently vanished from the manifest.
+          jq --argjson scope "$scope_json" \
+            '.platforms |= with_entries(select(.key as $k | $scope | index($k)))
+             | .headroom_platform_scope = $scope' \
+            "$workdir/latest.json" > "$workdir/latest.scoped.json"
+          mv "$workdir/latest.scoped.json" "$workdir/latest.json"
+          for platform in "${scope[@]}"; do
+            jq -e --arg p "$platform" '.platforms[$p].url' "$workdir/latest.json" >/dev/null \
+              || { echo "latest.json lost in-scope platform ${platform}" >&2; exit 1; }
+          done
+
+          gh release upload "$STABLE_TAG" "$workdir/latest.json" --clobber --repo "$GITHUB_REPOSITORY"
+
+          # Download-only: everything is attached, but the release stays a
+          # prerelease and no rolling channel is refreshed, so no existing
+          # install is offered it. See the header for how to promote it later.
+          if [ "${RELEASE_PUBLISH:-stable}" = download-only ]; then
+            echo "download-only publish: ${STABLE_TAG} stays a prerelease; releases/latest still serves the previous stable."
+            exit 0
+          fi
+
+          # Manifest complete: hand the release to the stable updater endpoint.
+          gh release edit "$STABLE_TAG" --repo "$GITHUB_REPOSITORY" --prerelease=false --latest
+
+          # Beta installs poll staging-rolling; a newer stable has to reach them
+          # too. Update in place rather than delete-then-recreate: a mid-step
+          # failure used to leave the release deleted, 404ing that endpoint
+          # until the next release. Binaries first, latest.json last.
+          # The rc mirror (release-macos-staging.yml, another concurrency group,
+          # same check) also writes it, and the last rc can finish after this
+          # stable, or the next cycle's rc.1 before it. Neither writer may roll
+          # the channel back, so skip the refresh when it already names a newer
+          # version.
+          staging_rolling_is_newer_than() {
+            gh release download staging-rolling --repo "$GITHUB_REPOSITORY" -p latest.json -O - 2>/dev/null \
+              | jq -e --arg new "$1" '
+                  def key: ltrimstr("v") | capture("^(?<a>[0-9]+)\\.(?<b>[0-9]+)\\.(?<c>[0-9]+)(-rc\\.(?<r>[0-9]+))?$")
+                    | [(.a, .b, .c | tonumber), (if .r then 0 else 1 end), ((.r // "0") | tonumber)];
+                  (.version | key) > ($new | key)' >/dev/null
+          }
+          if staging_rolling_is_newer_than "${STABLE_TAG#v}"; then
+            echo "::notice::staging-rolling already serves a version newer than ${STABLE_TAG}; leaving it alone."
+          elif gh release view staging-rolling --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            bundles=()
+            for f in "$workdir"/*; do
+              [ "$(basename "$f")" = "latest.json" ] || bundles+=("$f")
+            done
+            gh release upload staging-rolling "${bundles[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release upload staging-rolling "$workdir/latest.json" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit staging-rolling \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Headroom staging (rolling)" \
+              --notes "Rolling pointer to the latest build. Current: ${STABLE_TAG} (stable)."
+            # Prune assets left over from previous versions (different
+            # per-version filenames) now that the manifest points elsewhere.
+            for asset in $(gh release view staging-rolling --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name'); do
+              if [ ! -e "$workdir/$asset" ]; then
+                gh release delete-asset staging-rolling "$asset" --yes --repo "$GITHUB_REPOSITORY"
+              fi
+            done
+          else
+            gh release create staging-rolling \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Headroom staging (rolling)" \
+              --notes "Rolling pointer to the latest build. Current: ${STABLE_TAG} (stable)." \
+              --prerelease \
+              --target "$GITHUB_SHA" \
+              "$workdir"/*
+          fi
+
+          # The windows-preview and linux-preview channels are retired (their
+          # workflows are deleted), but installs from them still poll
+          # <channel>/latest.json. Keep refreshing both so they are offered this
+          # stable build and move onto the stable endpoint; drop a block once
+          # its release is deleted.
+          if gh release view windows-preview --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload windows-preview "$workdir/latest.json" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit windows-preview --repo "$GITHUB_REPOSITORY" \
+              --title "Headroom Windows preview (rolling)" \
+              --notes "Windows now ships with the stable releases (current: ${STABLE_TAG}). This channel only redirects remaining preview installs to stable - install from the latest stable release instead."
+          fi
+          if gh release view linux-preview --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload linux-preview "$workdir/latest.json" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release edit linux-preview --repo "$GITHUB_REPOSITORY" \
+              --title "Headroom Linux preview (rolling)" \
+              --notes "Linux now ships with the stable releases (current: ${STABLE_TAG}). This channel only redirects remaining preview installs to stable - install from the latest stable release instead."
+          fi
+
+          # This version's rcs are dead now that staging-rolling points at the
+          # stable assets: delete their releases, keep the tags (bisects and
+          # `git describe` read them). Last on purpose, so a failed publish
+          # keeps its rcs, and a failed delete only warns: the release is out.
+          # A download-only stable exits above and keeps its rcs (see the header).
+          for rc in $(gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName -q '.[].tagName' | grep -E "^${STABLE_TAG}-rc\.[0-9]+$" || true); do
+            gh release delete "$rc" --yes --repo "$GITHUB_REPOSITORY" || echo "::warning::could not delete release $rc"
+          done

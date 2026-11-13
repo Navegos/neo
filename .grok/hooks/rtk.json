@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|run_command|bash|terminal|exec",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi rtk-hook grok",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|run_command|bash|terminal|exec",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi rtk-hook grok",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

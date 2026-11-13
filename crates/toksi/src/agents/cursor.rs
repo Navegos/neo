@@ -431,7 +431,9 @@ pub fn configure_cursor_mcp(tool_id: &str) -> (bool, String) {
                 Value::Object(OrderedMap::new())
             }
         };
-        let root = cfg.as_object_mut().unwrap();
+        let Some(root) = cfg.as_object_mut() else {
+            return (false, p);
+        };
         if !root.contains_key("mcpServers") {
             root.insert("mcpServers".to_string(), Value::Object(OrderedMap::new()));
         }
@@ -655,26 +657,31 @@ fn cursor_posix_command_arg(arg: &str) -> String {
 }
 
 fn cursor_rtk_hook_command_for(bridge: bool) -> String {
+    let args = ["rtk-hook", "cursor"];
     if bridge {
-        let mut args = vec!["--".to_string()];
+        let mut wsl = vec!["--".to_string()];
         if let Ok(distro) = std::env::var("WSL_DISTRO_NAME") {
             if !distro.is_empty() {
-                args = vec![
+                wsl = vec![
                     "-d".to_string(),
                     cursor_windows_command_arg(&distro),
                     "--".to_string(),
                 ];
             }
         }
-        args.push(cursor_windows_command_arg(&toksi_abs()));
-        args.push("rtk".to_string());
-        args.push("hook".to_string());
-        args.push("cursor".to_string());
         let mut full = vec!["wsl.exe".to_string()];
-        full.extend(args);
+        full.extend(wsl);
+        full.push(cursor_windows_command_arg(&toksi_abs()));
+        full.extend(args.iter().map(|s| s.to_string()));
         return full.join(" ");
     }
-    "rtk hook cursor".to_string()
+    let path = toksi_abs();
+    let quoted = if IS_WIN {
+        cursor_windows_command_arg(&path)
+    } else {
+        cursor_posix_command_arg(&path)
+    };
+    format!("{} {}", quoted, args.join(" "))
 }
 
 fn cursor_codegraph_hook_command_for(bridge: bool) -> String {
@@ -804,7 +811,9 @@ fn install_cursor_codegraph_index_hook_at(path: &str) -> bool {
             Value::Object(OrderedMap::new())
         }
     };
-    let root = cfg.as_object_mut().unwrap();
+    let Some(root) = cfg.as_object_mut() else {
+        return false;
+    };
     if let Some(version) = root.get("version") {
         if !cursor_version_one(version) {
             return false;
@@ -971,7 +980,9 @@ fn install_cursor_project_rules_hook_at(path: &str) -> bool {
             Value::Object(OrderedMap::new())
         }
     };
-    let root = cfg.as_object_mut().unwrap();
+    let Some(root) = cfg.as_object_mut() else {
+        return false;
+    };
     if !root.contains_key("hooks") {
         root.insert("hooks".to_string(), Value::Object(OrderedMap::new()));
     }
@@ -1168,10 +1179,13 @@ fn cursor_toksi_launcher(token: &str) -> bool {
 }
 
 fn cursor_owned_rtk_hook_command(command: &str) -> bool {
-    if command == "rtk hook cursor" {
+    let parts = split_command(command);
+    if parts.len() == 2 && parts[0] == "rtk-hook" && parts[1] == "cursor" {
         return true;
     }
-    let parts = split_command(command);
+    if parts.len() == 3 && parts[0] == "rtk" && parts[1] == "hook" && parts[2] == "cursor" {
+        return true;
+    }
     if parts.len() == 3
         && cursor_toksi_launcher(&parts[0])
         && parts[1] == "rtk-hook"
@@ -1192,12 +1206,20 @@ fn cursor_owned_rtk_hook_command(command: &str) -> bool {
         .and_then(|n| n.to_str())
         .unwrap_or("")
         .to_lowercase();
-    if parts.len() < 5 || first_base != "wsl.exe" {
+    if parts.len() < 4 || first_base != "wsl.exe" {
         return false;
     }
     let Some(separator) = parts.iter().skip(1).position(|p| p == "--").map(|i| i + 1) else {
         return false;
     };
+    if separator >= 1
+        && parts.len() == separator + 4
+        && cursor_toksi_launcher(&parts[separator + 1])
+        && parts[separator + 2] == "rtk-hook"
+        && parts[separator + 3] == "cursor"
+    {
+        return true;
+    }
     separator >= 1
         && parts.len() == separator + 5
         && cursor_toksi_launcher(&parts[separator + 1])
@@ -1237,7 +1259,9 @@ fn install_cursor_rtk_hook_at(path: &str) -> bool {
             Value::Object(OrderedMap::new())
         }
     };
-    let root = cfg.as_object_mut().unwrap();
+    let Some(root) = cfg.as_object_mut() else {
+        return false;
+    };
     if let Some(version) = root.get("version") {
         if !cursor_version_one(version) {
             return false;
@@ -1323,7 +1347,10 @@ fn remove_cursor_rtk_hook_at(path: &str) -> bool {
     let want = cursor_rtk_hook_command_for(cursor_target_bridge(path));
     let kept: Vec<Value> = entries
         .iter()
-        .filter(|entry| !cursor_rtk_hook_entry_matches_for(entry, &want))
+        .filter(|entry| {
+            !cursor_rtk_hook_entry_matches_for(entry, &want)
+                && !cursor_owned_rtk_hook_entry_matches(entry)
+        })
         .cloned()
         .collect();
     if kept.len() == entries.len() {
@@ -1431,7 +1458,9 @@ fn cursor_permission(path: &str, key: &str, want: &str, nested: bool, remove: bo
             Value::Object(OrderedMap::new())
         }
     };
-    let root_obj = cfg.as_object_mut().unwrap();
+    let Some(root_obj) = cfg.as_object_mut() else {
+        return false;
+    };
     if nested && !root_obj.contains_key("permissions") {
         root_obj.insert("permissions".to_string(), Value::Object(OrderedMap::new()));
     }
@@ -1482,7 +1511,9 @@ fn cursor_permission(path: &str, key: &str, want: &str, nested: bool, remove: bo
     } else {
         target_map.insert(key.to_string(), Value::Array(kept));
     }
-    let root_obj = cfg.as_object_mut().unwrap();
+    let Some(root_obj) = cfg.as_object_mut() else {
+        return false;
+    };
     if nested {
         if root_obj
             .get("permissions")

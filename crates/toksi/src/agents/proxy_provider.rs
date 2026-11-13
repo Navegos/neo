@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/proxy_provider.rs
 // created: 2026-10-11
-// lastModified: 2026-11-02
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -28,7 +28,6 @@ pub const PROXY_PROVIDER_ENV: &str = "TOKSI_PROXY_PROVIDER";
 pub const HEADROOM_BASE_URL_HEADER: &str = "x-headroom-base-url";
 pub const ERR_NO_STABLE_TOKSI: &str =
     "cannot resolve a stable toksi executable; refusing to persist an empty hook command";
-pub const ERR_NO_STABLE_TOKLESS: &str = ERR_NO_STABLE_TOKSI;
 
 #[derive(Debug, Clone)]
 pub(crate) struct ByokRouteRollback {

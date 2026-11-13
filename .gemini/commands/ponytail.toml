@@ -1,0 +1,2 @@
+description = "Switch ponytail intensity level (lite/full/ultra/off)"
+prompt = "Switch to ponytail {{args}} mode. Empty keeps current level or activates full. Apply the Ladder: YAGNI, codebase reuse, stdlib/native, installed deps, one line, minimum complete code. Mark deliberate deferrals with shortcut: <limit>, <upgrade>."

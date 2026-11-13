@@ -1,0 +1,15 @@
+{
+  "contextFileName": "AGENTS.md",
+  "antigravity.experimental.terminalHook": "toksi",
+  "permissions": {
+    "allow": [
+      "command(toksi)",
+      "command(rtk)",
+      "mcp(codegraph:*)",
+      "mcp(context-mode:*)",
+      "mcp(projectmem:*)",
+      "mcp(ai-memory:*)",
+      "mcp(icm:*)"
+    ]
+  }
+}

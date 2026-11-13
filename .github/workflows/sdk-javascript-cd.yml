@@ -1,0 +1,89 @@
+name: sdk-javascript-cd
+
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+
+# A publish run drains — see publish-docker-app.
+concurrency:
+  group: sdk-javascript-cd-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish-sdk-npm:
+    if: startsWith(github.event.release.tag_name, 'typescript-sdk@') || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.24.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --filter "langwatch..."
+
+      - name: Build
+        working-directory: ./sdks/typescript
+        run: pnpm build
+
+      - name: Run tests
+        working-directory: ./sdks/typescript
+        env:
+          # OpenAI traffic rides the LangWatch AI Gateway (virtual key +
+          # gateway base URL), same as sdk-javascript-ci.yml.
+          OPENAI_API_KEY: ${{ secrets.TYPESCRIPT_SDK_GATEWAY_VIRTUAL_KEY }}
+          OPENAI_BASE_URL: https://gateway.langwatch.ai/v1
+          OPENAI_API_BASE: https://gateway.langwatch.ai/v1
+          LANGWATCH_ENDPOINT: ${{ secrets.TYPESCRIPT_SDK_LANGWATCH_ENDPOINT }}
+          LANGWATCH_API_KEY: ${{ secrets.TYPESCRIPT_SDK_LANGWATCH_API_KEY }}
+        run: pnpm test
+
+
+      ## We run these against the current codebase for the CI build
+      ## but here we want to validate the SDK against the deployed app
+      ## before publishing
+      ## NOTE(afr): Disabled for now as prompts tests are broken
+      # - name: Run e2e tests
+      #   working-directory: ./sdks/typescript
+      #   env:
+      #     OPENAI_API_KEY: ${{ secrets.TYPESCRIPT_SDK_OPENAI_API_KEY }}
+      #     LANGWATCH_API_KEY: ${{ secrets.TYPESCRIPT_SDK_LANGWATCH_API_KEY }}
+      #   run: pnpm test:e2e
+
+      - name: Publish to npm
+        working-directory: ./sdks/typescript
+        run: pnpm publish --provenance --access public --no-git-checks
+
+      - name: Get version from tag or manifest
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION=${GITHUB_REF#refs/tags/typescript-sdk@v}
+          else
+            VERSION=$(cat .github/.release-please-manifest.json | jq -r '."sdks/typescript"')
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Notify Slack
+        env:
+          SLACK_RELEASE_NOTIFICATION_WEBHOOK_URL: ${{ secrets.SLACK_RELEASE_NOTIFICATION_WEBHOOK_URL }}
+        run: |
+          bash .github/scripts/notify-slack-release.sh \
+            sdks/typescript/CHANGELOG.md \
+            "TypeScript SDK" \
+            "${{ steps.get_version.outputs.version }}"

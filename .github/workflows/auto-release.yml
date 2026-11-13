@@ -1,0 +1,44 @@
+name: Auto Release
+
+concurrency:
+  group: auto-release-${{ github.event.workflow_run.head_branch || github.ref_name || 'main' }}
+  cancel-in-progress: true
+
+on:
+  workflow_run:
+    workflows: [CI, Security]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: Version bump type
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  release:
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    uses: ThreatFlux/github_actions/.github/workflows/reusable-auto-release.yml@7a5f08885a77520db023882c8de17d9e6580b7ae # v0.7.5
+    with:
+      bump: ${{ github.event.inputs.version_bump || 'auto' }}
+      required-workflows: CI,Security
+      dispatch-workflows: release.yml,docker.yml
+      dispatch-version-workflow: release.yml
+
+    # secrets:
+    #   release-token: ${{ secrets.RELEASE_TOKEN }}

@@ -1,0 +1,40 @@
+name: Publish to PyPI
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+jobs:
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Update version
+        run: |
+          cd packaging/pypi
+          sed -i "s/version = \".*\"/version = \"${{ inputs.version }}\"/" pyproject.toml
+          sed -i "s/__version__ = \".*\"/__version__ = \"${{ inputs.version }}\"/" ringlet/__init__.py
+
+      - name: Build wheel
+        run: |
+          cd packaging/pypi
+          python -m build --wheel
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: packaging/pypi/dist

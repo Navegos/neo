@@ -1,0 +1,26 @@
+{
+  "plugins": {
+    "rtk": {
+      "enabled": true
+    }
+  },
+  "userSettings": {
+    "autoExecutionPolicy": "CASCADE_COMMANDS_AUTO_EXECUTION_OFF",
+    "enableTerminalSandbox": false,
+    "nonWorkspaceFileAccessPolicy": "AGENT_SETTING_POLICY_ALLOW",
+    "permissionGrantsV2Migrated": true,
+    "remoteControlHostname": "nsc1-glowing-signal",
+    "sandboxEnabledAtV2Migration": false,
+    "globalPermissionGrants": {
+      "allow": [
+        "execute_url(localhost)",
+        "execute_url(gemini.google.com)",
+        "read_url(gemini.google.com)",
+        "execute_url(www.google.com)",
+        "read_url(raw.githubusercontent.com)",
+        "command(clang)"
+      ]
+    },
+    "enableSoundsForSpecialEvents": true
+  }
+}

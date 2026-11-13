@@ -1,0 +1,392 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# .github/workflows/_build_python_wheels.yml
+name: _build_python_wheels
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
+        default: ""
+      upload_artifacts:
+        type: boolean
+        required: false
+        default: true
+      use_latest_ci:
+        type: boolean
+        required: false
+        default: true
+        description: "Use latest CI configuration and scripts from master branch"
+      commit:
+        type: string
+        required: false
+        default: ""
+        description: "Specific commit to checkout for building wheels"
+    outputs:
+      artifact_name:
+        description: "Name of the uploaded artifact containing wheels"
+        value: ${{ jobs.collect.outputs.artifact_name }}
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - target: x86_64
+            runner: ubuntu-latest
+            manylinux: 2_34
+          - target: x86_64
+            runner: ubuntu-latest
+            manylinux: musllinux_1_2
+          - target: aarch64
+            runner: ubuntu-24.04-arm
+            manylinux: auto
+          - target: aarch64
+            runner: ubuntu-24.04-arm
+            manylinux: musllinux_1_2
+    steps:
+      - name: Download latest copy script from master
+        if: inputs.use_latest_ci
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors "https://raw.githubusercontent.com/${{ github.repository }}/master/scripts/copy-latest-from-master.sh" \
+            -o /tmp/copy-latest-from-master.sh
+          chmod +x /tmp/copy-latest-from-master.sh
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+
+      - name: Save and apply latest CI from master
+        if: inputs.use_latest_ci
+        run: |
+          /tmp/copy-latest-from-master.sh save .github scripts
+          /tmp/copy-latest-from-master.sh apply
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.10"
+
+      - name: Setup Rust with cache
+        uses: ./.github/actions/utils/setup-rust-with-cache
+
+      - name: Generate third-party license manifest
+        run: |
+          TARGET="$(uname -m)-unknown-linux-musl"
+          tarball="$(mktemp)"
+          # Staged to a file because curl --retry cannot rewind a pipe.
+          curl -sSfL --retry 5 --retry-all-errors -o "$tarball" \
+            "https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.0/cargo-about-0.9.0-${TARGET}.tar.gz"
+          tar -xzf "$tarball" -C "$HOME/.cargo/bin" --strip-components=1 "cargo-about-0.9.0-${TARGET}/cargo-about"
+          rm -f "$tarball"
+          ./scripts/ci/third-party-licenses.sh --generate --manifest foreign/python/Cargo.toml --output foreign/python/LICENSE-binary
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          working-directory: foreign/python
+          before-script-linux: |
+            # manylinux_2_28 uses yum, not dnf
+            if command -v dnf &> /dev/null; then
+              dnf install -y perl-IPC-Cmd
+            elif command -v yum &> /dev/null; then
+              yum install -y perl-IPC-Cmd
+            fi
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --out dist --interpreter python3.10 python3.11 python3.12 python3.13
+          sccache: "true"
+
+      - name: Upload wheels
+        if: inputs.upload_artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-linux-${{ matrix.target }}-${{ matrix.manylinux }}
+          path: foreign/python/dist
+          retention-days: 7
+
+  macos:
+    runs-on: ${{ matrix.target == 'x86_64' && 'macos-15-intel' || 'macos-15' }}
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+    steps:
+      - name: Download latest copy script from master
+        if: inputs.use_latest_ci
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors "https://raw.githubusercontent.com/${{ github.repository }}/master/scripts/copy-latest-from-master.sh" \
+            -o /tmp/copy-latest-from-master.sh
+          chmod +x /tmp/copy-latest-from-master.sh
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+
+      - name: Save and apply latest CI from master
+        if: inputs.use_latest_ci
+        run: |
+          /tmp/copy-latest-from-master.sh save .github scripts
+          /tmp/copy-latest-from-master.sh apply
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.10"
+
+      - name: Setup Rust with cache
+        uses: ./.github/actions/utils/setup-rust-with-cache
+
+      - name: Generate third-party license manifest
+        run: |
+          # Embark Studios releases an aarch64-apple-darwin tarball but
+          # NOT x86_64-apple-darwin (404 as of 0.9.0). Intel macOS
+          # falls back to compiling cargo-about from source.
+          ARCH="$(uname -m | sed 's/arm64/aarch64/')"
+          if [ "$ARCH" = "aarch64" ]; then
+            TARGET="aarch64-apple-darwin"
+            tarball="$(mktemp)"
+            curl -sSfL --retry 5 --retry-all-errors -o "$tarball" \
+              "https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.0/cargo-about-0.9.0-${TARGET}.tar.gz"
+            tar -xzf "$tarball" -C "$HOME/.cargo/bin" --strip-components=1 "cargo-about-0.9.0-${TARGET}/cargo-about"
+            rm -f "$tarball"
+          else
+            cargo install cargo-about --locked --version 0.9.0 --features cli
+          fi
+          ./scripts/ci/third-party-licenses.sh --generate --manifest foreign/python/Cargo.toml --output foreign/python/LICENSE-binary
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          working-directory: foreign/python
+          args: --release --out dist --interpreter python3.10 python3.11 python3.12 python3.13
+          sccache: "true"
+
+      - name: Upload wheels
+        if: inputs.upload_artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-macos-${{ matrix.target }}
+          path: foreign/python/dist
+          retention-days: 7
+
+  windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      # Windows exposes no `python3.X` on PATH and maturin's py-launcher
+      # fallback does not see setup-python tool-cache installs, so one
+      # job cannot target several interpreters. One job per version
+      # instead, each falling through to maturin's default of the
+      # interpreter on PATH. 3.10 is Windows-only excluded, see
+      # WHEEL_MATRIX_SKIP in scripts/ci/sync-python-interpreter-version.sh.
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - name: Download latest copy script from master
+        if: inputs.use_latest_ci
+        shell: bash
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors "https://raw.githubusercontent.com/${{ github.repository }}/master/scripts/copy-latest-from-master.sh" \
+            -o /tmp/copy-latest-from-master.sh
+          chmod +x /tmp/copy-latest-from-master.sh
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+
+      - name: Save and apply latest CI from master
+        if: inputs.use_latest_ci
+        shell: bash
+        run: |
+          /tmp/copy-latest-from-master.sh save .github scripts
+          /tmp/copy-latest-from-master.sh apply
+
+      - name: Setup Python
+        uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+
+      - name: Setup Rust with cache
+        uses: ./.github/actions/utils/setup-rust-with-cache
+        with:
+          shared-key: python-wheels-windows
+
+      # aws-lc-sys, reached through quinn's default rustls provider,
+      # assembles its x86_64 crypto with NASM. The runner image ships
+      # CMake but not NASM, and Chocolatey leaves it off PATH.
+      - name: Install NASM
+        shell: pwsh
+        run: |
+          $nasmDir = "C:\Program Files\NASM"
+          choco install nasm --no-progress -y
+          Add-Content -Path $env:GITHUB_PATH -Value $nasmDir
+          # GITHUB_PATH only reaches later steps, so prove the install
+          # landed where expected here rather than in a linker error.
+          $env:PATH = "$nasmDir;$env:PATH"
+          nasm -v
+
+      - name: Generate third-party license manifest
+        shell: bash
+        run: |
+          TARGET="x86_64-pc-windows-msvc"
+          # HOME is Windows-style here, which MSYS tar mishandles as -C.
+          CARGO_BIN="$(cygpath -u "$HOME")/.cargo/bin"
+          tarball="$(cygpath -u "$(mktemp)")"
+          curl -sSfL --retry 5 --retry-all-errors -o "$tarball" \
+            "https://github.com/EmbarkStudios/cargo-about/releases/download/0.9.0/cargo-about-0.9.0-${TARGET}.tar.gz"
+          tar -xzf "$tarball" -C "$CARGO_BIN" --strip-components=1 "cargo-about-0.9.0-${TARGET}/cargo-about.exe"
+          rm -f "$tarball"
+          ./scripts/ci/third-party-licenses.sh --generate --manifest foreign/python/Cargo.toml --output foreign/python/LICENSE-binary
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: x86_64
+          working-directory: foreign/python
+          args: --release --out dist
+          sccache: "true"
+
+      - name: Upload wheels
+        if: inputs.upload_artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-windows-x64-py${{ matrix.python-version }}
+          path: foreign/python/dist
+          retention-days: 7
+
+  sdist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download latest copy script from master
+        if: inputs.use_latest_ci
+        run: |
+          curl -fsSL --retry 5 --retry-all-errors "https://raw.githubusercontent.com/${{ github.repository }}/master/scripts/copy-latest-from-master.sh" \
+            -o /tmp/copy-latest-from-master.sh
+          chmod +x /tmp/copy-latest-from-master.sh
+
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+
+      - name: Save and apply latest CI from master
+        if: inputs.use_latest_ci
+        run: |
+          /tmp/copy-latest-from-master.sh save .github scripts
+          /tmp/copy-latest-from-master.sh apply
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          working-directory: foreign/python
+          args: --out dist
+
+      - name: Upload sdist
+        if: inputs.upload_artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: wheels-sdist
+          path: foreign/python/dist
+          retention-days: 7
+
+  collect:
+    name: Collect all wheels
+    needs: [linux, macos, windows, sdist]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.output.outputs.artifact_name }}
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v8
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+
+      - name: List wheels
+        run: |
+          echo "## 📦 Built Python Wheels" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Platform | Architecture | File |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-------------|------|" >> "$GITHUB_STEP_SUMMARY"
+
+          for wheel in dist/*.whl; do
+            filename=$(basename "$wheel")
+            if [[ "$filename" == *"linux"* ]]; then platform="Linux"
+            elif [[ "$filename" == *"macosx"* ]]; then platform="macOS"
+            elif [[ "$filename" == *"win"* ]]; then platform="Windows"
+            else platform="Universal"; fi
+
+            if [[ "$filename" == *"x86_64"* ]] || [[ "$filename" == *"amd64"* ]]; then arch="x86_64"
+            elif [[ "$filename" == *"aarch64"* ]] || [[ "$filename" == *"arm64"* ]]; then arch="arm64"
+            elif [[ "$filename" == *"i686"* ]]; then arch="x86"
+            else arch="any"; fi
+
+            echo "| $platform | $arch | \`$filename\` |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Total wheels built:** $(ls -1 dist/*.whl | wc -l)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload combined artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-wheels-all
+          path: dist
+          retention-days: 30
+
+      - id: output
+        run: echo "artifact_name=python-wheels-all" >> "$GITHUB_OUTPUT"
+
+      # Runs last so the artifact and the summary survive for inspection
+      # when a leg is missing. A failed build job uploads nothing, so a
+      # short count means one did not contribute. These counts are not
+      # derived from the matrices above - update them together.
+      - name: Verify wheel coverage
+        run: |
+          EXPECTED_LINUX=16   # 4 build variants x 4 interpreters
+          EXPECTED_MACOS=8    # 2 targets x 4 interpreters
+          EXPECTED_WINDOWS=3  # 1 interpreter per job, 3.10 excluded
+          EXPECTED_SDIST=1
+
+          missing=0
+          check() {
+            local label="$1" pattern="$2" expected="$3" actual
+            actual=$(find dist -maxdepth 1 -name "$pattern" | wc -l)
+            if [ "$actual" -ne "$expected" ]; then
+              echo "::error::${label}: expected ${expected}, found ${actual}"
+              missing=1
+            else
+              echo "${label}: ${actual}"
+            fi
+          }
+
+          check Linux '*linux*.whl' "$EXPECTED_LINUX"
+          check macOS '*macosx*.whl' "$EXPECTED_MACOS"
+          check Windows '*win*.whl' "$EXPECTED_WINDOWS"
+          check sdist '*.tar.gz' "$EXPECTED_SDIST"
+
+          exit "$missing"

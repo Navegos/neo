@@ -210,10 +210,6 @@ pub fn persisted_toksi_command(exe: &str, args: &[&str]) -> String {
     }
 }
 
-pub fn persisted_tokless_command(exe: &str, args: &[&str]) -> String {
-    persisted_toksi_command(exe, args)
-}
-
 pub fn toksi_data_dir() -> String {
     if let Ok(dir) = std::env::var("TOKSI_DATA_DIR") {
         if !dir.trim().is_empty() {
@@ -276,10 +272,6 @@ fn default_toksi_data_dir() -> String {
         .join("share")
         .join("toksi")
         .to_string_lossy())
-}
-
-pub fn tokless_data_dir() -> String {
-    toksi_data_dir()
 }
 
 pub fn install_marker_path() -> String {
@@ -774,10 +766,6 @@ pub fn toksi_abs() -> String {
     which_toksi_or_bare()
 }
 
-pub fn tokless_abs() -> String {
-    toksi_abs()
-}
-
 pub fn toksi_abs_strict() -> String {
     if let Ok(exe) = std::env::current_exe() {
         if let Ok(resolved) = std::fs::canonicalize(&exe) {
@@ -804,10 +792,6 @@ pub fn toksi_abs_strict() -> String {
         return w;
     }
     String::new()
-}
-
-pub fn tokless_abs_strict() -> String {
-    toksi_abs_strict()
 }
 
 pub fn toksi_persisted_abs() -> String {
@@ -872,16 +856,10 @@ pub fn toksi_persisted_abs() -> String {
     if Path::new(&path).is_absolute() && stable_executable(&path) {
         return path;
     }
-    if std::env::var("TOKSI_TEST").unwrap_or_default() == "1"
-        || std::env::var("TOKLESS_TEST").unwrap_or_default() == "1"
-    {
+    if std::env::var("TOKSI_TEST").unwrap_or_default() == "1" {
         return "toksi".to_string();
     }
     String::new()
-}
-
-pub fn tokless_persisted_abs() -> String {
-    toksi_persisted_abs()
 }
 
 fn which_toksi_or_bare() -> String {
@@ -891,11 +869,6 @@ fn which_toksi_or_bare() -> String {
     } else {
         "toksi".to_string()
     }
-}
-
-#[allow(dead_code)]
-fn which_tokless_or_bare() -> String {
-    which_toksi_or_bare()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]

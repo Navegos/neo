@@ -1,0 +1,74 @@
+name: Build vendor wheels
+
+# Builds wheels for sdist-only PyPI packages (currently: hnswlib==0.8.0) and
+# publishes them to the `vendor-wheels-v1` GitHub Release so end-user bootstraps
+# can resolve them via `pip install --find-links` without needing a local C++
+# toolchain. Manually dispatched; re-run when bumping pinned versions.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to publish wheels to"
+        required: true
+        default: "vendor-wheels-v1"
+      hnswlib_version:
+        description: "hnswlib version to build"
+        required: true
+        default: "0.8.0"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-26
+            arch: arm64
+          - os: ubuntu-latest
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Build hnswlib wheel
+        env:
+          HNSWLIB_VERSION: ${{ github.event.inputs.hnswlib_version }}
+        run: |
+          python -m pip install --upgrade pip wheel build
+          python -m pip wheel "hnswlib==${HNSWLIB_VERSION}" --no-deps --wheel-dir ./dist
+          ls -la ./dist
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.arch }}
+          path: ./dist/*.whl
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ./dist
+          merge-multiple: true
+      - name: List wheels
+        run: ls -la ./dist
+      - name: Publish to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.release_tag }}
+        run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # --latest=false: a new full release otherwise becomes
+            # releases/latest, which has no latest.json, and every stable
+            # install's update check 404s (silently) until the next stable.
+            gh release create "$TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --latest=false \
+              --title "Vendor wheels ($TAG)" \
+              --notes "Pre-built wheels for sdist-only PyPI packages. Consumed by headroom-desktop bootstrap via pip --find-links."
+          fi
+          gh release upload "$TAG" ./dist/*.whl --repo "$GITHUB_REPOSITORY" --clobber

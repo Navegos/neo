@@ -1,0 +1,279 @@
+name: gateway-matrix
+
+# AI Gateway provider × scenario matrix — runs the live-credential
+# Go matrix (services/aigateway/tests/matrix) against real LLM
+# providers + the LangWatch control plane. Costs ~$0.07 per full
+# run (31 cells: 5 canonical scenarios — simple, streamed,
+# tool_calling, structured_outputs, cache — across OpenAI/Anthropic/
+# Gemini/Bedrock/Azure/Vertex on cheap models, plus 1 OpenAI-only
+# streamed-auto-include-usage regression cell). Fires on gateway-
+# touching PRs (path-filtered, drafts skip, concurrency-locked
+# against shared matrix VKs to prevent double-spend on parallel
+# runs — ~$0.07/run × N gateway-touching PRs/day), the nightly
+# cron, and manual workflow_dispatch. Non-gateway PRs and fork PRs
+# (secrets stripped on forks by GitHub) fall back to the unit-test
+# layer that mocks providers at the bifrost adapter boundary.
+#
+# Touches needing this matrix:
+#   - services/aigateway/**          (gateway data plane)
+#   - pkg/**                         (shared HTTP/health helpers)
+#   - platform/app/src/server/gateway/  (control plane)
+#   - platform/app/ee/governance/process-manager/gatewayDebits.process.ts
+#     (the sole writer of gateway budget debits)
+# Triggers:
+#   - PR push (path-filtered to gateway-relevant files only — doc-only
+#     PRs don't pay the ~$0.07 cost)
+#   - Nightly cron (catches drift in shared provider infra)
+#   - Manual workflow_dispatch (with optional provider-tag override)
+# Fork PRs without secrets: the per-job guard skips the live run
+# cleanly so external contributors don't see a phantom CI red.
+
+on:
+  workflow_dispatch:
+    inputs:
+      providers:
+        description: 'Build tags (space-separated). Default = all six.'
+        type: string
+        default: 'live_openai live_anthropic live_gemini live_bedrock live_azure live_vertex live_embeddings live_audio'
+      run_id_label:
+        description: 'Optional label appended to trace tags for grep.'
+        type: string
+        default: ''
+  pull_request:
+    # `ready_for_review` on top of the defaults, because the job below
+    # skips drafts: without it a PR opened as a draft and then marked
+    # ready never runs the matrix until someone happens to push again,
+    # and the gap is invisible.
+    types: [opened, synchronize, reopened, ready_for_review]
+    # Only fire when gateway-relevant code or this workflow itself
+    # changes — doc-only / unrelated PRs stay free.
+    paths:
+      - 'services/aigateway/**'
+      - 'pkg/**'
+      - 'cmd/**'
+      - 'go.mod'
+      - 'go.sum'
+      - 'platform/app/src/server/gateway/**'
+      - 'platform/app/ee/governance/process-manager/gatewayDebits.process.ts'
+      - 'platform/app/src/server/routes/gateway-internal.ts'
+      - 'charts/gateway/**'
+      - '.github/workflows/gateway-matrix.yaml'
+  schedule:
+    # 04:00 UTC daily — quiet provider tier, runs while EMEA is asleep
+    - cron: '0 4 * * *'
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  # Serialize runs against the shared matrix-* VKs and budgets so
+  # parallel invocations don't double-count spend on the same key.
+  #
+  # Only a run that dials providers needs that lock, so this group
+  # lists exactly the same four exemptions as the job guard below and
+  # the two must be edited together. GitHub cancels whichever run is
+  # already pending in a group when a new one queues, independently of
+  # `cancel-in-progress`, and that happens at queue time rather than
+  # run time: a run parked here evicts a real PR's queued run even
+  # when its own job never executes, so finishing in seconds is no
+  # mitigation. Entering the group at all is the harm.
+  #
+  # The two automation exemptions take the branch prefix AND the
+  # account that opened the PR, so a human branch that happens to be
+  # named `dependabot/...` keeps its gateway coverage instead of
+  # silently losing it to a name.
+  group: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.draft || github.event.pull_request.head.repo.fork || (startsWith(github.head_ref, 'release-please--') && github.event.pull_request.user.login == 'langwatch-agent') || (startsWith(github.head_ref, 'dependabot/') && github.event.pull_request.user.login == 'dependabot[bot]'))) && format('gateway-matrix-idle-{0}', github.head_ref) || 'gateway-matrix-shared-vks' }}
+  cancel-in-progress: false
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Four exemptions, mirrored by the concurrency group above.
+    # Drafts, for cost discipline. Forks, because GitHub strips secrets
+    # on `pull_request` from them, so a live-credential matrix can only
+    # produce phantom red checks for external contributors. Release
+    # PRs, because they bump `charts/gateway/Chart.yaml` and nothing
+    # else this workflow watches, so the matrix would spend live
+    # provider calls proving a version string still answers; the branch
+    # prefix carries the double dash release-please actually emits, so
+    # a hand-written `release-please-config-...` branch is not caught
+    # by it. Dependabot, because its PRs bump the action SHAs pinned in
+    # this file and read the Dependabot secret store rather than the
+    # Actions one, so the matrix either bills real provider calls for a
+    # SHA bump or goes green on empty credentials, and neither answers
+    # a question about the gateway.
+    #
+    # Both automation exemptions require the opening account as well as
+    # the branch prefix: a branch name is chosen by whoever pushes it,
+    # so on its own it decides coverage by string rather than by who
+    # actually raised the PR. Requiring both can only ever run the
+    # matrix more often, which is the safe direction to fail in.
+    if: |
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.draft == false &&
+       github.event.pull_request.head.repo.fork == false &&
+       !(startsWith(github.head_ref, 'release-please--') &&
+         github.event.pull_request.user.login == 'langwatch-agent') &&
+       !(startsWith(github.head_ref, 'dependabot/') &&
+         github.event.pull_request.user.login == 'dependabot[bot]'))
+    env:
+      GATEWAY_URL: http://localhost:5563
+      LW_BASE_URL: http://localhost:5560
+      # Provider creds — set as repo/org secrets, NOT committed.
+      OPENAI_API_KEY: ${{ secrets.MATRIX_OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.MATRIX_ANTHROPIC_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.MATRIX_GEMINI_API_KEY }}
+      AZURE_OPENAI_ENDPOINT: ${{ secrets.MATRIX_AZURE_OPENAI_ENDPOINT }}
+      AZURE_OPENAI_API_KEY: ${{ secrets.MATRIX_AZURE_OPENAI_API_KEY }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.MATRIX_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.MATRIX_AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: eu-central-1
+      VERTEX_PROJECT: langwatch
+      VERTEX_LOCATION: us-central1
+      VERTEX_ACCESS_TOKEN: ${{ secrets.MATRIX_VERTEX_ACCESS_TOKEN }}
+      # Gateway / control-plane shared secrets.
+      LW_GATEWAY_INTERNAL_SECRET: ${{ secrets.MATRIX_LW_GATEWAY_INTERNAL_SECRET }}
+      LW_GATEWAY_JWT_SECRET: ${{ secrets.MATRIX_LW_GATEWAY_JWT_SECRET }}
+      LW_VIRTUAL_KEY_PEPPER: ${{ secrets.MATRIX_LW_VIRTUAL_KEY_PEPPER }}
+      # VK secrets minted by `pnpm tsx scripts/seed-governance-refactor-dogfood.ts`
+      # against the long-lived matrix project — capture the script's
+      # final block once + paste into GH org secrets, not regenerate
+      # per-run (the seed mints fresh VKs only on first invocation per
+      # name; re-runs return "<existing; not re-emitted>" by design).
+      TEST_VK_OPENAI: ${{ secrets.MATRIX_TEST_VK_OPENAI }}
+      TEST_VK_ANTHROPIC: ${{ secrets.MATRIX_TEST_VK_ANTHROPIC }}
+      TEST_VK_GEMINI: ${{ secrets.MATRIX_TEST_VK_GEMINI }}
+      TEST_VK_BEDROCK: ${{ secrets.MATRIX_TEST_VK_BEDROCK }}
+      TEST_VK_AZURE: ${{ secrets.MATRIX_TEST_VK_AZURE }}
+      TEST_VK_VERTEX: ${{ secrets.MATRIX_TEST_VK_VERTEX }}
+      # Voyage VK + API key — used by the live_embeddings matrix once
+      # the Voyage direct-HTTP gateway adapter ships (Bifrost has no
+      # Voyage ModelProvider enum). The embeddings_test.go cell skips
+      # when VOYAGE_ENABLED is unset so this stays inert until then.
+      TEST_VK_VOYAGE: ${{ secrets.MATRIX_TEST_VK_VOYAGE }}
+      VOYAGE_API_KEY: ${{ secrets.MATRIX_VOYAGE_API_KEY }}
+      # Audio cells (live_audio): ElevenLabs VK + a voice id for TTS. The
+      # audio_test.go cells t.Skip when unset, so this stays inert until
+      # the secrets are provisioned (seed with
+      # scripts/dogfood/audio/seed-audio-vk.ts).
+      TEST_VK_ELEVENLABS: ${{ secrets.MATRIX_TEST_VK_ELEVENLABS }}
+      ELEVENLABS_VOICE_ID: ${{ secrets.MATRIX_ELEVENLABS_VOICE_ID }}
+      LW_PROJECT_API_KEY: ${{ secrets.MATRIX_LW_PROJECT_API_KEY }}
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: langwatch
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+      clickhouse:
+        image: clickhouse/clickhouse-server:24.8
+        ports: ['8123:8123', '9000:9000']
+        env:
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_PASSWORD: ''
+          CLICKHOUSE_DB: langwatch
+
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      # node-pty is in the app's closure via mcp-server and falls back to
+      # `node-gyp rebuild` on linux, so the install runs through the shared
+      # action: it puts node-gyp on PATH and makes pnpm's bundled gyp_main.py
+      # executable.
+      - name: Setup pnpm + Node
+        uses: ./.github/actions/setup-pnpm-node
+        with:
+          install: "@langwatch/web..."
+
+      - name: Apply DB migrations
+        working-directory: platform/app
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/langwatch
+        run: pnpm prisma migrate deploy
+
+      - name: Start control plane (background)
+        working-directory: platform/app
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/langwatch
+          REDIS_URL: redis://localhost:6379
+          CLICKHOUSE_HOST: http://localhost:8123
+        run: |
+          pnpm dev > /tmp/langwatch-dev.log 2>&1 &
+          echo $! > /tmp/langwatch.pid
+          # Wait up to 90s for /api/health
+          for i in {1..45}; do
+            curl -fsS http://localhost:5560/api/health && break
+            sleep 2
+          done
+
+      - name: Start gateway (background)
+        run: |
+          go build -o /tmp/aigateway ./cmd/service
+          /tmp/aigateway aigateway > /tmp/aigateway.log 2>&1 &
+          echo $! > /tmp/aigateway.pid
+          for i in {1..30}; do
+            curl -fsS http://localhost:5563/healthz && break
+            sleep 2
+          done
+
+      - name: Run provider matrix
+        working-directory: services/aigateway
+        env:
+          # Force-include all configured tags so a partial-creds run
+          # still produces useful coverage signal — a missing-cred
+          # cell t.Skips with a clear reason instead of silently
+          # being absent from the report.
+          MATRIX_TAGS: ${{ github.event.inputs.providers || 'live_openai live_anthropic live_gemini live_bedrock live_azure live_vertex live_embeddings live_audio' }}
+        run: |
+          go test -tags="$MATRIX_TAGS" -v -count=1 -timeout 1200s \
+            ./tests/matrix/... 2>&1 | tee /tmp/matrix.log
+
+      - name: Extract matrix results
+        if: always()
+        run: |
+          echo "## Matrix run summary" >> $GITHUB_STEP_SUMMARY
+          # Each cell logs `cell <provider>/<scenario>: trace=<id> duration=<ms>s captured_cost=$<usd>`
+          grep -oE 'cell [a-z]+/[a-z_]+: .*captured_cost=\$[0-9.]+' /tmp/matrix.log | \
+            sed 's/^cell /- ✅ /' >> $GITHUB_STEP_SUMMARY || true
+          # Total cost
+          total=$(grep -oE 'captured_cost=\$[0-9.]+' /tmp/matrix.log | \
+            sed 's/captured_cost=\$//' | awk '{s+=$1} END {printf "%.4f", s}')
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total provider spend this run: \$$total**" >> $GITHUB_STEP_SUMMARY
+
+      - name: Stop services
+        if: always()
+        run: |
+          [ -f /tmp/aigateway.pid ] && kill $(cat /tmp/aigateway.pid) || true
+          [ -f /tmp/langwatch.pid ] && kill $(cat /tmp/langwatch.pid) || true
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: matrix-logs-${{ github.run_id }}
+          path: |
+            /tmp/matrix.log
+            /tmp/aigateway.log
+            /tmp/langwatch-dev.log
+          retention-days: 7

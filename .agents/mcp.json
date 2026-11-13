@@ -1,0 +1,59 @@
+{
+  "mcpServers": {
+    "codegraph": {
+      "command": "toksi",
+      "args": [
+        "run-mcp",
+        "--agent",
+        "copilot",
+        "toksi",
+        "graph",
+        "mcp"
+      ]
+    },
+    "context-mode": {
+      "command": "toksi",
+      "args": [
+        "run-mcp",
+        "--tool",
+        "context-mode",
+        "toksi",
+        "ctx",
+        "mcp"
+      ]
+    },
+    "projectmem": {
+      "command": "toksi",
+      "args": [
+        "run-mcp",
+        "--tool",
+        "projectmem",
+        "toksi",
+        "mem",
+        "mcp"
+      ]
+    },
+    "icm": {
+      "command": "toksi",
+      "args": [
+        "run-mcp",
+        "--tool",
+        "icm",
+        "toksi",
+        "icm",
+        "mcp"
+      ]
+    },
+    "aimemory": {
+      "command": "toksi",
+      "args": [
+        "run-mcp",
+        "--tool",
+        "aimemory",
+        "toksi",
+        "aimem",
+        "mcp"
+      ]
+    }
+  }
+}

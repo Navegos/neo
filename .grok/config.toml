@@ -1,0 +1,72 @@
+[cli]
+installer = "internal"
+
+[ui]
+max_thoughts_width = 120
+fork_secondary_model = "grok-4.6"
+yolo = false
+compact_mode = false
+
+[marketplace]
+default_skills_installs_purged = true
+official_marketplace_auto_installed = true
+
+[[marketplace.sources]]
+name = "xAI Official"
+git = "https://github.com/xai-org/plugin-marketplace.git"
+
+[privacy]
+privacy_banner_acked = "2026-11-07T18:56:25Z"
+
+[models]
+default = "grok-4.7"
+default_reasoning_effort = "low"
+
+[mcp_servers.codegraph]
+command = "toksi"
+args = [
+    "run-mcp",
+    "--agent",
+    "grok",
+    "toksi",
+    "graph",
+    "mcp",
+]
+enabled = true
+
+[mcp_servers.context-mode]
+command = "toksi"
+args = [
+    "run-mcp",
+    "--tool",
+    "context-mode",
+    "toksi",
+    "ctx",
+    "mcp",
+]
+enabled = true
+
+[mcp_servers.projectmem]
+command = "toksi"
+args = [
+    "run-mcp",
+    "--tool",
+    "projectmem",
+    "toksi",
+    "mem",
+    "mcp",
+]
+enabled = true
+
+[permission]
+allow = [
+  "Bash(toksi)",
+  "Bash(toksi *)",
+  "Bash(rtk)",
+  "Bash(rtk *)",
+  "MCPTool(codegraph__*)",
+  "MCPTool(context-mode__*)",
+  "MCPTool(projectmem__*)",
+  "MCPTool(ai-memory__*)",
+  "MCPTool(icm__*)",
+]

@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi context-mode hook copilot-cli pretooluse",
+            "timeoutSec": 120
+          }
+        ]
+      }
+    ],
+    "postToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi context-mode hook copilot-cli posttooluse",
+            "timeoutSec": 120
+          }
+        ]
+      }
+    ],
+    "sessionStart": [
+      {
+        "matcher": ".*",
+        "type": "command",
+        "command": "toksi context-mode hook copilot-cli sessionstart",
+        "timeoutSec": 120
+      }
+    ],
+    "userPromptSubmitted": [
+      {
+        "matcher": ".*",
+        "type": "command",
+        "command": "toksi context-mode hook copilot-cli userpromptsubmit",
+        "timeoutSec": 120
+      }
+    ],
+    "agentStop": [
+      {
+        "matcher": ".*",
+        "type": "command",
+        "command": "toksi context-mode hook copilot-cli stop",
+        "timeoutSec": 120
+      }
+    ],
+    "preCompact": [
+      {
+        "matcher": ".*",
+        "type": "command",
+        "command": "toksi context-mode hook copilot-cli precompact",
+        "timeoutSec": 120
+      }
+    ]
+  }
+}

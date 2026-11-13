@@ -1,0 +1,46 @@
+name: Code Coverage
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  coverage:
+    name: Code Coverage Report
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+
+      - name: Install tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: Generate coverage report
+        run: cargo tarpaulin --verbose --all-features --workspace --timeout 300 --out Xml --output-dir coverage
+
+      - name: Display coverage summary
+        run: |
+          echo "📊 Code Coverage Report"
+          echo "======================="
+          if [ -f "./coverage/cobertura.xml" ]; then
+            cargo tarpaulin --verbose --all-features --workspace --timeout 300 --out Stdout
+          else
+            echo "Coverage report not found"
+          fi
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: ./coverage/cobertura.xml
+          fail_ci_if_error: false
+          verbose: true

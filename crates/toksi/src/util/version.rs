@@ -3,14 +3,10 @@
 // project: neo
 // file: crates/toksi/src/util/version.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 pub fn toksi_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
-}
-
-pub fn tokless_version() -> &'static str {
-    toksi_version()
 }
 
 pub use crate::util::versions::semver_compare;

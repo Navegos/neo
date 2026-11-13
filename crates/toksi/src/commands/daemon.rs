@@ -5,6 +5,8 @@
 // created: 2026-10-27
 // lastModified: 2026-11-13
 
+#![deny(unsafe_code)]
+
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -202,6 +204,21 @@ fn daemon_start() -> i32 {
 fn daemon_stop() -> i32 {
     // Purge all Toksi-owned environment variables upon shutdown
     let _ = crate::env_injector::teardown_proxy_env();
+
+    // Auto-heal any lingering hijacked binaries, shims, symlinks, or orphaned state files
+    let report = crate::env_injector::heal_legacy_hijacks();
+    if !report.is_clean() {
+        L.raw(&format!(
+            "  {} Healed {} hijacked binary/shim artifact(s) on daemon stop",
+            C.green(Sym::CHECK),
+            report.total_healed()
+        ));
+    }
+
+    // Verify executable presence in PATH
+    if crate::util::env_path::check_executable_in_path("toksi").is_ok() {
+        L.debug("Verified toksi binary in PATH during daemon stop");
+    }
 
     if !is_daemon_running() {
         L.raw(&format!("  {} Toksi daemon is not running", C.dim("•")));

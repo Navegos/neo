@@ -905,7 +905,10 @@ pub fn configure_antigravity_mcp(tool_id: &str) -> (bool, String) {
         entry.insert("trust".to_string(), Value::Bool(true));
         let entry_val = Value::Object(entry);
 
-        let servers = json_map_child_mut(&mut cfg, "mcpServers").unwrap();
+        let Some(servers) = json_map_child_mut(&mut cfg, "mcpServers") else {
+            all_configured = false;
+            continue;
+        };
         if let Some(existing) = servers.get(tool_id) {
             if json_equal(existing, &entry_val) {
                 continue;

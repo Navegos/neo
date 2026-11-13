@@ -1,0 +1,243 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: php-pre-merge
+description: PHP pre-merge testing github iggy actions
+
+inputs:
+  task:
+    description: "Task to run (lint, test, build)"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install PHP build dependencies
+      shell: bash
+      run: |
+        ./scripts/ci/apt-install.sh --no-install-recommends \
+          clang \
+          composer \
+          libclang-dev \
+          libhwloc-dev \
+          libssl-dev \
+          php8.3-cli \
+          php8.3-dev \
+          php8.3-mbstring \
+          php8.3-xml \
+          pkg-config \
+          unzip
+
+        php_bin="$(command -v php8.3)"
+        php_config="$(command -v php-config8.3)"
+        composer_bin="$(command -v composer)"
+        {
+          echo "PHP=${php_bin}"
+          echo "PHP_CONFIG=${php_config}"
+          echo "COMPOSER_BIN=${composer_bin}"
+        } >> "$GITHUB_ENV"
+        "${php_bin}" --version
+        "${php_config}" --version
+        "${php_bin}" "${composer_bin}" --version
+
+    - name: Setup Rust with cache
+      uses: ./.github/actions/utils/setup-rust-with-cache
+      with:
+        shared-key: dev
+        save-cache: "false"
+
+    - name: Use shared Cargo target directory
+      shell: bash
+      run: echo "CARGO_TARGET_DIR=${GITHUB_WORKSPACE}/target" >> "$GITHUB_ENV"
+
+    - name: Install cargo-llvm-cov
+      if: inputs.task == 'test'
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-llvm-cov
+
+    - name: Validate task
+      shell: bash
+      run: |
+        case "${{ inputs.task }}" in
+          lint|test|build) ;;
+          *)
+            echo "Unknown PHP SDK task: ${{ inputs.task }}"
+            exit 1
+            ;;
+        esac
+
+    - name: Lint
+      if: inputs.task == 'lint'
+      shell: bash
+      run: |
+        "${PHP}" -r 'json_decode(file_get_contents("foreign/php/composer.json"), true, 512, JSON_THROW_ON_ERROR);'
+        cargo fmt --manifest-path foreign/php/Cargo.toml -- --check
+        cargo clippy --manifest-path foreign/php/Cargo.toml --all-targets --all-features -- -D warnings
+        cargo install cargo-php --locked --version 0.1.21
+        cargo build --manifest-path foreign/php/Cargo.toml
+        extension="$(find "${CARGO_TARGET_DIR}/debug" -maxdepth 1 -name 'libiggy_php.so' -print -quit)"
+        if [ -z "$extension" ]; then
+          echo "PHP extension was not produced"
+          exit 1
+        fi
+        raw_stubs="$(mktemp)"
+        cargo php stubs "$extension" -o "$raw_stubs"
+        {
+          printf '<?php\n'
+          awk 'NF { print "// " $0; next } { print "//" }' ASF_LICENSE.txt
+          printf '\n'
+          tail -n +2 "$raw_stubs"
+        } > foreign/php/iggy-php.stubs.php
+        rm -f "$raw_stubs"
+        git diff --exit-code -- foreign/php/iggy-php.stubs.php
+        find foreign/php \
+          -path foreign/php/vendor -prune -o \
+          -name '*.php' -print0 \
+          | xargs -0 -n1 "${PHP}" -l
+
+    - name: Build PHP extension
+      if: inputs.task == 'build'
+      shell: bash
+      run: |
+        cargo build --release --manifest-path foreign/php/Cargo.toml
+        extension="$(find "${CARGO_TARGET_DIR}/release" -maxdepth 1 -name 'libiggy_php.so' -print -quit)"
+        if [ -z "$extension" ]; then
+          echo "PHP extension was not produced"
+          exit 1
+        fi
+        ls -lh "$extension"
+
+    - name: Build PHP extension for tests
+      if: inputs.task == 'test'
+      shell: bash
+      run: |
+        cd foreign/php
+        source <(cargo llvm-cov show-env --sh)
+        export CARGO_TARGET_DIR=$CARGO_LLVM_COV_TARGET_DIR
+
+        echo "LLVM_PROFILE_FILE=${LLVM_PROFILE_FILE}" >> "$GITHUB_ENV"
+
+        cargo llvm-cov clean --workspace
+        cargo build --manifest-path Cargo.toml
+        extension="$(find "${CARGO_TARGET_DIR}/debug" -maxdepth 1 -name 'libiggy_php.so' -print -quit)"
+        if [ -z "$extension" ]; then
+          echo "PHP extension was not produced"
+          exit 1
+        fi
+        echo "PHP_IGGY_EXTENSION=$(realpath "$extension")" >> "$GITHUB_ENV"
+        ls -lh "$extension"
+
+    - name: Install PHP test dependencies
+      if: inputs.task == 'test'
+      shell: bash
+      working-directory: foreign/php
+      run: |
+        "${PHP}" "${COMPOSER_BIN}" install --no-interaction --prefer-dist --no-progress
+
+    - name: Start Iggy server
+      if: inputs.task == 'test'
+      id: iggy
+      uses: ./.github/actions/utils/server-start
+      with:
+        cargo-bin: iggy-server
+
+    - name: Run PHP SDK tests
+      if: inputs.task == 'test'
+      shell: bash
+      working-directory: foreign/php
+      env:
+        IGGY_TCP_ADDRESS: 127.0.0.1:8090
+        IGGY_ROOT_USERNAME: iggy
+        IGGY_ROOT_PASSWORD: iggy
+      run: |
+        mkdir -p ../../reports
+        ./scripts/test.sh --log-junit ../../reports/php-junit.xml
+
+    - name: Stop Iggy server (plain)
+      if: always() && inputs.task == 'test'
+      uses: ./.github/actions/utils/server-stop
+      with:
+        pid-file: ${{ steps.iggy.outputs.pid_file }}
+        log-file: ${{ steps.iggy.outputs.log_file }}
+
+    - name: Start Iggy server (TLS)
+      if: inputs.task == 'test'
+      id: iggy-tls
+      uses: ./.github/actions/utils/server-start
+      with:
+        cargo-bin: iggy-server
+        pid-file: ${{ runner.temp }}/iggy-server-tls.pid
+        log-file: ${{ runner.temp }}/iggy-server-tls.log
+      env:
+        IGGY_TCP_TLS_ENABLED: "true"
+        IGGY_TCP_TLS_CERT_FILE: core/certs/iggy_cert.pem
+        IGGY_TCP_TLS_KEY_FILE: core/certs/iggy_key.pem
+
+    - name: Run PHP SDK TLS tests
+      if: inputs.task == 'test'
+      shell: bash
+      working-directory: foreign/php
+      env:
+        IGGY_TCP_ADDRESS: 127.0.0.1:8090
+        IGGY_TLS_CONNECTION_STRING: iggy+tcp://iggy:iggy@127.0.0.1:8090?tls=true&tls_domain=localhost&tls_ca_file=${{ github.workspace }}/core/certs/iggy_ca_cert.pem
+        IGGY_TLS_PLAINTEXT_ADDRESS: 127.0.0.1:8090
+      run: ./scripts/test.sh --log-junit ../../reports/php-tls-junit.xml tests/TlsTest.php
+
+    - name: Generate PHP coverage report
+      if: always() && inputs.task == 'test'
+      shell: bash
+      run: |
+        cd foreign/php
+        source <(cargo llvm-cov show-env --sh)
+        export CARGO_TARGET_DIR=$CARGO_LLVM_COV_TARGET_DIR
+
+        cargo llvm-cov report --lcov \
+          --ignore-filename-regex='(\.cargo/|/rustc/|/core/)' \
+          --output-path ../../reports/php-coverage.lcov
+
+        repo_root="$(git rev-parse --show-toplevel)"
+
+        # Fix paths: cargo-llvm-cov can output paths relative to the crate root (src/...)
+        # or absolute repo paths (.../foreign/php/src/...), but Codecov expects repo-root
+        # paths (foreign/php/src/...).
+        sed -i \
+          -e "s|^SF:${repo_root}/foreign/php/src/|SF:foreign/php/src/|" \
+          -e 's|^SF:src/|SF:foreign/php/src/|' \
+          ../../reports/php-coverage.lcov
+
+        echo "Coverage report generated: $(wc -l < ../../reports/php-coverage.lcov) lines"
+        ../../scripts/ci/validate-lcov.sh ../../reports/php-coverage.lcov
+
+    - name: Stop Iggy server (TLS)
+      if: always() && inputs.task == 'test'
+      uses: ./.github/actions/utils/server-stop
+      with:
+        pid-file: ${{ steps.iggy-tls.outputs.pid_file }}
+        log-file: ${{ steps.iggy-tls.outputs.log_file }}
+
+    - name: Upload test artifacts
+      if: always() && inputs.task == 'test'
+      uses: actions/upload-artifact@v7
+      with:
+        name: php-test-results-${{ github.run_id }}-${{ github.run_attempt }}
+        path: |
+          reports/php-junit.xml
+          reports/php-tls-junit.xml
+          reports/php-coverage.lcov
+        retention-days: 7
+        if-no-files-found: ignore

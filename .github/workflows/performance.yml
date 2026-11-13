@@ -1,0 +1,277 @@
+name: Performance Monitoring
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run performance tests weekly on Sunday at 3 AM UTC
+    - cron: '0 3 * * 0'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  benchmark-comparison:
+    name: Benchmark Comparison
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-bench-comparison-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install critcmp
+      run: cargo install critcmp
+
+    - name: Run benchmarks on main branch
+      run: |
+        git checkout origin/main
+        cd swarms-rs
+        cargo bench --bench concurrent_workflow_benchmarks -- --save-baseline main || true
+        cargo bench --bench graph_workflow_benchmarks -- --save-baseline main || true
+
+    - name: Run benchmarks on PR branch
+      run: |
+        git checkout ${{ github.event.pull_request.head.sha }}
+        cd swarms-rs
+        cargo bench --bench concurrent_workflow_benchmarks -- --save-baseline pr || true
+        cargo bench --bench graph_workflow_benchmarks -- --save-baseline pr || true
+
+    - name: Compare benchmarks
+      run: |
+        cd swarms-rs
+        critcmp main pr > benchmark_comparison.txt 2>&1 || echo "Comparison completed with warnings"
+        
+        # Create a summary
+        echo "## Benchmark Comparison Results" > benchmark_summary.md
+        echo "" >> benchmark_summary.md
+        echo "### Performance Changes" >> benchmark_summary.md
+        echo "" >> benchmark_summary.md
+        echo '```' >> benchmark_summary.md
+        cat benchmark_comparison.txt >> benchmark_summary.md
+        echo '```' >> benchmark_summary.md
+
+    - name: Comment PR with results
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = 'swarms-rs/benchmark_summary.md';
+          if (fs.existsSync(path)) {
+            const body = fs.readFileSync(path, 'utf8');
+            
+            // Find existing comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const botComment = comments.data.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('Benchmark Comparison Results')
+            );
+            
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: body
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+          }
+
+  memory-profiling:
+    name: Memory Profiling
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install Valgrind
+      run: sudo apt-get update && sudo apt-get install -y valgrind
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-memory-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build for profiling
+      run: |
+        cd swarms-rs
+        cargo build --release --examples
+
+    - name: Run memory profiling
+      run: |
+        cd swarms-rs
+        # Profile some examples with Valgrind
+        for example in simple_agent sequential_workflow; do
+          if [ -f "target/release/examples/$example" ]; then
+            echo "Profiling $example..."
+            valgrind --tool=massif --massif-out-file=massif.$example.out \
+              target/release/examples/$example > /dev/null 2>&1 || true
+          fi
+        done
+
+    - name: Generate memory reports
+      run: |
+        cd swarms-rs
+        mkdir -p memory_reports
+        for massif_file in massif.*.out; do
+          if [ -f "$massif_file" ]; then
+            example_name=$(echo "$massif_file" | sed 's/massif\.\(.*\)\.out/\1/')
+            ms_print "$massif_file" > "memory_reports/$example_name.txt" 2>/dev/null || true
+          fi
+        done
+
+    - name: Upload memory reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: memory-profiling-reports
+        path: swarms-rs/memory_reports/
+        retention-days: 30
+
+  cpu-profiling:
+    name: CPU Profiling
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install perf
+      run: sudo apt-get update && sudo apt-get install -y linux-perf
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-perf-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build with debug symbols
+      run: |
+        cd swarms-rs
+        cargo build --release --examples
+        # Add debug symbols to release builds
+        RUSTFLAGS="-g" cargo build --release --examples
+
+    - name: Run CPU profiling
+      run: |
+        cd swarms-rs
+        mkdir -p perf_reports
+        
+        for example in simple_agent sequential_workflow; do
+          if [ -f "target/release/examples/$example" ]; then
+            echo "Profiling $example..."
+            # Record performance data
+            sudo perf record -g -o "perf_reports/$example.data" \
+              target/release/examples/$example > /dev/null 2>&1 || true
+            
+            # Generate report
+            sudo perf report -i "perf_reports/$example.data" \
+              --stdio > "perf_reports/$example.txt" 2>/dev/null || true
+          fi
+        done
+
+    - name: Upload CPU profiling reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: cpu-profiling-reports
+        path: swarms-rs/perf_reports/
+        retention-days: 30
+
+  size-tracking:
+    name: Binary Size Tracking
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-size-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install cargo-bloat
+      uses: taiki-e/install-action@cargo-bloat
+
+    - name: Build and analyze binary sizes
+      run: |
+        cd swarms-rs
+        
+        # Build release binaries
+        cargo build --release --examples
+        
+        mkdir -p size_reports
+        
+        # Analyze main library
+        echo "=== Library Size Analysis ===" > size_reports/library_analysis.txt
+        cargo bloat --release --crates >> size_reports/library_analysis.txt 2>&1 || true
+        
+        echo "" >> size_reports/library_analysis.txt
+        echo "=== Function Size Analysis ===" >> size_reports/library_analysis.txt
+        cargo bloat --release -n 20 >> size_reports/library_analysis.txt 2>&1 || true
+        
+        # Analyze example binaries
+        echo "=== Binary Sizes ===" > size_reports/binary_sizes.txt
+        for example_binary in target/release/examples/*; do
+          if [ -f "$example_binary" ] && [ -x "$example_binary" ]; then
+            size=$(stat -c%s "$example_binary" 2>/dev/null || stat -f%z "$example_binary" 2>/dev/null || echo "unknown")
+            echo "$(basename "$example_binary"): ${size} bytes" >> size_reports/binary_sizes.txt
+          fi
+        done
+
+    - name: Upload size analysis
+      uses: actions/upload-artifact@v4
+      with:
+        name: binary-size-reports
+        path: swarms-rs/size_reports/
+        retention-days: 30

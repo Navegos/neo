@@ -1,0 +1,64 @@
+name: coderabbit-config-check
+
+# Proves the committed CodeRabbit lint config ACTUALLY works, so no rule can
+# silently go dead again (see #3754: no-form-watch-in-child fired on nothing and
+# the semgrep ruleset failed to parse — both passed un-noticed because nothing
+# executed them). This job EXECUTES them:
+#   * every ast-grep rule must match its committed fixture (`ast-grep test`)
+#   * the semgrep ruleset must validate AND the PII rule must still match.
+#
+# ast-grep and semgrep are PINNED — rule-matching behaviour is version-sensitive
+# (the dead-rule confusion in #3754 was partly version fragility). Bump the pins
+# deliberately and re-run `ast-grep test`/`semgrep --validate` when you do.
+on:
+  pull_request:
+    paths:
+      - ".coderabbit.yaml"
+      - "dev/lint/**"
+      - ".github/workflows/coderabbit-config-check.yml"
+
+concurrency:
+  group: coderabbit-config-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are SHA-pinned (langwatch org policy requires full-SHA pins;
+      # tag refs like @v4 fail to start). Same SHAs other repo workflows use.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
+        with:
+          persist-credentials: false # read-only job, no git ops — don't persist the token
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned linters
+        run: pip install "ast-grep-cli==0.42.3" "semgrep==1.164.0" "pyyaml>=6"
+
+      - name: ast-grep version (pinned)
+        run: ast-grep --version
+
+      - name: ast-grep rule fixtures — every rule must match its fixture
+        working-directory: dev/lint/ast-grep
+        run: ast-grep test -c sgconfig.yml -t rule-tests
+
+      - name: semgrep ruleset validates
+        run: semgrep --validate --config dev/lint/semgrep/langwatch.yml
+
+      - name: semgrep PII rule still matches its fixture (guard vs silent death)
+        run: |
+          python3 -c "import yaml; d=yaml.safe_load(open('dev/lint/semgrep/langwatch.yml')); r=next(x for x in d['rules'] if x['id']=='pii-in-logger-call'); r.pop('paths', None); yaml.safe_dump({'rules':[r]}, open('/tmp/pii_only.yml','w'))"
+          n=$(semgrep --config /tmp/pii_only.yml dev/lint/semgrep/tests/pii-in-logger-call.ts --json --quiet | python3 -c "import sys, json; print(len(json.load(sys.stdin)['results']))")
+          echo "pii-in-logger-call matched $n line(s) in the fixture (expect 4)"
+          # 4, not 5: the userId case was removed when identifiers were made
+          # explicitly loggable. The fixture still contains userId,
+          # organizationId and projectId lines as `ok:` cases, so re-adding an
+          # identifier pattern to the rule pushes this count back above 4 and
+          # fails here rather than quietly reinstating the false positive.
+          test "$n" -eq 4

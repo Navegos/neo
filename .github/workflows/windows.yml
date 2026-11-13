@@ -1,0 +1,216 @@
+name: windows
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - interfaces/*/src/**
+      - interfaces/*/examples/**
+      - interfaces/*/Cargo.toml
+      - models/*/src/**
+      - models/*/examples/**
+      - models/*/Cargo.toml
+      - floneum/*/src/**
+      - floneum/*/examples/**
+      - floneum/*/Cargo.toml
+      - fusor/**
+      - src/**
+      - .github/**
+      - Cargo.toml
+      - Cargo.lock
+
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+    paths:
+      - interfaces/*/src/**
+      - interfaces/*/examples/**
+      - interfaces/*/Cargo.toml
+      - models/*/src/**
+      - models/*/examples/**
+      - models/*/Cargo.toml
+      - floneum/*/src/**
+      - floneum/*/examples/**
+      - floneum/*/Cargo.toml
+      - fusor/**
+      - src/**
+      - .github/**
+      - Cargo.toml
+      - Cargo.lock
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Shape: `build` compiles everything once and is the only saver of the
+# `windows-stable` cache slot; the test run and the five conformance shards
+# `need` it and only download what it archived. Whole, the conformance
+# sweep was 21 minutes on WARP and each job compiled the workspace again.
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  FEATURES: kalosm/language,kalosm/sound,kalosm/vision,kalosm/remote,kalosm/scrape
+
+jobs:
+  build:
+    if: github.event.pull_request.draft == false
+    runs-on: windows-2022
+    timeout-minutes: 45
+    name: windows (build)
+    steps:
+      - name: disable git eol translation
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v6
+      # A Rust build on the runner's C: drive is dominated by Windows
+      # Defender scanning every .o, .rlib, .rmeta and .exe as it is written.
+      # A Dev Drive (ReFS, AV filtering disabled) with the repo, Cargo home
+      # and target dir on it is the difference between a compile and a
+      # compile plus a virus scan of the compile. The rest of the job works
+      # from `KALOSM_WORKSPACE`, the copy on that drive.
+      - name: Setup Dev Drive
+        run: ${{ github.workspace }}/.github/workflows/setup-dev-drive.ps1
+      - name: Copy repo to the Dev Drive
+        run: Copy-Item -Path "${{ github.workspace }}" -Destination "$env:KALOSM_WORKSPACE" -Recurse
+      # `dtolnay/rust-toolchain` is a single-step toolchain install that
+      # uses the GitHub Actions toolchain cache; much faster than the
+      # `Invoke-WebRequest win.rustup.rs` dance.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      # A direct download: `taiki-e/install-action` fails on the runner's
+      # bash startup often enough to cost whole runs.
+      - name: Install nextest
+        shell: bash
+        run: curl -LsSf https://get.nexte.st/latest/windows-tar | tar zxf - -C "$HOME/.cargo/bin"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Distinct from the Linux cache so we don't ever try to restore
+          # x86_64-unknown-linux-gnu artefacts onto x86_64-pc-windows-msvc.
+          # Each workspace keeps its own target dir: rust-cache cleans a
+          # target dir once per listed workspace, dropping every crate not
+          # in that workspace's lock file, so two workspaces sharing one dir
+          # wipe each other's dependencies and the saved cache is nearly
+          # empty (580 MB, 727 crates recompiled on a "full match").
+          shared-key: "windows-stable-v2"
+          workspaces: |
+            ${{ env.KALOSM_WORKSPACE }} -> target
+            ${{ env.KALOSM_WORKSPACE }}/fusor -> target
+          cache-on-failure: "true"
+          cache-all-crates: "true"
+          cache-workspace-crates: "true"
+      - name: Build test archives and the conformance binary
+        shell: bash
+        working-directory: ${{ env.KALOSM_WORKSPACE }}
+        run: |
+          rustc -Vv
+          cargo -V
+          cargo nextest archive --cargo-profile ci --workspace --lib --bins --tests \
+            --features $FEATURES --archive-file root-tests.tar.zst
+          cargo nextest archive --cargo-profile ci --manifest-path fusor/Cargo.toml \
+            --workspace --lib --bins --tests --examples --archive-file fusor-tests.tar.zst
+          cargo build --profile ci --manifest-path fusor/Cargo.toml -p fusor-conformance
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-tests
+          path: |
+            ${{ env.KALOSM_WORKSPACE }}/root-tests.tar.zst
+            ${{ env.KALOSM_WORKSPACE }}/fusor-tests.tar.zst
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fusor-conformance-windows
+          path: ${{ env.KALOSM_WORKSPACE }}/fusor/target/ci/fusor-conformance.exe
+          retention-days: 1
+
+  tests:
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 45
+    name: windows (tests)
+    steps:
+      - name: disable git eol translation
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      # A direct download: `taiki-e/install-action` has failed twice on this
+      # runner image with a bash startup error it documents as a known flake.
+      - name: Install nextest
+        shell: bash
+        run: curl -LsSf https://get.nexte.st/latest/windows-tar | tar zxf - -C "$HOME/.cargo/bin"
+      - name: WARP and DXC
+        uses: ./.github/actions/warp-dxc
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-tests
+      - name: Run tests
+        shell: bash
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FUSOR_CONFORMANCE_REQUIRE_GPU: "1"
+          WGPU_DX12_COMPILER: Dxc
+        run: |
+          # The WARP and DXC DLLs must sit next to every test binary that
+          # opens the adapter: each archive extracts under its own
+          # workspace's target/ci. nextest refuses to extract into an
+          # existing target dir, so the DLLs go in after the extraction
+          # (`list` extracts without running anything).
+          cargo nextest list --archive-file root-tests.tar.zst --workspace-remap . --extract-to . > /dev/null
+          cargo nextest list --archive-file fusor-tests.tar.zst --workspace-remap fusor --extract-to fusor > /dev/null
+          cp warp/d3d10warp.dll dxc/dxcompiler.dll dxc/dxil.dll target/ci/deps/
+          cp warp/d3d10warp.dll dxc/dxcompiler.dll dxc/dxil.dll fusor/target/ci/deps/
+          # WARP/DX12 tests share one software adapter inside each binary;
+          # keep them serialized to avoid backend aborts.
+          cargo nextest run --archive-file root-tests.tar.zst --workspace-remap . --extract-to . --extract-overwrite --test-threads 1 \
+            -E 'not (package(rbert) | package(rwhisper) | package(kalosm-parse-macro))'
+          cargo nextest run --archive-file fusor-tests.tar.zst --workspace-remap fusor --extract-to fusor --extract-overwrite --test-threads 1
+
+  conformance:
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 45
+    name: windows (${{ matrix.shard.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - { name: core, suites: "smoke:: elementwise:: reductions:: multi_slot:: views:: indexing_scatter:: dtypes::", args: "" }
+          - { name: matmul, suites: "matmul:: conv_pool::", args: "" }
+          - { name: norm-layers, suites: "normalization:: layers::", args: "" }
+          - { name: attention-backward, suites: "attention_rope:: backward::", args: "" }
+          - { name: quantized, suites: "quantized::", args: "" }
+          - { name: sampling-0, suites: "sampling::", args: "--shard=0/8" }
+          - { name: sampling-1, suites: "sampling::", args: "--shard=1/8" }
+          - { name: sampling-2, suites: "sampling::", args: "--shard=2/8" }
+          - { name: sampling-3, suites: "sampling::", args: "--shard=3/8" }
+          - { name: sampling-4, suites: "sampling::", args: "--shard=4/8" }
+          - { name: sampling-5, suites: "sampling::", args: "--shard=5/8" }
+          - { name: sampling-6, suites: "sampling::", args: "--shard=6/8" }
+          - { name: sampling-7, suites: "sampling::", args: "--shard=7/8" }
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github
+      - name: WARP and DXC
+        uses: ./.github/actions/warp-dxc
+      - uses: actions/download-artifact@v4
+        with:
+          name: fusor-conformance-windows
+          path: bin
+      - name: Run conformance shard
+        shell: bash
+        env:
+          FUSOR_CONFORMANCE_REQUIRE_GPU: "1"
+          WGPU_DX12_COMPILER: Dxc
+          # To name the kernel behind a WARP device loss, add
+          # `FUSOR_TRACE_DISPATCH: "1"` (one submit and wait per dispatch,
+          # with the D3D12 removed reason after each) and
+          # `FUSOR_WGSL_DUMP: wgsl-dump`; both cost far too much to leave on.
+        run: |
+          cp warp/d3d10warp.dll dxc/dxcompiler.dll dxc/dxil.dll bin/
+          for suite in ${{ matrix.shard.suites }}; do
+            bin/fusor-conformance.exe "$suite" ${{ matrix.shard.args }}
+          done

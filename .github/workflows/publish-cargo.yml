@@ -1,0 +1,56 @@
+name: Publish to Cargo
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+
+jobs:
+  publish:
+    name: Publish Crates
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Login to crates.io via trusted publishing
+        run: |
+          # Request GitHub OIDC token
+          OIDC_TOKEN=$(curl -s -X PUT \
+            -H "Content-Type: application/json" \
+            -d "{\"token\":\"${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\",\"v\":\"0\"}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}" | jq -r '.value')
+
+          # Exchange for crates.io short-lived token
+          CARGO_TOKEN=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d "{\"token\":\"${OIDC_TOKEN}\"}" \
+            https://crates.io/api/v1/me/trusted-publishing/token | jq -r '.token')
+
+          cargo login --token "${CARGO_TOKEN}"
+
+      # Publish in dependency order
+      - name: Publish ringlet-core
+        run: cargo publish -p ringlet-core --allow-dirty
+        continue-on-error: true # May already be published
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: Publish ringlet-scripting
+        run: cargo publish -p ringlet-scripting --allow-dirty
+        continue-on-error: true
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: Publish ringlet
+        run: cargo publish -p ringlet --allow-dirty

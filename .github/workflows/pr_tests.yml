@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  # Rust tests for rust crate
+  rust-test:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            rust/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust/**/Cargo.lock') }}
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Run tests
+        working-directory: rust
+        run: cargo test --all-features
+
+  rust-clippy:
+    name: Rust Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            rust/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust/**/Cargo.lock') }}
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Run clippy
+        working-directory: rust
+        run: cargo clippy --all-features -- -D warnings
+
+  rust-fmt:
+    name: Rust Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Check formatting
+        working-directory: rust
+        run: cargo fmt --all -- --check
+
+  # Python binding packages build independently, matching the TypeScript split.
+  python-build:
+    name: Python Build Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install maturin
+        run: pip install "maturin[patchelf]"
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Build Python package
+        working-directory: py
+        run: maturin build --release
+      - name: Build Python sandbox package
+        working-directory: py-sandbox
+        run: maturin build --release
+
+  # Offline tests drive the built extensions through real HTTP, MCP, and filesystem boundaries.
+  python-integration:
+    name: Python Binding Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Node for programmatic execution tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Create virtualenv and install deps
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install "maturin[patchelf]" mypy pytest
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+      - name: Build and install package
+        working-directory: py
+        run: |
+          source ../.venv/bin/activate
+          maturin develop --release
+      - name: Build and install sandbox package
+        working-directory: py-sandbox
+        run: |
+          source ../.venv/bin/activate
+          maturin develop --release
+      - name: Run integration tests
+        run: |
+          source .venv/bin/activate
+          pytest -v integration_tests/
+      - name: Verify Python stubs against extensions
+        run: |
+          source .venv/bin/activate
+          python -m mypy.stubtest chevalier --ignore-missing-stub --allowlist py/stubtest_allowlist.txt
+          python -m mypy.stubtest chevalier_sandbox --ignore-missing-stub --allowlist py-sandbox/stubtest_allowlist.txt
+          python -m mypy --strict integration_tests/typecheck/python_response_contract.py

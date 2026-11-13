@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/mod.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 pub mod autoindex;
 pub mod caveman;
@@ -20,7 +20,6 @@ pub mod projectmem;
 pub mod rtk;
 pub mod separators;
 pub mod toksi_block;
-pub use toksi_block as tokless_block;
 
 use crate::core::register_tool;
 

@@ -1,0 +1,213 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rustfmt:
+    name: Code Formatting
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt
+
+    - name: Check formatting
+      run: |
+        cargo fmt --all -- --check
+        if [ $? -ne 0 ]; then
+          echo "Code is not properly formatted. Please run 'cargo fmt --all' to fix."
+          exit 1
+        fi
+
+    - name: Generate formatting diff (on failure)
+      if: failure()
+      run: |
+        echo "=== Formatting differences ==="
+        cargo fmt --all -- --check --files-with-diff || true
+
+  clippy:
+    name: Clippy Lints
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Run Clippy
+      run: |
+        cargo clippy --workspace --all-targets --all-features -- \
+          -D warnings \
+          -D clippy::all \
+          -D clippy::pedantic \
+          -A clippy::module_name_repetitions \
+          -A clippy::must_use_candidate \
+          -A clippy::missing_errors_doc \
+          -A clippy::missing_panics_doc
+
+    - name: Run Clippy for tests
+      run: |
+        cargo clippy --workspace --tests --all-features -- \
+          -D warnings \
+          -A clippy::unwrap_used \
+          -A clippy::expect_used
+
+  doc-check:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-doc-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Check documentation
+      run: |
+        RUSTDOCFLAGS="-D warnings" cargo doc --workspace --all-features --no-deps
+
+    - name: Test documentation examples
+      run: |
+        cargo test --workspace --doc --all-features
+
+  check-deps:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-machete
+      uses: taiki-e/install-action@cargo-machete
+
+    - name: Check for unused dependencies
+      run: |
+        cargo machete --with-metadata
+
+  semver-check:
+    name: SemVer Compatibility Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-semver-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install cargo-semver-checks
+      uses: taiki-e/install-action@cargo-semver-checks
+
+    - name: Check semantic versioning
+      run: |
+        cd swarms-rs
+        cargo semver-checks check-release || true  # Allow to fail initially
+
+  msrv-check:
+    name: Minimum Supported Rust Version
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install Rust toolchain (MSRV)
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: "1.70.0"  # Adjust based on your MSRV
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-msrv-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Check build with MSRV
+      run: |
+        cargo check --workspace --all-features
+
+  cargo-deny:
+    name: Cargo Deny
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install cargo-deny
+      uses: taiki-e/install-action@cargo-deny
+
+    - name: Run cargo-deny
+      run: |
+        cargo deny check licenses
+        cargo deny check bans
+        cargo deny check advisories
+        cargo deny check sources
+
+  typos-check:
+    name: Typos Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install typos
+      uses: taiki-e/install-action@typos-cli
+
+    - name: Run typos check
+      run: typos

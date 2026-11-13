@@ -1,0 +1,84 @@
+# Builds the rust9x compiler (stage1) and publishes it as an asset on the
+# rust9x-toolchain GitHub release.
+#
+# rust9x is a Rust fork targeting legacy Windows. Since there are no prebuilt
+# toolchains, we build it from source and upload it to a GitHub release to avoid
+# rebuilding it on every CI run.
+#
+# We use a GitHub release instead of the Actions cache because the cache expires
+# after 7 days and is subject to eviction.
+#
+# Run this manually when rust9x updates. Rebuilds yearly to pick up drift.
+name: rust9x compiler (toolchain release)
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Yearly on Jan 1
+    - cron: "0 4 1 1 *"
+
+permissions:
+  contents: write
+
+env:
+  RUST9X_TAG: rust9x-toolchain
+  RUST9X_ASSET: rust9x-stage1-x86_64-pc-windows-msvc.tar.gz
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  build-rust9x-compiler:
+    name: Build and publish rust9x compiler (stage1)
+    runs-on: windows-2022
+    # LLVM is built from source.
+    timeout-minutes: 350
+    steps:
+      - name: Install bootstrap Rust
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable branch, 2026-09-07; the toolchain itself is pinned via with:
+        with:
+          # Bootstrap compiler for the rust9x build; kept in step with the
+          # workspace toolchain (rust-toolchain.toml).
+          toolchain: 1.91.0
+
+      - name: Install Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install Ninja
+        run: choco install ninja -y
+
+      - name: Clone rust9x compiler source
+        shell: bash
+        run: |
+          # Full clone required because rust bootstrap reads git history.
+          # GIT_TERMINAL_PROMPT=0 prevents hanging on credential prompts.
+          GIT_TERMINAL_PROMPT=0 git clone --branch rust9x \
+            https://github.com/rust9x/rust.git rust9x
+
+      - name: Build rust9x stage1
+        shell: bash
+        working-directory: rust9x
+        run: |
+          cp bootstrap.rust9x.toml bootstrap.toml 2>/dev/null || true
+          # Build LLVM from source because prebuilt CI artifacts for rust9x are not available.
+          python x.py build --stage 1 --set llvm.download-ci-llvm=false
+        timeout-minutes: 330
+
+      - name: Publish rust9x stage1 to Releases
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f rust9x/build/x86_64-pc-windows-msvc/stage1/bin/rustc.exe ]; then
+            echo "::error::rust9x stage1 build produced no rustc.exe"
+            exit 1
+          fi
+          tar -czf "$RUST9X_ASSET" -C rust9x/build/x86_64-pc-windows-msvc stage1
+          gh release view "$RUST9X_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$RUST9X_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "rust9x toolchain (stage1)" \
+              --notes "Prebuilt rust9x stage1 compiler (x86_64-pc-windows-msvc host, i686/i586-rust9x-windows-msvc targets)." \
+              --latest=false
+          gh release upload "$RUST9X_TAG" "$RUST9X_ASSET" \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          echo "published $RUST9X_ASSET to release $RUST9X_TAG"

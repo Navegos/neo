@@ -199,3 +199,95 @@ fn test_doctor_fix_invocation() {
     assert_eq!(exit_code, 0, "toksi doctor --fix must succeed");
 }
 
+#[test]
+fn test_phase9_legacy_mcp_to_skills_and_hook_standardization() {
+    let ws = make_temp_dir("config-heal");
+
+    // 1. Legacy .gemini/mcp, .copilot/mcp, .claude/mcp, .agents/mcp folders
+    for (agent_dir, legacy_tool, expected_skill) in [
+        (".gemini", "toksi-codegraph", "codegraph"),
+        (".copilot", "toksi-projectmem", "projectmem"),
+        (".claude", "context-mode", "context"),
+        (".agents", "toksi-codegraph-index", "codegraph"),
+    ] {
+        let legacy_mcp = ws.join(agent_dir).join("mcp").join(legacy_tool);
+        fs::create_dir_all(&legacy_mcp).unwrap();
+        fs::write(legacy_mcp.join("SKILL.md"), format!("# {}", expected_skill)).unwrap();
+    }
+
+    // 2. Legacy hooks & plugins
+    let gemini_hooks = ws.join(".gemini").join("config").join("hooks.json");
+    fs::create_dir_all(gemini_hooks.parent().unwrap()).unwrap();
+    fs::write(
+        &gemini_hooks,
+        r#"{"toksi-codegraph-index":{"PostToolUse":[{"matcher":"","hooks":[{"type":"command","command":"toksi agy-hook codegraph-index"}]}]},"toksi-projectmem":{"SessionStart":[{"type":"command","command":"toksi projectmem-hook agy"}]}}"#,
+    )
+    .unwrap();
+
+    let cursor_hooks = ws.join(".cursor").join("hooks.json");
+    fs::create_dir_all(cursor_hooks.parent().unwrap()).unwrap();
+    fs::write(
+        &cursor_hooks,
+        r#"{"version":1,"hooks":{"preToolUse":[{"command":"rtk hook cursor","matcher":"Shell"}]}}"#,
+    )
+    .unwrap();
+
+    let copilot_hooks = ws.join(".github").join("hooks");
+    fs::create_dir_all(&copilot_hooks).unwrap();
+    fs::write(
+        copilot_hooks.join("toksi-codegraph-index.json"),
+        r#"{"version":1,"hooks":{"SessionStart":[{"type":"command","command":"toksi copilot-hook codegraph-index"}]}}"#,
+    )
+    .unwrap();
+    fs::write(
+        copilot_hooks.join("toksi-projectmem.json"),
+        r#"{"command":"toksi projectmem-hook copilot"}"#,
+    )
+    .unwrap();
+
+    let opencode_plugins = ws.join(".config").join("opencode").join("plugins");
+    fs::create_dir_all(&opencode_plugins).unwrap();
+    fs::write(opencode_plugins.join("toksi-codegraph-init.js"), "// legacy").unwrap();
+    fs::write(opencode_plugins.join("toksi-projectmem.ts"), "// legacy pm").unwrap();
+
+    // Run config healing
+    let actions = toksi::agents::heal_all_agent_legacy_configs(Some(&ws));
+    assert!(!actions.is_empty());
+
+    // Verify all legacy mcp folders migrated to skills/<tool>
+    assert!(!ws.join(".gemini").join("mcp").exists());
+    assert!(ws.join(".gemini").join("skills").join("codegraph").join("SKILL.md").exists());
+    assert!(!ws.join(".copilot").join("mcp").exists());
+    assert!(ws.join(".copilot").join("skills").join("projectmem").join("SKILL.md").exists());
+    assert!(!ws.join(".claude").join("mcp").exists());
+    assert!(ws.join(".claude").join("skills").join("context").join("SKILL.md").exists());
+    assert!(!ws.join(".agents").join("mcp").exists());
+    assert!(ws.join(".agents").join("skills").join("codegraph").join("SKILL.md").exists());
+
+    // Verify hook standardization
+    let gh_raw = fs::read_to_string(&gemini_hooks).unwrap();
+    assert!(gh_raw.contains("\"codegraph\""));
+    assert!(gh_raw.contains("codegraph-hook agy"));
+    assert!(!gh_raw.contains("agy-hook codegraph-index"));
+    assert!(gh_raw.contains("\"projectmem-context\""));
+
+    let ch_raw = fs::read_to_string(&cursor_hooks).unwrap();
+    assert!(ch_raw.contains("rtk-hook cursor"));
+    assert!(!ch_raw.contains("\"rtk hook cursor\""));
+
+    assert!(!copilot_hooks.join("toksi-codegraph-index.json").exists());
+    assert!(copilot_hooks.join("codegraph.json").exists());
+    let cp_cg = fs::read_to_string(copilot_hooks.join("codegraph.json")).unwrap();
+    assert!(cp_cg.contains("codegraph-hook copilot"));
+
+    assert!(!copilot_hooks.join("toksi-projectmem.json").exists());
+    assert!(copilot_hooks.join("projectmem-context.json").exists());
+
+    assert!(!opencode_plugins.join("toksi-codegraph-init.js").exists());
+    assert!(!opencode_plugins.join("toksi-projectmem.ts").exists());
+    assert!(opencode_plugins.join("projectmem.ts").exists());
+
+    let _ = fs::remove_dir_all(ws);
+}
+
+

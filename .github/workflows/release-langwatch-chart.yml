@@ -1,0 +1,90 @@
+name: release-langwatch-chart
+
+on:
+  workflow_run:
+    workflows: ["publish-docker-app"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+
+# Shared with release-clickhouse-serverless-chart on purpose. Both run
+# `cr index --push`, and `cr index` rebuilds index.yaml from the repository's
+# release list and force-pushes it to the same gh-pages branch of the same
+# repo. Run the two together and the loser pushes an index it built before the
+# winner's `cr upload` registered, so a chart version that published
+# successfully disappears from the index — the release exists, `helm repo
+# update` just stops seeing it. A per-workflow group would not help: the race
+# is between the two workflows, not between runs of either.
+concurrency:
+  group: helm-chart-index
+  # A publish run drains. Cancelling lands between `cr upload` and `cr index`
+  # often enough to matter, and leaves exactly the same missing-from-index
+  # state with nothing to reconcile it.
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.event == 'release')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Install Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
+        with:
+          version: v3.12.0
+
+      - name: Install chart-releaser
+        run: |
+          VERSION=1.6.1
+          curl -sSLo cr.tar.gz "https://github.com/helm/chart-releaser/releases/download/v${VERSION}/chart-releaser_${VERSION}_linux_amd64.tar.gz"
+          tar xzf cr.tar.gz cr
+          sudo mv cr /usr/local/bin/cr
+
+      - name: Add Helm repositories
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo update
+
+      - name: Build dependencies
+        run: helm dependency build charts/langwatch
+
+      - name: Package chart
+        run: |
+          mkdir -p .cr-release-packages
+          helm package charts/langwatch -d .cr-release-packages
+
+      - name: Upload chart
+        run: |
+          cr upload \
+            --owner "${{ github.repository_owner }}" \
+            --git-repo "${{ github.event.repository.name }}" \
+            --package-path .cr-release-packages \
+            --skip-existing
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Update index
+        run: |
+          mkdir -p .cr-index
+          cr index \
+            --owner "${{ github.repository_owner }}" \
+            --git-repo "${{ github.event.repository.name }}" \
+            --package-path .cr-release-packages \
+            --push
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"

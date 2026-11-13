@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/projectmem.rs
 // created: 2026-10-05
-// lastModified: 2026-11-12
+// lastModified: 2026-11-13
 
 use std::env;
 use std::fs;
@@ -340,7 +340,12 @@ pub fn write_projectmem_extension(agent: &str) -> bool {
     let quoted = format!("{:?}", exe);
     match agent {
         "opencode" => {
-            let p = Path::new(&opencode_paths_resolved().plugins_dir).join("toksi-projectmem.ts");
+            let dir = std::path::PathBuf::from(opencode_paths_resolved().plugins_dir);
+            let legacy = dir.join("toksi-projectmem.ts");
+            if legacy.exists() {
+                let _ = fs::remove_file(legacy);
+            }
+            let p = dir.join("projectmem.ts");
             if let Some(parent) = p.parent() {
                 let _ = ensure_dir(parent);
             }
@@ -354,9 +359,12 @@ pub fn write_projectmem_extension(agent: &str) -> bool {
             write_file_atomic(p, &PI_PROJECTMEM_EXT.replace("%TOKSI%", &quoted)).is_ok()
         }
         "omp" => {
-            let p = Path::new(&omp_agent_dir_resolved())
-                .join("extensions")
-                .join("toksi-projectmem.ts");
+            let dir = Path::new(&omp_agent_dir_resolved()).join("extensions");
+            let legacy = dir.join("toksi-projectmem.ts");
+            if legacy.exists() {
+                let _ = fs::remove_file(legacy);
+            }
+            let p = dir.join("projectmem.ts");
             if let Some(parent) = p.parent() {
                 let _ = ensure_dir(parent);
             }
@@ -367,16 +375,26 @@ pub fn write_projectmem_extension(agent: &str) -> bool {
 }
 
 pub fn remove_projectmem_extension(agent: &str) {
-    let path = match agent {
-        "opencode" => Path::new(&opencode_paths_resolved().plugins_dir).join("toksi-projectmem.ts"),
-        "pi" => Path::new(&pi_agent_dir_resolved()).join("extensions").join("projectmem.ts"),
-        "omp" => Path::new(&omp_agent_dir_resolved())
-            .join("extensions")
-            .join("toksi-projectmem.ts"),
+    let dirs_and_files: Vec<std::path::PathBuf> = match agent {
+        "opencode" => {
+            let dir = std::path::PathBuf::from(opencode_paths_resolved().plugins_dir);
+            vec![dir.join("projectmem.ts"), dir.join("toksi-projectmem.ts")]
+        }
+        "pi" => vec![
+            Path::new(&pi_agent_dir_resolved())
+                .join("extensions")
+                .join("projectmem.ts"),
+        ],
+        "omp" => {
+            let dir = Path::new(&omp_agent_dir_resolved()).join("extensions");
+            vec![dir.join("projectmem.ts"), dir.join("toksi-projectmem.ts")]
+        }
         _ => return,
     };
-    if path.exists() {
-        let _ = fs::remove_file(path);
+    for path in dirs_and_files {
+        if path.exists() {
+            let _ = fs::remove_file(path);
+        }
     }
 }
 
@@ -419,7 +437,9 @@ pub fn projectmem_install_session_push(agent: &str) -> bool {
             if cmd.is_empty() {
                 return false;
             }
-            let p1 = Path::new(&copilot_paths_resolved().hooks_dir).join("toksi-projectmem.json");
+            let hooks_dir = std::path::PathBuf::from(copilot_paths_resolved().hooks_dir);
+            let _ = fs::remove_file(hooks_dir.join("toksi-projectmem.json"));
+            let p1 = hooks_dir.join("projectmem-context.json");
             if let Some(parent) = p1.parent() {
                 let _ = ensure_dir(parent);
             }
@@ -427,7 +447,9 @@ pub fn projectmem_install_session_push(agent: &str) -> bool {
             obj.insert("command".into(), Value::String(cmd));
             let json = stringify_json(&Value::Object(obj));
             let ok1 = write_file_atomic(&p1, &json).is_ok();
-            let p2 = Path::new(&ide_project_root()).join(".github").join("hooks").join("toksi-projectmem.json");
+            let ide_hooks = Path::new(&ide_project_root()).join(".github").join("hooks");
+            let _ = fs::remove_file(ide_hooks.join("toksi-projectmem.json"));
+            let p2 = ide_hooks.join("projectmem-context.json");
             if let Some(parent) = p2.parent() {
                 let _ = ensure_dir(parent);
             }
@@ -445,7 +467,9 @@ pub fn projectmem_install_session_push(agent: &str) -> bool {
                 .ok()
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| Path::new(&home()).join(".grok").to_string_lossy().to_string());
-            let p = Path::new(&dir).join("hooks").join("toksi-projectmem.json");
+            let hooks_dir = Path::new(&dir).join("hooks");
+            let _ = fs::remove_file(hooks_dir.join("toksi-projectmem.json"));
+            let p = hooks_dir.join("projectmem.json");
             if let Some(parent) = p.parent() {
                 let _ = ensure_dir(parent);
             }
@@ -482,13 +506,17 @@ pub fn projectmem_remove_session_push(agent: &str) {
             }
         }
         "copilot" => {
-            let p1 = Path::new(&copilot_paths_resolved().hooks_dir).join("toksi-projectmem.json");
-            if p1.exists() {
-                let _ = fs::remove_file(p1);
-            }
-            let p2 = Path::new(&ide_project_root()).join(".github").join("hooks").join("toksi-projectmem.json");
-            if p2.exists() {
-                let _ = fs::remove_file(p2);
+            let hooks_dir = std::path::PathBuf::from(copilot_paths_resolved().hooks_dir);
+            let ide_hooks = Path::new(&ide_project_root()).join(".github").join("hooks");
+            for name in ["projectmem-context.json", "projectmem.json", "toksi-projectmem.json"] {
+                let p1 = hooks_dir.join(name);
+                if p1.exists() {
+                    let _ = fs::remove_file(p1);
+                }
+                let p2 = ide_hooks.join(name);
+                if p2.exists() {
+                    let _ = fs::remove_file(p2);
+                }
             }
         }
         "droid" => {
@@ -500,9 +528,12 @@ pub fn projectmem_remove_session_push(agent: &str) {
                 .ok()
                 .filter(|s| !s.is_empty())
                 .unwrap_or_else(|| Path::new(&home()).join(".grok").to_string_lossy().to_string());
-            let p = Path::new(&dir).join("hooks").join("toksi-projectmem.json");
-            if p.exists() {
-                let _ = fs::remove_file(p);
+            let hooks_dir = Path::new(&dir).join("hooks");
+            for name in ["projectmem.json", "toksi-projectmem.json"] {
+                let p = hooks_dir.join(name);
+                if p.exists() {
+                    let _ = fs::remove_file(p);
+                }
             }
         }
         "opencode" | "pi" | "omp" => remove_projectmem_extension(agent),

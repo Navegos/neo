@@ -1,0 +1,243 @@
+name: Bindings tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main", "features/**", "release-**"]
+  pull_request:
+    branches: ["main", "features/**", "release-**"]
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  xtask:
+    uses: ./.github/workflows/xtask.yml
+
+  test-uniffi-codegen:
+    name: Test UniFFI bindings generation
+    needs: xtask
+    if: github.event_name == 'push' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install protoc
+        uses: taiki-e/install-action@d438492cf8a250514fa2d34b30bc3c0dc37c65ff # v2.87.8
+        with:
+          tool: protoc@3.20.3
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+
+      # Cargo config can screw with caching and is only used for alias config
+      # and extra lints, which we don't care about here
+      - name: Delete cargo config
+        run: rm .cargo/config.toml
+
+      - name: Load cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Get xtask
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/debug/xtask
+          key: "${{ needs.xtask.outputs.cachekey-linux }}"
+          fail-on-cache-miss: true
+
+      - name: Build library & generate bindings
+        run: target/debug/xtask ci bindings
+
+  test-android:
+    name: matrix-rust-components-kotlin
+    needs: xtask
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || !github.event.pull_request.draft
+
+    steps:
+      - name: Checkout Rust SDK
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout Kotlin Rust Components project
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: matrix-org/matrix-rust-components-kotlin
+          path: rust-components-kotlin
+          ref: main
+          persist-credentials: false
+
+      - name: Use JDK 17
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: 'temurin' # See 'Supported distributions' for available options
+          java-version: '17'
+
+      - name: Install android sdk
+        uses: malinskiy/action-android/install-sdk@fa103ef30331e95f266418a6a97e98f61f626887 # release/0.1.7
+
+      - name: Install android ndk
+        uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1
+        id: install-ndk
+        with:
+          ndk-version: r27
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+
+      # Cargo config can screw with caching and is only used for alias config
+      # and extra lints, which we don't care about here
+      - name: Delete cargo config
+        run: rm .cargo/config.toml
+
+      - name: Load cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Get xtask
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/debug/xtask
+          key: "${{ needs.xtask.outputs.cachekey-linux }}"
+          fail-on-cache-miss: true
+
+      - name: Install Rust dependencies
+        run: |
+          rustup target add x86_64-linux-android
+          cargo install cargo-ndk
+
+      - name: Build SDK bindings for Android
+        # Building for x86_64-linux-android as it's the most prone to breaking and building for every arch is too much
+        run: |
+          echo "Building SDK for x86_64-linux-android and creating bindings"
+          target/debug/xtask kotlin build-android-library --package full-sdk --only-target x86_64-linux-android --src-dir rust-components-kotlin/sdk/sdk-android/src/main
+          echo "Copying the result binary to the Android project"
+          cd rust-components-kotlin
+          echo "Building the Kotlin bindings"
+          ./gradlew :sdk:sdk-android:assembleDebug
+
+  test-apple:
+    name: matrix-rust-components-swift
+    needs: xtask
+    runs-on: macos-15
+    if: github.event_name == 'push' || !github.event.pull_request.draft
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # install protoc in case we end up rebuilding opentelemetry-proto
+      - name: Install protoc
+        uses: taiki-e/install-action@d438492cf8a250514fa2d34b30bc3c0dc37c65ff # v2.87.8
+        with:
+          tool: protoc@3.20.3
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+
+      - name: Install aarch64-apple-ios target
+        run: rustup target install aarch64-apple-ios
+
+      # Cargo config can screw with caching and is only used for alias config
+      # and extra lints, which we don't care about here
+      - name: Delete cargo config
+        run: rm .cargo/config.toml
+
+      - name: Load cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Get xtask
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: target/debug/xtask
+          key: "${{ needs.xtask.outputs.cachekey-macos }}"
+          fail-on-cache-miss: true
+
+      - name: Build library & bindings
+        run: target/debug/xtask swift build-library
+
+      - name: Run XCTests
+        working-directory: bindings/apple
+        run: swift test
+
+      - name: Build Framework
+        run: target/debug/xtask swift build-framework --target=aarch64-apple-ios --profile=dev --ios-deployment-target=18.0
+
+  complement-crypto:
+    name: "Run Complement Crypto tests"
+    uses: matrix-org/complement-crypto/.github/workflows/single_sdk_tests.yml@6a66de0c450cbf5e1dddecb381a6a8ab08c71e13 # main
+    with:
+        use_rust_sdk: "." # use local checkout
+        use_complement_crypto: "MATCHING_BRANCH"
+
+  test-crypto-apple-framework-generation:
+    name: Generate Crypto FFI Apple XCFramework
+    runs-on: macos-15
+    if: github.event_name == 'push' || !github.event.pull_request.draft
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # install protoc in case we end up rebuilding opentelemetry-proto
+      - name: Install protoc
+        uses: taiki-e/install-action@d438492cf8a250514fa2d34b30bc3c0dc37c65ff # v2.87.8
+        with:
+          tool: protoc@3.20.3
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: stable
+
+      - name: Add rust targets
+        run: |
+          rustup target add aarch64-apple-ios
+
+      # Cargo config can screw with caching and is only used for alias config
+      # and extra lints, which we don't care about here
+      - name: Delete cargo config
+        run: rm .cargo/config.toml
+
+      - name: Load cache
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Run the Build Framework script
+        run: ./bindings/apple/build_crypto_xcframework.sh -i
+
+      - name: Is XCFramework generated?
+        if: ${{ hashFiles('generated/MatrixSDKCryptoFFI.zip') != '' }}
+        run: echo "XCFramework exists"

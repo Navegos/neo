@@ -1,0 +1,67 @@
+name: Agent task
+description: A self-contained task a headless Codewhale agent can finish end to end. Mostly for maintainers.
+labels: ["agent-ready"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A headless agent runs this with `codewhale exec --auto` on a fresh clone of `main`.
+        It has shell, file, and git tools, and **no context beyond this issue**. Name every
+        path and command explicitly. Assign a milestone during triage; this template sets none.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What is wrong or missing, and why it matters now. 2-4 sentences.
+      placeholder: |
+        The TUI freezes when 4+ sub-agents run at once, because each progress
+        event triggers a full redraw.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Plan
+      description: Numbered steps. Start each with the file path it changes. List any extra files to read first.
+      placeholder: |
+        1. crates/tui/src/tui/ui.rs — throttle redraws in the progress handler
+        2. crates/tui/src/tui/app.rs — add a last-redraw timestamp
+        Read first: crates/tui/src/tui/sidebar.rs
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Done when
+      description: Observable, testable outcomes.
+      placeholder: |
+        - [ ] 4 concurrent sub-agents do not freeze input
+        - [ ] Ctrl+C still works during sub-agent activity
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification
+      description: Exact commands that prove it. Scope them to the crates touched; CI runs the full suite.
+      placeholder: |
+        scripts/dev-cargo.sh check -p codewhale-tui
+        scripts/dev-test.sh tui subagent
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What this task must not change.
+      placeholder: |
+        - The sub-agent execution model
+        - The recommended fanout count
+    validations:
+      required: false

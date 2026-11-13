@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi projectmem-hook copilot",
+            "timeoutSec": 120
+          }
+        ]
+      }
+    ],
+    "sessionStart": [
+      {
+        "matcher": ".*",
+        "type": "command",
+        "command": "toksi projectmem-hook copilot",
+        "timeoutSec": 120
+      }
+    ]
+  }
+}

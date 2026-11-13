@@ -1,0 +1,242 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run dependency updates weekly on Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Cargo registry
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-update-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install cargo-edit and cargo-outdated
+      run: |
+        cargo install cargo-edit cargo-outdated
+
+    - name: Check for outdated dependencies
+      run: |
+        echo "=== Checking for outdated dependencies ===" > dependency_report.md
+        echo "" >> dependency_report.md
+        
+        # Check workspace root
+        echo "## Workspace Dependencies" >> dependency_report.md
+        echo '```' >> dependency_report.md
+        cargo outdated --root-deps-only >> dependency_report.md 2>&1 || true
+        echo '```' >> dependency_report.md
+        echo "" >> dependency_report.md
+        
+        # Check swarms-rs
+        cd swarms-rs
+        echo "## swarms-rs Dependencies" >> ../dependency_report.md
+        echo '```' >> ../dependency_report.md
+        cargo outdated --root-deps-only >> ../dependency_report.md 2>&1 || true
+        echo '```' >> ../dependency_report.md
+        echo "" >> ../dependency_report.md
+        cd ..
+        
+        # Check swarms-macro
+        cd swarms-macro
+        echo "## swarms-macro Dependencies" >> ../dependency_report.md
+        echo '```' >> ../dependency_report.md
+        cargo outdated --root-deps-only >> ../dependency_report.md 2>&1 || true
+        echo '```' >> ../dependency_report.md
+        cd ..
+
+    - name: Update Cargo.lock
+      run: |
+        cargo update
+        cd swarms-rs && cargo update && cd ..
+        cd swarms-macro && cargo update && cd ..
+
+    - name: Run tests after update
+      run: |
+        cargo test --workspace --all-features || exit 1
+
+    - name: Check for security advisories
+      run: |
+        cargo install cargo-audit
+        echo "## Security Audit Results" >> dependency_report.md
+        echo '```' >> dependency_report.md
+        cargo audit >> dependency_report.md 2>&1 || true
+        echo '```' >> dependency_report.md
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: |
+          chore: update dependencies
+          
+          Automated dependency update performed by GitHub Actions.
+        title: "chore: Update dependencies"
+        body-path: dependency_report.md
+        branch: automated/dependency-updates
+        delete-branch: true
+        labels: |
+          dependencies
+          automated
+
+  check-yanked-dependencies:
+    name: Check for Yanked Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install cargo-deny
+      uses: taiki-e/install-action@cargo-deny
+
+    - name: Check for yanked crates
+      run: |
+        cargo deny check advisories
+
+  update-rust-toolchain:
+    name: Update Rust Toolchain
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Check latest stable Rust version
+      id: rust-version
+      run: |
+        LATEST_RUST=$(curl -s https://forge.rust-lang.org/infra/channel-layout.html | grep -o 'stable-[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}' | head -1 | sed 's/stable-//')
+        CURRENT_RUST=$(grep 'channel = ' rust-toolchain.toml | sed 's/channel = "\(.*\)"/\1/')
+        
+        echo "latest=$LATEST_RUST" >> $GITHUB_OUTPUT
+        echo "current=$CURRENT_RUST" >> $GITHUB_OUTPUT
+        
+        echo "Latest Rust: $LATEST_RUST"
+        echo "Current Rust: $CURRENT_RUST"
+
+    - name: Update rust-toolchain.toml if needed
+      if: steps.rust-version.outputs.current == 'stable'
+      run: |
+        # For now, keep using stable channel
+        # In the future, you might want to pin to specific versions
+        echo "Currently using stable channel, no update needed"
+
+    - name: Test with latest Rust
+      run: |
+        rustup update stable
+        cargo check --workspace --all-features
+        cargo test --workspace --all-features
+
+  update-github-actions:
+    name: Update GitHub Actions
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update GitHub Actions versions
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          const { execSync } = require('child_process');
+          
+          // Define action updates
+          const actionUpdates = {
+            'actions/checkout': 'v4',
+            'actions/cache': 'v4',
+            'actions/upload-artifact': 'v4',
+            'actions/download-artifact': 'v4',
+            'dtolnay/rust-toolchain': 'master',
+            'taiki-e/install-action': 'v2'
+          };
+          
+          function updateWorkflowFile(filePath) {
+            if (!fs.existsSync(filePath)) return false;
+            
+            let content = fs.readFileSync(filePath, 'utf8');
+            let updated = false;
+            
+            for (const [action, version] of Object.entries(actionUpdates)) {
+              const regex = new RegExp(`uses: ${action}@\\S+`, 'g');
+              const newUses = `uses: ${action}@${version}`;
+              
+              if (content.match(regex)) {
+                content = content.replace(regex, newUses);
+                updated = true;
+              }
+            }
+            
+            if (updated) {
+              fs.writeFileSync(filePath, content);
+              return true;
+            }
+            return false;
+          }
+          
+          // Update all workflow files
+          const workflowDir = '.github/workflows';
+          const files = fs.readdirSync(workflowDir);
+          let anyUpdated = false;
+          
+          for (const file of files) {
+            if (file.endsWith('.yml') || file.endsWith('.yaml')) {
+              const filePath = path.join(workflowDir, file);
+              if (updateWorkflowFile(filePath)) {
+                console.log(`Updated ${file}`);
+                anyUpdated = true;
+              }
+            }
+          }
+          
+          if (anyUpdated) {
+            execSync('git config --global user.email "action@github.com"');
+            execSync('git config --global user.name "GitHub Action"');
+            execSync('git add .github/workflows/');
+            execSync('git commit -m "chore: update GitHub Actions to latest versions" || exit 0');
+          }
+
+    - name: Create Pull Request for Action Updates
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "chore: update GitHub Actions to latest versions"
+        title: "chore: Update GitHub Actions"
+        body: |
+          Automated update of GitHub Actions to their latest versions.
+          
+          This ensures we're using the most recent and secure versions of all actions.
+        branch: automated/action-updates
+        delete-branch: true
+        labels: |
+          github-actions
+          automated

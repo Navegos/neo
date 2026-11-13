@@ -1,0 +1,211 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Auto-publish: detects pre-release crate/SDK versions without tags
+# and publishes them to crates.io, Docker Hub, PyPI, npm, Maven, NuGet.
+# Runs on every push to master.
+
+name: Post-merge
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: post-merge-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IGGY_CI_BUILD: true
+
+jobs:
+  check-auto-publish:
+    name: Check auto-publish
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.repository.fork }}
+    outputs:
+      docker_components: ${{ steps.check.outputs.docker_components }}
+      crates_to_publish: ${{ steps.check.outputs.crates_to_publish }}
+      sdks_to_publish: ${{ steps.check.outputs.sdks_to_publish }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup yq
+        run: |
+          if ! command -v yq >/dev/null 2>&1; then
+            YQ_VERSION="v4.47.1"
+            YQ_CHECKSUM="0fb28c6680193c41b364193d0c0fc4a03177aecde51cfc04d506b1517158c2fb"
+            curl -fsSL --retry 5 --retry-all-errors -o /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64
+            echo "${YQ_CHECKSUM}  /usr/local/bin/yq" | sha256sum -c - || exit 1
+            chmod +x /usr/local/bin/yq
+          fi
+
+      # cargo-rail computes the affected crate set for the Docker :edge gate.
+      # Metadata-only `cargo rail plan` (no compile), so it runs on the runner's
+      # preinstalled cargo (version pinned by rust-toolchain.toml) and skips the
+      # heavyweight build-cache restore.
+      # Pinned for the same reason as .github/actions/rust/pre-merge/action.yml:
+      # 0.24 dropped the `-f json` edge-affected-images.sh relies on.
+      - name: Install cargo-rail
+        uses: taiki-e/install-action@v2.87.18
+        with:
+          tool: cargo-rail@0.23.0
+
+      - name: Check all components
+        id: check
+        run: |
+          chmod +x scripts/extract-version.sh
+
+          # Refresh :edge only for Docker images whose crate closure or build
+          # context changed in this push (DAG gate). Fail-open to all images.
+          DOCKER_COMPONENTS=$(scripts/ci/edge-affected-images.sh "${{ github.event.before }}" "${{ github.sha }}")
+          echo "docker_components=$DOCKER_COMPONENTS" >> "$GITHUB_OUTPUT"
+          echo "Docker components to refresh: ${DOCKER_COMPONENTS:-<none>}"
+
+          # Check Rust crates for pre-release versions without tags
+          CRATES_TO_PUBLISH=""
+          for crate in rust-common rust-binary-protocol rust-sdk rust-cli; do
+            VERSION=$(scripts/extract-version.sh "$crate")
+            TAG=$(scripts/extract-version.sh "$crate" --tag)
+
+            echo "Checking $crate: version=$VERSION, tag=$TAG"
+
+            if [ "$(scripts/extract-version.sh "$crate" --is-pre-release)" != "true" ]; then
+              echo "  ⏭️ Stable version - skipping"
+              continue
+            fi
+
+            if git rev-parse "$TAG" >/dev/null 2>&1; then
+              echo "  ⏭️ Tag exists - skipping"
+              continue
+            fi
+
+            echo "  ✅ Will publish"
+            CRATES_TO_PUBLISH="${CRATES_TO_PUBLISH:+$CRATES_TO_PUBLISH,}$crate"
+          done
+          echo "crates_to_publish=$CRATES_TO_PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "Crates to publish: ${CRATES_TO_PUBLISH:-<none>}"
+
+          # Check SDKs for pre-release versions without tags
+          SDKS_TO_PUBLISH=""
+          for sdk in sdk-python sdk-node sdk-java sdk-csharp sdk-go; do
+            VERSION=$(scripts/extract-version.sh "$sdk")
+            TAG=$(scripts/extract-version.sh "$sdk" --tag)
+
+            echo "Checking $sdk: version=$VERSION, tag=$TAG"
+
+            # Maven SNAPSHOT versions are mutable -- republish when SDK sources change,
+            # skip tag gate since no tag will be created for SNAPSHOTs
+            if [[ "$VERSION" =~ -SNAPSHOT$ ]]; then
+              SDK_NAME="${sdk#sdk-}"
+              SDK_DIR="foreign/$SDK_NAME"
+              if ! git diff --name-only HEAD~1 HEAD -- "$SDK_DIR/" | grep -q .; then
+                echo "  ⏭️ SNAPSHOT - no changes in $SDK_DIR/"
+                continue
+              fi
+              echo "  ✅ SNAPSHOT version - will publish"
+              SDKS_TO_PUBLISH="${SDKS_TO_PUBLISH:+$SDKS_TO_PUBLISH,}$SDK_NAME"
+              continue
+            fi
+
+            if [ "$(scripts/extract-version.sh "$sdk" --is-pre-release)" != "true" ]; then
+              echo "  ⏭️ Stable version - skipping"
+              continue
+            fi
+
+            if git rev-parse "$TAG" >/dev/null 2>&1; then
+              echo "  ⏭️ Tag exists - skipping"
+              continue
+            fi
+
+            echo "  ✅ Will publish"
+            # Convert sdk-csharp to csharp for publish.yml input format
+            SDK_NAME="${sdk#sdk-}"
+            SDKS_TO_PUBLISH="${SDKS_TO_PUBLISH:+$SDKS_TO_PUBLISH,}$SDK_NAME"
+          done
+          echo "sdks_to_publish=$SDKS_TO_PUBLISH" >> "$GITHUB_OUTPUT"
+          echo "SDKs to publish: ${SDKS_TO_PUBLISH:-<none>}"
+
+  dispatch-publish:
+    name: Dispatch publisher
+    needs: check-auto-publish
+    if: >-
+      needs.check-auto-publish.outputs.crates_to_publish != '' ||
+      needs.check-auto-publish.outputs.docker_components != '' ||
+      needs.check-auto-publish.outputs.sdks_to_publish != ''
+    runs-on: ubuntu-latest
+    steps:
+      # Trusted publishers validate the top-level workflow identity. Dispatching
+      # publish.yml keeps automatic and manual releases on the same identity.
+      - name: Dispatch and wait for publish workflow
+        uses: actions/github-script@v9
+        env:
+          COMMIT: ${{ github.sha }}
+          PUBLISH_CRATES: ${{ needs.check-auto-publish.outputs.crates_to_publish }}
+          PUBLISH_DOCKERHUB: ${{ needs.check-auto-publish.outputs.docker_components }}
+          PUBLISH_OTHER: ${{ needs.check-auto-publish.outputs.sdks_to_publish }}
+        with:
+          script: |
+            const dispatch = await github.request('POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches', {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'publish.yml',
+              ref: 'master',
+              inputs: {
+                commit: process.env.COMMIT,
+                dry_run: 'false',
+                use_latest_ci: 'false',
+                skip_tag_creation: 'false',
+                publish_crates: process.env.PUBLISH_CRATES,
+                publish_dockerhub: process.env.PUBLISH_DOCKERHUB,
+                publish_other: process.env.PUBLISH_OTHER,
+                create_edge_docker_tag: 'true'
+              },
+              headers: {
+                'X-GitHub-Api-Version': '2026-03-10'
+              }
+            });
+
+            const runId = dispatch.data.workflow_run_id;
+            if (!runId) {
+              throw new Error('Workflow dispatch did not return a run ID');
+            }
+
+            core.info(`Publish run: ${dispatch.data.html_url}`);
+            while (true) {
+              const { data: run } = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: runId
+              });
+
+              if (run.status === 'completed') {
+                if (run.conclusion !== 'success') {
+                  throw new Error(`Publish workflow concluded with ${run.conclusion}: ${run.html_url}`);
+                }
+                core.info(`Publish workflow succeeded: ${run.html_url}`);
+                break;
+              }
+
+              await new Promise(resolve => setTimeout(resolve, 30000));
+            }

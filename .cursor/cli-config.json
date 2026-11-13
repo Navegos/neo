@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(rtk)",
+      "Shell(toksi)",
+      "Mcp(codegraph:*)",
+      "Mcp(context-mode:*)",
+      "Mcp(projectmem:*)",
+      "Mcp(ai-memory:*)",
+      "Mcp(icm:*)"
+    ]
+  }
+}

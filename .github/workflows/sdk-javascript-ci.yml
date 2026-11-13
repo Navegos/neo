@@ -1,0 +1,373 @@
+# Always-run workflow with internal path gating + aggregator. See #3223.
+# Branch protection requires `sdk-javascript-complete`; upstream jobs
+# skip when paths don't match, and `alls-green` reports the final status.
+name: sdk-javascript-ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    # ready_for_review is NOT a default pull_request activity type. Without
+    # it, taking a PR out of draft fires no event at all, so the jobs gated
+    # on `heavy` below would never get their first non-draft run.
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_target:
+    types: [labeled]
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  # Supersede an outdated run on a PR branch, never on main: every commit
+  # that lands on main has to keep its own validation, and cancelling here
+  # would let a merge silently void the run for the commit before it.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  LANGWATCH_ENDPOINT: http://localhost:5560
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.detect.outputs.relevant }}
+      # Draft PRs keep the cheap signal and release the runner slots;
+      # everything heavy returns on ready_for_review and in the merge queue.
+      heavy: ${{ steps.detect.outputs.heavy }}
+      ingest: ${{ steps.detect.outputs.ingest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          # The gate reads no working-tree content: on pull_request events
+          # dorny/paths-filter takes the changed-file list from the API, and
+          # every file this job needs on disk lives under .github/. Checking
+          # out the rest of the tree is pure runner time.
+          sparse-checkout: .github
+      - uses: ./.github/actions/detect-changes
+        id: detect
+        with:
+          # push-strategy diff + no release-please-manifest entry: the test
+          # and e2e steps spend real LLM money, so they must not run on
+          # pushes or release PRs that touched nothing under
+          # sdks/typescript/. An SDK release PR still matches via
+          # sdks/typescript/CHANGELOG.md.
+          push-strategy: diff
+          filters: |
+            relevant:
+              - 'sdks/typescript/**'
+              # The single lockfile, workspace definition, root manifest and
+              # hoist config live at the repo root since ADR-076; a dependency
+              # or override change touches only these.
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+              - '.npmrc'
+              - '.github/workflows/sdk-javascript-ci.yml'
+            # Gates `e2e` only, never `ci`. The e2e job boots a real server
+            # and posts real SDK telemetry at it, so it is the only check in
+            # the repo that watches the ingest routes answer over a socket,
+            # and app-only changes are exactly what `relevant` misses. It
+            # cannot be folded into `relevant`: `ci` shares that filter and
+            # `ci` spends LLM budget on every match.
+            #
+            # Scoped to the HTTP transport spine the SDK traffic crosses
+            # before any of it becomes business logic. Everything those
+            # handlers go on to call has unit and integration coverage of its
+            # own; what has none is the seam between a socket and a handler,
+            # which only a live request can exercise.
+            ingest:
+              # The Hono route modules the SDK posts to, and the shared
+              # middleware under `_lib/` that the capped ones mount:
+              # /api/otel/v1/{traces,logs,metrics} and /api/collector.
+              - 'platform/app/src/server/routes/**'
+              # Mounts those modules and fixes their order. A route that
+              # resolves in the router but not on the wire is a mount bug,
+              # and mount order has silently swallowed API surfaces before.
+              - 'platform/app/src/server/api-router.ts'
+              # Reads the OTLP request body for those routes and decodes it,
+              # including the byte ceiling they enforce on it.
+              - 'platform/app/src/server/otel/**'
+              # Wires the Node bridge into Hono and decides whether the
+              # process keeps its own global Request/Response. Behaviour that
+              # depends on that seam is invisible to every test that does not
+              # go over a real socket.
+              - 'platform/app/src/start.ts'
+
+  ci:
+    needs: changes
+    if: >
+      needs.changes.outputs.relevant == 'true' && needs.changes.outputs.heavy == 'true'
+      && (github.event_name != 'pull_request_target'
+          || github.event.label.name == 'approved-ci')
+    runs-on: ubuntu-latest
+    # Run lint, typecheck, tests, and build for TypeScript SDK
+    defaults:
+      run:
+        working-directory: sdks/typescript
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: ./.github/actions/setup-pnpm-node
+        with:
+          install: "langwatch..."
+
+      # The "Install TypeScript Native Preview" step that used to sit here is
+      # gone. It ran `pnpm install -D -w @typescript/native-preview`, and `-w`
+      # means "the workspace root" — which used to BE typescript-sdk/ when it
+      # was its own install root. Since ADR-076 the root is the repo, so it
+      # would have written the dependency into the root manifest and the
+      # SHARED lockfile mid-job, leaving every later step running against a
+      # lockfile that no longer matches the repo.
+      #
+      # Dropping it rather than rescoping it, because nothing in this package
+      # uses it: `lint` is `eslint .` and `typecheck` is `tsc --noEmit`, and
+      # the SDK references neither `tsgo` nor native-preview anywhere. It was
+      # installing a toolchain no step invokes.
+      - name: Run lint check
+        run: pnpm run lint
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Run tests
+        # Fork and Dependabot PRs don't receive repository secrets, so a
+        # secret-backed run can only fail on a missing key. Skip it there;
+        # same-repo PRs, pushes, and label-approved pull_request_target run.
+        if: >
+          (github.event_name != 'pull_request'
+           || github.event.pull_request.head.repo.full_name == github.repository)
+          && (github.actor != 'dependabot[bot]'
+           || github.event_name == 'pull_request_target')
+        env:
+          LANGWATCH_ENDPOINT: ${{ secrets.TYPESCRIPT_SDK_LANGWATCH_ENDPOINT }}
+          # OpenAI traffic rides the LangWatch AI Gateway: the key is a
+          # LangWatch virtual key and both base-URL spellings point the
+          # openai and langchain client families at it.
+          OPENAI_API_KEY: ${{ secrets.TYPESCRIPT_SDK_GATEWAY_VIRTUAL_KEY }}
+          OPENAI_BASE_URL: https://gateway.langwatch.ai/v1
+          OPENAI_API_BASE: https://gateway.langwatch.ai/v1
+          LANGWATCH_API_KEY: ${{ secrets.TYPESCRIPT_SDK_LANGWATCH_API_KEY }}
+        run: pnpm test
+
+  e2e:
+    needs: changes
+    # `heavy` matters more here than on the sibling `ci` job: this one boots the
+    # application and three datastores, so a draft push was paying for the most
+    # expensive job in the workflow while the rest of it deferred.
+    if: >
+      (needs.changes.outputs.relevant == 'true'
+       || needs.changes.outputs.ingest == 'true')
+      && needs.changes.outputs.heavy == 'true'
+      && (github.event_name != 'pull_request_target'
+          || github.event.label.name == 'approved-ci')
+    runs-on: ubuntu-latest
+
+    env:
+      # LangWatch server config (aligned with e2e-ci.yml)
+      DATABASE_URL: "postgresql://langwatch_ci:ci_password@localhost:5432/langwatch_test"
+      BASE_HOST: "localhost:5560"
+      NEXTAUTH_SECRET: "nextauth-secret-for-ci-testing"
+      NEXTAUTH_URL: "http://localhost:5560"
+      API_TOKEN_JWT_SECRET: "api-jwt-secret-for-ci-testing"
+      CLICKHOUSE_URL: "http://default:ci_password@localhost:8123/langwatch"
+      REDIS_URL: "redis://localhost:6379"
+      NODE_ENV: "test"
+      SKIP_ENV_VALIDATION: "true"
+      OPS_PII_STRICT_PRESIDIO_REDACTION_DISABLED: "1"
+      LANGWATCH_LICENSE_PUBLIC_KEY: ${{ secrets.TEST_LICENSE_PUBLIC_KEY }}
+      LANGWATCH_LOCAL_STORAGE_PATH: /tmp/langwatch-test-storage
+
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:25.10.2.65
+        ports:
+          - 8123:8123
+        env:
+          CLICKHOUSE_DB: default
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_PASSWORD: ci_password
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: langwatch_ci
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: langwatch_test
+        options: >-
+          --health-cmd "PGPASSWORD=ci_password psql -U langwatch_ci -d langwatch_test -c 'select 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: sdks/typescript
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 10.24.0
+
+      # Single setup-node call covers all three pnpm lockfiles used by the
+      # e2e job (typescript-sdk, langwatch app, mcp-server). Calling
+      # setup-node twice silently discards the first cache config.
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: 24
+          cache: "pnpm"
+          cache-dependency-path: pnpm-lock.yaml
+
+      # node-pty@1.1.0 only ships prebuilds for darwin/win32, so on Linux
+      # its postinstall always falls back to `node-gyp rebuild`, which pnpm
+      # runs with its own vendored node-gyp. That copy ships `gyp/gyp_main.py`
+      # mode 644, so an mtime-driven Makefile regeneration executes it and
+      # dies with "Permission denied" / error 126. Installing node-gyp
+      # globally does not displace it on its own: pnpm exports
+      # `npm_config_node_gyp` at its vendored copy and that wins over PATH.
+      # Point the variable at the published node-gyp, which ships the script
+      # executable. npx-server-smoke.yml does the same.
+      - name: Install node-gyp (for node-pty postinstall)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install -g node-gyp@12.3.0
+          gyp="$(npm root -g)/node-gyp/bin/node-gyp.js"
+          test -f "$gyp"
+          test -x "$(dirname "$gyp")/../gyp/gyp_main.py"
+          echo "npm_config_node_gyp=$gyp" >> "$GITHUB_ENV"
+
+      # One install covering the app, the MCP server (a workspace dependency
+      # of the app) and the SDK under test. See ADR-076.
+      - name: Install dependencies
+        run: >
+          CI=true pnpm install --frozen-lockfile
+          --filter "@langwatch/web..."
+          --filter "langwatch..."
+
+      - name: Build mcp-server
+        run: pnpm --filter @langwatch/mcp-server run build
+
+      - name: Prepare LangWatch files
+        working-directory: platform/app
+        run: pnpm start:prepare:files
+
+      - name: Setup database
+        working-directory: platform/app
+        run: pnpm prisma:migrate
+
+      - name: Seed test project
+        working-directory: platform/app
+        env:
+          # Seed the credential the SDK test process receives without putting
+          # LANGWATCH_API_KEY on the platform process itself.
+          HAVEN_SEED_LANGWATCH_API_KEY: sk-lw-1234567890
+        run: pnpm prisma:seed
+
+      - name: Install goose
+        # Override job-level defaults.run.working-directory (sdks/typescript)
+        # so the script path resolves from the repo root.
+        working-directory: .
+        run: bash .github/scripts/install-goose.sh
+
+      - name: Setup ClickHouse
+        working-directory: platform/app
+        run: pnpm clickhouse:migrate
+
+      # Build the app so we can run a production server (dev mode is
+      # unreliable in CI — turbopack JIT compilation can hang under
+      # memory pressure, causing the server to become unresponsive).
+      - name: Build LangWatch app
+        working-directory: platform/app
+        run: NODE_ENV=test pnpm build
+
+      - name: Start LangWatch server and worker
+        working-directory: platform/app
+        env:
+          # The workflow-global LANGWATCH_API_KEY is for the SDK under test.
+          # Platform processes refuse to boot with it set (the self-referencing
+          # ingest guard in langwatchPlatformGuard.ts), so blank it here.
+          LANGWATCH_API_KEY: ""
+        run: |
+          # Capture both processes' output: background-process stdout is lost
+          # once this step ends, which has already hidden one real regression
+          # (a server-side 500 on the visibility poll shows up only as SDK
+          # test timeouts). The failure step below tails these files.
+          NODE_ENV=production pnpm run start > /tmp/langwatch-server.log 2>&1 &
+          # Start the worker process so the event-sourcing pipeline
+          # consumes traces from Redis and writes them to ClickHouse
+          pnpm run start:workers > /tmp/langwatch-workers.log 2>&1 &
+          # Wait for server to be ready
+          timeout 60 bash -c 'until curl -f http://localhost:5560 2>/dev/null | grep -q "LangWatch\|<!DOCTYPE"; do sleep 2; done'
+          echo "✅ LangWatch server is ready"
+
+      # Already installed above alongside the app; nothing further to fetch.
+
+      - name: Build SDK
+        run: pnpm run build
+
+      - name: Run e2e tests
+        # Fork and Dependabot PRs don't receive repository secrets, so a
+        # secret-backed run can only fail on a missing key. Skip it there;
+        # same-repo PRs, pushes, and label-approved pull_request_target run.
+        if: >
+          (github.event_name != 'pull_request'
+           || github.event.pull_request.head.repo.full_name == github.repository)
+          && (github.actor != 'dependabot[bot]'
+           || github.event_name == 'pull_request_target')
+        env:
+          LANGWATCH_API_KEY: sk-lw-1234567890
+          # OpenAI traffic rides the LangWatch AI Gateway (virtual key +
+          # gateway base URL). Step-scoped on purpose: the LangWatch app
+          # booted above must not inherit a gateway base URL.
+          OPENAI_API_KEY: ${{ secrets.TYPESCRIPT_SDK_GATEWAY_VIRTUAL_KEY }}
+          OPENAI_BASE_URL: https://gateway.langwatch.ai/v1
+          OPENAI_API_BASE: https://gateway.langwatch.ai/v1
+          E2E_TIMEOUT: 120000
+          E2E_POLL_TIMEOUT: 120000
+        run: pnpm test:e2e
+
+      - name: Dump server and worker logs on failure
+        if: failure()
+        run: |
+          echo "===== langwatch server (last 300 lines) ====="
+          tail -300 /tmp/langwatch-server.log || true
+          echo "===== langwatch workers (last 300 lines) ====="
+          tail -300 /tmp/langwatch-workers.log || true
+
+  sdk-javascript-complete:
+    needs: [changes, ci, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: re-actors/alls-green@05ac9388f0aebcb5727afa17fcccfecd6f8ec5fe # v1.2.2
+        with:
+          jobs: ${{ toJSON(needs) }}
+          allowed-skips: ci, e2e

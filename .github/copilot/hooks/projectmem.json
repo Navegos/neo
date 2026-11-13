@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "matcher": ".*",
+        "type": "command",
+        "command": "toksi projectmem-hook copilot",
+        "timeoutSec": 120
+      }
+    ]
+  }
+}

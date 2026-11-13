@@ -1,0 +1,2 @@
+description = "Show ponytail's measured impact scoreboard"
+prompt = "Render the published Ponytail 5 benchmark scoreboard (Lines 47%, Output tokens 55%, Cost 74%, Time 59%). Never invent per-repo savings numbers; point to /ponytail-debt and /ponytail-audit. Report only."

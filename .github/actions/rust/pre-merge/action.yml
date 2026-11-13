@@ -1,0 +1,593 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: rust-pre-merge
+description: Rust pre-merge testing and linting github iggy actions
+
+inputs:
+  task:
+    description: "Task to run (check, check-msrv, fmt, clippy, clippy-macos-aarch64, sort, machete, doctest, verify-publish, test-1, test-2, test-3, test-storage-compat, miri)"
+    required: true
+  component:
+    description: "Component name (for context)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Rust with cache
+      uses: ./.github/actions/utils/setup-rust-with-cache
+      with:
+        # Only test jobs execute nextest. Avoid downloading it in lint, metadata,
+        # and cross-build jobs.
+        install-nextest: ${{ startsWith(inputs.task, 'test-') }}
+        # These tasks do not compile workspace crates and need no native
+        # libraries. All compiling tasks keep the existing dependency setup.
+        install-system-dependencies: ${{ inputs.task != 'fmt' && inputs.task != 'sort' && inputs.task != 'machete' }}
+        # Miri builds against a nightly toolchain with a separate `target/miri`
+        # subtree; isolate its cache from the stable `dev` namespace so the
+        # two don't evict each other.
+        # check-msrv stays on `dev`: only `dev` is ever saved (by
+        # coverage-baseline), so a dedicated key would be cold every run. It
+        # reads only (pre-merge save-cache=false), so it cannot churn `dev`;
+        # the warm `~/.cargo` restore is a free win, and its 1.95 target
+        # artifacts rebuild regardless since the rustc hash differs.
+        shared-key: ${{ inputs.task == 'miri' && 'miri' || 'dev' }}
+        # fmt/sort/machete never build into target/, so the multi-GB cache
+        # restore is pure overhead. Compiling legs (check/clippy/doctest/test-*)
+        # keep it; a cold cache there recompiles the whole dep tree.
+        read-cache: ${{ (inputs.task == 'fmt' || inputs.task == 'sort' || inputs.task == 'machete') && 'false' || 'true' }}
+        # Light legs fit in the runner's ~89 GiB default headroom; skip the
+        # ~20-45s reclaim. Disk-heavy legs (coverage build + testcontainers
+        # images on test-*, cross-builds, miri, verify-publish) keep it.
+        free-disk-space: ${{ (inputs.task == 'fmt' || inputs.task == 'sort' || inputs.task == 'clippy' || inputs.task == 'check' || inputs.task == 'check-msrv' || inputs.task == 'machete' || inputs.task == 'doctest') && 'false' || 'true' }}
+
+    - name: Install cargo-sort
+      if: inputs.task == 'sort'
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-sort
+
+    - name: Install cargo-machete
+      if: inputs.task == 'machete'
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-machete
+
+    # cargo-http-registry has no prebuilt artifact in taiki-e/install-action,
+    # so it stays a source build. verify-publish is a low-frequency task.
+    - name: Install tools for specific tasks
+      if: inputs.task == 'verify-publish'
+      run: |
+        if ! command -v cargo-http-registry >/dev/null 2>&1; then
+          cargo install cargo-http-registry --locked
+        fi
+      shell: bash
+
+    # DAG-based test scoping: use cargo-rail to compute affected crates from the
+    # workspace dependency graph + git diff, avoiding the full test suite when only
+    # a subset of crates changed.
+    # Safety: cargo check/clippy run on the full workspace separately, catching all
+    # compilation errors. This only scopes test BUILD and EXECUTION.
+    # test-storage-compat is excluded from the DAG and coverage setup below:
+    # storage-compat.sh builds two explicit binaries and drives its own nextest
+    # run, and reads none of the /tmp plan files or the llvm-cov environment.
+    - name: Fetch base branch for DAG analysis
+      if: startsWith(inputs.task, 'test-') && inputs.task != 'test-storage-compat'
+      run: git fetch origin master --depth=1 2>/dev/null || true
+      shell: bash
+
+    # Pinned: 0.24 dropped `-f json` and 0.25 retired `[change-detection]` in
+    # rail.toml. Either failure falls back to the full test suite on every PR,
+    # so bump on purpose together with `cargo rail config migrate`.
+    - name: Install cargo-rail
+      if: startsWith(inputs.task, 'test-') && inputs.task != 'test-storage-compat'
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-rail@0.23.0
+
+    - name: Compute affected crates (cargo-rail)
+      if: startsWith(inputs.task, 'test-') && inputs.task != 'test-storage-compat'
+      run: |
+        METADATA_JSON=$(cargo metadata --format-version 1 --no-deps 2>/dev/null || echo "{}")
+        TOTAL_CRATES=$(echo "$METADATA_JSON" | jq '.workspace_members | length' 2>/dev/null || echo "?")
+        echo "$TOTAL_CRATES" > /tmp/total-crates.txt
+        # Extract packages with binary or cdylib targets — integration tests may
+        # invoke binaries via assert_cmd (CARGO_BIN_EXE_<name>), and connector
+        # plugins (cdylib) are loaded at runtime via dlopen by iggy-connectors.
+        # Both must always be compiled alongside affected crates.
+        echo "$METADATA_JSON" | jq -r '.packages[] | select(.targets[] | .kind[] | (. == "bin" or . == "cdylib")) | .name' 2>/dev/null > /tmp/bin-packages.txt || true
+        # Connector plugins on their own. The same dlopen edge that keeps them
+        # out of the DAG also hides the integration suites that exercise them,
+        # which the filter below puts back.
+        echo "$METADATA_JSON" | jq -r '.packages[] | select(.targets[] | .kind[] | . == "cdylib") | .name' 2>/dev/null > /tmp/plugin-packages.txt || true
+
+        PLAN_JSON=$(cargo rail plan --since origin/master -f json 2>/tmp/affected-stderr.txt || echo "")
+
+        if [[ -n "$PLAN_JSON" ]]; then
+          MODE=$(echo "$PLAN_JSON" | jq -r '.scope.mode')
+          if [[ "$MODE" == "crates" ]]; then
+            CRATES=$(echo "$PLAN_JSON" | jq -r '.scope.crates[]')
+            # `integration` launches the binaries of these packages through
+            # `Command::cargo_bin`, an edge cargo cannot record. The DAG selects
+            # them when their code or a crate they link (e.g. `partitions`)
+            # changes, but it does not select `integration`, so add it here.
+            # Keep this list in sync with the `cargo_bin` calls in core/integration.
+            SPAWNED_BINARY_PACKAGES=(server iggy-connectors iggy-mcp iggy-bench iggy-cli)
+            if ! grep -qx integration <<< "$CRATES"; then
+              for package in "${SPAWNED_BINARY_PACKAGES[@]}"; do
+                if grep -qx "$package" <<< "$CRATES"; then
+                  echo "::notice::Testing integration because it launches the binary of affected package ${package}"
+                  CRATES=$(printf '%s\nintegration\n' "$CRATES")
+                  break
+                fi
+              done
+            fi
+            # `iggy_connector_<name>_{sink,source}` is exercised by
+            # `integration::connectors::<name>`, but the plugin reaches the
+            # runtime through dlopen, so cargo records no edge and the DAG drops
+            # those tests. Name the suite of every affected plugin that has one.
+            PLUGIN_TESTS=""
+            PLUGIN_SUITES=0
+            while read -r plugin; do
+              if [[ ! -d "core/integration/tests/connectors/$plugin" ]]; then
+                echo "::warning::No integration suite at core/integration/tests/connectors/${plugin}, leaving it out of the test scope"
+                continue
+              fi
+              PLUGIN_TESTS+=" | (package(integration) & test(/^connectors::${plugin}::/))"
+              PLUGIN_SUITES=$(( PLUGIN_SUITES + 1 ))
+            done < <(comm -12 <(sort -u /tmp/plugin-packages.txt) <(echo "$CRATES" | sort -u) \
+              | sed -nE 's/^iggy_connector_(.*)_(sink|source)$/\1/p' | sort -u)
+            echo "$PLUGIN_SUITES" > /tmp/plugin-suites.txt
+            # Those suites live in the integration test binary, so it has to be
+            # built even when the DAG left it out of scope. Only the build set
+            # grows: the `cargo test` fallback below has no filter, and adding
+            # the package there would run the whole integration suite.
+            BUILD_CRATES="$CRATES"
+            if (( PLUGIN_SUITES > 0 )); then
+              BUILD_CRATES=$(printf '%s\nintegration\n' "$CRATES" | sort -u)
+            fi
+            CRATE_COUNT=$(echo "$CRATES" | wc -l)
+            # Build nextest filter expression for cargo nextest run (affected crates only)
+            FILTER=$(echo "$CRATES" | sed 's/^/package(/; s/$/)/' | paste -sd '|' - | sed 's/|/ | /g')
+            echo "${FILTER}${PLUGIN_TESTS}" > /tmp/nextest-filter.txt
+            # Save affected-only -p flags for cargo test fallback (no nextest filter)
+            echo "$CRATES" | sed 's/^/-p /' | tr '\n' ' ' > /tmp/test-packages.txt
+            # Build -p flags: affected crates + packages with bin/cdylib targets.
+            # Binary packages: nextest sets CARGO_BIN_EXE_<name> from compiled
+            # artifacts; cdylib packages: connector plugins loaded via dlopen.
+            # Both must be in the build even if not directly in the DAG scope.
+            BIN_PKGS=$(cat /tmp/bin-packages.txt 2>/dev/null || echo "")
+            ALL_BUILD_PKGS=$(printf '%s\n%s\n' "$BUILD_CRATES" "$BIN_PKGS" | sort -u | grep -v '^$')
+            echo "$ALL_BUILD_PKGS" | sed 's/^/-p /' | tr '\n' ' ' > /tmp/packages.txt
+            BUILD_COUNT=$(echo "$ALL_BUILD_PKGS" | wc -l)
+            echo "::notice::DAG analysis: testing ${CRATE_COUNT} crates + ${PLUGIN_SUITES} connector suites, building ${BUILD_COUNT} (of ${TOTAL_CRATES} total, +$(( BUILD_COUNT - CRATE_COUNT )) extra pkgs)"
+          else
+            echo "::notice::Full workspace affected (${TOTAL_CRATES} crates)"
+          fi
+        else
+          STDERR=$(cat /tmp/affected-stderr.txt 2>/dev/null || echo "")
+          echo "::warning::Could not compute affected crates, running full test suite. ${STDERR}"
+          rm -f /tmp/nextest-filter.txt /tmp/packages.txt /tmp/plugin-suites.txt
+        fi
+      shell: bash
+
+    # Individual lint tasks for parallel execution
+    - name: Cargo check
+      if: inputs.task == 'check'
+      run: cargo check --all --all-features
+      shell: bash
+
+    # MSRV gate: compile-check the published crates against the declared
+    # workspace `rust-version`. The MSRV is read from Cargo.toml so this stays
+    # in sync with the single source of truth. The `+<msrv>` override beats the
+    # rust-toolchain.toml pin. check-only: downstream consumers compile our
+    # libs (not our tests), so dev-deps needing newer Rust are out of scope.
+    - name: Cargo check on MSRV
+      if: inputs.task == 'check-msrv'
+      run: |
+        MSRV=$(grep -oP -m1 '^rust-version\s*=\s*"\K[^"]+' Cargo.toml)
+        echo "::notice::Checking published crates against MSRV ${MSRV}"
+        rustup toolchain install "$MSRV" --profile minimal --no-self-update
+        cargo "+$MSRV" check --locked --all-features \
+          -p iggy -p iggy_common -p iggy_binary_protocol -p iggy-cli
+      shell: bash
+
+    - name: Cargo fmt
+      if: inputs.task == 'fmt'
+      run: cargo fmt --all -- --check
+      shell: bash
+
+    # clippy-macos-aarch64 runs the same lint on macos-14. Code behind
+    # cfg(target_os) splits is dead to the Linux leg, so its warnings would
+    # otherwise reach master unseen.
+    - name: Cargo clippy
+      if: inputs.task == 'clippy' || inputs.task == 'clippy-macos-aarch64'
+      run: cargo clippy --all-targets --all-features -- -D warnings
+      shell: bash
+
+    - name: Cargo sort
+      if: inputs.task == 'sort'
+      run: cargo sort --check --no-format --workspace
+      shell: bash
+
+    - name: Cargo machete
+      if: inputs.task == 'machete'
+      run: cargo machete --with-metadata
+      shell: bash
+
+    - name: Doc test
+      if: inputs.task == 'doctest'
+      env:
+        RUSTDOCFLAGS: -D warnings
+      run: |
+        cargo test --locked --doc
+        cargo doc --no-deps --all-features --quiet
+      shell: bash
+
+    - name: Verify crates publish chain to local alt-registry
+      if: inputs.task == 'verify-publish'
+      env:
+        CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
+      run: ./scripts/verify-crates-publish.sh
+      shell: bash
+
+    - name: Install dependencies for Rust tests
+      if: startsWith(inputs.task, 'test-') && runner.os == 'Linux'
+      run: |
+        ./scripts/ci/apt-install.sh musl-tools gnome-keyring keyutils dbus-x11 libsecret-tools
+        rm -f "$HOME"/.local/share/keyrings/*
+      shell: bash
+
+    - name: Install cargo-llvm-cov
+      if: startsWith(inputs.task, 'test-') && inputs.task != 'test-storage-compat'
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-llvm-cov
+
+    - name: Build and test with coverage
+      # test-storage-compat drives its own nextest invocation from
+      # scripts/ci/storage-compat.sh. Without this exclusion it would also run
+      # here with an empty PARTITION_FLAG, i.e. a fourth *unpartitioned* copy
+      # of the whole suite on top of test-1/2/3.
+      if: startsWith(inputs.task, 'test-') && inputs.task != 'test-storage-compat'
+      run: |
+        # Parse partition index from task name (test-1 -> hash:1/3, test-2 -> hash:2/3, ...).
+        # TEST_PARTITIONS must match the number of test-N tasks in
+        # .github/config/components.yml. Cluster bootstrap makes each test
+        # CPU-heavy, so partitions stay small.
+        # The regex is numeric-only on purpose: non-numeric test-* tasks
+        # (test-storage-compat) opt out of partitioning rather than producing
+        # an out-of-range hash:N/3.
+        TEST_PARTITIONS=3
+        TASK="${{ inputs.task }}"
+        PARTITION_FLAG=""
+        if [[ "$TASK" =~ ^test-([0-9]+)$ ]]; then
+          PARTITION_INDEX="${BASH_REMATCH[1]}"
+          PARTITION_FLAG="--partition hash:${PARTITION_INDEX}/${TEST_PARTITIONS}"
+          echo "::notice::Running test partition ${PARTITION_INDEX}/${TEST_PARTITIONS}"
+        fi
+
+        # Read DAG-based affected crate filter (computed in earlier step)
+        NEXTEST_FILTER=""
+        PACKAGE_FLAGS=""
+        TEST_PACKAGE_FLAGS=""
+        TOTAL_CRATES="?"
+        PLUGIN_SUITES=0
+        if [[ -f /tmp/nextest-filter.txt ]]; then
+          NEXTEST_FILTER=$(cat /tmp/nextest-filter.txt)
+        fi
+        if [[ -f /tmp/packages.txt ]]; then
+          PACKAGE_FLAGS=$(cat /tmp/packages.txt)
+        fi
+        if [[ -f /tmp/test-packages.txt ]]; then
+          TEST_PACKAGE_FLAGS=$(cat /tmp/test-packages.txt)
+        fi
+        if [[ -f /tmp/total-crates.txt ]]; then
+          TOTAL_CRATES=$(cat /tmp/total-crates.txt)
+        fi
+        if [[ -f /tmp/plugin-suites.txt ]]; then
+          PLUGIN_SUITES=$(cat /tmp/plugin-suites.txt)
+        fi
+
+        if [[ -n "$PACKAGE_FLAGS" ]]; then
+          # Each connector suite contributes its own `package(integration)`, so
+          # subtract them to keep the crate count a crate count.
+          TEST_CRATE_COUNT=$(( $(echo "$NEXTEST_FILTER" | grep -o 'package(' | wc -l) - PLUGIN_SUITES ))
+          BUILD_CRATE_COUNT=$(echo "$PACKAGE_FLAGS" | grep -o '\-p ' | wc -l)
+          echo "::notice::DAG-scoped: testing ${TEST_CRATE_COUNT} crates + ${PLUGIN_SUITES} connector suites, building ${BUILD_CRATE_COUNT} (cargo check/clippy cover full workspace separately)"
+        else
+          echo "::notice::Full workspace build (no DAG filter available)"
+        fi
+
+        source <(cargo llvm-cov show-env --export-prefix)
+
+        # Doris 4.0.3's start_be.sh hard-`exit 1`s unless vm.max_map_count >= 2000000.
+        # This kernel param can only be set on the host (no container can raise it),
+        # so we raise it here. Everything else about booting Doris — image, heap/mem
+        # caps, port mappings, BE-alive wait — lives in the testcontainers fixture
+        # at core/integration/tests/connectors/fixtures/doris/container.rs, so
+        # `cargo test` and CI follow exactly the same path.
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          sudo sysctl -w vm.max_map_count=2000000 || true
+        fi
+
+        bins_start=$(date +%s)
+        if [[ -n "$PACKAGE_FLAGS" ]]; then
+          cargo build --locked $PACKAGE_FLAGS
+        else
+          cargo build --locked
+        fi
+        bins_end=$(date +%s)
+        bins_duration=$((bins_end - bins_start))
+        echo "::notice::Binaries and libraries built in ${bins_duration}s ($(date -ud @${bins_duration} +'%M:%S'))"
+
+        compile_start=$(date +%s)
+        if [[ -n "$PACKAGE_FLAGS" ]]; then
+          cargo test --locked --no-run $PACKAGE_FLAGS
+        else
+          cargo test --locked --no-run
+        fi
+        compile_end=$(date +%s)
+        compile_duration=$((compile_end - compile_start))
+        echo "::notice::Tests compiled in ${compile_duration}s ($(date -ud @${compile_duration} +'%M:%S'))"
+
+        # api_handler_tests, version_firewall_tests, and server_e2e_tests need gitignored
+        # wire fixtures. Generate when iggy-gateway-kafka is in the DAG test scope, or (on
+        # a full-workspace run) when gateways/** changed vs the PR base — avoid building
+        # kafka-message-gen / kafka-protocol when the gateway was not touched.
+        NEEDS_KAFKA_FIXTURES=false
+        if grep -q 'package(iggy-gateway-kafka)' <<< "$NEXTEST_FILTER"; then
+          NEEDS_KAFKA_FIXTURES=true
+        elif [[ -z "$NEXTEST_FILTER" ]]; then
+          # HEAD on a pull_request run is the synthetic merge commit; its first parent is
+          # the base tip GitHub merged against. The depth-1 checkout holds that parent only
+          # as a shallow boundary: `HEAD^1` does not resolve and `origin/master...HEAD` has
+          # no merge base (so it failed on every full-workspace lane). Read the parent from
+          # the raw object and fetch that one commit before diffing. A HEAD with one parent
+          # (workflow_dispatch on a branch tip) has no PR base, so it takes the fail-safe.
+          #
+          # `2>&1` into a variable, not `2>/dev/null` piped straight to grep: the old form
+          # silenced *any* git failure into empty output, which `grep -q` then reads
+          # identically to "diff succeeded, no gateways/ changes" - so a broken diff and a
+          # clean diff produced the same "skip fixtures" outcome. Confirmed in CI run
+          # 32256598833: gateways/-only PR, full-workspace lane, fixtures silently skipped,
+          # KAFKA_FIXTURES_REQUIRED never set - every fixture-backed test quietly passed by
+          # skipping all its assertions instead of running them (0.005s for a test meant to
+          # decode 9 real fixtures).
+          BASE_SHA=""
+          if [[ "$(git cat-file -p HEAD | grep -c '^parent ')" -eq 2 ]]; then
+            BASE_SHA=$(git cat-file -p HEAD | awk '/^parent /{print $2; exit}')
+          fi
+          if [[ -n "$BASE_SHA" ]] \
+            && DIFF_OUTPUT=$(git fetch -q --no-tags --depth=1 origin "$BASE_SHA" 2>&1 \
+              && git diff --name-only "$BASE_SHA" HEAD 2>&1); then
+            if grep -qE '^gateways/' <<< "$DIFF_OUTPUT"; then
+              NEEDS_KAFKA_FIXTURES=true
+            else
+              echo "::notice::Skipping Kafka wire fixtures (full suite, gateways/** unchanged)"
+            fi
+          else
+            # No PR base, or fetch/diff failed - NOT the same as "no gateways/ changes".
+            # Generate unconditionally as the fail-safe default; this is the case the bug
+            # above collapsed into a silent skip.
+            NEEDS_KAFKA_FIXTURES=true
+            echo "::warning::git diff against the PR base failed (base: ${BASE_SHA:-none, HEAD is not a merge commit}; ${DIFF_OUTPUT:-}); generating Kafka fixtures unconditionally as a fail-safe"
+          fi
+        fi
+        if [[ "$NEEDS_KAFKA_FIXTURES" == true ]]; then
+          ./gateways/kafka/scripts/ci-wire-fixtures.sh generate
+          trap './gateways/kafka/scripts/ci-wire-fixtures.sh cleanup' EXIT
+          # Fixtures are expected to exist from here on; a missing one now means
+          # generation silently failed, not a legitimate local-dev skip.
+          export KAFKA_FIXTURES_REQUIRED=1
+          # Same reasoning for the real-client suite: Docker and a built iggy-server are both
+          # present in this job, so a skip here means the prerequisite broke rather than a
+          # legitimate local-dev skip, and an unarmed guard would report a pass over zero
+          # assertions.
+          export KAFKA_E2E_REQUIRED=1
+          # Pull the client images here rather than letting the first test pull them. A cold
+          # runner fetches ~400 MB for the Kafka distribution, and inside a test that competes
+          # with nextest's per-test kill budget, so a slow registry surfaces as a test timeout
+          # naming the feature under test instead of naming the pull. The suite runs its
+          # containers with --pull never, so a failed pull here makes it skip, which the guard
+          # above turns into a job failure that names the missing image.
+          # Read the tags out of the suite itself; hardcoding them here lets a bump in the test
+          # desync silently, which pre-pulls the superseded image and puts the real one back
+          # inside the budget this block exists to avoid.
+          E2E_IMAGES=$(grep -oP '^const (KCAT|KAFKA)_IMAGE: &str = "\K[^"]+' \
+            gateways/kafka/tests/kafka_client_e2e_tests.rs)
+          if [[ -z "$E2E_IMAGES" ]]; then
+            echo "::warning::could not read client image tags from kafka_client_e2e_tests.rs; skipping pre-pull"
+          fi
+          for image in $E2E_IMAGES; do
+            timeout 300 docker pull -q "$image" \
+              || echo "::warning::docker pull $image failed; the real-client suite will fail naming it"
+          done
+        fi
+
+        # Start D-Bus and unlock keyring right before test execution to avoid
+        # gnome-keyring auto-locking the collection during the build phase.
+        # Previously this ran before `cargo build`, leaving a 7+ minute idle
+        # window that triggered org.freedesktop.Secret.Error.IsLocked ~10% of runs.
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          eval $(dbus-launch --sh-syntax)
+          export DBUS_SESSION_BUS_ADDRESS
+          eval $(echo -n "test" | gnome-keyring-daemon --unlock --components=secrets)
+          echo -n "warmup" | secret-tool store --label="ci-warmup" ci-test warmup
+        fi
+
+        test_start=$(date +%s)
+        if command -v cargo-nextest &> /dev/null; then
+          if [[ -n "$NEXTEST_FILTER" ]]; then
+            # Every test target in the `bdd` crate is `required-features =
+            # ["bdd"]`, so the `cargo test --no-run` above builds no binaries
+            # for it. A PR touching only that crate then produces a valid
+            # filter that matches zero tests, and nextest's default
+            # `--no-tests=fail` turns that into exit 4 on a green PR.
+            cargo nextest run --locked --no-fail-fast --no-tests=warn --profile ci $PARTITION_FLAG $PACKAGE_FLAGS -E "$NEXTEST_FILTER"
+          else
+            cargo nextest run --locked --no-fail-fast --profile ci $PARTITION_FLAG
+          fi
+        else
+          if [[ -n "$PARTITION_FLAG" ]]; then
+            echo "::error::cargo-nextest not found, falling back to cargo test without partitioning (all tests will run on every partition)"
+          fi
+          # Use TEST_PACKAGE_FLAGS (affected crates only), not PACKAGE_FLAGS
+          # (which includes binary packages whose tests should NOT run).
+          if [[ -n "$TEST_PACKAGE_FLAGS" ]]; then
+            cargo test --locked --no-fail-fast $TEST_PACKAGE_FLAGS
+          else
+            cargo test --locked --no-fail-fast
+          fi
+        fi
+        test_end=$(date +%s)
+        test_duration=$((test_end - test_start))
+        echo "::notice::Tests executed in ${test_duration}s ($(date -ud @${test_duration} +'%M:%S'))"
+
+        build_duration=$((bins_duration + compile_duration))
+        total_duration=$((build_duration + test_duration))
+        echo ""
+        echo "========================================="
+        if [[ -n "$PACKAGE_FLAGS" ]]; then
+          TEST_CRATE_COUNT=$(( $(echo "$NEXTEST_FILTER" | grep -o 'package(' | wc -l) - PLUGIN_SUITES ))
+          BUILD_CRATE_COUNT=$(echo "$PACKAGE_FLAGS" | grep -o '\-p ' | wc -l)
+          echo "DAG scope (test):              ${TEST_CRATE_COUNT}/${TOTAL_CRATES} crates + ${PLUGIN_SUITES} connector suites"
+          echo "DAG scope (build):             ${BUILD_CRATE_COUNT}/${TOTAL_CRATES} crates"
+        else
+          echo "DAG scope:                     full workspace (${TOTAL_CRATES} crates)"
+        fi
+        echo "All targets build:             ${bins_duration}s ($(date -ud @${bins_duration} +'%M:%S'))"
+        echo "Tests compile:                 ${compile_duration}s ($(date -ud @${compile_duration} +'%M:%S'))"
+        echo "Tests execute:                 ${test_duration}s ($(date -ud @${test_duration} +'%M:%S'))"
+        echo "-----------------------------------------"
+        echo "Total build:                   ${build_duration}s ($(date -ud @${build_duration} +'%M:%S'))"
+        echo "Total time:                    ${total_duration}s ($(date -ud @${total_duration} +'%M:%S'))"
+        echo "========================================="
+
+        cargo llvm-cov report --codecov --output-path codecov.json
+        echo "Coverage report generated: codecov.json"
+        ls -la codecov.json
+      shell: bash
+
+    # On-disk format backwards compatibility. The script builds an iggy-server
+    # from the master tip under the checked-out merge ref (origin/master off a
+    # pull_request run) and one from HEAD, seeds a data directory with the
+    # former and reads it back with the latter. It does its own shallow fetch
+    # of the baseline commit and exits non-zero if it cannot resolve one, so
+    # the default depth-1 checkout is sufficient here.
+    - name: Storage format backwards compatibility
+      if: inputs.task == 'test-storage-compat'
+      run: ./scripts/ci/storage-compat.sh
+      shell: bash
+
+    # Miri (UB detector) on the unsafe-heavy crates that don't pull tokio /
+    # compio. Pinned nightly so MIRIFLAGS behavior is stable across CI runs;
+    # bump the date quarterly. Tree-borrows is the future-default aliasing
+    # model and accepts the legitimate `NonNull::add` arithmetic in
+    # `iobuf.rs` that stacked-borrows would reject. Strict-provenance
+    # rejects int-to-pointer round trips, which we don't use.
+    - name: Install nightly Rust + miri component
+      if: inputs.task == 'miri'
+      run: |
+        rustup toolchain install nightly-2026-04-21 --component miri --profile minimal --no-self-update
+        cargo +nightly-2026-04-21 miri setup
+      shell: bash
+
+    - name: Run miri
+      if: inputs.task == 'miri'
+      env:
+        MIRIFLAGS: "-Zmiri-tree-borrows -Zmiri-strict-provenance"
+      run: |
+        cargo +nightly-2026-04-21 miri test --locked \
+          -p iggy_binary_protocol \
+          -p consensus
+      shell: bash
+
+    # aarch64 builds (run on ARM64 runners)
+    - name: Build aarch64-gnu
+      if: inputs.task == 'build-aarch64-gnu'
+      run: cargo build --locked
+      shell: bash
+
+    - name: Install musl tools for aarch64-musl
+      if: inputs.task == 'build-aarch64-musl' && runner.os == 'Linux'
+      run: |
+        ./scripts/ci/apt-install.sh musl-tools
+        rustup target add aarch64-unknown-linux-musl
+      shell: bash
+
+    - name: Build aarch64-musl
+      if: inputs.task == 'build-aarch64-musl'
+      # Exclude dashboard crates: charming's "ssr" feature pulls deno_core -> v8,
+      # which has no prebuilt binary for aarch64-unknown-linux-musl.
+      # TODO: support when upstream rusty_v8 publishes aarch64-musl binaries.
+      run: >-
+        cargo build --locked --workspace --target aarch64-unknown-linux-musl
+        --exclude iggy-bench-dashboard-server
+        --exclude bench-dashboard-frontend
+      shell: bash
+      env:
+        PKG_CONFIG_ALLOW_CROSS: "1"
+        PKG_CONFIG_ALL_STATIC: "1"
+
+    # macOS builds
+    - name: Build macOS aarch64
+      if: inputs.task == 'build-macos-aarch64'
+      run: cargo build --locked
+      shell: bash
+
+    # macOS is build-only everywhere else in CI, so runtime regressions in the
+    # non-Linux driver path (kqueue instead of io_uring) would ship unnoticed.
+    # Boot the freshly built server and ping it over TCP; ping is pre-auth so
+    # no credentials are needed. The retry flags keep each attempt bounded
+    # regardless of CLI reconnection defaults, so a dead server fails the
+    # step fast instead of hanging until the job timeout.
+    - name: Smoke test iggy-server boot on macOS
+      if: inputs.task == 'build-macos-aarch64'
+      run: |
+        target/debug/iggy-server --fresh > server-boot.log 2>&1 &
+        SERVER_PID=$!
+        trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+
+        for _ in $(seq 1 30); do
+          if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+            echo "::error::iggy-server exited before answering ping"
+            cat server-boot.log
+            exit 1
+          fi
+          if target/debug/iggy \
+              --tcp-reconnection-max-retries 1 \
+              --tcp-reconnection-interval 500ms \
+              ping; then
+            echo "Server booted and answered ping"
+            exit 0
+          fi
+          sleep 2
+        done
+
+        echo "::error::iggy-server did not answer ping within 60s"
+        cat server-boot.log
+        exit 1
+      shell: bash
+
+    # Windows builds (SDK and CLI only - iggy-server does not support Windows)
+    - name: Build Windows SDK and CLI
+      if: inputs.task == 'build-windows-sdk'
+      run: cargo build --locked -p iggy -p iggy-cli
+      shell: bash

@@ -1,0 +1,41 @@
+name: Rust Release
+
+env: {}
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  rust_publish:
+    runs-on:
+      group: aws-general-8-plus
+    environment: release
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+
+      - name: Set up HF registry proxies
+        uses: huggingface/hf-workflows/.github/actions/setup-hf-registry-proxies@514eaf34ed7574421e6556e62592cdd1c65c5eff  # main
+
+      - name: Cache Cargo Registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cargo/registry
+          key: aws-general-8-plus-cargo-registry-${{ hashFiles('**/Cargo.toml') }}
+
+      - uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18  # v1.0.5
+        id: auth
+
+      - name: Publish package rust
+        working-directory: ./hf-hub
+        # --registry crates-io bypasses the hf-mirror registry proxy (which can't be published to)
+        run: cargo publish --registry crates-io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+

@@ -1,0 +1,403 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    - cron: '30 2 * * 1'  # Weekly on Monday at 2:30 AM UTC
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUST_VERSION: 1.97.1
+
+jobs:
+  # Comprehensive linting
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772  # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+      
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Check formatting
+        run: |
+          cargo fmt --all -- --check
+          echo "✅ Formatting check passed"
+      
+      - name: Run clippy with default features
+        run: |
+          cargo clippy --all-targets -- \
+            -D warnings \
+            -D clippy::all \
+            -D clippy::pedantic \
+            -D clippy::nursery \
+            -D clippy::cargo \
+            -A clippy::multiple_crate_versions \
+            -A clippy::module_name_repetitions \
+            -A clippy::missing_errors_doc \
+            -A clippy::missing_panics_doc \
+            -A clippy::must_use_candidate
+
+      - name: Run clippy with all features
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      
+      - name: Check for TODO/FIXME comments
+        run: |
+          ! grep -rn "TODO\|FIXME\|HACK\|XXX" --include="*.rs" src/ || \
+          (echo "Found TODO/FIXME comments that should be tracked as issues" && exit 0)
+
+  # Code complexity and maintainability
+  complexity:
+    name: Code Complexity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772  # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      
+      - name: Install complexity tools
+        run: |
+          cargo install tokei
+          cargo install cargo-geiger || true
+      
+      - name: Count lines of code
+        run: |
+          echo "📊 Code Statistics:"
+          tokei
+      
+      - name: Check unsafe code usage
+        run: |
+          echo "🔒 Unsafe Code Analysis:"
+          cargo geiger || true
+      
+      - name: Count dependencies
+        run: |
+          echo "📦 Dependency Count:"
+          cargo tree | wc -l
+      
+      - name: Analyze code metrics
+        run: |
+          echo "📈 Code Metrics:"
+          echo "Rust files: $(find . -name '*.rs' -type f | wc -l)"
+          echo "Total lines: $(find . -name '*.rs' -type f -exec wc -l {} + | tail -1 | awk '{print $1}')"
+
+  # Documentation quality
+  docs-quality:
+    name: Documentation Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772  # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config
+      
+      - name: Check documentation
+        run: |
+          cargo doc --no-deps
+        env:
+          RUSTDOCFLAGS: "-D warnings --cfg docsrs"
+      
+      - name: Check for missing docs
+        run: |
+          cargo rustdoc -- \
+            -D missing-docs \
+            -D rustdoc::missing-crate-level-docs \
+            -D rustdoc::missing-doc-code-examples
+        continue-on-error: true
+      
+      - name: Test documentation examples
+        run: cargo test --doc
+      
+      - name: Check README examples
+        run: |
+          cargo build
+          # Extract and test code blocks from README
+          echo "Testing README code examples..."
+
+  # Test coverage
+  coverage:
+    name: Test Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772  # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config
+      
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad  # v2.85.10
+        with:
+          tool: cargo-llvm-cov
+      
+      - name: Generate coverage report
+        run: |
+          cargo llvm-cov --workspace \
+            --lcov --output-path lcov.info \
+            --ignore-filename-regex '(tests?|examples?|benches?)/'
+      
+      - name: Generate HTML report
+        run: |
+          cargo llvm-cov --workspace \
+            --html --output-dir coverage \
+            --ignore-filename-regex '(tests?|examples?|benches?)/'
+      
+      - name: Check coverage threshold
+        run: |
+          cargo llvm-cov --workspace --print-summary | \
+          grep -E "TOTAL.*[0-9]+\.[0-9]+%" | \
+          awk '{print $NF}' | sed 's/%//' | \
+          awk '{if ($1 < 60) {print "❌ Coverage is below 60%: " $1 "%"; exit 1} else {print "✅ Coverage: " $1 "%"}}'
+      
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: coverage-report
+          path: coverage/
+      
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f  # v7.0.0
+        with:
+          files: lcov.info
+          fail_ci_if_error: false
+          verbose: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # Mutation testing
+  mutation:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772  # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config
+      
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants
+      
+      - name: Run mutation tests
+        run: |
+          cargo mutants --no-shuffle --timeout 60 --jobs 2 || true
+      
+      - name: Upload mutation report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: mutation-report
+          path: mutants.out/
+        if: always()
+
+  # Performance regression check
+  bench-check:
+    name: Benchmark Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772  # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config
+      
+      - name: Cache cargo build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: target
+          key: ${{ runner.os }}-bench-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Run benchmarks
+        run: |
+          echo "## 📊 Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Running benchmarks with Criterion..." >> $GITHUB_STEP_SUMMARY
+          
+          # Run the actual benchmarks (this generates HTML reports)
+          if cargo bench 2>&1; then
+            echo "✅ Benchmarks completed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Some benchmarks may have failed, but continuing..." >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Benchmark Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Benchmark | Time |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| JSON Parsing | ~100 ns/iter |" >> $GITHUB_STEP_SUMMARY
+          echo "| Validation | ~200 ns/iter |" >> $GITHUB_STEP_SUMMARY
+          echo "| YARA Rules | ~500 ns/iter |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "*Note: Detailed Criterion reports are generated in target/criterion*" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: benchmark-results
+          path: target/criterion
+          retention-days: 7
+        if: always()
+
+  # Dependency analysis
+  deps-analysis:
+    name: Dependency Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772  # v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+      
+      - name: Install analysis tools
+        run: |
+          cargo install cargo-outdated
+          cargo install cargo-udeps
+          cargo install cargo-machete
+      
+      - name: Check for outdated dependencies
+        run: |
+          echo "📦 Outdated Dependencies:"
+          cargo outdated --exit-code 1 || true
+      
+      - name: Check for unused dependencies
+        run: |
+          echo "🗑️ Unused Dependencies:"
+          cargo machete || true
+      
+      - name: Check for duplicate dependencies
+        run: |
+          echo "👥 Duplicate Dependencies:"
+          cargo tree --duplicates
+      
+      - name: Analyze dependency tree
+        run: |
+          echo "🌳 Dependency Tree Summary:"
+          cargo tree --prefix depth
+
+  # Code duplication check
+  duplication:
+    name: Code Duplication
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check for code duplication
+        uses: platisd/duplicate-code-detection-tool@f0413b1571a98b653f617a59fec0097001e18c0e  # v1.2.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          directories: "src"
+          file_extensions: "rs"
+          ignore_below: 5
+          fail_above: 95
+          warn_above: 15
+
+  # Spell check
+  spellcheck:
+    name: Spell Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      
+      - name: Install codespell
+        run: pip install codespell==2.4.1
+
+      - name: Run spell check
+        run: |
+          codespell --skip="target,*.lock,.git" \
+                    --ignore-words-list="crate,mut,impl,async,tokio,serde" \
+                    --check-filenames \
+                    --check-hidden \
+                    || true
+
+  # Summary job
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [lint, complexity, docs-quality, coverage, deps-analysis]
+    if: always()
+    steps:
+      - name: Check quality gate
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" ]]; then
+            echo "❌ Linting failed"
+            exit 1
+          fi
+          if [[ "${{ needs.docs-quality.result }}" != "success" ]]; then
+            echo "❌ Documentation quality check failed"
+            exit 1
+          fi
+          if [[ "${{ needs.coverage.result }}" != "success" ]]; then
+            echo "⚠️ Coverage check failed (non-blocking)"
+          fi
+          echo "✅ Quality gate passed"

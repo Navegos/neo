@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "matcher": ".*",
+        "command": "toksi cursor-hook codegraph-index",
+        "timeout": 120
+      },
+      {
+        "matcher": ".*",
+        "command": "toksi context-mode hook cursor sessionstart",
+        "timeout": 120
+      },
+      {
+        "matcher": ".*",
+        "command": "toksi projectmem-hook cursor",
+        "timeout": 120
+      }
+    ],
+    "preToolUse": [
+      {
+        "matcher": "terminal|run_terminal_command|bash|run_command",
+        "command": "toksi rtk-hook cursor",
+        "timeout": 120
+      },
+      {
+        "matcher": ".*",
+        "command": "toksi cursor-hook codegraph-index",
+        "timeout": 120
+      },
+      {
+        "matcher": ".*",
+        "command": "toksi context-mode hook cursor pretooluse",
+        "timeout": 120
+      },
+      {
+        "matcher": ".*",
+        "command": "toksi projectmem-hook cursor",
+        "timeout": 120
+      }
+    ],
+    "postToolUse": [
+      {
+        "matcher": "terminal|run_terminal_command|bash|run_command",
+        "command": "toksi rtk-hook cursor",
+        "timeout": 120
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|run_command|bash|terminal|exec",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi rtk-hook cursor",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|run_command|bash|terminal|exec",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi rtk-hook cursor",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

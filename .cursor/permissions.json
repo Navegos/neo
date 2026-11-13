@@ -1,0 +1,13 @@
+{
+  "terminalAllowlist": [
+    "rtk",
+    "toksi"
+  ],
+  "mcpAllowlist": [
+    "codegraph:*",
+    "context-mode:*",
+    "projectmem:*",
+    "ai-memory:*",
+    "icm:*"
+  ]
+}

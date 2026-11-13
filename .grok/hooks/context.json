@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi context-mode hook grok-cli sessionstart",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi context-mode hook grok-cli pretooluse",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

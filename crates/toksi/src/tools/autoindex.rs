@@ -9,7 +9,7 @@ use std::fs;
 use std::path::Path;
 use crate::util::jsonc::{stringify_json, try_parse_jsonc, Value};
 use crate::util::paths::{
-    claude_code_paths, codex_paths_resolved, home, opencode_paths_resolved,
+    claude_code_paths, codex_paths_resolved, home, opencode_paths_resolved, opencode_paths_v2,
     read_file_safe, write_file_atomic,
 };
 
@@ -95,13 +95,25 @@ pub fn unwire_codex_auto_index() {
     }
 }
 
-pub fn unwire_opencode_v2_auto_index() {}
+pub fn unwire_opencode_v2_auto_index() {
+    let dir = std::path::PathBuf::from(opencode_paths_v2().plugins_dir);
+    for name in ["toksi-index.ts", "toksi-codegraph-init.js", "tokless-codegraph-init.js"] {
+        let p = dir.join(name);
+        if p.exists() {
+            let _ = fs::remove_file(p);
+        }
+    }
+}
 
 pub fn unwire_opencode_auto_index() {
-    let legacy = Path::new(&opencode_paths_resolved().plugins_dir).join("toksi-index.ts");
-    if legacy.exists() {
-        let _ = fs::remove_file(legacy);
+    let dir = std::path::PathBuf::from(opencode_paths_resolved().plugins_dir);
+    for name in ["toksi-index.ts", "toksi-codegraph-init.js", "tokless-codegraph-init.js"] {
+        let p = dir.join(name);
+        if p.exists() {
+            let _ = fs::remove_file(p);
+        }
     }
+    unwire_opencode_v2_auto_index();
 }
 
 pub fn unwire_gemini_auto_index() {

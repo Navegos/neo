@@ -1,0 +1,108 @@
+{
+  "rtk": {
+    "PreToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi rtk-hook agy",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi rtk-hook agy",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  },
+  "codegraph-index": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi agy-hook codegraph-index",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "type": "command",
+        "command": "toksi agy-hook codegraph-index",
+        "timeout": 120
+      }
+    ]
+  },
+  "context-mode": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi context-mode hook antigravity-cli pretooluse",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "type": "command",
+        "command": "toksi context-mode hook antigravity-cli sessionstart",
+        "timeout": 120
+      }
+    ]
+  },
+  "projectmem": {
+    "SessionStart": [
+      {
+        "matcher": ".*",
+        "type": "command",
+        "command": "toksi projectmem-hook antigravity",
+        "timeout": 120
+      }
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|run_command|bash|terminal|exec",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi rtk-hook antigravity",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|run_command|bash|terminal|exec",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "toksi rtk-hook antigravity",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

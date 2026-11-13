@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor.rs
 // created: 2026-10-05
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
+
+#![deny(unsafe_code)]
 
 use std::env;
 use crate::commands::doctor_probe::{format_runtime_issues, probe_agent_runtime, RuntimeIssue};
@@ -28,6 +30,61 @@ struct AgentReport {
     runtime: Vec<RuntimeIssue>,
 }
 
+fn merge_events_jsonl(src: &std::path::Path, dst: &std::path::Path) {
+    let Ok(src_raw) = std::fs::read_to_string(src) else {
+        return;
+    };
+    let dst_raw = std::fs::read_to_string(dst).unwrap_or_default();
+    let existing: std::collections::HashSet<&str> =
+        dst_raw.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+    let mut appended = dst_raw.clone();
+    if !appended.is_empty() && !appended.ends_with('\n') {
+        appended.push('\n');
+    }
+    let mut changed = false;
+    for line in src_raw.lines() {
+        let trimmed = line.trim();
+        if !trimmed.is_empty() && !existing.contains(trimmed) {
+            appended.push_str(trimmed);
+            appended.push('\n');
+            changed = true;
+        }
+    }
+    if changed {
+        let _ = std::fs::write(dst, appended);
+    }
+}
+
+fn merge_directory_recursive(src: &std::path::Path, dst: &std::path::Path) {
+    if !src.is_dir() {
+        return;
+    }
+    let _ = std::fs::create_dir_all(dst);
+    let Ok(entries) = std::fs::read_dir(src) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let src_path = entry.path();
+        let file_name = entry.file_name();
+        let dst_path = dst.join(&file_name);
+        if src_path.is_dir() {
+            merge_directory_recursive(&src_path, &dst_path);
+        } else if src_path.is_file() {
+            let fname_str = file_name.to_string_lossy();
+            if fname_str == "events.jsonl" && dst_path.exists() {
+                merge_events_jsonl(&src_path, &dst_path);
+                let _ = std::fs::remove_file(&src_path);
+            } else if !dst_path.exists() {
+                if std::fs::rename(&src_path, &dst_path).is_err()
+                    && std::fs::copy(&src_path, &dst_path).is_ok()
+                {
+                    let _ = std::fs::remove_file(&src_path);
+                }
+            }
+        }
+    }
+}
+
 pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<usize> {
     let mut consolidated_count = 0;
     let root_canon = match std::fs::canonicalize(root) {
@@ -39,7 +96,17 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
         let _ = std::fs::create_dir_all(&root_toksi);
     }
 
-    // 1. Discover subfolder .toksi folders and merge rows
+    let tool_migrations = [
+        (".codegraph", "codegraph"),
+        (".context-mode", "context"),
+        (".context", "context"),
+        (".icm", "icm"),
+        (".ai-memory", "ai-memory"),
+        (".rtk", "rtk"),
+        (".projectmem", "projectmem"),
+    ];
+
+    // 1. Discover subfolder .toksi and loose tool folders and merge rows
     let mut stack = vec![root_canon.clone()];
     while let Some(dir) = stack.pop() {
         let entries = match std::fs::read_dir(&dir) {
@@ -50,7 +117,12 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
             let path = entry.path();
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str == "target" || name_str == ".git" || name_str == "node_modules" || name_str == "dist" || name_str == "build" {
+            if name_str == "target"
+                || name_str == ".git"
+                || name_str == "node_modules"
+                || name_str == "dist"
+                || name_str == "build"
+            {
                 continue;
             }
             if path.is_dir() {
@@ -67,11 +139,14 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
                             let root_toksi_db = root_toksi.join("toksi.db");
                             let _ = crate::db::merge_toksi_db(&root_toksi_db, &sub_toksi_db);
                         }
-                        // b) memory.db (in sub/.toksi or sub/.toksi/icm)
-                        for mem_sub in [path.join("memory.db"), path.join("icm").join("memory.db")] {
+                        // b) memory.db (in sub/.toksi, sub/.toksi/icm, or sub/.toksi/projectmem)
+                        for (mem_sub, dst_rel) in [
+                            (path.join("memory.db"), root_toksi.join("icm").join("memory.db")),
+                            (path.join("icm").join("memory.db"), root_toksi.join("icm").join("memory.db")),
+                            (path.join("projectmem").join("memory.db"), root_toksi.join("projectmem").join("memory.db")),
+                        ] {
                             if mem_sub.exists() {
-                                let root_mem = root_toksi.join("icm").join("memory.db");
-                                let _ = crate::db::merge_memory_db(&root_mem, &mem_sub);
+                                let _ = crate::db::merge_memory_db(&dst_rel, &mem_sub);
                             }
                         }
                         // c) symbols.db (in sub/.toksi or sub/.toksi/codegraph)
@@ -82,19 +157,33 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
                             }
                         }
 
-                        // Copy other subdirectories/files into root .toksi
-                        if let Ok(sub_entries) = std::fs::read_dir(&path) {
-                            for sub in sub_entries.flatten() {
-                                let sub_path = sub.path();
-                                let dest_path = root_toksi.join(sub.file_name());
-                                if !dest_path.exists() {
-                                    if let Some(parent) = dest_path.parent() {
-                                        let _ = std::fs::create_dir_all(parent);
-                                    }
-                                    let _ = std::fs::rename(&sub_path, &dest_path);
-                                }
+                        // Recursively merge subdirectories and files into root .toksi
+                        merge_directory_recursive(&path, &root_toksi);
+                        let _ = std::fs::remove_dir_all(&path);
+                        consolidated_count += 1;
+                    }
+                } else if let Some((_, tool_name)) =
+                    tool_migrations.iter().find(|(legacy, _)| *legacy == name_str.as_ref())
+                {
+                    let dir_canon = match std::fs::canonicalize(&dir) {
+                        Ok(c) => c,
+                        Err(_) => dir.clone(),
+                    };
+                    if dir_canon != root_canon {
+                        let target_tool_dir = root_toksi.join(tool_name);
+                        let _ = std::fs::create_dir_all(&target_tool_dir);
+                        if *tool_name == "codegraph" {
+                            let sub_sym = path.join("symbols.db");
+                            if sub_sym.exists() {
+                                let _ = crate::db::merge_symbols_db(&target_tool_dir.join("symbols.db"), &sub_sym);
+                            }
+                        } else if *tool_name == "icm" || *tool_name == "projectmem" {
+                            let sub_mem = path.join("memory.db");
+                            if sub_mem.exists() {
+                                let _ = crate::db::merge_memory_db(&target_tool_dir.join("memory.db"), &sub_mem);
                             }
                         }
+                        merge_directory_recursive(&path, &target_tool_dir);
                         let _ = std::fs::remove_dir_all(&path);
                         consolidated_count += 1;
                     }
@@ -105,42 +194,26 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
         }
     }
 
-    // 2. Consolidate loose legacy tool folders into .toksi/<tool>
-    let tool_migrations = [
-        (".codegraph", "codegraph"),
-        (".context-mode", "context"),
-        (".context", "context"),
-        (".icm", "icm"),
-        (".ai-memory", "ai-memory"),
-        (".rtk", "rtk"),
-    ];
-
-    for (legacy_name, tool_name) in tool_migrations {
+    // 2. Consolidate loose legacy tool folders at workspace root into .toksi/<tool>
+    for (legacy_name, tool_name) in &tool_migrations[..6] {
         let legacy_path = root_canon.join(legacy_name);
         if legacy_path.exists() && legacy_path.is_dir() {
             let target_tool_dir = root_toksi.join(tool_name);
             let _ = std::fs::create_dir_all(&target_tool_dir);
-            if legacy_name == ".codegraph" {
+            if *legacy_name == ".codegraph" {
                 let sub_sym = legacy_path.join("symbols.db");
                 if sub_sym.exists() {
                     let root_sym = target_tool_dir.join("symbols.db");
                     let _ = crate::db::merge_symbols_db(&root_sym, &sub_sym);
                 }
-            } else if legacy_name == ".icm" {
+            } else if *legacy_name == ".icm" {
                 let sub_mem = legacy_path.join("memory.db");
                 if sub_mem.exists() {
                     let root_mem = target_tool_dir.join("memory.db");
                     let _ = crate::db::merge_memory_db(&root_mem, &sub_mem);
                 }
             }
-            if let Ok(entries) = std::fs::read_dir(&legacy_path) {
-                for entry in entries.flatten() {
-                    let dest = target_tool_dir.join(entry.file_name());
-                    if !dest.exists() {
-                        let _ = std::fs::rename(entry.path(), dest);
-                    }
-                }
-            }
+            merge_directory_recursive(&legacy_path, &target_tool_dir);
             let _ = std::fs::remove_dir_all(&legacy_path);
             consolidated_count += 1;
         }
@@ -234,16 +307,9 @@ pub fn consolidate_nested_agent_dirs(root: &std::path::Path) -> std::io::Result<
                         Err(_) => path.clone(),
                     };
                     if path_canon.parent() != Some(&root_canon) {
+                        let _ = crate::agents::manager::migrate_legacy_mcp_dirs_to_skills(&path);
                         let root_dest = root_canon.join(&name);
-                        let _ = std::fs::create_dir_all(&root_dest);
-                        if let Ok(sub_entries) = std::fs::read_dir(&path) {
-                            for sub in sub_entries.flatten() {
-                                let dest = root_dest.join(sub.file_name());
-                                if !dest.exists() {
-                                    let _ = std::fs::rename(sub.path(), dest);
-                                }
-                            }
-                        }
+                        merge_directory_recursive(&path, &root_dest);
                         let _ = std::fs::remove_dir_all(&path);
                         count += 1;
                     }
@@ -253,6 +319,8 @@ pub fn consolidate_nested_agent_dirs(root: &std::path::Path) -> std::io::Result<
             }
         }
     }
+    let migrated_root = crate::agents::manager::migrate_legacy_mcp_dirs_to_skills(&root_canon);
+    count += migrated_root.len();
     Ok(count)
 }
 
@@ -313,7 +381,16 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
             ));
         }
 
-        let mut fixed_count = 0;
+        let config_healed = crate::agents::manager::heal_all_agent_legacy_configs(Some(std::path::Path::new(".")));
+        if !config_healed.is_empty() {
+            L.raw(&format!(
+                "  {} Healed {} legacy agent MCP/hook configuration item(s)",
+                C.green(Sym::CHECK),
+                config_healed.len()
+            ));
+        }
+
+        let mut fixed_count = config_healed.len();
         #[cfg(windows)]
         {
             if let Some(_) = crate::env_injector::windows::get_env_reg_value("CLOUD_CODE_URL") {
