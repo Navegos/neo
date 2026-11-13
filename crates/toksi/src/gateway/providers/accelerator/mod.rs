@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/providers/accelerator/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use serde_json::{json, Value};
@@ -57,37 +57,7 @@ impl ProviderClient for AcceleratorProvider {
     }
 
     fn parse_response(&self, resp: &Value) -> Result<UnifiedResponse, String> {
-        let id = resp.get("id").and_then(Value::as_str).unwrap_or("").to_string();
-        let model = resp.get("model").and_then(Value::as_str).unwrap_or("").to_string();
-        let content = resp
-            .get("choices")
-            .and_then(Value::as_array)
-            .and_then(|a| a.first())
-            .and_then(|c| c.get("message"))
-            .and_then(|m| m.get("content"))
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string();
-        let finish_reason = resp
-            .get("choices")
-            .and_then(Value::as_array)
-            .and_then(|a| a.first())
-            .and_then(|c| c.get("finish_reason"))
-            .and_then(Value::as_str)
-            .map(|s| s.to_string());
-        let input_tokens = resp.get("usage").and_then(|u| u.get("prompt_tokens")).and_then(Value::as_u64).unwrap_or(0) as u32;
-        let output_tokens = resp.get("usage").and_then(|u| u.get("completion_tokens")).and_then(Value::as_u64).unwrap_or(0) as u32;
-
-        Ok(UnifiedResponse {
-            id,
-            model,
-            content,
-            role: "assistant".to_string(),
-            finish_reason,
-            input_tokens,
-            output_tokens,
-            raw: resp.clone(),
-        })
+        crate::gateway::providers::parse_openai_chat_response(resp, "")
     }
 }
 

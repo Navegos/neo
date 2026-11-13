@@ -40,7 +40,6 @@ Enterprise-grade native Safe Rust (`#![deny(unsafe_code)]`) token optimization, 
 - Unified 7-port topology (:8787 Headroom, :8788 Grok OAuth, :8789/:8790 Copilot, :18787 BYOK, :9099 Gateway, :9100 Cockpit), zero paid-tier restrictions (FreeTierDisqualified removed), multi-instance <byok, model, effort> SQLite profiles, and 65/90+ Categories 1-5 + 22 local engines [crates/toksi/CONSOLIDATION_PLAN.md:1]
 
 ## Notes
-- New feature: feat: add token economizer for prompt optimization and instruction deduplication [crates/toksi/src/agents/mod.rs]
 - New feature: feat: Bump version to 3.0.0 and update dependencies [crates/toksi/src/tui/app.rs]
 - New feature: feat(dashboard): Enhance dashboard with AI Gateway and Keyring management [crates/toksi/src/dashboard/api.rs]
 - New feature: feat: introduce Agent Manager for lifecycle management of agents [crates/toksi/src/agents/manager.rs]
@@ -50,6 +49,7 @@ Enterprise-grade native Safe Rust (`#![deny(unsafe_code)]`) token optimization, 
 - New feature: feat: Enhance context-mode with slash command handling and policy enforcement [crates/toksi/src/commands/ctx.rs]
 - New feature: feat(toksi): implement Phase 05 CodeGraph pure Rust engine and 41+ polyglot extractors [crates/toksi-grammars/build.rs]
 - New feature: feat: implement DirectWire communication for CodeGraph [crates/toksi/src/agents/antigravity.rs]
+- New feature: feat(rules): add caveman v4 and ponytail modes with selective agent sync [crates/toksi/src/agents/manager.rs]
 
 ## Key files
 - `.editorconfig`

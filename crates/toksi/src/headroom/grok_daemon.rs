@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/grok_daemon.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::fs::File;
 use std::path::Path;
@@ -25,16 +25,7 @@ use crate::util::paths::{ensure_dir, read_file_safe};
 pub const DEFAULT_GROK_OAUTH_PROXY_PORT: u16 = 8788;
 
 pub fn grok_oauth_proxy_port() -> u16 {
-    for var in ["TOKSI_GROK_PROXY_PORT", "TOKSI_HEADROOM_GROK_PORT"] {
-        if let Ok(raw) = std::env::var(var) {
-            if let Ok(p) = raw.trim().parse::<u16>() {
-                if p > 0 {
-                    return p;
-                }
-            }
-        }
-    }
-    DEFAULT_GROK_OAUTH_PROXY_PORT
+    crate::util::ports::resolved_ports().grok_oauth_proxy
 }
 
 pub fn grok_proxy_files() -> (String, String) {
@@ -52,16 +43,9 @@ pub fn grok_proxy_files() -> (String, String) {
 
 pub fn grok_proxy_args(port: u16) -> Vec<String> {
     vec![
-        "proxy".to_string(),
+        "__grok-proxy".to_string(),
         "--port".to_string(),
         port.to_string(),
-        "--no-cache".to_string(),
-        "--protect-tool-results".to_string(),
-        "Bash".to_string(),
-        "--anthropic-api-url".to_string(),
-        "https://api.anthropic.com".to_string(),
-        "--openai-api-url".to_string(),
-        "https://cli-chat-proxy.grok.com".to_string(),
     ]
 }
 
@@ -441,4 +425,132 @@ pub fn stop_grok_oauth_proxy() -> Result<(), Box<dyn std::error::Error + Send + 
     }
 
     Err(format!("Grok proxy did not stop (pid {})", record.pid).into())
+}
+
+pub fn run_grok_proxy_foreground(port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
+    rt.block_on(run_native_grok_proxy(port))
+}
+
+pub async fn run_native_grok_proxy(port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use tokio::net::TcpListener;
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let listener = TcpListener::bind(addr).await?;
+    loop {
+        match listener.accept().await {
+            Ok((stream, _)) => {
+                tokio::spawn(async move {
+                    let _ = serve_grok_connection(stream, port).await;
+                });
+            }
+            Err(_) => break,
+        }
+    }
+    Ok(())
+}
+
+async fn serve_grok_connection(
+    mut stream: tokio::net::TcpStream,
+    port: u16,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    loop {
+        let Some(req) = super::byok_gateway::read_http_request(&mut stream).await? else {
+            return Ok(());
+        };
+        let is_close_requested = req.headers.iter().any(|(k, v)| {
+            k.eq_ignore_ascii_case("connection") && v.eq_ignore_ascii_case("close")
+        });
+        let (path, _, _) = super::byok_gateway::split_uri_path_and_query(&req.raw_uri);
+        if path == "/livez" || path == "/healthz" || path == "/readyz" {
+            let body = format!(
+                r#"{{"service":"headroom-proxy","subservice":"grok-oauth","port":{},"status":"ok"}}"#,
+                port
+            );
+            let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
+            if is_close_requested {
+                headers.push(("Connection".to_string(), "close".to_string()));
+            }
+            super::byok_gateway::write_http_response(&mut stream, 200, "OK", &headers, body.as_bytes()).await?;
+        } else {
+            let mut upstream_base = if path.starts_with("/v1/messages") {
+                std::env::var("TOKSI_GROK_ANTHROPIC_URL")
+                    .unwrap_or_else(|_| "https://api.anthropic.com".to_string())
+            } else {
+                std::env::var("TOKSI_GROK_UPSTREAM_URL")
+                    .unwrap_or_else(|_| "https://cli-chat-proxy.grok.com".to_string())
+            };
+            upstream_base = upstream_base.trim_end_matches('/').to_string();
+            let target_url = format!("{}{}", upstream_base, req.raw_uri);
+            let client = reqwest::Client::builder()
+                .timeout(Duration::from_secs(120))
+                .build()?;
+            let method = reqwest::Method::from_bytes(req.method.as_bytes())
+                .unwrap_or(reqwest::Method::POST);
+            let auth_mode = super::auth_mode::classify_auth_mode(&req.headers);
+            let req_body = if auth_mode.should_compress_live_zone() {
+                super::live_zone::compress_request_body_safe(&path, &req.body)
+            } else {
+                req.body.clone()
+            };
+            let mut builder = client.request(method, &target_url).body(req_body);
+            for (k, v) in &req.headers {
+                if !k.eq_ignore_ascii_case("host")
+                    && !k.eq_ignore_ascii_case("content-length")
+                    && !k.eq_ignore_ascii_case("connection")
+                {
+                    builder = builder.header(k.as_str(), v.as_str());
+                }
+            }
+            match builder.send().await {
+                Ok(resp) => {
+                    let status = resp.status().as_u16();
+                    let reason = resp.status().canonical_reason().unwrap_or("OK").to_string();
+                    let mut resp_headers = Vec::new();
+                    for (k, v) in resp.headers() {
+                        let ks = k.as_str();
+                        if ks.eq_ignore_ascii_case("transfer-encoding")
+                            || ks.eq_ignore_ascii_case("content-length")
+                            || ks.eq_ignore_ascii_case("connection")
+                        {
+                            continue;
+                        }
+                        if let Ok(vs) = v.to_str() {
+                            resp_headers.push((ks.to_string(), vs.to_string()));
+                        }
+                    }
+                    if is_close_requested {
+                        resp_headers.push(("Connection".to_string(), "close".to_string()));
+                    }
+                    let resp_bytes = resp.bytes().await.unwrap_or_default();
+                    super::byok_gateway::write_http_response(
+                        &mut stream,
+                        status,
+                        &reason,
+                        &resp_headers,
+                        &resp_bytes,
+                    )
+                    .await?;
+                }
+                Err(e) => {
+                    let err_body = format!(r#"{{"error":"grok upstream request failed: {}"}}"#, e);
+                    super::byok_gateway::write_http_response(
+                        &mut stream,
+                        502,
+                        "Bad Gateway",
+                        &[("Content-Type".to_string(), "application/json".to_string())],
+                        err_body.as_bytes(),
+                    )
+                    .await?;
+                }
+            }
+        }
+        if is_close_requested {
+            use tokio::io::AsyncWriteExt;
+            let _ = stream.shutdown().await;
+            break;
+        }
+    }
+    Ok(())
 }

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/mod.rs
 // created: 2026-10-30
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 pub mod api;
 pub mod assets;
@@ -25,14 +25,7 @@ use crate::util::logger::L;
 pub const DEFAULT_DASHBOARD_PORT: u16 = 9100;
 
 pub fn dashboard_port() -> u16 {
-    if let Ok(raw) = std::env::var("TOKSI_DASHBOARD_PORT") {
-        if let Ok(p) = raw.trim().parse::<u16>() {
-            if p > 0 {
-                return p;
-            }
-        }
-    }
-    DEFAULT_DASHBOARD_PORT
+    crate::util::ports::resolved_ports().dashboard
 }
 
 pub fn dashboard_live_z(port: u16, timeout: std::time::Duration) -> bool {

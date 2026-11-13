@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/agent_cli/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 pub mod antigravity;
 pub mod claude;
@@ -26,8 +26,8 @@ pub use gemini_agy::read_gemini_adc_session;
 pub use grok::{launch_grok_bridge, read_grok_session, verify_grok_health};
 pub use grok_cli::read_grok_cli_session;
 pub use tier_check::{
-    active_paid_provider_count, inspect_provider_tier, is_gateway_routing_active,
-    set_active_paid_provider_count, validate_and_update_key_tier, AccountTier, TierCheckError,
+    inspect_provider_tier, is_gateway_routing_active, validate_and_update_key_tier, AccountTier,
+    QuotaWindowKind, TierCheckError,
 };
 
 use std::process::Child;

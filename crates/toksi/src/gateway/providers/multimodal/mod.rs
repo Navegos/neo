@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/providers/multimodal/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use serde_json::{json, Value};
@@ -54,14 +54,18 @@ impl ProviderClient for MultimodalProvider {
     }
 
     fn parse_response(&self, resp: &Value) -> Result<UnifiedResponse, String> {
+        let (input_tokens, output_tokens) = crate::gateway::providers::parse_openai_usage(resp);
+        let id = resp.get("id").and_then(Value::as_str).unwrap_or("multimodal-resp").to_string();
+        let model = resp.get("model").and_then(Value::as_str).unwrap_or("multimodal").to_string();
+
         Ok(UnifiedResponse {
-            id: "multimodal-resp".to_string(),
-            model: "multimodal".to_string(),
+            id,
+            model,
             content: resp.to_string(),
             role: "assistant".to_string(),
             finish_reason: Some("stop".to_string()),
-            input_tokens: 10,
-            output_tokens: 10,
+            input_tokens,
+            output_tokens,
             raw: resp.clone(),
         })
     }

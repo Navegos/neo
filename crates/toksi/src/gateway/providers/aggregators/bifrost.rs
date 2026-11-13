@@ -82,17 +82,8 @@ impl ProviderClient for BifrostProviderClient {
             .unwrap_or("")
             .to_string();
 
-        let prompt_tokens = resp
-            .get("usage")
-            .and_then(|u| u.get("prompt_tokens"))
-            .and_then(Value::as_u64)
-            .unwrap_or(50) as u32;
-
-        let completion_tokens = resp
-            .get("usage")
-            .and_then(|u| u.get("completion_tokens"))
-            .and_then(Value::as_u64)
-            .unwrap_or(50) as u32;
+        let (prompt_tokens, completion_tokens) =
+            crate::gateway::providers::parse_openai_usage(resp);
 
         Ok(UnifiedResponse {
             id,

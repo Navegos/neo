@@ -205,6 +205,7 @@ pub fn build_adaptive_memory_brief(current_tokens: usize, max_context: usize) ->
 }
 
 /// Injects or updates the dynamic memory context in Anthropic or OpenAI request bodies
+/// unless a frozen `cache_control` prefix already locks `system`.
 pub fn inject_adaptive_memory(body: &mut Value) -> bool {
     let raw_str = body.to_string();
     let current_tokens = estimate_tokens(&raw_str);
@@ -212,6 +213,10 @@ pub fn inject_adaptive_memory(body: &mut Value) -> bool {
     let Value::Object(map) = body else {
         return false;
     };
+
+    if super::cache_align::has_cache_control_marker(map.get("system").unwrap_or(&Value::Null)) {
+        return false;
+    }
 
     let model_str = map.get("model").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let max_context = model_context_limit(&model_str);

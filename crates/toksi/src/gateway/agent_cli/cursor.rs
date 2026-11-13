@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/agent_cli/cursor.rs
 // created: 2026-10-31
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
@@ -42,12 +42,7 @@ pub fn launch_cursor_bridge(port: u16) -> Result<Child, String> {
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setsid();
-                Ok(())
-            });
-        }
+        cmd.process_group(0);
     }
 
     cmd.spawn().map_err(|e| format!("Failed to spawn Cursor bridge: {}", e))

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/loadbalancer.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::sync::{Mutex, RwLock};
@@ -46,12 +46,12 @@ impl LoadBalancer {
     }
 
     pub fn set_strategy(&self, s: LoadBalanceStrategy) {
-        let mut st = self.strategy.write().unwrap();
+        let mut st = self.strategy.write().unwrap_or_else(|e| e.into_inner());
         *st = s;
     }
 
     pub fn register_provider(&self, id: ProviderId, cost_per_mtoken: f64, weight: u32) {
-        let mut m = self.metrics.write().unwrap();
+        let mut m = self.metrics.write().unwrap_or_else(|e| e.into_inner());
         m.entry(id).or_insert(ProviderMetrics {
             active_in_flight: 0,
             total_requests: 0,
@@ -69,12 +69,12 @@ impl LoadBalancer {
             return Some(candidates[0]);
         }
 
-        let strat = *self.strategy.read().unwrap();
-        let m = self.metrics.read().unwrap();
+        let strat = *self.strategy.read().unwrap_or_else(|e| e.into_inner());
+        let m = self.metrics.read().unwrap_or_else(|e| e.into_inner());
 
         match strat {
             LoadBalanceStrategy::RoundRobin => {
-                let mut c = self.round_robin_counter.lock().unwrap();
+                let mut c = self.round_robin_counter.lock().unwrap_or_else(|e| e.into_inner());
                 let chosen = candidates[*c % candidates.len()];
                 *c = (*c + 1) % candidates.len();
                 Some(chosen)
@@ -113,7 +113,7 @@ impl LoadBalancer {
                 if total_weight == 0 {
                     return Some(candidates[0]);
                 }
-                let mut c = self.round_robin_counter.lock().unwrap();
+                let mut c = self.round_robin_counter.lock().unwrap_or_else(|e| e.into_inner());
                 let mut acc = 0;
                 let pick = (*c as u32) % total_weight;
                 *c += 1;
@@ -130,7 +130,7 @@ impl LoadBalancer {
     }
 
     pub fn acquire_flight(&self, id: ProviderId) {
-        let mut m = self.metrics.write().unwrap();
+        let mut m = self.metrics.write().unwrap_or_else(|e| e.into_inner());
         if let Some(entry) = m.get_mut(&id) {
             entry.active_in_flight += 1;
             entry.total_requests += 1;
@@ -138,7 +138,7 @@ impl LoadBalancer {
     }
 
     pub fn release_flight(&self, id: ProviderId, latency_ms: f64) {
-        let mut m = self.metrics.write().unwrap();
+        let mut m = self.metrics.write().unwrap_or_else(|e| e.into_inner());
         if let Some(entry) = m.get_mut(&id) {
             entry.active_in_flight = entry.active_in_flight.saturating_sub(1);
             // Exponential moving average: 0.8 old + 0.2 new

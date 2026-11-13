@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/headroom_proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::path::Path;
 use serde::{Deserialize, Serialize};
@@ -110,7 +110,7 @@ pub fn headroom_proxy_port() -> u16 {
     if let Some(st) = read_proxy_runtime() {
         return st.port;
     }
-    HEADROOM_PROXY_DEFAULT_PORT
+    crate::util::ports::resolved_ports().headroom_proxy
 }
 
 pub fn headroom_proxy_url() -> String {

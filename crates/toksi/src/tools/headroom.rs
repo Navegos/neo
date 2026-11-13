@@ -3,10 +3,8 @@
 // project: neo
 // file: crates/toksi/src/tools/headroom.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
-use std::fs;
-use std::path::Path;
 use std::sync::Arc;
 
 use crate::agents::opencode::open_code_proxy_satisfied;
@@ -28,7 +26,6 @@ use crate::util::headroom_proxy::{
     proxy_routing_preference_set, read_proxy_runtime, save_headroom_proxy_runtime,
     set_proxy_routing_enabled,
 };
-use crate::util::paths::{is_win, prepend_process_path, temp_dir};
 use super::helpers::is_test;
 
 /// Reports agents with an applicable config that toksi can wire.
@@ -37,34 +34,13 @@ pub fn headroom_wired(id: &str) -> bool {
 }
 
 pub fn headroom_ensure_installed(opts: &RunOpts) -> Result<bool, DynError> {
-    if is_test() {
-        let shim_dir = Path::new(&temp_dir()).join("toksi-test-headroom");
-        let _ = fs::create_dir_all(&shim_dir);
-        let shim_path = shim_dir.join(if is_win() { "headroom.bat" } else { "headroom" });
-        let _ = fs::write(&shim_path, if is_win() { "@echo headroom 0.5.32" } else { "#!/bin/sh\necho headroom 0.5.32\n" });
-        prepend_process_path(&shim_dir.to_string_lossy());
-        return Ok(true);
-    }
-
-    if let Some(ref report) = opts.report {
-        report("checking", 0.1);
-    }
-    if headroom_installed() && !opts.upgrade {
-        if let Some(ref report) = opts.report {
-            report("already installed", 1.0);
-        }
-        return Ok(true);
-    }
-    if opts.dry_run {
+    if is_test() || opts.dry_run {
         return Ok(true);
     }
     if let Some(ref report) = opts.report {
-        report(if opts.upgrade { "upgrading" } else { "installing" }, 0.3);
+        report("embedded", 1.0);
     }
-    ensure_headroom(opts.upgrade).map_err(|e| -> DynError { e.into() })?;
-    if let Some(ref report) = opts.report {
-        report("ready", 1.0);
-    }
+    let _ = ensure_headroom(opts.upgrade);
     Ok(true)
 }
 

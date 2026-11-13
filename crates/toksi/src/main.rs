@@ -34,6 +34,20 @@ use toksi::util::logger::{set_verbose, L};
 use toksi::util::paths::ensure_process_path;
 use toksi::util::version::toksi_version;
 
+fn parse_port_arg(args: &[String]) -> Option<u16> {
+    let mut i = 0;
+    while i < args.len() {
+        if args[i] == "--port" && i + 1 < args.len() {
+            return args[i + 1].trim().parse::<u16>().ok().filter(|p| *p > 0);
+        }
+        if let Some(raw) = args[i].strip_prefix("--port=") {
+            return raw.trim().parse::<u16>().ok().filter(|p| *p > 0);
+        }
+        i += 1;
+    }
+    None
+}
+
 #[derive(Default)]
 struct ParsedArgs {
     cmd: String,
@@ -95,7 +109,7 @@ fn help_text() -> String {
           {cmd_tui}               Full mouse-capable multi-tab interactive terminal control center\n\
           {cmd_dashboard}         Embedded web telemetry & control cockpit (--port, --open)\n\
           {cmd_prime}             Generate unified context primer for AI agent sessions\n\
-          {cmd_daemon}            Unified 5-port background supervisor with auto-healing network watchdog\n\
+          {cmd_daemon}            Unified 7-port background supervisor with auto-healing network watchdog\n\
           {cmd_info}              Show installation details, paths, config locations, and database status\n\
           {cmd_index}             Build per-project AST code graph index in current directory\n\
           {cmd_disable}           Disable agent hooks and proxy routing without removing files\n\
@@ -113,9 +127,11 @@ fn help_text() -> String {
           {cmd_agent}             Agent directory lifecycle: install|health|mismatch|upgrade|fix|restore|remove|edit\n\
           {cmd_self_update}       In-place binary self-update to latest release\n\n\
         {sec_ports}\n\
-          {p8787}           Streaming Headroom Proxy (Antigravity, Grok, and IDE base URL overrides)\n\
+          {p8787}           Streaming Headroom Proxy (Antigravity, Claude, Codex, Cursor, etc.)\n\
+          {p8788}           Grok OAuth Proxy Daemon (cli-chat-proxy.grok.com / xAI)\n\
           {p8789}           GitHub Copilot VS Code Proxy (DEFAULT_COPILOT_PROXY_PORT)\n\
           {p8790}           GitHub Copilot CLI Proxy (DEFAULT_COPILOT_CLI_PROXY_PORT)\n\
+          {p18787}          BYOK Multi-Profile Gateway\n\
           {p9099}           Enterprise AI Gateway & Drop-in SDKs (/v1/chat/completions, /v1/messages, /metrics)\n\
           {p9100}           Web Telemetry & Control Dashboard Cockpit (non-blocking background service)\n\n\
         {sec_agents}\n\
@@ -166,10 +182,12 @@ fn help_text() -> String {
         cmd_db = cy("toksi db"),
         cmd_agent = cy("toksi agent"),
         cmd_self_update = cy("toksi self-update"),
-        sec_ports = bd("Dedicated 5-Port Network Topology:"),
+        sec_ports = bd("Dedicated 7-Port Network Topology:"),
         p8787 = yl("Port 8787"),
+        p8788 = yl("Port 8788"),
         p8789 = yl("Port 8789"),
         p8790 = yl("Port 8790"),
+        p18787 = yl("Port 18787"),
         p9099 = yl("Port 9099"),
         p9100 = yl("Port 9100"),
         sec_agents = bd("Supported Agents (17):"),
@@ -264,6 +282,37 @@ fn run() -> i32 {
             }
             "__proxy-run" => {
                 if let Err(e) = run_proxy_foreground() {
+                    L.err(&e.to_string());
+                    return 1;
+                }
+                return 0;
+            }
+            "__grok-proxy" => {
+                let port = parse_port_arg(&args[2..])
+                    .unwrap_or_else(toksi::headroom::grok_daemon::grok_oauth_proxy_port);
+                if let Err(e) = toksi::headroom::grok_daemon::run_grok_proxy_foreground(port) {
+                    L.err(&e.to_string());
+                    return 1;
+                }
+                return 0;
+            }
+            "__copilot-proxy" | "__copilot-cli-proxy" => {
+                let is_cli = args[1] == "__copilot-cli-proxy";
+                let port = parse_port_arg(&args[2..]).unwrap_or_else(|| {
+                    if is_cli {
+                        toksi::headroom::copilot_daemon::copilot_cli_proxy_port()
+                    } else {
+                        toksi::headroom::copilot_daemon::copilot_proxy_port()
+                    }
+                });
+                let rt = match tokio::runtime::Runtime::new() {
+                    Ok(r) => r,
+                    Err(e) => {
+                        L.err(&e.to_string());
+                        return 1;
+                    }
+                };
+                if let Err(e) = rt.block_on(toksi::headroom::copilot_daemon::run_native_copilot_proxy(port, is_cli)) {
                     L.err(&e.to_string());
                     return 1;
                 }

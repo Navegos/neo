@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/copilot_daemon.rs
 // created: 2026-10-11
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use std::fs::OpenOptions;
 use std::path::Path;
@@ -27,25 +27,11 @@ pub const DEFAULT_COPILOT_PROXY_PORT: u16 = 8789;
 pub const DEFAULT_COPILOT_CLI_PROXY_PORT: u16 = 8790;
 
 pub fn copilot_proxy_port() -> u16 {
-    if let Ok(raw) = std::env::var("TOKSI_COPILOT_PROXY_PORT") {
-        if let Ok(p) = raw.trim().parse::<u16>() {
-            if p > 0 {
-                return p;
-            }
-        }
-    }
-    DEFAULT_COPILOT_PROXY_PORT
+    crate::util::ports::resolved_ports().copilot_vscode_proxy
 }
 
 pub fn copilot_cli_proxy_port() -> u16 {
-    if let Ok(raw) = std::env::var("TOKSI_COPILOT_CLI_PROXY_PORT") {
-        if let Ok(p) = raw.trim().parse::<u16>() {
-            if p > 0 {
-                return p;
-            }
-        }
-    }
-    DEFAULT_COPILOT_CLI_PROXY_PORT
+    crate::util::ports::resolved_ports().copilot_cli_proxy
 }
 
 pub fn validate_copilot_ports() -> Result<(), String> {
@@ -91,21 +77,17 @@ pub fn copilot_cli_proxy_files() -> (String, String) {
 
 pub fn copilot_proxy_args() -> Vec<String> {
     vec![
-        "wrap".to_string(),
-        "vscode".to_string(),
+        "__copilot-proxy".to_string(),
         "--port".to_string(),
         copilot_proxy_port().to_string(),
-        "--no-configure".to_string(),
     ]
 }
 
 pub fn copilot_cli_proxy_args() -> Vec<String> {
     vec![
-        "wrap".to_string(),
-        "cli".to_string(),
+        "__copilot-cli-proxy".to_string(),
         "--port".to_string(),
         copilot_cli_proxy_port().to_string(),
-        "--no-configure".to_string(),
     ]
 }
 
@@ -793,23 +775,45 @@ async fn serve_copilot_connection(
             continue;
         }
 
-        // For completion or proxy routing
-        let resp_body = format!(
-            r#"{{"service":"{}","status":"ok","port":{},"message":"copilot proxy ready"}}"#,
-            service_name, port
-        );
-        let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
-        if is_close_requested {
-            headers.push(("Connection".to_string(), "close".to_string()));
-        }
-        crate::headroom::byok_gateway::write_http_response(
+        // Real OAuth/SSE upstream streaming via Headroom live_zone + auto-healing pool
+        let upstream_base = if service_name.contains("cli") {
+            std::env::var("TOKSI_COPILOT_CLI_UPSTREAM_URL")
+                .unwrap_or_else(|_| "https://api.githubcopilot.com".to_string())
+        } else {
+            std::env::var("TOKSI_COPILOT_UPSTREAM_URL")
+                .unwrap_or_else(|_| "https://api.individual.githubcopilot.com".to_string())
+        };
+        let mut compressed_body = if req.method.eq_ignore_ascii_case("POST")
+            && !req.body.is_empty()
+            && !crate::headroom::byok_gateway::is_proto_or_connect_request(&path, &req.headers)
+        {
+            crate::headroom::live_zone::compress_request_body_safe(&path, &req.body)
+        } else {
+            req.body.clone()
+        };
+        let (_, _, query) = crate::headroom::byok_gateway::split_uri_path_and_query(&req.raw_uri);
+        if let Err(e) = crate::headroom::byok_gateway::forward_streaming_to_byok_target(
+            &upstream_base,
+            &req.method,
+            &path,
+            Some(&query),
+            &req.headers,
+            &compressed_body,
             stream,
-            200,
-            "OK",
-            &headers,
-            resp_body.as_bytes(),
         )
-        .await?;
+        .await
+        {
+            let msg = format!(r#"{{"service":"{}","error":"copilot upstream failed: {}"}}"#, service_name, e);
+            crate::headroom::byok_gateway::write_http_response(
+                stream,
+                502,
+                "Bad Gateway",
+                &[("Content-Type".to_string(), "application/json".to_string())],
+                msg.as_bytes(),
+            )
+            .await?;
+            compressed_body.clear();
+        }
 
         if is_close_requested {
             use tokio::io::AsyncWriteExt;

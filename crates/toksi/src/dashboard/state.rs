@@ -101,59 +101,7 @@ impl Default for CockpitState {
             );
         }
 
-        let mut quotas = HashMap::new();
-        quotas.insert(
-            "anthropic".to_string(),
-            UpstreamQuotaGauge {
-                provider: "Anthropic".into(),
-                remaining_requests: 4850,
-                limit_requests: 5000,
-                remaining_tokens: 385_000,
-                limit_tokens: 400_000,
-                reset_requests_secs: 14,
-                reset_tokens_secs: 22,
-                tier_badge: "[PAID]".into(),
-            },
-        );
-        quotas.insert(
-            "openai".to_string(),
-            UpstreamQuotaGauge {
-                provider: "OpenAI".into(),
-                remaining_requests: 9800,
-                limit_requests: 10_000,
-                remaining_tokens: 1_850_000,
-                limit_tokens: 2_000_000,
-                reset_requests_secs: 6,
-                reset_tokens_secs: 8,
-                tier_badge: "[PAID]".into(),
-            },
-        );
-        quotas.insert(
-            "gemini".to_string(),
-            UpstreamQuotaGauge {
-                provider: "Gemini".into(),
-                remaining_requests: 14,
-                limit_requests: 15,
-                remaining_tokens: 42_000,
-                limit_tokens: 1_000_000,
-                reset_requests_secs: 42,
-                reset_tokens_secs: 42,
-                tier_badge: "[DISQUALIFIED-FREE]".into(),
-            },
-        );
-        quotas.insert(
-            "deepseek".to_string(),
-            UpstreamQuotaGauge {
-                provider: "DeepSeek".into(),
-                remaining_requests: 4800,
-                limit_requests: 5000,
-                remaining_tokens: 950_000,
-                limit_tokens: 1_000_000,
-                reset_requests_secs: 12,
-                reset_tokens_secs: 15,
-                tier_badge: "[PAID]".into(),
-            },
-        );
+        let quotas = HashMap::new();
 
         Self {
             providers: RwLock::new(providers),

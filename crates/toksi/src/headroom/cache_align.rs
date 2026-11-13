@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/cache_align.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use serde_json::{json, Value};
 
@@ -137,7 +137,7 @@ pub fn auto_place_anthropic_cache_control(body: &mut Value) -> bool {
     false
 }
 
-fn has_cache_control_marker(val: &Value) -> bool {
+pub fn has_cache_control_marker(val: &Value) -> bool {
     match val {
         Value::Object(map) => {
             if map.contains_key("cache_control") {

@@ -21,6 +21,7 @@ pub mod logger;
 pub mod mcpspawn;
 pub mod paths;
 pub mod pathsetup;
+pub mod ports;
 pub mod preflight;
 pub mod progress;
 pub mod prompt;

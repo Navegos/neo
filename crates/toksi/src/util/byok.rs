@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/byok.rs
 // created: 2026-10-05
-// lastModified: 2026-11-04
+// lastModified: 2026-11-13
 
 use std::collections::HashSet;
 use std::fs::OpenOptions;
@@ -331,14 +331,7 @@ pub fn upsert_byok_route(
 }
 
 pub fn byok_gateway_port() -> u16 {
-    if let Ok(raw) = std::env::var("TOKSI_BYOK_PROXY_PORT") {
-        if let Ok(p) = raw.trim().parse::<u16>() {
-            if p > 0 {
-                return p;
-            }
-        }
-    }
-    18787
+    crate::util::ports::resolved_ports().byok_gateway
 }
 
 pub fn byok_gateway_endpoint() -> String {

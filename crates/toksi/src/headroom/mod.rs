@@ -3,29 +3,38 @@
 // project: neo
 // file: crates/toksi/src/headroom/mod.rs
 // created: 2026-10-05
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
+
+#![deny(unsafe_code)]
 
 pub mod adaptive_mem;
+pub mod auth_mode;
 pub mod autostart;
 pub mod byok_gateway;
 pub mod cache_align;
-pub mod cloudcode_patch;
+pub mod ccr;
 pub mod compression;
 pub mod copilot_daemon;
+pub mod diff_compressor;
+pub mod error;
 pub mod grok_daemon;
 pub mod headroom;
+pub mod live_zone;
 pub mod process_identity;
 pub mod pruner;
 pub mod proxy;
 pub mod responses_compat;
 pub mod router;
+pub mod search_compressor;
+pub mod smart_crusher;
 pub mod watchdog;
 
 pub use adaptive_mem::*;
+pub use auth_mode::*;
 pub use autostart::*;
 pub use byok_gateway::*;
 pub use cache_align::*;
-pub use cloudcode_patch::*;
+pub use ccr::*;
 pub use compression::*;
 pub use copilot_daemon::{
     copilot_cli_proxy_args, copilot_cli_proxy_files, copilot_cli_proxy_live_z,
@@ -36,13 +45,18 @@ pub use copilot_daemon::{
     start_copilot_proxy, stop_copilot_cli_proxy, stop_copilot_proxy, validate_copilot_ports,
     DEFAULT_COPILOT_CLI_PROXY_PORT, DEFAULT_COPILOT_PROXY_PORT,
 };
+pub use diff_compressor::*;
+pub use error::*;
 pub use grok_daemon::*;
 pub use headroom::*;
+pub use live_zone::*;
 pub use process_identity::*;
 pub use pruner::*;
 pub use proxy::*;
 pub use responses_compat::*;
 pub use router::*;
+pub use search_compressor::*;
+pub use smart_crusher::*;
 pub use watchdog::{
     cleanup_supervised_process, cleanup_supervised_process_after_wait, clear_proxy_stop_request,
     proxy_stop_request_file, proxy_stop_requested, remove_supervised_records, request_proxy_stop,

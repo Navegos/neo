@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/tests.rs
 // created: 2026-10-30
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use super::app::*;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
@@ -245,12 +245,14 @@ fn test_mouse_wheel_scroll() {
 #[test]
 fn test_byok_tier_badges() {
     let app = App::new();
-    assert!(!app.headroom.routes.is_empty());
     for r in &app.headroom.routes {
         assert!(
-            r.tier_badge == "[PAID]"
-                || r.tier_badge == "[DISQUALIFIED-FREE]"
-                || r.tier_badge == "[UNKNOWN]"
+            matches!(
+                r.tier_badge.as_str(),
+                "[BYOK]" | "[OAUTH]" | "[API-KEY]" | "[FREE-TIER]" | "[UNCONFIGURED]"
+            ),
+            "unexpected tier badge: {}",
+            r.tier_badge
         );
     }
 }

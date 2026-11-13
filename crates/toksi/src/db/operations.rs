@@ -21,6 +21,10 @@ pub struct DbStats {
     pub routes_count: usize,
     pub agents_count: usize,
     pub gateway_configs_count: usize,
+    #[serde(default)]
+    pub byok_profiles_count: usize,
+    #[serde(default)]
+    pub quota_windows_count: usize,
     pub file_size_bytes: u64,
 }
 
@@ -394,6 +398,162 @@ impl ToksiConfigDb {
     }
 
     // -------------------------------------------------------------
+    // Multi-Instance BYOK Profiles & Read-Only Quota Windows
+    // -------------------------------------------------------------
+    pub fn upsert_byok_profile(&mut self, p: &ByokProfileRecord) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            r#"INSERT INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, priority, weight, is_active, created_at, updated_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+               ON CONFLICT(provider_id, instance_label, model_id, thinking_effort) DO UPDATE SET
+                   base_url = excluded.base_url,
+                   secret_ref = excluded.secret_ref,
+                   priority = excluded.priority,
+                   weight = excluded.weight,
+                   is_active = excluded.is_active,
+                   updated_at = excluded.updated_at"#,
+            params![
+                p.id,
+                p.provider_id,
+                p.instance_label,
+                p.model_id,
+                p.thinking_effort,
+                p.base_url,
+                p.secret_ref,
+                p.priority,
+                p.weight,
+                p.is_active as i32,
+                p.created_at,
+                p.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_byok_profiles(&self) -> Result<Vec<ByokProfileRecord>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, priority, weight, is_active, created_at, updated_at FROM byok_profiles ORDER BY priority DESC, provider_id, instance_label, model_id",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let active: i32 = row.get(9)?;
+            Ok(ByokProfileRecord {
+                id: row.get(0)?,
+                provider_id: row.get(1)?,
+                instance_label: row.get(2)?,
+                model_id: row.get(3)?,
+                thinking_effort: row.get(4)?,
+                base_url: row.get(5)?,
+                secret_ref: row.get(6)?,
+                priority: row.get(7)?,
+                weight: row.get(8)?,
+                is_active: active != 0,
+                created_at: row.get(10)?,
+                updated_at: row.get(11)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+
+    pub fn upsert_agent_profile_binding(&mut self, b: &AgentProfileBindingRecord) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            r#"INSERT INTO agent_profile_bindings (agent_id, byok_profile_id, is_primary, fallback_order, updated_at)
+               VALUES (?1, ?2, ?3, ?4, ?5)
+               ON CONFLICT(agent_id, byok_profile_id) DO UPDATE SET
+                   is_primary = excluded.is_primary,
+                   fallback_order = excluded.fallback_order,
+                   updated_at = excluded.updated_at"#,
+            params![b.agent_id, b.byok_profile_id, b.is_primary as i32, b.fallback_order, b.updated_at],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_agent_profile_bindings(&self) -> Result<Vec<AgentProfileBindingRecord>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT agent_id, byok_profile_id, is_primary, fallback_order, updated_at FROM agent_profile_bindings ORDER BY agent_id, fallback_order",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            let primary: i32 = row.get(2)?;
+            Ok(AgentProfileBindingRecord {
+                agent_id: row.get(0)?,
+                byok_profile_id: row.get(1)?,
+                is_primary: primary != 0,
+                fallback_order: row.get(3)?,
+                updated_at: row.get(4)?,
+            })
+        })?;
+        let mut list = Vec::new();
+        for r in rows {
+            list.push(r?);
+        }
+        Ok(list)
+    }
+
+    pub fn upsert_quota_window(&mut self, q: &QuotaWindowRecord) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            r#"INSERT INTO quota_windows (id, provider_id, instance_label, window_kind, limit_requests, remaining_requests, limit_tokens, remaining_tokens, reset_at_epoch, updated_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+               ON CONFLICT(provider_id, instance_label, window_kind) DO UPDATE SET
+                   limit_requests = COALESCE(excluded.limit_requests, quota_windows.limit_requests),
+                   remaining_requests = COALESCE(excluded.remaining_requests, quota_windows.remaining_requests),
+                   limit_tokens = COALESCE(excluded.limit_tokens, quota_windows.limit_tokens),
+                   remaining_tokens = COALESCE(excluded.remaining_tokens, quota_windows.remaining_tokens),
+                   reset_at_epoch = COALESCE(excluded.reset_at_epoch, quota_windows.reset_at_epoch),
+                   updated_at = excluded.updated_at"#,
+            params![
+                q.id,
+                q.provider_id,
+                q.instance_label,
+                q.window_kind,
+                q.limit_requests,
+                q.remaining_requests,
+                q.limit_tokens,
+                q.remaining_tokens,
+                q.reset_at_epoch,
+                q.updated_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_quota_windows(&self, window_kind: Option<&str>) -> Result<Vec<QuotaWindowRecord>, rusqlite::Error> {
+        let mut list = Vec::new();
+        let sql = match window_kind {
+            Some(_) => "SELECT id, provider_id, instance_label, window_kind, limit_requests, remaining_requests, limit_tokens, remaining_tokens, reset_at_epoch, updated_at FROM quota_windows WHERE window_kind = ?1 ORDER BY provider_id, instance_label",
+            None => "SELECT id, provider_id, instance_label, window_kind, limit_requests, remaining_requests, limit_tokens, remaining_tokens, reset_at_epoch, updated_at FROM quota_windows ORDER BY provider_id, instance_label, window_kind",
+        };
+        let mut stmt = self.conn.prepare(sql)?;
+        let map_row = |row: &rusqlite::Row<'_>| -> Result<QuotaWindowRecord, rusqlite::Error> {
+            Ok(QuotaWindowRecord {
+                id: row.get(0)?,
+                provider_id: row.get(1)?,
+                instance_label: row.get(2)?,
+                window_kind: row.get(3)?,
+                limit_requests: row.get(4)?,
+                remaining_requests: row.get(5)?,
+                limit_tokens: row.get(6)?,
+                remaining_tokens: row.get(7)?,
+                reset_at_epoch: row.get(8)?,
+                updated_at: row.get(9)?,
+            })
+        };
+        if let Some(kind) = window_kind {
+            let rows = stmt.query_map(params![kind], map_row)?;
+            for r in rows {
+                list.push(r?);
+            }
+        } else {
+            let rows = stmt.query_map([], map_row)?;
+            for r in rows {
+                list.push(r?);
+            }
+        }
+        Ok(list)
+    }
+
+    // -------------------------------------------------------------
     // Export / Import / Backup
     // -------------------------------------------------------------
     pub fn export_dump(&self) -> Result<ToksiDbDump, rusqlite::Error> {
@@ -407,6 +567,9 @@ impl ToksiConfigDb {
         let byok_routes = self.list_byok_routes()?;
         let agent_configs = self.list_agent_configs()?;
         let gateway_configs = self.list_gateway_configs()?;
+        let byok_profiles = self.list_byok_profiles().unwrap_or_default();
+        let agent_profile_bindings = self.list_agent_profile_bindings().unwrap_or_default();
+        let quota_windows = self.list_quota_windows(None).unwrap_or_default();
 
         Ok(ToksiDbDump {
             version: 1,
@@ -417,6 +580,9 @@ impl ToksiConfigDb {
             byok_routes,
             agent_configs,
             gateway_configs,
+            byok_profiles,
+            agent_profile_bindings,
+            quota_windows,
         })
     }
 
@@ -489,6 +655,46 @@ impl ToksiConfigDb {
             count += 1;
         }
 
+        for bp in &dump.byok_profiles {
+            tx.execute(
+                r#"INSERT INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, priority, weight, is_active, created_at, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+                   ON CONFLICT(provider_id, instance_label, model_id, thinking_effort) DO UPDATE SET
+                       base_url = excluded.base_url, secret_ref = excluded.secret_ref,
+                       priority = excluded.priority, weight = excluded.weight,
+                       is_active = excluded.is_active, updated_at = excluded.updated_at"#,
+                params![bp.id, bp.provider_id, bp.instance_label, bp.model_id, bp.thinking_effort, bp.base_url, bp.secret_ref, bp.priority, bp.weight, bp.is_active as i32, bp.created_at, bp.updated_at],
+            )?;
+            count += 1;
+        }
+
+        for b in &dump.agent_profile_bindings {
+            tx.execute(
+                r#"INSERT INTO agent_profile_bindings (agent_id, byok_profile_id, is_primary, fallback_order, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5)
+                   ON CONFLICT(agent_id, byok_profile_id) DO UPDATE SET
+                       is_primary = excluded.is_primary, fallback_order = excluded.fallback_order, updated_at = excluded.updated_at"#,
+                params![b.agent_id, b.byok_profile_id, b.is_primary as i32, b.fallback_order, b.updated_at],
+            )?;
+            count += 1;
+        }
+
+        for q in &dump.quota_windows {
+            tx.execute(
+                r#"INSERT INTO quota_windows (id, provider_id, instance_label, window_kind, limit_requests, remaining_requests, limit_tokens, remaining_tokens, reset_at_epoch, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                   ON CONFLICT(provider_id, instance_label, window_kind) DO UPDATE SET
+                       limit_requests = COALESCE(excluded.limit_requests, quota_windows.limit_requests),
+                       remaining_requests = COALESCE(excluded.remaining_requests, quota_windows.remaining_requests),
+                       limit_tokens = COALESCE(excluded.limit_tokens, quota_windows.limit_tokens),
+                       remaining_tokens = COALESCE(excluded.remaining_tokens, quota_windows.remaining_tokens),
+                       reset_at_epoch = COALESCE(excluded.reset_at_epoch, quota_windows.reset_at_epoch),
+                       updated_at = excluded.updated_at"#,
+                params![q.id, q.provider_id, q.instance_label, q.window_kind, q.limit_requests, q.remaining_requests, q.limit_tokens, q.remaining_tokens, q.reset_at_epoch, q.updated_at],
+            )?;
+            count += 1;
+        }
+
         tx.commit()?;
         Ok(count)
     }
@@ -527,6 +733,8 @@ impl ToksiConfigDb {
         let routes_count: usize = self.conn.query_row("SELECT count(*) FROM byok_routes", [], |r| r.get(0))?;
         let agents_count: usize = self.conn.query_row("SELECT count(*) FROM agent_configs", [], |r| r.get(0))?;
         let gateway_configs_count: usize = self.conn.query_row("SELECT count(*) FROM gateway_configs", [], |r| r.get(0))?;
+        let byok_profiles_count: usize = self.conn.query_row("SELECT count(*) FROM byok_profiles", [], |r| r.get(0)).unwrap_or(0);
+        let quota_windows_count: usize = self.conn.query_row("SELECT count(*) FROM quota_windows", [], |r| r.get(0)).unwrap_or(0);
 
         let file_size_bytes = std::fs::metadata(&self.path).map(|m| m.len()).unwrap_or(0);
 
@@ -538,6 +746,8 @@ impl ToksiConfigDb {
             routes_count,
             agents_count,
             gateway_configs_count,
+            byok_profiles_count,
+            quota_windows_count,
             file_size_bytes,
         })
     }

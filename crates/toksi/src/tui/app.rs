@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/app.rs
 // created: 2026-10-30
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use std::env;
 use std::fs;
@@ -932,70 +932,24 @@ impl App {
 
     pub fn reload_headroom(&mut self) {
         let routes = configured_byok_routes();
-        if !routes.is_empty() {
-            self.headroom.routes = routes
-                .into_iter()
-                .map(|r| {
-                    let env_key = format!("{}_API_KEY", r.protocol.to_uppercase());
-                    let key_val = std::env::var(&env_key).unwrap_or_default();
-                    let tier = crate::gateway::agent_cli::tier_check::inspect_provider_tier(&r.protocol, &key_val);
-                    let badge = match tier {
-                        crate::gateway::agent_cli::tier_check::AccountTier::PaidCommercial => "[PAID]",
-                        crate::gateway::agent_cli::tier_check::AccountTier::FreeTierDisqualified => "[DISQUALIFIED-FREE]",
-                        crate::gateway::agent_cli::tier_check::AccountTier::Unknown => "[UNKNOWN]",
-                    };
+        self.headroom.routes = routes
+            .into_iter()
+            .map(|r| {
+                let env_key = format!("{}_API_KEY", r.protocol.to_uppercase());
+                let key_val = std::env::var(&env_key).unwrap_or_default();
+                let tier = crate::gateway::agent_cli::tier_check::inspect_provider_tier(&r.protocol, &key_val);
 
-                    ByokRouteItem {
-                        provider: r.protocol.clone(),
-                        target_url: r.upstream.clone(),
-                        virtual_prefix: format!("/byok/{}/", r.id),
-                        healthy: true,
-                        tier_badge: badge.to_string(),
-                        quota_display: "Unlimited".into(),
-                        agents_assigned: format!("Route ID: {}", r.id),
-                    }
-                })
-                .collect();
-        } else {
-            self.headroom.routes = vec![
                 ByokRouteItem {
-                    provider: "Anthropic".into(),
-                    target_url: "https://api.anthropic.com".into(),
-                    virtual_prefix: "/toksi/byok/anthropic/".into(),
-                    healthy: true,
-                    tier_badge: "[PAID]".into(),
-                    quota_display: "92.4% left".into(),
-                    agents_assigned: "claude, cursor".into(),
-                },
-                ByokRouteItem {
-                    provider: "OpenAI".into(),
-                    target_url: "https://api.openai.com".into(),
-                    virtual_prefix: "/toksi/byok/openai/".into(),
-                    healthy: true,
-                    tier_badge: "[PAID]".into(),
-                    quota_display: "88.1% left".into(),
-                    agents_assigned: "cursor, codex".into(),
-                },
-                ByokRouteItem {
-                    provider: "Gemini".into(),
-                    target_url: "https://generativelanguage.googleapis.com".into(),
-                    virtual_prefix: "/toksi/byok/gemini/".into(),
-                    healthy: true,
-                    tier_badge: "[DISQUALIFIED-FREE]".into(),
-                    quota_display: "98.5% left".into(),
-                    agents_assigned: "antigravity".into(),
-                },
-                ByokRouteItem {
-                    provider: "DeepSeek".into(),
-                    target_url: "https://api.deepseek.com".into(),
-                    virtual_prefix: "/toksi/byok/deepseek/".into(),
-                    healthy: true,
-                    tier_badge: "[PAID]".into(),
-                    quota_display: "95.0% left".into(),
-                    agents_assigned: "opencode".into(),
-                },
-            ];
-        }
+                    provider: r.protocol.clone(),
+                    target_url: r.upstream.clone(),
+                    virtual_prefix: format!("/byok/{}/", r.id),
+                    healthy: !r.upstream.trim().is_empty(),
+                    tier_badge: tier.label().to_string(),
+                    quota_display: "Configured".into(),
+                    agents_assigned: format!("Route ID: {}", r.id),
+                }
+            })
+            .collect();
     }
 
     pub fn reload_logs(&mut self) {

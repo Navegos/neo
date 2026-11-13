@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/compression/economizer.rs
 // created: 2026-11-09
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
@@ -51,10 +51,78 @@ pub struct EconomizerReport {
     pub loop_detected: bool,
 }
 
-/// Dynamic Token Economizer implementing prompt minification and instruction deduplication.
+/// Stage 2 distiller collapsing repetitive environment metadata blocks (OS/PATH/PWD dumps).
+#[derive(Debug, Clone, Default)]
+pub struct EnvFactsDistiller {
+    seen_facts: HashSet<String>,
+}
+
+impl EnvFactsDistiller {
+    pub fn distill(&mut self, text: &str) -> String {
+        let mut out = Vec::with_capacity(text.lines().count());
+        for line in text.lines() {
+            let trimmed = line.trim();
+            let is_env_fact = trimmed.starts_with("OS=")
+                || trimmed.starts_with("PWD=")
+                || trimmed.starts_with("SHELL=")
+                || trimmed.starts_with("PATH=");
+            if is_env_fact {
+                if !self.seen_facts.insert(trimmed.to_string()) {
+                    continue;
+                }
+            }
+            out.push(line);
+        }
+        out.join("\n")
+    }
+}
+
+/// Stage 3 loop detector suppressing repeated tool-loop outputs across consecutive turns.
+#[derive(Debug, Clone)]
+pub struct LoopGuard {
+    threshold: usize,
+}
+
+impl Default for LoopGuard {
+    fn default() -> Self {
+        Self { threshold: 3 }
+    }
+}
+
+impl LoopGuard {
+    pub fn new(threshold: usize) -> Self {
+        Self { threshold: threshold.max(2) }
+    }
+
+    pub fn guard_lines(&self, text: &str) -> (String, bool) {
+        let mut out = Vec::new();
+        let mut repeat = 0usize;
+        let mut prev = "";
+        let mut triggered = false;
+        for line in text.lines() {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() && trimmed == prev {
+                repeat += 1;
+                if repeat >= self.threshold {
+                    triggered = true;
+                    continue;
+                }
+            } else {
+                repeat = 0;
+                prev = trimmed;
+            }
+            out.push(line);
+        }
+        (out.join("\n"), triggered)
+    }
+}
+
+/// Dynamic 3-stage Token Economizer implementing prompt minification, environment-fact
+/// distillation, instruction deduplication, and loop-guard collapse.
 pub struct TokenEconomizer {
     options: EconomizerOptions,
     seen_instructions: HashSet<String>,
+    env_distiller: EnvFactsDistiller,
 }
 
 impl Default for TokenEconomizer {
@@ -68,26 +136,31 @@ impl TokenEconomizer {
         Self {
             options,
             seen_instructions: HashSet::new(),
+            env_distiller: EnvFactsDistiller::default(),
         }
     }
 
-    /// Reset seen instruction history between separate conversations.
+    /// Reset seen instruction and environment-fact history between separate conversations.
     pub fn reset_history(&mut self) {
         self.seen_instructions.clear();
+        self.env_distiller = EnvFactsDistiller::default();
     }
 
-    /// Economizes a multi-line prompt string.
+    /// 3-stage pipeline: (1) EnvFactsDistiller, (2) LoopGuard, (3) prompt minification + dedupe.
     pub fn economize_prompt(&mut self, prompt: &str) -> (String, EconomizerReport) {
+        let distilled = self.env_distiller.distill(prompt);
+        let guard = LoopGuard::new(self.options.loop_guard_threshold);
+        let (guarded, guard_hit) = guard.guard_lines(&distilled);
         let orig_chars = prompt.len();
         let orig_tokens = (orig_chars / 4) as u64;
 
         let mut lines = Vec::new();
         let mut dupes_removed = 0usize;
-        let mut loop_detected = false;
+        let mut loop_detected = guard_hit;
         let mut repeat_counter = 0usize;
         let mut last_line = "";
 
-        for raw_line in prompt.lines() {
+        for raw_line in guarded.lines() {
             let trimmed = raw_line.trim();
 
             if trimmed.is_empty() {

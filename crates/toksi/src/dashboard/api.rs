@@ -224,35 +224,26 @@ pub fn handle_agents() -> serde_json::Value {
         let config_path = resolve_agent_config_path(&ag.id);
 
         let (provider, model, quota_status) = match ag.id.as_str() {
-            "claude" => ("Anthropic", "claude-3-7-sonnet", "[PAID]"),
-            "cursor" => ("OpenAI", "gpt-4o", "[PAID]"),
-            "antigravity" => ("Gemini", "gemini-2.0-flash", "[DISQUALIFIED-FREE]"),
-            "opencode" | "opencode2" => ("DeepSeek", "deepseek-r1", "[PAID]"),
-            "codex" => ("OpenAI", "o3-mini", "[PAID]"),
-            "copilot" => ("GitHub", "copilot-gpt4o", "[PAID]"),
-            "droid" => ("Anthropic", "claude-3-5-sonnet", "[PAID]"),
-            "grok" => ("xAI", "grok-2", "[PAID]"),
-            "pi" => ("Inflection", "pi-3", "[PAID]"),
-            "omp" => ("Groq", "llama-3.3-70b", "[PAID]"),
-            "kilo" => ("Together", "deepseek-v3", "[PAID]"),
-            "cline" => ("OpenRouter", "auto-router", "[PAID]"),
-            "amp" => ("Fireworks", "qwen-2.5-coder", "[PAID]"),
-            "kimi" => ("Moonshot", "kimi-moonshot-v1", "[PAID]"),
-            "zcode" => ("Cerebras", "llama3.1-8b", "[PAID]"),
+            "claude" => ("Anthropic", "claude-3-7-sonnet", "[BYOK]"),
+            "cursor" => ("OpenAI", "gpt-4o", "[BYOK]"),
+            "antigravity" => ("Gemini", "gemini-2.5-flash", "[OAUTH]"),
+            "opencode" | "opencode2" => ("DeepSeek", "deepseek-r1", "[BYOK]"),
+            "codex" => ("OpenAI", "o3-mini", "[OAUTH]"),
+            "copilot" => ("GitHub", "copilot-gpt4o", "[OAUTH]"),
+            "droid" => ("Anthropic", "claude-3-5-sonnet", "[BYOK]"),
+            "grok" => ("xAI", "grok-3", "[OAUTH]"),
+            "pi" => ("Inflection", "pi-3", "[BYOK]"),
+            "omp" => ("Groq", "llama-3.3-70b", "[BYOK]"),
+            "kilo" => ("Together", "deepseek-v3", "[BYOK]"),
+            "cline" => ("OpenRouter", "auto-router", "[BYOK]"),
+            "amp" => ("Fireworks", "qwen-2.5-coder", "[BYOK]"),
+            "kimi" => ("Moonshot", "kimi-moonshot-v1", "[BYOK]"),
+            "zcode" => ("Cerebras", "llama3.1-8b", "[BYOK]"),
             "dsh" => ("Local", "ollama-qwen", "[LOCAL]"),
-            _ => ("Bifrost", "universal-gateway", "[PAID]"),
+            _ => ("Bifrost", "universal-gateway", "[BYOK]"),
         };
 
-        let latency = if is_wired {
-            LatencyBreakdown {
-                interception_ms: 0.12,
-                ast_compression_ms: 0.45,
-                upstream_ms: 184.20,
-                total_roundtrip_ms: 184.77,
-            }
-        } else {
-            LatencyBreakdown::default()
-        };
+        let latency = LatencyBreakdown::default();
 
         let item = AgentObservationItem {
             id: ag.id.clone(),

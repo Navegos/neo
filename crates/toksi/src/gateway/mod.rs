@@ -5,6 +5,8 @@
 // created: 2026-10-31
 // lastModified: 2026-10-31
 
+#![deny(unsafe_code)]
+
 pub mod agent_cli;
 pub mod cascade;
 pub mod circuit_breaker;
@@ -16,6 +18,7 @@ pub mod normalizer;
 pub mod providers;
 pub mod proxy;
 pub mod reconnect;
+pub mod router;
 pub mod routing;
 pub mod semantic_cache;
 pub mod server;
@@ -31,6 +34,7 @@ pub use normalizer::*;
 pub use providers::*;
 pub use proxy::*;
 pub use reconnect::*;
+pub use router::*;
 pub use routing::*;
 pub use semantic_cache::*;
 pub use server::*;

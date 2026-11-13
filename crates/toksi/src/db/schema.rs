@@ -77,6 +77,45 @@ pub struct GatewayConfigRecord {
     pub updated_at: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ByokProfileRecord {
+    pub id: String,
+    pub provider_id: String,
+    pub instance_label: String,
+    pub model_id: String,
+    pub thinking_effort: String, // "none" | "low" | "medium" | "high" | "xhigh"
+    pub base_url: String,
+    pub secret_ref: String,
+    pub priority: i32,
+    pub weight: i32,
+    pub is_active: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentProfileBindingRecord {
+    pub agent_id: String,
+    pub byok_profile_id: String,
+    pub is_primary: bool,
+    pub fallback_order: i32,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct QuotaWindowRecord {
+    pub id: String,
+    pub provider_id: String,
+    pub instance_label: String,
+    pub window_kind: String, // "hour" | "day" | "week" | "month" | "year"
+    pub limit_requests: Option<i64>,
+    pub remaining_requests: Option<i64>,
+    pub limit_tokens: Option<i64>,
+    pub remaining_tokens: Option<i64>,
+    pub reset_at_epoch: Option<i64>,
+    pub updated_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ToksiDbDump {
     pub version: u32,
@@ -87,6 +126,12 @@ pub struct ToksiDbDump {
     pub byok_routes: Vec<ByokRouteRecord>,
     pub agent_configs: Vec<AgentConfigRecord>,
     pub gateway_configs: Vec<GatewayConfigRecord>,
+    #[serde(default)]
+    pub byok_profiles: Vec<ByokProfileRecord>,
+    #[serde(default)]
+    pub agent_profile_bindings: Vec<AgentProfileBindingRecord>,
+    #[serde(default)]
+    pub quota_windows: Vec<QuotaWindowRecord>,
 }
 
 pub const SCHEMA_DDL: &str = r#"
@@ -155,5 +200,46 @@ CREATE TABLE IF NOT EXISTS gateway_configs (
     value TEXT NOT NULL,
     updated_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS byok_profiles (
+    id TEXT PRIMARY KEY,
+    provider_id TEXT NOT NULL,
+    instance_label TEXT NOT NULL DEFAULT 'default',
+    model_id TEXT NOT NULL DEFAULT '',
+    thinking_effort TEXT NOT NULL DEFAULT 'none',
+    base_url TEXT NOT NULL,
+    secret_ref TEXT NOT NULL DEFAULT '',
+    priority INTEGER NOT NULL DEFAULT 0,
+    weight INTEGER NOT NULL DEFAULT 1,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(provider_id, instance_label, model_id, thinking_effort)
+);
+CREATE INDEX IF NOT EXISTS idx_byok_profiles_provider ON byok_profiles(provider_id);
+
+CREATE TABLE IF NOT EXISTS agent_profile_bindings (
+    agent_id TEXT NOT NULL,
+    byok_profile_id TEXT NOT NULL REFERENCES byok_profiles(id) ON DELETE CASCADE,
+    is_primary INTEGER NOT NULL DEFAULT 0,
+    fallback_order INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY(agent_id, byok_profile_id)
+);
+
+CREATE TABLE IF NOT EXISTS quota_windows (
+    id TEXT PRIMARY KEY,
+    provider_id TEXT NOT NULL,
+    instance_label TEXT NOT NULL DEFAULT 'default',
+    window_kind TEXT NOT NULL CHECK(window_kind IN ('hour','day','week','month','year')),
+    limit_requests INTEGER,
+    remaining_requests INTEGER,
+    limit_tokens INTEGER,
+    remaining_tokens INTEGER,
+    reset_at_epoch INTEGER,
+    updated_at INTEGER NOT NULL,
+    UNIQUE(provider_id, instance_label, window_kind)
+);
+CREATE INDEX IF NOT EXISTS idx_quota_windows_provider ON quota_windows(provider_id, window_kind);
 "#;
 

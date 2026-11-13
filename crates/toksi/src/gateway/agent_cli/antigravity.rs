@@ -38,12 +38,7 @@ pub fn launch_antigravity_bridge(port: u16) -> Result<Child, String> {
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setsid();
-                Ok(())
-            });
-        }
+        cmd.process_group(0);
     }
 
     cmd.spawn().map_err(|e| format!("Failed to spawn Antigravity CLI bridge: {}", e))

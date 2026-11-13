@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/governance.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::sync::{Mutex, RwLock};
@@ -44,18 +44,18 @@ impl GovernanceEngine {
     }
 
     pub fn register_vk(&self, cfg: VirtualKeyConfig) {
-        let mut c = self.configs.write().unwrap();
+        let mut c = self.configs.write().unwrap_or_else(|e| e.into_inner());
         c.insert(cfg.vk.clone(), cfg);
     }
 
     pub fn check_and_acquire(&self, vk: &str, est_tokens: u32) -> Result<(), String> {
-        let configs = self.configs.read().unwrap();
+        let configs = self.configs.read().unwrap_or_else(|e| e.into_inner());
         let Some(cfg) = configs.get(vk) else {
             // Default allow if VK not explicitly configured
             return Ok(());
         };
 
-        let mut usage_map = self.usage.lock().unwrap();
+        let mut usage_map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
         let u = usage_map.entry(vk.to_string()).or_default();
 
         // 1. Budget check
@@ -96,7 +96,7 @@ impl GovernanceEngine {
     }
 
     pub fn release_and_record_spend(&self, vk: &str, cost_usd: f64) {
-        let mut usage_map = self.usage.lock().unwrap();
+        let mut usage_map = self.usage.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(u) = usage_map.get_mut(vk) {
             u.in_flight_requests = u.in_flight_requests.saturating_sub(1);
             u.current_spend_usd += cost_usd;

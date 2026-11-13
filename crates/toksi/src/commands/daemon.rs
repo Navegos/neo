@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/daemon.rs
 // created: 2026-10-27
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use std::fs;
 use std::path::Path;
@@ -72,10 +72,13 @@ pub fn run_daemon_cli(argv: &[String]) -> i32 {
 }
 
 fn daemon_status() -> i32 {
+    let ports = crate::util::ports::resolved_ports();
     let running = is_daemon_running();
     let hr_running = proxy_running();
+    let grok_running = crate::headroom::grok_daemon::grok_oauth_proxy_running();
     let copilot_running = crate::headroom::copilot_daemon::copilot_proxy_running();
     let copilot_cli_running = crate::headroom::copilot_daemon::copilot_cli_proxy_running();
+    let byok_running = crate::headroom::byok_gateway::byok_gateway_live();
     let gw_running = crate::gateway::server::is_gateway_running();
     let dash_running = crate::dashboard::is_dashboard_running();
     let routing = proxy_routing_enabled();
@@ -86,28 +89,45 @@ fn daemon_status() -> i32 {
         if running { "running" } else { "stopped" }
     ));
     L.raw(&format!(
-        "  {} Headroom proxy (8787): {}",
+        "  {} Headroom proxy ({}): {}",
         if hr_running { C.green(Sym::CHECK) } else { C.gray("•") },
+        ports.headroom_proxy,
         if hr_running { "running" } else { "stopped" }
     ));
     L.raw(&format!(
-        "  {} Copilot VS Code proxy (8789): {}",
+        "  {} Grok OAuth proxy ({}): {}",
+        if grok_running { C.green(Sym::CHECK) } else { C.gray("•") },
+        ports.grok_oauth_proxy,
+        if grok_running { "running" } else { "stopped" }
+    ));
+    L.raw(&format!(
+        "  {} Copilot VS Code proxy ({}): {}",
         if copilot_running { C.green(Sym::CHECK) } else { C.gray("•") },
+        ports.copilot_vscode_proxy,
         if copilot_running { "running" } else { "stopped" }
     ));
     L.raw(&format!(
-        "  {} Copilot CLI proxy (8790): {}",
+        "  {} Copilot CLI proxy ({}): {}",
         if copilot_cli_running { C.green(Sym::CHECK) } else { C.gray("•") },
+        ports.copilot_cli_proxy,
         if copilot_cli_running { "running" } else { "stopped" }
     ));
     L.raw(&format!(
-        "  {} AI Gateway (9099): {}",
+        "  {} BYOK Multi-Profile gateway ({}): {}",
+        if byok_running { C.green(Sym::CHECK) } else { C.gray("•") },
+        ports.byok_gateway,
+        if byok_running { "running" } else { "stopped" }
+    ));
+    L.raw(&format!(
+        "  {} AI Gateway ({}): {}",
         if gw_running { C.green(Sym::CHECK) } else { C.gray("•") },
+        ports.ai_gateway,
         if gw_running { "running" } else { "stopped" }
     ));
     L.raw(&format!(
-        "  {} Web Dashboard Cockpit (9100): {}",
+        "  {} Web Dashboard Cockpit ({}): {}",
         if dash_running { C.green(Sym::CHECK) } else { C.gray("•") },
+        ports.dashboard,
         if dash_running { "running" } else { "stopped" }
     ));
     L.raw(&format!(
@@ -243,8 +263,10 @@ fn daemon_run_foreground() -> i32 {
 
 async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let p_hr = crate::headroom::proxy::proxy_port();
+    let p_grok = crate::headroom::grok_daemon::grok_oauth_proxy_port();
     let p_copilot = crate::headroom::copilot_daemon::copilot_proxy_port();
     let p_copilot_cli = crate::headroom::copilot_daemon::copilot_cli_proxy_port();
+    let p_byok = crate::util::byok::byok_gateway_port();
     let p_gw = crate::gateway::server::gateway_port();
     let p_dash = crate::dashboard::dashboard_port();
 
@@ -253,11 +275,21 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
         return Err(e.into());
     }
 
-    // Supervise 5 dedicated endpoints simultaneously
+    // Supervise 7 dedicated endpoints simultaneously
     let mut hr_task = if !crate::headroom::proxy::proxy_running() {
         Some(tokio::spawn(async move {
             if let Err(e) = crate::headroom::proxy::run_native_headroom_proxy(p_hr).await {
                 L.warn(&format!("Headroom proxy error: {}", e));
+            }
+        }))
+    } else {
+        None
+    };
+
+    let mut grok_task = if !crate::headroom::grok_daemon::grok_oauth_proxy_running() {
+        Some(tokio::spawn(async move {
+            if let Err(e) = crate::headroom::grok_daemon::run_native_grok_proxy(p_grok).await {
+                L.warn(&format!("Grok OAuth proxy error: {}", e));
             }
         }))
     } else {
@@ -278,6 +310,16 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
         Some(tokio::spawn(async move {
             if let Err(e) = crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot_cli, true).await {
                 L.warn(&format!("Copilot CLI proxy error: {}", e));
+            }
+        }))
+    } else {
+        None
+    };
+
+    let mut byok_task = if !crate::headroom::byok_gateway::byok_gateway_live() {
+        Some(tokio::spawn(async move {
+            if let Err(e) = crate::headroom::byok_gateway::run_byok_gateway_serve().await {
+                L.warn(&format!("BYOK gateway error: {}", e));
             }
         }))
     } else {
@@ -309,13 +351,17 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
     };
 
     L.raw(&format!(
-        "  {} Supervised 5 dedicated endpoints:\n\
-           {} Headroom Proxy (:8787)\n\
-           {} Copilot VS Code Proxy (:8789)\n\
-           {} Copilot CLI Proxy (:8790)\n\
-           {} AI Gateway (:9099)\n\
-           {} Web Dashboard Cockpit (:9100)",
+        "  {} Supervised 7 dedicated endpoints:\n\
+           {} Headroom Proxy (:{p_hr})\n\
+           {} Grok OAuth Proxy (:{p_grok})\n\
+           {} Copilot VS Code Proxy (:{p_copilot})\n\
+           {} Copilot CLI Proxy (:{p_copilot_cli})\n\
+           {} BYOK Multi-Profile Gateway (:{p_byok})\n\
+           {} AI Gateway (:{p_gw})\n\
+           {} Web Dashboard Cockpit (:{p_dash})",
         C.green(Sym::CHECK),
+        C.cyan("•"),
+        C.cyan("•"),
         C.cyan("•"),
         C.cyan("•"),
         C.cyan("•"),
@@ -401,6 +447,13 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
                 }));
             }
         }
+        if let Some(ref t) = grok_task {
+            if t.is_finished() && !crate::headroom::grok_daemon::grok_oauth_proxy_running() {
+                grok_task = Some(tokio::spawn(async move {
+                    let _ = crate::headroom::grok_daemon::run_native_grok_proxy(p_grok).await;
+                }));
+            }
+        }
         if let Some(ref t) = copilot_task {
             if t.is_finished() && !crate::headroom::copilot_daemon::copilot_proxy_running() {
                 copilot_task = Some(tokio::spawn(async move {
@@ -412,6 +465,13 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
             if t.is_finished() && !crate::headroom::copilot_daemon::copilot_cli_proxy_running() {
                 copilot_cli_task = Some(tokio::spawn(async move {
                     let _ = crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot_cli, true).await;
+                }));
+            }
+        }
+        if let Some(ref t) = byok_task {
+            if t.is_finished() && !crate::headroom::byok_gateway::byok_gateway_live() {
+                byok_task = Some(tokio::spawn(async move {
+                    let _ = crate::headroom::byok_gateway::run_byok_gateway_serve().await;
                 }));
             }
         }
@@ -435,8 +495,10 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
 
     // Clean teardown of tasks
     if let Some(t) = hr_task { t.abort(); }
+    if let Some(t) = grok_task { t.abort(); }
     if let Some(t) = copilot_task { t.abort(); }
     if let Some(t) = copilot_cli_task { t.abort(); }
+    if let Some(t) = byok_task { t.abort(); }
     if let Some(t) = gw_task { t.abort(); }
     if let Some(t) = dash_task { t.abort(); }
 
@@ -481,7 +543,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(150)).await;
 
-        let Ok(client) = reqwest::Client::builder().build() else {
+        let Ok(client) = reqwest::Client::builder().no_proxy().build() else {
             gw_task.abort();
             dash_task.abort();
             return;
@@ -523,7 +585,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(200)).await;
 
-        let Ok(client) = reqwest::Client::builder().build() else {
+        let Ok(client) = reqwest::Client::builder().no_proxy().build() else {
             t_vscode.abort();
             t_cli.abort();
             return;

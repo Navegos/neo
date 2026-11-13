@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/byok_gateway.rs
 // created: 2026-10-05
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -126,7 +126,7 @@ pub fn save_byok_routes(
 }
 
 fn store_empty_route_table(current_root: String, reload_err: String) {
-    let mut active = ACTIVE_BYOK_ROUTES.write().unwrap();
+    let mut active = ACTIVE_BYOK_ROUTES.write().unwrap_or_else(|e| e.into_inner());
     let generation = active.as_ref().map(|t| t.generation + 1).unwrap_or(1);
     *active = Some(ByokRouteTable {
         root: current_root,
@@ -134,12 +134,12 @@ fn store_empty_route_table(current_root: String, reload_err: String) {
         items: HashMap::new(),
         by_name: HashMap::new(),
     });
-    let mut err_guard = BYOK_RELOAD_ERR.write().unwrap();
+    let mut err_guard = BYOK_RELOAD_ERR.write().unwrap_or_else(|e| e.into_inner());
     *err_guard = Some(reload_err);
 }
 
 pub fn load_byok_routes() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _guard = BYOK_LOAD_MU.lock().unwrap();
+    let _guard = BYOK_LOAD_MU.lock().unwrap_or_else(|e| e.into_inner());
     let current_root = headroom_paths_resolved().root;
     let routes_file = byok_routes_path();
 
@@ -187,7 +187,7 @@ pub fn load_byok_routes() -> Result<(), Box<dyn std::error::Error + Send + Sync>
     }
 
     {
-        let mut active = ACTIVE_BYOK_ROUTES.write().unwrap();
+        let mut active = ACTIVE_BYOK_ROUTES.write().unwrap_or_else(|e| e.into_inner());
         let generation = active.as_ref().map(|t| t.generation + 1).unwrap_or(1);
         *active = Some(ByokRouteTable {
             root: current_root,
@@ -197,7 +197,7 @@ pub fn load_byok_routes() -> Result<(), Box<dyn std::error::Error + Send + Sync>
         });
     }
     {
-        let mut err_guard = BYOK_RELOAD_ERR.write().unwrap();
+        let mut err_guard = BYOK_RELOAD_ERR.write().unwrap_or_else(|e| e.into_inner());
         *err_guard = None;
     }
     Ok(())
@@ -205,24 +205,24 @@ pub fn load_byok_routes() -> Result<(), Box<dyn std::error::Error + Send + Sync>
 
 /// Reports whether a valid route registry has entries.
 pub fn byok_routes_configured() -> bool {
-    let needs_load = ACTIVE_BYOK_ROUTES.read().unwrap().is_none();
+    let needs_load = ACTIVE_BYOK_ROUTES.read().unwrap_or_else(|e| e.into_inner()).is_none();
     if needs_load && load_byok_routes().is_err() {
         return false;
     }
     ACTIVE_BYOK_ROUTES
         .read()
-        .unwrap()
+        .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .map(|tbl| !tbl.items.is_empty())
         .unwrap_or(false)
 }
 
 pub fn lookup_byok_route(id: &str) -> Option<BYOKRoute> {
-    let needs_load = ACTIVE_BYOK_ROUTES.read().unwrap().is_none();
+    let needs_load = ACTIVE_BYOK_ROUTES.read().unwrap_or_else(|e| e.into_inner()).is_none();
     if needs_load && load_byok_routes().is_err() {
         return None;
     }
-    let guard = ACTIVE_BYOK_ROUTES.read().unwrap();
+    let guard = ACTIVE_BYOK_ROUTES.read().unwrap_or_else(|e| e.into_inner());
     let tbl = guard.as_ref()?;
     let clean_id = id.trim();
     tbl.items
@@ -232,11 +232,11 @@ pub fn lookup_byok_route(id: &str) -> Option<BYOKRoute> {
 }
 
 pub fn configured_byok_routes() -> Vec<BYOKRoute> {
-    let needs_load = ACTIVE_BYOK_ROUTES.read().unwrap().is_none();
+    let needs_load = ACTIVE_BYOK_ROUTES.read().unwrap_or_else(|e| e.into_inner()).is_none();
     if needs_load && load_byok_routes().is_err() {
         return Vec::new();
     }
-    let guard = ACTIVE_BYOK_ROUTES.read().unwrap();
+    let guard = ACTIVE_BYOK_ROUTES.read().unwrap_or_else(|e| e.into_inner());
     let Some(tbl) = guard.as_ref() else {
         return Vec::new();
     };
@@ -421,8 +421,8 @@ pub fn byok_gateway_live() -> bool {
 }
 
 pub fn start_byok_gateway() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _guard = BYOK_GATEWAY_LIFECYCLE.lock().unwrap();
-    if BYOK_GATEWAY_SHUTDOWN.lock().unwrap().is_some() {
+    let _guard = BYOK_GATEWAY_LIFECYCLE.lock().unwrap_or_else(|e| e.into_inner());
+    if BYOK_GATEWAY_SHUTDOWN.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
         return Ok(());
     }
     let (_, owned) = byok_gateway_owned();
@@ -430,7 +430,7 @@ pub fn start_byok_gateway() -> Result<(), Box<dyn std::error::Error + Send + Syn
         return Ok(());
     }
     load_byok_routes()?;
-    if BYOK_GATEWAY_SHUTDOWN.lock().unwrap().is_some() {
+    if BYOK_GATEWAY_SHUTDOWN.lock().unwrap_or_else(|e| e.into_inner()).is_some() {
         return Ok(());
     }
     if byok_gateway_live() {
@@ -481,8 +481,8 @@ pub fn start_byok_gateway() -> Result<(), Box<dyn std::error::Error + Send + Syn
 }
 
 pub fn stop_byok_gateway() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _guard = BYOK_GATEWAY_LIFECYCLE.lock().unwrap();
-    if let Some(tx) = BYOK_GATEWAY_SHUTDOWN.lock().unwrap().take() {
+    let _guard = BYOK_GATEWAY_LIFECYCLE.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(tx) = BYOK_GATEWAY_SHUTDOWN.lock().unwrap_or_else(|e| e.into_inner()).take() {
         let _ = tx.send(true);
         return Ok(());
     }
@@ -661,7 +661,11 @@ async fn append_byok_bindings(
             provider_instance_id: instance,
             protocol: route.protocol.clone(),
             lane_id,
-            lane_instance_nonce: state.lanes.last().unwrap().instance_nonce.clone(),
+            lane_instance_nonce: state
+                .lanes
+                .last()
+                .map(|l| l.instance_nonce.clone())
+                .unwrap_or_default(),
             coordinator_nonce: state.coordinator_nonce.clone(),
             upstream_id: route.id.clone(),
             config_fingerprint: fp,
@@ -725,7 +729,7 @@ async fn run_byok_watcher(
             } else {
                 format!("failed reading BYOK routes: {}", err)
             };
-            *BYOK_RELOAD_ERR.write().unwrap() = Some(msg);
+            *BYOK_RELOAD_ERR.write().unwrap_or_else(|e| e.into_inner()) = Some(msg);
             let _ = load_byok_routes();
         }
     }
@@ -752,7 +756,7 @@ async fn run_byok_watcher(
                         } else {
                             format!("failed reading BYOK routes: {}", err)
                         };
-                        *BYOK_RELOAD_ERR.write().unwrap() = Some(msg);
+                        *BYOK_RELOAD_ERR.write().unwrap_or_else(|e| e.into_inner()) = Some(msg);
                         let _ = load_byok_routes();
                     }
                 }
@@ -822,7 +826,7 @@ pub async fn run_byok_gateway_serve() -> Result<(), Box<dyn std::error::Error + 
         .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { format!("publish BYOK routing preparation: {}", e).into() })?;
 
     let (stop_tx, stop_rx) = watch::channel(false);
-    *BYOK_GATEWAY_SHUTDOWN.lock().unwrap() = Some(stop_tx.clone());
+    *BYOK_GATEWAY_SHUTDOWN.lock().unwrap_or_else(|e| e.into_inner()) = Some(stop_tx.clone());
 
     let mut lane_addrs = Vec::with_capacity(lane_listeners.len());
     for (lane_listener, target_url) in lane_listeners.into_iter().zip(targets.into_iter()) {
@@ -903,7 +907,7 @@ pub async fn run_byok_gateway_serve() -> Result<(), Box<dyn std::error::Error + 
     }
 
     let _ = stop_tx.send(true);
-    *BYOK_GATEWAY_SHUTDOWN.lock().unwrap() = None;
+    *BYOK_GATEWAY_SHUTDOWN.lock().unwrap_or_else(|e| e.into_inner()) = None;
     let _ = coordinator.close();
     Ok(())
 }
@@ -1226,7 +1230,7 @@ pub async fn handle_byok_gateway_request(
     let (mut path, raw_path, raw_query) = split_uri_path_and_query(raw_uri);
 
     if path == "/livez" {
-        let err_opt = BYOK_RELOAD_ERR.read().unwrap().clone();
+        let err_opt = BYOK_RELOAD_ERR.read().unwrap_or_else(|e| e.into_inner()).clone();
         if let Some(err_str) = err_opt {
             let quoted = serde_json::to_string(&err_str).unwrap_or_else(|_| "\"error\"".to_string());
             let body_str = format!(
@@ -1674,6 +1678,47 @@ pub fn format_connect_error(status: u16, message: &str) -> (Vec<(String, String)
     (headers, body)
 }
 
+fn record_byok_upstream_telemetry(
+    target_base: &str,
+    incoming_path: &str,
+    req_body: &[u8],
+    hdr_pairs: &[(String, String)],
+    parser: &crate::telemetry::SseStreamTokenParser,
+    elapsed_ms: u64,
+) {
+    let usage = parser.total_usage();
+    let _limits = crate::telemetry::extract_provider_rate_limits(hdr_pairs);
+    let model = serde_json::from_slice::<serde_json::Value>(req_body)
+        .ok()
+        .and_then(|v| v.get("model").and_then(|m| m.as_str()).map(|s| s.to_string()))
+        .unwrap_or_else(|| "unknown".to_string());
+    let provider = if target_base.contains("anthropic") {
+        "anthropic"
+    } else if target_base.contains("githubcopilot") {
+        "copilot"
+    } else if target_base.contains("grok") || target_base.contains("x.ai") {
+        "grok"
+    } else if target_base.contains("googleapis") {
+        "gemini"
+    } else {
+        "openai"
+    };
+    if usage.prompt_tokens > 0
+        || usage.completion_tokens > 0
+        || usage.cached_tokens > 0
+        || parser.cache_creation_tokens > 0
+    {
+        let _ = crate::telemetry::tokentracker::global_token_tracker().record_usage(
+            incoming_path,
+            "proxy",
+            provider,
+            &model,
+            usage,
+            elapsed_ms,
+        );
+    }
+}
+
 pub async fn forward_streaming_to_byok_target(
     target_base: &str,
     method: &str,
@@ -1683,6 +1728,7 @@ pub async fn forward_streaming_to_byok_target(
     body: &[u8],
     client_stream: &mut TcpStream,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let start_ts = Instant::now();
     let is_proto = is_proto_or_connect_request(incoming_path, headers);
 
     let Ok(mut target_url) = url::Url::parse(target_base) else {
@@ -1860,8 +1906,12 @@ pub async fn forward_streaming_to_byok_target(
         let mut head = format!("HTTP/1.1 {} {}\r\n", status, status_reason(status));
         head.push_str("Transfer-Encoding: chunked\r\n");
         let mut has_cors = false;
+        let mut hdr_pairs = Vec::new();
         for (k, v) in resp.headers() {
             let k_str = k.as_str();
+            if let Ok(v_str) = v.to_str() {
+                hdr_pairs.push((k_str.to_string(), v_str.to_string()));
+            }
             if k_str.eq_ignore_ascii_case("content-length")
                 || k_str.eq_ignore_ascii_case("transfer-encoding")
                 || k_str.eq_ignore_ascii_case("connection")
@@ -1885,16 +1935,40 @@ pub async fn forward_streaming_to_byok_target(
         client_stream.write_all(head.as_bytes()).await?;
         client_stream.flush().await?;
 
+        let mut sse_parser = crate::telemetry::SseStreamTokenParser::new();
+        let mut line_buf = String::new();
         let mut resp = resp;
         while let Some(chunk) = resp.chunk().await.ok().flatten() {
             if chunk.is_empty() {
                 continue;
+            }
+            if !is_proto {
+                let text = String::from_utf8_lossy(&chunk);
+                line_buf.push_str(&text);
+                while let Some(pos) = line_buf.find('\n') {
+                    let line = line_buf[..pos].to_string();
+                    line_buf.drain(..=pos);
+                    let _ = sse_parser.feed_line(&line);
+                }
             }
             let chunk_header = format!("{:x}\r\n", chunk.len());
             client_stream.write_all(chunk_header.as_bytes()).await?;
             client_stream.write_all(&chunk).await?;
             client_stream.write_all(b"\r\n").await?;
             client_stream.flush().await?;
+        }
+        if !is_proto && !line_buf.trim().is_empty() {
+            let _ = sse_parser.feed_line(&line_buf);
+        }
+        if !is_proto {
+            record_byok_upstream_telemetry(
+                target_base,
+                incoming_path,
+                &outgoing_body,
+                &hdr_pairs,
+                &sse_parser,
+                start_ts.elapsed().as_millis() as u64,
+            );
         }
         client_stream.write_all(b"0\r\n\r\n").await?;
         client_stream.flush().await?;
@@ -1956,6 +2030,26 @@ pub async fn forward_streaming_to_byok_target(
     };
 
     crate::util::logger::L.info(&format!("[PROXY-RESP] {} {} -> HTTP {}", method, incoming_path, final_status));
+
+    if !is_proto && final_status == 200 {
+        let mut parser = crate::telemetry::SseStreamTokenParser::new();
+        let text = String::from_utf8_lossy(&final_body);
+        if text.contains("data:") {
+            for line in text.lines() {
+                let _ = parser.feed_line(line);
+            }
+        } else {
+            let _ = parser.feed_line(&text);
+        }
+        record_byok_upstream_telemetry(
+            target_base,
+            incoming_path,
+            &outgoing_body,
+            &final_headers,
+            &parser,
+            start_ts.elapsed().as_millis() as u64,
+        );
+    }
 
     write_http_response(
         client_stream,

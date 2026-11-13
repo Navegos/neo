@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/autostart.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::path::Path;
 use std::process::Command;
@@ -118,7 +118,21 @@ pub fn proxy_autostart_plist_body(toksi_bin: &str) -> String {
 pub fn mac_current_uid() -> String {
     #[cfg(unix)]
     {
-        unsafe { libc::getuid() }.to_string()
+        if let Ok(uid) = std::env::var("UID") {
+            let trimmed = uid.trim();
+            if !trimmed.is_empty() && trimmed.chars().all(|c| c.is_ascii_digit()) {
+                return trimmed.to_string();
+            }
+        }
+        if let Ok(out) = Command::new("id").arg("-u").output() {
+            if out.status.success() {
+                let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                if !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()) {
+                    return s;
+                }
+            }
+        }
+        "501".to_string()
     }
     #[cfg(not(unix))]
     {

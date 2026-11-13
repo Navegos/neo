@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/process_identity.rs
 // created: 2026-10-11
-// lastModified: 2026-11-01
+// lastModified: 2026-11-13
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -235,45 +235,18 @@ fn identify_process_darwin(
         return Err("incomplete process identity".into());
     }
 
-    let mut mib = [libc::CTL_KERN, libc::KERN_PROCARGS2, pid as i32];
-    let mut size: usize = 0;
-    let ret = unsafe {
-        libc::sysctl(
-            mib.as_mut_ptr(),
-            3,
-            std::ptr::null_mut(),
-            &mut size,
-            std::ptr::null_mut(),
-            0,
-        )
-    };
-    if ret != 0 || size == 0 {
-        return Err(std::io::Error::last_os_error().into());
+    let args_out = Command::new("ps")
+        .args(["-p", &pid.to_string(), "-ww", "-o", "args="])
+        .output()?;
+    if !args_out.status.success() {
+        return Err("ps args failed for process identity".into());
     }
-    let mut buf = vec![0u8; size];
-    let ret2 = unsafe {
-        libc::sysctl(
-            mib.as_mut_ptr(),
-            3,
-            buf.as_mut_ptr() as *mut libc::c_void,
-            &mut size,
-            std::ptr::null_mut(),
-            0,
-        )
-    };
-    if ret2 != 0 {
-        return Err(std::io::Error::last_os_error().into());
-    }
-    buf.truncate(size);
-    let (exec_path, argv) = darwin_proc_args(&buf).ok_or("incomplete process identity")?;
-    if start.is_empty() || argv.is_empty() {
+    let cmd_line = String::from_utf8_lossy(&args_out.stdout).trim().to_string();
+    let argv: Vec<String> = cmd_line.split_whitespace().map(|s| s.to_string()).collect();
+    if argv.is_empty() {
         return Err("incomplete process identity".into());
     }
-    let exe_src = if !exec_path.is_empty() { &exec_path } else { &argv[0] };
-    if exe_src.is_empty() {
-        return Err("incomplete process identity".into());
-    }
-    let executable = normalized_executable(exe_src)?;
+    let executable = normalized_executable(&argv[0])?;
     Ok(ProcessIdentityInfo {
         executable,
         args: argv[1..].to_vec(),
@@ -308,70 +281,13 @@ pub fn darwin_proc_args(data: &[u8]) -> Option<(String, Vec<String>)> {
     Some((exec_path, argv))
 }
 
-#[cfg(windows)]
-#[link(name = "shell32")]
-unsafe extern "system" {
-    fn CommandLineToArgvW(lpCmdLine: *const u16, pNumArgs: *mut i32) -> *mut *mut u16;
-}
-
-#[cfg(windows)]
-#[link(name = "kernel32")]
-unsafe extern "system" {
-    fn LocalFree(hMem: *mut std::ffi::c_void) -> *mut std::ffi::c_void;
-    fn OpenProcess(
-        dwDesiredAccess: u32,
-        bInheritHandle: i32,
-        dwProcessId: u32,
-    ) -> *mut std::ffi::c_void;
-    fn GetExitCodeProcess(hProcess: *mut std::ffi::c_void, lpExitCode: *mut u32) -> i32;
-    fn TerminateProcess(hProcess: *mut std::ffi::c_void, uExitCode: u32) -> i32;
-    fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
-}
-
 pub fn windows_command_line_args(command: &str) -> Vec<String> {
     if command.trim().is_empty() {
         return Vec::new();
     }
-    #[cfg(windows)]
-    {
-        use std::os::windows::ffi::{OsStrExt, OsStringExt};
-        let wide: Vec<u16> = std::ffi::OsStr::new(command)
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
-        let mut argc: i32 = 0;
-        let argv = unsafe { CommandLineToArgvW(wide.as_ptr(), &mut argc) };
-        if argv.is_null() || argc <= 0 {
-            return Vec::new();
-        }
-        let mut args = Vec::with_capacity(argc as usize);
-        for i in 0..(argc as usize) {
-            let p = unsafe { *argv.add(i) };
-            if p.is_null() {
-                unsafe {
-                    LocalFree(argv as *mut std::ffi::c_void);
-                }
-                return Vec::new();
-            }
-            let mut len = 0usize;
-            while len < 32768 && unsafe { *p.add(len) } != 0 {
-                len += 1;
-            }
-            let slice = unsafe { std::slice::from_raw_parts(p, len) };
-            args.push(std::ffi::OsString::from_wide(slice).to_string_lossy().to_string());
-        }
-        unsafe {
-            LocalFree(argv as *mut std::ffi::c_void);
-        }
-        return args;
-    }
-    #[cfg(not(windows))]
-    {
-        parse_windows_cmd_fallback(command)
-    }
+    parse_windows_cmd_fallback(command)
 }
 
-#[cfg(not(windows))]
 fn parse_windows_cmd_fallback(command: &str) -> Vec<String> {
     let mut args = Vec::new();
     let mut cur = String::new();
@@ -438,20 +354,11 @@ pub fn kill_process(pid: u32) -> Result<(), Box<dyn std::error::Error + Send + S
     }
     #[cfg(windows)]
     {
-        const PROCESS_TERMINATE: u32 = 0x0001;
-        let handle = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) };
-        if !handle.is_null() {
-            let ok = unsafe { TerminateProcess(handle, 1) };
-            unsafe {
-                CloseHandle(handle);
-            }
-            if ok != 0 {
-                return Ok(());
-            }
-        }
-        let status = Command::new("taskkill")
-            .args(["/F", "/PID", &pid.to_string()])
-            .output()?;
+        use std::os::windows::process::CommandExt;
+        let mut cmd = Command::new("taskkill");
+        cmd.args(["/F", "/PID", &pid.to_string()]);
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        let status = cmd.output()?;
         if status.status.success() || process_gone(pid) {
             return Ok(());
         }
@@ -464,15 +371,18 @@ pub fn kill_process(pid: u32) -> Result<(), Box<dyn std::error::Error + Send + S
     }
     #[cfg(unix)]
     {
-        let ret = unsafe { libc::kill(pid as i32, libc::SIGKILL) };
-        if ret == 0 {
+        let out = Command::new("kill")
+            .args(["-KILL", &pid.to_string()])
+            .output()?;
+        if out.status.success() || process_gone(pid) {
             return Ok(());
         }
-        let err = std::io::Error::last_os_error();
-        if err.raw_os_error() == Some(libc::ESRCH) {
-            return Ok(());
-        }
-        return Err(err.into());
+        return Err(format!(
+            "failed to terminate pid {}: {}",
+            pid,
+            String::from_utf8_lossy(&out.stderr).trim()
+        )
+        .into());
     }
     #[cfg(not(any(windows, unix)))]
     {
@@ -486,18 +396,16 @@ pub fn process_gone(pid: u32) -> bool {
     }
     #[cfg(windows)]
     {
-        const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
-        const STILL_ACTIVE: u32 = 259;
-        let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
-        if handle.is_null() {
-            return std::io::Error::last_os_error().raw_os_error() == Some(87);
-        }
-        let mut code: u32 = 0;
-        let ret = unsafe { GetExitCodeProcess(handle, &mut code) };
-        unsafe {
-            CloseHandle(handle);
-        }
-        return ret != 0 && code != STILL_ACTIVE;
+        use std::os::windows::process::CommandExt;
+        let mut cmd = Command::new("tasklist");
+        cmd.args(["/FI", &format!("PID eq {}", pid), "/NH", "/FO", "CSV"]);
+        cmd.creation_flags(0x08000000);
+        let Ok(out) = cmd.output() else {
+            return false;
+        };
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let pid_token = format!("\"{}\"", pid);
+        return !stdout.lines().any(|line| line.contains(&pid_token));
     }
     #[cfg(target_os = "linux")]
     {
@@ -505,8 +413,10 @@ pub fn process_gone(pid: u32) -> bool {
     }
     #[cfg(all(unix, not(target_os = "linux")))]
     {
-        let ret = unsafe { libc::kill(pid as i32, 0) };
-        return ret != 0 && std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH);
+        match Command::new("kill").args(["-0", &pid.to_string()]).output() {
+            Ok(out) => !out.status.success(),
+            Err(_) => false,
+        }
     }
     #[cfg(not(any(windows, unix)))]
     {

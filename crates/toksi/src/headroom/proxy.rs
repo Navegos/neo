@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-11-04
+// lastModified: 2026-11-13
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, OnceLock};
@@ -22,12 +22,11 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime};
 use serde::{Deserialize, Serialize};
 
-use super::autostart::{disable_proxy_autostart, stop_proxy_supervisor_for_patch};
+use super::autostart::disable_proxy_autostart;
 use super::byok_gateway::{
     byok_gateway_live, byok_routes_configured, byok_routes_path, start_byok_gateway,
     stop_byok_gateway,
 };
-use super::cloudcode_patch::apply_cloud_code_patch;
 pub use super::copilot_daemon::ensure_copilot_proxy_up;
 use super::process_identity::{
     identify_process, kill_process, process_gone, process_identity_supported, spawn_detached,
@@ -38,7 +37,7 @@ use super::watchdog::{
     clear_proxy_stop_request, proxy_stop_requested, request_proxy_stop, run_headroom_supervised,
 };
 use crate::util::byok::{byok_gateway_port, parse_byok_routes};
-use crate::util::headroom::{headroom_bin, headroom_paths_resolved};
+use crate::util::headroom::headroom_paths_resolved;
 use crate::util::headroom_proxy::{
     clear_headroom_proxy_runtime, headroom_proxy_openai_url, headroom_proxy_port,
     headroom_proxy_url, proxy_routing_enabled, read_proxy_runtime, save_headroom_proxy_runtime,
@@ -181,7 +180,7 @@ pub fn proxy_args_for_urls(
     cloudcode: &str,
 ) -> Vec<String> {
     let mut args = vec![
-        "proxy".to_string(),
+        "__proxy-run".to_string(),
         "--port".to_string(),
         port.to_string(),
         "--no-cache".to_string(),
@@ -465,14 +464,6 @@ pub fn resolve_headroom_bin() -> String {
     if !w_toksi.is_empty() && exists(&w_toksi) {
         return w_toksi;
     }
-    let h = headroom_bin();
-    if !h.is_empty() && exists(&h) {
-        return h;
-    }
-    let w = crate::util::paths::which("headroom");
-    if !w.is_empty() && exists(&w) {
-        return w;
-    }
     String::new()
 }
 
@@ -614,7 +605,103 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
             continue;
         }
 
-        // Check BYOK routing header or path
+        // Explicit ConnectRPC / protobuf / gRPC passthrough (#0033 / #0034): never rewrite body
+        let is_connect_proto = super::byok_gateway::is_proto_or_connect_request(&path, &req.headers);
+
+        // Mandatory Headroom optimization across ALL traffic (standard + /byok/) except ConnectRPC
+        let mut cache_hit_resp: Option<(String, String)> = None;
+        if !is_connect_proto && req.method.eq_ignore_ascii_case("POST") && !req.body.is_empty() {
+            let is_llm_path = path.starts_with("/v1/messages")
+                || path.starts_with("/byok/")
+                || path.contains(":generateContent")
+                || path.contains(":streamGenerateContent")
+                || path.contains(":generateCode")
+                || path.contains(":streamGenerateCode")
+                || path.contains(":generateMessage")
+                || path.contains(":streamGenerateMessage")
+                || path.ends_with("/chat/completions")
+                || path.ends_with("/completions")
+                || path.ends_with("/responses");
+
+            if is_llm_path {
+                if let Ok(json_val) = serde_json::from_slice::<serde_json::Value>(&req.body) {
+                    let has_prompt_body = json_val.get("messages").is_some()
+                        || json_val.get("contents").is_some()
+                        || json_val.get("input").is_some();
+                    if has_prompt_body {
+                        let orch = gateway_orchestrator();
+                        let prov_label = if path.contains("messages") {
+                            "anthropic"
+                        } else if path.contains("gemini") || path.contains("Content") {
+                            "gemini"
+                        } else {
+                            "openai"
+                        };
+                        let prompt_str = json_val.to_string();
+                        if let Some(cached) = orch.lookup_cache(prov_label, &prompt_str) {
+                            let ctype = if path.contains("stream") {
+                                "text/event-stream".to_string()
+                            } else {
+                                "application/json".to_string()
+                            };
+                            let payload = if path.contains("stream") {
+                                format!("data: {}\n\ndata: [DONE]\n\n", cached)
+                            } else {
+                                cached
+                            };
+                            cache_hit_resp = Some((ctype, payload));
+                        } else {
+                            let auth_mode = super::auth_mode::classify_auth_mode(&req.headers);
+                            let mut working_body = req.body.clone();
+                            // 1. Structural MCP pruning + cache alignment only when PAYG or prefix unfrozen
+                            let frozen_count = super::live_zone::compute_frozen_count(&json_val);
+                            if auth_mode.should_mutate_cache_control() && frozen_count == 0 {
+                                let mut mutated = json_val.clone();
+                                super::adaptive_mem::inject_adaptive_memory(&mut mutated);
+                                let pruner_cfg = super::pruner::McpPrunerConfig::default();
+                                let _ = super::pruner::prune_mcp_request_payload(&mut mutated, &pruner_cfg);
+                                if path.starts_with("/v1/messages") {
+                                    super::cache_align::auto_place_anthropic_cache_control(&mut mutated);
+                                }
+                                super::cache_align::stabilize_cache_keys(&mut mutated);
+                                if let Ok(bytes) = serde_json::to_vec(&mutated) {
+                                    if bytes.len() <= working_body.len() {
+                                        working_body = bytes;
+                                    }
+                                }
+                            }
+                            // 2. Pure-Rust live-zone byte-range surgery (always preserves frozen prefixes byte-identical)
+                            let compressed = super::live_zone::compress_request_body_safe(&path, &working_body);
+                            if compressed.len() < req.body.len() {
+                                crate::util::logger::L.debug(&format!(
+                                    "[HEADROOM] compressed {} bytes -> {} bytes ({})",
+                                    req.body.len(),
+                                    compressed.len(),
+                                    auth_mode.as_str()
+                                ));
+                                req.body = compressed;
+                            } else if working_body.len() < req.body.len() {
+                                req.body = working_body;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some((ctype, payload)) = cache_hit_resp {
+            let headers = vec![
+                ("Content-Type".to_string(), ctype),
+                ("X-Toksi-Cache".to_string(), "HIT".to_string()),
+            ];
+            super::byok_gateway::write_http_response(&mut stream, 200, "OK", &headers, payload.as_bytes()).await?;
+            if is_close_requested {
+                break;
+            }
+            continue;
+        }
+
+        // Check BYOK routing header or path (AFTER Headroom pass!)
         let has_byok_header = req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(super::byok_gateway::BYOK_ROUTE_HEADER));
         if has_byok_header || path.starts_with("/byok/") {
             let (status, headers, body) = super::byok_gateway::handle_byok_gateway_request(
@@ -719,117 +806,8 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
 
         crate::util::logger::L.info(&format!("[PROXY] {} {} -> {}", req.method, path, target_base));
 
-        let is_llm_request = req.method.eq_ignore_ascii_case("POST")
-            && !req.body.is_empty()
-            && (path.starts_with("/v1/messages")
-                || path.contains(":generateContent")
-                || path.contains(":streamGenerateContent")
-                || path.contains(":generateCode")
-                || path.contains(":streamGenerateCode")
-                || path.contains(":generateMessage")
-                || path.contains(":streamGenerateMessage")
-                || path.ends_with("/chat/completions")
-                || path.ends_with("/completions")
-                || path.ends_with("/responses"));
-
-        // Preprocessing on POST JSON LLM requests only when conversation contents or messages exist
-        if is_llm_request {
-            if let Ok(mut json_val) = serde_json::from_slice::<serde_json::Value>(&req.body) {
-                let has_contents = json_val.get("contents").is_some();
-                let has_messages = json_val.get("messages").is_some();
-
-                if has_contents || has_messages {
-                    let orch = gateway_orchestrator();
-                    let prompt_str = json_val.to_string();
-
-                    // Check Gateway Semantic Cache first
-                    let prov_label = if is_google_request {
-                        "gemini"
-                    } else if path.starts_with("/v1/messages") {
-                        "anthropic"
-                    } else {
-                        "openai"
-                    };
-
-                    if let Some(cached) = orch.lookup_cache(prov_label, &prompt_str) {
-                        let resp_body = if path.contains("stream") {
-                            format!("data: {}\n\ndata: [DONE]\n\n", cached).into_bytes()
-                        } else {
-                            cached.into_bytes()
-                        };
-                        let headers = vec![
-                            ("Content-Type".to_string(), if path.contains("stream") { "text/event-stream".to_string() } else { "application/json".to_string() }),
-                            ("X-Toksi-Cache".to_string(), "HIT".to_string()),
-                        ];
-                        super::byok_gateway::write_http_response(&mut stream, 200, "OK", &headers, &resp_body).await?;
-                        if is_close_requested {
-                            break;
-                        }
-                        continue;
-                    }
-
-                    // 1. Dynamic Memory Governor (scaling L0 vs L1 vs L2 based on headroom)
-                    super::adaptive_mem::inject_adaptive_memory(&mut json_val);
-
-                    // 2. 1024-token prompt cache alignment
-                    if path.starts_with("/v1/messages") {
-                        super::cache_align::auto_place_anthropic_cache_control(&mut json_val);
-                    }
-                    super::cache_align::stabilize_cache_keys(&mut json_val);
-                    super::cache_align::align_system_prompt_to_1024(&mut json_val);
-
-                    // 3. Headroom MCP tool schema pruning
-                    let pruner_cfg = crate::headroom::pruner::McpPrunerConfig::default();
-                    let _ = crate::headroom::pruner::prune_mcp_request_payload(&mut json_val, &pruner_cfg);
-
-                    // 4. Compress conversation messages (logs, code, and JSON in tool outputs)
-                    if let Some(serde_json::Value::Array(messages)) = json_val.get_mut("messages") {
-                        for msg in messages {
-                            let is_tool_role = msg.get("role").and_then(|r| r.as_str()) == Some("tool");
-                            let tool_name = msg.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
-                            if let Some(serde_json::Value::String(content)) = msg.get_mut("content") {
-                                if content.len() > 120 {
-                                    if is_tool_role {
-                                        *content = crate::rtk::compress_tool_output(&tool_name, content);
-                                    } else {
-                                        *content = super::compression::compress_content(content, None);
-                                    }
-                                }
-                            } else if let Some(serde_json::Value::Array(blocks)) = msg.get_mut("content") {
-                                for block in blocks {
-                                    let is_tool_result =
-                                        block.get("type").and_then(|t| t.as_str()) == Some("tool_result");
-                                    let block_name = block.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
-                                    if let Some(serde_json::Value::String(text)) = block.get_mut("text") {
-                                        if text.len() > 120 {
-                                            if is_tool_result {
-                                                *text = crate::rtk::compress_tool_output(&block_name, text);
-                                            } else {
-                                                *text = super::compression::compress_content(text, None);
-                                            }
-                                        }
-                                    } else if let Some(serde_json::Value::String(content)) = block.get_mut("content") {
-                                        if content.len() > 120 {
-                                            if is_tool_result {
-                                                *content = crate::rtk::compress_tool_output(&block_name, content);
-                                            } else {
-                                                *content = super::compression::compress_content(content, None);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if let Ok(serialized) = serde_json::to_vec(&json_val) {
-                        req.body = serialized;
-                    }
-                }
-            }
-        }
-
-        // Forward to upstream target (streaming if SSE / ndjson, buffered otherwise)
+        // Forward to upstream target (streaming if SSE / ndjson, buffered otherwise;
+        // ConnectRPC & LLM bodies already processed cleanly above)
         if let Err(e) = super::byok_gateway::forward_streaming_to_byok_target(
             &target_base,
             &req.method,
@@ -1223,14 +1201,6 @@ pub fn start_proxy() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
 fn start_proxy_locked() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     cleanup_legacy_route_state();
-    if apply_cloud_code_patch() {
-        stop_proxy_supervisor_for_patch()
-            .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { format!("stop proxy supervisor for patch: {}", e).into() })?;
-        if proxy_owned_process_live() || proxy_running() {
-            stop_headroom_daemon_for_handoff()
-                .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { format!("restart proxy after patch: {}", e).into() })?;
-        }
-    }
 
     let port = proxy_port();
     let args = proxy_args(port);

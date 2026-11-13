@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/keys.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::sync::RwLock;
@@ -82,12 +82,12 @@ impl KeyPoolManager {
     }
 
     pub fn add_key(&self, provider: ProviderId, key: ProviderApiKey) {
-        let mut pools = self.pools.write().unwrap();
+        let mut pools = self.pools.write().unwrap_or_else(|e| e.into_inner());
         pools.entry(provider).or_default().push(key);
     }
 
     pub fn get_available_key(&self, provider: ProviderId) -> Option<String> {
-        let mut pools = self.pools.write().unwrap();
+        let mut pools = self.pools.write().unwrap_or_else(|e| e.into_inner());
         let list = pools.get_mut(&provider)?;
         if list.is_empty() {
             return None;
@@ -117,7 +117,7 @@ impl KeyPoolManager {
             return None;
         }
 
-        let mut idx_map = self.round_robin_idx.write().unwrap();
+        let mut idx_map = self.round_robin_idx.write().unwrap_or_else(|e| e.into_inner());
         let cur = idx_map.entry(provider).or_insert(0);
         let chosen_idx = available_indices[*cur % available_indices.len()];
         *cur = (*cur + 1) % available_indices.len();
@@ -126,7 +126,7 @@ impl KeyPoolManager {
     }
 
     pub fn record_result(&self, provider: ProviderId, key: &str, failure: Option<FailureClass>, cooldown_hint: Option<Duration>) {
-        let mut pools = self.pools.write().unwrap();
+        let mut pools = self.pools.write().unwrap_or_else(|e| e.into_inner());
         if let Some(list) = pools.get_mut(&provider) {
             if let Some(k) = list.iter_mut().find(|item| item.key == key) {
                 if let Some(f) = failure {

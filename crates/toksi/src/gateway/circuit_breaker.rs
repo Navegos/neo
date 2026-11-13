@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/circuit_breaker.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -56,7 +56,7 @@ impl CircuitBreaker {
 
     pub fn inspect_tool_call(&self, session_id: &str, tool_name: &str, args: &Value) -> Result<(), CircuitBreakerReason> {
         let args_str = args.to_string();
-        let mut map = self.sessions.lock().unwrap();
+        let mut map = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
         let state = map.entry(session_id.to_string()).or_default();
 
         if let Some((ref last_name, ref last_args)) = state.last_tool_call {
@@ -78,7 +78,7 @@ impl CircuitBreaker {
     }
 
     pub fn inspect_error(&self, session_id: &str, error_msg: &str) -> Result<(), CircuitBreakerReason> {
-        let mut map = self.sessions.lock().unwrap();
+        let mut map = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
         let state = map.entry(session_id.to_string()).or_default();
 
         if let Some(ref last_err) = state.last_error {
@@ -100,7 +100,7 @@ impl CircuitBreaker {
     }
 
     pub fn record_tokens(&self, session_id: &str, tokens: u64) -> Result<(), CircuitBreakerReason> {
-        let mut map = self.sessions.lock().unwrap();
+        let mut map = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
         let state = map.entry(session_id.to_string()).or_default();
         state.cumulative_tokens += tokens;
 
@@ -111,6 +111,93 @@ impl CircuitBreaker {
             });
         }
         Ok(())
+    }
+}
+
+/// Provider-level circuit state for gateway upstream health tracking.
+#[derive(Debug, Clone)]
+pub struct ProviderCircuitState {
+    pub consecutive_failures: u32,
+    pub opened_at: Option<std::time::Instant>,
+    pub cooldown: std::time::Duration,
+}
+
+impl Default for ProviderCircuitState {
+    fn default() -> Self {
+        Self {
+            consecutive_failures: 0,
+            opened_at: None,
+            cooldown: std::time::Duration::from_secs(30),
+        }
+    }
+}
+
+/// Registry of per-provider circuit breakers consulted by the 7-D router and cascade dispatcher.
+#[derive(Debug)]
+pub struct CircuitBreakerRegistry {
+    failure_threshold: u32,
+    default_cooldown: std::time::Duration,
+    states: std::sync::RwLock<HashMap<crate::gateway::providers::ProviderId, ProviderCircuitState>>,
+}
+
+impl Default for CircuitBreakerRegistry {
+    fn default() -> Self {
+        Self::new(3, std::time::Duration::from_secs(30))
+    }
+}
+
+impl CircuitBreakerRegistry {
+    pub fn new(failure_threshold: u32, default_cooldown: std::time::Duration) -> Self {
+        Self {
+            failure_threshold: failure_threshold.max(1),
+            default_cooldown,
+            states: std::sync::RwLock::new(HashMap::new()),
+        }
+    }
+
+    pub fn is_open(&self, provider: crate::gateway::providers::ProviderId) -> bool {
+        let mut map = self.states.write().unwrap_or_else(|e| e.into_inner());
+        let Some(state) = map.get_mut(&provider) else {
+            return false;
+        };
+        if let Some(opened_at) = state.opened_at {
+            if opened_at.elapsed() >= state.cooldown {
+                // Cooldown expired: allow half-open retry
+                state.opened_at = None;
+                state.consecutive_failures = 0;
+                return false;
+            }
+            return true;
+        }
+        false
+    }
+
+    pub fn record_success(&self, provider: crate::gateway::providers::ProviderId) {
+        let mut map = self.states.write().unwrap_or_else(|e| e.into_inner());
+        if let Some(state) = map.get_mut(&provider) {
+            state.consecutive_failures = 0;
+            state.opened_at = None;
+        }
+    }
+
+    pub fn record_failure(
+        &self,
+        provider: crate::gateway::providers::ProviderId,
+        cooldown_override: Option<std::time::Duration>,
+    ) {
+        let mut map = self.states.write().unwrap_or_else(|e| e.into_inner());
+        let state = map.entry(provider).or_insert_with(|| ProviderCircuitState {
+            consecutive_failures: 0,
+            opened_at: None,
+            cooldown: self.default_cooldown,
+        });
+        state.consecutive_failures += 1;
+        if let Some(cd) = cooldown_override {
+            state.cooldown = cd;
+        }
+        if state.consecutive_failures >= self.failure_threshold {
+            state.opened_at = Some(std::time::Instant::now());
+        }
     }
 }
 

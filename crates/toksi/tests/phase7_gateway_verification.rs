@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase7_gateway_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-11-05
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -391,8 +391,32 @@ fn test_phase7_circuit_breaker_loop_detection() {
 
 #[test]
 fn test_phase7_gateway_proxy_orchestrator_end_to_end() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind mock upstream");
+    let port = listener.local_addr().expect("local addr").port();
+    std::thread::spawn(move || {
+        if let Ok((mut stream, _)) = listener.accept() {
+            let mut buf = [0u8; 4096];
+            let _ = stream.read(&mut buf);
+            let body = r#"{"id":"msg-live-1","model":"claude-3-5-sonnet","content":[{"type":"text","text":"Response from gateway"}],"stop_reason":"end_turn","usage":{"input_tokens":18,"output_tokens":6}}"#;
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            let _ = stream.write_all(resp.as_bytes());
+        }
+    });
+
     let orchestrator = GatewayProxyOrchestrator::new();
-    let anth = AnthropicProvider::default();
+    orchestrator.key_manager.add_key(
+        ProviderId::Anthropic,
+        toksi::gateway::keys::ProviderApiKey::new("test-key"),
+    );
+    let mut anth = AnthropicProvider::default();
+    anth.base_url = format!("http://127.0.0.1:{}/v1/messages", port);
 
     let mut payload = json!({
         "model": "claude-3-5-sonnet",
@@ -408,9 +432,11 @@ fn test_phase7_gateway_proxy_orchestrator_end_to_end() {
     });
 
     let resp = orchestrator.process_request("test-session", None, ProviderId::Anthropic, &anth, &mut payload);
-    assert!(resp.is_ok());
+    assert!(resp.is_ok(), "unexpected error: {:?}", resp.err());
     let res_obj = resp.unwrap();
     assert_eq!(res_obj.content, "Response from gateway");
+    assert_eq!(res_obj.input_tokens, 18);
+    assert_eq!(res_obj.output_tokens, 6);
 
     // Second request with identical payload hits Tier-1 exact semantic cache
     let resp2 = orchestrator.process_request("test-session", None, ProviderId::Anthropic, &anth, &mut payload);

@@ -20,10 +20,21 @@ mod tests {
     #[test]
     fn test_phase_07_provider_catalog_full() {
         assert_eq!(ProviderId::ALL_39.len(), 39);
+        assert!(ProviderId::ALL.len() >= 90);
+        let local_count = ProviderId::ALL
+            .iter()
+            .filter(|p| p.category() == ProviderCategory::Local)
+            .count();
+        assert!(local_count >= 22);
+
         assert_eq!(ProviderId::from_name("anthropic"), Some(ProviderId::Anthropic));
         assert_eq!(ProviderId::from_name("bifrost"), Some(ProviderId::Bifrost));
         assert_eq!(ProviderId::from_name("sagemaker"), Some(ProviderId::SageMaker));
         assert_eq!(ProviderId::from_name("bedrockmantle"), Some(ProviderId::BedrockMantle));
+        assert_eq!(ProviderId::from_name("lm-studio"), Some(ProviderId::LMStudio));
+        assert_eq!(ProviderId::from_name("exo"), Some(ProviderId::Exo));
+        assert_eq!(ProviderId::from_name("baseten"), Some(ProviderId::Baseten));
+        assert_eq!(ProviderId::from_name("kimchi"), Some(ProviderId::Kimchi));
 
         assert_eq!(ProviderId::Anthropic.category(), ProviderCategory::Frontier);
         assert_eq!(ProviderId::Cerebras.category(), ProviderCategory::Accelerator);
@@ -135,6 +146,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_phase_15_2_gateway_server_endpoints() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        // Spin up a real local upstream HTTP stub to verify non-synthetic upstream forwarding
+        let upstream_listener = TcpListener::bind("127.0.0.1:0").await.expect("bind upstream");
+        let upstream_port = upstream_listener.local_addr().expect("local_addr").port();
+        let upstream_task = tokio::spawn(async move {
+            while let Ok((mut sock, _)) = upstream_listener.accept().await {
+                let mut buf = vec![0u8; 4096];
+                let _ = sock.read(&mut buf).await;
+                let body = r#"{"id":"up-1","object":"chat.completion","model":"gpt-4o","choices":[{"index":0,"message":{"role":"assistant","content":"live-upstream-ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":21,"completion_tokens":7}}"#;
+                let resp = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = sock.write_all(resp.as_bytes()).await;
+            }
+        });
+
         let server = crate::gateway::server::GatewayServer::new("127.0.0.1", 19099);
         let task = tokio::spawn(async move {
             let _ = server.run().await;
@@ -142,37 +173,73 @@ mod tests {
 
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-        let Ok(client) = reqwest::Client::builder().build() else {
+        let Ok(client) = reqwest::Client::builder().no_proxy().build() else {
             task.abort();
+            upstream_task.abort();
             return;
         };
 
         // 1. /healthz
-        if let Ok(resp) = client.get("http://127.0.0.1:19099/healthz").send().await {
-            assert!(resp.status().is_success());
-            let body: serde_json::Value = resp.json().await.unwrap_or_default();
-            assert_eq!(body.get("service").and_then(|v| v.as_str()), Some("ai-gateway"));
-        }
+        let resp = client.get("http://127.0.0.1:19099/healthz").send().await.expect("healthz");
+        assert!(resp.status().is_success());
+        let body: serde_json::Value = resp.json().await.expect("healthz json");
+        assert_eq!(body.get("service").and_then(|v| v.as_str()), Some("ai-gateway"));
 
-        // 2. /metrics
-        if let Ok(resp) = client.get("http://127.0.0.1:19099/metrics").send().await {
-            assert!(resp.status().is_success());
-        }
+        // 2. /metrics & zero-cost /v1/models
+        let metrics_resp = client.get("http://127.0.0.1:19099/metrics").send().await.expect("metrics");
+        assert!(metrics_resp.status().is_success());
 
-        // 3. /v1/chat/completions
+        let models_resp = client.get("http://127.0.0.1:19099/v1/models").send().await.expect("models");
+        assert!(models_resp.status().is_success());
+        let models_json: serde_json::Value = models_resp.json().await.expect("models json");
+        assert!(models_json["data"].as_array().map(|a| a.len()).unwrap_or(0) >= 90);
+
+        // 3. Unconfigured remote key fails cleanly (no fake "AI Gateway operational" stub)
         let payload = json!({
             "model": "gpt-4o",
             "messages": [{"role": "user", "content": "hello"}]
         });
-        if let Ok(resp) = client.post("http://127.0.0.1:19099/v1/chat/completions")
+        let fail_resp = client
+            .post("http://127.0.0.1:19099/v1/chat/completions")
             .json(&payload)
-            .send().await
-        {
-            assert!(resp.status().is_success());
-            let body: serde_json::Value = resp.json().await.unwrap_or_default();
-            assert_eq!(body.get("object").and_then(|v| v.as_str()), Some("chat.completion"));
-        }
+            .send()
+            .await
+            .expect("fail_resp");
+        assert_eq!(fail_resp.status().as_u16(), 502);
+
+        // 4. Live upstream dispatch + /v1/responses translation
+        let upstream_url = format!("http://127.0.0.1:{}/v1/chat/completions", upstream_port);
+        let ok_resp = client
+            .post("http://127.0.0.1:19099/v1/chat/completions")
+            .header("Authorization", "Bearer live-secret-123")
+            .header("x-toksi-upstream", &upstream_url)
+            .json(&payload)
+            .send()
+            .await
+            .expect("live_resp");
+        assert!(ok_resp.status().is_success());
+        let ok_json: serde_json::Value = ok_resp.json().await.expect("ok json");
+        assert_eq!(ok_json["choices"][0]["message"]["content"].as_str(), Some("live-upstream-ok"));
+        assert_eq!(ok_json["usage"]["prompt_tokens"].as_u64(), Some(21));
+
+        let responses_payload = json!({
+            "model": "gpt-4o",
+            "input": "hello responses"
+        });
+        let resp_api = client
+            .post("http://127.0.0.1:19099/v1/responses")
+            .header("Authorization", "Bearer live-secret-123")
+            .header("x-toksi-upstream", &upstream_url)
+            .json(&responses_payload)
+            .send()
+            .await
+            .expect("responses api");
+        assert!(resp_api.status().is_success());
+        let resp_api_json: serde_json::Value = resp_api.json().await.expect("responses json");
+        assert_eq!(resp_api_json["object"].as_str(), Some("response"));
+        assert_eq!(resp_api_json["output_text"].as_str(), Some("live-upstream-ok"));
 
         task.abort();
+        upstream_task.abort();
     }
 }

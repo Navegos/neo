@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/telemetry/tokentracker.rs
 // created: 2026-11-08
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use std::fmt;
 use std::sync::RwLock;
@@ -531,12 +531,23 @@ pub fn parse_openai_sse_chunk(line: &str) -> Option<ParsedTokenUsage> {
     }
 
     let val: serde_json::Value = serde_json::from_str(payload).ok()?;
-    let usage = val.get("usage")?;
+    let usage = val
+        .get("usage")
+        .or_else(|| val.get("response").and_then(|r| r.get("usage")))?;
 
-    let prompt_tokens = usage.get("prompt_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
-    let completion_tokens = usage.get("completion_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+    let prompt_tokens = usage
+        .get("prompt_tokens")
+        .or_else(|| usage.get("input_tokens"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
+    let completion_tokens = usage
+        .get("completion_tokens")
+        .or_else(|| usage.get("output_tokens"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0);
     let cached_tokens = usage
         .get("prompt_tokens_details")
+        .or_else(|| usage.get("input_tokens_details"))
         .and_then(|d| d.get("cached_tokens"))
         .and_then(|v| v.as_u64())
         .unwrap_or(0);
@@ -651,7 +662,29 @@ pub struct SseStreamTokenParser {
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub cached_tokens: u64,
+    pub cache_creation_tokens: u64,
     pub saved_tokens: u64,
+}
+
+pub fn parse_anthropic_cache_creation_tokens(line: &str) -> u64 {
+    let payload = line.trim().strip_prefix("data:").map(|s| s.trim()).unwrap_or_else(|| line.trim());
+    if payload.is_empty() {
+        return 0;
+    }
+    let Ok(val) = serde_json::from_str::<serde_json::Value>(payload) else {
+        return 0;
+    };
+    val.get("message")
+        .and_then(|m| m.get("usage"))
+        .or_else(|| val.get("usage"))
+        .and_then(|u| u.get("cache_creation_input_tokens"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(0)
+}
+
+pub fn global_token_tracker() -> &'static TokenTrackerEngine {
+    static TRACKER: std::sync::OnceLock<TokenTrackerEngine> = std::sync::OnceLock::new();
+    TRACKER.get_or_init(|| TokenTrackerEngine::new(2000))
 }
 
 impl SseStreamTokenParser {
@@ -682,6 +715,10 @@ impl SseStreamTokenParser {
         }
 
         // Try Anthropic format
+        let cc = parse_anthropic_cache_creation_tokens(trimmed);
+        if cc > 0 {
+            self.cache_creation_tokens = self.cache_creation_tokens.max(cc);
+        }
         if let Some(usage) = parse_anthropic_sse_chunk(trimmed) {
             if usage.prompt_tokens > 0 {
                 self.prompt_tokens = self.prompt_tokens.max(usage.prompt_tokens);

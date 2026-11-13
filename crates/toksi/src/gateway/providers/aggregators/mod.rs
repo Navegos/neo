@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/providers/aggregators/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 pub mod bifrost;
 
@@ -68,14 +68,16 @@ impl ProviderClient for AggregatorProvider {
             .unwrap_or("")
             .to_string();
 
+        let (input_tokens, output_tokens) = crate::gateway::providers::parse_openai_usage(resp);
+
         Ok(UnifiedResponse {
             id,
             model,
             content,
             role: "assistant".to_string(),
             finish_reason: Some("stop".to_string()),
-            input_tokens: 50,
-            output_tokens: 50,
+            input_tokens,
+            output_tokens,
             raw: resp.clone(),
         })
     }

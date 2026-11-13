@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/views/headroom.rs
 // created: 2026-10-30
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -146,12 +146,12 @@ pub fn render_headroom_view(f: &mut Frame, area: Rect, app: &App) {
                 Style::default()
             };
 
-            let tier_style = if route.tier_badge == "[PAID]" {
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
-            } else if route.tier_badge == "[DISQUALIFIED-FREE]" {
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::DarkGray)
+            let tier_style = match route.tier_badge.as_str() {
+                "[BYOK]" | "[API-KEY]" | "[OAUTH]" => {
+                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                }
+                "[FREE-TIER]" => Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                _ => Style::default().fg(Color::DarkGray),
             };
 
             Row::new(vec![

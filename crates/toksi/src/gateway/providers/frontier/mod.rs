@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/providers/frontier/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-11-05
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use serde_json::{json, Value};
@@ -315,27 +315,6 @@ impl ProviderClient for GenericFrontierProvider {
     }
 
     fn parse_response(&self, resp: &Value) -> Result<UnifiedResponse, String> {
-        let id = resp.get("id").and_then(Value::as_str).unwrap_or("").to_string();
-        let model = resp.get("model").and_then(Value::as_str).unwrap_or("").to_string();
-        let content = resp
-            .get("choices")
-            .and_then(Value::as_array)
-            .and_then(|a| a.first())
-            .and_then(|c| c.get("message"))
-            .and_then(|m| m.get("content"))
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_string();
-
-        Ok(UnifiedResponse {
-            id,
-            model,
-            content,
-            role: "assistant".to_string(),
-            finish_reason: Some("stop".to_string()),
-            input_tokens: 100,
-            output_tokens: 100,
-            raw: resp.clone(),
-        })
+        crate::gateway::providers::parse_openai_chat_response(resp, "")
     }
 }
