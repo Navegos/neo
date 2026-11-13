@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/paths.rs
 // created: 2026-10-05
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 use std::path::Path;
 use std::sync::RwLock;
@@ -54,9 +54,8 @@ pub fn escape_path_for_cmd(p: &str) -> String {
 }
 
 pub use crate::util::exec::{
-    find_binary, prepend_process_path, resolve_bun_binary, resolve_codegraph_bin,
-    resolve_node_binary, resolve_npm_binary, resolve_rtk_bin, rtk_install_dirs, run_cmd,
-    which_any,
+    extra_process_path_dirs, find_binary, prepend_process_path, resolve_rtk_bin, rtk_install_dirs,
+    run_cmd, which_any,
 };
 pub use crate::util::pathsetup::{
     ensure_persistent_path, ensure_process_path, expected_bin_dirs, persist_windows_path_dirs,
@@ -633,9 +632,15 @@ pub fn is_real_binary(path: &Path) -> bool {
     true
 }
 
-/// Collects directories from the PATH environment variable.
+/// Collects directories from the PATH environment variable and in-process extra dirs.
 pub fn path_dirs() -> Vec<std::path::PathBuf> {
     let mut dirs = Vec::new();
+    for extra in extra_process_path_dirs() {
+        let trimmed = extra.trim();
+        if !trimmed.is_empty() {
+            dirs.push(std::path::PathBuf::from(trimmed));
+        }
+    }
     let path_val = std::env::var("PATH").or_else(|_| std::env::var("Path")).unwrap_or_default();
     let sep = if IS_WIN { ';' } else { ':' };
     for part in path_val.split(sep) {

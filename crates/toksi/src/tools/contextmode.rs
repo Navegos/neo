@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/contextmode.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::fs;
 use std::path::Path;
@@ -23,7 +23,6 @@ use crate::agents::{
     remove_droid_ctx_mode_pre_tool_use, sync_copilot_ide_instructions_safe,
 };
 use crate::core::{Channel, DynError, RunOpts, ToolManifest};
-use crate::util::exec::{resolve_bun_binary, run, RunOptions};
 use crate::util::instructions::section_header_for_owner;
 use crate::util::jsonc::{stringify_json, try_parse_jsonc, OrderedMap, Value};
 use crate::util::logger::L;
@@ -31,7 +30,7 @@ use crate::util::mcpspawn::pick_mcp_spawn;
 use crate::util::paths::{
     claude_code_paths, codex_paths_resolved, ensure_dir, exists, home,
     opencode_paths_resolved, opencode_paths_v2, read_file_safe,
-    which, write_file, write_file_atomic,
+    write_file, write_file_atomic,
 };
 use crate::util::toml::remove_block;
 use super::copilot_transaction::with_copilot_transaction;
@@ -100,42 +99,6 @@ pub fn clean_all_context_mode_cache() {
     let legacy = Path::new(&home()).join(".cache").join("opencode").join("node_modules").join("context-mode");
     if legacy.exists() {
         let _ = fs::remove_dir_all(legacy);
-    }
-}
-
-pub fn run_postinstall_in_opencode_cache() {
-    if which("bun").is_empty() {
-        return;
-    }
-    let cache_root = Path::new(&home()).join(".cache").join("opencode").join("packages");
-    let Ok(entries) = fs::read_dir(&cache_root) else {
-        return;
-    };
-    let bun_bin = resolve_bun_binary();
-    if bun_bin.is_empty() {
-        return;
-    }
-    for e in entries.flatten() {
-        let d = e.file_name().to_string_lossy().to_string();
-        if d != "context-mode" && !d.starts_with("context-mode@") {
-            continue;
-        }
-        let pkg_host = cache_root.join(&d);
-        if !exists(pkg_host.join("node_modules").join("context-mode")) {
-            continue;
-        }
-        let r = run(
-            &bun_bin,
-            &["pm", "trust", "context-mode"],
-            RunOptions {
-                cwd: Some(pkg_host.to_string_lossy().to_string()),
-                capture: true,
-                ..Default::default()
-            },
-        );
-        if r.code == 0 {
-            L.sub(&format!("healed OpenCode plugin cache ({})", d));
-        }
     }
 }
 
@@ -547,7 +510,6 @@ pub fn ctx_wire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
             write_owner("opencode", "context-mode");
             if !is_test() {
                 clean_all_context_mode_cache();
-                run_postinstall_in_opencode_cache();
             }
             Ok(ctx_verify_opencode())
         }
@@ -561,7 +523,6 @@ pub fn ctx_wire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
             write_owner("opencode2", "context-mode");
             if !is_test() {
                 clean_all_context_mode_cache();
-                run_postinstall_in_opencode_cache();
             }
             Ok(ctx_verify_opencode_v2())
         }

@@ -136,11 +136,23 @@ pub fn pick_mcp_spawn(bin: &str, extra_args: &[&str]) -> McpSpawn {
             command: self_cmd,
             args: vec!["ctx".into(), "mcp".into()],
         };
-    } else if bin == "icm" || bin == "aimemory" || bin == "ai-memory" || bin == "handoff" {
+    } else if bin == "icm" || bin == "toksi-icm" {
         let self_cmd = toksi_run_mcp_command();
         return McpSpawn {
             command: self_cmd,
             args: vec!["icm".into(), "mcp".into()],
+        };
+    } else if bin == "aimemory" || bin == "ai-memory" || bin == "handoff" || bin == "toksi-aimemory" {
+        let self_cmd = toksi_run_mcp_command();
+        return McpSpawn {
+            command: self_cmd,
+            args: vec!["aimemory".into(), "mcp".into()],
+        };
+    } else if bin == "rtk" || bin == "toksi-rtk" {
+        let self_cmd = toksi_run_mcp_command();
+        return McpSpawn {
+            command: self_cmd,
+            args: vec!["rtk".into(), "mcp".into()],
         };
     } else {
         let p = which(bin);

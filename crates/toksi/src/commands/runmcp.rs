@@ -155,7 +155,7 @@ pub fn run_mcp(argv: &[String]) -> i32 {
         return crate::projectmem::mcp::run_mcp_server();
     }
 
-    let is_contextmode = actual_cmd_args.iter().any(|a| a.contains("context-mode") || a.contains("ctx-mcp")) || tool == "context-mode" || context_mode;
+    let is_contextmode = actual_cmd_args.iter().any(|a| a.contains("context-mode") || a.contains("ctx-mcp")) || tool == "context-mode" || tool == "context" || context_mode;
     if is_contextmode {
         let root = projectmem_root(&workspace);
         unsafe {

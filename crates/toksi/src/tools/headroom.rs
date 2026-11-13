@@ -20,7 +20,7 @@ use crate::headroom::autostart::{
 use crate::headroom::proxy::{
     acquire_proxy_lifecycle_lock, proxy_running, stop_proxy_preserving_autostart,
 };
-use crate::util::headroom::{ensure_headroom, headroom_bin, headroom_installed};
+use crate::util::headroom::ensure_headroom;
 use crate::util::headroom_proxy::{
     clear_headroom_proxy_runtime, clear_proxy_routing_preference, proxy_routing_enabled,
     proxy_routing_preference_set, read_proxy_runtime, save_headroom_proxy_runtime,
@@ -58,9 +58,6 @@ pub fn headroom_wire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
         .map_err(|e| -> DynError { format!("proxy lifecycle lock: {}", e).into() })?;
     if proxy_routing_preference_set() && !proxy_routing_enabled() {
         return Ok(true);
-    }
-    if !is_test() && !headroom_installed() {
-        return Err(format!("headroom is not installed at {}", headroom_bin()).into());
     }
     let preference_set = proxy_routing_preference_set();
     let preference_enabled = proxy_routing_enabled();

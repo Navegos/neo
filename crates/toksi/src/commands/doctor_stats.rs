@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor_stats.rs
 // created: 2026-10-20
-// lastModified: 2026-11-01
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::fs;
@@ -13,7 +13,7 @@ use serde::Deserialize;
 
 use crate::util::colors::C;
 use crate::util::exec::{run, RunOptions};
-use crate::util::paths::{home, is_win, resolve_codegraph_bin, toksi_persisted_abs, which};
+use crate::util::paths::{home, is_win, toksi_persisted_abs, which};
 
 pub fn human_count(n: i64) -> String {
     if n >= 1_000_000 {
@@ -467,14 +467,9 @@ pub fn doctor_tool_stats(project_dir: &str, is_project: bool) -> HashMap<String,
                 if !is_project {
                     continue;
                 }
-                let p = resolve_codegraph_bin();
-                if !p.is_empty() {
-                    (p, vec!["status", "--json", project_dir])
-                } else {
-                    let tok = toksi_persisted_abs();
-                    let b = if !tok.is_empty() { tok } else { which("toksi") };
-                    (b, vec!["graph", "status", "--json", project_dir])
-                }
+                let tok = toksi_persisted_abs();
+                let b = if !tok.is_empty() { tok } else { which("toksi") };
+                (b, vec!["graph", "status", "--json", project_dir])
             }
             _ => continue,
         };

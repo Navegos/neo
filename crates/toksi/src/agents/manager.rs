@@ -56,9 +56,25 @@ pub struct AgentLifecycleResult {
     pub details: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WireMode {
+    DirectWired,
+    ConfigWired,
+}
+
 pub struct AgentManager;
 
 impl AgentManager {
+    /// Returns the preferred wiring mode for an agent harness (`DirectWired` for
+    /// in-process `DirectWireBus` dispatch alongside `ConfigWired` config files).
+    pub fn wire_mode(agent_id: &str) -> WireMode {
+        if agent_id.eq_ignore_ascii_case("toksi") || agent_id.eq_ignore_ascii_case("openagents") {
+            WireMode::DirectWired
+        } else {
+            WireMode::ConfigWired
+        }
+    }
+
     /// Supported vendor and standard agent identifiers.
     pub fn all_managed_agents() -> Vec<String> {
         vec![
@@ -235,7 +251,7 @@ impl AgentManager {
         let missing_mcp_servers = Vec::new();
 
         // Check essential tools wiring
-        for &tool in &["codegraph", "context-mode", "projectmem", "rtk"] {
+        for &tool in &["codegraph", "context", "projectmem", "rtk", "icm", "aimemory"] {
             let hook_sub = user_dir.join("hooks").join(format!("{}.json", tool));
             if !hook_sub.exists() && !user_dir.join("hooks.json").exists() {
                 missing_hooks.push(tool.to_string());
@@ -425,5 +441,19 @@ mod tests {
         assert!(!scaffolded.is_empty());
         assert!(target.join("mcp.json").exists());
         assert!(target.join("models.json").exists());
+    }
+
+    #[test]
+    fn test_in_tree_mcp_spawn_routing_and_wire_mode() {
+        use crate::util::mcpspawn::pick_mcp_spawn;
+        assert_eq!(pick_mcp_spawn("projectmem", &[]).args, vec!["mem", "mcp"]);
+        assert_eq!(pick_mcp_spawn("context", &[]).args, vec!["ctx", "mcp"]);
+        assert_eq!(pick_mcp_spawn("codegraph", &[]).args, vec!["graph", "mcp"]);
+        assert_eq!(pick_mcp_spawn("icm", &[]).args, vec!["icm", "mcp"]);
+        assert_eq!(pick_mcp_spawn("aimemory", &[]).args, vec!["aimemory", "mcp"]);
+        assert_eq!(pick_mcp_spawn("ai-memory", &[]).args, vec!["aimemory", "mcp"]);
+        assert_eq!(pick_mcp_spawn("rtk", &[]).args, vec!["rtk", "mcp"]);
+        assert_eq!(AgentManager::wire_mode("openagents"), WireMode::DirectWired);
+        assert_eq!(AgentManager::wire_mode("claude"), WireMode::ConfigWired);
     }
 }

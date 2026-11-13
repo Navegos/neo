@@ -3,26 +3,19 @@
 // project: neo
 // file: crates/toksi/src/util/pathsetup.rs
 // created: 2026-10-06
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::path::Path;
 use super::paths::{home, exists, IS_WIN};
 use super::exec::{run, RunOptions};
 use super::logger::L;
 
-fn node_install_dir() -> String {
-    let base = std::env::var("LOCALAPPDATA").unwrap_or_else(|_| {
-        Path::new(&home()).join("AppData").join("Local").to_string_lossy().to_string()
-    });
-    Path::new(&base).join("toksi").join("node").to_string_lossy().to_string()
-}
-
 pub fn expected_bin_dirs() -> Vec<String> {
     let h = home();
     if IS_WIN {
         let mut dirs = vec![
             Path::new(&h).join(".local").join("bin").to_string_lossy().to_string(),
-            Path::new(&h).join(".bun").join("bin").to_string_lossy().to_string(),
+            Path::new(&h).join(".cargo").join("bin").to_string_lossy().to_string(),
         ];
         if let Ok(la) = std::env::var("LOCALAPPDATA") {
             dirs.push(Path::new(&la).join("Programs").join("toksi").to_string_lossy().to_string());
@@ -31,53 +24,25 @@ pub fn expected_bin_dirs() -> Vec<String> {
     } else {
         vec![
             Path::new(&h).join(".local").join("bin").to_string_lossy().to_string(),
-            Path::new(&h).join(".bun").join("bin").to_string_lossy().to_string(),
             Path::new(&h).join(".cargo").join("bin").to_string_lossy().to_string(),
         ]
     }
 }
 
-fn runtime_bin_dirs() -> Vec<String> {
-    if !IS_WIN {
-        return vec![];
-    }
-    let mut dirs = vec![node_install_dir()];
-    if let Ok(ad) = std::env::var("APPDATA") {
-        dirs.push(Path::new(&ad).join("npm").to_string_lossy().to_string());
-    }
-    if let Ok(pf) = std::env::var("ProgramFiles") {
-        dirs.push(Path::new(&pf).join("nodejs").to_string_lossy().to_string());
-    }
-    if let Ok(la) = std::env::var("LOCALAPPDATA") {
-        dirs.push(Path::new(&la).join("Programs").join("nodejs").to_string_lossy().to_string());
-    }
-    dirs
-}
-
 pub fn ensure_process_path() -> Vec<String> {
     let sep = if IS_WIN { ";" } else { ":" };
     let cur_path = std::env::var("PATH").unwrap_or_default();
-    let mut current: Vec<String> = cur_path.split(sep).map(|s| s.to_string()).collect();
     let mut in_path = std::collections::HashSet::new();
-    for d in &current {
-        in_path.insert(d.clone());
+    for d in cur_path.split(sep) {
+        in_path.insert(d.to_string());
     }
 
     let mut added = Vec::new();
-    let mut all_expected = expected_bin_dirs();
-    all_expected.extend(runtime_bin_dirs());
-
-    for dir in all_expected {
+    for dir in expected_bin_dirs() {
         if !in_path.contains(&dir) && exists(&dir) {
-            current.insert(0, dir.clone());
+            super::exec::prepend_process_path(&dir);
             in_path.insert(dir.clone());
             added.push(dir);
-        }
-    }
-
-    if !added.is_empty() {
-        unsafe {
-            std::env::set_var("PATH", current.join(sep));
         }
     }
     added

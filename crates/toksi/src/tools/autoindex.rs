@@ -3,14 +3,14 @@
 // project: neo
 // file: crates/toksi/src/tools/autoindex.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::fs;
 use std::path::Path;
 use crate::util::jsonc::{stringify_json, try_parse_jsonc, Value};
 use crate::util::paths::{
-    claude_code_paths, codex_paths_resolved, home, opencode_paths_resolved, opencode_paths_v2,
-    read_file_safe, windows_home_from_wsl, write_file_atomic,
+    claude_code_paths, codex_paths_resolved, home, opencode_paths_resolved,
+    read_file_safe, write_file_atomic,
 };
 
 /// Removes legacy SessionStart auto-index hooks from earlier Toksi versions.
@@ -95,41 +95,12 @@ pub fn unwire_codex_auto_index() {
     }
 }
 
-pub fn opencode_auto_index_path() -> String {
-    Path::new(&opencode_paths_resolved().dir)
-        .join("plugins")
-        .join("toksi-codegraph-init.js")
-        .to_string_lossy()
-        .to_string()
-}
-
-pub fn opencode_v2_auto_index_path() -> String {
-    Path::new(&opencode_paths_v2().plugins_dir)
-        .join("toksi-codegraph-init.js")
-        .to_string_lossy()
-        .to_string()
-}
-
-pub fn unwire_opencode_v2_auto_index() {
-    let _ = fs::remove_file(opencode_v2_auto_index_path());
-}
+pub fn unwire_opencode_v2_auto_index() {}
 
 pub fn unwire_opencode_auto_index() {
-    let _ = fs::remove_file(opencode_auto_index_path());
-    let _ = fs::remove_file(opencode_v2_auto_index_path());
     let legacy = Path::new(&opencode_paths_resolved().plugins_dir).join("toksi-index.ts");
     if legacy.exists() {
         let _ = fs::remove_file(legacy);
-    }
-    let win = windows_home_from_wsl();
-    if !win.is_empty() {
-        let _ = fs::remove_file(
-            Path::new(&win)
-                .join(".config")
-                .join("opencode")
-                .join("plugins")
-                .join("toksi-codegraph-init.js"),
-        );
     }
 }
 

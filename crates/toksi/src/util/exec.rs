@@ -3,15 +3,17 @@
 // project: neo
 // file: crates/toksi/src/util/exec.rs
 // created: 2026-10-05
-// lastModified: 2026-11-02
+// lastModified: 2026-11-13
 
 use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::{LazyLock, RwLock};
 use std::time::{Duration, Instant};
 
-use super::mcpspawn::codegraph_binary_healthy;
-use super::paths::{exists, home, which, IS_WIN};
+use super::paths::{home, which, IS_WIN};
+
+static EXTRA_PATH_DIRS: LazyLock<RwLock<Vec<String>>> = LazyLock::new(|| RwLock::new(Vec::new()));
 
 #[derive(Debug, Clone, Default)]
 pub struct ExecResult {
@@ -186,16 +188,22 @@ pub fn run_cmd(cmd: &str, args: &[&str], env: &[(&str, &str)]) -> ExecResult {
 }
 
 pub fn prepend_process_path(dir: &str) {
-    let sep = if IS_WIN { ";" } else { ":" };
-    let cur = std::env::var("PATH").unwrap_or_default();
-    for d in cur.split(sep) {
-        if d == dir {
-            return;
+    let trimmed = dir.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    if let Ok(mut guard) = EXTRA_PATH_DIRS.write() {
+        if !guard.iter().any(|d| d == trimmed) {
+            guard.insert(0, trimmed.to_string());
         }
     }
-    unsafe {
-        std::env::set_var("PATH", format!("{}{}{}", dir, sep, cur));
-    }
+}
+
+pub fn extra_process_path_dirs() -> Vec<String> {
+    EXTRA_PATH_DIRS
+        .read()
+        .map(|g| g.clone())
+        .unwrap_or_default()
 }
 
 pub fn find_binary<S: AsRef<str>>(bin: &str, extra_dirs: &[S]) -> String {
@@ -270,149 +278,4 @@ pub fn resolve_rtk_bin() -> String {
         }
     }
     which("rtk")
-}
-
-fn read_sorted_dirs_desc(parent: &Path, sub: &[&str]) -> Vec<String> {
-    let mut out = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(parent) {
-        let mut dir_paths: Vec<_> = entries
-            .flatten()
-            .filter(|e| e.path().is_dir())
-            .map(|e| e.path())
-            .collect();
-        dir_paths.sort();
-        dir_paths.reverse();
-        for mut p in dir_paths {
-            for s in sub {
-                p = p.join(s);
-            }
-            out.push(p.to_string_lossy().to_string());
-        }
-    }
-    out
-}
-
-fn node_bin_candidates() -> Vec<String> {
-    let h = home();
-    let mut dirs = Vec::new();
-    let nvm_node = Path::new(&h).join(".nvm").join("versions").join("node");
-    dirs.extend(read_sorted_dirs_desc(&nvm_node, &["bin"]));
-
-    let fnm_dir = Path::new(&h).join(".fnm").join("node-versions");
-    dirs.extend(read_sorted_dirs_desc(&fnm_dir, &["installation", "bin"]));
-
-    if let Ok(d) = std::env::var("FNM_MULTISHELL_PATH") {
-        if !d.is_empty() {
-            dirs.push(d);
-        }
-    }
-    dirs.push(Path::new(&h).join(".volta").join("bin").to_string_lossy().to_string());
-    dirs.push(Path::new(&h).join(".asdf").join("shims").to_string_lossy().to_string());
-
-    let n_dir = Path::new(&h).join(".n").join("versions").join("node");
-    dirs.extend(read_sorted_dirs_desc(&n_dir, &["bin"]));
-
-    dirs.push("/opt/homebrew/bin".to_string());
-    dirs.push("/usr/local/bin".to_string());
-    dirs
-}
-
-pub fn resolve_node_binary() -> String {
-    let p = which("node");
-    if !p.is_empty() && binary_healthy(&p) {
-        return p;
-    }
-    for d in node_bin_candidates() {
-        if d.is_empty() || !exists(&d) {
-            continue;
-        }
-        let exe = if IS_WIN { "node.exe" } else { "node" };
-        let p = Path::new(&d).join(exe);
-        if exists(&p) && binary_healthy(&p.to_string_lossy()) {
-            prepend_process_path(&d);
-            return p.to_string_lossy().to_string();
-        }
-    }
-    String::new()
-}
-
-pub fn resolve_npm_binary() -> String {
-    let p = which("npm");
-    if !p.is_empty() {
-        return p;
-    }
-    let node_path = resolve_node_binary();
-    if node_path.is_empty() {
-        return String::new();
-    }
-    if let Some(dir) = Path::new(&node_path).parent() {
-        let exe = if IS_WIN { "npm.cmd" } else { "npm" };
-        let p = dir.join(exe);
-        if exists(&p) {
-            prepend_process_path(&dir.to_string_lossy());
-            return p.to_string_lossy().to_string();
-        }
-    }
-    String::new()
-}
-
-fn codegraph_bin_candidates() -> Vec<String> {
-    let h = home();
-    vec![
-        Path::new(&h)
-            .join(".local")
-            .join("bin")
-            .to_string_lossy()
-            .to_string(),
-        Path::new(&h)
-            .join(".bun")
-            .join("bin")
-            .to_string_lossy()
-            .to_string(),
-    ]
-}
-
-pub fn resolve_codegraph_bin() -> String {
-    let p = which("codegraph");
-    if !p.is_empty() && codegraph_binary_healthy(&p) {
-        return p;
-    }
-    for d in codegraph_bin_candidates() {
-        if d.is_empty() || !exists(&d) {
-            continue;
-        }
-        let name = if IS_WIN { "codegraph.cmd" } else { "codegraph" };
-        let p = Path::new(&d).join(name);
-        if exists(&p) && codegraph_binary_healthy(&p.to_string_lossy()) {
-            prepend_process_path(&d);
-            return p.to_string_lossy().to_string();
-        }
-    }
-    let node_path = resolve_node_binary();
-    if !node_path.is_empty() {
-        if let Some(dir) = Path::new(&node_path).parent() {
-            let name = if IS_WIN { "codegraph.cmd" } else { "codegraph" };
-            let p = dir.join(name);
-            if exists(&p) && codegraph_binary_healthy(&p.to_string_lossy()) {
-                prepend_process_path(&dir.to_string_lossy());
-                return p.to_string_lossy().to_string();
-            }
-        }
-    }
-    String::new()
-}
-
-pub fn resolve_bun_binary() -> String {
-    let p = which("bun");
-    if !p.is_empty() {
-        return p;
-    }
-    let p = Path::new(&home()).join(".bun").join("bin").join("bun");
-    if exists(&p) {
-        if let Some(dir) = p.parent() {
-            prepend_process_path(&dir.to_string_lossy());
-        }
-        return p.to_string_lossy().to_string();
-    }
-    String::new()
 }

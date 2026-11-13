@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/versions.rs
 // created: 2026-10-05
-// lastModified: 2026-11-02
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -11,12 +11,10 @@ use std::time::Duration;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use super::exec::{resolve_npm_binary, resolve_rtk_bin, run, RunOptions};
+use super::exec::{resolve_rtk_bin, run, RunOptions};
 use super::headroom::{headroom_bin, headroom_installed, headroom_installed_version};
-use super::paths::{exists, home, toksi_persisted_abs, which, IS_WIN};
+use super::paths::{home, toksi_persisted_abs, which};
 use crate::tools::projectmem::{projectmem_installed, projectmem_installed_version};
-
-pub const DEFAULT_REGISTRY_URL: &str = "https://registry.npmjs.org/";
 
 pub(crate) fn url_query_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -30,83 +28,6 @@ pub(crate) fn url_query_escape(s: &str) -> String {
         }
     }
     out
-}
-
-pub fn npm_registry_base() -> String {
-    let npm_bin = resolve_npm_binary();
-    if !npm_bin.is_empty() {
-        let r = run(
-            &npm_bin,
-            &["config", "get", "registry"],
-            RunOptions {
-                capture: true,
-                timeout: Some(Duration::from_secs(5)),
-                ..Default::default()
-            },
-        );
-        let mut v = r.stdout.trim().to_string();
-        if r.code == 0 && v.starts_with("http") {
-            if !v.ends_with('/') {
-                v.push('/');
-            }
-            return v;
-        }
-    }
-    DEFAULT_REGISTRY_URL.to_string()
-}
-
-pub fn user_local_npm_prefix() -> String {
-    for k in ["npm_config_prefix", "NPM_CONFIG_PREFIX"] {
-        if let Ok(v) = std::env::var(k) {
-            let trimmed = v.trim();
-            if !trimmed.is_empty() {
-                return trimmed.to_string();
-            }
-        }
-    }
-    Path::new(&home())
-        .join(".local")
-        .to_string_lossy()
-        .to_string()
-}
-
-pub fn npm_prefix_installed_version(prefix: &str, pkg: &str) -> Option<String> {
-    if prefix.is_empty() {
-        return None;
-    }
-    let pj = if IS_WIN {
-        Path::new(prefix)
-            .join("node_modules")
-            .join(pkg)
-            .join("package.json")
-    } else {
-        Path::new(prefix)
-            .join("lib")
-            .join("node_modules")
-            .join(pkg)
-            .join("package.json")
-    };
-    read_pkg_version(pj)
-}
-
-pub fn npm_prefix() -> String {
-    let npm_bin = resolve_npm_binary();
-    if npm_bin.is_empty() {
-        return String::new();
-    }
-    let r = run(
-        &npm_bin,
-        &["config", "get", "prefix"],
-        RunOptions {
-            capture: true,
-            timeout: Some(Duration::from_secs(5)),
-            ..Default::default()
-        },
-    );
-    if r.code != 0 {
-        return String::new();
-    }
-    r.stdout.trim().to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
@@ -207,51 +128,6 @@ pub fn pypi_latest(pkg: &str) -> Option<String> {
     }
 }
 
-pub fn npm_latest(pkg: &str) -> Option<String> {
-    if let Some(v) = npm_view_latest(pkg) {
-        return Some(v);
-    }
-    #[derive(Deserialize)]
-    struct NpmDoc {
-        #[serde(rename = "dist-tags", default)]
-        dist_tags: HashMap<String, String>,
-    }
-    let url = format!("{}{}", npm_registry_base(), url_query_escape(pkg));
-    let doc: NpmDoc = fetch_json(&url)?;
-    doc.dist_tags
-        .get("latest")
-        .filter(|s| !s.is_empty())
-        .cloned()
-}
-
-pub fn npm_view_latest(pkg: &str) -> Option<String> {
-    let npm_bin = resolve_npm_binary();
-    if npm_bin.is_empty() {
-        return None;
-    }
-    let spec = format!("{}@latest", pkg);
-    let r = run(
-        &npm_bin,
-        &["info", &spec, "version", "--json"],
-        RunOptions {
-            capture: true,
-            env: vec![
-                ("NPM_CONFIG_PREFER_OFFLINE".to_string(), "false".to_string()),
-                ("NPM_CONFIG_PREFER_ONLINE".to_string(), "true".to_string()),
-            ],
-            timeout: Some(Duration::from_secs(8)),
-            ..Default::default()
-        },
-    );
-    if r.code != 0 {
-        return None;
-    }
-    let s = r.stdout.trim().trim_matches('"');
-    let re = Regex::new(r"(\d+\.\d+\.\d+)").ok()?;
-    let caps = re.captures(s)?;
-    Some(caps.get(1)?.as_str().to_string())
-}
-
 pub fn github_latest_release(repo: &str) -> Option<String> {
     #[derive(Deserialize)]
     struct GhDoc {
@@ -299,84 +175,6 @@ pub fn rtk_installed_version() -> Option<String> {
     let re = Regex::new(r"(\d+\.\d+\.\d+)").ok()?;
     let caps = re.captures(src)?;
     Some(caps.get(1)?.as_str().to_string())
-}
-
-pub fn npm_installed_version(pkg: &str) -> Option<String> {
-    let npm_bin = resolve_npm_binary();
-    if !npm_bin.is_empty() {
-        let r = run(
-            &npm_bin,
-            &["ls", "-g", "--depth=0", "--json", pkg],
-            RunOptions {
-                capture: true,
-                timeout: Some(std::time::Duration::from_secs(2)),
-                ..Default::default()
-            },
-        );
-        #[derive(Deserialize)]
-        struct NpmLs {
-            #[serde(default)]
-            dependencies: HashMap<String, NpmLsDep>,
-        }
-        #[derive(Deserialize)]
-        struct NpmLsDep {
-            #[serde(default)]
-            version: String,
-        }
-        if let Ok(j) = serde_json::from_str::<NpmLs>(&r.stdout) {
-            if let Some(d) = j.dependencies.get(pkg) {
-                if !d.version.is_empty() {
-                    return Some(d.version.clone());
-                }
-            }
-        }
-        if let Some(v) = npm_prefix_installed_version(&npm_prefix(), pkg) {
-            return Some(v);
-        }
-        if let Some(v) = npm_prefix_installed_version(&user_local_npm_prefix(), pkg) {
-            return Some(v);
-        }
-    }
-    bun_installed_version(pkg)
-}
-
-pub fn npm_installed_version_exported(pkg: &str) -> Option<String> {
-    npm_installed_version(pkg)
-}
-
-pub fn bun_installed_version(pkg: &str) -> Option<String> {
-    let h = home();
-    let bin_link = Path::new(&h).join(".bun").join("bin").join(pkg);
-    if let Ok(real) = std::fs::canonicalize(&bin_link) {
-        if let Some(dir) = real.parent() {
-            if let Some(v) = read_pkg_version(dir.join("package.json")) {
-                return Some(v);
-            }
-        }
-    }
-    let global_pj = Path::new(&h)
-        .join(".bun")
-        .join("install")
-        .join("global")
-        .join("node_modules")
-        .join(pkg)
-        .join("package.json");
-    read_pkg_version(global_pj)
-}
-
-fn read_pkg_version(pj: impl AsRef<Path>) -> Option<String> {
-    let raw = std::fs::read_to_string(pj).ok()?;
-    #[derive(Deserialize)]
-    struct PkgJson {
-        #[serde(default)]
-        version: String,
-    }
-    let p: PkgJson = serde_json::from_str(&raw).ok()?;
-    if p.version.is_empty() {
-        None
-    } else {
-        Some(p.version)
-    }
 }
 
 pub fn gather_versions() -> HashMap<String, VersionInfo> {
@@ -452,25 +250,22 @@ fn gather_versions_impl(force: bool) -> HashMap<String, VersionInfo> {
         },
     );
 
-    let cg_inst = npm_installed_version("@colbymchenry/codegraph")
-        .or_else(|| Some(crate::util::version::toksi_version().to_string()));
+    let in_tree_ver = Some(crate::util::version::toksi_version().to_string());
     out.insert(
         "codegraph".to_string(),
         VersionInfo {
             present: true,
-            installed: cg_inst,
+            installed: in_tree_ver.clone(),
             latest: latest.get("codegraph").cloned().flatten(),
             channel: "in-tree".to_string(),
         },
     );
 
-    let cm_inst = npm_installed_version("context-mode")
-        .or_else(|| Some(crate::util::version::toksi_version().to_string()));
     out.insert(
         "context-mode".to_string(),
         VersionInfo {
             present: true,
-            installed: cm_inst,
+            installed: in_tree_ver.clone(),
             latest: latest.get("context-mode").cloned().flatten(),
             channel: "in-tree".to_string(),
         },
@@ -481,7 +276,7 @@ fn gather_versions_impl(force: bool) -> HashMap<String, VersionInfo> {
         VersionInfo {
             installed: headroom_installed_version(),
             latest: latest.get("headroom").cloned().flatten(),
-            channel: "binary".to_string(),
+            channel: "in-tree".to_string(),
             present: headroom_installed(),
         },
     );
@@ -491,19 +286,18 @@ fn gather_versions_impl(force: bool) -> HashMap<String, VersionInfo> {
         VersionInfo {
             installed: projectmem_installed_version(),
             latest: None,
-            channel: "binary".to_string(),
+            channel: "in-tree".to_string(),
             present: projectmem_installed(),
         },
     );
 
-    let tk_inst = npm_installed_version("toksi");
     out.insert(
         "toksi".to_string(),
         VersionInfo {
-            present: tk_inst.is_some(),
-            installed: tk_inst,
+            present: true,
+            installed: in_tree_ver,
             latest: latest.get("toksi").cloned().flatten(),
-            channel: "npm".to_string(),
+            channel: "in-tree".to_string(),
         },
     );
 
@@ -517,13 +311,11 @@ pub fn latest_version_for(id: &str) -> Option<String> {
 pub fn installed_version_for(id: &str) -> Option<String> {
     match id {
         "rtk" => rtk_installed_version().or_else(|| Some(crate::util::version::toksi_version().to_string())),
-        "codegraph" => npm_installed_version("@colbymchenry/codegraph")
-            .or_else(|| Some(crate::util::version::toksi_version().to_string())),
-        "context-mode" => npm_installed_version("context-mode")
-            .or_else(|| Some(crate::util::version::toksi_version().to_string())),
+        "codegraph" | "context-mode" | "context" | "icm" | "aimemory" | "ai-memory" | "toksi" => {
+            Some(crate::util::version::toksi_version().to_string())
+        }
         "headroom" => headroom_installed_version(),
         "projectmem" => projectmem_installed_version(),
-        "toksi" => npm_installed_version("toksi").or_else(|| Some(crate::util::version::toksi_version().to_string())),
         _ => None,
     }
 }
@@ -538,21 +330,8 @@ pub fn installed_path_for(id: &str) -> Option<String> {
                 toksi_persisted_abs()
             }
         }
-        "codegraph" => {
-            let n = npm_pkg_dir("@colbymchenry/codegraph");
-            if !n.is_empty() {
-                n
-            } else {
-                toksi_persisted_abs()
-            }
-        }
-        "context-mode" => {
-            let n = npm_pkg_dir("context-mode");
-            if !n.is_empty() {
-                n
-            } else {
-                toksi_persisted_abs()
-            }
+        "codegraph" | "context-mode" | "context" | "icm" | "aimemory" | "ai-memory" | "toksi" => {
+            toksi_persisted_abs()
         }
         "projectmem" => {
             let pj = which("pjm");
@@ -560,14 +339,6 @@ pub fn installed_path_for(id: &str) -> Option<String> {
                 pj
             } else {
                 toksi_persisted_abs()
-            }
-        }
-        "toksi" => {
-            let t = toksi_persisted_abs();
-            if !t.is_empty() {
-                t
-            } else {
-                npm_pkg_dir("toksi")
             }
         }
         "headroom" => {
@@ -584,49 +355,6 @@ pub fn installed_path_for(id: &str) -> Option<String> {
     } else {
         Some(p)
     }
-}
-
-pub fn npm_pkg_dir(pkg: &str) -> String {
-    let mut dirs = Vec::new();
-    for prefix in [npm_prefix(), user_local_npm_prefix()] {
-        if prefix.is_empty() {
-            continue;
-        }
-        if IS_WIN {
-            dirs.push(
-                Path::new(&prefix)
-                    .join("node_modules")
-                    .join(pkg)
-                    .to_string_lossy()
-                    .to_string(),
-            );
-        } else {
-            dirs.push(
-                Path::new(&prefix)
-                    .join("lib")
-                    .join("node_modules")
-                    .join(pkg)
-                    .to_string_lossy()
-                    .to_string(),
-            );
-        }
-    }
-    dirs.push(
-        Path::new(&home())
-            .join(".bun")
-            .join("install")
-            .join("global")
-            .join("node_modules")
-            .join(pkg)
-            .to_string_lossy()
-            .to_string(),
-    );
-    for d in dirs {
-        if exists(Path::new(&d).join("package.json")) {
-            return d;
-        }
-    }
-    String::new()
 }
 
 fn fetch_latest_for(id: &str) -> Option<String> {

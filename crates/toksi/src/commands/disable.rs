@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/disable.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::fs;
 use std::path::Path;
@@ -14,10 +14,10 @@ use crate::core::{get_agent, list_agents, list_tools, AgentManifest, RunOpts, To
 use crate::headroom::autostart::{disable_proxy_autostart, stop_proxy};
 use crate::tools::ensure_instruction_separators;
 use crate::util::colors::*;
-use crate::util::exec::{rtk_install_dirs, run_cmd};
+use crate::util::exec::rtk_install_dirs;
 use crate::util::headroom_proxy::set_proxy_routing_enabled;
 use crate::util::logger::L;
-use crate::util::paths::{is_win, resolve_npm_binary, resolve_rtk_bin, which};
+use crate::util::paths::{is_win, resolve_rtk_bin};
 use crate::util::progress::NewRootSectionProgress;
 use crate::util::prompt::{is_interactive, multi_select, MultiSelectOption};
 
@@ -139,36 +139,14 @@ pub fn purge_binaries(tools: &[Arc<ToolManifest>], dry_run: bool) {
                 }
                 bar.complete("removed");
             }
-            "codegraph" => {
-                let npm = resolve_npm_binary();
-                if !npm.is_empty() {
-                    let _ = run_cmd(&npm, &["uninstall", "-g", "@colbymchenry/codegraph"], &[]);
-                }
-                bar.complete("removed");
-            }
-            "context-mode" => {
-                let npm = resolve_npm_binary();
-                if !npm.is_empty() {
-                    let _ = run_cmd(&npm, &["uninstall", "-g", "context-mode"], &[]);
-                }
-                bar.complete("removed");
+            "codegraph" | "context-mode" | "context" | "projectmem" | "icm" | "aimemory" | "ai-memory" => {
+                bar.complete("in-tree (no external binary)");
             }
             "headroom" => {
                 let _ = disable_proxy_autostart();
                 let _ = stop_proxy();
                 let _ = set_proxy_routing_enabled(false);
-                let uv = which("uv");
-                if !uv.is_empty() {
-                    let _ = run_cmd(&uv, &["tool", "uninstall", "headroom-ai"], &[]);
-                }
-                bar.complete("removed");
-            }
-            "projectmem" => {
-                let uv = which("uv");
-                if !uv.is_empty() {
-                    let _ = run_cmd(&uv, &["tool", "uninstall", "projectmem"], &[]);
-                }
-                bar.complete("removed");
+                bar.complete("stopped");
             }
             _ => {
                 bar.complete("skipped");
