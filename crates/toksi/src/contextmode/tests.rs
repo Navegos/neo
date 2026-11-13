@@ -582,4 +582,393 @@ mod tests {
         assert!(outside.contains("over the one-read limit"));
         assert!(outside.contains("Read \"/etc/hosts\" in parts with offset and limit, or sed -n '1,200p'"));
     }
+
+    #[test]
+    fn test_store_repo_only_resolution_and_prohibitions() {
+        use super::super::store::{find_repo_root_and_subproject, resolve_context_db_path, DB_NAME};
+        use std::fs;
+
+        let temp = tempfile::tempdir().unwrap();
+        let repo_root = temp.path();
+        fs::create_dir_all(repo_root.join(".git")).unwrap();
+
+        let sub_dir = repo_root.join("packages").join("app");
+        fs::create_dir_all(&sub_dir).unwrap();
+
+        // 1. Discover repo root & subproject_id from deep subproject path
+        let (found_root, subproject_id) = find_repo_root_and_subproject(Some(&sub_dir)).unwrap();
+        assert_eq!(found_root.canonicalize().unwrap(), repo_root.canonicalize().unwrap());
+        assert_eq!(subproject_id, "packages/app");
+
+        // 2. Discover from repo root directly
+        let (found_root_root, subproject_root_id) = find_repo_root_and_subproject(Some(repo_root)).unwrap();
+        assert_eq!(found_root_root.canonicalize().unwrap(), repo_root.canonicalize().unwrap());
+        assert_eq!(subproject_root_id, "");
+
+        // 3. Context DB path resolves strictly under <repo>/.toksi/context/context.db
+        let db_path = resolve_context_db_path(Some(repo_root)).unwrap();
+        assert!(db_path.ends_with(format!(".toksi/context/{}", DB_NAME)) || db_path.ends_with(format!(".toksi\\context\\{}", DB_NAME)));
+        assert!(db_path.parent().unwrap().exists());
+
+        // 4. Access inside .git directory is strictly prohibited
+        let inside_git = repo_root.join(".git").join("hooks");
+        fs::create_dir_all(&inside_git).unwrap();
+        let err = find_repo_root_and_subproject(Some(&inside_git));
+        assert!(err.is_err());
+        assert!(err.unwrap_err().to_string().contains(".git"));
+    }
+
+    #[test]
+    fn test_store_legacy_migration() {
+        use super::super::store::{resolve_context_dir, DB_NAME, LEGACY_CONTEXT_DIR};
+        use std::fs;
+
+        let temp = tempfile::tempdir().unwrap();
+        let repo_root = temp.path();
+        fs::create_dir_all(repo_root.join(".git")).unwrap();
+
+        // Create legacy .context-mode directory with a dummy context.db
+        let legacy_dir = repo_root.join(LEGACY_CONTEXT_DIR);
+        fs::create_dir_all(&legacy_dir).unwrap();
+        fs::write(legacy_dir.join(DB_NAME), b"legacy-db-content").unwrap();
+
+        let context_dir = resolve_context_dir(Some(repo_root)).unwrap();
+        assert!(context_dir.exists());
+
+        // Verify migrated db content and legacy directory removal
+        let target_db = context_dir.join(DB_NAME);
+        assert!(target_db.exists());
+        assert_eq!(fs::read(target_db).unwrap(), b"legacy-db-content");
+        assert!(!legacy_dir.exists());
+    }
+
+    #[test]
+    fn test_policy_decide_user_deny_and_webfetch() {
+        use super::super::policy::{decide, CanonicalHookEvent, Decision, ToolCallInput};
+        use std::path::Path;
+
+        // User deny match
+        let ev_deny = CanonicalHookEvent {
+            event: "PreToolUse".to_string(),
+            agent: "claude-code".to_string(),
+            session_id: "s1".to_string(),
+            cwd: ".".to_string(),
+            tool: Some(ToolCallInput {
+                name: "bash".to_string(),
+                canonical_name: "Bash".to_string(),
+                command: Some("python run_secret.py".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let user_rules = vec!["*run_secret*".to_string()];
+        let d = decide(&ev_deny, "claude-code", &user_rules, Path::new("."));
+        assert!(matches!(d, Decision::Deny { ref reason, .. } if reason.contains("context-mode user policy blocked")));
+
+        // WebFetch blocked redirect
+        let ev_fetch = CanonicalHookEvent {
+            event: "PreToolUse".to_string(),
+            agent: "claude-code".to_string(),
+            session_id: "s1".to_string(),
+            cwd: ".".to_string(),
+            tool: Some(ToolCallInput {
+                name: "web_fetch".to_string(),
+                canonical_name: "WebFetch".to_string(),
+                url: Some("https://example.org/api".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let d_fetch = decide(&ev_fetch, "claude-code", &[], Path::new("."));
+        assert!(matches!(d_fetch, Decision::Deny { ref reason, .. } if reason.contains("raw WebFetch of 'https://example.org/api' is blocked")));
+    }
+
+    #[test]
+    fn test_policy_decide_destructive_and_inline_http() {
+        use super::super::policy::{decide, CanonicalHookEvent, Decision, ToolCallInput};
+        use std::path::Path;
+
+        // Destructive command
+        let ev_dest = CanonicalHookEvent {
+            event: "PreToolUse".to_string(),
+            agent: "gemini".to_string(),
+            session_id: "s1".to_string(),
+            cwd: ".".to_string(),
+            tool: Some(ToolCallInput {
+                name: "bash".to_string(),
+                canonical_name: "Bash".to_string(),
+                command: Some("rm -rf /".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let d_dest = decide(&ev_dest, "gemini", &[], Path::new("."));
+        assert!(matches!(d_dest, Decision::Deny { .. }));
+
+        // Inline HTTP fetch
+        let ev_http = CanonicalHookEvent {
+            event: "PreToolUse".to_string(),
+            agent: "gemini".to_string(),
+            session_id: "s1".to_string(),
+            cwd: ".".to_string(),
+            tool: Some(ToolCallInput {
+                name: "bash".to_string(),
+                canonical_name: "Bash".to_string(),
+                command: Some("curl -s https://example.com/data".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let d_http = decide(&ev_http, "gemini", &[], Path::new("."));
+        assert!(matches!(d_http, Decision::Deny { ref reason, .. } if reason.contains("direct inline curl/wget/http fetch in shell blocked")));
+    }
+
+    #[test]
+    fn test_policy_decide_read_size_cap_and_own_file() {
+        use super::super::policy::{decide, CanonicalHookEvent, Decision, ToolCallInput};
+        use std::fs;
+
+        let temp = tempfile::tempdir().unwrap();
+        let big_file = temp.path().join("big_file.txt");
+        let own_file = temp.path().join("CLAUDE.md");
+
+        // Write > 16KB into big_file and own_file
+        let payload = vec![b'a'; 20000];
+        fs::write(&big_file, &payload).unwrap();
+        fs::write(&own_file, &payload).unwrap();
+
+        // Big file exceeds 16KB cap -> Deny redirect to ctx_execute(file=...)
+        let ev_big = CanonicalHookEvent {
+            event: "PreToolUse".to_string(),
+            agent: "claude-code".to_string(),
+            session_id: "s1".to_string(),
+            cwd: temp.path().to_string_lossy().to_string(),
+            tool: Some(ToolCallInput {
+                name: "read_file".to_string(),
+                canonical_name: "Read".to_string(),
+                file_path: Some(big_file.to_string_lossy().to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let d_big = decide(&ev_big, "claude-code", &[], temp.path());
+        assert!(matches!(d_big, Decision::Deny { ref reason, .. } if reason.contains("over the one-read limit")));
+
+        // Agent's own file (e.g. CLAUDE.md) -> Allowed even if > 16KB
+        let ev_own = CanonicalHookEvent {
+            event: "PreToolUse".to_string(),
+            agent: "claude-code".to_string(),
+            session_id: "s1".to_string(),
+            cwd: temp.path().to_string_lossy().to_string(),
+            tool: Some(ToolCallInput {
+                name: "read_file".to_string(),
+                canonical_name: "Read".to_string(),
+                file_path: Some(own_file.to_string_lossy().to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let d_own = decide(&ev_own, "claude-code", &[], temp.path());
+        assert!(matches!(d_own, Decision::Allow));
+    }
+
+    #[test]
+    fn test_journal_canonical_key_and_operations() {
+        use super::super::journal::{canonical_key, NewJournalRow};
+        use super::super::fts::ContentStore;
+
+        // Canonical key formatting with whitespace and quotes
+        assert_eq!(canonical_key("Bash", "  git   status  --short  "), "Bash:git status --short");
+        assert_eq!(canonical_key("Bash", "echo \"foo   bar\""), "Bash:echo \"foo   bar\"");
+
+        // In-memory ContentStore journal tests
+        let store = ContentStore::open_in_memory().unwrap();
+
+        let row1 = NewJournalRow {
+            session_id: "sess-100".to_string(),
+            worktree: "/test".to_string(),
+            agent: "claude-code".to_string(),
+            kind: "prompt".to_string(),
+            tool: None,
+            key: None,
+            path: None,
+            ok: Some(1),
+            exit_code: Some(0),
+            bytes: 25,
+            body: "implement auth feature".to_string(),
+            turn: 1,
+            sandbox_bytes: 25,
+            returned_bytes: 25,
+        };
+        let seq1 = store.append_journal_event(&row1).unwrap();
+        assert!(seq1 > 0);
+
+        let row2 = NewJournalRow {
+            session_id: "sess-100".to_string(),
+            worktree: "/test".to_string(),
+            agent: "claude-code".to_string(),
+            kind: "toolerr".to_string(),
+            tool: Some("Bash".to_string()),
+            key: Some("Bash:cargo build".to_string()),
+            path: None,
+            ok: Some(0),
+            exit_code: Some(1),
+            bytes: 30,
+            body: "compilation error in auth.rs".to_string(),
+            turn: 1,
+            sandbox_bytes: 30,
+            returned_bytes: 30,
+        };
+        let seq2 = store.append_journal_event(&row2).unwrap();
+        assert!(seq2 > seq1);
+
+        let events = store.get_session_events("sess-100", None).unwrap();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].kind, "prompt");
+        assert_eq!(events[1].kind, "toolerr");
+
+        let last_prompt = store.get_last_prompt("sess-100");
+        assert_eq!(last_prompt, "implement auth feature");
+    }
+
+    #[test]
+    fn test_compaction_render_state_and_recall() {
+        use super::super::compaction::{pick_recall, render_state, STATE_BUDGET};
+        use super::super::journal::JournalRow;
+
+        let rows = vec![
+            JournalRow {
+                seq: 1,
+                session_id: "s1".to_string(),
+                worktree: "/work".to_string(),
+                agent: "claude-code".to_string(),
+                kind: "prompt".to_string(),
+                tool: None,
+                key: None,
+                path: None,
+                ok: Some(1),
+                exit_code: Some(0),
+                bytes: 22,
+                body: "fix database deadlocks".to_string(),
+                turn: 1,
+                sandbox_bytes: 22,
+                returned_bytes: 22,
+                created_at: 1000,
+                accessed_at: 1000,
+            },
+            JournalRow {
+                seq: 2,
+                session_id: "s1".to_string(),
+                worktree: "/work".to_string(),
+                agent: "claude-code".to_string(),
+                kind: "toolerr".to_string(),
+                tool: Some("Bash".to_string()),
+                key: Some("Bash:run test".to_string()),
+                path: None,
+                ok: Some(0),
+                exit_code: Some(1),
+                bytes: 28,
+                body: "Deadlock detected in pool.rs".to_string(),
+                turn: 1,
+                sandbox_bytes: 28,
+                returned_bytes: 28,
+                created_at: 1001,
+                accessed_at: 1001,
+            },
+        ];
+
+        let state = render_state(&rows, 1, "");
+        assert!(state.starts_with("<context_mode_state session=\"s1\""));
+        assert!(state.ends_with("</context_mode_state>"));
+        assert!(state.len() <= STATE_BUDGET);
+        assert!(state.contains("error #2"));
+        assert!(state.contains("Bash:run test"));
+
+        // Recall test
+        let recalled = pick_recall(&rows, "deadlock detected in pool");
+        assert!(recalled.contains("Deadlock detected"));
+    }
+
+    #[test]
+    fn test_hooks_run_context_hook() {
+        use super::super::hooks::run_context_hook;
+        use std::fs;
+
+        let temp = tempfile::tempdir().unwrap();
+        let repo_root = temp.path();
+        fs::create_dir_all(repo_root.join(".git")).unwrap();
+
+        // 1. PreToolUse blocked curl
+        let payload_pre = json!({
+            "event": "PreToolUse",
+            "cwd": repo_root.to_string_lossy(),
+            "session_id": "test-session",
+            "tool_call": {
+                "name": "bash",
+                "args": {
+                    "command": "curl -s https://blocked.org"
+                }
+            }
+        });
+        let code = run_context_hook(&["claude-code".to_string()], payload_pre.to_string().as_bytes());
+        assert_eq!(code, 0);
+
+        // 2. PostToolUse error recording
+        let payload_post = json!({
+            "event": "PostToolUse",
+            "cwd": repo_root.to_string_lossy(),
+            "session_id": "test-session",
+            "tool_call": {
+                "name": "bash",
+                "args": {
+                    "command": "cargo build"
+                }
+            },
+            "tool_result": {
+                "error": "syntax error on line 42"
+            }
+        });
+        let code_post = run_context_hook(&["claude-code".to_string()], payload_post.to_string().as_bytes());
+        assert_eq!(code_post, 0);
+
+        // 3. PreCompact state generation
+        let payload_compact = json!({
+            "event": "PreCompact",
+            "cwd": repo_root.to_string_lossy(),
+            "session_id": "test-session"
+        });
+        let code_compact = run_context_hook(&["claude-code".to_string()], payload_compact.to_string().as_bytes());
+        assert_eq!(code_compact, 0);
+    }
+
+    #[test]
+    fn test_mcp_handle_slash_command() {
+        use super::super::mcp::handle_slash_command;
+
+        let status = handle_slash_command("/context status");
+        assert!(status.contains("Context Subsystem Status:"));
+        assert!(status.contains("Pure Rust (Edition 2024)"));
+
+        let fallback = handle_slash_command("/context unknown_subcommand");
+        assert!(fallback.contains("Context Subsystem Status:"));
+    }
+
+    #[test]
+    fn test_direct_wire_bus() {
+        use super::super::wire::DirectWireBus;
+
+        let bus = DirectWireBus::new(None);
+        let mut rx = bus.subscribe();
+
+        // Direct in-process dispatch of ctx_upgrade
+        let res = bus.dispatch("ctx_upgrade", &json!({}));
+        assert_eq!(res["status"], "ok");
+        let res_str = res["result"].as_str().unwrap();
+        assert!(res_str.contains("pure native Rust engine embedded in Toksi"));
+
+        // Verify message broadcast over zero-hop channel
+        let msg = rx.try_recv().unwrap();
+        assert_eq!(msg.topic, "context");
+        assert_eq!(msg.action, "ctx_upgrade");
+    }
 }

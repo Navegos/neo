@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/fts.rs
 // created: 2026-10-27
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -448,6 +448,24 @@ fn walk_json(val: &Value, path: &[String], out: &mut Vec<Chunk>, max_bytes: usiz
 // ContentStore Engine
 // ─────────────────────────────────────────────────────────
 
+impl Default for ContentStore {
+    fn default() -> Self {
+        match Self::open_in_memory() {
+            Ok(s) => s,
+            Err(_) => match Connection::open_in_memory() {
+                Ok(conn) => Self { conn, has_trigram: false },
+                Err(e) => {
+                    eprintln!("[ERROR] In-memory SQLite initialization failed: {e}");
+                    match Connection::open("file::memory:?cache=shared") {
+                        Ok(conn) => Self { conn, has_trigram: false },
+                        Err(_) => std::process::exit(1),
+                    }
+                }
+            },
+        }
+    }
+}
+
 pub struct ContentStore {
     conn: Connection,
     has_trigram: bool,
@@ -501,6 +519,34 @@ impl ContentStore {
                 word TEXT PRIMARY KEY
             );
 
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS events (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT NOT NULL,
+                worktree TEXT NOT NULL,
+                agent TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                tool TEXT,
+                key TEXT,
+                path TEXT,
+                ok INTEGER,
+                exit_code INTEGER,
+                bytes INTEGER,
+                body TEXT,
+                turn INTEGER NOT NULL,
+                sandbox_bytes INTEGER NOT NULL DEFAULT 0,
+                returned_bytes INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL,
+                accessed_at INTEGER NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_events_session_kind_seq ON events(session_id, kind, seq);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_events_cost_session_turn ON events(session_id, turn) WHERE kind = 'cost';
+
             CREATE INDEX IF NOT EXISTS idx_sources_label ON sources(label);",
         )?;
 
@@ -522,6 +568,57 @@ impl ContentStore {
             .is_ok();
 
         Ok(Self { conn, has_trigram })
+    }
+
+    pub fn conn(&self) -> &Connection {
+        &self.conn
+    }
+
+    pub fn conn_mut(&mut self) -> &mut Connection {
+        &mut self.conn
+    }
+
+    pub fn meta_get(&self, key: &str) -> Option<String> {
+        let mut stmt = self.conn.prepare("SELECT value FROM meta WHERE key = ?1").ok()?;
+        stmt.query_row(params![key], |r| r.get(0)).optional().ok().flatten()
+    }
+
+    pub fn meta_set(&self, key: &str, value: &str) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            "INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = ?2",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
+    pub fn meta_take(&self, key: &str) -> Option<String> {
+        let val = self.meta_get(key)?;
+        let _ = self.conn.execute("DELETE FROM meta WHERE key = ?1", params![key]);
+        Some(val)
+    }
+
+    pub fn append_journal_event(&self, row: &super::journal::NewJournalRow) -> Result<i64, rusqlite::Error> {
+        super::journal::append_event(&self.conn, row)
+    }
+
+    pub fn get_session_events(&self, session_id: &str, kind: Option<&str>) -> Result<Vec<super::journal::JournalRow>, rusqlite::Error> {
+        super::journal::read_session_events(&self.conn, session_id, kind)
+    }
+
+    pub fn get_event_by_seq(&self, seq: i64) -> Result<Option<super::journal::JournalRow>, rusqlite::Error> {
+        super::journal::read_event_by_seq(&self.conn, seq)
+    }
+
+    pub fn get_last_prompt(&self, session_id: &str) -> String {
+        super::journal::read_last_prompt(&self.conn, session_id)
+    }
+
+    pub fn get_first_prompt(&self, session_id: &str) -> String {
+        super::journal::read_first_prompt(&self.conn, session_id)
+    }
+
+    pub fn get_recall_rows(&self, session_id: &str, worktree: &str, limit: usize) -> Result<Vec<super::journal::JournalRow>, rusqlite::Error> {
+        super::journal::read_recall_rows(&self.conn, session_id, worktree, limit)
     }
 
     pub fn get_source_meta(&self, label: &str) -> Option<SourceMeta> {
@@ -939,42 +1036,19 @@ pub fn build_recall_query(prompt: &str) -> String {
 }
 
 /// Resolves standard content store DB path for a given project or global config.
-/// Prefers `.toksi/context/context.db` per master consolidation plan,
-/// falling back to legacy `.toksi/content.db` or `~/.context-mode/context.db`.
+/// Strictly enforces `<repo>/.toksi/context/context.db` per master consolidation plan.
+/// NEVER stores in `~/.toksi/context/`, NEVER outside `.git` roots, NEVER inside `.git/`.
 pub fn resolve_content_store_path(project_dir: Option<&Path>) -> PathBuf {
-    let base = if let Some(root) = project_dir {
-        root.to_path_buf()
+    if let Ok(db_path) = super::store::resolve_context_db_path(project_dir) {
+        return db_path;
+    }
+    if let Some(p) = project_dir {
+        p.join(".toksi").join("context").join("context.db")
     } else if let Ok(cwd) = std::env::current_dir() {
-        cwd
-    } else if let Some(home) = dirs::home_dir() {
-        home
+        cwd.join(".toksi").join("context").join("context.db")
     } else {
-        PathBuf::from(".")
-    };
-
-    let context_dir = base.join(".toksi").join("context");
-    let target = context_dir.join("context.db");
-    if target.exists() {
-        return target;
+        PathBuf::from(".toksi/context/context.db")
     }
-
-    let legacy_toksi = base.join(".toksi").join("content.db");
-    if legacy_toksi.exists() {
-        return legacy_toksi;
-    }
-
-    if let Some(home) = dirs::home_dir() {
-        let home_target = home.join(".toksi").join("context").join("context.db");
-        if home_target.exists() {
-            return home_target;
-        }
-        let legacy_cm = home.join(".context-mode").join("context.db");
-        if legacy_cm.exists() {
-            return legacy_cm;
-        }
-    }
-
-    target
 }
 
 #[cfg(test)]

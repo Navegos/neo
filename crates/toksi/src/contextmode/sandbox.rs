@@ -194,6 +194,12 @@ impl PolyglotSandbox {
         let script_file = self.prepare_script(&lang, &req.code)?;
         let (cmd, args) = self.build_invocation(&lang, &script_file)?;
 
+        // Validate executable in system PATH before executing in sandbox
+        if let Err(path_err) = crate::util::env_path::check_executable_in_path(&cmd) {
+            let _ = fs::remove_file(&script_file);
+            return Err(path_err);
+        }
+
         let mut command = Command::new(&cmd);
         command.args(&args);
 

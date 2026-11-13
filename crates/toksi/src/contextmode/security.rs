@@ -102,6 +102,11 @@ pub fn is_own_file(agent: &str, target: &Path) -> bool {
         return false;
     }
 
+    let file_name = target.file_name().and_then(|f| f.to_str()).unwrap_or("").to_lowercase();
+    if file_name == "claude.md" || file_name == "agents.md" || file_name == "gemini.md" {
+        return true;
+    }
+
     let target_norm = normalize_components(target).to_string_lossy().to_lowercase();
     let own_dirs = own_dirs_of(agent);
     for dir in own_dirs {

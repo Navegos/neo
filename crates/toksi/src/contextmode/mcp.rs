@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/mcp.rs
 // created: 2026-10-27
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 use std::fs;
 use std::io::{self, BufRead, Write};
@@ -219,7 +219,9 @@ pub struct ContextMcpServer {
 impl ContextMcpServer {
     pub fn new(project_root: Option<PathBuf>) -> Self {
         let db_path = resolve_content_store_path(project_root.as_deref());
-        let store = ContentStore::open(&db_path).unwrap_or_else(|_| ContentStore::open_in_memory().expect("open memory store"));
+        let store = ContentStore::open(&db_path)
+            .or_else(|_| ContentStore::open_in_memory())
+            .unwrap_or_default();
         Self {
             sandbox: PolyglotSandbox::new(),
             fetcher: WebFetcher::new(),
@@ -241,6 +243,11 @@ impl ContextMcpServer {
             "ctx_doctor" => self.tool_ctx_doctor(),
             "ctx_upgrade" => self.tool_ctx_upgrade(args),
             "ctx_purge" => self.tool_ctx_purge(),
+            "slash" | "/context" => {
+                let cmd = args.get("command").and_then(|v| v.as_str()).unwrap_or("/context status");
+                handle_slash_command(cmd)
+            }
+            other if other.starts_with("/context") => handle_slash_command(other),
             _ => format!("Unknown tool '{}'", name),
         };
 
@@ -821,13 +828,13 @@ impl ContextMcpServer {
                 "result": {
                     "protocolVersion": "2024-11-05",
                     "serverInfo": {
-                        "name": "context-mode",
+                        "name": "context",
                         "version": "1.0.5"
                     },
                     "capabilities": {
                         "tools": {}
                     },
-                    "instructions": "You are connected to context-mode: an isolated sandbox execution and SQLite FTS5 knowledge retrieval engine."
+                    "instructions": "You are connected to context: an isolated sandbox execution and SQLite FTS5 knowledge retrieval engine."
                 }
             })),
             "notifications/initialized" => None,
@@ -932,4 +939,107 @@ pub fn run_mcp_server() -> i32 {
     }
 
     0
+}
+
+/// Handles `/context` slash commands: `/context [status|stats|doctor|search|purge|resume]`
+pub fn handle_slash_command(cmd: &str) -> String {
+    let parts: Vec<&str> = cmd.split_whitespace().collect();
+    let sub = parts.get(1).copied().unwrap_or("status");
+
+    match sub {
+        "stats" => {
+            let stats = get_stats();
+            format!(
+                "Context Session Stats:\n  Total tool calls: {}\n  Bytes sandboxed: {}\n  Bytes indexed: {}\n  Cache hits/misses: {}/{}\n  Estimated token savings: ~{} tokens",
+                stats.calls.values().sum::<usize>(),
+                stats.bytes_sandboxed,
+                stats.bytes_indexed,
+                stats.cache_hits,
+                stats.cache_misses,
+                stats.estimated_tokens_saved()
+            )
+        }
+        "doctor" => {
+            let runtimes = detect_runtimes();
+            let db_path = resolve_content_store_path(None);
+            format!(
+                "Context Doctor:\n  Shell: {}\n  Python: {}\n  Node: {}\n  Bun: {}\n  Deno: {}\n  Rust: {}\n  DB: {}\n  Status: READY",
+                runtimes.shell,
+                runtimes.python.as_deref().unwrap_or("none"),
+                runtimes.node.as_deref().unwrap_or("none"),
+                runtimes.bun.as_deref().unwrap_or("none"),
+                runtimes.deno.as_deref().unwrap_or("none"),
+                runtimes.rust.as_deref().unwrap_or("none"),
+                db_path.display()
+            )
+        }
+        "search" => {
+            let query = parts[2..].join(" ");
+            if query.is_empty() {
+                return "Usage: /context search <query>".to_string();
+            }
+            let db_path = resolve_content_store_path(None);
+            let store = match ContentStore::open(&db_path) {
+                Ok(s) => s,
+                Err(e) => return format!("DB open error: {e}"),
+            };
+            let opts = SearchOptions {
+                query: query.clone(),
+                limit: 5,
+                source: None,
+                content_type: None,
+                session_id: None,
+            };
+            match store.search(&opts) {
+                Ok(hits) => {
+                    if hits.is_empty() {
+                        format!("No matching context chunks for query '{}'", query)
+                    } else {
+                        let mut out = format!("Found {} context chunks for '{}':\n", hits.len(), query);
+                        for (i, h) in hits.iter().enumerate() {
+                            out.push_str(&format!("\n[{}] {} (score: {:.2})\n{}", i + 1, h.title, h.score, h.content));
+                        }
+                        out
+                    }
+                }
+                Err(e) => format!("Search error: {e}"),
+            }
+        }
+        "purge" => {
+            let db_path = resolve_content_store_path(None);
+            let mut store = match ContentStore::open(&db_path) {
+                Ok(s) => s,
+                Err(e) => return format!("DB open error: {e}"),
+            };
+            match store.purge_all() {
+                Ok(count) => format!("Purged {} sources from context knowledge base.", count),
+                Err(e) => format!("Purge error: {e}"),
+            }
+        }
+        "resume" => {
+            let session = parts.get(2).copied().unwrap_or("default");
+            let db_path = resolve_content_store_path(None);
+            let store = match ContentStore::open(&db_path) {
+                Ok(s) => s,
+                Err(e) => return format!("DB open error: {e}"),
+            };
+            let events = store.get_session_events(session, None).unwrap_or_default();
+            super::compaction::render_state(&events, 0, "")
+        }
+        "status" | _ => {
+            let db_path = resolve_content_store_path(None);
+            let store_exists = db_path.exists();
+            let source_count = if store_exists {
+                ContentStore::open(&db_path).map(|s| s.list_sources().map(|l| l.len()).unwrap_or(0)).unwrap_or(0)
+            } else {
+                0
+            };
+            format!(
+                "Context Subsystem Status:\n  Engine: Pure Rust (Edition 2024)\n  DB Path: {}\n  DB Active: {}\n  Indexed Sources: {}\n  Tool Suite: ctx_execute, ctx_execute_file, ctx_batch_execute, ctx_index, ctx_search, ctx_fetch_and_index\n  Commands: /context [status|stats|doctor|search|purge|resume]",
+                db_path.display(),
+                store_exists,
+                source_count
+            )
+        }
+    }
 }
