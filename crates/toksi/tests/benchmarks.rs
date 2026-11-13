@@ -53,6 +53,7 @@ fn test_sub_10ms_memory_recall_benchmark() {
             source_data: None,
             related_ids: Vec::new(),
             summary_hash: None,
+            subproject_id: None,
         };
         store.insert_or_update_memory(&mem).expect("Save operation must succeed");
     }

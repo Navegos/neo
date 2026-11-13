@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/runmcp.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::env;
 use std::io::{self, Read};
@@ -164,13 +164,15 @@ pub fn run_mcp(argv: &[String]) -> i32 {
         return crate::contextmode::mcp::run_mcp_server();
     }
 
-    let is_icm = actual_cmd_args.iter().any(|a| a.contains("icm") || a.contains("icm-mcp") || a.contains("aimemory") || a.contains("handoff"))
-        || tool == "icm" || tool == "aimemory" || tool == "handoff";
+    let is_aimemory = actual_cmd_args.iter().any(|a| a.contains("aimemory") || a.contains("ai-memory") || a.contains("handoff"))
+        || tool == "aimemory" || tool == "ai-memory" || tool == "handoff";
+    if is_aimemory {
+        return crate::aimemory::mcp::run_mcp_server();
+    }
+
+    let is_icm = actual_cmd_args.iter().any(|a| a.contains("icm") || a.contains("icm-mcp"))
+        || tool == "icm" || tool == "icm-mcp";
     if is_icm {
-        let root = projectmem_root(&workspace);
-        unsafe {
-            std::env::set_var("PROJECTMEM_ROOT", &root);
-        }
         return crate::icm::mcp::run_mcp_server();
     }
 
@@ -228,6 +230,44 @@ pub fn run_icm_hook(agent: &str) -> i32 {
     }
 
     let brief = crate::headroom::adaptive_mem::build_adaptive_memory_brief(10_000, 128_000).0;
+    if brief.is_empty() {
+        return 0;
+    }
+
+    match agent {
+        "claude" | "codex" | "droid" | "grok" | "copilot" => {
+            let mut hook_out = OrderedMap::new();
+            hook_out.insert("hookEventName".into(), Value::String("SessionStart".into()));
+            hook_out.insert("additionalContext".into(), Value::String(brief));
+            let mut resp = OrderedMap::new();
+            resp.insert("hookSpecificOutput".into(), Value::Object(hook_out));
+            println!("{}", stringify_json(&Value::Object(resp)));
+        }
+        "antigravity" | "agy" => {
+            let mut resp = OrderedMap::new();
+            resp.insert("additionalContext".into(), Value::String(brief));
+            println!("{}", stringify_json(&Value::Object(resp)));
+        }
+        _ => {
+            println!("{}", brief);
+        }
+    }
+    0
+}
+
+pub fn run_aimemory_hook(agent: &str) -> i32 {
+    ensure_process_path();
+    let mut input = Vec::new();
+    let _ = io::stdin().read_to_end(&mut input);
+    let raw = String::from_utf8_lossy(&input);
+    let root = resolve_hook_project_dir_from_input(&raw);
+    if !looks_like_project(&root) {
+        return 0;
+    }
+
+    let entries = crate::aimemory::wiki::WikiStore::open_default().to_tiered_entries().unwrap_or_default();
+    let packed = crate::aimemory::tiered::TieredPacker::pack(&entries, 600);
+    let brief = packed.content;
     if brief.is_empty() {
         return 0;
     }

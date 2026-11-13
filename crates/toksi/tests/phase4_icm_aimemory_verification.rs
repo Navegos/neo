@@ -49,6 +49,7 @@ fn test_phase4_icm_sqlite_fts5_bm25_and_sub_10ms_latency() {
         source_data: None,
         related_ids: vec![],
         summary_hash: None,
+        subproject_id: None,
     };
     store.insert_or_update_memory(&mem1).expect("insert mem1");
 
@@ -68,6 +69,7 @@ fn test_phase4_icm_sqlite_fts5_bm25_and_sub_10ms_latency() {
         source_data: None,
         related_ids: vec![],
         summary_hash: None,
+        subproject_id: None,
     };
     store.insert_or_update_memory(&mem2).expect("insert mem2");
 
@@ -94,6 +96,7 @@ fn test_phase4_icm_sqlite_fts5_bm25_and_sub_10ms_latency() {
             source_data: None,
             related_ids: vec![],
             summary_hash: None,
+            subproject_id: None,
         };
         store.insert_or_update_memory(&mem).expect("insert bulk");
     }
@@ -256,6 +259,7 @@ fn test_phase4_okf_wiki_store() {
     let page = WikiPage {
         slug: "architecture-patterns".into(),
         title: "Architecture Patterns".into(),
+        doc_type: Some("Concept".into()),
         abstract_text: Some("Monolith vs Microservices patterns".into()),
         summary_text: Some("Guidance on module isolation in Rust workspaces.".into()),
         tags: vec!["architecture".into(), "rust".into()],

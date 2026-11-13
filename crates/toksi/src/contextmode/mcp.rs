@@ -828,7 +828,7 @@ impl ContextMcpServer {
                 "result": {
                     "protocolVersion": "2024-11-05",
                     "serverInfo": {
-                        "name": "context",
+                        "name": "context-mode",
                         "version": "1.0.5"
                     },
                     "capabilities": {

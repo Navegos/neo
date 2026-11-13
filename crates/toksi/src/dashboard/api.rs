@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/api.rs
 // created: 2026-10-30
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use std::path::PathBuf;
 use serde::Deserialize;
@@ -577,7 +577,7 @@ pub fn handle_proxy_stop() -> serde_json::Value {
 pub fn handle_cache_vacuum() -> serde_json::Value {
     // Vacuums projectmem, contextmode, codegraph sqlite WAL
     let mut freed_kb: usize = 1428;
-    let icm_path = crate::icm::mcp::resolve_icm_db_path();
+    let icm_path = crate::icm::resolve_icm_db_path();
     if let Ok(conn) = rusqlite::Connection::open(&icm_path) {
         let _ = conn.execute("VACUUM", []);
         freed_kb += 512;

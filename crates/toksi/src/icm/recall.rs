@@ -3,12 +3,16 @@
 // project: neo
 // file: crates/toksi/src/icm/recall.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
+
+#![deny(unsafe_code)]
 
 use std::time::Instant;
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 
-use crate::icm::schema::SearchHit;
+use crate::aimemory::tiered::TieredEntry;
+use crate::icm::schema::{IcmResult, Memory, SearchHit};
 use crate::icm::store::IcmStore;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,9 +44,26 @@ pub struct RecallResult {
     pub query: String,
 }
 
-pub fn recall_memories(store: &mut IcmStore, opts: &RecallOptions) -> Result<RecallResult, rusqlite::Error> {
+pub fn recall_memories(store: &mut IcmStore, opts: &RecallOptions) -> IcmResult<RecallResult> {
     let start = Instant::now();
-    let hits = store.search_bm25(&opts.query, opts.limit * 2)?;
+    let now = Utc::now();
+
+    // Check if query contains temporal components
+    let ranked_hits = store.search_fused(&opts.query, opts.limit * 2, now)?;
+
+    let hits: Vec<SearchHit> = if !ranked_hits.is_empty() {
+        ranked_hits
+            .into_iter()
+            .enumerate()
+            .map(|(i, r)| SearchHit {
+                memory: r.memory,
+                score: r.score,
+                rank: i + 1,
+            })
+            .collect()
+    } else {
+        store.search_bm25(&opts.query, opts.limit * 2)?
+    };
 
     // In-memory filtration for topic, min_weight, and max_tokens budget
     let mut filtered = Vec::new();
@@ -97,41 +118,54 @@ pub fn estimate_tokens(text: &str) -> usize {
 
 /// Headroom budgeting hook: recalls top memories and active facts as TieredEntry items
 /// for direct consumption by the progressive disclosure packer.
-pub fn recall_tiered_entries(store: &mut IcmStore, query: Option<&str>, limit: usize) -> Vec<crate::aimemory::TieredEntry> {
+pub fn recall_tiered_entries(store: &mut IcmStore, query: Option<&str>, limit: usize) -> Vec<TieredEntry> {
     let mut entries = Vec::new();
 
-    // 1. Fetch active facts (decisions, gotchas, architecture slots)
+    let memories: Vec<Memory> = match query {
+        Some(q) if !q.trim().is_empty() => {
+            let opts = RecallOptions {
+                query: q.to_string(),
+                limit,
+                ..Default::default()
+            };
+            recall_memories(store, &opts)
+                .map(|r| r.hits.into_iter().map(|h| h.memory).collect())
+                .unwrap_or_default()
+        }
+        _ => store
+            .get_recent(limit)
+            .map(|hits| hits.into_iter().map(|h| h.memory).collect())
+            .unwrap_or_default(),
+    };
+
+    for m in memories {
+        let title = format!("Memory: {} ({})", m.topic, m.importance.as_str());
+        let short_desc = if m.summary.len() > 120 {
+            format!("{}...", &m.summary[..120])
+        } else {
+            m.summary.clone()
+        };
+        entries.push(TieredEntry {
+            key: format!("icm_mem_{}", m.id),
+            title,
+            abstract_text: Some(short_desc),
+            summary_text: Some(m.summary.clone()),
+            full_content: format!("Topic: {}\nImportance: {}\nSummary: {}\nExcerpt: {}", m.topic, m.importance.as_str(), m.summary, m.raw_excerpt.as_deref().unwrap_or("None")),
+        });
+    }
+
+    // Include top active facts
     if let Ok(facts) = store.list_facts(None) {
         for f in facts.into_iter().take(limit) {
-            let desc = format!("{}::{} = {}", f.entity, f.key, f.value);
-            entries.push(crate::aimemory::TieredEntry {
-                key: format!("fact_{}", f.id),
+            entries.push(TieredEntry {
+                key: format!("icm_fact_{}", f.id),
                 title: format!("Fact: {}::{}", f.entity, f.key),
-                abstract_text: Some(desc.clone()),
-                summary_text: Some(desc.clone()),
-                full_content: format!("{} (source: {})", desc, f.source),
+                abstract_text: Some(format!("{} = {}", f.key, f.value)),
+                summary_text: Some(format!("Entity {} property {}: {}", f.entity, f.key, f.value)),
+                full_content: format!("Entity: {}\nKey: {}\nValue: {}\nSource: {}", f.entity, f.key, f.value, f.source),
             });
         }
     }
 
-    // 2. Fetch top memories (query-based or most recent)
-    let hits = match query {
-        Some(q) if !q.trim().is_empty() => store.search_bm25(q, limit).unwrap_or_default(),
-        _ => store.get_recent(limit).unwrap_or_default(),
-    };
-
-    for hit in hits {
-        let full = hit.memory.raw_excerpt.clone().unwrap_or_else(|| hit.memory.summary.clone());
-        entries.push(crate::aimemory::TieredEntry {
-            key: format!("icm_{}", hit.memory.id),
-            title: format!("Memory ({}): {}", hit.memory.topic, hit.memory.importance.as_str()),
-            abstract_text: Some(hit.memory.summary.clone()),
-            summary_text: Some(hit.memory.summary.clone()),
-            full_content: full,
-        });
-    }
-
     entries
 }
-
-

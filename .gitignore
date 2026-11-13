@@ -468,6 +468,14 @@ crates/*/.toksi/context/
 crates/*/.rtk/
 crates/*/.toksi/rtk/
 
+# Ignore .icm
+.toksi/icm/
+crates/*/.toksi/icm/
+
+# Ignore .ai-memory
+.toksi/ai-memory/
+crates/*/.toksi/ai-memory/
+
 # Ignore projectmem
 .projectmem/events.jsonl
 .projectmem/watch.pid

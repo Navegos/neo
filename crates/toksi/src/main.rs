@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-11-12
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::env;
@@ -11,7 +11,7 @@ use std::process;
 
 use toksi::agents;
 use toksi::commands::{
-    run_codegraph_index_hook, run_codex_perm_hook, run_ctx_hook,
+    run_aimemory_hook, run_codegraph_index_hook, run_codex_perm_hook, run_ctx_hook,
     run_cursor_project_rules_hook, run_daemon_cli, run_disable, run_doctor,
     run_grok_session_start_hook, run_icm_hook, run_index, run_info, run_init, run_mcp, run_prime,
     run_projectmem_hook, run_proxy_cli, run_rtk_cli, run_rtk_hook,
@@ -344,6 +344,13 @@ fn run() -> i32 {
         let agent = args.get(3).map(|s| s.as_str()).unwrap_or("generic");
         return run_icm_hook(agent);
     }
+    if args.len() >= 3 && (args[1] == "ai-memory-hook" || args[1] == "aimemory-hook") {
+        return run_aimemory_hook(&args[2]);
+    }
+    if args.len() >= 3 && (args[1] == "ai-memory" || args[1] == "aimemory") && args[2] == "hook" {
+        let agent = args.get(3).map(|s| s.as_str()).unwrap_or("generic");
+        return run_aimemory_hook(agent);
+    }
     if args.len() >= 2 && (args[1] == "ctx-hook" || args[1] == "context-hook" || args[1] == "context-mode-hook") {
         return run_ctx_hook(&args[2..]);
     }
@@ -389,8 +396,8 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "icm" {
         return toksi::icm::run_icm_cli(&args[2..]);
     }
-    if args.len() >= 2 && (args[1] == "handoff" || args[1] == "aimemory") {
-        return toksi::aimemory::run_handoff_cli(&args[2..]);
+    if args.len() >= 2 && (args[1] == "handoff" || args[1] == "aimemory" || args[1] == "ai-memory") {
+        return toksi::aimemory::run_aimemory_cli(&args[2..]);
     }
     if args.len() >= 2 && args[1] == "tui" {
         return run_tui_cli(&args[2..]);

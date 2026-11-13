@@ -3,22 +3,51 @@
 // project: neo
 // file: crates/toksi/src/aimemory/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 pub mod cli;
 pub mod handoff;
+pub mod mcp;
 pub mod mem0_bridge;
+pub mod message;
+pub mod slash;
 pub mod tiered;
 pub mod wiki;
+pub mod wire;
 
 pub use cli::*;
 pub use handoff::*;
+pub use mcp::*;
 pub use mem0_bridge::*;
+pub use message::*;
+pub use slash::*;
 pub use tiered::*;
 pub use wiki::*;
+pub use wire::*;
 
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+/// Strictly resolve the repository root and monorepo subproject_id.
+/// Storage in user home root '~' is strictly prohibited.
+pub fn resolve_aimemory_root_and_subproject(start: Option<&Path>) -> Result<(PathBuf, String), String> {
+    crate::icm::store::find_repo_root_and_subproject(start)
+        .map_err(|e| e.to_string())
+}
+
+pub fn default_aimemory_dir() -> PathBuf {
+    if let Ok((repo_root, _)) = resolve_aimemory_root_and_subproject(None) {
+        repo_root.join(".toksi").join("ai-memory")
+    } else if let Ok(root) = env::var("PROJECTMEM_ROOT") {
+        if !root.trim().is_empty() {
+            PathBuf::from(root).join(".toksi").join("ai-memory")
+        } else {
+            PathBuf::from(".toksi").join("ai-memory")
+        }
+    } else {
+        PathBuf::from(".toksi").join("ai-memory")
+    }
+}
 
 pub fn default_handoffs_dir() -> PathBuf {
     if let Ok(p) = env::var("TOKSI_HANDOFF_DIR") {
@@ -27,43 +56,7 @@ pub fn default_handoffs_dir() -> PathBuf {
             return PathBuf::from(norm);
         }
     }
-    if let Ok(root) = env::var("PROJECTMEM_ROOT") {
-        if !root.trim().is_empty() {
-            let aimem_dir = PathBuf::from(&root).join(".toksi").join("ai-memory").join("handoffs");
-            if aimem_dir.exists() {
-                return aimem_dir;
-            }
-            let legacy_dir = PathBuf::from(&root).join(".toksi").join("handoffs");
-            if legacy_dir.exists() {
-                return legacy_dir;
-            }
-            return aimem_dir;
-        }
-    }
-    let h = crate::util::paths::home();
-    if !h.is_empty() {
-        let home_aimem = PathBuf::from(&h).join(".toksi").join("ai-memory").join("handoffs");
-        if home_aimem.exists() {
-            return home_aimem;
-        }
-        let legacy_dir = PathBuf::from(&h).join(".toksi").join("handoffs");
-        if legacy_dir.exists() {
-            return legacy_dir;
-        }
-        return home_aimem;
-    }
-    if let Ok(cwd) = env::current_dir() {
-        let cwd_aimem = cwd.join(".toksi").join("ai-memory").join("handoffs");
-        if cwd_aimem.exists() {
-            return cwd_aimem;
-        }
-        let legacy_dir = cwd.join(".toksi").join("handoffs");
-        if legacy_dir.exists() {
-            return legacy_dir;
-        }
-        return cwd_aimem;
-    }
-    PathBuf::from(".toksi").join("ai-memory").join("handoffs")
+    default_aimemory_dir().join("handoffs")
 }
 
 pub fn default_wiki_dir() -> PathBuf {
@@ -73,43 +66,17 @@ pub fn default_wiki_dir() -> PathBuf {
             return PathBuf::from(norm);
         }
     }
-    if let Ok(root) = env::var("PROJECTMEM_ROOT") {
-        if !root.trim().is_empty() {
-            let aimem_wiki = PathBuf::from(&root).join(".toksi").join("ai-memory").join("wiki");
-            if aimem_wiki.exists() {
-                return aimem_wiki;
-            }
-            let legacy_wiki = PathBuf::from(&root).join(".toksi").join("wiki");
-            if legacy_wiki.exists() {
-                return legacy_wiki;
-            }
-            return aimem_wiki;
+    default_aimemory_dir().join("wiki")
+}
+
+pub fn default_messages_dir() -> PathBuf {
+    if let Ok(p) = env::var("TOKSI_MESSAGES_DIR") {
+        if !p.trim().is_empty() {
+            let norm = crate::util::paths::normalize_path(&p);
+            return PathBuf::from(norm);
         }
     }
-    let h = crate::util::paths::home();
-    if !h.is_empty() {
-        let home_aimem = PathBuf::from(&h).join(".toksi").join("ai-memory").join("wiki");
-        if home_aimem.exists() {
-            return home_aimem;
-        }
-        let legacy_wiki = PathBuf::from(&h).join(".toksi").join("wiki");
-        if legacy_wiki.exists() {
-            return legacy_wiki;
-        }
-        return home_aimem;
-    }
-    if let Ok(cwd) = env::current_dir() {
-        let cwd_aimem = cwd.join(".toksi").join("ai-memory").join("wiki");
-        if cwd_aimem.exists() {
-            return cwd_aimem;
-        }
-        let legacy_wiki = cwd.join(".toksi").join("wiki");
-        if legacy_wiki.exists() {
-            return legacy_wiki;
-        }
-        return cwd_aimem;
-    }
-    PathBuf::from(".toksi").join("ai-memory").join("wiki")
+    default_aimemory_dir().join("messages")
 }
 
 #[cfg(test)]
@@ -256,6 +223,7 @@ mod tests {
         let page = WikiPage {
             slug: "architecture-principles".into(),
             title: "Core Architecture Principles".into(),
+            doc_type: Some("Concept".into()),
             abstract_text: Some("Zero LLM token overhead on memory store and recall.".into()),
             summary_text: Some("Toksi adheres strictly to zero-LLM spend by utilizing SQLite FTS5 BM25 and deterministic progressive disclosure.".into()),
             tags: vec!["architecture".into(), "memory".into()],

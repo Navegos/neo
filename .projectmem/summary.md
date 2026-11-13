@@ -1,6 +1,6 @@
 # projectmem - neo
 
-_Last updated: 2026-11-12_
+_Last updated: 2026-11-13_
 
 ## Project purpose
 --------------------------------------------------------------------------------
@@ -40,7 +40,6 @@ Enterprise-grade native Safe Rust (`#![deny(unsafe_code)]`) token optimization, 
 - Unified 7-port topology (:8787 Headroom, :8788 Grok OAuth, :8789/:8790 Copilot, :18787 BYOK, :9099 Gateway, :9100 Cockpit), zero paid-tier restrictions (FreeTierDisqualified removed), multi-instance <byok, model, effort> SQLite profiles, and 65/90+ Categories 1-5 + 22 local engines [crates/toksi/CONSOLIDATION_PLAN.md:1]
 
 ## Notes
-- New feature: feat: Add gateway server with health and chat completion endpoints [crates/toksi/src/commands/daemon.rs]
 - New feature: feat: Update project summary and version, add new agent CLI integrations [crates/toksi/src/gateway/agent_cli/antigravity.rs]
 - New feature: feat(telemetry): enhance headroom optimization metrics and calculations [crates/toksi/src/gateway/mod.rs]
 - New feature: feat: add token economizer for prompt optimization and instruction deduplication [crates/toksi/src/agents/mod.rs]
@@ -50,6 +49,7 @@ Enterprise-grade native Safe Rust (`#![deny(unsafe_code)]`) token optimization, 
 - New feature: Add comprehensive reference for local inference engines with API details [crates/toksi/research/RESEARCHPLAN.txt]
 - New feature: feat: add RTK slash command handling and tracking features [crates/toksi/src/commands/rtk.rs]
 - New feature: feat: Implement project structure generation and saving [crates/toksi/src/projectmem/cli.rs]
+- New feature: feat: Enhance context-mode with slash command handling and policy enforcement [crates/toksi/src/commands/ctx.rs]
 
 ## Key files
 - `.editorconfig`

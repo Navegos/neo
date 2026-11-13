@@ -3,11 +3,12 @@
 // project: neo
 // file: crates/toksi/src/aimemory/handoff.rs
 // created: 2026-10-28
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
-use std::fs;
+use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
 use chrono::Utc;
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 
 pub const SUPPORTED_AGENTS: &[&str] = &[
@@ -121,6 +122,17 @@ impl HandoffStore {
         &self.base_dir
     }
 
+    fn lock_file(&self) -> Result<File, String> {
+        let lock_path = self.base_dir.join(".handoffs.lock");
+        OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&lock_path)
+            .map_err(|e| format!("failed to open handoff lock file: {e}"))
+    }
+
     fn handoff_path(&self, id: &str) -> PathBuf {
         let norm_id = crate::util::paths::normalize_path(id);
         let cleaned_id = norm_id.trim_matches('/').replace('/', "_");
@@ -128,6 +140,9 @@ impl HandoffStore {
     }
 
     pub fn offer(&self, input: NewHandoff) -> Result<Handoff, String> {
+        let lock = self.lock_file()?;
+        let _ = lock.lock_exclusive();
+
         let now = Utc::now().to_rfc3339();
         let id = format!("handoff_{:x}", rand_u64());
 
@@ -152,15 +167,26 @@ impl HandoffStore {
             resolved_at: None,
         };
 
-        self.save(&handoff)?;
-        Ok(handoff)
+        let res = self.save(&handoff);
+        let _ = lock.unlock();
+        res.map(|_| handoff)
     }
 
     /// Claim-once state machine: Atomic transition from Offered -> Claimed
     pub fn claim(&self, id: &str, agent: &str) -> Result<Handoff, String> {
-        let mut handoff = self.get(id)?.ok_or_else(|| format!("handoff '{}' not found", id))?;
+        let lock = self.lock_file()?;
+        let _ = lock.lock_exclusive();
+
+        let mut handoff = match self.get(id)? {
+            Some(h) => h,
+            None => {
+                let _ = lock.unlock();
+                return Err(format!("handoff '{}' not found", id));
+            }
+        };
 
         if handoff.state != HandoffState::Offered {
+            let _ = lock.unlock();
             return Err(format!(
                 "cannot claim handoff '{}': state is already '{}' (claimed by {:?})",
                 id,
@@ -174,6 +200,7 @@ impl HandoffStore {
         if let Some(ref target) = handoff.to_agent {
             let target_norm = normalize_agent_id(target);
             if target_norm != claim_agent && target_norm != "any" {
+                let _ = lock.unlock();
                 return Err(format!(
                     "cannot claim handoff '{}': designated for agent '{}', but claimed by '{}'",
                     id, target, agent
@@ -187,14 +214,25 @@ impl HandoffStore {
         handoff.claimed_at = Some(now.clone());
         handoff.updated_at = now;
 
-        self.save(&handoff)?;
-        Ok(handoff)
+        let res = self.save(&handoff);
+        let _ = lock.unlock();
+        res.map(|_| handoff)
     }
 
     pub fn resolve(&self, id: &str, agent: &str, resolution_note: Option<&str>) -> Result<Handoff, String> {
-        let mut handoff = self.get(id)?.ok_or_else(|| format!("handoff '{}' not found", id))?;
+        let lock = self.lock_file()?;
+        let _ = lock.lock_exclusive();
+
+        let mut handoff = match self.get(id)? {
+            Some(h) => h,
+            None => {
+                let _ = lock.unlock();
+                return Err(format!("handoff '{}' not found", id));
+            }
+        };
 
         if handoff.state != HandoffState::Claimed {
+            let _ = lock.unlock();
             return Err(format!(
                 "cannot resolve handoff '{}': must be in 'claimed' state, currently '{}'",
                 id,
@@ -207,6 +245,7 @@ impl HandoffStore {
         if let Some(ref claimed) = handoff.claimed_by {
             let claimed_norm = normalize_agent_id(claimed);
             if claimed_norm != resolver_norm {
+                let _ = lock.unlock();
                 return Err(format!(
                     "cannot resolve handoff '{}': claimed by '{}', but resolver is '{}'",
                     id, claimed, agent
@@ -226,14 +265,25 @@ impl HandoffStore {
             handoff.context_notes = Some(combined);
         }
 
-        self.save(&handoff)?;
-        Ok(handoff)
+        let res = self.save(&handoff);
+        let _ = lock.unlock();
+        res.map(|_| handoff)
     }
 
     pub fn cancel(&self, id: &str, reason: Option<&str>) -> Result<Handoff, String> {
-        let mut handoff = self.get(id)?.ok_or_else(|| format!("handoff '{}' not found", id))?;
+        let lock = self.lock_file()?;
+        let _ = lock.lock_exclusive();
+
+        let mut handoff = match self.get(id)? {
+            Some(h) => h,
+            None => {
+                let _ = lock.unlock();
+                return Err(format!("handoff '{}' not found", id));
+            }
+        };
 
         if handoff.state == HandoffState::Resolved {
+            let _ = lock.unlock();
             return Err(format!("cannot cancel already resolved handoff '{}'", id));
         }
 
@@ -248,8 +298,9 @@ impl HandoffStore {
             handoff.context_notes = Some(note);
         }
 
-        self.save(&handoff)?;
-        Ok(handoff)
+        let res = self.save(&handoff);
+        let _ = lock.unlock();
+        res.map(|_| handoff)
     }
 
     pub fn get(&self, id: &str) -> Result<Option<Handoff>, String> {

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/aimemory/wiki.rs
 // created: 2026-10-28
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,6 +15,8 @@ use crate::aimemory::tiered::TieredEntry;
 pub struct WikiPage {
     pub slug: String,
     pub title: String,
+    #[serde(default)]
+    pub doc_type: Option<String>,
     pub abstract_text: Option<String>,
     pub summary_text: Option<String>,
     pub tags: Vec<String>,
@@ -49,8 +51,16 @@ impl WikiStore {
 
     pub fn write_page(&self, page: &WikiPage) -> Result<(), String> {
         let path = self.page_path(&page.slug);
+        let doc_type = page.doc_type.as_deref().unwrap_or("Concept");
+        let desc = page
+            .summary_text
+            .as_deref()
+            .or(page.abstract_text.as_deref())
+            .unwrap_or("");
         let content = format!(
-            "---\ntitle: {}\nabstract: {}\nsummary: {}\ntags: {}\n---\n\n{}",
+            "---\ntype: {}\ndescription: {}\ntitle: {}\nabstract: {}\nsummary: {}\ntags: {}\nversion: 0.2\n---\n\n{}",
+            doc_type,
+            desc,
             page.title,
             page.abstract_text.as_deref().unwrap_or(""),
             page.summary_text.as_deref().unwrap_or(""),
@@ -58,6 +68,32 @@ impl WikiStore {
             page.body
         );
         fs::write(path, content).map_err(|e| e.to_string())
+    }
+
+    pub fn patch_page(&self, slug: &str, patch_text: &str, append: bool) -> Result<WikiPage, String> {
+        let mut page = self
+            .read_page(slug)?
+            .unwrap_or_else(|| WikiPage {
+                slug: slug.to_string(),
+                title: slug.to_string(),
+                doc_type: Some("Concept".into()),
+                abstract_text: None,
+                summary_text: None,
+                tags: Vec::new(),
+                body: String::new(),
+            });
+
+        if append {
+            if !page.body.is_empty() {
+                page.body.push_str("\n\n");
+            }
+            page.body.push_str(patch_text);
+        } else {
+            page.body = patch_text.to_string();
+        }
+
+        self.write_page(&page)?;
+        Ok(page)
     }
 
     pub fn read_page(&self, slug: &str) -> Result<Option<WikiPage>, String> {
@@ -144,6 +180,7 @@ impl WikiStore {
 
 fn parse_markdown_page(slug: &str, content: &str) -> WikiPage {
     let mut title = slug.to_string();
+    let mut doc_type = None;
     let mut abstract_text = None;
     let mut summary_text = None;
     let mut tags = Vec::new();
@@ -156,8 +193,18 @@ fn parse_markdown_page(slug: &str, content: &str) -> WikiPage {
 
             for line in frontmatter.lines() {
                 let trimmed = line.trim();
-                if let Some(stripped) = trimmed.strip_prefix("title:") {
+                if let Some(stripped) = trimmed.strip_prefix("type:") {
+                    let s = stripped.trim();
+                    if !s.is_empty() {
+                        doc_type = Some(s.to_string());
+                    }
+                } else if let Some(stripped) = trimmed.strip_prefix("title:") {
                     title = stripped.trim().to_string();
+                } else if let Some(stripped) = trimmed.strip_prefix("description:") {
+                    let s = stripped.trim();
+                    if !s.is_empty() && summary_text.is_none() {
+                        summary_text = Some(s.to_string());
+                    }
                 } else if let Some(stripped) = trimmed.strip_prefix("abstract:") {
                     let s = stripped.trim();
                     if !s.is_empty() {
@@ -182,6 +229,7 @@ fn parse_markdown_page(slug: &str, content: &str) -> WikiPage {
     WikiPage {
         slug: slug.to_string(),
         title,
+        doc_type,
         abstract_text,
         summary_text,
         tags,
@@ -202,6 +250,7 @@ mod tests {
         let page1 = WikiPage {
             slug: "src/engine.rs".to_string(),
             title: "Engine Page".to_string(),
+            doc_type: Some("Concept".into()),
             abstract_text: None,
             summary_text: None,
             tags: Vec::new(),
@@ -211,6 +260,7 @@ mod tests {
         let page2 = WikiPage {
             slug: "target/temp_out.md".to_string(),
             title: "Temp Out".to_string(),
+            doc_type: Some("Concept".into()),
             abstract_text: None,
             summary_text: None,
             tags: Vec::new(),

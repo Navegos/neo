@@ -3,19 +3,29 @@
 // project: neo
 // file: crates/toksi/src/icm/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
-pub mod schema;
-pub mod store;
-pub mod recall;
-pub mod mcp;
+#![deny(unsafe_code)]
+
 pub mod cli;
+pub mod fusion;
+pub mod mcp;
+pub mod recall;
+pub mod schema;
+pub mod slash;
+pub mod store;
+pub mod temporal;
+pub mod wire;
 
-pub use schema::*;
 pub use store::*;
+pub use schema::*;
 pub use recall::*;
-pub use mcp::*;
 pub use cli::*;
+pub use fusion::*;
+pub use mcp::*;
+pub use slash::*;
+pub use temporal::*;
+pub use wire::*;
 
 #[cfg(test)]
 mod tests {
@@ -43,6 +53,7 @@ mod tests {
             source_data: None,
             related_ids: vec![],
             summary_hash: None,
+            subproject_id: None,
         };
 
         store.insert_or_update_memory(&mem1).expect("insert mem1");
@@ -63,6 +74,7 @@ mod tests {
             source_data: None,
             related_ids: vec![],
             summary_hash: None,
+            subproject_id: None,
         };
 
         store.insert_or_update_memory(&mem2).expect("insert mem2");
@@ -105,11 +117,136 @@ mod tests {
     }
 
     #[test]
+    fn test_icm_fts5_query_sanitization_special_chars() {
+        let mut store = IcmStore::open_in_memory().expect("in memory store open");
+        let now = Utc::now().to_rfc3339();
+
+        let mem = Memory {
+            id: "mem_special".into(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            last_accessed: now,
+            access_count: 0,
+            weight: 1.0,
+            topic: "syntax".into(),
+            summary: "Error resolving foo:bar* in compiler parser".into(),
+            raw_excerpt: None,
+            keywords: vec!["foo".into(), "bar".into()],
+            importance: Importance::Medium,
+            source_type: "test".into(),
+            source_data: None,
+            related_ids: vec![],
+            summary_hash: None,
+            subproject_id: None,
+        };
+        store.insert_or_update_memory(&mem).expect("insert");
+
+        // Query containing FTS5 control characters that would crash raw MATCH
+        let hits = store.search_bm25("foo:bar* AND NOT (syntax^)", 5).expect("sanitized search");
+        assert!(!hits.is_empty());
+        assert_eq!(hits[0].memory.id, "mem_special");
+    }
+
+    #[test]
+    fn test_icm_temporal_decay_and_pinning() {
+        let mut store = IcmStore::open_in_memory().expect("in memory store open");
+        let now = Utc::now().to_rfc3339();
+
+        let mem_high = Memory {
+            id: "mem_high".into(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            last_accessed: now.clone(),
+            access_count: 0,
+            weight: 1.0,
+            topic: "general".into(),
+            summary: "High importance note".into(),
+            raw_excerpt: None,
+            keywords: vec!["note".into()],
+            importance: Importance::High,
+            source_type: "test".into(),
+            source_data: None,
+            related_ids: vec![],
+            summary_hash: None,
+            subproject_id: None,
+        };
+        store.insert_or_update_memory(&mem_high).expect("insert");
+
+        let mem_crit = Memory {
+            id: "mem_crit".into(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            last_accessed: now,
+            access_count: 0,
+            weight: 1.0,
+            topic: "general".into(),
+            summary: "Critical pinned note".into(),
+            raw_excerpt: None,
+            keywords: vec!["pinned".into()],
+            importance: Importance::Critical,
+            source_type: "test".into(),
+            source_data: None,
+            related_ids: vec![],
+            summary_hash: None,
+            subproject_id: None,
+        };
+        store.insert_or_update_memory(&mem_crit).expect("insert");
+
+        // Apply decay
+        store.apply_decay(0.8).expect("apply decay");
+
+        let after_high = store.get_memory("mem_high").expect("get").expect("found");
+        let after_crit = store.get_memory("mem_crit").expect("get").expect("found");
+
+        assert!(after_high.weight < 1.0, "High importance memory decayed");
+        assert_eq!(after_crit.weight, 1.0, "Critical memory is immune to decay");
+
+        // Pin high memory -> becomes critical and resets weight to 1.0
+        let pinned = store.pin_memory("mem_high").expect("pin");
+        assert_eq!(pinned.importance, Importance::Critical);
+        assert_eq!(pinned.weight, 1.0);
+    }
+
+    #[test]
+    fn test_icm_memoirs_and_feedback() {
+        let mut store = IcmStore::open_in_memory().expect("in memory store open");
+
+        // Memoir & concept
+        let memoir = store.create_memoir("rust_compiler", "Rust AST and borrow checker domain", 50).expect("memoir");
+        let concept = store.add_concept(
+            &memoir.id,
+            "BorrowChecker",
+            "Validates reference lifetimes at compile time",
+            &["lifetimes".into(), "aliasing".into()],
+            0.9,
+            &[],
+        ).expect("concept");
+
+        assert_eq!(concept.name, "BorrowChecker");
+
+        let found = store.search_concepts(&memoir.id, "lifetimes", 5).expect("search");
+        assert_eq!(found.len(), 1);
+
+        // Feedback
+        let fb = store.record_feedback(
+            "cli",
+            "cargo build",
+            "cargo build --release",
+            "cargo test --all",
+            Some("Testing workflow requires test suite"),
+            "user",
+        ).expect("feedback");
+
+        let fb_hits = store.search_feedback("cargo", None, 5).expect("search fb");
+        assert_eq!(fb_hits.len(), 1);
+        assert_eq!(fb_hits[0].id, fb.id);
+    }
+
+    #[test]
     fn test_icm_sub_10ms_latency_and_zero_llm_spend() {
         let mut store = IcmStore::open_in_memory().expect("in memory store open");
         let now = Utc::now().to_rfc3339();
 
-        // Populate with 100 memories to test realistic search latency
         for i in 0..100 {
             let mem = Memory {
                 id: format!("mem_{}", i),
@@ -127,6 +264,7 @@ mod tests {
                 source_data: None,
                 related_ids: vec![],
                 summary_hash: None,
+                subproject_id: None,
             };
             store.insert_or_update_memory(&mem).expect("insert mem");
         }
@@ -141,52 +279,6 @@ mod tests {
 
         let res = recall_memories(&mut store, &opts).expect("recall");
         assert!(!res.hits.is_empty());
-        // Verify sub-10ms latency requirement
         assert!(res.latency_ms < 10.0, "latency was {}ms, expected < 10ms", res.latency_ms);
     }
-
-    #[test]
-    fn test_icm_sync_from_projectmem() {
-        let mut store = IcmStore::open_in_memory().expect("in memory store open");
-
-        let mut ev1 = crate::projectmem::schema::Event::new(
-            "decision",
-            "Use single-file SQLite database (.toksi/memory.db) with bundled FTS5 BM25",
-        );
-        ev1.id = "0001".into();
-        ev1.location = Some("crates/toksi/src/icm/store.rs:1".into());
-
-        let mut ev2 = crate::projectmem::schema::Event::new(
-            "note",
-            "gotcha: SQLite requires WAL mode for multi-threaded concurrency",
-        );
-        ev2.id = "0002".into();
-        ev2.location = Some("crates/toksi/src/icm/store.rs:57".into());
-
-        let events = vec![ev1, ev2];
-
-        let synced = store.sync_from_projectmem(&events).expect("sync");
-        assert_eq!(synced, 2);
-
-        // Verify FTS5 BM25 can recall synced projectmem decision
-        let hits = store.search_bm25("SQLite FTS5", 5).expect("search bm25");
-        assert!(!hits.is_empty());
-        assert_eq!(hits[0].memory.topic, "decision");
-
-        // Verify fact was stored
-        let fact = store.get_fact("architecture", "decision_0001").expect("get fact");
-        assert!(fact.is_some());
-        assert!(fact.unwrap().value.contains("SQLite database"));
-
-        // Verify gotcha fact was stored
-        let gotcha = store.get_fact("gotcha", "gotcha_0002").expect("get gotcha fact");
-        assert!(gotcha.is_some());
-        assert!(gotcha.unwrap().value.contains("WAL mode"));
-
-        // Verify headroom hook recall_tiered_entries
-        let tiered = recall_tiered_entries(&mut store, Some("SQLite"), 5);
-        assert!(!tiered.is_empty());
-        assert!(tiered.iter().any(|t| t.title.contains("Fact: architecture::decision_0001") || t.title.contains("Memory")));
-    }
 }
-

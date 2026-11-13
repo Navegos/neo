@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/multi_protocol.rs
 // created: 2026-11-09
-// lastModified: 2026-11-09
+// lastModified: 2026-11-13
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -467,118 +467,67 @@ impl MultiProtocolDispatcher {
     }
 
     fn dispatch_icm(&self, req: &UnifiedRequest) -> UnifiedResponse {
-        let store = match crate::icm::store::IcmStore::open_default() {
+        let mut store = match crate::icm::store::IcmStore::open_default() {
             Ok(s) => s,
             Err(e) => return UnifiedResponse::error(req.protocol, req.tool, format!("Failed to open ICM store: {e}")),
         };
 
-        match req.action.as_str() {
-            "search_memory" | "search" => {
-                let query = req.payload.get("query").and_then(|v| v.as_str()).unwrap_or("");
-                let limit = req.payload.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
-                match store.search_bm25(query, limit) {
-                    Ok(hits) => {
-                        let text = serde_json::to_string_pretty(&hits).unwrap_or_default();
-                        UnifiedResponse::success(
-                            req.protocol,
-                            req.tool,
-                            serde_json::to_value(&hits).unwrap_or(Value::Null),
-                            Some(text),
-                        )
-                    }
-                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, format!("ICM search error: {e}")),
-                }
+        let tool_name = if req.action.starts_with("icm_") {
+            req.action.as_str()
+        } else {
+            match req.action.as_str() {
+                "search_memory" | "search" => "icm_memory_search",
+                "recent" | "get_recent" => "icm_memory_recent",
+                "list_topics" => "icm_topic_list",
+                "store" | "save" => "icm_memory_store",
+                "recall" => "icm_memory_recall",
+                "pin" => "icm_pin",
+                "forget" => "icm_forget",
+                "stats" => "icm_stats",
+                _ => req.action.as_str(),
             }
-            "recent" | "get_recent" => {
-                let limit = req.payload.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
-                match store.get_recent(limit) {
-                    Ok(hits) => {
-                        let text = serde_json::to_string_pretty(&hits).unwrap_or_default();
-                        UnifiedResponse::success(
-                            req.protocol,
-                            req.tool,
-                            serde_json::to_value(&hits).unwrap_or(Value::Null),
-                            Some(text),
-                        )
-                    }
-                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, format!("ICM get_recent error: {e}")),
-                }
-            }
-            "list_topics" => {
-                match store.list_topics() {
-                    Ok(topics) => {
-                        let text = serde_json::to_string_pretty(&topics).unwrap_or_default();
-                        UnifiedResponse::success(
-                            req.protocol,
-                            req.tool,
-                            serde_json::to_value(&topics).unwrap_or(Value::Null),
-                            Some(text),
-                        )
-                    }
-                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, format!("ICM list_topics error: {e}")),
-                }
-            }
-            other => UnifiedResponse::error(
-                req.protocol,
-                req.tool,
-                format!("ICM action '{}' not implemented", other),
-            ),
+        };
+
+        let (text, is_err) = crate::icm::mcp::handle_tool_call(&mut store, tool_name, &req.payload);
+        if is_err {
+            UnifiedResponse::error(req.protocol, req.tool, text)
+        } else {
+            let val = serde_json::from_str(&text).unwrap_or_else(|_| Value::String(text.clone()));
+            UnifiedResponse::success(req.protocol, req.tool, val, Some(text))
         }
     }
 
     fn dispatch_aimemory(&self, req: &UnifiedRequest) -> UnifiedResponse {
-        let store = crate::aimemory::wiki::WikiStore::open_default();
+        let tool_name = if req.action.starts_with("memory_") {
+            req.action.as_str()
+        } else {
+            match req.action.as_str() {
+                "list" | "list_pages" => "memory_query",
+                "read" | "read_page" => "memory_read_page",
+                "write" | "write_page" => "memory_write_page",
+                "patch" | "patch_page" => "memory_patch_page",
+                "delete" | "delete_page" => "memory_delete_page",
+                "handoff_offer" | "handoff_begin" => "memory_handoff_offer",
+                "handoff_list" => "memory_handoff_list",
+                "handoff_claim" | "handoff_accept" => "memory_handoff_claim",
+                "handoff_resolve" => "memory_handoff_resolve",
+                "handoff_cancel" => "memory_handoff_cancel",
+                "message_send" => "memory_message_send",
+                "message_list" => "memory_message_list",
+                "message_pop" => "memory_message_pop",
+                "message_cancel" => "memory_message_cancel",
+                "status" => "memory_status",
+                "briefing" | "brief" => "memory_briefing",
+                _ => req.action.as_str(),
+            }
+        };
 
-        match req.action.as_str() {
-            "list" | "list_pages" => {
-                match store.list_pages() {
-                    Ok(pages) => {
-                        let text = serde_json::to_string_pretty(&pages).unwrap_or_default();
-                        UnifiedResponse::success(
-                            req.protocol,
-                            req.tool,
-                            serde_json::to_value(&pages).unwrap_or(Value::Null),
-                            Some(text),
-                        )
-                    }
-                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, format!("ai-memory list_pages error: {e}")),
-                }
-            }
-            "read" | "read_page" => {
-                let slug = req.payload.get("slug").and_then(|v| v.as_str()).unwrap_or("");
-                match store.read_page(slug) {
-                    Ok(Some(page)) => {
-                        let text = serde_json::to_string_pretty(&page).unwrap_or_default();
-                        UnifiedResponse::success(
-                            req.protocol,
-                            req.tool,
-                            serde_json::to_value(&page).unwrap_or(Value::Null),
-                            Some(text),
-                        )
-                    }
-                    Ok(None) => UnifiedResponse::error(req.protocol, req.tool, format!("Page '{slug}' not found")),
-                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, format!("ai-memory read_page error: {e}")),
-                }
-            }
-            "tiered" | "to_tiered_entries" => {
-                match store.to_tiered_entries() {
-                    Ok(entries) => {
-                        let text = serde_json::to_string_pretty(&entries).unwrap_or_default();
-                        UnifiedResponse::success(
-                            req.protocol,
-                            req.tool,
-                            serde_json::to_value(&entries).unwrap_or(Value::Null),
-                            Some(text),
-                        )
-                    }
-                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, format!("ai-memory to_tiered_entries error: {e}")),
-                }
-            }
-            other => UnifiedResponse::error(
-                req.protocol,
-                req.tool,
-                format!("ai-memory action '{}' not implemented", other),
-            ),
+        let (text, is_err) = crate::aimemory::mcp::handle_aimemory_tool_call(tool_name, &req.payload);
+        if is_err {
+            UnifiedResponse::error(req.protocol, req.tool, text)
+        } else {
+            let val = serde_json::from_str(&text).unwrap_or_else(|_| Value::String(text.clone()));
+            UnifiedResponse::success(req.protocol, req.tool, val, Some(text))
         }
     }
 }
@@ -662,5 +611,28 @@ mod tests {
         let frame_a2a = resp_a2a.format_protocol_frame();
         assert!(frame_a2a.contains("\"protocol\":\"a2a\""));
         assert!(frame_a2a.contains("\"sender\":\"toksi-codegraph\""));
+    }
+
+    #[test]
+    fn test_icm_and_aimemory_dispatch() {
+        let dispatcher = MultiProtocolDispatcher::new(None);
+
+        let req_icm = UnifiedRequest::new(
+            ProtocolKind::Mcp,
+            ToolTarget::Icm,
+            "icm_stats",
+            serde_json::json!({}),
+        );
+        let resp_icm = dispatcher.dispatch(&req_icm);
+        assert_eq!(resp_icm.status, "ok", "icm dispatch failed: {:?}", resp_icm.raw_text);
+
+        let req_aimem = UnifiedRequest::new(
+            ProtocolKind::Stdio,
+            ToolTarget::Aimemory,
+            "memory_status",
+            serde_json::json!({}),
+        );
+        let resp_aimem = dispatcher.dispatch(&req_aimem);
+        assert_eq!(resp_aimem.status, "ok");
     }
 }
