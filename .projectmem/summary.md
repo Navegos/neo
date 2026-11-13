@@ -40,7 +40,6 @@ Enterprise-grade native Safe Rust (`#![deny(unsafe_code)]`) token optimization, 
 - Refactor: refactor(tools): deprecate legacy node runtimes in favor of native in-tree tools [crates/toksi/src/agents/manager.rs]
 
 ## Notes
-- New feature: feat(dashboard): Enhance dashboard with AI Gateway and Keyring management [crates/toksi/src/dashboard/api.rs]
 - New feature: feat: introduce Agent Manager for lifecycle management of agents [crates/toksi/src/agents/manager.rs]
 - New feature: Add comprehensive reference for local inference engines with API details [crates/toksi/research/RESEARCHPLAN.txt]
 - New feature: feat: add RTK slash command handling and tracking features [crates/toksi/src/commands/rtk.rs]
@@ -50,6 +49,7 @@ Enterprise-grade native Safe Rust (`#![deny(unsafe_code)]`) token optimization, 
 - New feature: feat: implement DirectWire communication for CodeGraph [crates/toksi/src/agents/antigravity.rs]
 - New feature: feat(rules): add caveman v4 and ponytail modes with selective agent sync [crates/toksi/src/agents/manager.rs]
 - New feature: feat(gateway): implement Phase 07 proxy architecture, providers, and headroom compression [crates/toksi/src/commands/daemon.rs]
+- New feature: feat(agents): consolidate root agent setup, skills ecosystem, and legacy config healing [crates/toksi/src/agents/antigravity.rs]
 
 ## Key files
 - `.editorconfig`

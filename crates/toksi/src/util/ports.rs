@@ -23,11 +23,16 @@ pub const DEFAULT_DASHBOARD_PORT: u16 = 9100;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct PortsConfig {
+    #[serde(alias = "headroom")]
     pub headroom_proxy: u16,
+    #[serde(alias = "grok_oauth")]
     pub grok_oauth_proxy: u16,
+    #[serde(alias = "copilot_vscode")]
     pub copilot_vscode_proxy: u16,
+    #[serde(alias = "copilot_cli")]
     pub copilot_cli_proxy: u16,
     pub byok_gateway: u16,
+    #[serde(alias = "gateway")]
     pub ai_gateway: u16,
     pub dashboard: u16,
 }

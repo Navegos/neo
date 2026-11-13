@@ -157,9 +157,9 @@ fn daemon_start() -> i32 {
         ));
     }
 
-    // Connect non-destructive environment injection so environment is ready before VS Code or IDEs launch
-    if let Err(e) = crate::env_injector::inject_proxy_env() {
-        L.warn(&format!("Environment injection warning: {}", e));
+    // Rule of Test and Inform User: verify toksi executable in PATH before spawning
+    if let Err(msg) = crate::util::env_path::check_executable_in_path("toksi") {
+        L.warn(&msg);
     }
 
     let _ = fs::remove_file(daemon_stop_file());
@@ -169,8 +169,14 @@ fn daemon_start() -> i32 {
         return 1;
     }
 
+    // Connect non-destructive environment injection so environment is ready before VS Code or IDEs launch
+    if let Err(e) = crate::env_injector::inject_proxy_env() {
+        L.warn(&format!("Environment injection warning: {}", e));
+    }
+
     let mut cmd = Command::new(&exe);
     cmd.args(["daemon", "__run-foreground"]);
+    crate::env_injector::apply_env_to_command(&mut cmd);
     cmd.stdin(std::process::Stdio::null());
     cmd.stdout(std::process::Stdio::null());
     cmd.stderr(std::process::Stdio::null());
@@ -195,6 +201,7 @@ fn daemon_start() -> i32 {
             }
         }
         Err(e) => {
+            let _ = crate::env_injector::teardown_proxy_env();
             L.err(&format!("Failed spawning daemon: {}", e));
             1
         }
@@ -202,8 +209,12 @@ fn daemon_start() -> i32 {
 }
 
 fn daemon_stop() -> i32 {
-    // Purge all Toksi-owned environment variables upon shutdown
-    let _ = crate::env_injector::teardown_proxy_env();
+    // Purge all Toksi-owned environment variables and restore snapshots upon shutdown
+    if let Err(e) = crate::env_injector::teardown_proxy_env()
+        && !e.is_access_denied()
+    {
+        L.warn(&format!("Environment teardown warning: {}", e));
+    }
 
     // Auto-heal any lingering hijacked binaries, shims, symlinks, or orphaned state files
     let report = crate::env_injector::heal_legacy_hijacks();
@@ -279,6 +290,8 @@ fn daemon_run_foreground() -> i32 {
 }
 
 async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    crate::env_injector::register_teardown_handlers();
+
     let p_hr = crate::headroom::proxy::proxy_port();
     let p_grok = crate::headroom::grok_daemon::grok_oauth_proxy_port();
     let p_copilot = crate::headroom::copilot_daemon::copilot_proxy_port();
@@ -399,7 +412,8 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
 
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_secs(2)) => {}
-            _ = tokio::signal::ctrl_c() => {
+            sig = crate::env_injector::wait_for_shutdown_signal() => {
+                L.debug(&format!("Daemon received shutdown signal: {}", sig));
                 break;
             }
         }

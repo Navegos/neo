@@ -3,80 +3,84 @@
 // project: neo
 // file: crates/toksi/tests/phase10_env_injector_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
+use std::ffi::OsStr;
+use std::process::Command;
 use std::sync::Mutex;
 
 static TEST_ENV_LOCK: Mutex<()> = Mutex::new(());
 
 use toksi::env_injector::{
-    inject_proxy_env, register_teardown_handlers, teardown_proxy_env, TeardownGuard,
+    apply_env_to_command, effective_env_var, inject_proxy_env, register_teardown_handlers,
+    teardown_proxy_env, TeardownGuard,
 };
 
 #[test]
 fn test_phase10_env_injection_and_teardown_cycle() {
-    let _lock = TEST_ENV_LOCK.lock().unwrap();
-    // 1. Initial teardown to ensure clean state
+    let _lock = TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let _ = teardown_proxy_env();
 
-    // 2. Inject environment
-    let injected = inject_proxy_env().expect("environment injection should succeed");
+    let injected = match inject_proxy_env() {
+        Ok(keys) => keys,
+        Err(e) => panic!("environment injection should succeed: {}", e),
+    };
     assert!(!injected.is_empty(), "should report injected keys");
     assert!(injected.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
-    assert!(!injected.contains(&"CLOUD_CODE_URL".to_string()), "CLOUD_CODE_URL must not be injected (bypass auth)");
+    assert!(
+        !injected.contains(&"CLOUD_CODE_URL".to_string()),
+        "CLOUD_CODE_URL must not be injected (bypass auth)"
+    );
     assert!(injected.contains(&"TOKSI_OWNED".to_string()));
 
-    // Verify current process has the injected variable
-    assert_eq!(
-        std::env::var("TOKSI_OWNED").ok().as_deref(),
-        Some("1")
-    );
+    assert_eq!(effective_env_var("TOKSI_OWNED").as_deref(), Some("1"));
 
-    // 3. Teardown environment
-    let purged = teardown_proxy_env().expect("environment teardown should succeed");
+    let mut cmd = Command::new("toksi");
+    apply_env_to_command(&mut cmd);
+    let envs: Vec<(&OsStr, Option<&OsStr>)> = cmd.get_envs().collect();
+    assert!(envs.contains(&(OsStr::new("TOKSI_OWNED"), Some(OsStr::new("1")))));
+    assert!(envs.contains(&(OsStr::new("CLOUD_CODE_URL"), None)));
+
+    let purged = match teardown_proxy_env() {
+        Ok(keys) => keys,
+        Err(e) => panic!("environment teardown should succeed: {}", e),
+    };
     assert!(!purged.is_empty(), "should report purged keys");
     assert!(purged.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
     assert!(purged.contains(&"TOKSI_OWNED".to_string()));
 
-    // Verify current process no longer has the marker
-    assert!(std::env::var("TOKSI_OWNED").is_err());
+    assert!(effective_env_var("TOKSI_OWNED").is_none());
 }
 
 #[test]
 fn test_phase10_teardown_guard_raii() {
-    let _lock = TEST_ENV_LOCK.lock().unwrap();
-    // Ensure clean state
+    let _lock = TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let _ = teardown_proxy_env();
 
-    // Inject
     let _ = inject_proxy_env();
-    assert_eq!(std::env::var("TOKSI_OWNED").ok().as_deref(), Some("1"));
+    assert_eq!(effective_env_var("TOKSI_OWNED").as_deref(), Some("1"));
 
-    // Guard goes out of scope and drops
     {
         let _guard = TeardownGuard::new();
     }
 
-    // Teardown should have executed
-    assert!(std::env::var("TOKSI_OWNED").is_err());
+    assert!(effective_env_var("TOKSI_OWNED").is_none());
 }
 
 #[test]
 fn test_phase10_teardown_guard_disarm() {
-    let _lock = TEST_ENV_LOCK.lock().unwrap();
+    let _lock = TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let _ = teardown_proxy_env();
     let _ = inject_proxy_env();
-    assert_eq!(std::env::var("TOKSI_OWNED").ok().as_deref(), Some("1"));
+    assert_eq!(effective_env_var("TOKSI_OWNED").as_deref(), Some("1"));
 
     {
         let mut guard = TeardownGuard::new();
         guard.disarm();
     }
 
-    // Because guard was disarmed, it should not have purged
-    assert_eq!(std::env::var("TOKSI_OWNED").ok().as_deref(), Some("1"));
+    assert_eq!(effective_env_var("TOKSI_OWNED").as_deref(), Some("1"));
 
-    // Clean up
     let _ = teardown_proxy_env();
 }
 
@@ -105,28 +109,62 @@ fn test_phase10_windows_native_reg_and_broadcast() {
             assert_eq!(get_env_reg_value(test_key), Some(test_val.to_string()));
             let broadcast_ok = broadcast_setting_change();
             assert!(broadcast_ok || !broadcast_ok);
-            let deleted = delete_env_reg_value(test_key).expect("deleting registry value must succeed");
+            let deleted = match delete_env_reg_value(test_key) {
+                Ok(deleted) => deleted,
+                Err(e) => panic!("deleting registry value must succeed: {}", e),
+            };
             assert!(deleted);
             assert!(get_env_reg_value(test_key).is_none());
         }
         Err(e) => {
-            // In sandboxed containers, registry writes to HKCU\Environment yield code 5 (access denied).
-            assert!(e.contains("code 5"), "unexpected error: {}", e);
+            assert!(
+                e.is_access_denied() || e.to_string().contains("code 5"),
+                "unexpected error: {}",
+                e
+            );
         }
     }
 }
 
 #[test]
 fn test_phase10_unix_dropin_and_vars() {
-    let _lock = TEST_ENV_LOCK.lock().unwrap();
-    use toksi::env_injector::unix::{inject_unix_env, teardown_unix_env};
+    let _lock = TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    use toksi::env_injector::unix::{
+        inject_unix_env_vars_in, read_environment_d_entries, teardown_unix_env_in,
+    };
 
-    let injected = inject_unix_env("http://127.0.0.1:8787").expect("unix inject should succeed");
+    let temp_dir = std::env::temp_dir().join(format!("toksi_p10_unix_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&temp_dir);
+    let conf_path = temp_dir.join("99-toksi.conf");
+
+    let injected = match inject_unix_env_vars_in(
+        &[("GOOGLE_GEMINI_BASE_URL", "http://127.0.0.1:8787")],
+        Some(&conf_path),
+        false,
+    ) {
+        Ok(keys) => keys,
+        Err(e) => panic!("unix inject should succeed: {}", e),
+    };
     assert!(injected.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
-    assert_eq!(std::env::var("GOOGLE_GEMINI_BASE_URL").unwrap(), "http://127.0.0.1:8787");
+    assert_eq!(
+        effective_env_var("GOOGLE_GEMINI_BASE_URL").as_deref(),
+        Some("http://127.0.0.1:8787")
+    );
+    let entries = read_environment_d_entries(&conf_path);
+    assert_eq!(
+        entries.get("GOOGLE_GEMINI_BASE_URL").map(String::as_str),
+        Some("http://127.0.0.1:8787")
+    );
+    assert!(!entries.contains_key("CLOUD_CODE_URL"));
 
-    let purged = teardown_unix_env().expect("unix teardown should succeed");
+    let purged = match teardown_unix_env_in(Some(&conf_path), None, false) {
+        Ok(keys) => keys,
+        Err(e) => panic!("unix teardown should succeed: {}", e),
+    };
     assert!(purged.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
-    assert!(std::env::var("GOOGLE_GEMINI_BASE_URL").is_err());
+    assert!(effective_env_var("GOOGLE_GEMINI_BASE_URL").is_none());
+    assert!(!conf_path.exists());
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
 }
 

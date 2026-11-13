@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase13_e2e_verification.rs
 // created: 2026-10-30
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -409,19 +409,19 @@ fn test_non_destructive_environment_injection_and_clean_teardown() {
     // 3. Inject proxy environment variables non-destructively without modifying any binaries
     let injected = inject_proxy_env().expect("Environment injection must succeed");
     assert!(!injected.is_empty(), "Injected keys must not be empty");
-    assert!(injected.contains(&"TOKSI_OWNED".to_string()) || injected.contains(&"TOKSI_OWNED".to_string()));
-    assert!(
-        std::env::var("TOKSI_OWNED").ok().as_deref() == Some("1")
-            || std::env::var("TOKSI_OWNED").ok().as_deref() == Some("1"),
-        "Process environment must reflect TOKSI_OWNED=1"
+    assert!(injected.contains(&"TOKSI_OWNED".to_string()));
+    assert_eq!(
+        toksi::env_injector::effective_env_var("TOKSI_OWNED").as_deref(),
+        Some("1"),
+        "Effective environment overlay must reflect TOKSI_OWNED=1"
     );
 
     // 4. Teardown proxy environment cleanly
     let purged = teardown_proxy_env().expect("Environment teardown must succeed");
     assert!(!purged.is_empty(), "Purged keys must not be empty");
-    assert!(purged.contains(&"TOKSI_OWNED".to_string()) || purged.contains(&"TOKSI_OWNED".to_string()));
+    assert!(purged.contains(&"TOKSI_OWNED".to_string()));
     assert!(
-        std::env::var("TOKSI_OWNED").is_err() && std::env::var("TOKSI_OWNED").is_err(),
+        toksi::env_injector::effective_env_var("TOKSI_OWNED").is_none(),
         "TOKSI_OWNED must be removed after teardown"
     );
 

@@ -71,6 +71,7 @@ tree-sitter-sequel = "0.3"
 tree-sitter-md = "0.3"
 codebook-tree-sitter-latex = "0.6"
 toksi-grammars = { path = "../toksi-grammars" }
+toksi-sys = { path = "../toksi-sys" }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = [
