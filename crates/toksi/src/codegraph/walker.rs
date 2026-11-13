@@ -24,6 +24,19 @@ pub struct WalkedFile {
 }
 
 pub fn detect_language(path: &Path) -> Option<&'static str> {
+    if let Some(file_name) = path.file_name().and_then(|f| f.to_str()) {
+        let lower_name = file_name.to_ascii_lowercase();
+        if lower_name == "dockerfile" {
+            return Some("dockerfile");
+        }
+        if lower_name == "makefile" || lower_name == "gnumakefile" {
+            return Some("make");
+        }
+        if lower_name == "cmakelists.txt" {
+            return Some("cmake");
+        }
+    }
+
     let ext = path.extension()?.to_str()?.to_ascii_lowercase();
     match ext.as_str() {
         "rs" => Some("rust"),
@@ -35,6 +48,41 @@ pub fn detect_language(path: &Path) -> Option<&'static str> {
         "go" => Some("go"),
         "c" | "h" => Some("c"),
         "cpp" | "hpp" | "cc" | "cxx" | "hh" | "hxx" => Some("cpp"),
+        "cs" => Some("csharp"),
+        "java" => Some("java"),
+        "kt" | "kts" => Some("kotlin"),
+        "scala" | "sc" => Some("scala"),
+        "php" => Some("php"),
+        "rb" => Some("ruby"),
+        "swift" => Some("swift"),
+        "lua" => Some("lua"),
+        "dart" => Some("dart"),
+        "r" => Some("r"),
+        "zig" => Some("zig"),
+        "jl" => Some("julia"),
+        "ex" | "exs" => Some("elixir"),
+        "erl" | "hrl" => Some("erlang"),
+        "ml" | "mli" => Some("ocaml"),
+        "hs" => Some("haskell"),
+        "html" | "htm" => Some("html"),
+        "css" => Some("css"),
+        "scss" => Some("scss"),
+        "vue" => Some("vue"),
+        "svelte" => Some("svelte"),
+        "graphql" | "gql" => Some("graphql"),
+        "sh" | "bash" | "zsh" => Some("bash"),
+        "dockerfile" => Some("dockerfile"),
+        "tf" | "hcl" => Some("hcl"),
+        "nix" => Some("nix"),
+        "mk" => Some("make"),
+        "cmake" => Some("cmake"),
+        "json" => Some("json"),
+        "yaml" | "yml" => Some("yaml"),
+        "toml" => Some("toml"),
+        "proto" => Some("protobuf"),
+        "sql" => Some("sql"),
+        "md" | "markdown" => Some("markdown"),
+        "tex" | "latex" => Some("latex"),
         _ => None,
     }
 }

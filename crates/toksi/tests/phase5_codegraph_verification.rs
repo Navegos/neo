@@ -6,7 +6,7 @@
 // lastModified: 2026-10-31
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use serde_json::json;
 use tempfile::tempdir;
 
@@ -625,5 +625,231 @@ struct Server {
         .collect();
     assert!(refs.contains(&"Config"), "Server struct should reference Config");
 }
+
+#[test]
+fn test_phase5_polyglot_41_languages() {
+    let cases = [
+        ("main.rs", "rust"),
+        ("app.ts", "typescript"),
+        ("comp.tsx", "tsx"),
+        ("script.js", "javascript"),
+        ("ui.jsx", "jsx"),
+        ("test.py", "python"),
+        ("server.go", "go"),
+        ("kernel.c", "c"),
+        ("driver.cpp", "cpp"),
+        ("Program.cs", "csharp"),
+        ("App.java", "java"),
+        ("Main.kt", "kotlin"),
+        ("App.scala", "scala"),
+        ("index.php", "php"),
+        ("script.rb", "ruby"),
+        ("App.swift", "swift"),
+        ("init.lua", "lua"),
+        ("main.dart", "dart"),
+        ("analysis.r", "r"),
+        ("main.zig", "zig"),
+        ("model.jl", "julia"),
+        ("server.ex", "elixir"),
+        ("node.erl", "erlang"),
+        ("core.ml", "ocaml"),
+        ("Lib.hs", "haskell"),
+        ("index.html", "html"),
+        ("style.css", "css"),
+        ("theme.scss", "scss"),
+        ("App.vue", "vue"),
+        ("Widget.svelte", "svelte"),
+        ("schema.graphql", "graphql"),
+        ("deploy.sh", "bash"),
+        ("Dockerfile", "dockerfile"),
+        ("main.tf", "hcl"),
+        ("default.nix", "nix"),
+        ("Makefile", "make"),
+        ("CMakeLists.txt", "cmake"),
+        ("data.json", "json"),
+        ("config.yaml", "yaml"),
+        ("Cargo.toml", "toml"),
+        ("service.proto", "protobuf"),
+        ("query.sql", "sql"),
+        ("README.md", "markdown"),
+        ("paper.tex", "latex"),
+    ];
+
+    for (file, expected_lang) in cases {
+        let p = Path::new(file);
+        let detected = detect_language(p);
+        assert_eq!(detected, Some(expected_lang), "failed detecting language for {}", file);
+    }
+
+    assert_eq!(detect_language(Path::new("unknown.xyz")), None);
+}
+
+#[test]
+fn test_phase5_ported_extractors_lua_dart_kotlin_scala_swift() {
+    // Lua
+    let lua_code = "function calculate_sum(a, b)\n  return a + b\nend\n";
+    let lua_ext = extract_file("calc.lua", lua_code, "lua").expect("extract lua");
+    assert!(!lua_ext.nodes.is_empty(), "Lua symbols should be extracted");
+
+    // Dart
+    let dart_code = "class Greeter {\n  String greet() => 'hello';\n}\n";
+    let dart_ext = extract_file("greeter.dart", dart_code, "dart").expect("extract dart");
+    assert!(!dart_ext.nodes.is_empty(), "Dart symbols should be extracted");
+
+    // Kotlin
+    let kt_code = "class OrderService {\n  fun process(): Boolean = true\n}\n";
+    let kt_ext = extract_file("order.kt", kt_code, "kotlin").expect("extract kotlin");
+    assert!(!kt_ext.nodes.is_empty(), "Kotlin symbols should be extracted");
+
+    // Scala
+    let scala_code = "trait Service {\n  def run(): Unit\n}\n";
+    let scala_ext = extract_file("svc.scala", scala_code, "scala").expect("extract scala");
+    assert!(!scala_ext.nodes.is_empty(), "Scala symbols should be extracted");
+
+    // Swift
+    let swift_code = "class Manager {\n  func execute() {}\n}\n";
+    let swift_ext = extract_file("mgr.swift", swift_code, "swift").expect("extract swift");
+    assert!(!swift_ext.nodes.is_empty(), "Swift symbols should be extracted");
+}
+
+#[test]
+fn test_phase5_vue_and_svelte_extractors() {
+    let vue_code = r#"
+<template><div>Hello</div></template>
+<script lang="ts">
+export class VueWidget {
+  title = "Vue";
+}
+</script>
+"#;
+    let vue_ext = extract_file("Widget.vue", vue_code, "vue").expect("extract vue");
+    let names: Vec<&str> = vue_ext.nodes.iter().map(|n| n.name.as_str()).collect();
+    assert!(names.contains(&"VueWidget"), "should extract Vue component class");
+
+    let svelte_code = r#"
+<script>
+function onMountHandler() {
+  console.log("ready");
+}
+</script>
+<main></main>
+"#;
+    let svelte_ext = extract_file("App.svelte", svelte_code, "svelte").expect("extract svelte");
+    let s_names: Vec<&str> = svelte_ext.nodes.iter().map(|n| n.name.as_str()).collect();
+    assert!(s_names.contains(&"onMountHandler"), "should extract Svelte script handler");
+}
+
+#[test]
+fn test_phase5_strict_repo_only_db_and_home_prohibition() {
+    assert!(toksi::codegraph::user_home_db_path().is_none(), "user home storage for codegraph must be prohibited");
+
+    let temp = tempdir().unwrap();
+    let repo_root = temp.path();
+    let git_dir = repo_root.join(".git");
+    fs::create_dir_all(&git_dir).unwrap();
+
+    let db_path = toksi::codegraph::resolve_db_path(repo_root);
+    let expected = PathBuf::from(toksi::util::paths::normalize_path(&repo_root.join(".toksi").join("codegraph").join("symbols.db").to_string_lossy()));
+    assert_eq!(db_path, expected);
+
+    // Subcrate resolution walks to repo root
+    let subcrate = repo_root.join("crates").join("subproject");
+    fs::create_dir_all(&subcrate).unwrap();
+    let sub_db = toksi::codegraph::resolve_db_path(&subcrate);
+    assert_eq!(sub_db, expected);
+}
+
+#[test]
+fn test_phase5_dynamic_ignore_purging() {
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+    let git_dir = root.join(".git");
+    fs::create_dir_all(&git_dir).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+
+    let f1 = root.join("src").join("main.rs");
+    fs::write(&f1, "pub fn active_symbol() {}\n").unwrap();
+
+    let f2 = root.join("src").join("temp_gen.rs");
+    fs::write(&f2, "pub fn temp_symbol() {}\n").unwrap();
+
+    let mut cg = CodeGraph::open(root).unwrap();
+    cg.ensure_indexed().unwrap();
+    assert_eq!(cg.cache.get_stats().file_count, 2);
+
+    // Now write .gitignore ignoring temp_gen.rs
+    fs::write(root.join(".gitignore"), "src/temp_gen.rs\n").unwrap();
+
+    // Re-indexing must dynamically purge temp_gen.rs
+    cg.ensure_indexed().unwrap();
+    assert_eq!(cg.cache.get_stats().file_count, 1, "ignored file must be purged from symbols.db");
+}
+
+#[test]
+fn test_phase5_codegraph_slash_command() {
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".git")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+
+    let file = root.join("src").join("calc.rs");
+    fs::write(&file, "pub fn multiply(a: i32, b: i32) -> i32 { a * b }\n").unwrap();
+
+    let help = toksi::codegraph::handle_slash_command("/codegraph help", Some(root));
+    assert!(help.contains("/codegraph status"));
+    assert!(help.contains("/codegraph explore"));
+
+    let idx = toksi::codegraph::handle_slash_command("/codegraph index", Some(root));
+    assert!(idx.contains("Indexed:"));
+
+    let status = toksi::codegraph::handle_slash_command("/codegraph status", Some(root));
+    assert!(status.contains("CodeGraph Status:"));
+    assert!(status.contains("Files: 1"));
+
+    let explore = toksi::codegraph::handle_slash_command("/codegraph explore multiply", Some(root));
+    assert!(explore.contains("multiply"));
+}
+
+#[test]
+fn test_phase5_projectmem_coordinate_resolution() {
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+    fs::create_dir_all(root.join(".git")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+
+    // Initialize project memory store
+    initialize(Some(root), None).unwrap();
+
+    let file = root.join("src").join("order.rs");
+    let code = r#"
+pub struct OrderService {
+    pub id: u64,
+}
+
+impl OrderService {
+    pub fn process_payment(&self) -> bool {
+        true
+    }
+}
+"#;
+    fs::write(&file, code).unwrap();
+
+    let mut cg = CodeGraph::open(root).unwrap();
+    cg.ensure_indexed().unwrap();
+
+    let resolved = resolve_coordinate(root, "src/order.rs", 8);
+    assert_eq!(resolved.as_deref(), Some("OrderService::process_payment"));
+
+    // Check projectmem tool_log_issue with file:line
+    let issue_msg = toksi::projectmem::mcp::tool_log_issue(root, "Payment gateway timeout", Some("src/order.rs:8")).unwrap();
+    assert!(issue_msg.contains("Logged issue #0001"));
+
+    let events = toksi::projectmem::store::read_events(Some(root)).unwrap();
+    assert_eq!(events.len(), 1);
+    let loc = events[0].location.as_deref().unwrap();
+    assert!(loc.contains("src/order.rs:8"));
+    assert!(loc.contains("OrderService::process_payment"));
+}
+
 
 

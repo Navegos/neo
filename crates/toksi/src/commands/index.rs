@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/index.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::collections::HashSet;
 use std::env;
@@ -49,14 +49,27 @@ pub fn looks_like_project(dir: &str) -> bool {
 }
 
 pub fn find_project_dir(dir: &str) -> String {
-    let mut current = PathBuf::from(dir);
+    let current = PathBuf::from(dir);
+    let mut git_root = None;
+    let mut marker_root = None;
+    let mut iter = current.clone();
     loop {
-        if looks_like_project(&current.to_string_lossy()) {
-            return current.to_string_lossy().to_string();
-        }
-        if !current.pop() {
+        if exists(iter.join(".git")) {
+            git_root = Some(iter.clone());
             break;
         }
+        if marker_root.is_none() && looks_like_project(&iter.to_string_lossy()) {
+            marker_root = Some(iter.clone());
+        }
+        if !iter.pop() {
+            break;
+        }
+    }
+    if let Some(gr) = git_root {
+        return gr.to_string_lossy().to_string();
+    }
+    if let Some(mr) = marker_root {
+        return mr.to_string_lossy().to_string();
     }
     dir.to_string()
 }

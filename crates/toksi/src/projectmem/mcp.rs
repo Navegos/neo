@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/projectmem/mcp.rs
 // created: 2026-10-27
-// lastModified: 2026-11-12
+// lastModified: 2026-11-13
 
 #![deny(unsafe_code)]
 
@@ -293,6 +293,19 @@ pub fn tool_heatmap(root: &Path) -> String {
     serde_json::to_string_pretty(&res).unwrap_or_else(|_| "{}".to_string())
 }
 
+fn resolve_location_symbol(root: &Path, raw_loc: Option<&str>) -> Option<String> {
+    let loc = raw_loc?;
+    let norm = normalize_path(loc);
+    if let Some((file, line_str)) = norm.rsplit_once(':') {
+        if let Ok(line) = line_str.parse::<u32>() {
+            if let Some(sym) = crate::codegraph::resolve_coordinate(root, file, line) {
+                return Some(format!("{} ({})", norm, sym));
+            }
+        }
+    }
+    Some(norm)
+}
+
 pub fn tool_log_issue(root: &Path, summary: &str, location: Option<&str>) -> Result<String> {
     let events = read_events(Some(root))?;
     let issue_id = next_issue_id(&events);
@@ -300,7 +313,7 @@ pub fn tool_log_issue(root: &Path, summary: &str, location: Option<&str>) -> Res
     let mut event = Event::new("issue", summary);
     event.issue_id = Some(issue_id.clone());
     event.git_commit = get_git_commit(Some(root));
-    event.location = location.map(|s| normalize_path(s));
+    event.location = resolve_location_symbol(root, location);
 
     append_event(&mut event, Some(root))?;
     write_current_issue(&issue_id, Some(root));
@@ -358,7 +371,7 @@ pub fn tool_record_attempt(
         let mut auto_issue = Event::new("issue", &issue_title);
         auto_issue.issue_id = Some(new_id.clone());
         auto_issue.git_commit = get_git_commit(Some(root));
-        auto_issue.location = location.map(|s| normalize_path(s));
+        auto_issue.location = resolve_location_symbol(root, location);
         append_event(&mut auto_issue, Some(root))?;
         write_current_issue(&new_id, Some(root));
         target_issue_id = Some(new_id);
@@ -389,7 +402,7 @@ pub fn tool_record_attempt(
     event.issue_id = Some(iid.clone());
     event.outcome = Some(out.to_string());
     event.git_commit = get_git_commit(Some(root));
-    event.location = location.map(|s| normalize_path(s));
+    event.location = resolve_location_symbol(root, location);
     event.command = effective_cmd;
     event.notes = notes.map(|s| s.to_string()).or(extracted_notes).or(fallback_notes);
 
@@ -422,7 +435,7 @@ pub fn tool_record_fix(
     let mut event = Event::new("fix", summary);
     event.issue_id = Some(target_issue_id.clone());
     event.git_commit = get_git_commit(Some(root));
-    event.location = location.map(|s| normalize_path(s));
+    event.location = resolve_location_symbol(root, location);
 
     append_event(&mut event, Some(root))?;
 
@@ -452,7 +465,7 @@ pub fn tool_add_decision(
 
     let mut event = Event::new("decision", summary);
     event.git_commit = get_git_commit(Some(root));
-    event.location = location.map(|s| normalize_path(s));
+    event.location = resolve_location_symbol(root, location);
     event.supersedes = superseded_id.clone();
 
     append_event(&mut event, Some(root))?;
@@ -469,7 +482,7 @@ pub fn tool_add_decision(
 pub fn tool_add_note(root: &Path, summary: &str, location: Option<&str>) -> Result<String> {
     let mut event = Event::new("note", summary);
     event.git_commit = get_git_commit(Some(root));
-    event.location = location.map(|s| normalize_path(s));
+    event.location = resolve_location_symbol(root, location);
 
     append_event(&mut event, Some(root))?;
     let _ = regenerate_summary(Some(root));

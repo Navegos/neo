@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 pub mod ast_grep;
 pub mod cache;
@@ -13,6 +13,7 @@ pub mod kernel;
 pub mod mcp;
 pub mod repomix;
 pub mod scip;
+pub mod slash;
 pub mod walker;
 
 #[cfg(test)]
@@ -32,29 +33,57 @@ pub use jcodemunch::{extract_file_outline, generate_repo_outline, summarize_code
 pub use kernel::{FileExtraction, SymbolEdge, SymbolNode, SymbolRef};
 pub use repomix::{package_files, pack_workspace, RepomixBundle, RepomixFormat, RepomixOptions};
 pub use scip::{format_scip_symbol, parse_scip_symbol, ScipDocument, ScipIndex, ScipOccurrence, ScipSymbolInformation, SymbolRole};
+pub use slash::handle_slash_command;
 
 pub fn resolve_db_path(root: &Path) -> PathBuf {
-    let toksi_dir = root.join(".toksi").join("codegraph");
+    let repo_root = match crate::icm::store::find_repo_root_and_subproject(Some(root)) {
+        Ok((r, _)) => {
+            let clean = crate::util::paths::normalize_path(&r.to_string_lossy());
+            PathBuf::from(clean)
+        }
+        Err(_) => {
+            let clean = crate::util::paths::normalize_path(&root.to_string_lossy());
+            PathBuf::from(clean)
+        }
+    };
+    let toksi_dir = repo_root.join(".toksi").join("codegraph");
     let toksi_db = toksi_dir.join("symbols.db");
-    if toksi_db.exists() {
-        return toksi_db;
-    }
-    let legacy_dir = root.join(".codegraph");
+
+    // Auto-migrate legacy root .codegraph/
+    let legacy_dir = repo_root.join(".codegraph");
     let legacy_db = legacy_dir.join("symbols.db");
-    if legacy_db.exists() {
+    if legacy_db.exists() && !toksi_db.exists() {
         let _ = fs::create_dir_all(&toksi_dir);
         if fs::copy(&legacy_db, &toksi_db).is_ok() {
             let _ = fs::remove_file(&legacy_db);
             let _ = fs::remove_dir(&legacy_dir);
             return toksi_db;
         }
-        return legacy_db;
     }
+
+    // Auto-merge nested crate .toksi/codegraph if present in a subfolder
+    let clean_root = PathBuf::from(crate::util::paths::normalize_path(&root.to_string_lossy()));
+    if clean_root != repo_root {
+        let nested_toksi_db = clean_root.join(".toksi").join("codegraph").join("symbols.db");
+        if nested_toksi_db.exists() && !toksi_db.exists() {
+            let _ = fs::create_dir_all(&toksi_dir);
+            let _ = fs::copy(&nested_toksi_db, &toksi_db);
+            let _ = fs::remove_file(&nested_toksi_db);
+        }
+        let nested_legacy_db = clean_root.join(".codegraph").join("symbols.db");
+        if nested_legacy_db.exists() && !toksi_db.exists() {
+            let _ = fs::create_dir_all(&toksi_dir);
+            let _ = fs::copy(&nested_legacy_db, &toksi_db);
+            let _ = fs::remove_file(&nested_legacy_db);
+        }
+    }
+
     toksi_db
 }
 
+/// User home storage for codegraph is strictly prohibited by consolidation mandates.
 pub fn user_home_db_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|h| h.join(".toksi").join("codegraph").join("symbols.db"))
+    None
 }
 
 pub struct CodeGraph {
@@ -102,10 +131,13 @@ impl CodeGraph {
             }
         }
 
-        // Detect deleted files
+        // Detect deleted or newly-ignored files (dynamic ignore purge)
+        let gitignore = walker::build_project_ignore(&self.root);
         let mut deleted_files = Vec::new();
         for cached_path in cached.keys() {
-            if !on_disk_paths.contains(cached_path) {
+            let full_path = self.root.join(cached_path);
+            let is_ignored = gitignore.matched_path_or_any_parents(&full_path, false).is_ignore();
+            if !on_disk_paths.contains(cached_path) || is_ignored {
                 deleted_files.push(cached_path.clone());
             }
         }

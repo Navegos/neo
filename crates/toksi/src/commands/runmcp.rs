@@ -176,6 +176,16 @@ pub fn run_mcp(argv: &[String]) -> i32 {
         return crate::icm::mcp::run_mcp_server();
     }
 
+    let is_codegraph = actual_cmd_args.iter().any(|a| a.contains("codegraph"))
+        || tool == "codegraph";
+    if is_codegraph {
+        let root = projectmem_root(&workspace);
+        unsafe {
+            std::env::set_var("CODEGRAPH_PROJECT_DIR", &root);
+        }
+        return crate::codegraph::mcp::run_mcp_server();
+    }
+
     let env_vars = Vec::new();
     ensure_proxy_for_agent(&agent);
 

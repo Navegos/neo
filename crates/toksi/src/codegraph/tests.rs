@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/tests.rs
 // created: 2026-10-28
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 #[cfg(test)]
 mod tests {
@@ -185,8 +185,9 @@ int main() {
         assert_eq!(detect_language(Path::new("kernel.c")), Some("c"));
         assert_eq!(detect_language(Path::new("header.h")), Some("c"));
         assert_eq!(detect_language(Path::new("driver.cpp")), Some("cpp"));
-        assert_eq!(detect_language(Path::new("readme.md")), None);
-        assert_eq!(detect_language(Path::new("config.json")), None);
+        assert_eq!(detect_language(Path::new("readme.md")), Some("markdown"));
+        assert_eq!(detect_language(Path::new("config.json")), Some("json"));
+        assert_eq!(detect_language(Path::new("binary.bin")), None);
     }
 
     #[test]

@@ -3,12 +3,16 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/langs.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use tree_sitter::Language;
 
 pub const LANGUAGES: &[&str] = &[
-    "typescript", "tsx", "javascript", "jsx", "python", "go", "c", "cpp", "rust",
+    "rust", "typescript", "tsx", "javascript", "jsx", "python", "go", "c", "cpp",
+    "zig", "swift", "java", "csharp", "kotlin", "scala", "php", "ruby", "lua",
+    "julia", "elixir", "erlang", "ocaml", "haskell", "html", "css", "scss",
+    "vue", "svelte", "graphql", "bash", "dockerfile", "hcl", "nix", "make", "cmake",
+    "json", "yaml", "toml", "protobuf", "sql", "markdown", "latex", "dart", "r",
 ];
 
 pub fn grammar_for(language: &str) -> Option<Language> {
@@ -21,7 +25,11 @@ pub fn grammar_for(language: &str) -> Option<Language> {
         "c" => Some(tree_sitter_c::LANGUAGE.into()),
         "cpp" => Some(tree_sitter_cpp::LANGUAGE.into()),
         "rust" => Some(tree_sitter_rust::LANGUAGE.into()),
+        "lua" => Some(toksi_grammars::language_lua().into()),
+        "dart" => Some(toksi_grammars::language_dart().into()),
+        "kotlin" => Some(toksi_grammars::language_kotlin().into()),
+        "scala" => Some(toksi_grammars::language_scala().into()),
+        "swift" => Some(toksi_grammars::language_swift().into()),
         _ => None,
     }
 }
-

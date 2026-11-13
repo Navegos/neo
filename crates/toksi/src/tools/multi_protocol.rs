@@ -392,11 +392,11 @@ impl MultiProtocolDispatcher {
     }
 
     fn dispatch_codegraph(&self, req: &UnifiedRequest, root: &Path) -> UnifiedResponse {
-        let db_path = crate::codegraph::resolve_db_path(root);
-        let cg = match crate::codegraph::CodeGraph::open(&db_path) {
+        let mut cg = match crate::codegraph::CodeGraph::open(root) {
             Ok(cg) => cg,
             Err(e) => return UnifiedResponse::error(req.protocol, req.tool, format!("Failed to open codegraph db: {e}")),
         };
+        let _ = cg.ensure_indexed();
 
         match req.action.as_str() {
             "explore" | "codegraph_explore" => {
@@ -419,7 +419,7 @@ impl MultiProtocolDispatcher {
                 let res = crate::codegraph::mcp::handle_search(&cg, &req.payload);
                 UnifiedResponse::success(req.protocol, req.tool, serde_json::json!({ "result": res }), Some(res))
             }
-            "node" | "codegraph_node" => {
+            "node" | "codegraph_node" | "symbol" | "codegraph_symbol" => {
                 let res = crate::codegraph::mcp::handle_node(&cg, &req.payload);
                 UnifiedResponse::success(req.protocol, req.tool, serde_json::json!({ "result": res }), Some(res))
             }

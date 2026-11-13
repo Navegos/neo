@@ -366,6 +366,11 @@ fn run() -> i32 {
     if args.len() >= 3 && args[1] == "codex-perm" && args[2] == "codex" {
         return run_codex_perm_hook();
     }
+    if args.len() >= 2 && args[1].starts_with("/codegraph") {
+        let full = args[1..].join(" ");
+        println!("{}", toksi::codegraph::handle_slash_command(&full, None));
+        return 0;
+    }
     if args.len() >= 2 && args[1] == "codegraph-hook" {
         return run_codegraph_index_hook();
     }
@@ -489,7 +494,7 @@ fn run() -> i32 {
         "rtk" => run_rtk_cli(&args[2..]),
         "mem" => toksi::projectmem::run_mem_cli(&args[2..]),
         "ctx" => toksi::contextmode::run_ctx_cli(&args[2..]),
-        "graph" => toksi::codegraph::run_graph_cli(&args[2..]),
+        "graph" | "codegraph" => toksi::codegraph::run_graph_cli(&args[2..]),
         "icm" => toksi::icm::run_icm_cli(&args[2..]),
         "handoff" | "aimemory" => toksi::aimemory::run_handoff_cli(&args[2..]),
         "rules" => toksi::rules::run_rules_cli(&args[2..]),

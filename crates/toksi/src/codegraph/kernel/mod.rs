@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 #[macro_export]
 macro_rules! stack_guard {
@@ -16,13 +16,25 @@ macro_rules! stack_guard {
 
 pub mod buffers;
 pub mod ccpp;
+pub mod cfnptr;
+pub mod csharp;
+pub mod dart;
 pub mod docstring;
 pub mod go;
 pub mod ids;
+pub mod java;
+pub mod kotlin;
 pub mod langs;
+pub mod lua;
+pub mod php;
+pub mod polyglot;
 pub mod python;
+pub mod rlang;
+pub mod ruby;
 pub mod rustlang;
+pub mod scala;
 pub mod stack;
+pub mod swift;
 pub mod textutil;
 pub mod tsjs;
 
@@ -86,10 +98,28 @@ pub fn extract_file(file_path: &str, content: &str, language: &str) -> Result<Fi
         "go" => go::extract(file_path, content),
         "c" | "cpp" => ccpp::extract(file_path, content, language),
         "typescript" | "tsx" | "javascript" | "jsx" => tsjs::extract(file_path, content, language),
+        "lua" | "luau" => lua::extract(file_path, content, language),
+        "dart" => dart::extract(file_path, content),
+        "kotlin" => kotlin::extract(file_path, content),
+        "scala" => scala::extract(file_path, content),
+        "swift" => swift::extract(file_path, content),
+        "csharp" => csharp::extract(file_path, content),
+        "java" => java::extract(file_path, content),
+        "php" => php::extract(file_path, content),
+        "ruby" => ruby::extract(file_path, content),
+        "r" => rlang::extract(file_path, content),
+        "vue" => polyglot::extract_vue(file_path, content),
+        "svelte" => polyglot::extract_svelte(file_path, content),
         _ => Err(format!("unsupported language: {}", language)),
-    })?;
+    });
 
-    decode_buffers(file_path, &out)
+    match out {
+        Ok(out_buffers) => decode_buffers(file_path, &out_buffers),
+        Err(_) => {
+            // Polyglot fallback: structural outline AST extraction
+            Ok(polyglot::extract_structural(file_path, content, language))
+        }
+    }
 }
 
 #[inline(always)]
