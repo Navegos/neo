@@ -345,6 +345,7 @@ fn test_phase5_in_process_mcp_server() {
     let root = tmp.path();
     let root_str = root.to_string_lossy().to_string();
 
+    fs::create_dir_all(root.join(".git")).expect("create .git");
     fs::create_dir_all(root.join("src")).expect("create src");
     fs::write(
         root.join("src/service.rs"),
@@ -444,6 +445,7 @@ fn test_phase5_projectmem_location_resolution() {
     let tmp = tempdir().expect("tempdir");
     let root = tmp.path();
 
+    fs::create_dir_all(root.join(".git")).expect("create .git");
     fs::create_dir_all(root.join("src")).expect("create src");
     fs::write(
         root.join("src/crypto.rs"),
@@ -485,6 +487,7 @@ fn test_phase5_cli_graph_commands() {
     let root = tmp.path();
     let root_str = root.to_string_lossy().to_string();
 
+    fs::create_dir_all(root.join(".git")).expect("create .git");
     fs::create_dir_all(root.join("src")).expect("create src");
     fs::write(
         root.join("src/pipeline.rs"),

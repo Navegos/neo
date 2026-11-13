@@ -3,7 +3,7 @@
 // project: toksi
 // file: crates/toksi/src/agents/antigravity.rs
 // created: 2026-10-11
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
@@ -601,7 +601,7 @@ pub fn has_antigravity_codegraph_index_hook() -> bool {
     let Some(cfg) = try_parse_jsonc(&raw) else {
         return false;
     };
-    let Some(group) = json_map_child(&cfg, "toksi-codegraph-index") else {
+    let Some(group) = json_map_child(&cfg, "codegraph") else {
         return false;
     };
     for ev in ["PostToolUse", "PreInvocation"] {
@@ -620,7 +620,7 @@ fn has_codegraph_index_entry(group: &OrderedMap, event: &str) -> bool {
         return false;
     };
     if let Some(cmd_str) = entry.get("command").and_then(|v| v.as_str()) {
-        return cmd_str.contains("codegraph-hook agy") || cmd_str.contains("agy-hook codegraph-index");
+        return cmd_str.contains("codegraph-hook agy");
     }
     let Some(hooks_arr) = entry.get("hooks").and_then(|v| v.as_array()) else {
         return false;
@@ -630,7 +630,7 @@ fn has_codegraph_index_entry(group: &OrderedMap, event: &str) -> bool {
     };
     hook.get("command")
         .and_then(|v| v.as_str())
-        .is_some_and(|s| s.contains("codegraph-hook agy") || s.contains("agy-hook codegraph-index"))
+        .is_some_and(|s| s.contains("codegraph-hook agy"))
 }
 
 pub fn remove_antigravity_codegraph_index_hook() {
@@ -641,7 +641,9 @@ pub fn remove_antigravity_codegraph_index_hook() {
     let Some(mut cfg) = try_parse_jsonc(&raw) else {
         return;
     };
-    if cfg.shift_remove("codegraph").is_some() || cfg.shift_remove("toksi-codegraph-index").is_some() {
+    let removed_new = cfg.shift_remove("codegraph").is_some();
+    let removed_old = cfg.shift_remove("toksi-codegraph-index").is_some();
+    if removed_new || removed_old {
         let _ = paths::write_file(&hooks_file, &stringify_json(&Value::Object(cfg)));
     }
 }
@@ -698,7 +700,8 @@ pub fn install_antigravity_codegraph_index_hook() {
         Value::Array(vec![Value::Object(pre_inv_hook)]),
     );
 
-    cfg.insert("toksi-codegraph-index".to_string(), Value::Object(group));
+    cfg.shift_remove("toksi-codegraph-index");
+    cfg.insert("codegraph".to_string(), Value::Object(group));
 
     let next = stringify_json(&Value::Object(cfg));
     if next != raw {
@@ -1126,7 +1129,7 @@ fn filter_codegraph_index_entries(arr: &[Value]) -> Vec<Value> {
                 .and_then(|hm| hm.get("command"))
                 .and_then(|c| c.as_str())
                 .is_some_and(|s| {
-                    s.contains("agy-hook codegraph-index")
+                    s.contains("codegraph-hook agy")
                         || s.contains("context-mode hook gemini-cli")
                 })
         });

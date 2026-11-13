@@ -49,7 +49,10 @@ pub fn looks_like_project(dir: &str) -> bool {
 }
 
 pub fn find_project_dir(dir: &str) -> String {
-    let current = PathBuf::from(dir);
+    let raw = PathBuf::from(dir);
+    let current = std::fs::canonicalize(&raw)
+        .or_else(|_| std::path::absolute(&raw))
+        .unwrap_or(raw);
     let mut git_root = None;
     let mut marker_root = None;
     let mut iter = current.clone();
@@ -66,12 +69,12 @@ pub fn find_project_dir(dir: &str) -> String {
         }
     }
     if let Some(gr) = git_root {
-        return gr.to_string_lossy().to_string();
+        return crate::util::paths::normalize_path(&gr.to_string_lossy());
     }
     if let Some(mr) = marker_root {
-        return mr.to_string_lossy().to_string();
+        return crate::util::paths::normalize_path(&mr.to_string_lossy());
     }
-    dir.to_string()
+    crate::util::paths::normalize_path(&current.to_string_lossy())
 }
 
 pub fn cursor_project_dir(dir: &str) -> String {

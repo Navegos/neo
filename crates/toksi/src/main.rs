@@ -210,10 +210,10 @@ fn parse_list(raw: Option<&String>, allowed: &[String]) -> Result<Option<Vec<Str
 fn is_session_boot_arg(args: &[String]) -> bool {
     match args {
         [cmd, ..] if cmd == "run-mcp" || cmd == "rtk-hook" || cmd == "grok-hook" || cmd == "codex-perm"
-            || cmd == "agy-hook" || cmd == "cursor-hook" || cmd == "copilot-hook"
+            || cmd == "codegraph-hook" || cmd == "agy-hook" || cmd == "cursor-hook" || cmd == "copilot-hook"
             || cmd == "projectmem-hook" || cmd == "ctx-hook" || cmd == "context-hook" || cmd == "context-mode-hook"
             || cmd == "icm-hook" => true,
-        [a, b, ..] if (a == "rtk" || a == "ctx" || a == "context" || a == "context-mode" || a == "icm") && b == "hook" => true,
+        [a, b, ..] if (a == "rtk" || a == "codegraph" || a == "ctx" || a == "context" || a == "context-mode" || a == "icm") && b == "hook" => true,
         [a, b, ..] if a == "mem" && b == "mcp" => true,
         [a, b, ..] if (a == "ctx" || a == "context" || a == "context-mode") && b == "mcp" => true,
         [a, b, ..] if a == "graph" && b == "mcp" => true,
@@ -291,7 +291,7 @@ fn run() -> i32 {
     }
 
     if is_session_boot_arg(&args[1..]) {
-        if args.len() >= 4 && args[1] == "copilot-hook" && args[2] == "codegraph-index" && args[3] == "--vscode" {
+        if args.len() >= 4 && args[1] == "codegraph-hook" && args[2] == "copilot" && args[3] == "--vscode" {
             let _ = ensure_copilot_proxy_up();
         } else {
             let _ = ensure_proxy_up();
@@ -375,9 +375,6 @@ fn run() -> i32 {
         return run_codegraph_index_hook();
     }
     if args.len() >= 3 && args[1] == "codegraph" && args[2] == "hook" {
-        return run_codegraph_index_hook();
-    }
-    if args.len() >= 3 && (args[1] == "agy-hook" || args[1] == "cursor-hook" || args[1] == "copilot-hook") && args[2] == "codegraph-index" {
         return run_codegraph_index_hook();
     }
     if args.len() >= 3 && args[1] == "cursor-hook" && args[2] == "project-rules" {

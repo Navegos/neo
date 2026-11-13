@@ -25,6 +25,7 @@ pub enum ProtocolKind {
     Stdio,
     Sse,
     Http,
+    DirectWire,
 }
 
 impl ProtocolKind {
@@ -36,6 +37,7 @@ impl ProtocolKind {
             Self::Stdio => "stdio",
             Self::Sse => "sse",
             Self::Http => "http",
+            Self::DirectWire => "directwire",
         }
     }
 }
@@ -57,6 +59,7 @@ impl FromStr for ProtocolKind {
             "stdio" => Ok(Self::Stdio),
             "sse" => Ok(Self::Sse),
             "http" | "rest" => Ok(Self::Http),
+            "directwire" | "direct-wire" | "direct_wire" | "wire" => Ok(Self::DirectWire),
             other => Err(ProtocolError::UnsupportedProtocol(other.to_string())),
         }
     }
@@ -258,19 +261,37 @@ impl UnifiedResponse {
                 }))
                 .unwrap_or_else(|_| "{}".to_string())
             }
+            ProtocolKind::DirectWire => {
+                serde_json::to_string(&serde_json::json!({
+                    "protocol": "directwire",
+                    "status": self.status,
+                    "tool": self.tool.to_string(),
+                    "data": self.result,
+                    "text": self.raw_text
+                }))
+                .unwrap_or_else(|_| "{}".to_string())
+            }
         }
     }
 }
 
 pub struct MultiProtocolDispatcher {
     workspace_root: Option<PathBuf>,
+    codegraph_wire: Arc<crate::codegraph::wire::DirectWireBus>,
 }
 
 impl MultiProtocolDispatcher {
     pub fn new(workspace_root: Option<PathBuf>) -> Self {
+        let norm = workspace_root.map(|p| PathBuf::from(normalize_path(&p.to_string_lossy())));
+        let codegraph_wire = Arc::new(crate::codegraph::wire::DirectWireBus::new(norm.clone()));
         Self {
-            workspace_root: workspace_root.map(|p| PathBuf::from(normalize_path(&p.to_string_lossy()))),
+            workspace_root: norm,
+            codegraph_wire,
         }
+    }
+
+    pub fn codegraph_wire(&self) -> Arc<crate::codegraph::wire::DirectWireBus> {
+        Arc::clone(&self.codegraph_wire)
     }
 
     pub fn dispatch(&self, req: &UnifiedRequest) -> UnifiedResponse {
@@ -392,50 +413,38 @@ impl MultiProtocolDispatcher {
     }
 
     fn dispatch_codegraph(&self, req: &UnifiedRequest, root: &Path) -> UnifiedResponse {
-        let mut cg = match crate::codegraph::CodeGraph::open(root) {
-            Ok(cg) => cg,
-            Err(e) => return UnifiedResponse::error(req.protocol, req.tool, format!("Failed to open codegraph db: {e}")),
+        let use_shared = req.workspace_root.is_none()
+            || self
+                .workspace_root
+                .as_ref()
+                .is_some_and(|w| w == root);
+        let bus_owned;
+        let bus = if use_shared {
+            self.codegraph_wire.as_ref()
+        } else {
+            bus_owned = crate::codegraph::wire::DirectWireBus::new(Some(root.to_path_buf()));
+            &bus_owned
         };
-        let _ = cg.ensure_indexed();
-
-        match req.action.as_str() {
-            "explore" | "codegraph_explore" => {
-                let res = crate::codegraph::mcp::handle_explore(&cg, &req.payload);
-                UnifiedResponse::success(req.protocol, req.tool, serde_json::json!({ "result": res }), Some(res))
-            }
-            "impact" | "codegraph_impact" => {
-                let res = crate::codegraph::mcp::handle_impact(&cg, &req.payload);
-                UnifiedResponse::success(req.protocol, req.tool, serde_json::json!({ "result": res }), Some(res))
-            }
-            "callers" | "codegraph_callers" => {
-                let res = crate::codegraph::mcp::handle_callers(&cg, &req.payload);
-                UnifiedResponse::success(req.protocol, req.tool, serde_json::json!({ "result": res }), Some(res))
-            }
-            "callees" | "codegraph_callees" => {
-                let res = crate::codegraph::mcp::handle_callees(&cg, &req.payload);
-                UnifiedResponse::success(req.protocol, req.tool, serde_json::json!({ "result": res }), Some(res))
-            }
-            "search" | "codegraph_search" => {
-                let res = crate::codegraph::mcp::handle_search(&cg, &req.payload);
-                UnifiedResponse::success(req.protocol, req.tool, serde_json::json!({ "result": res }), Some(res))
-            }
-            "node" | "codegraph_node" | "symbol" | "codegraph_symbol" => {
-                let res = crate::codegraph::mcp::handle_node(&cg, &req.payload);
-                UnifiedResponse::success(req.protocol, req.tool, serde_json::json!({ "result": res }), Some(res))
-            }
-            "status" | "codegraph_status" => {
-                let res = crate::codegraph::mcp::handle_status(&cg);
-                UnifiedResponse::success(req.protocol, req.tool, serde_json::json!({ "result": res }), Some(res))
-            }
-            "files" | "codegraph_files" => {
-                let res = crate::codegraph::mcp::handle_files(&cg);
-                UnifiedResponse::success(req.protocol, req.tool, serde_json::json!({ "result": res }), Some(res))
-            }
-            other => UnifiedResponse::error(
+        let wire_res = bus.dispatch(&req.action, &req.payload);
+        if wire_res.get("status").and_then(|v| v.as_str()) == Some("ok") {
+            let text = wire_res
+                .get("result")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            UnifiedResponse::success(
                 req.protocol,
                 req.tool,
-                format!("CodeGraph action '{}' not implemented", other),
-            ),
+                serde_json::json!({ "result": text }),
+                Some(text),
+            )
+        } else {
+            let err = wire_res
+                .get("error")
+                .and_then(|v| v.as_str())
+                .unwrap_or("CodeGraph error")
+                .to_string();
+            UnifiedResponse::error(req.protocol, req.tool, err)
         }
     }
 
@@ -548,6 +557,7 @@ mod tests {
         assert_eq!("stdio".parse::<ProtocolKind>().unwrap(), ProtocolKind::Stdio);
         assert_eq!("sse".parse::<ProtocolKind>().unwrap(), ProtocolKind::Sse);
         assert_eq!("http".parse::<ProtocolKind>().unwrap(), ProtocolKind::Http);
+        assert_eq!("directwire".parse::<ProtocolKind>().unwrap(), ProtocolKind::DirectWire);
         assert!("unsupported".parse::<ProtocolKind>().is_err());
     }
 
@@ -634,5 +644,46 @@ mod tests {
         );
         let resp_aimem = dispatcher.dispatch(&req_aimem);
         assert_eq!(resp_aimem.status, "ok");
+    }
+
+    #[test]
+    fn test_codegraph_all_protocols_and_direct_wire() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(
+            root.join("src/lib.rs"),
+            "pub fn entry_point() { helper_fn(); }\npub fn helper_fn() {}\n",
+        )
+        .unwrap();
+
+        let dispatcher = MultiProtocolDispatcher::new(Some(root.to_path_buf()));
+        let mut rx = dispatcher.codegraph_wire().subscribe();
+
+        for (proto, action, payload) in [
+            (ProtocolKind::Mcp, "codegraph_explore", serde_json::json!({ "query": "entry_point" })),
+            (ProtocolKind::A2a, "codegraph_impact", serde_json::json!({ "symbol": "helper_fn" })),
+            (ProtocolKind::Acp, "codegraph_symbol", serde_json::json!({ "symbol": "helper_fn" })),
+            (ProtocolKind::Stdio, "codegraph_explore", serde_json::json!({ "query": "helper_fn" })),
+            (ProtocolKind::Sse, "codegraph_impact", serde_json::json!({ "symbol": "helper_fn" })),
+            (ProtocolKind::Http, "codegraph_symbol", serde_json::json!({ "symbol": "entry_point" })),
+            (ProtocolKind::DirectWire, "codegraph_explore", serde_json::json!({ "query": "helper_fn" })),
+        ] {
+            let req = UnifiedRequest::new(proto, ToolTarget::Codegraph, action, payload);
+            let resp = dispatcher.dispatch(&req);
+            assert_eq!(resp.status, "ok", "protocol {proto:?} action {action} failed: {:?}", resp.raw_text);
+            let frame = resp.format_protocol_frame();
+            assert!(!frame.is_empty());
+            if proto == ProtocolKind::Acp {
+                assert!(frame.contains("\"acp_version\":\"2.0\""));
+            } else if proto == ProtocolKind::DirectWire {
+                assert!(frame.contains("\"protocol\":\"directwire\""));
+            }
+        }
+
+        let msg = rx.try_recv().expect("DirectWireBus should broadcast events");
+        assert_eq!(msg.topic, "codegraph");
+        assert_eq!(msg.source, "direct-wire");
     }
 }

@@ -39,7 +39,6 @@ use crate::codegraph::kernel::buffers::{
 use crate::codegraph::kernel::docstring::preceding_docstring_stepping_over;
 use crate::codegraph::kernel::ids;
 use crate::codegraph::kernel::textutil as util;
-use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use tree_sitter::{Node, Parser};
@@ -83,23 +82,23 @@ fn is_builtin_type(name: &str) -> bool {
 }
 
 /// extractDartReturnType's simple-name gate + the static-member receiver gate.
-fn simple_type_name_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Za-z_]\w*$").unwrap())
+fn simple_type_name_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_]\w*$"))
 }
-fn cap_ident_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Z][A-Za-z0-9_]*$").unwrap())
+fn cap_ident_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Z][A-Za-z0-9_]*$"))
 }
 /// The chained-call re-encode gate (`/^[A-Z]/`).
-fn starts_upper_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Z]").unwrap())
+fn starts_upper_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Z]"))
 }
 /// extractDartReturnType's `<...>` strip (`/<[^>]*>/g`).
-fn angle_args_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"<[^>]*>").unwrap())
+fn angle_args_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"<[^>]*>"))
 }
 
 /// The UpperCamel test of isDartTypeName (`/^[_$]*[A-Z]/`) — how Dart writes
@@ -263,7 +262,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     let name_ref = w.arena.put(base_name);
     let qn_ref = w.arena.put(file_path);
     w.tables.push_node(&NodeRow {
-        kind: node_kind_index("file").unwrap(),
+        kind: node_kind_index("file").unwrap_or(0),
         visibility: 0,
         flags,
         start_line: 1,
@@ -326,7 +325,7 @@ impl<'t> Walker<'t> {
         let name_ref = self.arena.put(name);
         self.tables.push_ref(&RefRow {
             from_idx: from_row,
-            kind: edge_kind_index(kind).unwrap(),
+            kind: edge_kind_index(kind).unwrap_or(0),
             line: self.line_of(node),
             column: self.col_of(node),
             reference_name: name_ref,
@@ -393,7 +392,7 @@ impl<'t> Walker<'t> {
             flags.set(FLAG_IS_STATIC, v);
         }
         let row = self.tables.push_node(&NodeRow {
-            kind: node_kind_index(kind).unwrap(),
+            kind: node_kind_index(kind).unwrap_or(0),
             visibility: extra.visibility,
             flags,
             start_line,
@@ -419,7 +418,7 @@ impl<'t> Walker<'t> {
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
             target_idx: row,
-            kind: edge_kind_index("contains").unwrap(),
+            kind: edge_kind_index("contains").unwrap_or(0),
             provenance: 0,
             line: NONE,
             column: NONE,
@@ -2124,7 +2123,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        let refs_kind = edge_kind_index("references").unwrap();
+        let refs_kind = edge_kind_index("references").unwrap_or(0);
         for scope in &scopes {
             let mut seen: HashSet<&str> = HashSet::new();
             let mut stack: Vec<Node> = vec![scope.node];

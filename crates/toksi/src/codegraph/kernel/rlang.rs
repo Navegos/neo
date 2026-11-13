@@ -27,14 +27,13 @@ use crate::codegraph::kernel::buffers::{
 };
 use crate::codegraph::kernel::ids;
 use crate::codegraph::kernel::textutil as util;
-use regex::Regex;
 use std::sync::OnceLock;
 use tree_sitter::{Node, Parser};
 
 /// CONSTANT_NAME (r.ts:43) — ALL_CAPS or DOTTED.CAPS top-level assignment.
-fn constant_name_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Z][A-Z0-9._]*$").unwrap())
+fn constant_name_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Z][A-Z0-9._]*$"))
 }
 
 /// ASSIGN_LEFT / ASSIGN_RIGHT (r.ts:37-38).
@@ -107,7 +106,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     let name_ref = w.arena.put(base_name);
     let qn_ref = w.arena.put(file_path);
     w.tables.push_node(&NodeRow {
-        kind: node_kind_index("file").unwrap(),
+        kind: node_kind_index("file").unwrap_or(0),
         visibility: 0,
         flags,
         start_line: 1,
@@ -163,7 +162,7 @@ impl<'t> Walker<'t> {
         let name_ref = self.arena.put(name);
         self.tables.push_ref(&RefRow {
             from_idx: from_row,
-            kind: edge_kind_index(kind).unwrap(),
+            kind: edge_kind_index(kind).unwrap_or(0),
             line: self.line_of(node),
             column: self.col_of(node),
             reference_name: name_ref,
@@ -210,7 +209,7 @@ impl<'t> Walker<'t> {
             None => NONE_STR,
         };
         let row = self.tables.push_node(&NodeRow {
-            kind: node_kind_index(kind).unwrap(),
+            kind: node_kind_index(kind).unwrap_or(0),
             visibility: 0,
             flags: BoolFlags::default(),
             start_line,
@@ -233,7 +232,7 @@ impl<'t> Walker<'t> {
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
             target_idx: row,
-            kind: edge_kind_index("contains").unwrap(),
+            kind: edge_kind_index("contains").unwrap_or(0),
             provenance: 0,
             line: NONE,
             column: NONE,
@@ -516,11 +515,13 @@ impl<'t> Walker<'t> {
             let arg_name_text = self.text(arg_name);
             // R6 `inherit = Parent` / S4 `contains = "Parent"` — a falsy
             // resolution (`inherit = pkg::Parent`, empty string) emits nothing.
-            if (arg_name_text == "inherit" || arg_name_text == "contains") && value.is_some() {
-                if let Some(parent) = self.literal_or_identifier(value) {
+            if (arg_name_text == "inherit" || arg_name_text == "contains")
+                && let Some(val_node) = value
+            {
+                if let Some(parent) = self.literal_or_identifier(Some(val_node)) {
                     if !parent.is_empty() {
                         let parent = parent.to_string();
-                        self.push_ref_at(class_row, &parent, "extends", value.unwrap());
+                        self.push_ref_at(class_row, &parent, "extends", val_node);
                     }
                 }
                 continue;

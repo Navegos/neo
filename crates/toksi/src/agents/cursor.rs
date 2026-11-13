@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/cursor.rs
 // created: 2026-10-11
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 use std::collections::HashSet;
 use std::fs;
@@ -741,7 +741,7 @@ fn cursor_owned_codegraph_hook_entry_for(v: &Value, want: &str) -> bool {
         return false;
     }
     let cmd = e.get("command").and_then(|c| c.as_str()).unwrap_or("");
-    cmd == want || cmd.contains("codegraph-hook cursor") || cmd.contains("cursor-hook codegraph-index")
+    cmd == want || cmd.contains("codegraph-hook cursor")
 }
 
 pub fn has_cursor_codegraph_index_hook() -> bool {

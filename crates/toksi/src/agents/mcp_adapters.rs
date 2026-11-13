@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/mcp_adapters.rs
 // created: 2026-10-20
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 use std::path::Path;
 use std::sync::Arc;
@@ -39,7 +39,7 @@ pub fn normalize_mcp_tool_id(tool_id: &str) -> &'static str {
     match tool_id.trim() {
         "projectmem" | "toksi-projectmem" | "pjm" => "projectmem",
         "context" | "context-mode" | "toksi-context-mode" | "ctx" => "context",
-        "codegraph" | "toksi-codegraph" | "toksi-codegraph-index" => "codegraph",
+        "codegraph" | "toksi-codegraph" => "codegraph",
         "icm" | "toksi-icm" => "icm",
         "aimemory" | "ai-memory" | "toksi-aimemory" => "aimemory",
         "rtk" | "toksi-rtk" => "rtk",

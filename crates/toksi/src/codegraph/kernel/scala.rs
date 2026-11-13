@@ -34,7 +34,6 @@ use crate::codegraph::kernel::buffers::{
 use crate::codegraph::kernel::docstring::preceding_docstring;
 use crate::codegraph::kernel::ids;
 use crate::codegraph::kernel::textutil as util;
-use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use tree_sitter::{Node, Parser};
@@ -93,29 +92,29 @@ fn is_scala_builtin(name: &str) -> bool {
 }
 
 /// extractScalaReturnType's simple-name gate (`/^[A-Za-z_]\w*$/`).
-fn simple_type_name_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Za-z_]\w*$").unwrap())
+fn simple_type_name_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_]\w*$"))
 }
 /// extractScalaReturnType's generic-args strip (`/\[[^\]]*\]/g`).
-fn bracket_args_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\[[^\]]*\]").unwrap())
+fn bracket_args_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"\[[^\]]*\]"))
 }
 /// Static-member receiver gate (`/^[A-Z][A-Za-z0-9_]*$/`).
-fn cap_ident_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Z][A-Za-z0-9_]*$").unwrap())
+fn cap_ident_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Z][A-Za-z0-9_]*$"))
 }
 /// The #750 re-encode gate (`/^[A-Z]/`).
-fn starts_upper_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Z]").unwrap())
+fn starts_upper_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Z]"))
 }
 /// JS `\s+` for the re-encode/return-type strips (Unicode whitespace).
-fn ws_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\s+").unwrap())
+fn ws_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"\s+"))
 }
 
 struct Scope {
@@ -209,7 +208,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     let name_ref = w.arena.put(base_name);
     let qn_ref = w.arena.put(file_path);
     w.tables.push_node(&NodeRow {
-        kind: node_kind_index("file").unwrap(),
+        kind: node_kind_index("file").unwrap_or(0),
         visibility: 0,
         flags,
         start_line: 1,
@@ -274,7 +273,7 @@ impl<'t> Walker<'t> {
         let name_ref = self.arena.put(name);
         self.tables.push_ref(&RefRow {
             from_idx: from_row,
-            kind: edge_kind_index(kind).unwrap(),
+            kind: edge_kind_index(kind).unwrap_or(0),
             line: self.line_of(node),
             column: self.col_of(node),
             reference_name: name_ref,
@@ -333,7 +332,7 @@ impl<'t> Walker<'t> {
             flags.set(FLAG_IS_STATIC, v);
         }
         let row = self.tables.push_node(&NodeRow {
-            kind: node_kind_index(kind).unwrap(),
+            kind: node_kind_index(kind).unwrap_or(0),
             visibility: extra.visibility,
             flags,
             start_line,
@@ -359,7 +358,7 @@ impl<'t> Walker<'t> {
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
             target_idx: row,
-            kind: edge_kind_index("contains").unwrap(),
+            kind: edge_kind_index("contains").unwrap_or(0),
             provenance: 0,
             line: NONE,
             column: NONE,
@@ -1434,7 +1433,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        let refs_kind = edge_kind_index("references").unwrap();
+        let refs_kind = edge_kind_index("references").unwrap_or(0);
         for scope in &scopes {
             let mut seen: HashSet<&str> = HashSet::new();
             let mut stack: Vec<Node> = vec![scope.node];

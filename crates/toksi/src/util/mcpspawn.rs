@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/mcpspawn.rs
 // created: 2026-10-05
-// lastModified: 2026-11-06
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::io::{self, BufRead, BufReader, Write};
@@ -120,7 +120,7 @@ pub fn pick_codegraph_spawn(_extra_args: &[&str]) -> Option<McpSpawn> {
 pub fn pick_mcp_spawn(bin: &str, extra_args: &[&str]) -> McpSpawn {
     let extra_vec: Vec<String> = extra_args.iter().map(|s| s.to_string()).collect();
 
-    if bin == "codegraph" || bin == "toksi-codegraph" || bin == "toksi-codegraph-index" {
+    if bin == "codegraph" || bin == "toksi-codegraph" {
         if let Some(spawn) = pick_codegraph_spawn(extra_args) {
             return spawn;
         }

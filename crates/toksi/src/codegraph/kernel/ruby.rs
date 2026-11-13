@@ -23,7 +23,6 @@ use crate::codegraph::kernel::buffers::{
 use crate::codegraph::kernel::docstring::preceding_docstring;
 use crate::codegraph::kernel::ids;
 use crate::codegraph::kernel::textutil as util;
-use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use tree_sitter::{Node, Parser};
@@ -41,16 +40,16 @@ fn is_stoplisted(name: &str) -> bool {
 
 /// isRubyHookCall (function-ref.ts:282-286).
 fn is_ruby_hook_call(name: &str) -> bool {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    let re = RE.get_or_init(|| Regex::new(r"^(skip_)?(before|after|around)_[a-z_]+$").unwrap());
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    let re = RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^(skip_)?(before|after|around)_[a-z_]+$"));
     re.is_match(name)
         || matches!(name, "validate" | "set_callback" | "helper_method" | "rescue_from")
 }
 
 /// The hook-DSL symbol shape (`/^[A-Za-z_][A-Za-z0-9_?!]*$/`).
-fn ruby_sym_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Za-z_][A-Za-z0-9_?!]*$").unwrap())
+fn ruby_sym_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_][A-Za-z0-9_?!]*$"))
 }
 
 /// Node `path.posix.normalize` for the require_relative path join
@@ -172,7 +171,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     let name_ref = w.arena.put(base_name);
     let qn_ref = w.arena.put(file_path);
     w.tables.push_node(&NodeRow {
-        kind: node_kind_index("file").unwrap(),
+        kind: node_kind_index("file").unwrap_or(0),
         visibility: 0,
         flags,
         start_line: 1,
@@ -257,7 +256,7 @@ impl<'t> Walker<'t> {
             candidates: NONE_STR,
             from_id_str: NONE_STR,
         });
-        if kind_code == edge_kind_index("imports").unwrap() {
+        if kind_code == edge_kind_index("imports").unwrap_or(0) {
             if util::simple_name().is_match(name) {
                 self.imported_names.insert(name.to_string());
             } else if let Some(c) = util::qualified_import().captures(name) {
@@ -307,7 +306,7 @@ impl<'t> Walker<'t> {
             flags.set(FLAG_IS_STATIC, v);
         }
         let row = self.tables.push_node(&NodeRow {
-            kind: node_kind_index(kind).unwrap(),
+            kind: node_kind_index(kind).unwrap_or(0),
             visibility: extra.visibility.unwrap_or(0),
             flags,
             start_line,
@@ -330,7 +329,7 @@ impl<'t> Walker<'t> {
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
             target_idx: row,
-            kind: edge_kind_index("contains").unwrap(),
+            kind: edge_kind_index("contains").unwrap_or(0),
             provenance: 0,
             line: NONE,
             column: NONE,
@@ -422,7 +421,7 @@ impl<'t> Walker<'t> {
                     // (nodeStack is never empty — the file node is pushed.)
                     if let Some(args) = args {
                         let parent = self.top_row();
-                        let implements = edge_kind_index("implements").unwrap();
+                        let implements = edge_kind_index("implements").unwrap_or(0);
                         let line = self.line_of(node);
                         let col = self.col_of(node);
                         for i in 0..args.named_child_count() {
@@ -567,7 +566,7 @@ impl<'t> Walker<'t> {
             // NOT in the set, so `5.times { beep }` emits nothing for beep).
             let name = bare.to_string();
             let from = self.top_row();
-            self.push_ref_at(from, &name, edge_kind_index("calls").unwrap(), node);
+            self.push_ref_at(from, &name, edge_kind_index("calls").unwrap_or(0), node);
         }
 
         // (No INSTANTIATION_KINDS for ruby — `.new` is handled in extract_call;
@@ -681,7 +680,7 @@ impl<'t> Walker<'t> {
         // extractInheritance: the `superclass` clause — ONE extends ref, FULL
         // text (scope_resolution / even `Struct.new(:a)` expressions verbatim),
         // positioned at the type child.
-        let extends_kind = edge_kind_index("extends").unwrap();
+        let extends_kind = edge_kind_index("extends").unwrap_or(0);
         for i in 0..node.named_child_count() {
             let Some(child) = node.named_child(i) else { continue };
             if child.kind() == "superclass" {
@@ -764,7 +763,7 @@ impl<'t> Walker<'t> {
             Extra { signature: Some(import_text), ..Extra::default() },
         );
         let parent = self.top_row();
-        let imports_kind = edge_kind_index("imports").unwrap();
+        let imports_kind = edge_kind_index("imports").unwrap_or(0);
         self.push_ref_at(parent, &module_name.clone(), imports_kind, node);
 
         // emitRubyRequireRefs (3532): the file-path ref. Bare gem/stdlib
@@ -807,7 +806,7 @@ impl<'t> Walker<'t> {
         }
         let line = self.line_of(node);
         let col = self.col_of(node);
-        let calls_kind = edge_kind_index("calls").unwrap();
+        let calls_kind = edge_kind_index("calls").unwrap_or(0);
 
         let Some(receiver) = node.child_by_field_name("receiver") else {
             // Bare `foo(...)` — just the method name.
@@ -828,7 +827,7 @@ impl<'t> Walker<'t> {
                 self.push_ref(
                     caller,
                     &class_name.to_string(),
-                    edge_kind_index("instantiates").unwrap(),
+                    edge_kind_index("instantiates").unwrap_or(0),
                     line,
                     col,
                 );
@@ -859,7 +858,7 @@ impl<'t> Walker<'t> {
             self.push_ref_at(
                 caller,
                 &receiver_name.to_string(),
-                edge_kind_index("references").unwrap(),
+                edge_kind_index("references").unwrap_or(0),
                 receiver,
             );
         }
@@ -1107,7 +1106,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        let refs_kind = edge_kind_index("references").unwrap();
+        let refs_kind = edge_kind_index("references").unwrap_or(0);
         for scope in &scopes {
             let mut seen: HashSet<&str> = HashSet::new();
             let mut stack: Vec<Node> = vec![scope.node];

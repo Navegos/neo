@@ -67,6 +67,7 @@ pub fn copilot_transaction_paths(extra_paths: &[String]) -> Vec<String> {
         Path::new(&p.dir).join("permissions-config.json").to_string_lossy().to_string(),
         Path::new(&p.hooks_dir).join("context-mode.json").to_string_lossy().to_string(),
         Path::new(&p.hooks_dir).join("toksi-rtk.json").to_string_lossy().to_string(),
+        Path::new(&p.hooks_dir).join("codegraph.json").to_string_lossy().to_string(),
         Path::new(&p.hooks_dir).join("toksi-codegraph-index.json").to_string_lossy().to_string(),
         copilot_shim_digest_path(),
     ];
@@ -78,6 +79,7 @@ pub fn copilot_transaction_paths(extra_paths: &[String]) -> Vec<String> {
         raw.push(r.join(".github").join("copilot-instructions.md").to_string_lossy().to_string());
         raw.push(r.join(".github").join("hooks").join("context-mode.json").to_string_lossy().to_string());
         raw.push(r.join(".github").join("hooks").join("toksi-rtk.json").to_string_lossy().to_string());
+        raw.push(r.join(".github").join("hooks").join("codegraph.json").to_string_lossy().to_string());
         raw.push(r.join(".github").join("hooks").join("toksi-codegraph-index.json").to_string_lossy().to_string());
     }
 

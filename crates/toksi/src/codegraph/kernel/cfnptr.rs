@@ -506,7 +506,9 @@ fn match_brace(s: &[u8], open: usize) -> Option<usize> {
 fn modifier_positions(s: &[u8], start: usize) -> Vec<usize> {
     let mut stack = vec![start];
     loop {
-        let cur = *stack.last().unwrap();
+        let Some(&cur) = stack.last() else {
+            return stack;
+        };
         let mut advanced = None;
         for m in MODIFIERS {
             if s.len() >= cur + m.len() && &s[cur..cur + m.len()] == m {
@@ -743,7 +745,9 @@ fn alias_line(line: &[u8]) -> Option<&[u8]> {
     // (?:(?:struct|union)[ \t]+)* greedy, k-descending on value failure.
     let mut stack = vec![v0];
     loop {
-        let cur = *stack.last().unwrap();
+        let Some(&cur) = stack.last() else {
+            break;
+        };
         let keyword_len = if line.len() >= cur + 6 && &line[cur..cur + 6] == b"struct" {
             Some(6)
         } else if line.len() >= cur + 5 && &line[cur..cur + 5] == b"union" {

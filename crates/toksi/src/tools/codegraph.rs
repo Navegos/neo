@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/codegraph.rs
 // created: 2026-10-05
-// lastModified: 2026-11-05
+// lastModified: 2026-11-13
 
 use std::env;
 use std::fs;
@@ -15,9 +15,8 @@ use crate::core::{Channel, DynError, RunOpts, ToolManifest};
 use crate::util::instructions::{cursor_project_rule_content, install_cursor_project_rules};
 use crate::util::mcpspawn::{pick_codegraph_spawn, wrap_auto_index};
 use crate::util::paths::{
-    claude_code_paths, cline_paths_resolved, cursor_paths_resolved, ensure_dir, exists,
+    claude_code_paths, cline_paths_resolved, cursor_paths_resolved, exists,
     kilo_paths_resolved, opencode_paths_resolved, read_file_safe,
-    toksi_persisted_abs, write_file_atomic,
 };
 use super::autoindex::unwire_auto_index;
 use super::copilot_transaction::with_copilot_transaction;
@@ -117,7 +116,12 @@ pub fn codegraph_configure_mcp(agent: &str, opts: &RunOpts) -> Result<bool, DynE
             if !upsert_json_mcp_entry(&pi_mcp_path(), "mcpServers", "codegraph", &spawn, &[]) {
                 return Err("failed to configure codegraph MCP for pi".into());
             }
-            write_pi_codegraph_index_extension();
+            let legacy_ext = Path::new(&pi_agent_dir_resolved())
+                .join("extensions")
+                .join("codegraph-index.ts");
+            if legacy_ext.exists() {
+                let _ = fs::remove_file(legacy_ext);
+            }
             Ok(true)
         }
         "omp" => {
@@ -307,32 +311,6 @@ pub fn ensure_codegraph_index(dir: &str, opts: &RunOpts) -> Result<bool, DynErro
 
 pub fn codegraph_index_project(dir: &str, opts: &RunOpts) -> Result<bool, DynError> {
     ensure_codegraph_index(dir, opts)
-}
-
-const PI_CODEGRAPH_INDEX_EXT: &str = r#"const TOKSI_BIN = %TOKSI%
-
-export default function (pi: any) {
-  pi.on("session_start", async () => {
-    try {
-      await pi.exec(TOKSI_BIN, ["index", "--codegraph-hook"])
-    } catch {}
-  })
-}
-"#;
-
-pub fn write_pi_codegraph_index_extension() {
-    let exe = toksi_persisted_abs();
-    if exe.is_empty() {
-        return;
-    }
-    let p = Path::new(&pi_agent_dir_resolved())
-        .join("extensions")
-        .join("codegraph-index.ts");
-    if let Some(parent) = p.parent() {
-        let _ = ensure_dir(parent);
-    }
-    let content = PI_CODEGRAPH_INDEX_EXT.replace("%TOKSI%", &format!("{:?}", exe));
-    let _ = write_file_atomic(p, &content);
 }
 
 pub fn write_codegraph_block(agent: &str) -> bool {

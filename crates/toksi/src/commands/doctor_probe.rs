@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor_probe.rs
 // created: 2026-10-05
-// lastModified: 2026-11-06
+// lastModified: 2026-11-13
 
 use std::env;
 use std::io;
@@ -162,7 +162,7 @@ pub fn is_toksi_managed_hook(fields: &[String]) -> bool {
     }
     matches!(
         fields[1].as_str(),
-        "rtk-hook" | "codex-perm" | "agy-hook" | "copilot-hook" | "projectmem-hook" | "grok-hook" | "cursor-hook" | "index" | "ctx-hook" | "context-mode-hook"
+        "rtk-hook" | "codex-perm" | "codegraph-hook" | "agy-hook" | "copilot-hook" | "projectmem-hook" | "grok-hook" | "cursor-hook" | "index" | "ctx-hook" | "context-mode-hook"
     )
 }
 
@@ -523,9 +523,9 @@ fn managed_hook_commands(agent_id: &str) -> Vec<String> {
         "copilot" => {
             let p = copilot_paths_resolved();
             raws.push(read_file_or_empty(&format!("{}/toksi-rtk.json", p.hooks_dir)));
-            raws.push(read_file_or_empty(&format!("{}/toksi-codegraph-index.json", p.hooks_dir)));
+            raws.push(read_file_or_empty(&format!("{}/codegraph.json", p.hooks_dir)));
             raws.push(read_file_or_empty(&format!("{}/.github/hooks/toksi-rtk.json", ide_root_for_doctor())));
-            raws.push(read_file_or_empty(&format!("{}/.github/hooks/toksi-codegraph-index.json", ide_root_for_doctor())));
+            raws.push(read_file_or_empty(&format!("{}/.github/hooks/codegraph.json", ide_root_for_doctor())));
         }
         "droid" => {
             raws.push(read_file_or_empty(&format!("{}/.factory/hooks.json", home())));

@@ -1,6 +1,6 @@
 {
-  "command": "git grep -i record length",
-  "root_cause": "fatal: ambiguous argument 'length': unknown revision or path not in the working tree.",
-  "raw_output": "fatal: ambiguous argument 'length': unknown revision or path not in the working tree.\nUse '--' to separate paths from revisions, like this:\n'git <command> [<revision>...] -- [<file>...]'\n",
-  "timestamp": "2026-11-12T22:41:34Z"
+  "command": "cargo test -p toksi -- test_polyglot_treesitter_vue_svelte_cfnptr --nocapture",
+  "root_cause": "thread 'codegraph::tests::tests::test_polyglot_treesitter_vue_svelte_cfnptr' (47156) panicked at crates\\toksi\\src\\codegraph\\tests.rs:1008:9:",
+  "raw_output": "\nrunning 1 test\ntest codegraph::tests::tests::test_polyglot_treesitter_vue_svelte_cfnptr ... FAILED\n\nfailures:\n\nfailures:\n    codegraph::tests::tests::test_polyglot_treesitter_vue_svelte_cfnptr\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 447 filtered out; finished in 0.03s\n\n\n   Compiling toksi v3.0.2 (D:\\AI\\neo\\crates\\toksi)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 41.51s\n     Running unittests src\\lib.rs (target\\debug\\build\\toksi/1c84e580aadaff57\\out\\toksi-1c84e580aadaff57.exe)\n\nthread 'codegraph::tests::tests::test_polyglot_treesitter_vue_svelte_cfnptr' (47156) panicked at crates\\toksi\\src\\codegraph\\tests.rs:1008:9:\npolyglot failures:\nsql: expected users, got [\"schema.sql\"], sexp=Some(\"(program (statement (create_table (keyword_create) (keyword_table) (object_reference name: (identifier)) (column_definitions (column_definition name: (identifier) type: (int (keyword_int)))))))\")\nprotobuf: expected Ping, got [\"msg.proto\"], sexp=Some(\"(source_file (syntax) (message (message_name (identifier)) (message_body (field (type) (identifier) (field_number (int_lit (decimal_lit)))))))\")\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `-p toksi --lib`\n",
+  "timestamp": "2026-11-13T16:30:22Z"
 }

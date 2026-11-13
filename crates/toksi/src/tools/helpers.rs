@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/helpers.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::env;
 use std::fs;
@@ -656,12 +656,17 @@ pub fn remove_cursor_codegraph_index_hook() -> bool {
 // --- Copilot CodeGraph Index Hooks ---
 
 pub fn install_copilot_codegraph_index_hook_safe() -> Result<(), String> {
-    let cmd = toksi_cmd(&["index", "--codegraph-hook"]);
+    let cmd = toksi_cmd(&["codegraph-hook", "copilot"]);
     if cmd.is_empty() {
         return Err("no toksi command".into());
     }
-    let p = Path::new(&copilot_paths_resolved().hooks_dir)
-        .join("toksi-codegraph-index.json")
+    let hooks_dir = copilot_paths_resolved().hooks_dir;
+    let legacy = Path::new(&hooks_dir).join("toksi-codegraph-index.json");
+    if legacy.exists() {
+        let _ = fs::remove_file(&legacy);
+    }
+    let p = Path::new(&hooks_dir)
+        .join("codegraph.json")
         .to_string_lossy()
         .to_string();
     if let Some(parent) = Path::new(&p).parent() {
@@ -673,14 +678,17 @@ pub fn install_copilot_codegraph_index_hook_safe() -> Result<(), String> {
 }
 
 pub fn install_copilot_ide_codegraph_index_hook_safe() -> Result<(), String> {
-    let cmd = toksi_cmd(&["index", "--codegraph-hook"]);
+    let cmd = toksi_cmd(&["codegraph-hook", "copilot", "--vscode"]);
     if cmd.is_empty() {
         return Err("no toksi command".into());
     }
-    let p = Path::new(&ide_project_root())
-        .join(".github")
-        .join("hooks")
-        .join("toksi-codegraph-index.json")
+    let hooks_dir = Path::new(&ide_project_root()).join(".github").join("hooks");
+    let legacy = hooks_dir.join("toksi-codegraph-index.json");
+    if legacy.exists() {
+        let _ = fs::remove_file(&legacy);
+    }
+    let p = hooks_dir
+        .join("codegraph.json")
         .to_string_lossy()
         .to_string();
     if let Some(parent) = Path::new(&p).parent() {
@@ -693,7 +701,7 @@ pub fn install_copilot_ide_codegraph_index_hook_safe() -> Result<(), String> {
 
 pub fn has_copilot_codegraph_index_hook() -> bool {
     let p = Path::new(&copilot_paths_resolved().hooks_dir)
-        .join("toksi-codegraph-index.json")
+        .join("codegraph.json")
         .to_string_lossy()
         .to_string();
     exists(&p)
@@ -703,32 +711,30 @@ pub fn has_copilot_ide_codegraph_index_hook() -> bool {
     let p = Path::new(&ide_project_root())
         .join(".github")
         .join("hooks")
-        .join("toksi-codegraph-index.json")
+        .join("codegraph.json")
         .to_string_lossy()
         .to_string();
     exists(&p)
 }
 
 pub fn remove_copilot_codegraph_index_hook_safe() -> Result<(), String> {
-    let p = Path::new(&copilot_paths_resolved().hooks_dir)
-        .join("toksi-codegraph-index.json")
-        .to_string_lossy()
-        .to_string();
-    if exists(&p) {
-        let _ = fs::remove_file(&p);
+    let hooks_dir = copilot_paths_resolved().hooks_dir;
+    for file in ["codegraph.json", "toksi-codegraph-index.json"] {
+        let p = Path::new(&hooks_dir).join(file).to_string_lossy().to_string();
+        if exists(&p) {
+            let _ = fs::remove_file(&p);
+        }
     }
     Ok(())
 }
 
 pub fn remove_copilot_ide_codegraph_index_hook_safe() -> Result<(), String> {
-    let p = Path::new(&ide_project_root())
-        .join(".github")
-        .join("hooks")
-        .join("toksi-codegraph-index.json")
-        .to_string_lossy()
-        .to_string();
-    if exists(&p) {
-        let _ = fs::remove_file(&p);
+    let hooks_dir = Path::new(&ide_project_root()).join(".github").join("hooks");
+    for file in ["codegraph.json", "toksi-codegraph-index.json"] {
+        let p = hooks_dir.join(file).to_string_lossy().to_string();
+        if exists(&p) {
+            let _ = fs::remove_file(&p);
+        }
     }
     Ok(())
 }

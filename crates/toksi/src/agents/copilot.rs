@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/copilot.rs
 // created: 2026-10-11
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -494,8 +494,12 @@ pub fn install_copilot_codegraph_index_hook_safe() -> Result<(), String> {
     let mut root = OrderedMap::new();
     root.insert("version".to_string(), Value::from(1));
     root.insert("hooks".to_string(), Value::Object(hooks));
+    let legacy = copilot_hooks_file("toksi-codegraph-index.json");
+    if Path::new(&legacy).exists() {
+        let _ = fs::remove_file(&legacy);
+    }
     write_owned_copilot_hook(
-        &copilot_hooks_file("toksi-codegraph-index.json"),
+        &copilot_hooks_file("codegraph.json"),
         &stringify_json(&Value::Object(root)),
         "codegraph-hook copilot",
     )
@@ -506,13 +510,13 @@ pub fn remove_copilot_codegraph_index_hook() {
 }
 
 pub fn remove_copilot_codegraph_index_hook_safe() -> Result<(), String> {
-    let _ = remove_owned_copilot_hook(
-        &copilot_hooks_file("toksi-codegraph-index.json"),
-        "codegraph-hook copilot",
-    );
+    let legacy = copilot_hooks_file("toksi-codegraph-index.json");
+    if Path::new(&legacy).exists() {
+        let _ = fs::remove_file(&legacy);
+    }
     remove_owned_copilot_hook(
-        &copilot_hooks_file("toksi-codegraph-index.json"),
-        "copilot-hook codegraph-index",
+        &copilot_hooks_file("codegraph.json"),
+        "codegraph-hook copilot",
     )
 }
 
@@ -538,8 +542,12 @@ pub fn install_copilot_ide_codegraph_index_hook_safe() -> Result<(), String> {
     let mut root = OrderedMap::new();
     root.insert("version".to_string(), Value::from(1));
     root.insert("hooks".to_string(), Value::Object(hooks));
+    let legacy = copilot_ide_hooks_file("toksi-codegraph-index.json");
+    if Path::new(&legacy).exists() {
+        let _ = fs::remove_file(&legacy);
+    }
     write_owned_copilot_hook(
-        &copilot_ide_hooks_file("toksi-codegraph-index.json"),
+        &copilot_ide_hooks_file("codegraph.json"),
         &stringify_json(&Value::Object(root)),
         "codegraph-hook copilot",
     )
@@ -672,7 +680,7 @@ fn copilot_hook_owned(cfg: &OrderedMap, marker: &str) -> bool {
                 expected.insert("sessionStart");
             }
         }
-        "codegraph-hook copilot" | "copilot-hook codegraph-index" => {
+        "codegraph-hook copilot" => {
             if copilot_hook_command_marker(cfg).contains("--vscode") {
                 expected.insert("SessionStart");
                 expected_timeout = 120;
@@ -757,13 +765,9 @@ fn copilot_hook_command_owned(command: &str, marker: &str) -> bool {
             toksi_managed_command(command, &["projectmem-hook", "copilot"])
                 || toksi_managed_command(command, &["projectmem-hook", "flat"])
         }
-        "codegraph-hook copilot" | "copilot-hook codegraph-index" => {
+        "codegraph-hook copilot" => {
             toksi_managed_command(command, &["codegraph-hook", "copilot"])
-                || toksi_managed_command(command, &["copilot-hook", "codegraph-index"])
-                || toksi_managed_command(
-                    command,
-                    &["copilot-hook", "codegraph-index", "--vscode"],
-                )
+                || toksi_managed_command(command, &["codegraph-hook", "copilot", "--vscode"])
         }
         _ => command == marker,
     }
@@ -784,18 +788,18 @@ pub fn remove_copilot_ide_codegraph_index_hook() {
 }
 
 pub fn remove_copilot_ide_codegraph_index_hook_safe() -> Result<(), String> {
-    let _ = remove_owned_copilot_hook(
-        &copilot_ide_hooks_file("toksi-codegraph-index.json"),
-        "codegraph-hook copilot",
-    );
+    let legacy = copilot_ide_hooks_file("toksi-codegraph-index.json");
+    if Path::new(&legacy).exists() {
+        let _ = fs::remove_file(&legacy);
+    }
     remove_owned_copilot_hook(
-        &copilot_ide_hooks_file("toksi-codegraph-index.json"),
-        "copilot-hook codegraph-index",
+        &copilot_ide_hooks_file("codegraph.json"),
+        "codegraph-hook copilot",
     )
 }
 
 pub fn has_copilot_ide_codegraph_index_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("toksi-codegraph-index.json"))
+    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("codegraph.json"))
     else {
         return false;
     };
@@ -803,11 +807,10 @@ pub fn has_copilot_ide_codegraph_index_hook() -> bool {
         return false;
     };
     copilot_hook_owned(&cfg, "codegraph-hook copilot")
-        || copilot_hook_owned(&cfg, "copilot-hook codegraph-index")
 }
 
 pub fn has_copilot_codegraph_index_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("toksi-codegraph-index.json"))
+    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("codegraph.json"))
     else {
         return false;
     };
@@ -815,7 +818,6 @@ pub fn has_copilot_codegraph_index_hook() -> bool {
         return false;
     };
     copilot_hook_owned(&cfg, "codegraph-hook copilot")
-        || copilot_hook_owned(&cfg, "copilot-hook codegraph-index")
 }
 
 pub fn install_copilot_projectmem_hook_safe() -> Result<(), String> {
@@ -1219,6 +1221,7 @@ pub fn copilot_transaction_file_owned(path: &str) -> bool {
         .and_then(|s| s.to_str())
         .unwrap_or("");
     if base == "context-mode.json"
+        || base == "codegraph.json"
         || base == "toksi-codegraph-index.json"
         || base == "toksi-rtk.json"
     {
@@ -1228,7 +1231,7 @@ pub fn copilot_transaction_file_owned(path: &str) -> bool {
         for marker in [
             "context-mode hook copilot-cli",
             "context-mode hook copilot-vscode",
-            "copilot-hook codegraph-index",
+            "codegraph-hook copilot",
             "rtk-hook copilot",
         ] {
             if copilot_hook_owned(&cfg, marker) {
@@ -2275,6 +2278,7 @@ fn snapshot_copilot_proxy_files() -> Result<Vec<CopilotProxyFileSnapshot>, Strin
             Ok(mut meta) => {
                 if meta.file_type().is_symlink() {
                     if path != copilot_vscode_settings_file()
+                        && path != copilot_ide_hooks_file("codegraph.json")
                         && path != copilot_ide_hooks_file("toksi-codegraph-index.json")
                     {
                         return Err(format!("refusing Copilot proxy snapshot path {path}"));

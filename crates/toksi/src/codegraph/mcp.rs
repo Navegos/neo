@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/mcp.rs
 // created: 2026-10-28
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 use std::collections::{HashMap, HashSet};
 use std::env;
@@ -59,7 +59,7 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
                         "tools": {}
                     },
                     "serverInfo": {
-                        "name": "toksi-codegraph",
+                        "name": "codegraph",
                         "version": "1.0.5"
                     }
                 }
@@ -163,6 +163,19 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
                             }
                         },
                         {
+                            "name": "codegraph_symbol",
+                            "description": "Detailed AST symbol view: file coordinate, byte slice, signature, callers, and callees.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "symbol": { "type": "string", "description": "Symbol name or node id." },
+                                    "id": { "type": "string", "description": "Optional node id alias." },
+                                    "projectPath": { "type": "string", "description": "Optional project root path." }
+                                },
+                                "required": ["symbol"]
+                            }
+                        },
+                        {
                             "name": "codegraph_status",
                             "description": "Index health check: indexed files, nodes, edges, and cache status.",
                             "inputSchema": {
@@ -214,17 +227,7 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
 
             let _ = cg.ensure_indexed();
 
-            let result = match tool_name {
-                "codegraph_explore" => handle_explore(&cg, &args),
-                "codegraph_impact" => handle_impact(&cg, &args),
-                "codegraph_symbol" | "codegraph_node" => handle_node(&cg, &args),
-                "codegraph_callers" => handle_callers(&cg, &args),
-                "codegraph_callees" => handle_callees(&cg, &args),
-                "codegraph_search" => handle_search(&cg, &args),
-                "codegraph_status" => handle_status(&cg),
-                "codegraph_files" => handle_files(&cg),
-                _ => format!("Unknown tool: {}", tool_name),
-            };
+            let (result, _is_err) = handle_tool_call(&cg, tool_name, &args);
 
             Some(json!({
                 "jsonrpc": "2.0",
@@ -244,6 +247,20 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
                 }
             }))
         }
+    }
+}
+
+pub fn handle_tool_call(cg: &CodeGraph, tool_name: &str, args: &Value) -> (String, bool) {
+    match tool_name {
+        "explore" | "codegraph_explore" => (handle_explore(cg, args), false),
+        "impact" | "codegraph_impact" => (handle_impact(cg, args), false),
+        "symbol" | "codegraph_symbol" | "node" | "codegraph_node" => (handle_node(cg, args), false),
+        "callers" | "codegraph_callers" => (handle_callers(cg, args), false),
+        "callees" | "codegraph_callees" => (handle_callees(cg, args), false),
+        "search" | "codegraph_search" => (handle_search(cg, args), false),
+        "status" | "codegraph_status" => (handle_status(cg), false),
+        "files" | "codegraph_files" => (handle_files(cg), false),
+        _ => (format!("Unknown tool: {}", tool_name), true),
     }
 }
 

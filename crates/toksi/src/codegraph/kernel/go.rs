@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/go.rs
 // created: 2026-10-28
-// lastModified: 2026-11-04
+// lastModified: 2026-11-13
 
 //! Go extraction — a faithful Rust port of `TreeSitterExtractor`'s Go paths
 //! (src/extraction/tree-sitter.ts) plus languages/go.ts.
@@ -26,32 +26,31 @@ use crate::codegraph::kernel::buffers::{
 use crate::codegraph::kernel::docstring::preceding_go_doc_comment;
 use crate::codegraph::kernel::ids;
 use crate::codegraph::kernel::textutil as util;
-use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use tree_sitter::{Node, Parser};
 
 const MAX_VALUE_REF_NODES: usize = 20_000;
 
-fn receiver_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\(\s*(?:[A-Za-z_]\w*\s+)?\*?\s*([A-Za-z_]\w*)").unwrap())
+fn receiver_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"\(\s*(?:[A-Za-z_]\w*\s+)?\*?\s*([A-Za-z_]\w*)"))
 }
-fn simple_ident_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Za-z_]\w*$").unwrap())
+fn simple_ident_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_]\w*$"))
 }
-fn go_two_hop_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Za-z_]\w*\.[A-Za-z_]\w*$").unwrap())
+fn go_two_hop_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_]\w*\.[A-Za-z_]\w*$"))
 }
-fn generic_angle_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"<[^>]*>").unwrap())
+fn generic_angle_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"<[^>]*>"))
 }
-fn bracket_args_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\[[^\]]*\]").unwrap())
+fn bracket_args_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"\[[^\]]*\]"))
 }
 
 struct Scope {
@@ -151,7 +150,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     let name_ref = w.arena.put(base_name);
     let qn_ref = w.arena.put(file_path);
     w.tables.push_node(&NodeRow {
-        kind: node_kind_index("file").unwrap(),
+        kind: node_kind_index("file").unwrap_or(0),
         visibility: 0,
         flags,
         start_line: 1,
@@ -222,7 +221,7 @@ impl<'t> Walker<'t> {
             candidates: NONE_STR,
             from_id_str: NONE_STR,
         });
-        if kind_code == edge_kind_index("imports").unwrap() {
+        if kind_code == edge_kind_index("imports").unwrap_or(0) {
             if util::simple_name().is_match(name) {
                 self.imported_names.insert(name.to_string());
             } else if let Some(c) = util::qualified_import().captures(name) {
@@ -266,7 +265,7 @@ impl<'t> Walker<'t> {
         let sig_ref = opt_str(&mut self.arena, extra.signature.as_deref());
         let ret_ref = opt_str(&mut self.arena, extra.return_type.as_deref());
         let row = self.tables.push_node(&NodeRow {
-            kind: node_kind_index(kind).unwrap(),
+            kind: node_kind_index(kind).unwrap_or(0),
             visibility: 0,
             flags,
             start_line,
@@ -290,7 +289,7 @@ impl<'t> Walker<'t> {
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
             target_idx: row,
-            kind: edge_kind_index("contains").unwrap(),
+            kind: edge_kind_index("contains").unwrap_or(0),
             provenance: 0,
             line: NONE,
             column: NONE,
@@ -552,7 +551,7 @@ impl<'t> Walker<'t> {
                     self.tables.push_edge(&EdgeRow {
                         source_idx: owner_row,
                         target_idx: row,
-                        kind: edge_kind_index("contains").unwrap(),
+                        kind: edge_kind_index("contains").unwrap_or(0),
                         provenance: 0,
                         line: NONE,
                         column: NONE,
@@ -601,7 +600,7 @@ impl<'t> Walker<'t> {
                 self.extract_inheritance(type_child, row);
                 // The types its fields are declared with are the struct's
                 // references: Go fields mint no nodes.
-                let references = edge_kind_index("references").unwrap();
+                let references = edge_kind_index("references").unwrap_or(0);
                 for ty in self.struct_field_type_names(node) {
                     let text = self.text(ty).to_string();
                     self.push_ref_at(row, &text, references, ty);
@@ -643,7 +642,7 @@ impl<'t> Walker<'t> {
         // extraction.) An alias and a defined type (`type_spec`) alike
         // reference what their `type` field names.
         if let Some(row) = row {
-            let references = edge_kind_index("references").unwrap();
+            let references = edge_kind_index("references").unwrap_or(0);
             for ty in self.alias_type_names(node) {
                 let text = self.text(ty).to_string();
                 self.push_ref_at(row, &text, references, ty);
@@ -657,7 +656,7 @@ impl<'t> Walker<'t> {
     /// interface).
     fn extract_go_interface_methods(&mut self, interface_type: Node<'t>, iface_row: u32, iface_name: &str, decl: Node<'t>) {
         self.stack.push(Scope { row: iface_row, kind: "interface", name: iface_name.to_string() });
-        let references = edge_kind_index("references").unwrap();
+        let references = edge_kind_index("references").unwrap_or(0);
         for i in 0..interface_type.named_child_count() {
             let Some(m) = interface_type.named_child(i) else { continue };
             if !matches!(m.kind(), "method_elem" | "method_spec") {
@@ -784,7 +783,7 @@ impl<'t> Walker<'t> {
     /// extractImport's Go branch: one import node + ref per import_spec.
     fn extract_import(&mut self, node: Node<'t>) {
         let parent = self.top_row();
-        let imports_kind = edge_kind_index("imports").unwrap();
+        let imports_kind = edge_kind_index("imports").unwrap_or(0);
         let handle_spec = |w: &mut Self, spec: Node<'t>| {
             let lit = (0..spec.named_child_count())
                 .filter_map(|i| spec.named_child(i))
@@ -872,9 +871,9 @@ impl<'t> Walker<'t> {
                                 let inner_fn = r.child_by_field_name("function");
                                 let reencode =
                                     inner_fn.map(|f| f.kind() == "identifier").unwrap_or(false);
-                                if reencode {
+                                if let (true, Some(inner_fn_node)) = (reencode, inner_fn) {
                                     let inner: String = self
-                                        .text(inner_fn.unwrap())
+                                        .text(inner_fn_node)
                                         .replace("->", ".")
                                         .chars()
                                         .filter(|c| !c.is_whitespace())
@@ -916,7 +915,7 @@ impl<'t> Walker<'t> {
                 callee_name = c[1].to_string();
             }
             let from = self.top_row();
-            self.push_ref_at(from, &callee_name.clone(), edge_kind_index("calls").unwrap(), node);
+            self.push_ref_at(from, &callee_name.clone(), edge_kind_index("calls").unwrap_or(0), node);
         }
     }
 
@@ -944,7 +943,7 @@ impl<'t> Walker<'t> {
         }
         if !go_type.is_empty() {
             let from = self.top_row();
-            self.push_ref_at(from, &go_type, edge_kind_index("instantiates").unwrap(), node);
+            self.push_ref_at(from, &go_type, edge_kind_index("instantiates").unwrap_or(0), node);
         }
     }
 
@@ -1070,7 +1069,7 @@ impl<'t> Walker<'t> {
     /// plus the field_declaration_list recursion.
     fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
         stack_guard!();
-        let extends_kind = edge_kind_index("extends").unwrap();
+        let extends_kind = edge_kind_index("extends").unwrap_or(0);
         for i in 0..node.named_child_count() {
             let Some(child) = node.named_child(i) else { continue };
             match child.kind() {
@@ -1127,7 +1126,7 @@ impl<'t> Walker<'t> {
         if node.kind() == "type_identifier" {
             let type_name = self.text(node).to_string();
             if !type_name.is_empty() && !is_builtin_type(&type_name) {
-                self.push_ref_at(from_row, &type_name, edge_kind_index("references").unwrap(), node);
+                self.push_ref_at(from_row, &type_name, edge_kind_index("references").unwrap_or(0), node);
             }
             return;
         }
@@ -1404,7 +1403,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        let refs_kind = edge_kind_index("references").unwrap();
+        let refs_kind = edge_kind_index("references").unwrap_or(0);
         for scope in &scopes {
             let mut seen: HashSet<&str> = HashSet::new();
             let mut stack: Vec<Node> = vec![scope.node];

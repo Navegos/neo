@@ -92,32 +92,129 @@ fn get_arena_str<'a>(arena: &'a [u8], offset: u32, len: u32) -> Option<&'a str> 
 }
 
 pub fn extract_file(file_path: &str, content: &str, language: &str) -> Result<FileExtraction, String> {
-    let out = stack::run_guarded(|| match language {
-        "rust" => rustlang::extract(file_path, content),
-        "python" => python::extract(file_path, content),
-        "go" => go::extract(file_path, content),
-        "c" | "cpp" => ccpp::extract(file_path, content, language),
-        "typescript" | "tsx" | "javascript" | "jsx" => tsjs::extract(file_path, content, language),
-        "lua" | "luau" => lua::extract(file_path, content, language),
-        "dart" => dart::extract(file_path, content),
-        "kotlin" => kotlin::extract(file_path, content),
-        "scala" => scala::extract(file_path, content),
-        "swift" => swift::extract(file_path, content),
-        "csharp" => csharp::extract(file_path, content),
-        "java" => java::extract(file_path, content),
-        "php" => php::extract(file_path, content),
-        "ruby" => ruby::extract(file_path, content),
-        "r" => rlang::extract(file_path, content),
-        "vue" => polyglot::extract_vue(file_path, content),
-        "svelte" => polyglot::extract_svelte(file_path, content),
-        _ => Err(format!("unsupported language: {}", language)),
+    let norm_path = crate::util::paths::normalize_path(file_path);
+    let canon = langs::canonical_language(language);
+
+    if canon == "vue" {
+        return Ok(polyglot::extract_vue_full(&norm_path, content));
+    }
+    if canon == "svelte" {
+        return Ok(polyglot::extract_svelte_full(&norm_path, content));
+    }
+
+    let out = stack::run_guarded(|| match canon {
+        "rust" => rustlang::extract(&norm_path, content),
+        "python" => python::extract(&norm_path, content),
+        "go" => go::extract(&norm_path, content),
+        "c" | "cpp" => ccpp::extract(&norm_path, content, canon),
+        "typescript" | "tsx" | "javascript" | "jsx" => tsjs::extract(&norm_path, content, canon),
+        "lua" | "luau" => lua::extract(&norm_path, content, canon),
+        "dart" => dart::extract(&norm_path, content),
+        "kotlin" => kotlin::extract(&norm_path, content),
+        "scala" => scala::extract(&norm_path, content),
+        "swift" => swift::extract(&norm_path, content),
+        "csharp" => csharp::extract(&norm_path, content),
+        "java" => java::extract(&norm_path, content),
+        "php" => php::extract(&norm_path, content),
+        "ruby" => ruby::extract(&norm_path, content),
+        "r" => rlang::extract(&norm_path, content),
+        _ => Err(format!("polyglot CST extraction: {}", canon)),
     });
 
     match out {
-        Ok(out_buffers) => decode_buffers(file_path, &out_buffers),
-        Err(_) => {
-            // Polyglot fallback: structural outline AST extraction
-            Ok(polyglot::extract_structural(file_path, content, language))
+        Ok(out_buffers) => {
+            let mut ext = decode_buffers(&norm_path, &out_buffers)?;
+            if matches!(canon, "c" | "cpp") {
+                synthesize_cfnptr_dispatch(content, &norm_path, &mut ext);
+            }
+            Ok(ext)
+        }
+        Err(_) => Ok(polyglot::extract_structural(&norm_path, content, canon)),
+    }
+}
+
+/// Synthesize C/C++ indirect function-pointer dispatch edges/refs using `cfnptr::scan_file`.
+fn synthesize_cfnptr_dispatch(content: &str, norm_path: &str, ext: &mut FileExtraction) {
+    let structs: Vec<cfnptr::StructExtent> = ext
+        .nodes
+        .iter()
+        .filter(|n| n.kind == "struct" || n.kind == "class")
+        .map(|n| cfnptr::StructExtent {
+            id: n.id.clone(),
+            start_line: n.start_line,
+            end_line: n.end_line,
+        })
+        .collect();
+    let facts = cfnptr::scan_file(content, &structs);
+    if facts.dispatch_fields.is_empty() && facts.array_dispatch_names.is_empty() {
+        return;
+    }
+
+    let fn_names: std::collections::HashSet<&str> = ext
+        .nodes
+        .iter()
+        .filter(|n| n.kind == "function" || n.kind == "method")
+        .map(|n| n.name.as_str())
+        .collect();
+    if fn_names.is_empty() {
+        return;
+    }
+
+    // Collect candidate handler functions bound via designated/positional initializers or assignments
+    let mut handlers: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for sf in &facts.structs {
+        for raw in &sf.fields {
+            if !raw.name.is_empty() && facts.dispatch_fields.contains(&raw.name) {
+                let needle = format!(".{}", raw.name);
+                for line in content.lines() {
+                    if let Some(pos) = line.find(&needle) {
+                        let after = line[pos + needle.len()..].trim_start();
+                        if let Some(rhs) = after.strip_prefix('=') {
+                            let cand = rhs
+                                .trim_start()
+                                .trim_start_matches('&')
+                                .split(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                                .next()
+                                .unwrap_or("");
+                            if fn_names.contains(cand) {
+                                handlers.entry(raw.name.clone()).or_default().push(cand.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (field, cands) in handlers {
+        let mut uniq = cands;
+        uniq.sort();
+        uniq.dedup();
+        let needle = format!("{}(", field);
+        for (idx, line) in content.lines().enumerate() {
+            if line.contains(&needle) && (line.contains("->") || line.contains('.')) {
+                let line_no = (idx + 1) as u32;
+                let owner_id = ext
+                    .nodes
+                    .iter()
+                    .find(|n| {
+                        (n.kind == "function" || n.kind == "method")
+                            && n.start_line <= line_no
+                            && line_no <= n.end_line
+                    })
+                    .map(|n| n.id.clone())
+                    .unwrap_or_else(|| format!("file:{}", norm_path));
+                for handler in &uniq {
+                    ext.refs.push(SymbolRef {
+                        from_node_id: owner_id.clone(),
+                        name: handler.clone(),
+                        kind: "calls".to_string(),
+                        line: line_no,
+                        column: 0,
+                        file_path: norm_path.to_string(),
+                    });
+                }
+            }
         }
     }
 }

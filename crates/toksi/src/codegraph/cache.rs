@@ -3,18 +3,20 @@
 // project: neo
 // file: crates/toksi/src/codegraph/cache.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 use std::collections::HashMap;
 use std::fs;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OpenFlags};
 use sha2::{Digest, Sha256};
 
 use super::kernel::{FileExtraction, SymbolEdge, SymbolNode, SymbolRef};
 use super::walker::WalkedFile;
+use crate::util::paths::normalize_path;
 
 #[derive(Debug, Clone, Default)]
 pub struct CacheStats {
@@ -44,7 +46,8 @@ impl SymbolCache {
                  size INTEGER NOT NULL,
                  hash TEXT NOT NULL,
                  language TEXT NOT NULL,
-                 indexed_at INTEGER NOT NULL
+                 indexed_at INTEGER NOT NULL,
+                 subproject_id TEXT NOT NULL DEFAULT '.'
              );
              CREATE TABLE IF NOT EXISTS nodes (
                  id TEXT PRIMARY KEY,
@@ -59,7 +62,10 @@ impl SymbolCache {
                  end_column INTEGER NOT NULL,
                  docstring TEXT,
                  signature TEXT,
-                 return_type TEXT
+                 return_type TEXT,
+                 subproject_id TEXT NOT NULL DEFAULT '.',
+                 start_byte INTEGER NOT NULL DEFAULT 0,
+                 end_byte INTEGER NOT NULL DEFAULT 0
              );
              CREATE TABLE IF NOT EXISTS edges (
                  source_id TEXT NOT NULL,
@@ -84,6 +90,15 @@ impl SymbolCache {
              CREATE INDEX IF NOT EXISTS idx_refs_from ON refs(from_node_id);
              CREATE INDEX IF NOT EXISTS idx_refs_name ON refs(name);
              CREATE INDEX IF NOT EXISTS idx_refs_file ON refs(file_path);",
+        )?;
+
+        ensure_column(&conn, "files", "subproject_id", "TEXT NOT NULL DEFAULT '.'")?;
+        ensure_column(&conn, "nodes", "subproject_id", "TEXT NOT NULL DEFAULT '.'")?;
+        ensure_column(&conn, "nodes", "start_byte", "INTEGER NOT NULL DEFAULT 0")?;
+        ensure_column(&conn, "nodes", "end_byte", "INTEGER NOT NULL DEFAULT 0")?;
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_files_subproject ON files(subproject_id);
+             CREATE INDEX IF NOT EXISTS idx_nodes_subproject ON nodes(subproject_id);",
         )?;
 
         Ok(Self {
@@ -132,26 +147,40 @@ impl SymbolCache {
         hash: &str,
         extraction: &FileExtraction,
     ) -> Result<(), rusqlite::Error> {
+        self.save_extraction_with_source(file, hash, extraction, None)
+    }
+
+    pub fn save_extraction_with_source(
+        &mut self,
+        file: &WalkedFile,
+        hash: &str,
+        extraction: &FileExtraction,
+        source: Option<&str>,
+    ) -> Result<(), rusqlite::Error> {
         let now = SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
+        let rel_norm = normalize_path(&file.rel_path);
+        let subproject_id = derive_subproject_id(&rel_norm);
+        let line_offsets = source.map(build_line_offsets);
 
         let tx = self.conn.transaction()?;
-        tx.execute("DELETE FROM files WHERE file_path = ?1", params![file.rel_path])?;
-        tx.execute("DELETE FROM nodes WHERE file_path = ?1", params![file.rel_path])?;
-        tx.execute("DELETE FROM refs WHERE file_path = ?1", params![file.rel_path])?;
+        tx.execute("DELETE FROM files WHERE file_path = ?1", params![rel_norm])?;
+        tx.execute("DELETE FROM nodes WHERE file_path = ?1", params![rel_norm])?;
+        tx.execute("DELETE FROM refs WHERE file_path = ?1", params![rel_norm])?;
 
         tx.execute(
-            "INSERT INTO files (file_path, mtime, size, hash, language, indexed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO files (file_path, mtime, size, hash, language, indexed_at, subproject_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
-                file.rel_path,
+                rel_norm,
                 file.mtime as i64,
                 file.size as i64,
                 hash,
                 file.language,
-                now
+                now,
+                subproject_id
             ],
         )?;
 
@@ -159,14 +188,23 @@ impl SymbolCache {
             let mut insert_node = tx.prepare_cached(
                 "INSERT OR REPLACE INTO nodes (id, file_path, name, qualified_name, kind, visibility,
                                               start_line, end_line, start_column, end_column,
-                                              docstring, signature, return_type)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                                              docstring, signature, return_type, subproject_id,
+                                              start_byte, end_byte)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
             )?;
 
             for n in &extraction.nodes {
+                let node_path = normalize_path(&n.file_path);
+                let node_sub = derive_subproject_id(&node_path);
+                let (sb, eb) = match (&line_offsets, source) {
+                    (Some(offsets), Some(src)) => {
+                        line_span_to_bytes(src, offsets, n.start_line, n.start_column, n.end_line, n.end_column)
+                    }
+                    _ => (0, 0),
+                };
                 insert_node.execute(params![
                     n.id,
-                    n.file_path,
+                    node_path,
                     n.name,
                     n.qualified_name,
                     n.kind,
@@ -177,7 +215,10 @@ impl SymbolCache {
                     n.end_column,
                     n.docstring,
                     n.signature,
-                    n.return_type
+                    n.return_type,
+                    node_sub,
+                    sb as i64,
+                    eb as i64
                 ])?;
             }
         }
@@ -369,6 +410,289 @@ impl SymbolCache {
         }
         Ok(purged)
     }
+
+    /// Fetch O(1) SQLite byte-offset span `(file_path, start_byte, end_byte)` for a node.
+    pub fn get_symbol_byte_range(&self, id_or_name: &str) -> Option<(SymbolNode, u64, u64)> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT id, file_path, name, qualified_name, kind, visibility,
+                        start_line, end_line, start_column, end_column, docstring, signature, return_type,
+                        start_byte, end_byte
+                 FROM nodes
+                 WHERE id = ?1 OR qualified_name = ?1 OR name = ?1
+                 ORDER BY CASE WHEN id = ?1 THEN 0 WHEN qualified_name = ?1 THEN 1 ELSE 2 END
+                 LIMIT 1",
+            )
+            .ok()?;
+
+        stmt.query_row(params![id_or_name], |r| {
+            let node = SymbolNode {
+                id: r.get(0)?,
+                file_path: r.get(1)?,
+                name: r.get(2)?,
+                qualified_name: r.get(3)?,
+                kind: r.get(4)?,
+                visibility: r.get(5)?,
+                start_line: r.get(6)?,
+                end_line: r.get(7)?,
+                start_column: r.get(8)?,
+                end_column: r.get(9)?,
+                docstring: r.get(10)?,
+                signature: r.get(11)?,
+                return_type: r.get(12)?,
+            };
+            let sb: i64 = r.get(13)?;
+            let eb: i64 = r.get(14)?;
+            Ok((node, sb.max(0) as u64, eb.max(0) as u64))
+        })
+        .ok()
+    }
+
+    /// O(1) byte-offset slice read using SQLite `start_byte..end_byte` directly via file Seek.
+    pub fn get_symbol_slice_o1(&self, root: &Path, id_or_name: &str) -> Option<(SymbolNode, String)> {
+        let (node, sb, eb) = self.get_symbol_byte_range(id_or_name)?;
+        if eb <= sb {
+            return None;
+        }
+        let abs = root.join(normalize_path(&node.file_path));
+        let mut f = fs::File::open(abs).ok()?;
+        let len = (eb - sb).min(512 * 1024) as usize;
+        f.seek(SeekFrom::Start(sb)).ok()?;
+        let mut buf = vec![0u8; len];
+        let read_n = f.read(&mut buf).ok()?;
+        buf.truncate(read_n);
+        let text = String::from_utf8_lossy(&buf).into_owned();
+        Some((node, text))
+    }
+
+    /// Query nodes partitioned under a specific monorepo `subproject_id`.
+    pub fn get_nodes_by_subproject(&self, subproject_id: &str) -> Vec<SymbolNode> {
+        let mut stmt = match self.conn.prepare(
+            "SELECT id, file_path, name, qualified_name, kind, visibility,
+                    start_line, end_line, start_column, end_column, docstring, signature, return_type
+             FROM nodes WHERE subproject_id = ?1",
+        ) {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+        let iter = stmt.query_map(params![subproject_id], |r| {
+            Ok(SymbolNode {
+                id: r.get(0)?,
+                file_path: r.get(1)?,
+                name: r.get(2)?,
+                qualified_name: r.get(3)?,
+                kind: r.get(4)?,
+                visibility: r.get(5)?,
+                start_line: r.get(6)?,
+                end_line: r.get(7)?,
+                start_column: r.get(8)?,
+                end_column: r.get(9)?,
+                docstring: r.get(10)?,
+                signature: r.get(11)?,
+                return_type: r.get(12)?,
+            })
+        });
+        iter.into_iter().flat_map(|res| res.flatten()).collect()
+    }
+
+    /// Row-merge all records from a nested/legacy CodeGraph SQLite database into this root DB.
+    pub fn merge_from_db(&mut self, other_db: &Path, subproject_prefix: &str) -> Result<usize, rusqlite::Error> {
+        let src = Connection::open_with_flags(other_db, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let prefix = normalize_path(subproject_prefix).trim_matches('/').to_string();
+        let qualify_rel = |p: &str| -> String {
+            let norm = normalize_path(p).trim_start_matches("./").to_string();
+            if prefix.is_empty() || prefix == "." || norm.starts_with(&format!("{}/", prefix)) {
+                norm
+            } else {
+                format!("{}/{}", prefix, norm)
+            }
+        };
+
+        let tx = self.conn.transaction()?;
+        let mut merged_files = 0usize;
+
+        if let Ok(mut stmt) = src.prepare("SELECT file_path, mtime, size, hash, language, indexed_at FROM files") {
+            let rows = stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, i64>(1)?,
+                    r.get::<_, i64>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, String>(4)?,
+                    r.get::<_, i64>(5)?,
+                ))
+            });
+            if let Ok(iter) = rows {
+                let mut ins = tx.prepare_cached(
+                    "INSERT OR IGNORE INTO files (file_path, mtime, size, hash, language, indexed_at, subproject_id)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                )?;
+                for (fp, mtime, size, hash, lang, idx_at) in iter.flatten() {
+                    let qfp = qualify_rel(&fp);
+                    let sub = derive_subproject_id(&qfp);
+                    merged_files += ins.execute(params![qfp, mtime, size, hash, lang, idx_at, sub])?;
+                }
+            }
+        }
+
+        if let Ok(mut stmt) = src.prepare(
+            "SELECT id, file_path, name, qualified_name, kind, visibility,
+                    start_line, end_line, start_column, end_column, docstring, signature, return_type
+             FROM nodes",
+        ) {
+            let rows = stmt.query_map([], |r| {
+                Ok(SymbolNode {
+                    id: r.get(0)?,
+                    file_path: r.get(1)?,
+                    name: r.get(2)?,
+                    qualified_name: r.get(3)?,
+                    kind: r.get(4)?,
+                    visibility: r.get(5)?,
+                    start_line: r.get(6)?,
+                    end_line: r.get(7)?,
+                    start_column: r.get(8)?,
+                    end_column: r.get(9)?,
+                    docstring: r.get(10)?,
+                    signature: r.get(11)?,
+                    return_type: r.get(12)?,
+                })
+            });
+            if let Ok(iter) = rows {
+                let mut ins = tx.prepare_cached(
+                    "INSERT OR IGNORE INTO nodes (id, file_path, name, qualified_name, kind, visibility,
+                                                  start_line, end_line, start_column, end_column,
+                                                  docstring, signature, return_type, subproject_id, start_byte, end_byte)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, 0, 0)",
+                )?;
+                for n in iter.flatten() {
+                    let qfp = qualify_rel(&n.file_path);
+                    let sub = derive_subproject_id(&qfp);
+                    ins.execute(params![
+                        n.id, qfp, n.name, n.qualified_name, n.kind, n.visibility,
+                        n.start_line, n.end_line, n.start_column, n.end_column,
+                        n.docstring, n.signature, n.return_type, sub
+                    ])?;
+                }
+            }
+        }
+
+        if let Ok(mut stmt) = src.prepare("SELECT source_id, target_id, kind, line, column FROM edges") {
+            let rows = stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, Option<u32>>(3)?,
+                    r.get::<_, Option<u32>>(4)?,
+                ))
+            });
+            if let Ok(iter) = rows {
+                let mut ins = tx.prepare_cached(
+                    "INSERT OR IGNORE INTO edges (source_id, target_id, kind, line, column) VALUES (?1, ?2, ?3, ?4, ?5)",
+                )?;
+                for (s, t, k, l, c) in iter.flatten() {
+                    ins.execute(params![s, t, k, l, c])?;
+                }
+            }
+        }
+
+        if let Ok(mut stmt) = src.prepare("SELECT from_node_id, name, kind, line, column, file_path FROM refs") {
+            let rows = stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, u32>(3)?,
+                    r.get::<_, u32>(4)?,
+                    r.get::<_, String>(5)?,
+                ))
+            });
+            if let Ok(iter) = rows {
+                let mut ins = tx.prepare_cached(
+                    "INSERT OR IGNORE INTO refs (from_node_id, name, kind, line, column, file_path)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                )?;
+                for (from, name, kind, line, col, fp) in iter.flatten() {
+                    let qfp = qualify_rel(&fp);
+                    ins.execute(params![from, name, kind, line, col, qfp])?;
+                }
+            }
+        }
+
+        tx.commit()?;
+        Ok(merged_files)
+    }
+}
+
+fn ensure_column(conn: &Connection, table: &str, column: &str, ddl: &str) -> Result<(), rusqlite::Error> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({})", table))?;
+    let cols: Vec<String> = stmt
+        .query_map([], |r| r.get::<_, String>(1))?
+        .filter_map(Result::ok)
+        .collect();
+    if !cols.iter().any(|c| c == column) {
+        conn.execute(&format!("ALTER TABLE {} ADD COLUMN {} {}", table, column, ddl), [])?;
+    }
+    Ok(())
+}
+
+/// Partition monorepo subprojects (e.g. `crates/toksi/src/...` -> `crates/toksi`).
+pub fn derive_subproject_id(rel_path: &str) -> String {
+    let norm = normalize_path(rel_path);
+    let trimmed = norm.trim_start_matches("./").trim_start_matches('/');
+    let mut parts = trimmed.split('/');
+    if let (Some(first), Some(second)) = (parts.next(), parts.next()) {
+        if matches!(
+            first,
+            "crates" | "packages" | "apps" | "services" | "libs" | "modules" | "subprojects"
+        ) && !second.is_empty()
+        {
+            return format!("{}/{}", first, second);
+        }
+    }
+    ".".to_string()
+}
+
+fn build_line_offsets(src: &str) -> Vec<usize> {
+    let mut offsets = vec![0usize];
+    for (idx, b) in src.bytes().enumerate() {
+        if b == b'\n' {
+            offsets.push(idx + 1);
+        }
+    }
+    offsets
+}
+
+fn line_span_to_bytes(
+    src: &str,
+    offsets: &[usize],
+    start_line: u32,
+    start_col: u32,
+    end_line: u32,
+    end_col: u32,
+) -> (usize, usize) {
+    let s_idx = start_line.saturating_sub(1) as usize;
+    let e_idx = end_line.saturating_sub(1) as usize;
+    let start_base = offsets.get(s_idx).copied().unwrap_or(0).min(src.len());
+    let start_byte = (start_base + start_col as usize).min(src.len());
+
+    let end_base = offsets.get(e_idx).copied().unwrap_or(src.len()).min(src.len());
+    let mut end_byte = if end_col == 0 && e_idx + 1 < offsets.len() {
+        offsets[e_idx + 1].saturating_sub(1)
+    } else if e_idx + 1 < offsets.len() {
+        (end_base + end_col as usize).min(offsets[e_idx + 1])
+    } else {
+        (end_base + end_col as usize).min(src.len())
+    };
+    if end_byte <= start_byte && s_idx < offsets.len() {
+        end_byte = if e_idx + 1 < offsets.len() {
+            offsets[e_idx + 1].min(src.len())
+        } else {
+            src.len()
+        };
+    }
+    (start_byte, end_byte.max(start_byte))
 }
 
 pub fn content_hash(content: &[u8]) -> String {

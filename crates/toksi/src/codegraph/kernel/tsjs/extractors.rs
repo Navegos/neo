@@ -1547,7 +1547,7 @@ impl<'t> Walker<'t> {
             Extra { signature: Some(import_text), ..Extra::default() },
         );
         let parent = self.top_row();
-        self.push_ref(parent, &module_name.clone(), edge_kind_index("imports").unwrap(), node);
+        self.push_ref(parent, &module_name.clone(), edge_kind_index("imports").unwrap_or(0), node);
         self.emit_import_binding_refs(node, parent);
     }
 
@@ -1557,7 +1557,7 @@ impl<'t> Walker<'t> {
             .find(|c| c.kind() == "import_clause");
         let Some(clause) = clause else { return }; // side-effect import
 
-        let imports_kind = edge_kind_index("imports").unwrap();
+        let imports_kind = edge_kind_index("imports").unwrap_or(0);
         let push = |w: &mut Self, name_node: Option<Node>| {
             let Some(n) = name_node else { return };
             let name = w.text(n).to_string();
@@ -1602,7 +1602,7 @@ impl<'t> Walker<'t> {
             .filter_map(|i| node.named_child(i))
             .find(|c| c.kind() == "export_clause");
         let Some(clause) = clause else { return }; // `export * from './y'`
-        let imports_kind = edge_kind_index("imports").unwrap();
+        let imports_kind = edge_kind_index("imports").unwrap_or(0);
         for i in 0..clause.named_child_count() {
             let Some(spec) = clause.named_child(i) else { continue };
             if spec.kind() != "export_specifier" {
@@ -1898,7 +1898,7 @@ impl<'t> Walker<'t> {
         let class_name = class_name.trim().to_string();
         if !class_name.is_empty() {
             let from = self.top_row();
-            self.push_ref(from, &class_name, edge_kind_index("instantiates").unwrap(), node);
+            self.push_ref(from, &class_name, edge_kind_index("instantiates").unwrap_or(0), node);
         }
     }
 
@@ -1991,15 +1991,15 @@ impl<'t> Walker<'t> {
         if name.is_empty() {
             return;
         }
-        self.push_ref(decorated_row, &name, edge_kind_index("decorates").unwrap(), n);
+        self.push_ref(decorated_row, &name, edge_kind_index("decorates").unwrap_or(0), n);
     }
 
     // --- extractInheritance (TS/JS clauses) ---------------------------------------------------
 
     pub(super) fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
         stack_guard!();
-        let extends_kind = edge_kind_index("extends").unwrap();
-        let implements_kind = edge_kind_index("implements").unwrap();
+        let extends_kind = edge_kind_index("extends").unwrap_or(0);
+        let implements_kind = edge_kind_index("implements").unwrap_or(0);
         for i in 0..node.named_child_count() {
             let Some(child) = node.named_child(i) else { continue };
             match child.kind() {
@@ -2100,7 +2100,7 @@ impl<'t> Walker<'t> {
         if node.kind() == "type_identifier" {
             let type_name = self.text(node).to_string();
             if !type_name.is_empty() && !is_builtin_type(&type_name) {
-                self.push_ref(from_row, &type_name, edge_kind_index("references").unwrap(), node);
+                self.push_ref(from_row, &type_name, edge_kind_index("references").unwrap_or(0), node);
             }
             return;
         }

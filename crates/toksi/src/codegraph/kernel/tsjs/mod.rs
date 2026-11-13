@@ -287,7 +287,7 @@ pub fn extract(file_path: &str, source: &str, language: &str) -> Result<EmitOut,
     let name_ref = w.arena.put(base_name);
     let qn_ref = w.arena.put(file_path);
     w.tables.push_node(&NodeRow {
-        kind: node_kind_index("file").unwrap(),
+        kind: node_kind_index("file").unwrap_or(0),
         visibility: 0,
         flags,
         start_line: 1,
@@ -367,7 +367,7 @@ impl<'t> Walker<'t> {
             candidates: NONE_STR,
             from_id_str: NONE_STR,
         });
-        if kind_code == edge_kind_index("imports").unwrap() {
+        if kind_code == edge_kind_index("imports").unwrap_or(0) {
             // Feed the fn-ref flush gate the same way flushFnRefCandidates
             // derives importedNames from `imports` refs.
             if util::simple_name().is_match(name) {
@@ -379,7 +379,7 @@ impl<'t> Walker<'t> {
     }
 
     fn push_call_ref(&mut self, name: &str, node: Node) {
-        self.push_ref(self.top_row(), name, edge_kind_index("calls").unwrap(), node);
+        self.push_ref(self.top_row(), name, edge_kind_index("calls").unwrap_or(0), node);
     }
 
     // --- createNode -----------------------------------------------------------
@@ -447,7 +447,7 @@ impl<'t> Walker<'t> {
         let doc_ref = opt_str(&mut self.arena, extra.docstring.as_deref());
         let sig_ref = opt_str(&mut self.arena, extra.signature.as_deref());
         let row = self.tables.push_node(&NodeRow {
-            kind: node_kind_index(kind).unwrap(),
+            kind: node_kind_index(kind).unwrap_or(0),
             visibility: extra.visibility.unwrap_or(0),
             flags,
             start_line,
@@ -470,7 +470,7 @@ impl<'t> Walker<'t> {
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
             target_idx: row,
-            kind: edge_kind_index("contains").unwrap(),
+            kind: edge_kind_index("contains").unwrap_or(0),
             provenance: 0,
             line: NONE,
             column: NONE,
@@ -564,7 +564,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        let refs_kind = edge_kind_index("references").unwrap();
+        let refs_kind = edge_kind_index("references").unwrap_or(0);
         for scope in &scopes {
             // Self-skip and per-scope dedupe compare node ID STRINGS (which
             // collide for same-(kind, name, line) nodes), matching the TS side.

@@ -83,6 +83,52 @@ pub const NODE_ROW_SIZE: usize = 96;
 pub const EDGE_ROW_SIZE: usize = 44;
 pub const REF_ROW_SIZE: usize = 40;
 
+/// Non-panicking regex wrapper used across extractors to guarantee Zero Panics.
+#[derive(Clone, Debug)]
+pub struct SafeRegex(pub Option<regex::Regex>);
+
+impl SafeRegex {
+    pub fn compile(pat: &str) -> Self {
+        Self(regex::Regex::new(pat).ok())
+    }
+
+    #[inline]
+    pub fn is_match(&self, text: &str) -> bool {
+        self.0.as_ref().is_some_and(|re| re.is_match(text))
+    }
+
+    #[inline]
+    pub fn find<'t>(&self, text: &'t str) -> Option<regex::Match<'t>> {
+        self.0.as_ref().and_then(|re| re.find(text))
+    }
+
+    #[inline]
+    pub fn find_iter<'r, 't>(&'r self, text: &'t str) -> impl Iterator<Item = regex::Match<'t>> + use<'r, 't> {
+        self.0.iter().flat_map(move |re| re.find_iter(text))
+    }
+
+    #[inline]
+    pub fn captures<'t>(&self, text: &'t str) -> Option<regex::Captures<'t>> {
+        self.0.as_ref().and_then(|re| re.captures(text))
+    }
+
+    #[inline]
+    pub fn replace<'t>(&self, text: &'t str, rep: &str) -> std::borrow::Cow<'t, str> {
+        match &self.0 {
+            Some(re) => re.replace(text, rep),
+            None => std::borrow::Cow::Borrowed(text),
+        }
+    }
+
+    #[inline]
+    pub fn replace_all<'t>(&self, text: &'t str, rep: &str) -> std::borrow::Cow<'t, str> {
+        match &self.0 {
+            Some(re) => re.replace_all(text, rep),
+            None => std::borrow::Cow::Borrowed(text),
+        }
+    }
+}
+
 /// Mirror of NODE_KINDS in src/types.ts — order is the wire contract.
 pub const NODE_KINDS: [&str; 23] = [
     "file",

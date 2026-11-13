@@ -5,6 +5,8 @@
 // created: 2026-10-28
 // lastModified: 2026-11-13
 
+#![deny(unsafe_code)]
+
 pub mod ast_grep;
 pub mod cache;
 pub mod graph;
@@ -15,6 +17,7 @@ pub mod repomix;
 pub mod scip;
 pub mod slash;
 pub mod walker;
+pub mod wire;
 
 #[cfg(test)]
 mod tests;
@@ -26,7 +29,7 @@ use std::path::{Path, PathBuf};
 use crate::core::DynError;
 use crate::util::colors::C;
 
-pub use ast_grep::{AstGrepEngine, AstMatch, AstRule};
+pub use ast_grep::{AstGrepEngine, AstMatch, AstRule, MatchStrictness};
 pub use cache::{CacheStats, SymbolCache};
 pub use graph::{BlastRadiusReport, CodeGraphEngine, ImpactedNode};
 pub use jcodemunch::{extract_file_outline, generate_repo_outline, summarize_code_for_prompt, FileOutline, RepoOutline, SymbolOutline};
@@ -34,51 +37,146 @@ pub use kernel::{FileExtraction, SymbolEdge, SymbolNode, SymbolRef};
 pub use repomix::{package_files, pack_workspace, RepomixBundle, RepomixFormat, RepomixOptions};
 pub use scip::{format_scip_symbol, parse_scip_symbol, ScipDocument, ScipIndex, ScipOccurrence, ScipSymbolInformation, SymbolRole};
 pub use slash::handle_slash_command;
+pub use wire::DirectWireBus;
 
-pub fn resolve_db_path(root: &Path) -> PathBuf {
+#[derive(thiserror::Error, Debug)]
+pub enum CodeGraphError {
+    #[error("CodeGraph requires a .git repository root: {0}")]
+    RepoRequired(String),
+    #[error("Security violation resolving CodeGraph path: {0}")]
+    Security(String),
+    #[error("I/O error in CodeGraph: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Database error in CodeGraph: {0}")]
+    Db(#[from] rusqlite::Error),
+    #[error("Extraction error in CodeGraph: {0}")]
+    Extract(String),
+}
+
+/// Resolve `<repo>/.toksi/codegraph/symbols.db`, enforcing repo-only storage
+/// in non-test builds and merging any nested/legacy CodeGraph DBs into root.
+pub fn try_resolve_db_path(root: &Path) -> Result<PathBuf, CodeGraphError> {
+    let clean_input = PathBuf::from(crate::util::paths::normalize_path(&root.to_string_lossy()));
     let repo_root = match crate::icm::store::find_repo_root_and_subproject(Some(root)) {
         Ok((r, _)) => {
             let clean = crate::util::paths::normalize_path(&r.to_string_lossy());
             PathBuf::from(clean)
         }
-        Err(_) => {
-            let clean = crate::util::paths::normalize_path(&root.to_string_lossy());
-            PathBuf::from(clean)
+        Err(crate::icm::IcmError::Security(msg)) => {
+            return Err(CodeGraphError::Security(msg));
+        }
+        Err(e) => {
+            #[cfg(not(test))]
+            {
+                return Err(CodeGraphError::RepoRequired(e.to_string()));
+            }
+            #[cfg(test)]
+            {
+                let _ = e;
+                clean_input.clone()
+            }
         }
     };
+
     let toksi_dir = repo_root.join(".toksi").join("codegraph");
     let toksi_db = toksi_dir.join("symbols.db");
+    migrate_nested_codegraph_dbs(&repo_root, &clean_input, &toksi_dir, &toksi_db);
+    Ok(toksi_db)
+}
 
-    // Auto-migrate legacy root .codegraph/
-    let legacy_dir = repo_root.join(".codegraph");
-    let legacy_db = legacy_dir.join("symbols.db");
-    if legacy_db.exists() && !toksi_db.exists() {
-        let _ = fs::create_dir_all(&toksi_dir);
-        if fs::copy(&legacy_db, &toksi_db).is_ok() {
-            let _ = fs::remove_file(&legacy_db);
-            let _ = fs::remove_dir(&legacy_dir);
-            return toksi_db;
+/// Best-effort wrapper returning the repository-root CodeGraph DB path.
+pub fn resolve_db_path(root: &Path) -> PathBuf {
+    match try_resolve_db_path(root) {
+        Ok(p) => p,
+        Err(_) => {
+            let clean = crate::util::paths::normalize_path(&root.to_string_lossy());
+            PathBuf::from(clean).join(".toksi").join("codegraph").join("symbols.db")
+        }
+    }
+}
+
+fn migrate_nested_codegraph_dbs(
+    repo_root: &Path,
+    clean_input: &Path,
+    toksi_dir: &Path,
+    toksi_db: &Path,
+) {
+    let mut candidates: Vec<(PathBuf, String)> = Vec::new();
+    let root_legacy = repo_root.join(".codegraph").join("symbols.db");
+    if root_legacy.exists() {
+        candidates.push((root_legacy, ".".to_string()));
+    }
+    if clean_input != repo_root {
+        let rel_prefix = clean_input
+            .strip_prefix(repo_root)
+            .map(|p| crate::util::paths::normalize_path(&p.to_string_lossy()))
+            .unwrap_or_else(|_| ".".to_string());
+        for sub in [".toksi/codegraph/symbols.db", ".codegraph/symbols.db"] {
+            let p = clean_input.join(sub);
+            if p.exists() && p != *toksi_db {
+                candidates.push((p, rel_prefix.clone()));
+            }
         }
     }
 
-    // Auto-merge nested crate .toksi/codegraph if present in a subfolder
-    let clean_root = PathBuf::from(crate::util::paths::normalize_path(&root.to_string_lossy()));
-    if clean_root != repo_root {
-        let nested_toksi_db = clean_root.join(".toksi").join("codegraph").join("symbols.db");
-        if nested_toksi_db.exists() && !toksi_db.exists() {
-            let _ = fs::create_dir_all(&toksi_dir);
-            let _ = fs::copy(&nested_toksi_db, &toksi_db);
-            let _ = fs::remove_file(&nested_toksi_db);
-        }
-        let nested_legacy_db = clean_root.join(".codegraph").join("symbols.db");
-        if nested_legacy_db.exists() && !toksi_db.exists() {
-            let _ = fs::create_dir_all(&toksi_dir);
-            let _ = fs::copy(&nested_legacy_db, &toksi_db);
-            let _ = fs::remove_file(&nested_legacy_db);
+    // Crawl workspace up to depth 5 for any nested subcrate `.toksi/codegraph` or `.codegraph` DBs
+    let mut wb = ignore::WalkBuilder::new(repo_root);
+    wb.hidden(false).max_depth(Some(5)).filter_entry(|e| {
+        let name = e.file_name().to_string_lossy();
+        !matches!(
+            name.as_ref(),
+            ".git" | "target" | "node_modules" | "dist" | "build" | "inspect-vault"
+        )
+    });
+    for entry in wb.build().flatten() {
+        if entry.file_name() == "symbols.db" {
+            let p = entry.path().to_path_buf();
+            if p == *toksi_db {
+                continue;
+            }
+            let norm_p = crate::util::paths::normalize_path(&p.to_string_lossy());
+            if norm_p.ends_with("/.toksi/codegraph/symbols.db")
+                || norm_p.ends_with("/.codegraph/symbols.db")
+            {
+                let sub_dir = if let Some(base) = norm_p
+                    .strip_suffix("/.toksi/codegraph/symbols.db")
+                    .or_else(|| norm_p.strip_suffix("/.codegraph/symbols.db"))
+                {
+                    let base_path = Path::new(base);
+                    base_path
+                        .strip_prefix(repo_root)
+                        .map(|r| crate::util::paths::normalize_path(&r.to_string_lossy()))
+                        .unwrap_or_else(|_| ".".to_string())
+                } else {
+                    ".".to_string()
+                };
+                if !candidates.iter().any(|(existing, _)| existing == &p) {
+                    candidates.push((p, sub_dir));
+                }
+            }
         }
     }
 
-    toksi_db
+    if candidates.is_empty() {
+        return;
+    }
+
+    let _ = fs::create_dir_all(toksi_dir);
+    if let Ok(mut root_cache) = SymbolCache::open(toksi_db) {
+        for (nested_db, prefix) in candidates {
+            if root_cache.merge_from_db(&nested_db, &prefix).is_ok() {
+                let _ = fs::remove_file(&nested_db);
+                if let Some(parent) = nested_db.parent() {
+                    let _ = fs::remove_dir(parent);
+                    if let Some(gp) = parent.parent() {
+                        if gp.file_name().and_then(|s| s.to_str()) == Some(".toksi") {
+                            let _ = fs::remove_dir(gp);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// User home storage for codegraph is strictly prohibited by consolidation mandates.
@@ -93,21 +191,22 @@ pub struct CodeGraph {
 }
 
 impl CodeGraph {
-    pub fn open(root: &Path) -> Result<Self, DynError> {
+    pub fn open(root: &Path) -> Result<Self, CodeGraphError> {
         let abs_root = if root.is_absolute() {
             root.to_path_buf()
         } else {
             std::env::current_dir()?.join(root)
         };
+        let norm_root = PathBuf::from(crate::util::paths::normalize_path(&abs_root.to_string_lossy()));
 
-        let db_path = resolve_db_path(&abs_root);
+        let db_path = try_resolve_db_path(&norm_root)?;
         let cache = SymbolCache::open(&db_path)?;
         let nodes = cache.get_all_nodes();
         let edges = cache.get_all_edges();
         let engine = CodeGraphEngine::build(nodes, edges);
 
         Ok(Self {
-            root: abs_root,
+            root: norm_root,
             cache,
             engine,
         })
@@ -163,7 +262,7 @@ impl CodeGraph {
 
             let hash = cache::content_hash(&content_bytes);
             if let Ok(extraction) = kernel::extract_file(&file.rel_path, &content_str, file.language) {
-                let _ = self.cache.save_extraction(&file, &hash, &extraction);
+                let _ = self.cache.save_extraction_with_source(&file, &hash, &extraction, Some(&content_str));
             }
         }
 

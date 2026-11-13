@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/ccpp/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 //! C / C++ extraction — a faithful Rust port of `TreeSitterExtractor`'s c/cpp
 //! paths (src/extraction/tree-sitter.ts) plus languages/c-cpp.ts, one dual-
@@ -92,7 +92,6 @@ use crate::codegraph::kernel::buffers::{
 use crate::codegraph::kernel::docstring::preceding_docstring;
 use crate::codegraph::kernel::ids;
 use crate::codegraph::kernel::textutil as util;
-use regex::Regex;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::OnceLock;
 use tree_sitter::{Node, Parser};
@@ -105,80 +104,78 @@ const MAX_VALUE_REF_NODES: usize = 20_000;
 // --- compiled regexes (JS \w/\s spelled as ASCII classes for parity) ---------
 
 /// C_STANDARD_TYPE_NAME (languages/c-cpp.ts).
-fn c_standard_type_name_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
+fn c_standard_type_name_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"^(?:(?:::\s*)?std\s*::|(?:_Bool|_Complex|wchar_t|char(?:8|16|32)_t|u?intmax_t|u?int_(?:least|fast)\d+_t|max_align_t|nullptr_t)$)")
-            .unwrap()
+        crate::codegraph::kernel::buffers::SafeRegex::compile(r"^(?:(?:::\s*)?std\s*::|(?:_Bool|_Complex|wchar_t|char(?:8|16|32)_t|u?intmax_t|u?int_(?:least|fast)\d+_t|max_align_t|nullptr_t)$)")
     })
 }
 /// recoverCppMacroDefinedName: macro-shaped parsed name.
-fn macro_shaped_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$").unwrap())
+fn macro_shaped_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+$"))
 }
-fn has_lower_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"[a-z]").unwrap())
+fn has_lower_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"[a-z]"))
 }
-fn single_arg_macro_replacement_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(
+fn single_arg_macro_replacement_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(
         r"^(?:[A-Za-z_][A-Za-z0-9_:]*[ \t\r\n]+)+[*& \t\r\n]*([A-Za-z_][A-Za-z0-9_]*)[ \t\r\n]*\([^(){};#]*\)[ \t\r\n]*$"
-    ).unwrap())
+    ))
 }
 /// normalizeCppReturnType: smart-pointer/optional unwrap.
-fn ret_wrapper_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
+fn ret_wrapper_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
     RE.get_or_init(|| {
-        Regex::new(r"\b(?:std\s*::\s*)?(?:unique_ptr|shared_ptr|weak_ptr|optional)\s*<\s*([^,>]+?)\s*>")
-            .unwrap()
+        crate::codegraph::kernel::buffers::SafeRegex::compile(r"\b(?:std\s*::\s*)?(?:unique_ptr|shared_ptr|weak_ptr|optional)\s*<\s*([^,>]+?)\s*>")
     })
 }
-fn ret_keyword_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\b(?:const|volatile|typename|struct|class|enum)\b").unwrap())
+fn ret_keyword_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"\b(?:const|volatile|typename|struct|class|enum)\b"))
 }
-fn angle_group_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"<[^>]*>").unwrap())
+fn angle_group_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"<[^>]*>"))
 }
-fn ptr_ref_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"[*&]+").unwrap())
+fn ptr_ref_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"[*&]+"))
 }
-fn ws_run_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"\s+").unwrap())
+fn ws_run_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"\s+"))
 }
-fn simple_ident_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*$").unwrap())
+fn simple_ident_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_][A-Za-z0-9_]*$"))
 }
 /// recoverMangledCppName's `Ret (name)` idiom guard.
-fn ret_paren_name_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^\S+\s+\([A-Za-z_][A-Za-z0-9_]*\)").unwrap())
+fn ret_paren_name_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^\S+\s+\([A-Za-z_][A-Za-z0-9_]*\)"))
 }
 /// Operator-call receiver: simple identifier / dotted member chain.
-fn operator_receiver_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Za-z_][A-Za-z0-9_.]*$").unwrap())
+fn operator_receiver_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_][A-Za-z0-9_.]*$"))
 }
 /// Symbolic operator tail (`/^[^\w\s]/` in JS).
-fn symbolic_op_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[^A-Za-z0-9_\s]").unwrap())
+fn symbolic_op_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[^A-Za-z0-9_\s]"))
 }
 /// extractStaticMemberRef's capitalized-receiver test.
-fn capitalized_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Z][A-Za-z0-9_]*$").unwrap())
+fn capitalized_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Z][A-Za-z0-9_]*$"))
 }
 /// normalizeValue's qualified `&Cls::m` member-pointer test (`/^[A-Za-z_][\w:]*$/`).
-fn qualified_ref_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Za-z_][A-Za-z0-9_:]*$").unwrap())
+fn qualified_ref_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_][A-Za-z0-9_:]*$"))
 }
 
 /// CPP_NON_CLASS_RETURN (languages/c-cpp.ts).
@@ -468,7 +465,7 @@ pub fn extract(file_path: &str, source: &str, language: &str) -> Result<EmitOut,
     let name_ref = w.arena.put(base_name);
     let qn_ref = w.arena.put(file_path);
     w.tables.push_node(&NodeRow {
-        kind: node_kind_index("file").unwrap(),
+        kind: node_kind_index("file").unwrap_or(0),
         visibility: 0,
         flags,
         start_line: 1,
@@ -539,7 +536,7 @@ impl<'t> Walker<'t> {
             candidates: NONE_STR,
             from_id_str: NONE_STR,
         });
-        if kind_code == edge_kind_index("imports").unwrap() {
+        if kind_code == edge_kind_index("imports").unwrap_or(0) {
             if util::simple_name().is_match(name) {
                 self.imported_names.insert(name.to_string());
             } else if let Some(c) = util::qualified_import().captures(name) {
@@ -593,7 +590,7 @@ impl<'t> Walker<'t> {
         let sig_ref = opt_str(&mut self.arena, extra.signature.as_deref());
         let ret_ref = opt_str(&mut self.arena, extra.return_type.as_deref());
         let row = self.tables.push_node(&NodeRow {
-            kind: node_kind_index(kind).unwrap(),
+            kind: node_kind_index(kind).unwrap_or(0),
             visibility: extra.visibility.unwrap_or(0),
             flags,
             start_line,
@@ -617,7 +614,7 @@ impl<'t> Walker<'t> {
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
             target_idx: row,
-            kind: edge_kind_index("contains").unwrap(),
+            kind: edge_kind_index("contains").unwrap_or(0),
             provenance: 0,
             line: NONE,
             column: NONE,
@@ -1362,7 +1359,7 @@ impl<'t> Walker<'t> {
                     self.tables.push_edge(&EdgeRow {
                         source_idx: owner_row,
                         target_idx: row,
-                        kind: edge_kind_index("contains").unwrap(),
+                        kind: edge_kind_index("contains").unwrap_or(0),
                         provenance: 0,
                         line: NONE,
                         column: NONE,
@@ -1663,7 +1660,7 @@ impl<'t> Walker<'t> {
         );
         if !module_name.is_empty() {
             let parent = self.top_row();
-            self.push_ref_at(parent, &module_name, edge_kind_index("imports").unwrap(), node);
+            self.push_ref_at(parent, &module_name, edge_kind_index("imports").unwrap_or(0), node);
         }
     }
 
@@ -1677,7 +1674,7 @@ impl<'t> Walker<'t> {
         let func = node
             .child_by_field_name("function")
             .or_else(|| node.named_child(0));
-        let calls_kind = edge_kind_index("calls").unwrap();
+        let calls_kind = edge_kind_index("calls").unwrap_or(0);
 
         // C++ explicit operator call `a.operator+(b)` (#1247): the
         // operator_name hides in an ERROR child. (has_error() defers such
@@ -1843,7 +1840,7 @@ impl<'t> Walker<'t> {
         }
         let class_name = class_name.trim().to_string();
         if !class_name.is_empty() {
-            self.push_ref_at(from, &class_name, edge_kind_index("instantiates").unwrap(), node);
+            self.push_ref_at(from, &class_name, edge_kind_index("instantiates").unwrap_or(0), node);
         }
     }
 
@@ -2039,7 +2036,7 @@ impl<'t> Walker<'t> {
         if capitalized_re().is_match(text) {
             let owner = self.top_row();
             let name = text.to_string();
-            self.push_ref_at(owner, &name, edge_kind_index("references").unwrap(), recv);
+            self.push_ref_at(owner, &name, edge_kind_index("references").unwrap_or(0), recv);
         }
     }
 
@@ -2078,7 +2075,7 @@ impl<'t> Walker<'t> {
                     let from = self.top_row();
                     let class_name = strip_cpp_template_args(self.text(type_node));
                     if let Some(name) = class_name.split("::").filter(|s| !s.is_empty()).last() {
-                        let calls = edge_kind_index("calls").unwrap();
+                        let calls = edge_kind_index("calls").unwrap_or(0);
                         for arity in arities {
                             self.push_ref_at(from, &format!("{class_name}::{name}/{arity}"), calls, node);
                         }
@@ -2158,7 +2155,7 @@ impl<'t> Walker<'t> {
     /// field_identifier inside a pointer/array/function declarator.
     fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
         stack_guard!();
-        let extends_kind = edge_kind_index("extends").unwrap();
+        let extends_kind = edge_kind_index("extends").unwrap_or(0);
         for i in 0..node.named_child_count() {
             let Some(child) = node.named_child(i) else { continue };
             match child.kind() {
@@ -2197,7 +2194,7 @@ impl<'t> Walker<'t> {
     }
 
     fn push_type_refs(&mut self, names: Vec<(String, Node<'t>)>, row: u32) {
-        let references = edge_kind_index("references").unwrap();
+        let references = edge_kind_index("references").unwrap_or(0);
         for (name, node) in names {
             self.push_ref_at(row, &name, references, node);
         }
@@ -2558,7 +2555,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        let refs_kind = edge_kind_index("references").unwrap();
+        let refs_kind = edge_kind_index("references").unwrap_or(0);
         for scope in &scopes {
             let mut seen: HashSet<&str> = HashSet::new();
             let mut stack: Vec<Node> = vec![scope.node];

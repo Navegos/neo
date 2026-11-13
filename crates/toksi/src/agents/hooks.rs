@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/hooks.rs
 // created: 2026-10-05
-// lastModified: 2026-11-08
+// lastModified: 2026-11-13
 
 pub use super::antigravity::*;
 pub use super::claude::*;
@@ -34,12 +34,12 @@ pub fn standard_hook_command(tool: &str, agent: &str) -> Vec<String> {
 }
 
 /// Normalizes tool names for hooks:
-/// e.g. `toksi-projectmem` -> `projectmem`, `toksi-context-mode` / `context-mode` -> `context`, `toksi-codegraph-index` -> `codegraph`
+/// e.g. `toksi-projectmem` -> `projectmem`, `toksi-context-mode` / `context-mode` -> `context`, `toksi-codegraph` -> `codegraph`
 pub fn normalize_hook_tool_name(tool: &str) -> &'static str {
     match tool.trim() {
         "projectmem" | "toksi-projectmem" | "pjm" => "projectmem",
         "context" | "context-mode" | "toksi-context-mode" | "ctx" => "context",
-        "codegraph" | "toksi-codegraph" | "toksi-codegraph-index" | "graph" => "codegraph",
+        "codegraph" | "toksi-codegraph" | "graph" => "codegraph",
         "rtk" | "toksi-rtk" => "rtk",
         "icm" | "toksi-icm" => "icm",
         "aimemory" | "ai-memory" | "toksi-aimemory" => "aimemory",
@@ -69,24 +69,12 @@ pub fn normalize_hook_agent_name(agent: &str) -> &'static str {
     }
 }
 
-/// Checks whether a command string matches standard or legacy hook pattern
+/// Checks whether a command string matches standard hook pattern
 pub fn is_hook_command_match(cmd_str: &str, tool: &str, agent: &str) -> bool {
     let norm_tool = normalize_hook_tool_name(tool);
     let norm_agent = normalize_hook_agent_name(agent);
     let standard = format!("{}-hook {}", norm_tool, norm_agent);
-    if cmd_str.contains(&standard) {
-        return true;
-    }
-    // Match legacy hook patterns e.g. "agy-hook codegraph-index"
-    if norm_tool == "codegraph" {
-        if cmd_str.contains("agy-hook codegraph-index")
-            || cmd_str.contains("copilot-hook codegraph-index")
-            || cmd_str.contains("cursor-hook codegraph-index")
-        {
-            return true;
-        }
-    }
-    false
+    cmd_str.contains(&standard)
 }
 
 /// Differentiates agent CLI vs agent editor/IDE
@@ -126,7 +114,7 @@ mod tests {
     #[test]
     fn test_is_hook_command_match() {
         assert!(is_hook_command_match("toksi codegraph-hook agy", "codegraph", "antigravity"));
-        assert!(is_hook_command_match("toksi agy-hook codegraph-index", "codegraph", "antigravity"));
+        assert!(!is_hook_command_match("toksi agy-hook codegraph-index", "codegraph", "antigravity"));
         assert!(is_hook_command_match("toksi projectmem-hook copilot", "projectmem", "copilot-vscode"));
     }
 

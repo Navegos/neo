@@ -202,7 +202,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     let docstring = body_docstring(tree.root_node(), source)
         .map(|doc| w.arena.put(&doc)).unwrap_or(NONE_STR);
     w.tables.push_node(&NodeRow {
-        kind: node_kind_index("file").unwrap(),
+        kind: node_kind_index("file").unwrap_or(0),
         visibility: 0,
         flags,
         start_line: 1,
@@ -272,7 +272,7 @@ impl<'t> Walker<'t> {
             candidates: NONE_STR,
             from_id_str: NONE_STR,
         });
-        if kind_code == edge_kind_index("imports").unwrap() {
+        if kind_code == edge_kind_index("imports").unwrap_or(0) {
             if util::simple_name().is_match(name) {
                 self.imported_names.insert(name.to_string());
             } else if let Some(c) = util::qualified_import().captures(name) {
@@ -318,7 +318,7 @@ impl<'t> Walker<'t> {
         let doc_ref = opt_str(&mut self.arena, extra.docstring.as_deref());
         let sig_ref = opt_str(&mut self.arena, extra.signature.as_deref());
         let row = self.tables.push_node(&NodeRow {
-            kind: node_kind_index(kind).unwrap(),
+            kind: node_kind_index(kind).unwrap_or(0),
             visibility: 0,
             flags,
             start_line,
@@ -341,7 +341,7 @@ impl<'t> Walker<'t> {
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
             target_idx: row,
-            kind: edge_kind_index("contains").unwrap(),
+            kind: edge_kind_index("contains").unwrap_or(0),
             provenance: 0,
             line: NONE,
             column: NONE,
@@ -549,7 +549,7 @@ impl<'t> Walker<'t> {
         // Inheritance: `class Flask(Scaffold, Mixin):` — argument_list children.
         // A parameterized base, `class Leaf(Base[str])`, is a `subscript`
         // whose value names the class.
-        let extends_kind = edge_kind_index("extends").unwrap();
+        let extends_kind = edge_kind_index("extends").unwrap_or(0);
         for i in 0..node.named_child_count() {
             let Some(child) = node.named_child(i) else { continue };
             if child.kind() == "argument_list" {
@@ -625,7 +625,7 @@ impl<'t> Walker<'t> {
 
     fn extract_import(&mut self, node: Node<'t>) {
         let import_text = self.text(node).trim().to_string();
-        let imports_kind = edge_kind_index("imports").unwrap();
+        let imports_kind = edge_kind_index("imports").unwrap_or(0);
 
         if node.kind() == "import_from_statement" {
             // Hook path: module_name field → import node + module ref, then
@@ -791,7 +791,7 @@ impl<'t> Walker<'t> {
                 callee_name = c[1].to_string();
             }
             let from = self.top_row();
-            self.push_ref_at(from, &callee_name.clone(), edge_kind_index("calls").unwrap(), node);
+            self.push_ref_at(from, &callee_name.clone(), edge_kind_index("calls").unwrap_or(0), node);
         }
     }
 
@@ -892,7 +892,7 @@ impl<'t> Walker<'t> {
         if name.is_empty() {
             return;
         }
-        self.push_ref_at(decorated_row, &name, edge_kind_index("decorates").unwrap(), n);
+        self.push_ref_at(decorated_row, &name, edge_kind_index("decorates").unwrap_or(0), n);
     }
 
     // --- fn refs (PYTHON_SPEC) ------------------------------------------------------
@@ -1102,7 +1102,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        let refs_kind = edge_kind_index("references").unwrap();
+        let refs_kind = edge_kind_index("references").unwrap_or(0);
         for scope in &scopes {
             let mut seen: HashSet<&str> = HashSet::new();
             let mut stack: Vec<Node> = vec![scope.node];

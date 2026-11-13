@@ -946,5 +946,148 @@ pub fn save_order() {}
         assert!(text.contains("Blast Radius:"));
         assert!(text.contains("Source Snippets"));
     }
+
+    #[test]
+    fn test_polyglot_treesitter_vue_svelte_cfnptr() {
+        use crate::codegraph::kernel::{extract_file, langs};
+
+        for lang in langs::LANGUAGES {
+            if *lang != "dockerfile" {
+                assert!(langs::grammar_for(lang).is_some(), "missing Tree-sitter grammar for {lang}");
+            }
+        }
+
+        let samples: &[(&str, &str, &str, &str)] = &[
+            ("src/App.java", "java", "public class App { public void run() {} }", "App"),
+            ("src/App.cs", "csharp", "public class Service { public void Exec() {} }", "Service"),
+            ("app.rb", "ruby", "class Worker\n  def perform\n  end\nend\n", "Worker"),
+            ("app.php", "php", "<?php\nclass Router { public function dispatch() {} }\n", "Router"),
+            ("calc.r", "r", "compute_score <- function(x) { x + 1 }\n", "compute_score"),
+            ("game.luau", "luau", "local function tick(dt: number)\n  return dt\nend\n", "tick"),
+            ("main.zig", "zig", "pub fn init_engine() void {}\n", "init_engine"),
+            ("lib/srv.ex", "elixir", "defmodule Srv do\n  def start, do: :ok\nend\n", "Srv"),
+            ("main.tf", "hcl", "resource \"aws_s3_bucket\" \"logs\" {}\n", "logs"),
+            ("schema.sql", "sql", "CREATE TABLE users (id INT);\n", "users"),
+            ("msg.proto", "protobuf", "syntax = \"proto3\";\nmessage Ping { string id = 1; }\n", "Ping"),
+            ("doc.tex", "latex", "\\section{Introduction}\nHello.\n", "Introduction"),
+            ("main.dart", "dart", "class Bloc { void addEvent() {} }\n", "Bloc"),
+            ("Main.kt", "kotlin", "class Repo { fun load() {} }\n", "Repo"),
+            ("Main.scala", "scala", "object Main { def boot(): Unit = () }\n", "Main"),
+            ("Main.swift", "swift", "class Client { func connect() {} }\n", "Client"),
+            ("mod.lua", "lua", "local function helper() return 1 end\n", "helper"),
+            (
+                "App.vue",
+                "vue",
+                "<template><UserCard @click=\"submitForm\" /></template>\n<script setup>\nfunction submitForm() {}\n</script>\n",
+                "submitForm",
+            ),
+            (
+                "Panel.svelte",
+                "svelte",
+                "<script>\nfunction refreshPanel() {}\n</script>\n<button on:click={refreshPanel}>Go</button>\n",
+                "refreshPanel",
+            ),
+        ];
+
+        let mut failures = Vec::new();
+        for (file, lang, src, expected_sym) in samples {
+            let res = extract_file(file, src, lang).unwrap_or_else(|e| panic!("{lang} failed: {e}"));
+            if !res.nodes.iter().any(|n| n.name.contains(expected_sym)) {
+                let sexp = langs::grammar_for(lang).and_then(|g| {
+                    let mut p = tree_sitter::Parser::new();
+                    p.set_language(&g).ok()?;
+                    p.parse(*src, None).map(|t| t.root_node().to_sexp())
+                });
+                failures.push(format!(
+                    "{lang}: expected {expected_sym}, got {:?}, sexp={:?}",
+                    res.nodes.iter().map(|n| &n.name).collect::<Vec<_>>(),
+                    sexp
+                ));
+            }
+        }
+        assert!(failures.is_empty(), "polyglot failures:\n{}", failures.join("\n"));
+
+        let c_src = r#"
+struct ops {
+    int (*run)(int);
+};
+int impl_run(int x) { return x + 1; }
+struct ops g_ops = { .run = impl_run };
+int caller(int v) { return g_ops.run(v); }
+"#;
+        let c_res = extract_file("src/ops.c", c_src, "c").expect("c extract");
+        assert!(
+            c_res.refs.iter().any(|r| r.kind == "calls" && r.name == "impl_run")
+                || c_res.edges.iter().any(|e| e.kind == "calls"),
+            "expected cfnptr dispatch call ref/edge in C extraction; refs={:?}; edges={:?}",
+            c_res.refs,
+            c_res.edges
+        );
+    }
+
+    #[test]
+    fn test_monorepo_nested_db_merge_and_find_project_dir() {
+        use crate::codegraph::cache::{derive_subproject_id, SymbolCache};
+        use crate::codegraph::kernel::extract_file;
+        use crate::codegraph::walker::WalkedFile;
+        use crate::commands::index::find_project_dir;
+
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join(".git")).unwrap();
+
+        let p1 = root.join("crates").join("project1");
+        let p2 = root.join("crates").join("project2");
+        fs::create_dir_all(p1.join("src")).unwrap();
+        fs::create_dir_all(p2.join("src")).unwrap();
+        fs::write(p1.join("Cargo.toml"), "[package]\nname = \"project1\"\nversion = \"0.1.0\"\n").unwrap();
+        fs::write(p2.join("Cargo.toml"), "[package]\nname = \"project2\"\nversion = \"0.1.0\"\n").unwrap();
+        fs::write(p1.join("src/lib.rs"), "pub fn p1_alpha() {}\n").unwrap();
+        fs::write(p2.join("src/lib.rs"), "pub fn p2_beta() {}\n").unwrap();
+
+        // find_project_dir must walk past subcrate Cargo.toml to .git root with forward slashes
+        let found = find_project_dir(&p1.to_string_lossy());
+        let expected_root = crate::util::paths::normalize_path(
+            &fs::canonicalize(root).unwrap().to_string_lossy(),
+        );
+        assert_eq!(found, expected_root);
+
+        // Seed nested .toksi/codegraph/symbols.db and legacy .codegraph/symbols.db
+        let wf1 = WalkedFile {
+            path: p1.join("src/lib.rs"),
+            rel_path: "src/lib.rs".into(),
+            language: "rust",
+            mtime: 1,
+            size: 24,
+        };
+        let ext1 = extract_file("src/lib.rs", "pub fn legacy_p1_node() {}\n", "rust").unwrap();
+        let nested_toksi = p1.join(".toksi").join("codegraph").join("symbols.db");
+        let mut c1 = SymbolCache::open(&nested_toksi).unwrap();
+        c1.save_extraction(&wf1, "h1", &ext1).unwrap();
+        drop(c1);
+
+        let wf2 = WalkedFile {
+            path: p2.join("src/lib.rs"),
+            rel_path: "src/lib.rs".into(),
+            language: "rust",
+            mtime: 1,
+            size: 24,
+        };
+        let ext2 = extract_file("src/lib.rs", "pub fn legacy_p2_node() {}\n", "rust").unwrap();
+        let nested_legacy = p2.join(".codegraph").join("symbols.db");
+        let mut c2 = SymbolCache::open(&nested_legacy).unwrap();
+        c2.save_extraction(&wf2, "h2", &ext2).unwrap();
+        drop(c2);
+
+        let cg = CodeGraph::open(&p1).unwrap();
+        assert!(root.join(".toksi").join("codegraph").join("symbols.db").exists());
+        assert!(!nested_toksi.exists(), "nested .toksi db must merge and clean up");
+        assert!(!nested_legacy.exists(), "nested legacy .codegraph db must merge and clean up");
+
+        let p1_nodes = cg.cache.get_nodes_by_subproject(&derive_subproject_id("crates/project1/src/lib.rs"));
+        assert!(!p1_nodes.is_empty(), "expected partitioned nodes for project1");
+        assert_eq!(derive_subproject_id("crates/project2/src/lib.rs"), "crates/project2");
+        assert!(crate::codegraph::user_home_db_path().is_none());
+    }
 }
 

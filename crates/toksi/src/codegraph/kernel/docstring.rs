@@ -3,12 +3,11 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/docstring.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 //! getPrecedingDocstring / cleanCommentMarkers — faithful port of
 //! src/extraction/tree-sitter-helpers.ts (#780 wrapper-climb semantics).
 
-use regex::Regex;
 use std::sync::OnceLock;
 use tree_sitter::Node;
 
@@ -35,37 +34,38 @@ fn is_comment(kind: &str) -> bool {
 }
 
 struct Cleaners {
-    block_open: Regex,
-    block_close: Regex,
-    lua_open: Regex,
-    lua_close: Regex,
-    paren_star_open: Regex,
-    paren_star_close: Regex,
-    brace_open: Regex,
-    brace_close: Regex,
-    slashes: Regex,
-    dashes: Regex,
-    hash: Regex,
-    percent: Regex,
-    star_cont: Regex,
+    block_open: super::buffers::SafeRegex,
+    block_close: super::buffers::SafeRegex,
+    lua_open: super::buffers::SafeRegex,
+    lua_close: super::buffers::SafeRegex,
+    paren_star_open: super::buffers::SafeRegex,
+    paren_star_close: super::buffers::SafeRegex,
+    brace_open: super::buffers::SafeRegex,
+    brace_close: super::buffers::SafeRegex,
+    slashes: super::buffers::SafeRegex,
+    dashes: super::buffers::SafeRegex,
+    hash: super::buffers::SafeRegex,
+    percent: super::buffers::SafeRegex,
+    star_cont: super::buffers::SafeRegex,
 }
 
 fn cleaners() -> &'static Cleaners {
+    use super::buffers::SafeRegex;
     static C: OnceLock<Cleaners> = OnceLock::new();
     C.get_or_init(|| Cleaners {
-        block_open: Regex::new(r"^/\*+!?").unwrap(),
-        block_close: Regex::new(r"\*+/$").unwrap(),
-        lua_open: Regex::new(r"^--\[=*\[").unwrap(),
-        lua_close: Regex::new(r"\]=*\]$").unwrap(),
-        paren_star_open: Regex::new(r"^\(\*").unwrap(),
-        paren_star_close: Regex::new(r"\*\)$").unwrap(),
-        brace_open: Regex::new(r"^\{").unwrap(),
-        brace_close: Regex::new(r"\}$").unwrap(),
-        slashes: Regex::new(r"\A//[/!]?\s?").unwrap(),
-        dashes: Regex::new(r"\A--\s?").unwrap(),
-        hash: Regex::new(r"\A#\s?").unwrap(),
-        percent: Regex::new(r"\A%+\s?").unwrap(),
-        star_cont: Regex::new(r"\A\s*\*\s?").unwrap(),
+        block_open: SafeRegex::compile(r"^/\*+!?"),
+        block_close: SafeRegex::compile(r"\*+/$"),
+        lua_open: SafeRegex::compile(r"^--\[=*\["),
+        lua_close: SafeRegex::compile(r"\]=*\]$"),
+        paren_star_open: SafeRegex::compile(r"^\(\*"),
+        paren_star_close: SafeRegex::compile(r"\*\)$"),
+        brace_open: SafeRegex::compile(r"^\{"),
+        brace_close: SafeRegex::compile(r"\}$"),
+        slashes: SafeRegex::compile(r"\A//[/!]?\s?"),
+        dashes: SafeRegex::compile(r"\A--\s?"),
+        hash: SafeRegex::compile(r"\A#\s?"),
+        percent: SafeRegex::compile(r"\A%+\s?"),
+        star_cont: SafeRegex::compile(r"\A\s*\*\s?"),
     })
 }
 
@@ -84,7 +84,7 @@ fn is_js_line_terminator(ch: char) -> bool {
 /// after each match's end — a faithful /g replace. (Remaining known
 /// divergence: JS `\s` includes U+FEFF, Rust's does not; an embedded BOM
 /// inside a comment is accepted as unreachable.)
-fn js_multiline_strip(s: &str, pat: &Regex) -> String {
+fn js_multiline_strip(s: &str, pat: &super::buffers::SafeRegex) -> String {
     let mut out = String::with_capacity(s.len());
     let mut last = 0usize;
     let mut pos = 0usize;

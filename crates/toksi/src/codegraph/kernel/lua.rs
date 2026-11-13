@@ -122,7 +122,7 @@ pub fn extract(file_path: &str, source: &str, language: &str) -> Result<EmitOut,
     let name_ref = w.arena.put(base_name);
     let qn_ref = w.arena.put(file_path);
     w.tables.push_node(&NodeRow {
-        kind: node_kind_index("file").unwrap(),
+        kind: node_kind_index("file").unwrap_or(0),
         visibility: 0,
         flags,
         start_line: 1,
@@ -179,7 +179,7 @@ impl<'t> Walker<'t> {
         let name_ref = self.arena.put(name);
         self.tables.push_ref(&RefRow {
             from_idx: from_row,
-            kind: edge_kind_index(kind).unwrap(),
+            kind: edge_kind_index(kind).unwrap_or(0),
             line: self.line_of(node),
             column: self.col_of(node),
             reference_name: name_ref,
@@ -238,7 +238,7 @@ impl<'t> Walker<'t> {
             flags.set(FLAG_IS_EXPORTED, v);
         }
         let row = self.tables.push_node(&NodeRow {
-            kind: node_kind_index(kind).unwrap(),
+            kind: node_kind_index(kind).unwrap_or(0),
             visibility: 0,
             flags,
             start_line,
@@ -264,7 +264,7 @@ impl<'t> Walker<'t> {
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
             target_idx: row,
-            kind: edge_kind_index("contains").unwrap(),
+            kind: edge_kind_index("contains").unwrap_or(0),
             provenance: 0,
             line: NONE,
             column: NONE,

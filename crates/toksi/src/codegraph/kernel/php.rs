@@ -25,7 +25,6 @@ use crate::codegraph::kernel::buffers::{
 use crate::codegraph::kernel::docstring::preceding_docstring;
 use crate::codegraph::kernel::ids;
 use crate::codegraph::kernel::textutil as util;
-use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::sync::OnceLock;
 use tree_sitter::{Node, Parser};
@@ -87,24 +86,24 @@ fn is_php_callable_hof(name: &str) -> bool {
 }
 
 /// `/^[A-Za-z_]\w*$/` with JS's ASCII `\w`.
-fn ascii_ident_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Za-z_][0-9A-Za-z_]*$").unwrap())
+fn ascii_ident_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_][0-9A-Za-z_]*$"))
 }
 /// String-callable simple-name shape (`/^[A-Za-z_][A-Za-z0-9_]*$/`).
-fn simple_callable_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*$").unwrap())
+fn simple_callable_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_][A-Za-z0-9_]*$"))
 }
 /// String-callable qualified shape (`/^\w+::\w+$/`, JS ASCII `\w`).
-fn qualified_callable_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[0-9A-Za-z_]+::[0-9A-Za-z_]+$").unwrap())
+fn qualified_callable_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[0-9A-Za-z_]+::[0-9A-Za-z_]+$"))
 }
 /// extractStaticMemberRef's capitalized-receiver test.
-fn capitalized_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Z][A-Za-z0-9_]*$").unwrap())
+fn capitalized_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Z][A-Za-z0-9_]*$"))
 }
 
 struct Scope {
@@ -193,7 +192,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     let name_ref = w.arena.put(base_name);
     let qn_ref = w.arena.put(file_path);
     w.tables.push_node(&NodeRow {
-        kind: node_kind_index("file").unwrap(),
+        kind: node_kind_index("file").unwrap_or(0),
         visibility: 0,
         flags,
         start_line: 1,
@@ -298,7 +297,7 @@ impl<'t> Walker<'t> {
             candidates: NONE_STR,
             from_id_str: NONE_STR,
         });
-        if kind_code == edge_kind_index("imports").unwrap() {
+        if kind_code == edge_kind_index("imports").unwrap_or(0) {
             if util::simple_name().is_match(name) {
                 self.imported_names.insert(name.to_string());
             } else if let Some(c) = util::qualified_import().captures(name) {
@@ -348,7 +347,7 @@ impl<'t> Walker<'t> {
         let sig_ref = opt_str(&mut self.arena, extra.signature.as_deref());
         let ret_ref = opt_str(&mut self.arena, extra.return_type.as_deref());
         let row = self.tables.push_node(&NodeRow {
-            kind: node_kind_index(kind).unwrap(),
+            kind: node_kind_index(kind).unwrap_or(0),
             visibility: extra.visibility.unwrap_or(0),
             flags,
             start_line,
@@ -371,7 +370,7 @@ impl<'t> Walker<'t> {
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
             target_idx: row,
-            kind: edge_kind_index("contains").unwrap(),
+            kind: edge_kind_index("contains").unwrap_or(0),
             provenance: 0,
             line: NONE,
             column: NONE,
@@ -506,7 +505,7 @@ impl<'t> Walker<'t> {
                     .filter(|c| matches!(c.kind(), "name" | "qualified_name"))
                     .collect();
                 let parent = self.top_row();
-                let implements = edge_kind_index("implements").unwrap();
+                let implements = edge_kind_index("implements").unwrap_or(0);
                 let line = self.line_of(node);
                 let col = self.col_of(node);
                 for n in names {
@@ -865,13 +864,13 @@ impl<'t> Walker<'t> {
         let clean = fqn.strip_prefix('\\').unwrap_or(fqn);
         let Some(last_sep) = clean.rfind('\\') else { return };
         let name = format!("{}::{}", &clean[..last_sep], &clean[last_sep + 1..]);
-        self.push_ref_at(from_row, &name, edge_kind_index("imports").unwrap(), node);
+        self.push_ref_at(from_row, &name, edge_kind_index("imports").unwrap_or(0), node);
     }
 
     fn extract_import(&mut self, node: Node<'t>) {
         let kind = node.kind();
         let import_text = self.text(node).trim().to_string();
-        let imports_kind = edge_kind_index("imports").unwrap();
+        let imports_kind = edge_kind_index("imports").unwrap_or(0);
 
         if matches!(
             kind,
@@ -1026,7 +1025,7 @@ impl<'t> Walker<'t> {
                     _ => method_name.to_string(),
                 };
                 if !callee.is_empty() {
-                    self.push_ref_at(caller, &callee, edge_kind_index("calls").unwrap(), node);
+                    self.push_ref_at(caller, &callee, edge_kind_index("calls").unwrap_or(0), node);
                 }
                 return;
             }
@@ -1061,7 +1060,7 @@ impl<'t> Walker<'t> {
             if let Some(c) = util::paren_conversion().captures(&callee_name) {
                 callee_name = c[1].to_string();
             }
-            self.push_ref_at(caller, &callee_name.clone(), edge_kind_index("calls").unwrap(), node);
+            self.push_ref_at(caller, &callee_name.clone(), edge_kind_index("calls").unwrap_or(0), node);
         }
     }
 
@@ -1083,7 +1082,7 @@ impl<'t> Walker<'t> {
         let class_name = strip_generic_and_qualifier(self.text(ctor));
         if !class_name.is_empty() {
             let from = self.top_row();
-            self.push_ref_at(from, &class_name, edge_kind_index("instantiates").unwrap(), node);
+            self.push_ref_at(from, &class_name, edge_kind_index("instantiates").unwrap_or(0), node);
         }
     }
 
@@ -1111,7 +1110,7 @@ impl<'t> Walker<'t> {
             Some(t) => (t.start_position().row as u32, self.col_of(t)),
             None => (node.start_position().row as u32, self.col_of(node)),
         };
-        self.push_ref(row, &type_name, edge_kind_index("extends").unwrap(), line, column);
+        self.push_ref(row, &type_name, edge_kind_index("extends").unwrap_or(0), line, column);
         self.stack.push(Scope { row, kind: "class", name: anon_name });
         for i in 0..body.named_child_count() {
             if let Some(c) = body.named_child(i) {
@@ -1164,7 +1163,7 @@ impl<'t> Walker<'t> {
         ) {
             let text = self.text(recv);
             if capitalized_re().is_match(text) {
-                self.push_ref_at(owner, &text.to_string(), edge_kind_index("references").unwrap(), recv);
+                self.push_ref_at(owner, &text.to_string(), edge_kind_index("references").unwrap_or(0), recv);
             }
         }
     }
@@ -1173,8 +1172,8 @@ impl<'t> Walker<'t> {
     /// multi-extends drops the rest); class_interface_clause takes ALL
     /// children unfiltered (full text, incl. leading `\`).
     fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
-        let extends_kind = edge_kind_index("extends").unwrap();
-        let implements_kind = edge_kind_index("implements").unwrap();
+        let extends_kind = edge_kind_index("extends").unwrap_or(0);
+        let implements_kind = edge_kind_index("implements").unwrap_or(0);
         for i in 0..node.named_child_count() {
             let Some(child) = node.named_child(i) else { continue };
             if child.kind() == "base_clause" {
@@ -1224,14 +1223,14 @@ impl<'t> Walker<'t> {
             "name" => {
                 let name = self.text(node);
                 if !name.is_empty() && !is_php_pseudo_type(name) {
-                    self.push_ref_at(from_row, &name.to_string(), edge_kind_index("references").unwrap(), node);
+                    self.push_ref_at(from_row, &name.to_string(), edge_kind_index("references").unwrap_or(0), node);
                 }
             }
             "qualified_name" => {
                 let text = self.text(node);
                 let last = text.rsplit('\\').next().unwrap_or("");
                 if !last.is_empty() && !is_php_pseudo_type(last) {
-                    self.push_ref_at(from_row, &last.to_string(), edge_kind_index("references").unwrap(), node);
+                    self.push_ref_at(from_row, &last.to_string(), edge_kind_index("references").unwrap_or(0), node);
                 }
             }
             _ => {
@@ -1430,7 +1429,7 @@ impl<'t> Walker<'t> {
         // Kotlin/Swift path yields null) → declCounts stays empty → no php
         // target is ever pruned. Skipping the scan is byte-identical.
 
-        let refs_kind = edge_kind_index("references").unwrap();
+        let refs_kind = edge_kind_index("references").unwrap_or(0);
         for scope in &scopes {
             let mut seen: HashSet<&str> = HashSet::new();
             let mut stack: Vec<Node> = vec![scope.node];

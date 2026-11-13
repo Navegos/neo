@@ -29,7 +29,6 @@ use crate::codegraph::kernel::buffers::{
 use crate::codegraph::kernel::docstring::preceding_docstring;
 use crate::codegraph::kernel::ids;
 use crate::codegraph::kernel::textutil as util;
-use regex::Regex;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::OnceLock;
 use tree_sitter::{Node, Parser};
@@ -82,19 +81,19 @@ fn is_literal_receiver(kind: &str) -> bool {
 }
 
 /// `/^[A-Za-z_]\w*$/` with JS's ASCII `\w`.
-fn ascii_ident_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Za-z_][0-9A-Za-z_]*$").unwrap())
+fn ascii_ident_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_][0-9A-Za-z_]*$"))
 }
 /// getReturnType's generics strip (`/<[^>]*>/g`) — non-nesting (rust-class quirk).
-fn generic_args_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"<[^>]*>").unwrap())
+fn generic_args_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"<[^>]*>"))
 }
 /// extractStaticMemberRef's capitalized-receiver test.
-fn capitalized_re() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(r"^[A-Z][A-Za-z0-9_]*$").unwrap())
+fn capitalized_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Z][A-Za-z0-9_]*$"))
 }
 
 /// JS `\s` for the chained-call inner-callee strip (`.replace(/\s+/g, '')`).
@@ -272,7 +271,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     let name_ref = w.arena.put(base_name);
     let qn_ref = w.arena.put(file_path);
     w.tables.push_node(&NodeRow {
-        kind: node_kind_index("file").unwrap(),
+        kind: node_kind_index("file").unwrap_or(0),
         visibility: 0,
         flags,
         start_line: 1,
@@ -383,7 +382,7 @@ impl<'t> Walker<'t> {
             candidates: NONE_STR,
             from_id_str: NONE_STR,
         });
-        if kind_code == edge_kind_index("imports").unwrap() {
+        if kind_code == edge_kind_index("imports").unwrap_or(0) {
             if util::simple_name().is_match(name) {
                 self.imported_names.insert(name.to_string());
             } else if let Some(c) = util::qualified_import().captures(name) {
@@ -439,7 +438,7 @@ impl<'t> Walker<'t> {
         let sig_ref = opt_str(&mut self.arena, extra.signature.as_deref());
         let ret_ref = opt_str(&mut self.arena, extra.return_type.as_deref());
         let row = self.tables.push_node(&NodeRow {
-            kind: node_kind_index(kind).unwrap(),
+            kind: node_kind_index(kind).unwrap_or(0),
             visibility: extra.visibility.unwrap_or(0),
             flags,
             start_line,
@@ -462,7 +461,7 @@ impl<'t> Walker<'t> {
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
             target_idx: row,
-            kind: edge_kind_index("contains").unwrap(),
+            kind: edge_kind_index("contains").unwrap_or(0),
             provenance: 0,
             line: NONE,
             column: NONE,
@@ -1060,7 +1059,7 @@ impl<'t> Walker<'t> {
             Extra { signature: Some(import_text), ..Extra::default() },
         );
         let parent = self.top_row();
-        self.push_ref_at(parent, &module_name.clone(), edge_kind_index("imports").unwrap(), node);
+        self.push_ref_at(parent, &module_name.clone(), edge_kind_index("imports").unwrap_or(0), node);
     }
 
     /// extractCall — swift rides the generic member branch (navigation) and
@@ -1124,12 +1123,12 @@ impl<'t> Walker<'t> {
                     } else {
                         callee_name = format!("{receiver_name}.{method_name}");
                     }
-                } else if receiver.map(|r| r.kind() == "call_expression").unwrap_or(false) {
+                } else if let Some(recv) = receiver.filter(|r| r.kind() == "call_expression") {
                     // #750 swift re-encode: innerNav = receiver.namedChild(0),
                     // ws-stripped; capitalized chains only.
                     // Without a wrapper on its left edge
                     // (`try! Foo.make().bar().baz()`).
-                    let inner = receiver.unwrap().named_child(0);
+                    let inner = recv.named_child(0);
                     let inner_callee =
                         inner.map(|n| strip_js_ws(unwrapped_text(n, self.src))).unwrap_or_default();
                     let reencode = inner_callee
@@ -1168,7 +1167,7 @@ impl<'t> Walker<'t> {
             if let Some(c) = util::paren_conversion().captures(&callee_name) {
                 callee_name = c[1].to_string();
             }
-            self.push_ref_at(caller, &callee_name.clone(), edge_kind_index("calls").unwrap(), node);
+            self.push_ref_at(caller, &callee_name.clone(), edge_kind_index("calls").unwrap_or(0), node);
         }
     }
 
@@ -1211,7 +1210,7 @@ impl<'t> Walker<'t> {
         ) {
             let text = self.text(recv);
             if capitalized_re().is_match(text) {
-                self.push_ref_at(owner, &text.to_string(), edge_kind_index("references").unwrap(), recv);
+                self.push_ref_at(owner, &text.to_string(), edge_kind_index("references").unwrap_or(0), recv);
             }
         }
     }
@@ -1220,7 +1219,7 @@ impl<'t> Walker<'t> {
     /// type_identifier of each specifier's user_type, everything as `extends`
     /// (conformances included; `: Module.Base` takes `Module`).
     fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
-        let extends_kind = edge_kind_index("extends").unwrap();
+        let extends_kind = edge_kind_index("extends").unwrap_or(0);
         for i in 0..node.named_child_count() {
             let Some(child) = node.named_child(i) else { continue };
             if child.kind() != "inheritance_specifier" {
@@ -1263,7 +1262,7 @@ impl<'t> Walker<'t> {
         if node.kind() == "type_identifier" {
             let type_name = self.text(node).to_string();
             if !type_name.is_empty() && !is_builtin_type(&type_name) {
-                self.push_ref_at(from_row, &type_name, edge_kind_index("references").unwrap(), node);
+                self.push_ref_at(from_row, &type_name, edge_kind_index("references").unwrap_or(0), node);
             }
             return;
         }
@@ -1344,7 +1343,7 @@ impl<'t> Walker<'t> {
         if name.is_empty() {
             return;
         }
-        self.push_ref_at(decorated_row, &name, edge_kind_index("decorates").unwrap(), n);
+        self.push_ref_at(decorated_row, &name, edge_kind_index("decorates").unwrap_or(0), n);
     }
 
     // --- function-as-value refs (SWIFT_SPEC, function-ref.ts:288) -------------------
@@ -1638,7 +1637,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        let refs_kind = edge_kind_index("references").unwrap();
+        let refs_kind = edge_kind_index("references").unwrap_or(0);
         for scope in &scopes {
             let mut seen: HashSet<&str> = HashSet::new();
             let mut stack: Vec<Node> = vec![scope.node];

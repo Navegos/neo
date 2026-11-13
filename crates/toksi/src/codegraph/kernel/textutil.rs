@@ -3,20 +3,21 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/textutil.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-13
 
 //! Shared utilities for the TS/JS walker: compiled regexes, UTF-16 position
 //! conversion, generated-file detection, and small text helpers — each
 //! mirroring a specific helper in src/extraction/tree-sitter.ts (noted inline).
 
+use super::buffers::SafeRegex;
 use regex::Regex;
 use std::sync::OnceLock;
 
 macro_rules! re {
     ($name:ident, $pat:expr) => {
-        pub fn $name() -> &'static Regex {
-            static RE: OnceLock<Regex> = OnceLock::new();
-            RE.get_or_init(|| Regex::new($pat).expect(concat!("regex ", stringify!($name))))
+        pub fn $name() -> &'static SafeRegex {
+            static RE: OnceLock<SafeRegex> = OnceLock::new();
+            RE.get_or_init(|| SafeRegex::compile($pat))
         }
     };
 }
@@ -81,7 +82,7 @@ pub fn is_generated_file(file_path: &str) -> bool {
             r"\.generated\.rs$",
         ]
         .iter()
-        .map(|p| Regex::new(p).expect("generated pattern"))
+        .filter_map(|p| Regex::new(p).ok())
         .collect()
     });
     patterns.iter().any(|p| p.is_match(file_path))
