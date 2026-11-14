@@ -3,14 +3,52 @@
 // project: neo
 // file: crates/toksi/src/agents/codex.rs
 // created: 2026-10-11
-// lastModified: 2026-11-08
+// lastModified: 2026-11-14
 
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::path::Path;
+use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
 use regex::Regex;
+
+static CODEX_RE_HOOK_STATE: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(r#"^\[hooks\.state\.(?:'([^']*)'|"([^"]*)")\]\s*$"#).ok()
+});
+static CODEX_RE_TOML_HEADER: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(r"^[ \t]*(?:\[\[[^\]\r\n]+\]\]|\[[^\]\r\n]+\])[ \t]*(?:#.*)?$").ok()
+});
+static CODEX_RE_ROOT_MODEL: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(r#"^[ \t]*(?:model_provider|"model_provider"|'model_provider')[ \t]*="#).ok()
+});
+static CODEX_RE_ROOT_URL: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(r#"^[ \t]*(?:openai_base_url|"openai_base_url"|'openai_base_url')[ \t]*="#).ok()
+});
+static CODEX_RE_BEARER_LINE: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(r#"(?m)^experimental_bearer_token = "[^"]*"$"#).ok()
+});
+static CODEX_RE_SECTION_OPEN: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"(?m)^\[").ok());
+static CODEX_RE_BASE_URL_FIELD: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?m)^[ \t]*(?:base_url|"base_url"|'base_url')[ \t]*=[ \t]*(?:"([^"]*)"|'([^']*)')"#,
+    )
+    .ok()
+});
+static CODEX_RE_MODEL_PROVIDER_HDR: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(
+        r#"(?m)^\[model_providers\.((?:"[^"]+")|(?:'(?:[^']|'')+')|[A-Za-z0-9_-]+)\][ \t]*(?:#.*)?$"#,
+    )
+    .ok()
+});
+static CODEX_RE_FEATURES_HOOK: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(r"(?m)^[ \t]*hooks[ \t]*=[ \t]*true\b([ \t]*#.*)?([ \t]*\r?\n|$)").ok()
+});
+static CODEX_RE_ANY_KEY: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"(?m)^[ \t]*[A-Za-z0-9_-]+[ \t]*=").ok());
+static CODEX_RE_FEATURES_CHILD: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r"(?m)^\[features\.[^\]]+\]").ok());
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -381,7 +419,9 @@ fn split_after_newlines(s: &str) -> Vec<&str> {
 
 pub fn sweep_stale_hook_state_entries(raw: &str) -> String {
     let current = codex_hooks_file();
-    let re = Regex::new(r#"^\[hooks\.state\.(?:'([^']*)'|"([^"]*)")\]\s*$"#).unwrap();
+    let Some(re) = CODEX_RE_HOOK_STATE.as_ref() else {
+        return raw.to_string();
+    };
     let lines = split_after_newlines(raw);
     let mut out = String::new();
     let mut i = 0;
@@ -505,7 +545,9 @@ pub fn strip_codex_managed_block(raw: &str) -> String {
         regex::escape(CODEX_MARKER_START),
         regex::escape(CODEX_MARKER_END)
     );
-    let re = Regex::new(&pat).unwrap();
+    let Ok(re) = Regex::new(&pat) else {
+        return raw.to_string();
+    };
     re.replace_all(raw, "").into_owned()
 }
 
@@ -513,14 +555,13 @@ pub fn strip_codex_root_provider_assignments(raw: &str) -> String {
     let lines = split_after_newlines(raw);
     let mut out = String::new();
     let mut in_root = true;
-    let re_header =
-        Regex::new(r"^[ \t]*(?:\[\[[^\]\r\n]+\]\]|\[[^\]\r\n]+\])[ \t]*(?:#.*)?$").unwrap();
-    let re_model =
-        Regex::new(r#"^[ \t]*(?:model_provider|"model_provider"|'model_provider')[ \t]*="#)
-            .unwrap();
-    let re_url =
-        Regex::new(r#"^[ \t]*(?:openai_base_url|"openai_base_url"|'openai_base_url')[ \t]*="#)
-            .unwrap();
+    let (Some(re_header), Some(re_model), Some(re_url)) = (
+        CODEX_RE_TOML_HEADER.as_ref(),
+        CODEX_RE_ROOT_MODEL.as_ref(),
+        CODEX_RE_ROOT_URL.as_ref(),
+    ) else {
+        return raw.to_string();
+    };
     for line in lines {
         let no_nl = line.trim_end_matches(['\r', '\n']);
         if in_root && re_header.is_match(no_nl) {
@@ -539,7 +580,9 @@ fn codex_root_value(raw: &str, key: &str) -> String {
     let pat = format!(
         r#"^[ \t]*(?:{k}|"{k}"|'{k}')[ \t]*=[ \t]*(?:"([^"]*)"|'((?:[^']|'')*)')"#
     );
-    let re = Regex::new(&pat).unwrap();
+    let Ok(re) = Regex::new(&pat) else {
+        return String::new();
+    };
     for line in raw.split('\n') {
         if line.trim().starts_with('[') {
             break;
@@ -559,7 +602,9 @@ fn codex_root_value(raw: &str, key: &str) -> String {
 fn codex_root_assignment_line(raw: &str, key: &str) -> String {
     let k = regex::escape(key);
     let pat = format!(r#"^[ \t]*(?:{k}|"{k}"|'{k}')[ \t]*="#);
-    let re = Regex::new(&pat).unwrap();
+    let Ok(re) = Regex::new(&pat) else {
+        return String::new();
+    };
     for line in raw.split('\n') {
         if line.trim().starts_with('[') {
             break;
@@ -622,8 +667,11 @@ fn codex_matched_marked_section(raw: &str, endpoint: &str) -> (String, Vec<Strin
     if !codex_marked_proxy(raw) {
         return (String::new(), Vec::new(), false);
     }
-    let start = raw.find(CODEX_MARKER_START).unwrap();
-    let end = raw.find(CODEX_MARKER_END).unwrap() + CODEX_MARKER_END.len();
+    let (Some(start), Some(end_idx)) = (raw.find(CODEX_MARKER_START), raw.find(CODEX_MARKER_END))
+    else {
+        return (String::new(), Vec::new(), false);
+    };
+    let end = end_idx + CODEX_MARKER_END.len();
     let section = raw[start..end].trim().to_string();
     let extras = codex_root_extras(&section);
     let mut core = codex_without_lines(&section, &extras).trim().to_string();
@@ -680,9 +728,14 @@ fn codex_marked_legacy_bearer_proxy(raw: &str, endpoint: &str) -> bool {
     if !codex_marked_proxy(raw) {
         return false;
     }
-    let start = raw.find(CODEX_MARKER_START).unwrap();
-    let end = raw.find(CODEX_MARKER_END).unwrap() + CODEX_MARKER_END.len();
-    let re = Regex::new(r#"(?m)^experimental_bearer_token = "[^"]*"$"#).unwrap();
+    let (Some(start), Some(end_idx)) = (raw.find(CODEX_MARKER_START), raw.find(CODEX_MARKER_END))
+    else {
+        return false;
+    };
+    let end = end_idx + CODEX_MARKER_END.len();
+    let Some(re) = CODEX_RE_BEARER_LINE.as_ref() else {
+        return false;
+    };
     let sec = codex_proxy_section_with_bearer(endpoint);
     let want = re.replace_all(
         sec.trim(),
@@ -718,9 +771,10 @@ fn codex_provider_block(raw: &str) -> String {
         return String::new();
     };
     let mut block = &raw[start..];
-    let re = Regex::new(r"(?m)^\[").unwrap();
-    if let Some(m) = re.find(&block[header.len()..]) {
-        block = &block[..header.len() + m.start()];
+    if let Some(re) = CODEX_RE_SECTION_OPEN.as_ref() {
+        if let Some(m) = re.find(&block[header.len()..]) {
+            block = &block[..header.len() + m.start()];
+        }
     }
     block.to_string()
 }
@@ -738,7 +792,9 @@ fn codex_unmarked_legacy_bearer_proxy(raw: &str, endpoint: &str) -> bool {
     if block.is_empty() {
         return false;
     }
-    let re = Regex::new(r#"(?m)^experimental_bearer_token = "[^"]*"$"#).unwrap();
+    let Some(re) = CODEX_RE_BEARER_LINE.as_ref() else {
+        return false;
+    };
     let rendered = render_block(&codex_proxy_block_with_bearer(endpoint));
     let want = re.replace_all(
         rendered.trim(),
@@ -775,21 +831,21 @@ pub fn codex_byok_flavor(raw: &str) -> Option<CodexBYOK> {
 fn insert_codex_block_at_root(content: &str, block: &str) -> String {
     let block = block.trim();
     let lines: Vec<&str> = content.split('\n').collect();
-    let header_re =
-        Regex::new(r"^[ \t]*(?:\[\[[^\]\r\n]+\]\]|\[[^\]\r\n]+\])[ \t]*(?:#.*)?$").unwrap();
-    for (i, line) in lines.iter().enumerate() {
-        if header_re.is_match(line) {
-            let head = lines[..i].join("\n");
-            let tail = lines[i..].join("\n");
-            let head = head.trim_end_matches('\n');
-            let tail = tail.trim_start_matches('\n');
-            let prefix = if !head.is_empty() {
-                format!("{}\n\n", head)
-            } else {
-                String::new()
-            };
-            let combined = format!("{}{}\n\n{}", prefix, block, tail);
-            return format!("{}\n", combined.trim_end_matches('\n'));
+    if let Some(header_re) = CODEX_RE_TOML_HEADER.as_ref() {
+        for (i, line) in lines.iter().enumerate() {
+            if header_re.is_match(line) {
+                let head = lines[..i].join("\n");
+                let tail = lines[i..].join("\n");
+                let head = head.trim_end_matches('\n');
+                let tail = tail.trim_start_matches('\n');
+                let prefix = if !head.is_empty() {
+                    format!("{}\n\n", head)
+                } else {
+                    String::new()
+                };
+                let combined = format!("{}{}\n\n{}", prefix, block, tail);
+                return format!("{}\n", combined.trim_end_matches('\n'));
+            }
         }
     }
     let trimmed = format!("{}\n\n{}\n", content.trim_end_matches('\n'), block);
@@ -833,10 +889,9 @@ fn codex_named_provider_base_url(raw: &str, id: &str) -> String {
         serde_json::to_string(id).unwrap_or_else(|_| format!("\"{}\"", id)),
         format!("'{}'", id.replace('\'', "''")),
     ];
-    let mm = Regex::new(
-        r#"(?m)^[ \t]*(?:base_url|"base_url"|'base_url')[ \t]*=[ \t]*(?:"([^"]*)"|'([^']*)')"#,
-    )
-    .unwrap();
+    let Some(mm) = CODEX_RE_BASE_URL_FIELD.as_ref() else {
+        return String::new();
+    };
     for header_id in candidates {
         let pat = format!(
             r"(?m)^\[model_providers\.{}\][ \t]*(?:#.*)?$([\s\S]*?)(?:\n\[|\z)",
@@ -919,10 +974,9 @@ pub fn discover_codex_byok() -> Vec<CodexBYOK> {
     if !codex_toml_well_formed(&raw) {
         return Vec::new();
     }
-    let re = Regex::new(
-        r#"(?m)^\[model_providers\.((?:"[^"]+")|(?:'(?:[^']|'')+')|[A-Za-z0-9_-]+)\][ \t]*(?:#.*)?$"#,
-    )
-    .unwrap();
+    let Some(re) = CODEX_RE_MODEL_PROVIDER_HDR.as_ref() else {
+        return Vec::new();
+    };
     let mut providers = Vec::new();
     for caps in re.captures_iter(&raw) {
         let raw_id = caps.get(1).map(|m| m.as_str()).unwrap_or("");
@@ -975,15 +1029,18 @@ fn codex_named_provider_field(raw: &str, header_id: &str, key: &str) -> String {
         return String::new();
     };
     let mut block = &raw[start + header.len()..];
-    let next_re = Regex::new(r"(?m)^\[").unwrap();
-    if let Some(m) = next_re.find(block) {
-        block = &block[..m.start()];
+    if let Some(next_re) = CODEX_RE_SECTION_OPEN.as_ref() {
+        if let Some(m) = next_re.find(block) {
+            block = &block[..m.start()];
+        }
     }
     let k = regex::escape(key);
     let pat = format!(
         r#"(?m)^[ \t]*(?:{k}|"{k}"|'{k}')[ \t]*=[ \t]*(?:"([^"]*)"|'([^']*)')"#
     );
-    let re = Regex::new(&pat).unwrap();
+    let Ok(re) = Regex::new(&pat) else {
+        return String::new();
+    };
     let Some(caps) = re.captures(block) else {
         return String::new();
     };
@@ -1417,14 +1474,17 @@ fn remove_codex_proxy_locked() -> bool {
     {
         if codex_marked_current_proxy(&next, &endpoint) {
             let (_, root_extras, _) = codex_matched_marked_section(&next, &endpoint);
-            let start = next.find(CODEX_MARKER_START).unwrap();
-            let end = next.find(CODEX_MARKER_END).unwrap() + CODEX_MARKER_END.len();
-            let replacement = if !root_extras.is_empty() {
-                format!("{}\n", root_extras.join("\n"))
-            } else {
-                String::new()
-            };
-            next = format!("{}{}{}", &next[..start], replacement, &next[end..]);
+            if let (Some(start), Some(end_idx)) =
+                (next.find(CODEX_MARKER_START), next.find(CODEX_MARKER_END))
+            {
+                let end = end_idx + CODEX_MARKER_END.len();
+                let replacement = if !root_extras.is_empty() {
+                    format!("{}\n", root_extras.join("\n"))
+                } else {
+                    String::new()
+                };
+                next = format!("{}{}{}", &next[..start], replacement, &next[end..]);
+            }
         } else {
             next = strip_codex_managed_block(&next);
         }
@@ -1504,7 +1564,9 @@ fn remove_codex_proxy_locked() -> bool {
 fn restore_codex_root_assignment_line(raw: &str, key: &str, line: &str) -> String {
     let k = regex::escape(key);
     let pat = format!(r#"(?m)^[ \t]*(?:{k}|"{k}"|'{k}')[ \t]*=.*$"#);
-    let re = Regex::new(&pat).unwrap();
+    let Ok(re) = Regex::new(&pat) else {
+        return raw.to_string();
+    };
     re.replace_all(raw, line).into_owned()
 }
 
@@ -1846,7 +1908,10 @@ pub fn install_codex_rtk_hook() -> bool {
         }
     };
     {
-        let root = cfg.as_object_mut().unwrap();
+        let Some(root) = cfg.as_object_mut() else {
+            rollback();
+            return false;
+        };
         if !root.contains_key("hooks") {
             root.insert("hooks".to_string(), Value::Object(OrderedMap::new()));
         }
@@ -2010,7 +2075,9 @@ pub fn install_codex_permission_hook() -> bool {
             Value::Object(OrderedMap::new())
         }
     };
-    let root = cfg.as_object_mut().unwrap();
+    let Some(root) = cfg.as_object_mut() else {
+        return false;
+    };
     if !root.contains_key("hooks") {
         root.insert("hooks".to_string(), Value::Object(OrderedMap::new()));
     }
@@ -2200,17 +2267,21 @@ pub fn remove_codex_features_hook(raw: &str) -> (String, bool) {
     let Some(bt) = block_text(raw, "features") else {
         return (raw.to_string(), false);
     };
-    let re_hook =
-        Regex::new(r"(?m)^[ \t]*hooks[ \t]*=[ \t]*true\b([ \t]*#.*)?([ \t]*\r?\n|$)").unwrap();
+    let Some(re_hook) = CODEX_RE_FEATURES_HOOK.as_ref() else {
+        return (raw.to_string(), false);
+    };
     if !re_hook.is_match(&bt) {
         return (raw.to_string(), false);
     }
     let cleaned = re_hook.replace_all(&bt, "$1$2").into_owned();
-    let re_any_key = Regex::new(r"(?m)^[ \t]*[A-Za-z0-9_-]+[ \t]*=").unwrap();
+    let Some(re_any_key) = CODEX_RE_ANY_KEY.as_ref() else {
+        return (raw.to_string(), false);
+    };
     if !re_any_key.is_match(&cleaned) {
-        let re_child_table = Regex::new(r"(?m)^\[features\.[^\]]+\]").unwrap();
-        if !re_child_table.is_match(&bt) {
-            return (remove_block(raw, "features"), true);
+        if let Some(re_child_table) = CODEX_RE_FEATURES_CHILD.as_ref() {
+            if !re_child_table.is_match(&bt) {
+                return (remove_block(raw, "features"), true);
+            }
         }
     }
     (raw.replacen(&bt, &cleaned, 1), true)
@@ -2321,7 +2392,9 @@ pub fn install_codex_projectmem_hook() -> bool {
             Value::Object(OrderedMap::new())
         }
     };
-    let root = cfg.as_object_mut().unwrap();
+    let Some(root) = cfg.as_object_mut() else {
+        return false;
+    };
     if !root.contains_key("hooks") {
         root.insert("hooks".to_string(), Value::Object(OrderedMap::new()));
     }

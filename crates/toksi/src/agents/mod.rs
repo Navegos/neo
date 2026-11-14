@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/agents/mod.rs
 // created: 2026-10-05
-// lastModified: 2026-10-31
+// lastModified: 2026-11-14
+
+#![deny(unsafe_code)]
 
 pub mod amp;
 pub mod antigravity;
@@ -138,7 +140,11 @@ pub fn register() {
     register_agent(codex_manifest());
     register_agent(cursor_manifest());
     register_agent(antigravity_manifest());
+    register_agent(antigravity_cli_manifest());
+    register_agent(antigravity_ide_manifest());
     register_agent(copilot_manifest());
+    register_agent(copilot_cli_manifest());
+    register_agent(copilot_vscode_manifest());
     register_agent(droid_manifest());
     register_agent(grok_manifest());
     register_agent(kilo_manifest());

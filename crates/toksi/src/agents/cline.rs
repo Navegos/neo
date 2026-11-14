@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/cline.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-14
 
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -94,10 +94,12 @@ pub fn configure_cline_mcp_safe(
     if !cfg.contains_key("mcpServers") {
         cfg.insert("mcpServers".to_string(), Value::Object(OrderedMap::new()));
     }
-    let mcp = cfg
-        .get_mut("mcpServers")
-        .and_then(|v| v.as_object_mut())
-        .unwrap();
+    let Some(mcp) = cfg.get_mut("mcpServers").and_then(|v| v.as_object_mut()) else {
+        return Err(
+            "Cline config field \"mcpServers\" is not an object; refusing to overwrite it"
+                .to_string(),
+        );
+    };
 
     let (state, state_exists) = cline_state_read()?;
     let had_ledger = state.contains_key(tool_id);

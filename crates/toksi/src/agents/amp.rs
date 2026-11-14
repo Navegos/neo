@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/amp.rs
 // created: 2026-10-20
-// lastModified: 2026-10-31
+// lastModified: 2026-11-14
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -155,8 +155,11 @@ pub fn amp_rtk_permissions_wired_with(commands: &[String], available: bool) -> b
             let tool = m.get("tool").and_then(|v| v.as_str());
             let action = m.get("action").and_then(|v| v.as_str());
             let cmd = m.get("matches").and_then(|mm| mm.as_object()).and_then(|obj| obj.get("cmd")).and_then(|c| c.as_str());
-            if tool == Some("Bash") && action == Some("allow") && cmd.map(|s| s.starts_with("rtk ")).unwrap_or(false) {
-                let cmd_str = cmd.unwrap();
+            if tool == Some("Bash")
+                && action == Some("allow")
+                && let Some(cmd_str) = cmd
+                && cmd_str.starts_with("rtk ")
+            {
                 if cmd_str == "rtk *" || !want.iter().any(|c| c == cmd_str) {
                     return false;
                 }

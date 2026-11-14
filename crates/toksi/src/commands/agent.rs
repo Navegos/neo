@@ -3,10 +3,13 @@
 // project: neo
 // file: crates/toksi/src/commands/agent.rs
 // created: 2026-11-09
-// lastModified: 2026-11-09
+// lastModified: 2026-11-14
+
+#![deny(unsafe_code)]
 
 use crate::agents::manager::{AgentHealthReport, AgentManager, AgentMismatchReport};
 use crate::util::colors::C;
+use crate::util::paths::normalize_path;
 
 pub fn run_agent_cli(args: &[String]) -> i32 {
     if args.is_empty() {
@@ -68,10 +71,10 @@ fn handle_list() -> i32 {
         let user_dir = AgentManager::user_config_dir(&id);
         let ws_dir = AgentManager::workspace_config_dir(&id, std::path::Path::new("."));
         println!(
-            "  * {:<14} User: {:<32} Workspace: {}",
+            "  * {:<18} User: {:<32} Workspace: {}",
             C.cyan(&id),
-            user_dir.display(),
-            ws_dir.display()
+            normalize_path(&user_dir.to_string_lossy()),
+            normalize_path(&ws_dir.to_string_lossy())
         );
     }
     0
@@ -224,6 +227,12 @@ fn handle_upgrade(args: &[String]) -> i32 {
 }
 
 fn handle_fix(args: &[String]) -> i32 {
+    let workspace = args.iter().any(|a| a == "--workspace" || a == "-w");
+    let ws_root = if workspace {
+        Some(std::path::PathBuf::from("."))
+    } else {
+        None
+    };
     let target_agents = if !args.is_empty() && !args[0].starts_with('-') {
         vec![args[0].clone()]
     } else {
@@ -231,9 +240,9 @@ fn handle_fix(args: &[String]) -> i32 {
     };
 
     for agent_id in target_agents {
-        match AgentManager::fix(&agent_id) {
+        match AgentManager::fix_with_workspace(&agent_id, ws_root.as_deref()) {
             Ok(res) => {
-                println!("{} Repaired {}: {}", C.green("✓"), C.cyan(&agent_id), res.target_path);
+                println!("{} Repaired {}: {}", C.green("✓"), C.cyan(&agent_id), normalize_path(&res.target_path));
                 for d in res.details {
                     println!("  - {}", d);
                 }

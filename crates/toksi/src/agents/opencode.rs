@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/opencode.rs
 // created: 2026-10-11
-// lastModified: 2026-11-02
+// lastModified: 2026-11-14
 
 use std::fs;
 use std::path::Path;
@@ -230,8 +230,11 @@ pub fn open_code_major_version(bin: &str) -> i32 {
         Err(_) => return 0,
     };
     let text = String::from_utf8_lossy(&output.stdout);
-    let re = regex::Regex::new(r"(?:^|\s)v?(\d+)\.").unwrap();
-    if let Some(caps) = re.captures(text.trim()) {
+    static VERSION_RE: std::sync::LazyLock<Option<regex::Regex>> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"(?:^|\s)v?(\d+)\.").ok());
+    if let Some(re) = VERSION_RE.as_ref()
+        && let Some(caps) = re.captures(text.trim())
+    {
         if let Some(m) = caps.get(1) {
             if let Ok(major) = m.as_str().parse::<i32>() {
                 return major;
@@ -426,7 +429,9 @@ fn configure_open_code_mcp_impl(tool_id: &str, file: &str, v2: bool) -> (bool, S
     if !cfg.contains_key("mcp") {
         cfg.insert("mcp".to_string(), Value::Object(OrderedMap::new()));
     }
-    let mcp = json_map_child_mut(&mut cfg, "mcp").unwrap();
+    let Some(mcp) = json_map_child_mut(&mut cfg, "mcp") else {
+        return (false, path);
+    };
     let parent = if v2 {
         if mcp.get("servers").is_some_and(|v| !v.is_object()) {
             return (false, path);
@@ -434,7 +439,10 @@ fn configure_open_code_mcp_impl(tool_id: &str, file: &str, v2: bool) -> (bool, S
         if !mcp.contains_key("servers") {
             mcp.insert("servers".to_string(), Value::Object(OrderedMap::new()));
         }
-        json_map_child_mut(mcp, "servers").unwrap()
+        let Some(servers) = json_map_child_mut(mcp, "servers") else {
+            return (false, path);
+        };
+        servers
     } else {
         mcp
     };
@@ -1548,7 +1556,7 @@ fn discover_open_code_byok_in(
                 got.insert(id.clone(), Acc::default());
                 order.push(id.clone());
             }
-            let a = got.get_mut(id).unwrap();
+            let a = got.entry(id.clone()).or_default();
             if !key.is_empty() {
                 a.key = key;
                 a.raw = raw_key;

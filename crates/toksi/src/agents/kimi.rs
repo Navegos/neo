@@ -3,10 +3,10 @@
 // project: neo
 // file: crates/toksi/src/agents/kimi.rs
 // created: 2026-10-20
-// lastModified: 2026-10-31
+// lastModified: 2026-11-14
 
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use regex::Regex;
 use url::Url;
 
@@ -48,13 +48,33 @@ struct KimiProviderBlock {
     end: usize,
 }
 
+static KIMI_RE_HDR: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(r#"(?m)^[ \t]*\[\s*providers\s*\.\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_-]+))\s*\](?:[ \t]*#.*)?$"#).ok()
+});
+static KIMI_RE_NEXT: LazyLock<Option<Regex>> = LazyLock::new(|| Regex::new(r#"(?m)^[ \t]*\["#).ok());
+static KIMI_RE_BASE_URL: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(r#"(?m)^([ \t]*(?:base_url|"base_url"|'base_url')[ \t]*=[ \t]*)(?:"(?:[^"\\]|\\.)*"|'[^']*')"#).ok()
+});
+static KIMI_RE_INLINE: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(r#"(?m)^([ \t]*)custom_headers[ \t]*=[ \t]*\{([^}]*)\}[ \t]*(?:#.*)?$"#).ok()
+});
+static KIMI_RE_PAIR: LazyLock<Option<Regex>> = LazyLock::new(|| {
+    Regex::new(r#"(?:"((?:[^"\\]|\\.)*)"|'([^']*)')\s*=\s*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')"#).ok()
+});
+
 fn kimi_scan_providers(raw: &str) -> Vec<KimiProviderBlock> {
-    let re_hdr = Regex::new(r#"(?m)^[ \t]*\[\s*providers\s*\.\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_-]+))\s*\](?:[ \t]*#.*)?$"#).unwrap();
-    let re_next = Regex::new(r#"(?m)^[ \t]*\["#).unwrap();
+    let Some(re_hdr) = KIMI_RE_HDR.as_ref() else {
+        return Vec::new();
+    };
+    let Some(re_next) = KIMI_RE_NEXT.as_ref() else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
 
     for caps in re_hdr.captures_iter(raw) {
-        let m = caps.get(0).unwrap();
+        let Some(m) = caps.get(0) else {
+            continue;
+        };
         let id = caps.get(1)
             .or_else(|| caps.get(2))
             .or_else(|| caps.get(3))
@@ -79,7 +99,9 @@ fn kimi_find_provider(raw: &str, id: &str) -> Option<KimiProviderBlock> {
 fn kimi_block_field(block: &str, key: &str) -> String {
     let escaped = regex::escape(key);
     let pattern = format!(r#"(?m)^[ \t]*(?:{}|"{}"|'{}')[ \t]*=[ \t]*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')"#, escaped, escaped, escaped);
-    let re = Regex::new(&pattern).unwrap();
+    let Ok(re) = Regex::new(&pattern) else {
+        return String::new();
+    };
     if let Some(caps) = re.captures(block) {
         if let Some(m) = caps.get(1) {
             return m.as_str().replace(r#"\""#, "\"").replace(r#"\\"#, "\\");
@@ -155,19 +177,22 @@ pub fn discover_kimi_byok() -> Vec<KimiBYOK> {
             got.insert(p.id.clone(), Acc { base: String::new(), key: String::new(), proto: proto.clone() });
             order.push(p.id.clone());
         }
-        let a = got.get_mut(&p.id).unwrap();
-        if !key.is_empty() {
-            a.key = key;
-        }
-        if is_valid_byok_upstream(&base) && !same_proxy_base(&base, &proxy_base) && !same_proxy_base(&base, &gateway_base) {
-            a.base = base;
+        if let Some(a) = got.get_mut(&p.id) {
+            if !key.is_empty() {
+                a.key = key;
+            }
+            if is_valid_byok_upstream(&base) && !same_proxy_base(&base, &proxy_base) && !same_proxy_base(&base, &gateway_base) {
+                a.base = base;
+            }
         }
     }
 
     let stashed = load_proxy_route_stash("kimi");
     let mut out = Vec::new();
     for id in order {
-        let a = got.get_mut(&id).unwrap();
+        let Some(a) = got.get_mut(&id) else {
+            continue;
+        };
         if a.base.is_empty() {
             if let Some(s) = stashed.get(&id) {
                 if !s.base_url.is_empty() {
@@ -226,55 +251,58 @@ fn kimi_set_base_url(raw: &str, id: &str, base: &str) -> (String, bool) {
         None => return (raw.to_string(), false),
     };
     let block = &raw[p.start..p.end];
-    let re = Regex::new(r#"(?m)^([ \t]*(?:base_url|"base_url"|'base_url')[ \t]*=[ \t]*)(?:"(?:[^"\\]|\\.)*"|'[^']*')"#).unwrap();
+    let Some(re) = KIMI_RE_BASE_URL.as_ref() else {
+        return (raw.to_string(), false);
+    };
     if let Some(m) = re.captures(block) {
-        let whole = m.get(0).unwrap();
-        let prefix = m.get(1).unwrap().as_str();
-        let new_block = format!("{}{}{}{}", &block[..whole.start()], prefix, toml_quoted(base), &block[whole.end()..]);
-        let next = format!("{}{}{}", &raw[..p.start], new_block, &raw[p.end..]);
-        return (next, true);
+        if let (Some(whole), Some(prefix)) = (m.get(0), m.get(1).map(|m| m.as_str())) {
+            let new_block = format!("{}{}{}{}", &block[..whole.start()], prefix, toml_quoted(base), &block[whole.end()..]);
+            let next = format!("{}{}{}", &raw[..p.start], new_block, &raw[p.end..]);
+            return (next, true);
+        }
     }
     (raw.to_string(), false)
 }
 
-fn kimi_sub_custom_re(id: &str) -> Regex {
+fn kimi_sub_custom_re(id: &str) -> Option<Regex> {
     let q = regex::escape(id);
-    Regex::new(&format!(r#"(?m)^[ \t]*\[\s*providers\s*\.\s*(?:"{}"|'{}'|{})\s*\.\s*custom_headers\s*\](?:[ \t]*#.*)?$"#, q, q, q)).unwrap()
+    Regex::new(&format!(r#"(?m)^[ \t]*\[\s*providers\s*\.\s*(?:"{}"|'{}'|{})\s*\.\s*custom_headers\s*\](?:[ \t]*#.*)?$"#, q, q, q)).ok()
 }
 
-fn kimi_header_line_re(key: &str) -> Regex {
+fn kimi_header_line_re(key: &str) -> Option<Regex> {
     let q = regex::escape(key);
-    Regex::new(&format!(r#"(?m)^([ \t]*)(?:{}|"{}"|'{}')[ \t]*=[ \t]*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')"#, q, q, q)).unwrap()
+    Regex::new(&format!(r#"(?m)^([ \t]*)(?:{}|"{}"|'{}')[ \t]*=[ \t]*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')"#, q, q, q)).ok()
 }
 
 pub fn kimi_custom_header_value(raw: &str, id: &str, key: &str) -> Option<String> {
-    let re_inline = Regex::new(r#"(?m)^([ \t]*)custom_headers[ \t]*=[ \t]*\{([^}]*)\}[ \t]*(?:#.*)?$"#).unwrap();
-    let re_pair = Regex::new(r#"(?:"((?:[^"\\]|\\.)*)"|'([^']*)')\s*=\s*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')"#).unwrap();
+    let re_inline = KIMI_RE_INLINE.as_ref()?;
+    let re_pair = KIMI_RE_PAIR.as_ref()?;
 
     if let Some(p) = kimi_find_provider(raw, id) {
         let block = &raw[p.start..p.end];
         if let Some(caps) = re_inline.captures(block) {
-            let inner = caps.get(2).unwrap().as_str();
-            for m in re_pair.captures_iter(inner) {
-                let k = m.get(1).or_else(|| m.get(2)).unwrap().as_str();
-                let v = m.get(3).or_else(|| m.get(4)).unwrap().as_str();
-                if k == key {
-                    return Some(v.to_string());
+            if let Some(inner) = caps.get(2).map(|m| m.as_str()) {
+                for m in re_pair.captures_iter(inner) {
+                    let k = m.get(1).or_else(|| m.get(2)).map(|x| x.as_str()).unwrap_or("");
+                    let v = m.get(3).or_else(|| m.get(4)).map(|x| x.as_str()).unwrap_or("");
+                    if k == key {
+                        return Some(v.to_string());
+                    }
                 }
             }
         }
     }
 
-    let re_sub = kimi_sub_custom_re(id);
+    let re_sub = kimi_sub_custom_re(id)?;
     let loc = re_sub.find(raw)?;
-    let re_next = Regex::new(r#"(?m)^[ \t]*\["#).unwrap();
+    let re_next = KIMI_RE_NEXT.as_ref()?;
     let after = &raw[loc.end()..];
     let end = match re_next.find(after) {
         Some(nm) => loc.end() + nm.start(),
         None => raw.len(),
     };
     let sub = &raw[loc.start()..end];
-    let line_re = kimi_header_line_re(key);
+    let line_re = kimi_header_line_re(key)?;
     let caps = line_re.captures(sub)?;
     caps.get(2).or_else(|| caps.get(3)).map(|m| m.as_str().to_string())
 }
@@ -292,50 +320,57 @@ pub fn kimi_set_custom_header(raw: &str, id: &str, key: &str, value: &str) -> (S
         None => return (raw.to_string(), false),
     };
     let block = &raw[p.start..p.end];
-    let re_inline = Regex::new(r#"(?m)^([ \t]*)custom_headers[ \t]*=[ \t]*\{([^}]*)\}[ \t]*(?:#.*)?$"#).unwrap();
-    if let Some(caps) = re_inline.captures(block) {
-        let whole = caps.get(0).unwrap();
-        let indent = caps.get(1).unwrap().as_str();
-        let inner = caps.get(2).unwrap().as_str();
-        let re_pair = Regex::new(r#"(?:"((?:[^"\\]|\\.)*)"|'([^']*)')\s*=\s*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')"#).unwrap();
-        let mut pairs: Vec<(String, String)> = Vec::new();
-        let mut found = false;
-        for m in re_pair.captures_iter(inner) {
-            let k = m.get(1).or_else(|| m.get(2)).unwrap().as_str().to_string();
-            let v = m.get(3).or_else(|| m.get(4)).unwrap().as_str().to_string();
-            if k == key {
-                pairs.push((k, value.to_string()));
-                found = true;
-            } else {
-                pairs.push((k, v));
+    if let (Some(re_inline), Some(re_pair)) = (KIMI_RE_INLINE.as_ref(), KIMI_RE_PAIR.as_ref()) {
+        if let Some(caps) = re_inline.captures(block) {
+            if let (Some(whole), Some(indent), Some(inner)) = (
+                caps.get(0),
+                caps.get(1).map(|m| m.as_str()),
+                caps.get(2).map(|m| m.as_str()),
+            ) {
+                let mut pairs: Vec<(String, String)> = Vec::new();
+                let mut found = false;
+                for m in re_pair.captures_iter(inner) {
+                    let k = m.get(1).or_else(|| m.get(2)).map(|x| x.as_str()).unwrap_or("").to_string();
+                    let v = m.get(3).or_else(|| m.get(4)).map(|x| x.as_str()).unwrap_or("").to_string();
+                    if k == key {
+                        pairs.push((k, value.to_string()));
+                        found = true;
+                    } else {
+                        pairs.push((k, v));
+                    }
+                }
+                if !found {
+                    pairs.push((key.to_string(), value.to_string()));
+                }
+                let rendered: Vec<String> = pairs.iter().map(|(k, v)| format!("\"{}\" = {}", k, toml_quoted(v))).collect();
+                let line = format!("{}custom_headers = {{ {} }}", indent, rendered.join(", "));
+                let new_block = format!("{}{}{}", &block[..whole.start()], line, &block[whole.end()..]);
+                return (format!("{}{}{}", &raw[..p.start], new_block, &raw[p.end..]), true);
             }
         }
-        if !found {
-            pairs.push((key.to_string(), value.to_string()));
-        }
-        let rendered: Vec<String> = pairs.iter().map(|(k, v)| format!("\"{}\" = {}", k, toml_quoted(v))).collect();
-        let line = format!("{}custom_headers = {{ {} }}", indent, rendered.join(", "));
-        let new_block = format!("{}{}{}", &block[..whole.start()], line, &block[whole.end()..]);
-        return (format!("{}{}{}", &raw[..p.start], new_block, &raw[p.end..]), true);
     }
 
-    let re_sub = kimi_sub_custom_re(id);
-    if let Some(m) = re_sub.find(raw) {
-        let re_next = Regex::new(r#"(?m)^[ \t]*\["#).unwrap();
-        let after = &raw[m.end()..];
-        let end = match re_next.find(after) {
-            Some(nm) => m.end() + nm.start(),
-            None => raw.len(),
-        };
-        let sub = &raw[m.start()..end];
-        let line_re = kimi_header_line_re(key);
-        let new_sub = if let Some(lm) = line_re.find(sub) {
-            let prefix = line_re.captures(sub).unwrap().get(1).unwrap().as_str();
-            format!("{}{}{} = {}{}", &sub[..lm.start()], prefix, key, toml_quoted(value), &sub[lm.end()..])
-        } else {
-            format!("{}\n{} = {}", sub.trim_end(), key, toml_quoted(value))
-        };
-        return (format!("{}{}{}", &raw[..m.start()], new_sub, &raw[end..]), true);
+    if let (Some(re_sub), Some(re_next), Some(line_re)) = (
+        kimi_sub_custom_re(id),
+        KIMI_RE_NEXT.as_ref(),
+        kimi_header_line_re(key),
+    ) {
+        if let Some(m) = re_sub.find(raw) {
+            let after = &raw[m.end()..];
+            let end = match re_next.find(after) {
+                Some(nm) => m.end() + nm.start(),
+                None => raw.len(),
+            };
+            let sub = &raw[m.start()..end];
+            let new_sub = if let Some(caps) = line_re.captures(sub) {
+                let lm = caps.get(0).map(|x| (x.start(), x.end())).unwrap_or((0, 0));
+                let prefix = caps.get(1).map(|x| x.as_str()).unwrap_or("");
+                format!("{}{}{} = {}{}", &sub[..lm.0], prefix, key, toml_quoted(value), &sub[lm.1..])
+            } else {
+                format!("{}\n{} = {}", sub.trim_end(), key, toml_quoted(value))
+            };
+            return (format!("{}{}{}", &raw[..m.start()], new_sub, &raw[end..]), true);
+        }
     }
 
     let sub = format!("\n[providers.{}.custom_headers]\n{} = {}\n", toml_quoted(id), key, toml_quoted(value));
@@ -348,62 +383,68 @@ fn kimi_drop_custom_header(raw: &str, id: &str, key: &str) -> (String, bool) {
         None => return (raw.to_string(), false),
     };
     let block = &raw[p.start..p.end];
-    let re_inline = Regex::new(r#"(?m)^([ \t]*)custom_headers[ \t]*=[ \t]*\{([^}]*)\}[ \t]*(?:#.*)?$"#).unwrap();
-    if let Some(caps) = re_inline.captures(block) {
-        let whole = caps.get(0).unwrap();
-        let indent = caps.get(1).unwrap().as_str();
-        let inner = caps.get(2).unwrap().as_str();
-        let re_pair = Regex::new(r#"(?:"((?:[^"\\]|\\.)*)"|'([^']*)')\s*=\s*(?:"((?:[^"\\]|\\.)*)"|'([^']*)')"#).unwrap();
-        let mut pairs: Vec<(String, String)> = Vec::new();
-        let mut found = false;
-        for m in re_pair.captures_iter(inner) {
-            let k = m.get(1).or_else(|| m.get(2)).unwrap().as_str().to_string();
-            let v = m.get(3).or_else(|| m.get(4)).unwrap().as_str().to_string();
-            if k == key {
-                found = true;
-            } else {
-                pairs.push((k, v));
+    if let (Some(re_inline), Some(re_pair)) = (KIMI_RE_INLINE.as_ref(), KIMI_RE_PAIR.as_ref()) {
+        if let Some(caps) = re_inline.captures(block) {
+            if let (Some(whole), Some(indent), Some(inner)) = (
+                caps.get(0),
+                caps.get(1).map(|m| m.as_str()),
+                caps.get(2).map(|m| m.as_str()),
+            ) {
+                let mut pairs: Vec<(String, String)> = Vec::new();
+                let mut found = false;
+                for m in re_pair.captures_iter(inner) {
+                    let k = m.get(1).or_else(|| m.get(2)).map(|x| x.as_str()).unwrap_or("").to_string();
+                    let v = m.get(3).or_else(|| m.get(4)).map(|x| x.as_str()).unwrap_or("").to_string();
+                    if k == key {
+                        found = true;
+                    } else {
+                        pairs.push((k, v));
+                    }
+                }
+                if !found {
+                    return (raw.to_string(), false);
+                }
+                let line = if pairs.is_empty() {
+                    String::new()
+                } else {
+                    let rendered: Vec<String> = pairs.iter().map(|(k, v)| format!("\"{}\" = {}", k, toml_quoted(v))).collect();
+                    format!("{}custom_headers = {{ {} }}", indent, rendered.join(", "))
+                };
+                let new_block = format!("{}{}{}", &block[..whole.start()], line, &block[whole.end()..]);
+                return (format!("{}{}{}", &raw[..p.start], new_block, &raw[p.end..]), true);
             }
         }
-        if !found {
-            return (raw.to_string(), false);
-        }
-        let line = if pairs.is_empty() {
-            String::new()
-        } else {
-            let rendered: Vec<String> = pairs.iter().map(|(k, v)| format!("\"{}\" = {}", k, toml_quoted(v))).collect();
-            format!("{}custom_headers = {{ {} }}", indent, rendered.join(", "))
-        };
-        let new_block = format!("{}{}{}", &block[..whole.start()], line, &block[whole.end()..]);
-        return (format!("{}{}{}", &raw[..p.start], new_block, &raw[p.end..]), true);
     }
 
-    let re_sub = kimi_sub_custom_re(id);
-    if let Some(m) = re_sub.find(raw) {
-        let re_next = Regex::new(r#"(?m)^[ \t]*\["#).unwrap();
-        let after = &raw[m.end()..];
-        let end = match re_next.find(after) {
-            Some(nm) => m.end() + nm.start(),
-            None => raw.len(),
-        };
-        let sub = &raw[m.start()..end];
-        let line_re = kimi_header_line_re(key);
-        if let Some(lm) = line_re.find(sub) {
-            let mut line_end = lm.end();
-            while line_end < sub.len() && sub.as_bytes()[line_end] == b'\n' {
-                line_end += 1;
-            }
-            let new_sub = format!("{}{}", &sub[..lm.start()], &sub[line_end..]);
-            if let Some(nl) = new_sub.find('\n') {
-                if new_sub[nl + 1..].trim().is_empty() {
-                    let mut start = m.start();
-                    if start > 0 && raw.as_bytes()[start - 1] == b'\n' {
-                        start -= 1;
-                    }
-                    return (format!("{}{}", &raw[..start], &raw[end..]), true);
+    if let (Some(re_sub), Some(re_next), Some(line_re)) = (
+        kimi_sub_custom_re(id),
+        KIMI_RE_NEXT.as_ref(),
+        kimi_header_line_re(key),
+    ) {
+        if let Some(m) = re_sub.find(raw) {
+            let after = &raw[m.end()..];
+            let end = match re_next.find(after) {
+                Some(nm) => m.end() + nm.start(),
+                None => raw.len(),
+            };
+            let sub = &raw[m.start()..end];
+            if let Some(lm) = line_re.find(sub) {
+                let mut line_end = lm.end();
+                while line_end < sub.len() && sub.as_bytes()[line_end] == b'\n' {
+                    line_end += 1;
                 }
+                let new_sub = format!("{}{}", &sub[..lm.start()], &sub[line_end..]);
+                if let Some(nl) = new_sub.find('\n') {
+                    if new_sub[nl + 1..].trim().is_empty() {
+                        let mut start = m.start();
+                        if start > 0 && raw.as_bytes()[start - 1] == b'\n' {
+                            start -= 1;
+                        }
+                        return (format!("{}{}", &raw[..start], &raw[end..]), true);
+                    }
+                }
+                return (format!("{}{}{}", &raw[..m.start()], new_sub, &raw[end..]), true);
             }
-            return (format!("{}{}{}", &raw[..m.start()], new_sub, &raw[end..]), true);
         }
     }
     (raw.to_string(), false)

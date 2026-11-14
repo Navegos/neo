@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/rtk.rs
 // created: 2026-10-05
-// lastModified: 2026-11-01
+// lastModified: 2026-11-14
 
 use std::env;
 use std::fs;
@@ -798,6 +798,7 @@ pub fn amp_rtk_unwire() -> Result<bool, DynError> {
 // --- ZCode RTK PreToolUse Hook ---
 
 fn zcode_rtk_hook_managed(hook: &OrderedMap) -> bool {
+    let cmd = hook.get("command").and_then(|v| v.as_str());
     let Some(Value::Array(arr)) = hook.get("args") else {
         return false;
     };
@@ -806,11 +807,10 @@ fn zcode_rtk_hook_managed(hook: &OrderedMap) -> bool {
     }
     let a = arr.get(0).and_then(|v| v.as_str());
     let b = arr.get(1).and_then(|v| v.as_str());
-    let cmd = hook.get("command").and_then(|v| v.as_str());
-    if a != Some("rtk-hook") || b != Some("zcode") || cmd.is_none() {
+    let (Some(cmd_str), true) = (cmd, a == Some("rtk-hook") && b == Some("zcode")) else {
         return false;
-    }
-    let base = Path::new(cmd.unwrap())
+    };
+    let base = Path::new(cmd_str)
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("")

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/zcode.rs
 // created: 2026-10-20
-// lastModified: 2026-10-31
+// lastModified: 2026-11-14
 
 use std::path::Path;
 use std::sync::Arc;
@@ -342,7 +342,9 @@ pub fn configure_zcode_proxy_locked() -> (bool, String) {
         if !api_obj.contains_key("headers") {
             api_obj.insert("headers".to_string(), Value::Object(OrderedMap::new()));
         }
-        let headers_map = api_obj.get_mut("headers").unwrap().as_object_mut().unwrap();
+        let Some(headers_map) = api_obj.get_mut("headers").and_then(|v| v.as_object_mut()) else {
+            continue;
+        };
 
         let byok_key = byok_route_header_key();
         if headers_map.get(byok_key).and_then(|v| v.as_str()) != Some(&route_header) {
@@ -557,14 +559,16 @@ pub fn zcode_proxy_wired() -> bool {
             None => return false,
         };
         let (headers_opt, _, value, hdr_ok) = zcode_headers(api_obj);
-        if !hdr_ok || headers_opt.is_none() || value != byok_route_header(&route) {
+        let Some(hm) = headers_opt else {
+            return false;
+        };
+        if !hdr_ok || value != byok_route_header(&route) {
             return false;
         }
         let (origin, chat_path) = match zcode_headroom_upstream(&entry.base_url) {
             Some(res) => res,
             None => return false,
         };
-        let hm = headers_opt.unwrap();
         if hm.get(ZCODE_HEADROOM_BASE_URL_HEADER).and_then(|v| v.as_str()) != Some(&origin) {
             return false;
         }

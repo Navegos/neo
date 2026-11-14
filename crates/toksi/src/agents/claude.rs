@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/agents/claude.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-14
+
+#![deny(unsafe_code)]
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -162,15 +164,13 @@ pub fn configure_claude_mcp(tool_id: &str) -> (bool, String) {
     desired.insert("command".into(), Value::String(spawn.command));
     desired.insert("args".into(), Value::Array(to_value_vec(&spawn.args)));
 
-    let servers = cfg
-        .get_mut("mcpServers")
-        .and_then(|v| v.as_object_mut())
-        .unwrap();
+    let Some(servers) = cfg.get_mut("mcpServers").and_then(|v| v.as_object_mut()) else {
+        return (false, p.global_json);
+    };
 
     if let Some(existing) = servers.get(tool_id) {
         if claude_mcp_equal(existing, &desired) {
             allow_claude_mcp_tool(tool_id);
-            allow_claude_mcp_tool_project_local(tool_id);
             return (false, p.global_json);
         }
         return (false, p.global_json);
@@ -181,7 +181,6 @@ pub fn configure_claude_mcp(tool_id: &str) -> (bool, String) {
         return (false, p.global_json);
     }
     allow_claude_mcp_tool(tool_id);
-    allow_claude_mcp_tool_project_local(tool_id);
     (true, p.global_json)
 }
 
@@ -209,7 +208,7 @@ pub fn claude_mcp_permission_entries(tool_id: &str) -> Vec<String> {
 
 pub fn claude_mcp_tool_names(tool_id: &str) -> Vec<String> {
     match tool_id {
-        "context-mode" => vec![
+        "context" | "context-mode" => vec![
             "ctx_search".into(),
             "ctx_execute".into(),
             "ctx_execute_file".into(),
@@ -255,10 +254,9 @@ fn allow_claude_project_local_entries(tool_id: &str, entries: &[String]) {
         cfg.insert("permissions".into(), Value::Object(OrderedMap::new()));
     }
 
-    let perms = cfg
-        .get_mut("permissions")
-        .and_then(|v| v.as_object_mut())
-        .unwrap();
+    let Some(perms) = cfg.get_mut("permissions").and_then(|v| v.as_object_mut()) else {
+        return;
+    };
 
     let mut allow = match perms.get("allow") {
         Some(Value::Array(a)) => a.clone(),
@@ -320,10 +318,9 @@ pub fn allow_claude_mcp_tool(tool_id: &str) {
         cfg.insert("permissions".into(), Value::Object(OrderedMap::new()));
     }
 
-    let perms = cfg
-        .get_mut("permissions")
-        .and_then(|v| v.as_object_mut())
-        .unwrap();
+    let Some(perms) = cfg.get_mut("permissions").and_then(|v| v.as_object_mut()) else {
+        return;
+    };
 
     let mut allow = match perms.get("allow") {
         Some(Value::Array(a)) => a.clone(),
@@ -398,7 +395,7 @@ pub fn disallow_claude_mcp_tool(tool_id: &str) {
         None => return,
     };
     let mut wants: HashSet<String> = claude_mcp_permission_entries(tool_id).into_iter().collect();
-    if tool_id == "context-mode" {
+    if tool_id == "context" || tool_id == "context-mode" {
         wants.insert("mcp__context-mode__.*".into());
     }
     let mut kept = Vec::with_capacity(allow.len());
@@ -451,10 +448,9 @@ pub fn allow_claude_bash_pattern_project_local(pattern: &str) {
         cfg.insert("permissions".into(), Value::Object(OrderedMap::new()));
     }
 
-    let perms = cfg
-        .get_mut("permissions")
-        .and_then(|v| v.as_object_mut())
-        .unwrap();
+    let Some(perms) = cfg.get_mut("permissions").and_then(|v| v.as_object_mut()) else {
+        return;
+    };
 
     let mut allow = match perms.get("allow") {
         Some(Value::Array(a)) => a.clone(),
@@ -489,10 +485,9 @@ pub fn allow_claude_bash_pattern(pattern: &str) {
     if !cfg.get("permissions").map(|v| v.is_object()).unwrap_or(false) {
         cfg.insert("permissions".into(), Value::Object(OrderedMap::new()));
     }
-    let perms = cfg
-        .get_mut("permissions")
-        .and_then(|v| v.as_object_mut())
-        .unwrap();
+    let Some(perms) = cfg.get_mut("permissions").and_then(|v| v.as_object_mut()) else {
+        return;
+    };
     let mut allow = perms
         .get("allow")
         .and_then(|v| v.as_array())

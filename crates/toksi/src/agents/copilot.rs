@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/agents/copilot.rs
 // created: 2026-10-11
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
+
+#![deny(unsafe_code)]
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -71,6 +73,45 @@ pub fn copilot_manifest() -> AgentManifest {
                 &copilot_known_bin_dirs(),
                 "github.copilot-chat",
             )
+        })),
+    }
+}
+
+pub fn copilot_cli_manifest() -> AgentManifest {
+    AgentManifest {
+        id: "copilot-cli".to_string(),
+        label: "GitHub Copilot CLI".to_string(),
+        homepage: "https://github.com/github/copilot-cli".to_string(),
+        cli_bin: "copilot".to_string(),
+        config_dir: Some(Arc::new(|| paths::copilot_paths_resolved().dir)),
+        detect: Some(Arc::new(|| {
+            super::proxy_provider::detect_agent_with(
+                "copilot",
+                &paths::copilot_paths_resolved().dir,
+                &copilot_known_bin_dirs(),
+                &[],
+            )
+        })),
+    }
+}
+
+pub fn copilot_vscode_manifest() -> AgentManifest {
+    AgentManifest {
+        id: "copilot-vscode".to_string(),
+        label: "GitHub Copilot VS Code".to_string(),
+        homepage: "https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat"
+            .to_string(),
+        cli_bin: "code".to_string(),
+        config_dir: Some(Arc::new(|| paths::copilot_paths_resolved().dir)),
+        detect: Some(Arc::new(|| {
+            if is_vscode_extension_installed("github.copilot-chat") {
+                crate::core::Detection {
+                    installed: true,
+                    source: "vscode".to_string(),
+                }
+            } else {
+                crate::core::Detection::default()
+            }
         })),
     }
 }
@@ -184,6 +225,14 @@ pub fn install_copilot_context_mode_hook() {
 pub fn install_copilot_context_mode_hook_safe() -> Result<(), String> {
     let p = paths::copilot_paths_resolved();
     paths::ensure_dir(&p.hooks_dir).map_err(|e| e.to_string())?;
+    let _ = fs::remove_file(copilot_hooks_file("context-mode.json"));
+
+    let (base_cmd, _) = toksi_command_ok(&[]);
+    let bin = if base_cmd.is_empty() {
+        "toksi".to_string()
+    } else {
+        base_cmd
+    };
 
     let events = [
         ("preToolUse", "pretooluse"),
@@ -199,7 +248,7 @@ pub fn install_copilot_context_mode_hook_safe() -> Result<(), String> {
         h.insert("type".to_string(), Value::String("command".to_string()));
         h.insert(
             "command".to_string(),
-            Value::String(format!("context-mode hook copilot-cli {token}")),
+            Value::String(format!("{bin} context-hook copilot-cli {token}")),
         );
         hooks.insert(event.to_string(), Value::Array(vec![Value::Object(h)]));
     }
@@ -208,9 +257,9 @@ pub fn install_copilot_context_mode_hook_safe() -> Result<(), String> {
     root.insert("version".to_string(), Value::from(1));
     root.insert("hooks".to_string(), Value::Object(hooks));
     write_owned_copilot_hook(
-        &copilot_hooks_file("context-mode.json"),
+        &copilot_hooks_file("context.json"),
         &stringify_json(&Value::Object(root)),
-        "context-mode hook copilot-cli",
+        "context-hook copilot-cli",
     )
 }
 
@@ -219,20 +268,24 @@ pub fn remove_copilot_context_mode_hook() {
 }
 
 pub fn remove_copilot_context_mode_hook_safe() -> Result<(), String> {
-    remove_owned_copilot_hook(
+    let _ = remove_owned_copilot_hook(
         &copilot_hooks_file("context-mode.json"),
         "context-mode hook copilot-cli",
+    );
+    remove_owned_copilot_hook(
+        &copilot_hooks_file("context.json"),
+        "context-hook copilot-cli",
     )
 }
 
 pub fn has_copilot_context_mode_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("context-mode.json")) else {
+    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("context.json")) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
         return false;
     };
-    copilot_hook_owned(&cfg, "context-mode hook copilot-cli")
+    copilot_hook_owned(&cfg, "context-hook copilot-cli")
 }
 
 pub fn install_copilot_ide_context_mode_hook() {
@@ -241,6 +294,13 @@ pub fn install_copilot_ide_context_mode_hook() {
 
 pub fn install_copilot_ide_context_mode_hook_safe() -> Result<(), String> {
     paths::ensure_dir(&copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
+    let _ = fs::remove_file(copilot_ide_hooks_file("context-mode.json"));
+    let (base_cmd, _) = toksi_command_ok(&[]);
+    let bin = if base_cmd.is_empty() {
+        "toksi".to_string()
+    } else {
+        base_cmd
+    };
     let events = ["PreToolUse", "PostToolUse", "SessionStart", "Stop"];
     let tokens = ["pretooluse", "posttooluse", "sessionstart", "stop"];
     let mut hooks = OrderedMap::new();
@@ -249,7 +309,7 @@ pub fn install_copilot_ide_context_mode_hook_safe() -> Result<(), String> {
         h.insert("type".to_string(), Value::String("command".to_string()));
         h.insert(
             "command".to_string(),
-            Value::String(format!("context-mode hook copilot-vscode {tok}")),
+            Value::String(format!("{bin} context-hook copilot-vscode {tok}")),
         );
         h.insert("timeout".to_string(), Value::from(10));
         hooks.insert((*ev).to_string(), Value::Array(vec![Value::Object(h)]));
@@ -258,9 +318,9 @@ pub fn install_copilot_ide_context_mode_hook_safe() -> Result<(), String> {
     root.insert("version".to_string(), Value::from(1));
     root.insert("hooks".to_string(), Value::Object(hooks));
     write_owned_copilot_hook(
-        &copilot_ide_hooks_file("context-mode.json"),
+        &copilot_ide_hooks_file("context.json"),
         &stringify_json(&Value::Object(root)),
-        "context-mode hook copilot-vscode",
+        "context-hook copilot-vscode",
     )
 }
 
@@ -269,20 +329,24 @@ pub fn remove_copilot_ide_context_mode_hook() {
 }
 
 pub fn remove_copilot_ide_context_mode_hook_safe() -> Result<(), String> {
-    remove_owned_copilot_hook(
+    let _ = remove_owned_copilot_hook(
         &copilot_ide_hooks_file("context-mode.json"),
         "context-mode hook copilot-vscode",
+    );
+    remove_owned_copilot_hook(
+        &copilot_ide_hooks_file("context.json"),
+        "context-hook copilot-vscode",
     )
 }
 
 pub fn has_copilot_ide_context_mode_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("context-mode.json")) else {
+    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("context.json")) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
         return false;
     };
-    copilot_hook_owned(&cfg, "context-mode hook copilot-vscode")
+    copilot_hook_owned(&cfg, "context-hook copilot-vscode")
 }
 
 fn copilot_rtk_hook_command() -> String {
@@ -296,6 +360,7 @@ pub fn install_copilot_rtk_hook() -> bool {
 pub fn install_copilot_rtk_hook_safe() -> Result<(), String> {
     let p = paths::copilot_paths_resolved();
     paths::ensure_dir(&p.hooks_dir).map_err(|e| e.to_string())?;
+    let _ = fs::remove_file(copilot_hooks_file("toksi-rtk.json"));
 
     let cmd = copilot_rtk_hook_command();
     if cmd.is_empty() {
@@ -319,7 +384,7 @@ pub fn install_copilot_rtk_hook_safe() -> Result<(), String> {
     root.insert("version".to_string(), Value::from(1));
     root.insert("hooks".to_string(), Value::Object(hooks));
     write_owned_copilot_hook(
-        &copilot_hooks_file("toksi-rtk.json"),
+        &copilot_hooks_file("rtk.json"),
         &stringify_json(&Value::Object(root)),
         "rtk-hook copilot",
     )?;
@@ -331,7 +396,8 @@ pub fn remove_copilot_rtk_hook() {
 }
 
 pub fn remove_copilot_rtk_hook_safe() -> Result<(), String> {
-    remove_owned_copilot_hook(&copilot_hooks_file("toksi-rtk.json"), "rtk-hook copilot")
+    let _ = remove_owned_copilot_hook(&copilot_hooks_file("toksi-rtk.json"), "rtk-hook copilot");
+    remove_owned_copilot_hook(&copilot_hooks_file("rtk.json"), "rtk-hook copilot")
 }
 
 pub fn install_copilot_ide_rtk_hook() {
@@ -340,6 +406,7 @@ pub fn install_copilot_ide_rtk_hook() {
 
 pub fn install_copilot_ide_rtk_hook_safe() -> Result<(), String> {
     paths::ensure_dir(&copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
+    let _ = fs::remove_file(copilot_ide_hooks_file("toksi-rtk.json"));
     let cmd = copilot_rtk_hook_command();
     let mut entry = OrderedMap::new();
     entry.insert("type".to_string(), Value::String("command".to_string()));
@@ -358,7 +425,7 @@ pub fn install_copilot_ide_rtk_hook_safe() -> Result<(), String> {
     root.insert("version".to_string(), Value::from(1));
     root.insert("hooks".to_string(), Value::Object(hooks));
     write_owned_copilot_hook(
-        &copilot_ide_hooks_file("toksi-rtk.json"),
+        &copilot_ide_hooks_file("rtk.json"),
         &stringify_json(&Value::Object(root)),
         "rtk-hook copilot",
     )
@@ -369,14 +436,18 @@ pub fn remove_copilot_ide_rtk_hook() {
 }
 
 pub fn remove_copilot_ide_rtk_hook_safe() -> Result<(), String> {
-    remove_owned_copilot_hook(
+    let _ = remove_owned_copilot_hook(
         &copilot_ide_hooks_file("toksi-rtk.json"),
+        "rtk-hook copilot",
+    );
+    remove_owned_copilot_hook(
+        &copilot_ide_hooks_file("rtk.json"),
         "rtk-hook copilot",
     )
 }
 
 pub fn has_copilot_ide_rtk_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("toksi-rtk.json")) else {
+    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("rtk.json")) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -651,7 +722,7 @@ fn copilot_hook_owned(cfg: &OrderedMap, marker: &str) -> bool {
     let mut expected: HashSet<&str> = HashSet::new();
     let mut expected_timeout: i64 = -1;
     match marker {
-        "context-mode hook copilot-cli" => {
+        "context-hook copilot-cli" | "context-mode hook copilot-cli" => {
             expected.extend([
                 "preToolUse",
                 "postToolUse",
@@ -661,7 +732,7 @@ fn copilot_hook_owned(cfg: &OrderedMap, marker: &str) -> bool {
                 "preCompact",
             ]);
         }
-        "context-mode hook copilot-vscode" => {
+        "context-hook copilot-vscode" | "context-mode hook copilot-vscode" => {
             expected.extend(["PreToolUse", "PostToolUse", "SessionStart", "Stop"]);
             expected_timeout = 10;
         }
@@ -743,6 +814,25 @@ fn copilot_hook_command_marker(cfg: &OrderedMap) -> String {
 
 fn copilot_hook_command_owned(command: &str, marker: &str) -> bool {
     match marker {
+        "context-hook copilot-cli" => [
+            "pretooluse",
+            "posttooluse",
+            "sessionstart",
+            "userpromptsubmit",
+            "stop",
+            "precompact",
+        ]
+        .iter()
+        .any(|s| {
+            toksi_managed_command(command, &["context-hook", "copilot-cli", s])
+                || has_exact_hook_suffix(command, "toksi context-hook copilot-cli", &[s])
+        }),
+        "context-hook copilot-vscode" => ["pretooluse", "posttooluse", "sessionstart", "stop"]
+            .iter()
+            .any(|s| {
+                toksi_managed_command(command, &["context-hook", "copilot-vscode", s])
+                    || has_exact_hook_suffix(command, "toksi context-hook copilot-vscode", &[s])
+            }),
         "context-mode hook copilot-cli" => has_exact_hook_suffix(
             command,
             marker,
@@ -824,6 +914,7 @@ pub fn install_copilot_projectmem_hook_safe() -> Result<(), String> {
     let p = paths::copilot_paths_resolved();
     paths::ensure_dir(&p.hooks_dir).map_err(|e| e.to_string())?;
     let _ = fs::remove_file(copilot_hooks_file("toksi-projectmem.json"));
+    let _ = fs::remove_file(copilot_hooks_file("projectmem-context.json"));
     let projectmem_cmd = toksi_command(&["projectmem-hook", "copilot"]);
     if projectmem_cmd.is_empty() {
         return Err(ERR_NO_STABLE_TOKSI.to_string());
@@ -840,27 +931,29 @@ pub fn install_copilot_projectmem_hook_safe() -> Result<(), String> {
     root.insert("version".to_string(), Value::from(1));
     root.insert("hooks".to_string(), Value::Object(hooks));
     write_owned_copilot_hook(
-        &copilot_hooks_file("projectmem-context.json"),
+        &copilot_hooks_file("projectmem.json"),
         &stringify_json(&Value::Object(root)),
         "projectmem-hook copilot",
     )
 }
 
 pub fn remove_copilot_projectmem_hook_safe() -> Result<(), String> {
+    for legacy in ["projectmem-context.json", "toksi-projectmem.json"] {
+        let _ = remove_owned_copilot_hook(&copilot_hooks_file(legacy), "projectmem-hook copilot");
+        let _ = remove_owned_copilot_hook(&copilot_hooks_file(legacy), "projectmem-hook flat");
+    }
     let _ = remove_owned_copilot_hook(
-        &copilot_hooks_file("projectmem-context.json"),
-        "projectmem-hook copilot",
-    );
-    let res = remove_owned_copilot_hook(
-        &copilot_hooks_file("projectmem-context.json"),
+        &copilot_hooks_file("projectmem.json"),
         "projectmem-hook flat",
     );
-    let _ = fs::remove_file(copilot_hooks_file("toksi-projectmem.json"));
-    res
+    remove_owned_copilot_hook(
+        &copilot_hooks_file("projectmem.json"),
+        "projectmem-hook copilot",
+    )
 }
 
 pub fn has_copilot_projectmem_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("projectmem-context.json")) else {
+    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("projectmem.json")) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -872,6 +965,8 @@ pub fn has_copilot_projectmem_hook() -> bool {
 
 pub fn install_copilot_ide_projectmem_hook_safe() -> Result<(), String> {
     paths::ensure_dir(&copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
+    let _ = fs::remove_file(copilot_ide_hooks_file("projectmem-context.json"));
+    let _ = fs::remove_file(copilot_ide_hooks_file("toksi-projectmem.json"));
     let projectmem_cmd = toksi_command(&["projectmem-hook", "copilot"]);
     if projectmem_cmd.is_empty() {
         return Err(ERR_NO_STABLE_TOKSI.to_string());
@@ -889,26 +984,31 @@ pub fn install_copilot_ide_projectmem_hook_safe() -> Result<(), String> {
     root.insert("version".to_string(), Value::from(1));
     root.insert("hooks".to_string(), Value::Object(hooks));
     write_owned_copilot_hook(
-        &copilot_ide_hooks_file("projectmem-context.json"),
+        &copilot_ide_hooks_file("projectmem.json"),
         &stringify_json(&Value::Object(root)),
         "projectmem-hook copilot",
     )
 }
 
 pub fn remove_copilot_ide_projectmem_hook_safe() -> Result<(), String> {
+    for legacy in ["projectmem-context.json", "toksi-projectmem.json"] {
+        let _ =
+            remove_owned_copilot_hook(&copilot_ide_hooks_file(legacy), "projectmem-hook copilot");
+        let _ =
+            remove_owned_copilot_hook(&copilot_ide_hooks_file(legacy), "projectmem-hook flat");
+    }
     let _ = remove_owned_copilot_hook(
-        &copilot_ide_hooks_file("projectmem-context.json"),
-        "projectmem-hook copilot",
+        &copilot_ide_hooks_file("projectmem.json"),
+        "projectmem-hook flat",
     );
     remove_owned_copilot_hook(
-        &copilot_ide_hooks_file("projectmem-context.json"),
-        "projectmem-hook flat",
+        &copilot_ide_hooks_file("projectmem.json"),
+        "projectmem-hook copilot",
     )
 }
 
 pub fn has_copilot_ide_projectmem_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("projectmem-context.json"))
-    else {
+    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("projectmem.json")) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -919,7 +1019,7 @@ pub fn has_copilot_ide_projectmem_hook() -> bool {
 }
 
 pub fn has_copilot_rtk_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("toksi-rtk.json")) else {
+    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("rtk.json")) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -962,7 +1062,12 @@ pub fn configure_copilot_mcp_safe(tool_id: &str) -> Result<(bool, String), Strin
         cfg.insert("mcpServers".to_string(), Value::Object(OrderedMap::new()));
     }
     let desired = copilot_mcp_desired(tool_id, false);
-    let servers = json_map_child_mut(&mut cfg, "mcpServers").unwrap();
+    let Some(servers) = json_map_child_mut(&mut cfg, "mcpServers") else {
+        return Err(format!(
+            "Copilot MCP config {} has non-object mcpServers",
+            p.mcp_config
+        ));
+    };
     if let Some(existing) = servers.get(tool_id) {
         if copilot_mcp_equal(existing, &desired) {
             return Ok((false, p.mcp_config));
@@ -1063,7 +1168,9 @@ fn configure_copilot_ide_mcp_locked(tool_id: &str) -> Result<(bool, String), Str
         cfg.insert("servers".to_string(), Value::Object(OrderedMap::new()));
     }
     let desired = copilot_mcp_desired(tool_id, true);
-    let servers = json_map_child_mut(&mut cfg, "servers").unwrap();
+    let Some(servers) = json_map_child_mut(&mut cfg, "servers") else {
+        return Err(format!("Copilot MCP config {path} has non-object servers"));
+    };
     if let Some(existing) = servers.get(tool_id) {
         if copilot_mcp_equal(existing, &desired) {
             return Ok((false, path));
@@ -1101,7 +1208,7 @@ fn copilot_mcp_desired(tool_id: &str, ide: bool) -> OrderedMap {
             Value::Array(vec![Value::String("*".to_string())]),
         );
     }
-    if tool_id == "context-mode" {
+    if tool_id == "context" || tool_id == "context-mode" {
         let mut env = OrderedMap::new();
         env.insert(
             "CONTEXT_MODE_PLATFORM".to_string(),
@@ -1163,7 +1270,9 @@ fn remove_copilot_ide_mcp_locked(tool_id: &str) -> Result<bool, String> {
     if !servers_val.is_object() {
         return Err(format!("Copilot MCP config {path} has non-object servers"));
     }
-    let servers = json_map_child_mut(&mut cfg, "servers").unwrap();
+    let Some(servers) = json_map_child_mut(&mut cfg, "servers") else {
+        return Err(format!("Copilot MCP config {path} has non-object servers"));
+    };
     let Some(existing) = servers.get(tool_id) else {
         return Ok(false);
     };
@@ -1220,19 +1329,27 @@ pub fn copilot_transaction_file_owned(path: &str) -> bool {
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("");
-    if base == "context-mode.json"
+    if base == "context.json"
+        || base == "context-mode.json"
         || base == "codegraph.json"
         || base == "toksi-codegraph-index.json"
+        || base == "rtk.json"
         || base == "toksi-rtk.json"
+        || base == "projectmem.json"
+        || base == "projectmem-context.json"
     {
         let Some(cfg) = try_parse_jsonc(&raw) else {
             return false;
         };
         for marker in [
+            "context-hook copilot-cli",
+            "context-hook copilot-vscode",
             "context-mode hook copilot-cli",
             "context-mode hook copilot-vscode",
             "codegraph-hook copilot",
             "rtk-hook copilot",
+            "projectmem-hook copilot",
+            "projectmem-hook flat",
         ] {
             if copilot_hook_owned(&cfg, marker) {
                 return true;

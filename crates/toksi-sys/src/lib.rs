@@ -11,6 +11,7 @@
 //! `// SAFETY:` comment proving pointer validity, null-termination, alignment,
 //! and buffer size invariants.
 
+pub mod process;
 pub mod windows_env;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

@@ -3,14 +3,14 @@
 // project: neo
 // file: crates/toksi/src/tools/contextmode.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
 
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 
 use crate::agents::{
-    allow_claude_mcp_tool, allow_claude_mcp_tool_project_local, antigravity_mcp_bounded,
+    allow_claude_mcp_tool, antigravity_mcp_bounded,
     antigravity_mcp_has, cleanup_dead_ide_hooks, cleanup_legacy_antigravity_context_mode,
     cline_mcp_matches, copilot_mcp_bounded, copilot_mcp_has, cursor_mcp_has, droid_mcp_bounded,
     droid_mcp_has, grok_context_mode_mcp_has, has_antigravity_context_mode_hook,
@@ -495,7 +495,6 @@ pub fn ctx_wire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
                 return Ok(ctx_verify_claude());
             }
             mcp_configure("claude", "context-mode");
-            allow_claude_mcp_tool_project_local("context-mode");
             write_owner("claude", "context-mode");
             L.sub("tip: to enable slash commands, type inside Claude Code: /plugin marketplace add mksglu/context-mode && /plugin install context-mode@context-mode");
             Ok(ctx_verify_claude())

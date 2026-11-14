@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rules/sync.rs
 // created: 2026-11-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
 
 //! Universal rules, skills, hooks, MCP & config synchronizer for user-configured agents.
 //!
@@ -667,10 +667,10 @@ fn default_mcp_servers_json(tools: &[String]) -> Value {
     for t in tools {
         let (key, subcmd) = match t.as_str() {
             "codegraph" => ("codegraph", "graph"),
-            "context" | "context-mode" => ("context-mode", "ctx"),
+            "context" | "context-mode" => ("context", "ctx"),
             "projectmem" => ("projectmem", "mem"),
             "icm" => ("icm", "icm"),
-            "aimemory" => ("aimemory", "aimem"),
+            "aimemory" | "ai-memory" => ("aimemory", "aimem"),
             _ => continue,
         };
         servers.insert(
@@ -712,9 +712,9 @@ fn default_gemini_settings_json() -> Value {
                 "command(toksi)",
                 "command(rtk)",
                 "mcp(codegraph:*)",
-                "mcp(context-mode:*)",
+                "mcp(context:*)",
                 "mcp(projectmem:*)",
-                "mcp(ai-memory:*)",
+                "mcp(aimemory:*)",
                 "mcp(icm:*)"
             ]
         }

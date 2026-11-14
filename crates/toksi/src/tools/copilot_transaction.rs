@@ -65,8 +65,12 @@ pub fn copilot_transaction_paths(extra_paths: &[String]) -> Vec<String> {
         p.mcp_config,
         p.instructions,
         Path::new(&p.dir).join("permissions-config.json").to_string_lossy().to_string(),
+        Path::new(&p.hooks_dir).join("context.json").to_string_lossy().to_string(),
         Path::new(&p.hooks_dir).join("context-mode.json").to_string_lossy().to_string(),
+        Path::new(&p.hooks_dir).join("rtk.json").to_string_lossy().to_string(),
         Path::new(&p.hooks_dir).join("toksi-rtk.json").to_string_lossy().to_string(),
+        Path::new(&p.hooks_dir).join("projectmem.json").to_string_lossy().to_string(),
+        Path::new(&p.hooks_dir).join("projectmem-context.json").to_string_lossy().to_string(),
         Path::new(&p.hooks_dir).join("codegraph.json").to_string_lossy().to_string(),
         Path::new(&p.hooks_dir).join("toksi-codegraph-index.json").to_string_lossy().to_string(),
         copilot_shim_digest_path(),
@@ -77,8 +81,12 @@ pub fn copilot_transaction_paths(extra_paths: &[String]) -> Vec<String> {
         raw.push(r.join(".vscode").join("mcp.json").to_string_lossy().to_string());
         raw.push(r.join(".vscode").join("settings.json").to_string_lossy().to_string());
         raw.push(r.join(".github").join("copilot-instructions.md").to_string_lossy().to_string());
+        raw.push(r.join(".github").join("hooks").join("context.json").to_string_lossy().to_string());
         raw.push(r.join(".github").join("hooks").join("context-mode.json").to_string_lossy().to_string());
+        raw.push(r.join(".github").join("hooks").join("rtk.json").to_string_lossy().to_string());
         raw.push(r.join(".github").join("hooks").join("toksi-rtk.json").to_string_lossy().to_string());
+        raw.push(r.join(".github").join("hooks").join("projectmem.json").to_string_lossy().to_string());
+        raw.push(r.join(".github").join("hooks").join("projectmem-context.json").to_string_lossy().to_string());
         raw.push(r.join(".github").join("hooks").join("codegraph.json").to_string_lossy().to_string());
         raw.push(r.join(".github").join("hooks").join("toksi-codegraph-index.json").to_string_lossy().to_string());
     }

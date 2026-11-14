@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/kilo.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-14
 
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -112,7 +112,11 @@ pub fn configure_kilo_mcp_safe(
     if !cfg.contains_key("mcp") {
         cfg.insert("mcp".to_string(), Value::Object(OrderedMap::new()));
     }
-    let mcp = json_map_child_mut(&mut cfg, "mcp").unwrap();
+    let Some(mcp) = json_map_child_mut(&mut cfg, "mcp") else {
+        return Err(
+            "Kilo config field \"mcp\" is not an object; refusing to overwrite it".to_string(),
+        );
+    };
     let (state, state_exists) = kilo_state_read()?;
     let had_ledger = state.contains_key(tool_id);
     if let Some(existing) = mcp.get(tool_id) {

@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/agents/proxy_provider.rs
 // created: 2026-10-11
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
+
+#![deny(unsafe_code)]
 
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -170,43 +172,8 @@ pub fn proxy_route_stash_lock() -> String {
         .into_owned()
 }
 
-#[cfg(windows)]
 pub fn proxy_process_alive(pid: u32) -> bool {
-    const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
-    const SYNCHRONIZE: u32 = 0x00100000;
-    const WAIT_TIMEOUT: u32 = 258;
-
-    #[link(name = "kernel32")]
-    unsafe extern "system" {
-        fn OpenProcess(
-            dwDesiredAccess: u32,
-            bInheritHandle: i32,
-            dwProcessId: u32,
-        ) -> *mut std::ffi::c_void;
-        fn WaitForSingleObject(hHandle: *mut std::ffi::c_void, dwMilliseconds: u32) -> u32;
-        fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
-    }
-
-    unsafe {
-        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, 0, pid);
-        if handle.is_null() {
-            return false;
-        }
-        let wait_res = WaitForSingleObject(handle, 0);
-        let _ = CloseHandle(handle);
-        wait_res == WAIT_TIMEOUT
-    }
-}
-
-#[cfg(not(windows))]
-pub fn proxy_process_alive(pid: u32) -> bool {
-    unsafe extern "C" {
-        fn kill(pid: i32, sig: i32) -> i32;
-    }
-    if pid == 0 {
-        return false;
-    }
-    unsafe { kill(pid as i32, 0) == 0 }
+    toksi_sys::process::is_process_alive(pid)
 }
 
 /// with_proxy_route_stash_lock runs f with an exclusive advisory lock held for the
@@ -517,7 +484,10 @@ pub(crate) fn json_get_or_create_map<'a>(
     if !is_obj {
         m.insert(key.to_string(), Value::Object(OrderedMap::new()));
     }
-    m.get_mut(key).and_then(|v| v.as_object_mut()).unwrap()
+    match m.get_mut(key) {
+        Some(Value::Object(obj)) => obj,
+        _ => json_get_or_create_map(m, key),
+    }
 }
 
 pub(crate) fn json_args_eq(v: Option<&Value>, want: &[String]) -> bool {
@@ -626,39 +596,9 @@ pub(crate) fn all_strings_nonempty(values: &[Value]) -> bool {
         .all(|v| v.as_str().is_some_and(|s| !s.is_empty()))
 }
 
-#[cfg(windows)]
 pub(crate) fn replace_kilo_file(tmp_path: &str, path: &str) -> Result<(), String> {
-    use std::os::windows::ffi::OsStrExt;
-    const MOVEFILE_REPLACE_EXISTING: u32 = 0x00000001;
-
-    #[link(name = "kernel32")]
-    unsafe extern "system" {
-        fn MoveFileExW(
-            lpExistingFileName: *const u16,
-            lpNewFileName: *const u16,
-            dwFlags: u32,
-        ) -> i32;
-    }
-
-    let from: Vec<u16> = std::ffi::OsStr::new(tmp_path)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-    let to: Vec<u16> = std::ffi::OsStr::new(path)
-        .encode_wide()
-        .chain(std::iter::once(0))
-        .collect();
-    let r = unsafe { MoveFileExW(from.as_ptr(), to.as_ptr(), MOVEFILE_REPLACE_EXISTING) };
-    if r == 0 {
-        Err(std::io::Error::last_os_error().to_string())
-    } else {
-        Ok(())
-    }
-}
-
-#[cfg(not(windows))]
-pub(crate) fn replace_kilo_file(tmp_path: &str, path: &str) -> Result<(), String> {
-    fs::rename(tmp_path, path).map_err(|e| e.to_string())
+    toksi_sys::process::replace_file_atomic(Path::new(tmp_path), Path::new(path))
+        .map_err(|e| e.to_string())
 }
 
 fn kilo_command_base(command: &str) -> String {

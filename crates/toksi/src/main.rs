@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
 
 use std::collections::HashMap;
 use std::env;
@@ -13,11 +13,12 @@ use toksi::agents;
 use toksi::commands::{
     run_aimemory_hook, run_codegraph_index_hook, run_codex_perm_hook, run_ctx_hook,
     run_cursor_project_rules_hook, run_daemon_cli, run_disable, run_doctor,
-    run_grok_session_start_hook, run_icm_hook, run_index, run_info, run_init, run_mcp, run_prime,
-    run_projectmem_hook, run_proxy_cli, run_rtk_cli, run_rtk_hook,
+    run_doctor_with_options, run_grok_session_start_hook, run_icm_hook, run_index, run_info,
+    run_init, run_mcp, run_prime, run_projectmem_hook, run_proxy_cli, run_rtk_cli, run_rtk_hook,
     run_rtk_hook_cline, run_rtk_hook_codex, run_rtk_hook_copilot, run_rtk_hook_cursor,
     run_rtk_hook_droid, run_rtk_hook_dsh, run_rtk_hook_grok, run_rtk_rewrite, run_self_update,
-    run_top, run_tui_cli, run_uninstall, run_update, run_gain, InitOptions, PrimeOptions,
+    run_top, run_tui_cli, run_uninstall, run_update, run_gain, DoctorOptions, InitOptions,
+    PrimeOptions,
 };
 
 use toksi::core::{agent_ids, tool_ids};
@@ -103,7 +104,7 @@ fn help_text() -> String {
         {sec_usage}\n\
           {cmd_init}              Install + wire all agents and tools (default; safe to re-run)\n\
           {cmd_update}            Update Toksi CLI, inspect version diff, and upgrade tools\n\
-          {cmd_doctor}            Audit 17 agents, purge broken MCP runners, fix configuration regressions\n\
+          {cmd_doctor}            Audit 18+ agents, purge broken MCP runners, fix configuration regressions (--fix, --workspace)\n\
           {cmd_gain}              Display ground-truth token savings & ROI metrics across tools and models\n\
           {cmd_top}               Live interactive terminal monitor for proxies and active agent requests\n\
           {cmd_tui}               Full mouse-capable multi-tab interactive terminal control center\n\
@@ -517,11 +518,18 @@ fn run() -> i32 {
     match command {
         "init" => run_init(opts),
         "update" => run_update(opts),
-        "doctor" => run_doctor(
-            p.bools.get("offline") == Some(&true),
-            p.bools.get("json") == Some(&true),
-            p.bools.get("fix") == Some(&true),
-        ),
+        "doctor" => {
+            let ws_flag = p.flags.get("workspace").cloned();
+            let include_ws =
+                ws_flag.is_some() || p.bools.get("workspace") == Some(&true) || p.bools.get("w") == Some(&true);
+            run_doctor_with_options(DoctorOptions {
+                offline: p.bools.get("offline") == Some(&true),
+                json_output: p.bools.get("json") == Some(&true),
+                fix: p.bools.get("fix") == Some(&true),
+                workspace: ws_flag.filter(|s| !s.is_empty()).map(std::path::PathBuf::from),
+                include_workspace: include_ws,
+            })
+        }
         "stats" => run_doctor(true, true, false),
         "gain" => run_gain(),
         "top" => run_top(p.bools.get("once") == Some(&true) || p.bools.get("1") == Some(&true)),

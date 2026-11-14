@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/byok_providers.rs
 // created: 2026-10-20
-// lastModified: 2026-10-31
+// lastModified: 2026-11-14
 
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
@@ -14,7 +14,11 @@ use super::proxy_agent::{proxy_agent_config_files, proxy_spec_for};
 use super::proxy_provider::load_proxy_route_stash;
 
 pub fn strip_urls(s: &str) -> String {
-    let re = Regex::new(r#"[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"']*"#).unwrap();
+    static URL_RE: std::sync::LazyLock<Option<Regex>> =
+        std::sync::LazyLock::new(|| Regex::new(r#"[a-zA-Z][a-zA-Z0-9+.-]*://[^\s"']*"#).ok());
+    let Some(re) = URL_RE.as_ref() else {
+        return s.to_string();
+    };
     re.replace_all(s, " ").into_owned()
 }
 

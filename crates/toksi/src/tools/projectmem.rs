@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/projectmem.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
 
 use std::env;
 use std::fs;
@@ -415,7 +415,7 @@ pub fn projectmem_install_session_push(agent: &str) -> bool {
             let p = Path::new(&codex_paths_resolved().dir).join("hooks.json").to_string_lossy().to_string();
             upsert_hook_group_in_hooks_obj(&p, "SessionStart", "", &cmd, Some(10))
         }
-        "antigravity" => {
+        "antigravity" | "antigravity-cli" | "antigravity-ide" => {
             let cmd = toksi_cmd(&["projectmem-hook", "antigravity"]);
             let p = Path::new(&home()).join(".gemini").join("config").join("hooks.json").to_string_lossy().to_string();
             if let Some(parent) = Path::new(&p).parent() {
@@ -429,17 +429,19 @@ pub fn projectmem_install_session_push(agent: &str) -> bool {
             hook_cfg.insert("command".into(), Value::String(cmd));
             entry.insert("hooks".into(), Value::Array(vec![Value::Object(hook_cfg)]));
             pm_group.insert("SessionStart".into(), Value::Array(vec![Value::Object(entry)]));
+            cfg.remove("projectmem-context");
             cfg.insert("projectmem".into(), Value::Object(pm_group));
             write_file_atomic(&p, &stringify_json(&Value::Object(cfg))).is_ok()
         }
-        "copilot" => {
-            let cmd = toksi_cmd(&["projectmem-hook", "copilot"]);
+        "copilot" | "copilot-cli" => {
+            let cmd = toksi_cmd(&["projectmem-hook", agent]);
             if cmd.is_empty() {
                 return false;
             }
             let hooks_dir = std::path::PathBuf::from(copilot_paths_resolved().hooks_dir);
             let _ = fs::remove_file(hooks_dir.join("toksi-projectmem.json"));
-            let p1 = hooks_dir.join("projectmem-context.json");
+            let _ = fs::remove_file(hooks_dir.join("projectmem-context.json"));
+            let p1 = hooks_dir.join("projectmem.json");
             if let Some(parent) = p1.parent() {
                 let _ = ensure_dir(parent);
             }
@@ -447,14 +449,32 @@ pub fn projectmem_install_session_push(agent: &str) -> bool {
             obj.insert("command".into(), Value::String(cmd));
             let json = stringify_json(&Value::Object(obj));
             let ok1 = write_file_atomic(&p1, &json).is_ok();
+            if agent == "copilot" {
+                let ide_hooks = Path::new(&ide_project_root()).join(".github").join("hooks");
+                if ide_hooks.exists() {
+                    let _ = fs::remove_file(ide_hooks.join("toksi-projectmem.json"));
+                    let _ = fs::remove_file(ide_hooks.join("projectmem-context.json"));
+                    let p2 = ide_hooks.join("projectmem.json");
+                    let _ = write_file_atomic(&p2, &json);
+                }
+            }
+            ok1
+        }
+        "copilot-vscode" => {
+            let cmd = toksi_cmd(&["projectmem-hook", "copilot-vscode"]);
+            if cmd.is_empty() {
+                return false;
+            }
             let ide_hooks = Path::new(&ide_project_root()).join(".github").join("hooks");
             let _ = fs::remove_file(ide_hooks.join("toksi-projectmem.json"));
-            let p2 = ide_hooks.join("projectmem-context.json");
+            let _ = fs::remove_file(ide_hooks.join("projectmem-context.json"));
+            let p2 = ide_hooks.join("projectmem.json");
             if let Some(parent) = p2.parent() {
                 let _ = ensure_dir(parent);
             }
-            let ok2 = write_file_atomic(&p2, &json).is_ok();
-            ok1 && ok2
+            let mut obj = OrderedMap::new();
+            obj.insert("command".into(), Value::String(cmd));
+            write_file_atomic(&p2, &stringify_json(&Value::Object(obj))).is_ok()
         }
         "droid" => {
             let cmd = toksi_cmd(&["projectmem-hook", "droid"]);
@@ -491,11 +511,13 @@ pub fn projectmem_remove_session_push(agent: &str) {
             let p = Path::new(&codex_paths_resolved().dir).join("hooks.json").to_string_lossy().to_string();
             remove_hook_group_in_hooks_obj(&p, "SessionStart", "projectmem-hook");
         }
-        "antigravity" => {
+        "antigravity" | "antigravity-cli" | "antigravity-ide" => {
             let p = Path::new(&home()).join(".gemini").join("config").join("hooks.json").to_string_lossy().to_string();
             if let Some(raw) = read_file_safe(&p) {
                 if let Some(Value::Object(mut cfg)) = try_parse_jsonc(&raw) {
-                    if cfg.remove("projectmem").is_some() {
+                    let removed = cfg.remove("projectmem").is_some()
+                        | cfg.remove("projectmem-context").is_some();
+                    if removed {
                         if cfg.is_empty() {
                             let _ = fs::remove_file(&p);
                         } else {
@@ -505,7 +527,7 @@ pub fn projectmem_remove_session_push(agent: &str) {
                 }
             }
         }
-        "copilot" => {
+        "copilot" | "copilot-cli" | "copilot-vscode" => {
             let hooks_dir = std::path::PathBuf::from(copilot_paths_resolved().hooks_dir);
             let ide_hooks = Path::new(&ide_project_root()).join(".github").join("hooks");
             for name in ["projectmem-context.json", "projectmem.json", "toksi-projectmem.json"] {

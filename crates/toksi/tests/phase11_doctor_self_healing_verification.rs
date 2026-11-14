@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/tests/phase11_doctor_self_healing_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-11-09
+// lastModified: 2026-11-14
+
+#![deny(unsafe_code)]
 
 use std::fs;
 use std::sync::Mutex;
@@ -11,10 +13,14 @@ use std::sync::Mutex;
 static PHASE11_LOCK: Mutex<()> = Mutex::new(());
 
 use toksi::agents::{
-    audit_agent_legacy_mcp, is_legacy_mcp_runner_str, is_toksi_mcp_command_str,
-    register as register_agents,
+    audit_agent_legacy_mcp, heal_all_agent_legacy_configs, is_legacy_mcp_runner_str,
+    is_toksi_mcp_command_str, register as register_agents, verify_direct_wire_bus,
+    AgentLayoutCategory, AgentManager, WireMode,
 };
-use toksi::commands::{run_doctor, run_init, InitOptions};
+use toksi::commands::{
+    audit_agent_hook_conventions, audit_toksi_config_toml, run_doctor, run_doctor_with_options,
+    run_init, DoctorOptions, InitOptions,
+};
 use toksi::core::{get_agent, list_agents};
 use toksi::env_injector::{
     audit_environment_status, heal_legacy_hijacks_in, scan_legacy_hijacks_in,
@@ -23,15 +29,20 @@ use toksi::rules::RuleKind;
 use toksi::tools::{
     has_owner_at_path, write_owner_at_path, register as register_tools,
 };
+use toksi::util::env_path::check_executable_in_path;
 
-const ALL_AGENTS: [&str; 18] = [
+const ALL_AGENTS: [&str; 22] = [
     "claude",
     "cursor",
     "codex",
     "opencode",
     "opencode2",
     "antigravity",
+    "antigravity-cli",
+    "antigravity-ide",
     "copilot",
+    "copilot-cli",
+    "copilot-vscode",
     "droid",
     "grok",
     "kilo",
@@ -46,13 +57,13 @@ const ALL_AGENTS: [&str; 18] = [
 ];
 
 #[test]
-fn test_phase11_all_17_agents_manifests_and_rules() {
+fn test_phase11_all_22_agents_manifests_and_rules() {
     let _lock = PHASE11_LOCK.lock().unwrap();
     register_agents();
     register_tools();
 
     let all_agents = list_agents();
-    assert_eq!(all_agents.len(), 18, "All agent manifests must be registered");
+    assert_eq!(all_agents.len(), 22, "All 22 agent manifests must be registered");
 
     for agent_id in ALL_AGENTS {
         let manifest = get_agent(agent_id);
@@ -61,7 +72,17 @@ fn test_phase11_all_17_agents_manifests_and_rules() {
         assert_eq!(m.id, agent_id);
         assert!(!m.label.is_empty());
         assert!(!m.cli_bin.is_empty());
+
+        let dir_str = AgentManager::user_config_dir(agent_id).to_string_lossy().to_string();
+        let norm_dir = toksi::util::paths::normalize_path(&dir_str);
+        assert!(!norm_dir.contains('\\'), "Normalized dir must use forward slashes: {}", norm_dir);
     }
+
+    assert_eq!(AgentManager::wire_mode("openagents"), WireMode::DirectWired);
+    assert_eq!(AgentManager::wire_mode("claude"), WireMode::ConfigWired);
+    assert_eq!(AgentManager::layout_category("antigravity-cli"), AgentLayoutCategory::Category2SplitCliAndIde);
+    assert_eq!(AgentManager::layout_category("copilot-vscode"), AgentLayoutCategory::Category2SplitCliAndIde);
+    assert_eq!(AgentManager::layout_category("openagents"), AgentLayoutCategory::Category5OpenAgentsDirectWire);
 
     // Verify in-tree rules (Principles, Caveman, Ponytail) are compiled and have valid bodies
     for kind in RuleKind::all() {
@@ -225,9 +246,7 @@ fn test_phase11_scan_legacy_hijacks_dry_run() {
 #[test]
 fn test_phase11_doctor_runs_cleanly() {
     let _lock = PHASE11_LOCK.lock().unwrap();
-    unsafe {
-        std::env::set_var("TOKSI_TEST", "1");
-    }
+    let _ = toksi_sys::process::set_process_env("TOKSI_TEST", "1");
     let temp_home = std::env::temp_dir().join("toksi_p11_doctor_isolated_home");
     let _ = fs::remove_dir_all(&temp_home);
     let _ = fs::create_dir_all(&temp_home);
@@ -247,6 +266,88 @@ fn test_phase11_doctor_runs_cleanly() {
 
     toksi::util::clear_home_override();
     let _ = fs::remove_dir_all(&temp_home);
+}
+
+#[test]
+fn test_phase11_self_healing_mcp_hooks_config_and_workspace_opt_in() {
+    let _lock = PHASE11_LOCK.lock().unwrap();
+    let _ = toksi_sys::process::set_process_env("TOKSI_TEST", "1");
+    let temp_root = tempfile::tempdir().unwrap();
+    let fake_home = temp_root.path().join("home");
+    let workspace = temp_root.path().join("repo");
+    fs::create_dir_all(&fake_home).unwrap();
+    fs::create_dir_all(workspace.join("subpkg").join(".toksi").join("icm")).unwrap();
+    fs::create_dir_all(workspace.join("subpkg").join(".claude")).unwrap();
+    fs::write(workspace.join("subpkg").join(".claude").join("note.txt"), "nested").unwrap();
+    fs::write(workspace.join("subpkg").join(".toksi").join("icm").join("events.jsonl"), "{\"id\":1}\n").unwrap();
+
+    // Seed legacy MCP + hooks in fake_home (antigravity + cursor + toksi config.toml)
+    fs::create_dir_all(fake_home.join(".gemini").join("config")).unwrap();
+    fs::create_dir_all(fake_home.join(".cursor")).unwrap();
+    fs::create_dir_all(fake_home.join(".toksi")).unwrap();
+    fs::write(
+        fake_home.join(".gemini").join("config").join("hooks.json"),
+        r#"{"toksi-codegraph-index":{"PostToolUse":[{"matcher":"","hooks":[{"type":"command","command":"toksi agy-hook codegraph-index"}]}]}}"#,
+    ).unwrap();
+    fs::write(
+        fake_home.join(".gemini").join("config").join("mcp_config.json"),
+        r#"{"mcpServers":{"tokless_projectmem":{"command":"uvx","args":["projectmem"]},"custom-tool":{"command":"custom","args":[]}}}"#,
+    ).unwrap();
+    fs::write(
+        fake_home.join(".cursor").join("hooks.json"),
+        r#"{"version":1,"hooks":{"preToolUse":[{"command":"rtk hook cursor","matcher":"Shell"}]}}"#,
+    ).unwrap();
+    fs::write(
+        fake_home.join(".toksi").join("config.toml"),
+        "[ports]\nheadroom_proxy = 8787\n[base_urls]\nopenai = \"https://api.openai.com/v1\"\n",
+    ).unwrap();
+
+    toksi::util::set_home_override(fake_home.to_string_lossy().to_string());
+    register_agents();
+    register_tools();
+
+    // Audit detects legacy hook & config.toml parses cleanly with 0 warnings
+    assert!(!audit_agent_hook_conventions("antigravity").is_empty());
+    assert!(audit_toksi_config_toml().is_empty());
+
+    // DirectWireBus verification & non-blocking PATH check
+    assert!(!verify_direct_wire_bus(None).is_empty());
+    assert!(check_executable_in_path("nonexistent_toksi_probe_binary_xyz").is_err());
+
+    // Without explicit --workspace opt-in, workspace nested dirs must NOT be modified
+    let prev_cwd = std::env::current_dir().unwrap();
+    std::env::set_current_dir(&workspace).unwrap();
+    assert_eq!(run_doctor(true, false, true), 0);
+    assert!(workspace.join("subpkg").join(".toksi").exists(), "doctor --fix must NOT touch workspace without opt-in");
+    assert!(workspace.join("subpkg").join(".claude").exists(), "doctor --fix must NOT touch workspace without opt-in");
+
+    // Verify user-home configs were repaired
+    let healed_hooks = fs::read_to_string(fake_home.join(".gemini").join("config").join("hooks.json")).unwrap();
+    assert!(healed_hooks.contains("codegraph-hook agy"));
+    let healed_mcp = fs::read_to_string(fake_home.join(".gemini").join("config").join("mcp_config.json")).unwrap();
+    assert!(healed_mcp.contains("\"projectmem\""));
+    assert!(!healed_mcp.contains("\"tokless_projectmem\""));
+    assert!(healed_mcp.contains("\"custom-tool\""), "foreign MCP server must be preserved");
+
+    // With explicit workspace opt-in, nested dirs consolidate cleanly to root
+    assert_eq!(
+        run_doctor_with_options(DoctorOptions {
+            offline: true,
+            json_output: false,
+            fix: true,
+            workspace: Some(workspace.clone()),
+            include_workspace: true,
+        }),
+        0
+    );
+    assert!(!workspace.join("subpkg").join(".toksi").exists());
+    assert!(!workspace.join("subpkg").join(".claude").exists());
+    assert!(workspace.join(".toksi").join("icm").join("events.jsonl").exists());
+    assert!(workspace.join(".claude").join("note.txt").exists());
+
+    std::env::set_current_dir(prev_cwd).unwrap();
+    let _ = heal_all_agent_legacy_configs(Some(fake_home.as_path()));
+    toksi::util::clear_home_override();
 }
 
 #[test]

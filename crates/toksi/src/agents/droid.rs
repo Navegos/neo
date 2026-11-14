@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/droid.rs
 // created: 2026-10-11
-// lastModified: 2026-11-08
+// lastModified: 2026-11-14
 
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, OpenOptions};
@@ -239,7 +239,9 @@ pub fn configure_droid_mcp(tool_id: &str) -> (bool, String) {
             Value::Object(OrderedMap::new())
         }
     };
-    let root = cfg.as_object_mut().unwrap();
+    let Some(root) = cfg.as_object_mut() else {
+        return (false, f);
+    };
     if !root.contains_key("mcpServers") {
         root.insert("mcpServers".to_string(), Value::Object(OrderedMap::new()));
     }

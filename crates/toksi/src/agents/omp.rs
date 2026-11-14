@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/omp.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-14
 
 use std::fs;
 use std::path::Path;
@@ -81,7 +81,9 @@ pub fn configure_omp_mcp(tool_id: &str) -> (bool, String) {
         cfg.insert("mcpServers".to_string(), Value::Object(OrderedMap::new()));
     }
     let desired = Value::Object(omp_mcp_desired(tool_id));
-    let servers = json_map_child_mut(&mut cfg, "mcpServers").unwrap();
+    let Some(servers) = json_map_child_mut(&mut cfg, "mcpServers") else {
+        return (false, p);
+    };
     if let Some(existing) = servers.get(tool_id) {
         if json_equal(existing, &desired) {
             return (false, p);

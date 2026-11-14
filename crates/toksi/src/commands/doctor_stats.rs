@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor_stats.rs
 // created: 2026-10-20
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
+
+#![deny(unsafe_code)]
 
 use std::collections::HashMap;
 use std::fs;
@@ -371,35 +373,42 @@ pub fn rtk_stats(raw: &str) -> Vec<String> {
     }
 }
 
-pub fn context_mode_store_stats(home_dir: &str) -> String {
-    let mut root = Path::new(home_dir)
-        .join(".config")
-        .join("opencode")
-        .join("context-mode");
+pub fn context_store_stats(project_dir: &str, home_dir: &str) -> String {
+    let mut roots = vec![Path::new(project_dir).join(".toksi").join("context")];
     if is_win() {
         if let Ok(v) = std::env::var("APPDATA") {
             if !v.is_empty() {
-                root = Path::new(&v).join("context-mode");
+                roots.push(Path::new(&v).join("toksi").join("context"));
+                roots.push(Path::new(&v).join("context-mode"));
             }
         }
     } else if let Ok(v) = std::env::var("XDG_DATA_HOME") {
         if !v.is_empty() {
-            root = Path::new(&v).join("context-mode");
+            roots.push(Path::new(&v).join("toksi").join("context"));
+            roots.push(Path::new(&v).join("context-mode"));
         }
     }
+    roots.push(
+        Path::new(home_dir)
+            .join(".config")
+            .join("opencode")
+            .join("context-mode"),
+    );
 
     let mut count = 0;
     let mut size: u64 = 0;
-    for dir_name in ["sessions", "content"] {
-        let dir = root.join(dir_name);
-        if let Ok(entries) = fs::read_dir(dir) {
-            for entry in entries.flatten() {
-                if let Ok(meta) = entry.metadata() {
-                    if meta.is_file() {
-                        let name = entry.file_name().to_string_lossy().to_lowercase();
-                        if name.ends_with(".db") {
-                            count += 1;
-                            size += meta.len();
+    for root in roots {
+        for sub in ["", "sessions", "content"] {
+            let dir = if sub.is_empty() { root.clone() } else { root.join(sub) };
+            if let Ok(entries) = fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    if let Ok(meta) = entry.metadata() {
+                        if meta.is_file() {
+                            let name = entry.file_name().to_string_lossy().to_lowercase();
+                            if name.ends_with(".db") {
+                                count += 1;
+                                size += meta.len();
+                            }
                         }
                     }
                 }
@@ -414,15 +423,19 @@ pub fn context_mode_store_stats(home_dir: &str) -> String {
     }
 }
 
+pub fn context_mode_store_stats(home_dir: &str) -> String {
+    context_store_stats(".", home_dir)
+}
+
 pub fn context_mode_stats(home_dir: &str) -> Vec<String> {
-    vec![context_mode_store_stats(home_dir)]
+    vec![context_store_stats(".", home_dir)]
 }
 
 pub fn labelled_stats(tool: &str, out: &str) -> Vec<String> {
     match tool {
         "projectmem" => projectmem_stats(out),
         "codegraph" => codegraph_stats(out),
-        "context-mode" => vec![out.to_string()],
+        "context" | "context-mode" => vec![out.to_string()],
         "rtk" => rtk_stats(out),
         _ => vec!["unavailable".into()],
     }
@@ -430,15 +443,15 @@ pub fn labelled_stats(tool: &str, out: &str) -> Vec<String> {
 
 pub fn doctor_tool_stats(project_dir: &str, is_project: bool) -> HashMap<String, Vec<String>> {
     let mut stats = HashMap::new();
-    let tools = ["headroom", "projectmem", "rtk", "codegraph", "context-mode"];
+    let tools = ["headroom", "projectmem", "rtk", "codegraph", "context"];
 
     for tool in tools {
         if tool == "headroom" {
             stats.insert(tool.to_string(), headroom_stats_summary());
             continue;
         }
-        if tool == "context-mode" {
-            stats.insert(tool.to_string(), context_mode_stats(&home()));
+        if tool == "context" {
+            stats.insert(tool.to_string(), vec![context_store_stats(project_dir, &home())]);
             continue;
         }
 
@@ -488,28 +501,10 @@ pub fn doctor_tool_stats(project_dir: &str, is_project: bool) -> HashMap<String,
     stats
 }
 
-pub fn spawn_background(mut cmd: std::process::Command) -> std::io::Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setsid();
-                Ok(())
-            });
-        }
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
-        const DETACHED_PROCESS: u32 = 0x00000008;
-        cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS);
-    }
-    cmd.spawn().map(|_| ())
+pub fn spawn_background(cmd: std::process::Command) -> std::io::Result<()> {
+    toksi_sys::process::spawn_detached(cmd)
 }
 
-#[cfg(windows)]
 pub fn process_alive(pid: u32) -> bool {
     crate::agents::proxy_provider::proxy_process_alive(pid)
 }
@@ -565,14 +560,6 @@ pub fn run_gain() -> i32 {
 
     crate::commands::helpers::print_repo_footer(true);
     0
-}
-
-#[cfg(unix)]
-pub fn process_alive(pid: u32) -> bool {
-    if pid == 0 {
-        return false;
-    }
-    unsafe { libc::kill(pid as i32, 0) == 0 }
 }
 
 #[cfg(test)]

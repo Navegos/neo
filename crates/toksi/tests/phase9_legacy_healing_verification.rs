@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase9_legacy_healing_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-11-04
+// lastModified: 2026-11-14
 
 use std::env;
 use std::fs;
@@ -194,9 +194,14 @@ fn test_shim_detection_predicates() {
 
 #[test]
 fn test_doctor_fix_invocation() {
+    let _ = toksi_sys::process::set_process_env("TOKSI_TEST", "1");
+    let temp_home = make_temp_dir("doctor-home");
+    toksi::util::set_home_override(temp_home.to_string_lossy().to_string());
     // Calling run_doctor with fix=true must succeed with exit code 0
     let exit_code = run_doctor(true, false, true);
     assert_eq!(exit_code, 0, "toksi doctor --fix must succeed");
+    toksi::util::clear_home_override();
+    let _ = fs::remove_dir_all(temp_home);
 }
 
 #[test]
@@ -269,7 +274,8 @@ fn test_phase9_legacy_mcp_to_skills_and_hook_standardization() {
     assert!(gh_raw.contains("\"codegraph\""));
     assert!(gh_raw.contains("codegraph-hook agy"));
     assert!(!gh_raw.contains("agy-hook codegraph-index"));
-    assert!(gh_raw.contains("\"projectmem-context\""));
+    assert!(gh_raw.contains("\"projectmem\""));
+    assert!(!gh_raw.contains("\"projectmem-context\""));
 
     let ch_raw = fs::read_to_string(&cursor_hooks).unwrap();
     assert!(ch_raw.contains("rtk-hook cursor"));
@@ -281,7 +287,7 @@ fn test_phase9_legacy_mcp_to_skills_and_hook_standardization() {
     assert!(cp_cg.contains("codegraph-hook copilot"));
 
     assert!(!copilot_hooks.join("toksi-projectmem.json").exists());
-    assert!(copilot_hooks.join("projectmem-context.json").exists());
+    assert!(copilot_hooks.join("projectmem.json").exists());
 
     assert!(!opencode_plugins.join("toksi-codegraph-init.js").exists());
     assert!(!opencode_plugins.join("toksi-projectmem.ts").exists());

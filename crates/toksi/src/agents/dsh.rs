@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/dsh.rs
 // created: 2026-10-20
-// lastModified: 2026-10-31
+// lastModified: 2026-11-14
 
 use std::fs;
 use std::path::Path;
@@ -303,8 +303,12 @@ fn yaml_key_line(line: &str) -> (i32, String, bool, String) {
     if rest.is_empty() {
         return (indent, key, false, String::new());
     }
-    if rest.len() >= 2 && (rest.starts_with('\'') || rest.starts_with('"')) && rest.ends_with(rest.chars().next().unwrap()) {
-        rest = rest[1..rest.len() - 1].to_string();
+    if rest.len() >= 2 {
+        if let Some(first_ch) = rest.chars().next() {
+            if (first_ch == '\'' || first_ch == '"') && rest.ends_with(first_ch) {
+                rest = rest[1..rest.len() - 1].to_string();
+            }
+        }
     }
     (indent, key, true, rest)
 }
@@ -682,18 +686,36 @@ pub fn configure_dsh_proxy_locked() -> (bool, String) {
         }
 
         // Re-acquire span after possible insertion
-        let (s2, e2) = dsh_find_plugin_block(&lines, "llm-pi-ai").unwrap();
-        let (_, pl2, pe2) = dsh_provider_span(&lines, s2, e2, &provider.id).unwrap();
+        let Some((s2, e2)) = dsh_find_plugin_block(&lines, "llm-pi-ai") else {
+            rollback(&route_changes);
+            return (false, file);
+        };
+        let Some((_, pl2, pe2)) = dsh_provider_span(&lines, s2, e2, &provider.id) else {
+            rollback(&route_changes);
+            return (false, file);
+        };
 
         let byok_key = byok_route_header_key();
         dsh_upsert_header(&mut lines, pl2, pe2, byok_key, &yaml_quote(&route_header));
 
-        let (s3, e3) = dsh_find_plugin_block(&lines, "llm-pi-ai").unwrap();
-        let (_, pl3, pe3) = dsh_provider_span(&lines, s3, e3, &provider.id).unwrap();
+        let Some((s3, e3)) = dsh_find_plugin_block(&lines, "llm-pi-ai") else {
+            rollback(&route_changes);
+            return (false, file);
+        };
+        let Some((_, pl3, pe3)) = dsh_provider_span(&lines, s3, e3, &provider.id) else {
+            rollback(&route_changes);
+            return (false, file);
+        };
         dsh_upsert_header(&mut lines, pl3, pe3, DSH_HEADROOM_BASE_URL_HEADER, &yaml_quote(&origin));
 
-        let (s4, e4) = dsh_find_plugin_block(&lines, "llm-pi-ai").unwrap();
-        let (_, pl4, pe4) = dsh_provider_span(&lines, s4, e4, &provider.id).unwrap();
+        let Some((s4, e4)) = dsh_find_plugin_block(&lines, "llm-pi-ai") else {
+            rollback(&route_changes);
+            return (false, file);
+        };
+        let Some((_, pl4, pe4)) = dsh_provider_span(&lines, s4, e4, &provider.id) else {
+            rollback(&route_changes);
+            return (false, file);
+        };
         dsh_upsert_header(&mut lines, pl4, pe4, DSH_HEADROOM_ORIGINAL_PATH_HDR, &yaml_quote(&chat_path));
 
         changed_any = true;
@@ -793,13 +815,17 @@ pub fn remove_dsh_proxy_locked() -> bool {
             dsh_remove_header(&mut lines, prov_line, prov_end, byok_key);
         }
 
-        let (s2, e2) = dsh_find_plugin_block(&lines, "llm-pi-ai").unwrap();
-        let (_, pl2, pe2) = dsh_provider_span(&lines, s2, e2, id).unwrap();
-        dsh_remove_header(&mut lines, pl2, pe2, DSH_HEADROOM_BASE_URL_HEADER);
+        if let Some((s2, e2)) = dsh_find_plugin_block(&lines, "llm-pi-ai") {
+            if let Some((_, pl2, pe2)) = dsh_provider_span(&lines, s2, e2, id) {
+                dsh_remove_header(&mut lines, pl2, pe2, DSH_HEADROOM_BASE_URL_HEADER);
+            }
+        }
 
-        let (s3, e3) = dsh_find_plugin_block(&lines, "llm-pi-ai").unwrap();
-        let (_, pl3, pe3) = dsh_provider_span(&lines, s3, e3, id).unwrap();
-        dsh_remove_header(&mut lines, pl3, pe3, DSH_HEADROOM_ORIGINAL_PATH_HDR);
+        if let Some((s3, e3)) = dsh_find_plugin_block(&lines, "llm-pi-ai") {
+            if let Some((_, pl3, pe3)) = dsh_provider_span(&lines, s3, e3, id) {
+                dsh_remove_header(&mut lines, pl3, pe3, DSH_HEADROOM_ORIGINAL_PATH_HDR);
+            }
+        }
 
         if let Some(r) = route {
             deleted_routes.push(r);

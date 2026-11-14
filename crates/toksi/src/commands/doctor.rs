@@ -3,20 +3,32 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
 
 #![deny(unsafe_code)]
 
 use std::env;
+use std::path::PathBuf;
+use crate::agents::manager::AgentManager;
 use crate::commands::doctor_probe::{format_runtime_issues, probe_agent_runtime, RuntimeIssue};
 use crate::commands::doctor_stats::doctor_tool_stats;
 use crate::commands::helpers::*;
 use crate::core::{list_agents, list_tools, ToolManifest};
 use crate::util::colors::*;
 use crate::util::logger::L;
+use crate::util::paths::normalize_path;
 use crate::util::progress::*;
 use crate::util::selection::is_tool_selected;
 use crate::util::versions::*;
+
+#[derive(Debug, Clone, Default)]
+pub struct DoctorOptions {
+    pub offline: bool,
+    pub json_output: bool,
+    pub fix: bool,
+    pub workspace: Option<PathBuf>,
+    pub include_workspace: bool,
+}
 
 #[derive(Clone, serde::Serialize)]
 struct AgentReport {
@@ -24,6 +36,10 @@ struct AgentReport {
     label: String,
     installed: bool,
     wired: bool,
+    wire_mode: String,
+    layout_category: String,
+    config_dir: String,
+    cli_in_path: bool,
     missing: Vec<String>,
     tool_rows: Vec<String>,
     #[serde(skip_serializing)]
@@ -101,7 +117,8 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
         (".context-mode", "context"),
         (".context", "context"),
         (".icm", "icm"),
-        (".ai-memory", "ai-memory"),
+        (".ai-memory", "aimemory"),
+        (".aimemory", "aimemory"),
         (".rtk", "rtk"),
         (".projectmem", "projectmem"),
     ];
@@ -195,7 +212,10 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
     }
 
     // 2. Consolidate loose legacy tool folders at workspace root into .toksi/<tool>
-    for (legacy_name, tool_name) in &tool_migrations[..6] {
+    for (legacy_name, tool_name) in tool_migrations
+        .iter()
+        .filter(|(legacy_name, _)| *legacy_name != ".projectmem")
+    {
         let legacy_path = root_canon.join(legacy_name);
         if legacy_path.exists() && legacy_path.is_dir() {
             let target_tool_dir = root_toksi.join(tool_name);
@@ -342,27 +362,123 @@ pub fn audit_agent_cli_binaries() -> Vec<String> {
     warnings
 }
 
+pub fn audit_toksi_config_toml() -> Vec<String> {
+    let mut warnings = Vec::new();
+    let cfg_path = crate::util::ports::toksi_config_toml_path();
+    let cfg = if cfg_path.exists() {
+        match std::fs::read_to_string(&cfg_path) {
+            Ok(raw) => match toml::from_str::<crate::util::ports::ToksiTomlConfig>(&raw) {
+                Ok(parsed) => parsed,
+                Err(e) => {
+                    warnings.push(format!(
+                        "Malformed {}: {}",
+                        normalize_path(&cfg_path.to_string_lossy()),
+                        e
+                    ));
+                    return warnings;
+                }
+            },
+            Err(e) => {
+                warnings.push(format!(
+                    "Unreadable {}: {}",
+                    normalize_path(&cfg_path.to_string_lossy()),
+                    e
+                ));
+                return warnings;
+            }
+        }
+    } else {
+        crate::util::ports::ToksiTomlConfig::default()
+    };
+
+    let p = &cfg.ports;
+    let port_entries = [
+        ("headroom_proxy", p.headroom_proxy),
+        ("grok_oauth_proxy", p.grok_oauth_proxy),
+        ("copilot_vscode_proxy", p.copilot_vscode_proxy),
+        ("copilot_cli_proxy", p.copilot_cli_proxy),
+        ("byok_gateway", p.byok_gateway),
+        ("ai_gateway", p.ai_gateway),
+        ("dashboard", p.dashboard),
+    ];
+    let mut seen_ports: std::collections::HashMap<u16, &str> = std::collections::HashMap::new();
+    for (name, port) in port_entries {
+        if port < 1024 {
+            warnings.push(format!(
+                "config.toml [ports].{}={} is below privileged port 1024",
+                name, port
+            ));
+        }
+        if let Some(prev) = seen_ports.insert(port, name) {
+            warnings.push(format!(
+                "config.toml [ports] port collision on {}: {} conflicts with {}",
+                port, name, prev
+            ));
+        }
+    }
+
+    for (provider, url) in &cfg.base_urls {
+        let trimmed = url.trim();
+        if !trimmed.is_empty()
+            && !trimmed.starts_with("http://")
+            && !trimmed.starts_with("https://")
+        {
+            warnings.push(format!(
+                "config.toml [base_urls].{}='{}' must begin with http:// or https://",
+                provider, trimmed
+            ));
+        }
+    }
+
+    warnings
+}
+
 pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
+    run_doctor_with_options(DoctorOptions {
+        offline,
+        json_output,
+        fix,
+        workspace: None,
+        include_workspace: false,
+    })
+}
+
+pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
+    let offline = opts.offline;
+    let json_output = opts.json_output;
+    let fix = opts.fix;
+    let ws_opt: Option<PathBuf> = if opts.include_workspace {
+        Some(
+            opts.workspace
+                .clone()
+                .unwrap_or_else(|| env::current_dir().unwrap_or_else(|_| PathBuf::from("."))),
+        )
+    } else {
+        None
+    };
+
     let all_agents = list_agents();
     let tools = list_tools();
 
     if fix {
-        if let Ok(merged) = consolidate_nested_toksi_dirs(std::path::Path::new(".")) {
-            if merged > 0 {
-                L.raw(&format!(
-                    "  {} Consolidated {} nested .toksi directory/directories into root workspace .toksi",
-                    C.green(Sym::CHECK),
-                    merged
-                ));
+        if let Some(ref ws) = ws_opt {
+            if let Ok(merged) = consolidate_nested_toksi_dirs(ws) {
+                if merged > 0 {
+                    L.raw(&format!(
+                        "  {} Consolidated {} nested .toksi directory/directories into root workspace .toksi",
+                        C.green(Sym::CHECK),
+                        merged
+                    ));
+                }
             }
-        }
-        if let Ok(merged_agents) = consolidate_nested_agent_dirs(std::path::Path::new(".")) {
-            if merged_agents > 0 {
-                L.raw(&format!(
-                    "  {} Consolidated {} nested agent config directory/directories into workspace root",
-                    C.green(Sym::CHECK),
-                    merged_agents
-                ));
+            if let Ok(merged_agents) = consolidate_nested_agent_dirs(ws) {
+                if merged_agents > 0 {
+                    L.raw(&format!(
+                        "  {} Consolidated {} nested agent config directory/directories into workspace root",
+                        C.green(Sym::CHECK),
+                        merged_agents
+                    ));
+                }
             }
         }
         let healing = crate::env_injector::heal_legacy_hijacks();
@@ -381,7 +497,7 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
             ));
         }
 
-        let config_healed = crate::agents::manager::heal_all_agent_legacy_configs(Some(std::path::Path::new(".")));
+        let config_healed = crate::agents::manager::heal_all_agent_legacy_configs(ws_opt.as_deref());
         if !config_healed.is_empty() {
             L.raw(&format!(
                 "  {} Healed {} legacy agent MCP/hook configuration item(s)",
@@ -393,22 +509,27 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
         let mut fixed_count = config_healed.len();
         #[cfg(windows)]
         {
-            if let Some(_) = crate::env_injector::windows::get_env_reg_value("CLOUD_CODE_URL") {
+            if crate::env_injector::windows::get_env_reg_value("CLOUD_CODE_URL").is_some() {
                 let _ = crate::env_injector::windows::delete_env_reg_value("CLOUD_CODE_URL");
                 crate::env_injector::windows::broadcast_setting_change();
-                L.raw(&format!("  {} Cleared stale CLOUD_CODE_URL from Windows registry", C.green(Sym::CHECK)));
+                L.raw(&format!(
+                    "  {} Cleared stale CLOUD_CODE_URL from Windows registry",
+                    C.green(Sym::CHECK)
+                ));
                 fixed_count += 1;
             }
         }
 
-        if let Ok(report) = crate::rules::sync_workspace_rules(".", crate::rules::RuleKind::all()) {
-            if !report.updated_files.is_empty() {
-                L.raw(&format!(
-                    "  {} Synced in-tree rules across {} workspace file(s)",
-                    C.green(Sym::CHECK),
-                    report.updated_files.len()
-                ));
-                fixed_count += report.updated_files.len();
+        if let Some(ref ws) = ws_opt {
+            if let Ok(report) = crate::rules::sync_workspace_rules(ws, crate::rules::RuleKind::all()) {
+                if !report.updated_files.is_empty() {
+                    L.raw(&format!(
+                        "  {} Synced in-tree rules across {} workspace file(s)",
+                        C.green(Sym::CHECK),
+                        report.updated_files.len()
+                    ));
+                    fixed_count += report.updated_files.len();
+                }
             }
         }
         if let Ok(report) = crate::rules::sync_global_rules(crate::rules::RuleKind::all()) {
@@ -423,7 +544,9 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
         }
 
         for agent in &all_agents {
-            if !agent.detect().installed {
+            let detected = agent.detect().installed;
+            let user_dir = AgentManager::user_config_dir(&agent.id);
+            if !detected && !user_dir.exists() {
                 continue;
             }
             let purged = crate::agents::purge_legacy_mcp_runners(&agent.id);
@@ -436,24 +559,15 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
                 ));
                 fixed_count += purged.len();
             }
-            for tool in &tools {
-                if !is_tool_selected(&tool.id) {
-                    continue;
-                }
-                if let Some(ref verify) = tool.verify_for.get(&agent.id) {
-                    if verify() == Some(false) {
-                        if let Some(ref wire) = tool.wire_for.get(&agent.id) {
-                            let ro = crate::core::RunOpts {
-                                dry_run: false,
-                                agent: agent.id.clone(),
-                                ..Default::default()
-                            };
-                            if let Ok(true) = wire(&ro) {
-                                fixed_count += 1;
-                            }
-                        }
+            if agent.id == "openagents" {
+                if user_dir.exists() {
+                    if let Ok(scaffolded) =
+                        crate::agents::open_agents::scaffold_open_agents_structure(&user_dir)
+                    {
+                        fixed_count += scaffolded.len();
                     }
                 }
+                let _ = crate::agents::verify_direct_wire_bus(ws_opt.as_deref());
             }
         }
         if fixed_count > 0 {
@@ -477,6 +591,19 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
                 let missing = doctor_missing_tools(tools_ref, &agent.id);
                 let runtime = probe_agent_runtime(&agent.id);
                 let wired = missing.is_empty() && runtime.is_empty();
+                let wire_mode = match AgentManager::wire_mode(&agent.id) {
+                    crate::agents::manager::WireMode::DirectWired => "direct-wired".to_string(),
+                    crate::agents::manager::WireMode::ConfigWired => "config-wired".to_string(),
+                };
+                let layout_category = format!("{:?}", AgentManager::layout_category(&agent.id));
+                let config_dir = normalize_path(
+                    &AgentManager::user_config_dir(&agent.id).to_string_lossy(),
+                );
+                let cli_in_path = if agent.cli_bin.is_empty() {
+                    true
+                } else {
+                    crate::util::env_path::check_executable_in_path(&agent.cli_bin).is_ok()
+                };
                 let mut tool_rows = Vec::new();
                 for t in tools_ref {
                     if !is_tool_selected(&t.id) {
@@ -493,6 +620,10 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
                     label: agent.label.clone(),
                     installed: true,
                     wired,
+                    wire_mode,
+                    layout_category,
+                    config_dir,
+                    cli_in_path,
                     missing,
                     tool_rows,
                     runtime,
@@ -507,20 +638,30 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
     });
 
     let reports: Vec<AgentReport> = reports_opt.into_iter().flatten().collect();
-    let cwd = env::current_dir()
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| ".".into());
+    let cwd = ws_opt
+        .as_ref()
+        .map(|p| normalize_path(&p.to_string_lossy()))
+        .unwrap_or_else(|| {
+            normalize_path(
+                &env::current_dir()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_else(|_| ".".into()),
+            )
+        });
     let tool_stats = doctor_tool_stats(&cwd, true);
+    let config_warnings = audit_toksi_config_toml();
 
     if json_output {
         #[derive(serde::Serialize)]
         struct DoctorJson<'a> {
             agents: &'a [AgentReport],
             stats: &'a std::collections::HashMap<String, Vec<String>>,
+            config_warnings: &'a [String],
         }
         let doc = DoctorJson {
             agents: &reports,
             stats: &tool_stats,
+            config_warnings: &config_warnings,
         };
         if let Ok(out) = serde_json::to_string_pretty(&doc) {
             println!("{}", out);
@@ -559,6 +700,14 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
         tree_corner("Environment");
         for e in env_rows {
             tree_leaf(&e);
+        }
+        tree_close();
+    }
+
+    if !config_warnings.is_empty() {
+        tree_corner("Config (~/.toksi/config.toml)");
+        for w in &config_warnings {
+            tree_leaf(&C.yellow(w));
         }
         tree_close();
     }
@@ -607,7 +756,7 @@ pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
     if tool_stats.is_empty() {
         tree_leaf(&C.dim("no installed tools with local stats"));
     } else {
-        let tool_ids = ["headroom", "projectmem", "rtk", "codegraph", "context-mode"];
+        let tool_ids = ["headroom", "projectmem", "rtk", "codegraph", "context", "context-mode"];
         for id in tool_ids {
             if let Some(rows) = tool_stats.get(id) {
                 tree_leaf(&format!("{}:", paint_name(id)));
@@ -680,7 +829,9 @@ fn doctor_proxy_ports(reports: &[AgentReport]) -> Vec<String> {
     }
 
     for r in reports {
-        if r.id == "copilot" && crate::agents::copilot::copilot_proxy_wired() {
+        if (r.id == "copilot" || r.id == "copilot-cli" || r.id == "copilot-vscode")
+            && crate::agents::copilot::copilot_proxy_wired()
+        {
             ports.push(format!(
                 "{} Copilot proxy (127.0.0.1:{}) — {}",
                 C.green(Sym::CHECK),

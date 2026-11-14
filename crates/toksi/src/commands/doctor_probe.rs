@@ -3,26 +3,45 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor_probe.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
+
+#![deny(unsafe_code)]
 
 use std::env;
 use std::io;
 use std::path::Path;
 use std::process::{Command, Stdio};
+use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 use regex::Regex;
 use serde_json::Value;
 
-use crate::agents::{omp_agent_dir_resolved, pi_agent_dir_resolved};
+use crate::agents::{
+    agent_mcp_json_files, audit_agent_legacy_mcp, omp_agent_dir_resolved, pi_agent_dir_resolved,
+    verify_direct_wire_bus, AUDIT_MCP_TOOLS,
+};
+use crate::agents::manager::AgentManager;
 use crate::commands::mcp_proxy::resolve_mcp_command;
 use crate::util::jsonc::try_parse_jsonc;
 use crate::util::mcpspawn::McpSpawn;
 use crate::util::paths::{
-    claude_code_paths, cline_paths_resolved,
-    codex_paths_resolved, copilot_paths_resolved, cursor_paths_resolved, grok_paths_resolved, home,
-    kilo_paths_resolved, opencode_paths_resolved, opencode_paths_v2, read_file_safe,
-    split_command, which, IS_WIN,
+    claude_code_paths, cline_paths_resolved, codex_paths_resolved, copilot_paths_resolved,
+    cursor_paths_resolved, grok_paths_resolved, home, kilo_paths_resolved, normalize_path,
+    opencode_paths_resolved, opencode_paths_v2, read_file_safe, split_command, which, IS_WIN,
 };
+
+static RE_JSON_CMD: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r#""command"\s*:\s*"((?:\\.|[^"\\])*)""#).ok());
+static RE_TOML_CMD: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r#"(?m)^\s*command\s*=\s*"((?:\\.|[^"\\])*)""#).ok());
+static RE_TOML_ARGS: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r#"(?m)^\s*args\s*=\s*\[([^\]]*)\]"#).ok());
+static RE_QUOTED_STR: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r#""((?:\\.|[^"\\])*)""#).ok());
+static RE_YAML_CMD: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r#"(?m)^\s*command:\s*"((?:\\.|[^"\\])*)""#).ok());
+static RE_YAML_ARGS: LazyLock<Option<Regex>> =
+    LazyLock::new(|| Regex::new(r#"(?m)^\s*args:\s*\[([^\]]*)\]"#).ok());
 
 fn path_base_lowercase(s: &str) -> String {
     let replaced = s.replace('\\', "/");
@@ -53,18 +72,148 @@ pub fn probe_agent_runtime(agent_id: &str) -> Vec<RuntimeIssue> {
             out.push(RuntimeIssue { kind: "hook".into(), detail });
         }
     }
+    for issue in audit_agent_hook_conventions(agent_id) {
+        out.push(issue);
+    }
     for spawn in managed_mcp_spawns(agent_id) {
         if let Some(detail) = probe_mcp_spawn(&spawn.command, &spawn.args) {
             out.push(RuntimeIssue { kind: "mcp".into(), detail });
         }
     }
-    for legacy_issue in crate::agents::audit_agent_legacy_mcp(agent_id) {
+    for legacy_issue in audit_agent_legacy_mcp(agent_id) {
         out.push(RuntimeIssue { kind: "mcp".into(), detail: legacy_issue });
+    }
+    for dir_issue in audit_agent_mcp_dir_migration(agent_id) {
+        out.push(dir_issue);
+    }
+    if agent_id == "openagents" && verify_direct_wire_bus(None).is_empty() {
+        out.push(RuntimeIssue {
+            kind: "direct-wire".into(),
+            detail: "DirectWireBus channels inactive".into(),
+        });
     }
     for issue in audit_agent_instruction_markers(agent_id) {
         out.push(issue);
     }
     out
+}
+
+pub fn audit_agent_hook_conventions(agent_id: &str) -> Vec<RuntimeIssue> {
+    let mut issues = Vec::new();
+    let h = normalize_path(&home());
+    let mut paths_to_scan: Vec<String> = Vec::new();
+
+    match agent_id {
+        "claude" => paths_to_scan.push(normalize_path(&claude_code_paths().settings)),
+        "codex" => paths_to_scan.push(format!("{}/hooks.json", normalize_path(&codex_paths_resolved().dir))),
+        "cursor" => paths_to_scan.push(format!("{}/hooks.json", normalize_path(&cursor_paths_resolved().dir))),
+        "droid" => paths_to_scan.push(format!("{}/.factory/hooks.json", h)),
+        "antigravity" | "antigravity-cli" | "antigravity-ide" => {
+            paths_to_scan.push(format!("{}/.gemini/config/hooks.json", h));
+        }
+        "copilot" | "copilot-cli" => {
+            let hooks_dir = normalize_path(&copilot_paths_resolved().hooks_dir);
+            for (legacy, replacement) in [
+                ("toksi-rtk.json", "rtk.json"),
+                ("context-mode.json", "context.json"),
+                ("projectmem-context.json", "projectmem.json"),
+                ("toksi-projectmem.json", "projectmem.json"),
+                ("toksi-codegraph-index.json", "codegraph.json"),
+            ] {
+                let lp = format!("{}/{}", hooks_dir, legacy);
+                if Path::new(&lp).exists() {
+                    issues.push(RuntimeIssue {
+                        kind: "hook".into(),
+                        detail: format!("legacy hook file {} should be renamed to {}", short_path(&lp), replacement),
+                    });
+                }
+            }
+            for name in [
+                "rtk.json",
+                "context.json",
+                "projectmem.json",
+                "codegraph.json",
+                "toksi-rtk.json",
+                "context-mode.json",
+                "projectmem-context.json",
+                "toksi-projectmem.json",
+                "toksi-codegraph-index.json",
+            ] {
+                paths_to_scan.push(format!("{}/{}", hooks_dir, name));
+            }
+        }
+        "grok" => {
+            let grok_dir = normalize_path(&grok_paths_resolved().dir);
+            for name in ["rtk.json", "context.json", "projectmem.json", "toksi-rtk.json", "toksi-projectmem.json"] {
+                paths_to_scan.push(format!("{}/hooks/{}", grok_dir, name));
+            }
+        }
+        _ => {}
+    }
+
+    for p in paths_to_scan {
+        if let Some(raw) = read_file_safe(&p) {
+            let low = raw.to_ascii_lowercase();
+            let mut has_legacy = false;
+            for pat in [
+                "agy-hook codegraph-index",
+                "copilot-hook codegraph-index",
+                "cursor-hook codegraph-index",
+                "codex-hook codegraph-index",
+                "index --codegraph-hook",
+                "rtk hook ",
+                "context-mode hook ",
+                "tokless",
+                "toksi-codegraph-init.js",
+            ] {
+                if low.contains(pat) {
+                    has_legacy = true;
+                    issues.push(RuntimeIssue {
+                        kind: "hook".into(),
+                        detail: format!("legacy hook syntax '{}' in {}", pat.trim(), short_path(&p)),
+                    });
+                    break;
+                }
+            }
+            if !has_legacy && (p.ends_with("/.gemini/config/hooks.json") || p.ends_with("\\.gemini\\config\\hooks.json")) {
+                if raw.contains("\"context-mode\"") || raw.contains("\"projectmem-context\"") || raw.contains("\"toksi-projectmem\"") {
+                    issues.push(RuntimeIssue {
+                        kind: "hook".into(),
+                        detail: format!("legacy hook group key in {}", short_path(&p)),
+                    });
+                }
+            }
+        }
+    }
+
+    issues
+}
+
+pub fn audit_agent_mcp_dir_migration(agent_id: &str) -> Vec<RuntimeIssue> {
+    let mut issues = Vec::new();
+    let user_dir = AgentManager::user_config_dir(agent_id);
+    let mut candidates = vec![user_dir.join("mcp")];
+    if matches!(agent_id, "antigravity" | "antigravity-cli" | "antigravity-ide") {
+        candidates.push(user_dir.join("antigravity").join("mcp"));
+    }
+    for mcp_dir in candidates {
+        if mcp_dir.is_dir() {
+            let has_entries = std::fs::read_dir(&mcp_dir)
+                .ok()
+                .map(|mut rd| rd.next().is_some())
+                .unwrap_or(false);
+            if has_entries {
+                issues.push(RuntimeIssue {
+                    kind: "mcp-dir".into(),
+                    detail: format!(
+                        "legacy mcp directory {} needs migration to skills/<tool>",
+                        normalize_path(&mcp_dir.to_string_lossy())
+                    ),
+                });
+            }
+        }
+    }
+    issues
 }
 
 pub fn audit_agent_instruction_markers(agent_id: &str) -> Vec<RuntimeIssue> {
@@ -90,18 +239,25 @@ pub fn audit_agent_instruction_markers(agent_id: &str) -> Vec<RuntimeIssue> {
 }
 
 fn agent_instruction_paths(agent_id: &str) -> Vec<String> {
-    let h = home();
-    match agent_id {
+    let h = normalize_path(&home());
+    let paths: Vec<String> = match agent_id {
         "claude" => vec!["CLAUDE.md".into(), format!("{}/.claude/CLAUDE.md", h)],
-        "antigravity" => vec!["GEMINI.md".into(), format!("{}/.gemini/rules.md", h)],
-        "copilot" => vec![".github/copilot-instructions.md".into()],
+        "antigravity" | "antigravity-cli" | "antigravity-ide" => {
+            vec!["GEMINI.md".into(), format!("{}/.gemini/rules.md", h)]
+        }
+        "copilot-cli" => vec![format!("{}/.copilot/copilot-instructions.md", h)],
+        "copilot" | "copilot-vscode" => {
+            vec![".github/copilot-instructions.md".into(), format!("{}/.copilot/copilot-instructions.md", h)]
+        }
         "cline" => vec![".clinerules".into(), format!("{}/.cline/rules.md", h)],
         "codex" => vec!["CODEX.md".into(), format!("{}/.codex/instructions.md", h)],
         "cursor" => vec![".cursorrules".into()],
         "grok" => vec![format!("{}/.grok/rules/AGENTS.md", h), "AGENTS.md".into()],
         "dsh" => vec![format!("{}/.dsh/AGENTS.md", h), "AGENTS.md".into()],
+        "openagents" => vec!["AGENTS.md".into(), ".agents/rules.md".into(), format!("{}/.agents/rules.md", h)],
         _ => vec!["AGENTS.md".into(), ".agents/rules.md".into()],
-    }
+    };
+    paths.into_iter().map(|p| normalize_path(&p)).collect()
 }
 
 pub fn probe_runtime_file(file: &RuntimeFile) -> Option<String> {
@@ -162,7 +318,20 @@ pub fn is_toksi_managed_hook(fields: &[String]) -> bool {
     }
     matches!(
         fields[1].as_str(),
-        "rtk-hook" | "codex-perm" | "codegraph-hook" | "agy-hook" | "copilot-hook" | "projectmem-hook" | "grok-hook" | "cursor-hook" | "index" | "ctx-hook" | "context-mode-hook"
+        "rtk-hook"
+            | "codex-perm"
+            | "codegraph-hook"
+            | "agy-hook"
+            | "copilot-hook"
+            | "projectmem-hook"
+            | "grok-hook"
+            | "cursor-hook"
+            | "index"
+            | "ctx-hook"
+            | "context-hook"
+            | "context-mode-hook"
+            | "icm-hook"
+            | "aimemory-hook"
     )
 }
 
@@ -268,7 +437,7 @@ pub fn unwrap_run_mcp(command: &str, args: &[String]) -> (String, Vec<String>) {
                 }
                 current_args = current_args[2..].to_vec();
             }
-            "--context-mode" => {
+            "--context-mode" | "--context" => {
                 current_args = current_args[1..].to_vec();
             }
             _ => {
@@ -489,7 +658,9 @@ fn extract_json_commands(raw: &str) -> Vec<String> {
     if raw.is_empty() {
         return Vec::new();
     }
-    let re = Regex::new(r#""command"\s*:\s*"((?:\\.|[^"\\])*)""#).unwrap();
+    let Some(re) = RE_JSON_CMD.as_ref() else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
     for cap in re.captures_iter(raw) {
         if let Some(m) = cap.get(1) {
@@ -517,25 +688,53 @@ fn managed_hook_commands(agent_id: &str) -> Vec<String> {
         "codex" => {
             raws.push(read_file_or_empty(&format!("{}/hooks.json", codex_paths_resolved().dir)));
         }
-        "antigravity" => {
-            raws.push(read_file_or_empty(&format!("{}/.gemini/config/hooks.json", home())));
+        "antigravity" | "antigravity-cli" | "antigravity-ide" => {
+            raws.push(read_file_or_empty(&format!("{}/.gemini/config/hooks.json", normalize_path(&home()))));
         }
-        "copilot" => {
+        "copilot" | "copilot-cli" => {
             let p = copilot_paths_resolved();
-            raws.push(read_file_or_empty(&format!("{}/toksi-rtk.json", p.hooks_dir)));
-            raws.push(read_file_or_empty(&format!("{}/codegraph.json", p.hooks_dir)));
-            raws.push(read_file_or_empty(&format!("{}/.github/hooks/toksi-rtk.json", ide_root_for_doctor())));
-            raws.push(read_file_or_empty(&format!("{}/.github/hooks/codegraph.json", ide_root_for_doctor())));
+            let hooks_dir = normalize_path(&p.hooks_dir);
+            for name in [
+                "rtk.json",
+                "context.json",
+                "projectmem.json",
+                "codegraph.json",
+                "toksi-rtk.json",
+                "context-mode.json",
+                "projectmem-context.json",
+                "toksi-codegraph-index.json",
+            ] {
+                raws.push(read_file_or_empty(&format!("{}/{}", hooks_dir, name)));
+            }
+        }
+        "copilot-vscode" => {
+            let root = normalize_path(&ide_root_for_doctor());
+            if !root.is_empty() {
+                for name in [
+                    "rtk.json",
+                    "context.json",
+                    "projectmem.json",
+                    "codegraph.json",
+                    "toksi-rtk.json",
+                    "context-mode.json",
+                    "projectmem-context.json",
+                    "toksi-codegraph-index.json",
+                ] {
+                    raws.push(read_file_or_empty(&format!("{}/.github/hooks/{}", root, name)));
+                }
+            }
         }
         "droid" => {
-            raws.push(read_file_or_empty(&format!("{}/.factory/hooks.json", home())));
+            raws.push(read_file_or_empty(&format!("{}/.factory/hooks.json", normalize_path(&home()))));
         }
         "cursor" => {
-            raws.push(read_file_or_empty(&format!("{}/hooks.json", cursor_paths_resolved().dir)));
+            raws.push(read_file_or_empty(&format!("{}/hooks.json", normalize_path(&cursor_paths_resolved().dir))));
         }
         "grok" => {
-            let grok_dir = env::var("GROK_HOME").unwrap_or_else(|_| format!("{}/.grok", home()));
-            raws.push(read_file_or_empty(&format!("{}/hooks/toksi-rtk.json", grok_dir)));
+            let grok_dir = normalize_path(&grok_paths_resolved().dir);
+            for name in ["rtk.json", "context.json", "projectmem.json", "toksi-rtk.json"] {
+                raws.push(read_file_or_empty(&format!("{}/hooks/{}", grok_dir, name)));
+            }
         }
         "cline" => {
             let mut path = format!("{}/PreToolUse", cline_paths_resolved().hooks_dir);
@@ -602,7 +801,7 @@ fn managed_runtime_files(agent_id: &str) -> Vec<RuntimeFile> {
 
 fn managed_mcp_spawns(agent_id: &str) -> Vec<McpSpawn> {
     let mut out = Vec::new();
-    let tools = crate::agents::MANAGED_MCP_TOOLS;
+    let tools = AUDIT_MCP_TOOLS;
     match agent_id {
         "codex" => {
             for &tool in tools {
@@ -635,7 +834,7 @@ fn managed_mcp_spawns(agent_id: &str) -> Vec<McpSpawn> {
             }
         }
         _ => {
-            let json_files = crate::agents::agent_mcp_json_files(agent_id);
+            let json_files = agent_mcp_json_files(agent_id);
             for (path, key) in json_files {
                 for &tool in tools {
                     out.extend(mcp_from_command_args_file(&path, &key, tool));
@@ -753,9 +952,13 @@ fn mcp_from_toml_file(path: &str, tool_id: &str) -> Vec<McpSpawn> {
     let end = rest[1..].find("\n[").map(|idx| idx + 1).unwrap_or(rest.len());
     let block = &rest[..end];
 
-    let re_cmd = Regex::new(r#"(?m)^\s*command\s*=\s*"((?:\\.|[^"\\])*)""#).unwrap();
-    let re_args = Regex::new(r#"(?m)^\s*args\s*=\s*\[([^\]]*)\]"#).unwrap();
-    let re_str = Regex::new(r#""((?:\\.|[^"\\])*)""#).unwrap();
+    let (Some(re_cmd), Some(re_args), Some(re_str)) = (
+        RE_TOML_CMD.as_ref(),
+        RE_TOML_ARGS.as_ref(),
+        RE_QUOTED_STR.as_ref(),
+    ) else {
+        return Vec::new();
+    };
 
     let cmd = match re_cmd.captures(block).and_then(|c| c.get(1)) {
         Some(m) => toml_unescape(m.as_str()),
@@ -795,9 +998,13 @@ fn mcp_from_dsh_yaml(tool_id: &str) -> Vec<McpSpawn> {
     let end = rest[1..].find("\n- insert:").map(|idx| idx + 1).unwrap_or(rest.len());
     let block = &rest[..end];
 
-    let re_cmd = Regex::new(r#"(?m)^\s*command:\s*"((?:\\.|[^"\\])*)""#).unwrap();
-    let re_args = Regex::new(r#"(?m)^\s*args:\s*\[([^\]]*)\]"#).unwrap();
-    let re_str = Regex::new(r#""((?:\\.|[^"\\])*)""#).unwrap();
+    let (Some(re_cmd), Some(re_args), Some(re_str)) = (
+        RE_YAML_CMD.as_ref(),
+        RE_YAML_ARGS.as_ref(),
+        RE_QUOTED_STR.as_ref(),
+    ) else {
+        return Vec::new();
+    };
 
     let cmd = match re_cmd.captures(block).and_then(|c| c.get(1)) {
         Some(m) => json_unescape(m.as_str()),

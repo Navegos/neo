@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/toksi_block.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-14
 
 use std::collections::HashMap;
 use std::fs;
@@ -184,8 +184,11 @@ pub fn strip_legacy(content: &str) -> String {
         s = strip_legacy_heading(&s, old_h, level);
     }
 
-    let multi_nl = Regex::new(r"\n{3,}").unwrap();
-    multi_nl.replace_all(&s, "\n\n").trim().to_string()
+    if let Ok(multi_nl) = Regex::new(r"\n{3,}") {
+        multi_nl.replace_all(&s, "\n\n").trim().to_string()
+    } else {
+        s.trim().to_string()
+    }
 }
 
 pub fn strip_legacy_heading(content: &str, heading: &str, level: usize) -> String {

@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/agents/mcp_adapters.rs
 // created: 2026-10-20
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
+
+#![deny(unsafe_code)]
 
 use std::path::Path;
 use std::sync::Arc;
@@ -12,12 +14,12 @@ use serde_json::Value;
 use crate::core::{with_any_shape, with_command, McpAdapter, McpOption, McpReply, McpRequest};
 use crate::util::jsonc::{stringify_json, OrderedMap};
 use crate::util::mcpspawn::{mcp_spawn_for, pick_mcp_spawn, wrap_auto_index};
-use crate::tools::copilot_ide_mcp_path;
 use crate::util::paths::{
     amp_paths_resolved, claude_code_paths, cline_paths_resolved,
     codex_paths_resolved, copilot_paths_resolved, cursor_global_mcp_path, ensure_dir,
-    kilo_paths_resolved, kimi_paths_resolved, omp_paths_resolved, opencode_paths_resolved,
-    opencode_paths_v2, pi_paths_resolved, read_file_safe, write_file, zcode_paths_resolved,
+    kilo_paths_resolved, kimi_paths_resolved, normalize_path, omp_paths_resolved,
+    opencode_paths_resolved, opencode_paths_v2, pi_paths_resolved, read_file_safe, write_file,
+    zcode_paths_resolved,
 };
 
 use super::antigravity::*;
@@ -36,13 +38,38 @@ use super::pi::*;
 use super::proxy_provider::{json_args_eq, try_parse_jsonc_map as try_parse_jsonc};
 
 pub fn normalize_mcp_tool_id(tool_id: &str) -> &'static str {
-    match tool_id.trim() {
-        "projectmem" | "toksi-projectmem" | "pjm" => "projectmem",
-        "context" | "context-mode" | "toksi-context-mode" | "ctx" => "context",
-        "codegraph" | "toksi-codegraph" => "codegraph",
-        "icm" | "toksi-icm" => "icm",
-        "aimemory" | "ai-memory" | "toksi-aimemory" => "aimemory",
-        "rtk" | "toksi-rtk" => "rtk",
+    match tool_id.trim().to_ascii_lowercase().as_str() {
+        "projectmem"
+        | "toksi-projectmem"
+        | "tokless_projectmem"
+        | "tokless-projectmem"
+        | "projectmem-context"
+        | "pjm"
+        | "pjm-mcp" => "projectmem",
+        "context"
+        | "context-mode"
+        | "contextmode"
+        | "toksi-context"
+        | "toksi-context-mode"
+        | "tokless_context"
+        | "tokless-context"
+        | "tokless-context-mode"
+        | "ctx" => "context",
+        "codegraph"
+        | "toksi-codegraph"
+        | "toksi-codegraph-index"
+        | "tokless_codegraph"
+        | "tokless-codegraph"
+        | "tokless-codegraph-index" => "codegraph",
+        "icm" | "toksi-icm" | "tokless_icm" | "tokless-icm" => "icm",
+        "aimemory"
+        | "ai-memory"
+        | "ai_memory"
+        | "toksi-aimemory"
+        | "toksi-ai-memory"
+        | "tokless_aimemory"
+        | "tokless-aimemory" => "aimemory",
+        "rtk" | "toksi-rtk" | "tokless_rtk" | "tokless-rtk" => "rtk",
         _ => "tool",
     }
 }
@@ -187,7 +214,15 @@ pub fn is_legacy_mcp_runner_str(cmd: &str) -> bool {
         .and_then(|st| st.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
-    if norm.contains("tokless") || stem == "tokless" || stem.starts_with("tokless-") {
+    if norm.contains("tokless")
+        || norm.contains("toksi-codegraph-init.js")
+        || norm.contains("toksi-context-mode")
+        || norm.contains("toksi-projectmem")
+        || norm.contains("toksi-codegraph")
+        || stem == "tokless"
+        || stem.starts_with("tokless-")
+        || stem.starts_with("tokless_")
+    {
         return true;
     }
     if norm.contains("pjm-mcp") || stem == "pjm-mcp" {
@@ -195,7 +230,20 @@ pub fn is_legacy_mcp_runner_str(cmd: &str) -> bool {
     }
     matches!(
         stem.as_str(),
-        "npx" | "uvx" | "pip" | "pip3" | "pipx" | "npm" | "bunx" | "pnpm" | "python" | "python3" | "node"
+        "npx"
+            | "uvx"
+            | "pip"
+            | "pip3"
+            | "pipx"
+            | "npm"
+            | "bun"
+            | "bunx"
+            | "pnpm"
+            | "yarn"
+            | "deno"
+            | "python"
+            | "python3"
+            | "node"
     )
 }
 
@@ -215,6 +263,8 @@ pub fn is_toksi_mcp_command_str(cmd: &str) -> bool {
             | "toksi-darwin"
             | "toksi-darwin-x64"
             | "toksi-darwin-arm64"
+            | "toksi-windows"
+            | "toksi-windows-x64"
     )
 }
 
@@ -230,9 +280,11 @@ pub fn is_legacy_mcp_entry(v: &Value) -> bool {
                 }
             }
             Value::Array(arr) => {
-                if let Some(first) = arr.first().and_then(|v| v.as_str()) {
-                    if is_legacy_mcp_runner_str(first) {
-                        return true;
+                for item in arr {
+                    if let Some(s) = item.as_str() {
+                        if is_legacy_mcp_runner_str(s) || s.to_ascii_lowercase().contains("toksi-codegraph-init.js") {
+                            return true;
+                        }
                     }
                 }
             }
@@ -244,6 +296,10 @@ pub fn is_legacy_mcp_entry(v: &Value) -> bool {
             if let Some(s) = arg.as_str() {
                 let low = s.to_ascii_lowercase();
                 if low.contains("tokless")
+                    || low.contains("toksi-codegraph-init.js")
+                    || low.contains("toksi-context-mode")
+                    || low.contains("toksi-projectmem")
+                    || low.contains("toksi-codegraph")
                     || low.contains("pjm-mcp")
                     || low.ends_with("codegraph.cmd")
                     || low.ends_with("context-mode.cmd")
@@ -813,8 +869,8 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
                 }
             }),
         })),
-        "antigravity" => Some(Arc::new(FnAgentMcpAdapter {
-            id: "antigravity".to_string(),
+        "antigravity" | "antigravity-cli" | "antigravity-ide" => Some(Arc::new(FnAgentMcpAdapter {
+            id: id.to_string(),
             configure: Arc::new(|req| {
                 let (changed, file) = configure_antigravity_mcp(&req.tool_id);
                 McpReply { changed, file, err: None }
@@ -828,6 +884,50 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
                     antigravity_mcp_has(&req.tool_id)
                 } else {
                     antigravity_mcp_bounded(&req.tool_id)
+                }
+            }),
+        })),
+        "copilot-cli" => Some(Arc::new(FnAgentMcpAdapter {
+            id: "copilot-cli".to_string(),
+            configure: Arc::new(|req| {
+                match configure_copilot_mcp_safe(&req.tool_id) {
+                    Ok((changed, file)) => McpReply { changed, file, err: None },
+                    Err(e) => McpReply { changed: false, file: String::new(), err: Some(e) },
+                }
+            }),
+            remove: Arc::new(|req| {
+                match remove_copilot_mcp_safe(&req.tool_id) {
+                    Ok(changed) => McpReply { changed, file: copilot_paths_resolved().mcp_config, err: None },
+                    Err(e) => McpReply { changed: false, file: copilot_paths_resolved().mcp_config, err: Some(e) },
+                }
+            }),
+            has: Arc::new(|req| {
+                if req.any_shape {
+                    copilot_mcp_has(&req.tool_id)
+                } else {
+                    copilot_mcp_bounded(&req.tool_id, false)
+                }
+            }),
+        })),
+        "copilot-vscode" => Some(Arc::new(FnAgentMcpAdapter {
+            id: "copilot-vscode".to_string(),
+            configure: Arc::new(|req| {
+                match configure_copilot_ide_mcp_safe(&req.tool_id) {
+                    Ok((changed, file)) => McpReply { changed, file, err: None },
+                    Err(e) => McpReply { changed: false, file: String::new(), err: Some(e) },
+                }
+            }),
+            remove: Arc::new(|req| {
+                match remove_copilot_ide_mcp_safe(&req.tool_id) {
+                    Ok(changed) => McpReply { changed, file: String::new(), err: None },
+                    Err(e) => McpReply { changed: false, file: String::new(), err: Some(e) },
+                }
+            }),
+            has: Arc::new(|req| {
+                if req.any_shape {
+                    copilot_ide_mcp_has(&req.tool_id)
+                } else {
+                    copilot_mcp_bounded(&req.tool_id, true)
                 }
             }),
         })),
@@ -874,6 +974,17 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
                 }
             }),
         })),
+        "openagents" => Some(Arc::new(GenericJsonMcpAdapter {
+            id: "openagents".to_string(),
+            path_fn: Arc::new(|| {
+                normalize_path(
+                    &super::open_agents::open_agents_global_dir()
+                        .join(super::open_agents::OPEN_AGENTS_MCP_FILE)
+                        .to_string_lossy(),
+                )
+            }),
+            nested: "mcpServers".to_string(),
+        })),
         "droid" => Some(Arc::new(FnAgentMcpAdapter {
             id: "droid".to_string(),
             configure: Arc::new(|req| {
@@ -910,9 +1021,9 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
                 if req.any_shape {
                     return grok_mcp_present(&req.tool_id);
                 }
-                match req.tool_id.as_str() {
+                match normalize_mcp_tool_id(&req.tool_id) {
                     "codegraph" => grok_mcp_has("codegraph"),
-                    "context-mode" => grok_context_mode_mcp_has(),
+                    "context" => grok_context_mode_mcp_has(),
                     "projectmem" => grok_projectmem_mcp_has(),
                     _ => false,
                 }
@@ -1022,41 +1133,104 @@ pub fn mcp_has(agent_id: &str, tool_id: &str, any_shape: bool) -> bool {
 
 pub const MANAGED_MCP_TOOLS: &[&str] = &[
     "codegraph",
-    "context-mode",
     "context",
     "projectmem",
     "icm",
     "aimemory",
+    "rtk",
+];
+
+pub const AUDIT_MCP_TOOLS: &[&str] = &[
+    "codegraph",
+    "context",
+    "projectmem",
+    "icm",
+    "aimemory",
+    "rtk",
+    "context-mode",
+    "ai-memory",
+    "ai_memory",
+    "projectmem-context",
+    "toksi-codegraph",
+    "toksi-context",
+    "toksi-context-mode",
+    "toksi-projectmem",
+    "toksi-icm",
+    "toksi-aimemory",
+    "toksi-ai-memory",
+    "toksi-rtk",
+    "tokless_codegraph",
+    "tokless_context",
+    "tokless_projectmem",
+    "tokless_icm",
+    "tokless_aimemory",
+    "tokless_rtk",
+    "pjm-mcp",
 ];
 
 pub fn agent_mcp_json_files(agent_id: &str) -> Vec<(String, String)> {
     match agent_id {
-        "claude" => vec![(claude_code_paths().global_json, "mcpServers".into())],
-        "cursor" => vec![
-            (cursor_global_mcp_path(), "mcpServers".into()),
-            (".cursor/mcp.json".into(), "mcpServers".into()),
-        ],
-        "opencode" => vec![(opencode_paths_resolved().config, "mcp".into())],
-        "opencode2" => vec![(opencode_paths_v2().config, "mcp".into())],
-        "antigravity" => antigravity_mcp_config_files()
+        "claude" => vec![(normalize_path(&claude_code_paths().global_json), "mcpServers".into())],
+        "cursor" => vec![(normalize_path(&cursor_global_mcp_path()), "mcpServers".into())],
+        "opencode" => vec![(normalize_path(&opencode_paths_resolved().config), "mcp".into())],
+        "opencode2" => vec![(normalize_path(&opencode_paths_v2().config), "mcp".into())],
+        "antigravity" | "antigravity-cli" | "antigravity-ide" => antigravity_mcp_config_files()
             .into_iter()
-            .map(|f| (f, "mcpServers".into()))
+            .map(|f| (normalize_path(&f), "mcpServers".into()))
             .collect(),
-        "copilot" => vec![
-            (copilot_paths_resolved().mcp_config, "mcpServers".into()),
-            (copilot_ide_mcp_path(), "servers".into()),
-        ],
-        "droid" => vec![(droid_mcp_file(), "mcpServers".into())],
-        "kilo" => vec![(kilo_paths_resolved().config, "mcp".into())],
+        "copilot" | "copilot-cli" => vec![(
+            normalize_path(&copilot_paths_resolved().mcp_config),
+            "mcpServers".into(),
+        )],
+        "copilot-vscode" => Vec::new(),
+        "droid" => vec![(normalize_path(&droid_mcp_file()), "mcpServers".into())],
+        "kilo" => vec![(normalize_path(&kilo_paths_resolved().config), "mcp".into())],
         "omp" => vec![
-            (omp_paths_resolved().config, "mcpServers".into()),
-            (format!("{}/mcp.json", omp_agent_dir_resolved()), "mcpServers".into()),
+            (normalize_path(&omp_paths_resolved().config), "mcpServers".into()),
+            (
+                normalize_path(&format!("{}/mcp.json", omp_agent_dir_resolved())),
+                "mcpServers".into(),
+            ),
         ],
-        "pi" => vec![(pi_paths_resolved().mcp_config, "mcpServers".into())],
-        "cline" => vec![(cline_paths_resolved().mcp_config, "mcpServers".into())],
-        "amp" => vec![(amp_paths_resolved().config, "amp.mcpServers".into())],
-        "kimi" => vec![(kimi_paths_resolved().mcp_config, "mcpServers".into())],
-        "zcode" => vec![(zcode_paths_resolved().mcp_config, "mcp.servers".into())],
+        "pi" => vec![(normalize_path(&pi_paths_resolved().mcp_config), "mcpServers".into())],
+        "cline" => vec![(normalize_path(&cline_paths_resolved().mcp_config), "mcpServers".into())],
+        "amp" => vec![(normalize_path(&amp_paths_resolved().config), "amp.mcpServers".into())],
+        "kimi" => vec![(normalize_path(&kimi_paths_resolved().mcp_config), "mcpServers".into())],
+        "zcode" => vec![(normalize_path(&zcode_paths_resolved().mcp_config), "mcp.servers".into())],
+        "openagents" => vec![(
+            normalize_path(
+                &super::open_agents::open_agents_global_dir()
+                    .join(super::open_agents::OPEN_AGENTS_MCP_FILE)
+                    .to_string_lossy(),
+            ),
+            "mcpServers".into(),
+        )],
+        _ => Vec::new(),
+    }
+}
+
+pub fn agent_workspace_mcp_json_files(agent_id: &str, workspace_root: &Path) -> Vec<(String, String)> {
+    match agent_id {
+        "cursor" => vec![(
+            normalize_path(&workspace_root.join(".cursor").join("mcp.json").to_string_lossy()),
+            "mcpServers".into(),
+        )],
+        "copilot" | "copilot-vscode" => vec![(
+            normalize_path(&workspace_root.join(".vscode").join("mcp.json").to_string_lossy()),
+            "servers".into(),
+        )],
+        "claude" => vec![(
+            normalize_path(&workspace_root.join(".mcp.json").to_string_lossy()),
+            "mcpServers".into(),
+        )],
+        "openagents" => vec![(
+            normalize_path(
+                &super::open_agents::open_agents_workspace_dir(workspace_root)
+                    .join(super::open_agents::OPEN_AGENTS_MCP_FILE)
+                    .to_string_lossy(),
+            ),
+            "mcpServers".into(),
+        )],
         _ => Vec::new(),
     }
 }
@@ -1067,7 +1241,7 @@ pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
         "codex" => {
             let p = codex_paths_resolved().config;
             if let Some(raw) = read_file_safe(&p) {
-                for &tool in MANAGED_MCP_TOOLS {
+                for &tool in AUDIT_MCP_TOOLS {
                     let header = format!("mcp_servers.{}", tool);
                     if let Some(block) = crate::util::toml::block_text(&raw, &header) {
                         for line in block.lines() {
@@ -1088,7 +1262,7 @@ pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
         "grok" => {
             let p = grok_config_file();
             if let Some(raw) = read_file_safe(&p) {
-                for &tool in MANAGED_MCP_TOOLS {
+                for &tool in AUDIT_MCP_TOOLS {
                     let header = format!("mcp_servers.{}", tool);
                     if let Some(block) = crate::util::toml::block_text(&raw, &header) {
                         for line in block.lines() {
@@ -1109,9 +1283,9 @@ pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
         "dsh" => {
             let p = dsh_patch_file();
             if let Some(raw) = read_file_safe(&p) {
-                for &tool in MANAGED_MCP_TOOLS {
+                for &tool in AUDIT_MCP_TOOLS {
                     let marker = format!("id: mcp-{}", tool);
-                    if raw.contains(&marker) && (raw.contains("npx") || raw.contains("uvx") || raw.contains("pip") || raw.contains("tokless") || !raw.contains("toksi")) {
+                    if raw.contains(&marker) && (raw.contains("npx") || raw.contains("uvx") || raw.contains("pip") || raw.contains("node") || raw.contains("python") || raw.contains("tokless") || !raw.contains("toksi")) {
                         issues.push(format!("{}: legacy or non-toksi runner in dsh patch", tool));
                     }
                 }
@@ -1123,7 +1297,7 @@ pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
                 if let Some(raw) = read_file_safe(&path) {
                     if let Some(cfg) = try_parse_jsonc(&raw) {
                         if let Some(servers) = nested_child_ref(&cfg, &key) {
-                            for &tool in MANAGED_MCP_TOOLS {
+                            for &tool in AUDIT_MCP_TOOLS {
                                 if let Some(v) = servers.get(tool) {
                                     if is_legacy_mcp_entry(v) || (!toksi_mcp_entry(v) && !v.is_null()) {
                                         issues.push(format!("{}: legacy or non-toksi runner in {}", tool, crate::commands::doctor_probe::short_path(&path)));
@@ -1146,14 +1320,16 @@ pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
             let p = codex_paths_resolved().config;
             if let Some(raw) = read_file_safe(&p) {
                 let mut next = raw.clone();
-                for &tool in MANAGED_MCP_TOOLS {
+                for &tool in AUDIT_MCP_TOOLS {
                     let header = format!("mcp_servers.{}", tool);
                     if let Some(block) = crate::util::toml::block_text(&next, &header) {
                         let is_legacy = block.contains("npx")
                             || block.contains("uvx")
                             || block.contains("pip")
+                            || block.contains("node")
                             || block.contains("python")
                             || block.contains("tokless")
+                            || block.contains("toksi-codegraph-init.js")
                             || block.contains("pjm-mcp")
                             || block.lines().any(|l| {
                                 if let Some((k, v)) = l.trim().split_once('=') {
@@ -1179,14 +1355,16 @@ pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
             let p = grok_config_file();
             if let Some(raw) = read_file_safe(&p) {
                 let mut next = raw.clone();
-                for &tool in MANAGED_MCP_TOOLS {
+                for &tool in AUDIT_MCP_TOOLS {
                     let header = format!("mcp_servers.{}", tool);
                     if let Some(block) = crate::util::toml::block_text(&next, &header) {
                         let is_legacy = block.contains("npx")
                             || block.contains("uvx")
                             || block.contains("pip")
+                            || block.contains("node")
                             || block.contains("python")
                             || block.contains("tokless")
+                            || block.contains("toksi-codegraph-init.js")
                             || block.contains("pjm-mcp")
                             || block.lines().any(|l| {
                                 if let Some((k, v)) = l.trim().split_once('=') {
@@ -1211,12 +1389,14 @@ pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
         "dsh" => {
             let p = dsh_patch_file();
             if let Some(raw) = read_file_safe(&p) {
-                for &tool in MANAGED_MCP_TOOLS {
+                for &tool in AUDIT_MCP_TOOLS {
                     let marker = format!("id: mcp-{}", tool);
                     if raw.contains(&marker)
                         && (raw.contains("npx")
                             || raw.contains("uvx")
                             || raw.contains("pip")
+                            || raw.contains("node")
+                            || raw.contains("python")
                             || raw.contains("tokless")
                             || !raw.contains("toksi"))
                     {
@@ -1233,7 +1413,7 @@ pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
                     if let Some(mut cfg) = try_parse_jsonc(&raw) {
                         let mut changed = false;
                         if let Some(servers) = nested_child(&mut cfg, &key, false) {
-                            for &tool in MANAGED_MCP_TOOLS {
+                            for &tool in AUDIT_MCP_TOOLS {
                                 if let Some(v) = servers.get(tool) {
                                     if is_legacy_mcp_entry(v) || (!toksi_mcp_entry(v) && !v.is_null()) {
                                         servers.remove(tool);
@@ -1292,9 +1472,28 @@ mod tests {
     #[test]
     fn test_all_17_agents_have_mcp_adapters() {
         let expected = [
-            "amp", "kimi", "zcode", "dsh", "claude", "opencode", "opencode2",
-            "codex", "cursor", "antigravity", "copilot", "droid", "grok",
-            "pi", "omp", "kilo", "cline",
+            "amp",
+            "kimi",
+            "zcode",
+            "dsh",
+            "claude",
+            "opencode",
+            "opencode2",
+            "codex",
+            "cursor",
+            "antigravity",
+            "antigravity-cli",
+            "antigravity-ide",
+            "copilot",
+            "copilot-cli",
+            "copilot-vscode",
+            "droid",
+            "grok",
+            "pi",
+            "omp",
+            "kilo",
+            "cline",
+            "openagents",
         ];
 
         for agent in expected {

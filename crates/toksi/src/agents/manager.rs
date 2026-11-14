@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/manager.rs
 // created: 2026-11-09
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
 
 #![deny(unsafe_code)]
 
@@ -12,11 +12,15 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::agents::mcp_adapters::normalize_mcp_tool_id;
-use crate::agents::open_agents::{open_agents_global_dir, open_agents_workspace_dir, scaffold_open_agents_structure};
+use crate::agents::mcp_adapters::{is_legacy_mcp_entry, normalize_mcp_tool_id};
+use crate::agents::open_agents::{
+    open_agents_global_dir, open_agents_workspace_dir, scaffold_open_agents_structure,
+    verify_direct_wire_bus,
+};
 use crate::core::get_agent;
 use crate::util::env_path::check_executable_in_path;
-use crate::util::jsonc::{Value, stringify_json, try_parse_jsonc};
+use crate::util::jsonc::{OrderedMap, Value, stringify_json, try_parse_jsonc};
+use crate::util::mcpspawn::{mcp_spawn_for, pick_mcp_spawn, wrap_auto_index};
 use crate::util::paths::{home, normalize_path, read_file_safe, write_file_atomic};
 
 #[derive(Error, Debug)]
@@ -67,6 +71,27 @@ pub enum WireMode {
     ConfigWired,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentLayoutCategory {
+    Category1CliHooksAndMcp,
+    Category2SplitCliAndIde,
+    Category3TomlConfigAndHooks,
+    Category4ExtensionAndProxyJson,
+    Category5OpenAgentsDirectWire,
+}
+
+impl AgentLayoutCategory {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Category1CliHooksAndMcp => "Category 1 (CLI hooks + MCP)",
+            Self::Category2SplitCliAndIde => "Category 2 (Split CLI/IDE)",
+            Self::Category3TomlConfigAndHooks => "Category 3 (TOML + hooks)",
+            Self::Category4ExtensionAndProxyJson => "Category 4 (Extension/Proxy JSON)",
+            Self::Category5OpenAgentsDirectWire => "Category 5 (OpenAgents DirectWire)",
+        }
+    }
+}
+
 pub struct AgentManager;
 
 impl AgentManager {
@@ -80,11 +105,27 @@ impl AgentManager {
         }
     }
 
-    /// Supported vendor and standard agent identifiers.
+    /// Returns Category 1-5 layout classification for an agent harness.
+    pub fn layout_category(agent_id: &str) -> AgentLayoutCategory {
+        match agent_id {
+            "openagents" | "toksi" => AgentLayoutCategory::Category5OpenAgentsDirectWire,
+            "antigravity" | "antigravity-cli" | "antigravity-ide" | "copilot"
+            | "copilot-cli" | "copilot-vscode" => AgentLayoutCategory::Category2SplitCliAndIde,
+            "codex" | "grok" => AgentLayoutCategory::Category3TomlConfigAndHooks,
+            "claude" | "cursor" | "droid" => AgentLayoutCategory::Category1CliHooksAndMcp,
+            _ => AgentLayoutCategory::Category4ExtensionAndProxyJson,
+        }
+    }
+
+    /// Supported vendor and standard agent identifiers (18+ adapters including separated CLI/IDE harnesses).
     pub fn all_managed_agents() -> Vec<String> {
         vec![
             "antigravity".to_string(),
+            "antigravity-cli".to_string(),
+            "antigravity-ide".to_string(),
             "copilot".to_string(),
+            "copilot-cli".to_string(),
+            "copilot-vscode".to_string(),
             "claude".to_string(),
             "codex".to_string(),
             "cursor".to_string(),
@@ -110,7 +151,9 @@ impl AgentManager {
         match agent_id {
             "openagents" => open_agents_global_dir(),
             "antigravity" | "agy" => home.join(".gemini"),
-            "copilot" => home.join(".copilot"),
+            "antigravity-cli" => home.join(".gemini").join("antigravity-cli"),
+            "antigravity-ide" => home.join(".gemini").join("antigravity-ide"),
+            "copilot" | "copilot-cli" | "copilot-vscode" => home.join(".copilot"),
             "claude" => home.join(".claude"),
             "codex" => home.join(".codex"),
             "cursor" => home.join(".cursor"),
@@ -132,8 +175,9 @@ impl AgentManager {
     pub fn workspace_config_dir(agent_id: &str, root: &Path) -> PathBuf {
         match agent_id {
             "openagents" => open_agents_workspace_dir(root),
-            "antigravity" | "agy" => root.join(".gemini"),
-            "copilot" => root.join(".github"),
+            "antigravity" | "antigravity-cli" | "antigravity-ide" | "agy" => root.join(".gemini"),
+            "copilot" | "copilot-vscode" => root.join(".github"),
+            "copilot-cli" => root.join(".copilot"),
             "claude" => root.join(".claude"),
             "codex" => root.join(".codex"),
             "cursor" => root.join(".cursor"),
@@ -207,19 +251,21 @@ impl AgentManager {
         let mcp_configured = if agent_id == "openagents" {
             let mcp_path = user_dir.join("mcp.json");
             let exists = mcp_path.exists();
+            let direct = verify_direct_wire_bus(None);
             if !exists && installed {
                 issues.push("mcp.json missing from .agents directory".to_string());
             }
-            exists
+            exists || !direct.is_empty()
         } else if agent_id == "claude" {
-            user_dir.join(".mcp.json").exists()
-        } else if agent_id == "antigravity" || agent_id == "agy" {
+            user_dir.join(".mcp.json").exists() || PathBuf::from(home()).join(".claude.json").exists()
+        } else if matches!(agent_id, "antigravity" | "antigravity-cli" | "antigravity-ide" | "agy") {
             user_dir.join("mcp_config.json").exists()
+                || user_dir.join("config").join("mcp_config.json").exists()
         } else if agent_id == "cursor" {
             user_dir.join("mcp.json").exists()
         } else if agent_id == "codex" || agent_id == "grok" {
             user_dir.join("config.toml").exists()
-        } else if agent_id == "copilot" {
+        } else if matches!(agent_id, "copilot" | "copilot-cli" | "copilot-vscode") {
             user_dir.join("mcp-config.json").exists()
         } else {
             installed
@@ -309,8 +355,18 @@ impl AgentManager {
         })
     }
 
-    /// Fixes configuration regressions, purges legacy runners, and restores clean state.
+    /// Fixes configuration regressions, purges legacy runners, and restores clean state
+    /// strictly at user-level (never modifying workspace repo without explicit opt-in).
     pub fn fix(agent_id: &str) -> Result<AgentLifecycleResult, AgentManagerError> {
+        Self::fix_with_workspace(agent_id, None)
+    }
+
+    /// Fixes configuration regressions, purges legacy runners, and restores clean state.
+    /// Workspace-level configs are only touched when `workspace_root` is explicitly `Some(...)`.
+    pub fn fix_with_workspace(
+        agent_id: &str,
+        workspace_root: Option<&Path>,
+    ) -> Result<AgentLifecycleResult, AgentManagerError> {
         let user_dir = Self::user_config_dir(agent_id);
         let mut details = Vec::new();
 
@@ -343,8 +399,7 @@ impl AgentManager {
         }
 
         // 3. Migrate legacy mcp folders to skills/<tool> and standardize hook/MCP configs
-        let ws = std::env::current_dir().ok();
-        let config_healed = heal_agent_legacy_configs(agent_id, ws.as_deref());
+        let config_healed = heal_agent_legacy_configs(agent_id, workspace_root);
         details.extend(config_healed);
 
         // 4. Verify CLI executable in PATH when applicable
@@ -355,17 +410,33 @@ impl AgentManager {
             details.push(format!("Verified CLI binary in PATH: {}", manifest.cli_bin));
         }
 
-        // 5. Sync rules for this agent
+        // 5. Sync rules strictly for configured agent (user-level; workspace only if explicitly opted in)
         let sync_opts = crate::rules::SyncOptions::for_agents([agent_id]);
-        let _ = crate::rules::sync_global_rules_with_options(
-            crate::rules::RuleKind::all(),
-            &sync_opts,
-        );
-        details.push("Repaired in-tree rules and skills".to_string());
+        if user_dir.exists() {
+            let _ = crate::rules::sync_global_rules_with_options(
+                crate::rules::RuleKind::all(),
+                &sync_opts,
+            );
+            details.push("Repaired user-level in-tree rules and skills".to_string());
+        }
+        if let Some(ws) = workspace_root {
+            let _ = crate::rules::sync_workspace_rules_with_options(
+                ws,
+                crate::rules::RuleKind::all(),
+                &sync_opts,
+            );
+            details.push(format!(
+                "Repaired workspace rules in {}",
+                normalize_path(&ws.to_string_lossy())
+            ));
+        }
 
         if agent_id == "openagents" {
-            let scaffolded = scaffold_open_agents_structure(&user_dir)?;
-            details.extend(scaffolded);
+            if user_dir.exists() {
+                let scaffolded = scaffold_open_agents_structure(&user_dir)?;
+                details.extend(scaffolded);
+            }
+            details.extend(verify_direct_wire_bus(workspace_root));
         }
 
         Ok(AgentLifecycleResult {
@@ -446,10 +517,12 @@ impl AgentManager {
         let target_file = match agent_id {
             "openagents" => user_dir.join("mcp.json"),
             "claude" => user_dir.join("settings.json"),
-            "antigravity" | "agy" => user_dir.join("settings.json"),
+            "antigravity" | "antigravity-cli" | "antigravity-ide" | "agy" => {
+                user_dir.join("settings.json")
+            }
             "cursor" => user_dir.join("mcp.json"),
             "codex" | "grok" => user_dir.join("config.toml"),
-            "copilot" => user_dir.join("settings.json"),
+            "copilot" | "copilot-cli" | "copilot-vscode" => user_dir.join("settings.json"),
             _ => user_dir.join("config.json"),
         };
 
@@ -583,56 +656,82 @@ pub fn migrate_legacy_mcp_dirs_to_skills(base_dir: &Path) -> Vec<String> {
     actions
 }
 
-fn rewrite_legacy_hook_command_string(cmd: &str) -> Option<String> {
+fn rewrite_legacy_hook_command_string(cmd: &str, default_agent: Option<&str>) -> Option<String> {
     let mut updated = cmd.to_string();
     let mut changed = false;
 
-    if updated.contains("agy-hook codegraph-index") {
-        updated = updated.replace("agy-hook codegraph-index", "codegraph-hook agy");
+    for (legacy, standard) in [
+        ("agy-hook codegraph-index", "codegraph-hook agy"),
+        ("copilot-hook codegraph-index", "codegraph-hook copilot"),
+        ("cursor-hook codegraph-index", "codegraph-hook cursor"),
+        ("codex-hook codegraph-index", "codegraph-hook codex"),
+    ] {
+        if updated.contains(legacy) {
+            updated = updated.replace(legacy, standard);
+            changed = true;
+        }
+    }
+
+    if updated.contains("index --codegraph-hook") {
+        let replacement = match default_agent {
+            Some(a) if !a.is_empty() => format!("codegraph-hook {a}"),
+            _ => "codegraph-hook".to_string(),
+        };
+        updated = updated.replace("index --codegraph-hook", &replacement);
         changed = true;
     }
-    if updated.contains("copilot-hook codegraph-index") {
-        updated = updated.replace("copilot-hook codegraph-index", "codegraph-hook copilot");
+
+    for agent in ["cursor", "copilot", "claude", "codex", "agy"] {
+        let legacy_rtk = format!("rtk hook {agent}");
+        let std_rtk = format!("rtk-hook {agent}");
+        if updated.trim() == legacy_rtk {
+            updated = format!("toksi {std_rtk}");
+            changed = true;
+        } else if updated.contains(&legacy_rtk) {
+            updated = updated.replace(&legacy_rtk, &std_rtk);
+            changed = true;
+        }
+    }
+
+    if let Some(idx) = updated.find("context-mode hook ") {
+        let before = &updated[..idx];
+        let after = &updated[idx + "context-mode hook ".len()..];
+        let rebuilt = if before.trim().is_empty() {
+            format!("toksi context-hook {after}")
+        } else {
+            format!("{before}context-hook {after}")
+        };
+        updated = rebuilt;
         changed = true;
     }
-    if updated.contains("cursor-hook codegraph-index") {
-        updated = updated.replace("cursor-hook codegraph-index", "codegraph-hook cursor");
-        changed = true;
-    }
-    if updated.trim() == "rtk hook cursor" {
-        updated = "toksi rtk-hook cursor".to_string();
-        changed = true;
-    } else if updated.contains("rtk hook cursor") {
-        updated = updated.replace("rtk hook cursor", "rtk-hook cursor");
-        changed = true;
-    }
-    if updated.starts_with("tokless ") {
-        updated = format!("toksi {}", &updated["tokless ".len()..]);
+
+    if let Some(rest) = updated.strip_prefix("tokless ") {
+        updated = format!("toksi {rest}");
         changed = true;
     }
 
     if changed { Some(updated) } else { None }
 }
 
-fn rewrite_commands_in_json_value(val: &mut Value) -> bool {
+fn rewrite_commands_in_json_value(val: &mut Value, default_agent: Option<&str>) -> bool {
     let mut changed = false;
     match val {
         Value::Object(map) => {
             if let Some(Value::String(cmd)) = map.get("command")
-                && let Some(rewritten) = rewrite_legacy_hook_command_string(cmd)
+                && let Some(rewritten) = rewrite_legacy_hook_command_string(cmd, default_agent)
             {
                 map.insert("command".to_string(), Value::String(rewritten));
                 changed = true;
             }
             for (_, v) in map.iter_mut() {
-                if rewrite_commands_in_json_value(v) {
+                if rewrite_commands_in_json_value(v, default_agent) {
                     changed = true;
                 }
             }
         }
         Value::Array(arr) => {
             for item in arr.iter_mut() {
-                if rewrite_commands_in_json_value(item) {
+                if rewrite_commands_in_json_value(item, default_agent) {
                     changed = true;
                 }
             }
@@ -642,8 +741,88 @@ fn rewrite_commands_in_json_value(val: &mut Value) -> bool {
     changed
 }
 
+fn native_mcp_entry_for(agent_id: &str, norm_tool: &str, legacy_shape: Option<&OrderedMap>) -> Value {
+    let spawn = if norm_tool == "codegraph" {
+        wrap_auto_index(agent_id, pick_mcp_spawn("codegraph", &["serve", "--mcp"]))
+    } else {
+        mcp_spawn_for(norm_tool)
+    };
+    let mut entry = OrderedMap::new();
+    let is_copilot_cli = agent_id == "copilot-cli" || agent_id == "copilot";
+    let is_vscode = agent_id == "copilot-vscode";
+    let server_type = if is_copilot_cli {
+        "local"
+    } else if legacy_shape.and_then(|m| m.get("type")).and_then(|v| v.as_str()) == Some("local") {
+        "local"
+    } else {
+        "stdio"
+    };
+    entry.insert("type".to_string(), Value::String(server_type.to_string()));
+    entry.insert("command".to_string(), Value::String(spawn.command));
+    entry.insert(
+        "args".to_string(),
+        Value::Array(spawn.args.into_iter().map(Value::String).collect()),
+    );
+    if is_copilot_cli {
+        entry.insert("tools".to_string(), Value::Array(vec![Value::String("*".to_string())]));
+    }
+    if norm_tool == "context" && (is_copilot_cli || is_vscode) {
+        let mut env = OrderedMap::new();
+        env.insert(
+            "CONTEXT_MODE_PLATFORM".to_string(),
+            Value::String(if is_vscode { "copilot-vscode" } else { "copilot-cli" }.to_string()),
+        );
+        env.insert("CONTEXT_MODE_COPILOT_PLUGIN".to_string(), Value::String("1".to_string()));
+        entry.insert("env".to_string(), Value::Object(env));
+    }
+    Value::Object(entry)
+}
+
+fn is_known_legacy_or_canonical_mcp_key(k: &str) -> bool {
+    matches!(
+        k.to_ascii_lowercase().as_str(),
+        "projectmem"
+            | "toksi-projectmem"
+            | "tokless-projectmem"
+            | "tokless_projectmem"
+            | "projectmem-context"
+            | "pjm"
+            | "pjm-mcp"
+            | "codegraph"
+            | "toksi-codegraph"
+            | "tokless-codegraph"
+            | "tokless_codegraph"
+            | "toksi-codegraph-index"
+            | "tokless-codegraph-index"
+            | "context"
+            | "context-mode"
+            | "contextmode"
+            | "toksi-context"
+            | "toksi-context-mode"
+            | "tokless-context"
+            | "tokless-context-mode"
+            | "tokless_context"
+            | "ctx"
+            | "icm"
+            | "toksi-icm"
+            | "tokless-icm"
+            | "tokless_icm"
+            | "aimemory"
+            | "ai-memory"
+            | "ai_memory"
+            | "toksi-aimemory"
+            | "toksi-ai-memory"
+            | "tokless-aimemory"
+            | "tokless_aimemory"
+            | "rtk"
+            | "toksi-rtk"
+            | "tokless-rtk"
+            | "tokless_rtk"
+    )
+}
+
 /// Standardizes hook invocations to `<tool>-hook <agent>`, renames legacy hook/plugin files,
-/// and normalizes legacy MCP server keys under `base_dir`.
+/// ensures `agents-structures` parity subdirs on configured harnesses, and repairs broken legacy MCP entries under `base_dir`.
 pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
     let mut actions = Vec::new();
 
@@ -671,24 +850,24 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
                 changed = true;
             }
         }
-        for legacy_pm in ["toksi-projectmem", "tokless-projectmem"] {
+        for legacy_pm in ["toksi-projectmem", "tokless-projectmem", "projectmem-context"] {
             if let Some(val) = cfg.shift_remove(legacy_pm) {
-                if !cfg.contains_key("projectmem-context") && !cfg.contains_key("projectmem") {
-                    cfg.insert("projectmem-context".to_string(), val);
+                if !cfg.contains_key("projectmem") {
+                    cfg.insert("projectmem".to_string(), val);
                 }
                 changed = true;
             }
         }
-        for legacy_ctx in ["toksi-context-mode", "tokless-context-mode", "ctx"] {
+        for legacy_ctx in ["toksi-context-mode", "tokless-context-mode", "context-mode", "ctx"] {
             if let Some(val) = cfg.shift_remove(legacy_ctx) {
-                if !cfg.contains_key("context-mode") {
-                    cfg.insert("context-mode".to_string(), val);
+                if !cfg.contains_key("context") {
+                    cfg.insert("context".to_string(), val);
                 }
                 changed = true;
             }
         }
         let mut root_val = Value::Object(cfg);
-        if rewrite_commands_in_json_value(&mut root_val) {
+        if rewrite_commands_in_json_value(&mut root_val, Some("agy")) {
             changed = true;
         }
         if changed && write_file_atomic(&hf, &stringify_json(&root_val)).is_ok() {
@@ -699,7 +878,7 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
         }
     }
 
-    // 2. Copilot & .github hook files
+    // 2. Copilot & .github hook files (`agents-structures` parity: `codegraph.json`, `context.json`, `projectmem.json`, `rtk.json`)
     for hooks_dir in [
         base_dir.join(".copilot").join("hooks"),
         base_dir.join(".github").join("hooks"),
@@ -707,50 +886,58 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
         if !hooks_dir.is_dir() {
             continue;
         }
-        for legacy_cg_file in ["toksi-codegraph-index.json", "tokless-codegraph-index.json"] {
-            let legacy_path = hooks_dir.join(legacy_cg_file);
-            if legacy_path.is_file() {
-                let target_path = hooks_dir.join("codegraph.json");
-                if !target_path.exists()
-                    && let Some(raw) = read_file_safe(&legacy_path)
-                    && let Some(mut val) = try_parse_jsonc(&raw)
-                {
-                    let _ = rewrite_commands_in_json_value(&mut val);
-                    let _ = write_file_atomic(&target_path, &stringify_json(&val));
+        let hook_agent = if hooks_dir.to_string_lossy().contains(".github") {
+            "copilot-vscode"
+        } else {
+            "copilot-cli"
+        };
+        let file_migrations: [(&[&str], &str); 4] = [
+            (&["toksi-codegraph-index.json", "tokless-codegraph-index.json"], "codegraph.json"),
+            (&["projectmem-context.json", "toksi-projectmem.json", "tokless-projectmem.json"], "projectmem.json"),
+            (&["context-mode.json", "toksi-context-mode.json", "tokless-context-mode.json"], "context.json"),
+            (&["toksi-rtk.json", "tokless-rtk.json"], "rtk.json"),
+        ];
+        for (legacy_names, canonical_name) in file_migrations {
+            for legacy_file in legacy_names {
+                let legacy_path = hooks_dir.join(legacy_file);
+                if legacy_path.is_file() {
+                    let target_path = hooks_dir.join(canonical_name);
+                    if !target_path.exists()
+                        && let Some(raw) = read_file_safe(&legacy_path)
+                        && let Some(mut val) = try_parse_jsonc(&raw)
+                    {
+                        let _ = rewrite_commands_in_json_value(&mut val, Some(hook_agent));
+                        let _ = write_file_atomic(&target_path, &stringify_json(&val));
+                    }
+                    let _ = fs::remove_file(&legacy_path);
+                    actions.push(format!(
+                        "Migrated legacy hook file {} -> {}",
+                        normalize_path(&legacy_path.to_string_lossy()),
+                        canonical_name
+                    ));
                 }
-                let _ = fs::remove_file(&legacy_path);
-                actions.push(format!(
-                    "Removed legacy hook file {}",
-                    normalize_path(&legacy_path.to_string_lossy())
-                ));
             }
-        }
-        for legacy_pm_file in ["toksi-projectmem.json", "tokless-projectmem.json"] {
-            let legacy_path = hooks_dir.join(legacy_pm_file);
-            if legacy_path.is_file() {
-                let target_path = hooks_dir.join("projectmem-context.json");
-                if !target_path.exists()
-                    && let Some(raw) = read_file_safe(&legacy_path)
-                    && let Some(mut val) = try_parse_jsonc(&raw)
-                {
-                    let _ = rewrite_commands_in_json_value(&mut val);
-                    let _ = write_file_atomic(&target_path, &stringify_json(&val));
-                }
-                let _ = fs::remove_file(&legacy_path);
+            let target_path = hooks_dir.join(canonical_name);
+            if target_path.is_file()
+                && let Some(raw) = read_file_safe(&target_path)
+                && let Some(mut val) = try_parse_jsonc(&raw)
+                && rewrite_commands_in_json_value(&mut val, Some(hook_agent))
+                && write_file_atomic(&target_path, &stringify_json(&val)).is_ok()
+            {
                 actions.push(format!(
-                    "Removed legacy hook file {}",
-                    normalize_path(&legacy_path.to_string_lossy())
+                    "Standardized hook commands in {}",
+                    normalize_path(&target_path.to_string_lossy())
                 ));
             }
         }
     }
 
-    // 3. Cursor, Claude, Codex, Droid, Grok hooks
-    for hf in [
-        base_dir.join(".cursor").join("hooks.json"),
-        base_dir.join(".claude").join("settings.json"),
-        base_dir.join(".codex").join("hooks.json"),
-        base_dir.join(".factory").join("hooks.json"),
+    // 3. Cursor, Claude, Codex, Droid hooks
+    for (hf, agent_hint) in [
+        (base_dir.join(".cursor").join("hooks.json"), "cursor"),
+        (base_dir.join(".claude").join("settings.json"), "claude"),
+        (base_dir.join(".codex").join("hooks.json"), "codex"),
+        (base_dir.join(".factory").join("hooks.json"), "droid"),
     ] {
         let Some(raw) = read_file_safe(&hf) else {
             continue;
@@ -758,7 +945,7 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
         let Some(mut val) = try_parse_jsonc(&raw) else {
             continue;
         };
-        if rewrite_commands_in_json_value(&mut val)
+        if rewrite_commands_in_json_value(&mut val, Some(agent_hint))
             && write_file_atomic(&hf, &stringify_json(&val)).is_ok()
         {
             actions.push(format!(
@@ -768,10 +955,36 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
         }
     }
 
+    // 3b. `agents-structures` parity subdirs on already-configured `.codex` / `.copilot` dirs
+    let codex_dir = base_dir.join(".codex");
+    if codex_dir.is_dir() {
+        for sub in ["agents", "plugins", "rules", "skills", "worktrees"] {
+            let sd = codex_dir.join(sub);
+            if !sd.exists() && fs::create_dir_all(&sd).is_ok() {
+                actions.push(format!(
+                    "Created codex structure directory {}",
+                    normalize_path(&sd.to_string_lossy())
+                ));
+            }
+        }
+    }
+    let copilot_dir = base_dir.join(".copilot");
+    if copilot_dir.is_dir() {
+        for sub in ["agents", "extensions", "hooks", "instructions", "skills"] {
+            let sd = copilot_dir.join(sub);
+            if !sd.exists() && fs::create_dir_all(&sd).is_ok() {
+                actions.push(format!(
+                    "Created copilot structure directory {}",
+                    normalize_path(&sd.to_string_lossy())
+                ));
+            }
+        }
+    }
+
     // Grok legacy hook file
     let grok_hooks = base_dir.join(".grok").join("hooks");
     if grok_hooks.is_dir() {
-        for legacy_pm in ["toksi-projectmem.json", "tokless-projectmem.json"] {
+        for legacy_pm in ["toksi-projectmem.json", "tokless-projectmem.json", "projectmem-context.json"] {
             let lp = grok_hooks.join(legacy_pm);
             if lp.is_file() {
                 let dest = grok_hooks.join("projectmem.json");
@@ -830,21 +1043,23 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
         }
     }
 
-    // 5. Normalize legacy MCP server keys (`toksi-projectmem`, `toksi-codegraph`, `toksi-codegraph-index`)
-    let mcp_files = [
-        base_dir.join(".gemini").join("config").join("mcp_config.json"),
-        base_dir.join(".gemini").join("antigravity").join("mcp_config.json"),
-        base_dir.join(".gemini").join("antigravity-cli").join("mcp_config.json"),
-        base_dir.join(".gemini").join("antigravity-ide").join("mcp_config.json"),
-        base_dir.join(".copilot").join("mcp-config.json"),
-        base_dir.join(".vscode").join("mcp.json"),
-        base_dir.join(".cursor").join("mcp.json"),
-        base_dir.join(".claude.json"),
-        base_dir.join(".claude").join("settings.json"),
-        base_dir.join(".mcp.json"),
-        base_dir.join(".agents").join("mcp.json"),
+    // 5. Normalize legacy MCP server keys AND repair broken legacy runners (`node`/`npx`/`python`/`uvx`/`tokless_*`/`toksi-codegraph-init.js`/`pjm-mcp`)
+    let mcp_files: [(PathBuf, &str, &str); 13] = [
+        (base_dir.join(".gemini").join("config").join("mcp_config.json"), "mcpServers", "antigravity"),
+        (base_dir.join(".gemini").join("antigravity").join("mcp_config.json"), "mcpServers", "antigravity"),
+        (base_dir.join(".gemini").join("antigravity-cli").join("mcp_config.json"), "mcpServers", "antigravity-cli"),
+        (base_dir.join(".gemini").join("antigravity-ide").join("mcp_config.json"), "mcpServers", "antigravity-ide"),
+        (base_dir.join(".copilot").join("mcp-config.json"), "mcpServers", "copilot-cli"),
+        (base_dir.join(".vscode").join("mcp.json"), "servers", "copilot-vscode"),
+        (base_dir.join(".cursor").join("mcp.json"), "mcpServers", "cursor"),
+        (base_dir.join(".claude.json"), "mcpServers", "claude"),
+        (base_dir.join(".claude").join("settings.json"), "mcpServers", "claude"),
+        (base_dir.join(".mcp.json"), "mcpServers", "claude"),
+        (base_dir.join(".agents").join("mcp.json"), "mcpServers", "openagents"),
+        (base_dir.join(".factory").join("mcp.json"), "mcpServers", "droid"),
+        (base_dir.join(".cline").join("cline_mcp_settings.json"), "mcpServers", "cline"),
     ];
-    for mf in mcp_files {
+    for (mf, section, agent_id) in mcp_files {
         let Some(raw) = read_file_safe(&mf) else {
             continue;
         };
@@ -852,35 +1067,39 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
             continue;
         };
         let mut changed = false;
-        for section in ["mcpServers", "servers"] {
-            if let Some(Value::Object(servers)) = cfg.get_mut(section) {
-                let keys: Vec<String> = servers.keys().cloned().collect();
-                for k in keys {
-                    if matches!(
-                        k.as_str(),
-                        "toksi-projectmem"
-                            | "tokless-projectmem"
-                            | "toksi-codegraph"
-                            | "tokless-codegraph"
-                            | "toksi-codegraph-index"
-                            | "tokless-codegraph-index"
-                            | "toksi-context-mode"
-                            | "tokless-context-mode"
-                    ) {
-                        let norm = normalize_mcp_tool_id(&k);
-                        if let Some(val) = servers.shift_remove(&k) {
-                            if !servers.contains_key(norm) {
-                                servers.insert(norm.to_string(), val);
-                            }
-                            changed = true;
-                        }
+        if let Some(Value::Object(servers)) = cfg.get_mut(section) {
+            let keys: Vec<String> = servers.keys().cloned().collect();
+            for k in keys {
+                if !is_known_legacy_or_canonical_mcp_key(&k) {
+                    continue;
+                }
+                let norm = normalize_mcp_tool_id(&k);
+                if norm == "tool" {
+                    continue;
+                }
+                let Some(val) = servers.get(&k).cloned() else {
+                    continue;
+                };
+                let repaired = if is_legacy_mcp_entry(&val) {
+                    native_mcp_entry_for(agent_id, norm, val.as_object())
+                } else {
+                    val
+                };
+                if k != norm {
+                    servers.shift_remove(&k);
+                    if !servers.contains_key(norm) {
+                        servers.insert(norm.to_string(), repaired);
                     }
+                    changed = true;
+                } else if is_legacy_mcp_entry(servers.get(&k).unwrap_or(&Value::Null)) {
+                    servers.insert(k, repaired);
+                    changed = true;
                 }
             }
         }
         if changed && write_file_atomic(&mf, &stringify_json(&Value::Object(cfg))).is_ok() {
             actions.push(format!(
-                "Normalized legacy MCP keys in {}",
+                "Repaired MCP config in {}",
                 normalize_path(&mf.to_string_lossy())
             ));
         }
@@ -919,8 +1138,13 @@ mod tests {
     #[test]
     fn test_all_managed_agents_list() {
         let agents = AgentManager::all_managed_agents();
+        assert!(agents.len() >= 18);
         assert!(agents.contains(&"antigravity".to_string()));
+        assert!(agents.contains(&"antigravity-cli".to_string()));
+        assert!(agents.contains(&"antigravity-ide".to_string()));
         assert!(agents.contains(&"copilot".to_string()));
+        assert!(agents.contains(&"copilot-cli".to_string()));
+        assert!(agents.contains(&"copilot-vscode".to_string()));
         assert!(agents.contains(&"claude".to_string()));
         assert!(agents.contains(&"codex".to_string()));
         assert!(agents.contains(&"cursor".to_string()));

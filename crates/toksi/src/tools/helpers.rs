@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/helpers.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
 
 use std::env;
 use std::fs;
@@ -533,24 +533,26 @@ pub fn remove_codex_perm_hook() {
 }
 
 pub fn install_codex_codegraph_index_hook() -> bool {
-    let cmd = toksi_cmd(&["index", "--codegraph-hook"]);
+    let cmd = toksi_cmd(&["codegraph-hook", "codex"]);
     if cmd.is_empty() {
         return false;
     }
     let p = Path::new(&codex_paths_resolved().dir).join("hooks.json").to_string_lossy().to_string();
+    remove_hook_group_in_hooks_obj(&p, "SessionStart", "--codegraph-hook");
     upsert_hook_group_in_hooks_obj(&p, "SessionStart", "", &cmd, Some(30))
 }
 
 pub fn has_codex_codegraph_index_hook() -> bool {
     let p = Path::new(&codex_paths_resolved().dir).join("hooks.json").to_string_lossy().to_string();
     read_file_safe(&p)
-        .map(|r| r.contains("--codegraph-hook"))
+        .map(|r| r.contains("codegraph-hook") || r.contains("--codegraph-hook"))
         .unwrap_or(false)
 }
 
 pub fn remove_codex_codegraph_index_hook() {
     let p = Path::new(&codex_paths_resolved().dir).join("hooks.json").to_string_lossy().to_string();
     remove_hook_group_in_hooks_obj(&p, "SessionStart", "--codegraph-hook");
+    remove_hook_group_in_hooks_obj(&p, "SessionStart", "codegraph-hook");
 }
 
 // --- Cursor CodeGraph permissions & hooks ---
@@ -597,7 +599,7 @@ pub fn remove_cursor_codegraph_permissions() -> bool {
 }
 
 pub fn install_cursor_codegraph_index_hook() -> bool {
-    let cmd = toksi_cmd(&["index", "--codegraph-hook"]);
+    let cmd = toksi_cmd(&["codegraph-hook", "cursor"]);
     if cmd.is_empty() {
         return false;
     }
@@ -610,7 +612,7 @@ pub fn install_cursor_codegraph_index_hook() -> bool {
         v.as_object()
             .and_then(|o| o.get("command"))
             .and_then(|c| c.as_str())
-            .map(|s| !s.contains("--codegraph-hook"))
+            .map(|s| !s.contains("--codegraph-hook") && !s.contains("codegraph-hook"))
             .unwrap_or(true)
     });
     let mut entry = OrderedMap::new();
@@ -623,7 +625,7 @@ pub fn install_cursor_codegraph_index_hook() -> bool {
 pub fn has_cursor_codegraph_index_hook() -> bool {
     let p = Path::new(&cursor_paths_resolved().dir).join("hooks.json").to_string_lossy().to_string();
     read_file_safe(&p)
-        .map(|r| r.contains("--codegraph-hook"))
+        .map(|r| r.contains("codegraph-hook") || r.contains("--codegraph-hook"))
         .unwrap_or(false)
 }
 
@@ -639,7 +641,7 @@ pub fn remove_cursor_codegraph_index_hook() -> bool {
                 v.as_object()
                     .and_then(|o| o.get("command"))
                     .and_then(|c| c.as_str())
-                    .map(|s| !s.contains("--codegraph-hook"))
+                    .map(|s| !s.contains("--codegraph-hook") && !s.contains("codegraph-hook"))
                     .unwrap_or(true)
             });
             if arr.is_empty() {
@@ -764,7 +766,8 @@ pub fn upsert_hook_group_in_hooks_obj(
                     if let Value::Object(hm) = h {
                         if let Some(Value::String(c)) = hm.get("command") {
                             if c == cmd || (cmd.contains("projectmem-hook") && c.contains("projectmem-hook"))
-                                || (cmd.contains("--codegraph-hook") && c.contains("--codegraph-hook"))
+                                || ((cmd.contains("codegraph-hook") || cmd.contains("--codegraph-hook"))
+                                    && (c.contains("codegraph-hook") || c.contains("--codegraph-hook")))
                                 || (cmd.contains("codex-perm") && c.contains("codex-perm"))
                             {
                                 return false;

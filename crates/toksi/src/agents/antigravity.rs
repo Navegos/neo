@@ -3,7 +3,9 @@
 // project: toksi
 // file: crates/toksi/src/agents/antigravity.rs
 // created: 2026-10-11
-// lastModified: 2026-11-13
+// lastModified: 2026-11-14
+
+#![deny(unsafe_code)]
 
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
@@ -26,8 +28,9 @@ use super::proxy_provider::{
 };
 
 pub const ANTIGRAVITY_CONTEXT_MODE_HOOK_COMMAND: &str =
-    "context-mode hook antigravity-cli pretooluse";
-pub const ANTIGRAVITY_PROJECTMEM_GROUP: &str = "projectmem-context";
+    "toksi context-hook antigravity-cli pretooluse";
+pub const ANTIGRAVITY_CONTEXT_GROUP: &str = "context";
+pub const ANTIGRAVITY_PROJECTMEM_GROUP: &str = "projectmem";
 pub const ANTIGRAVITY_IDE_ENDPOINT_KEY: &str = "jetski.cloudCodeUrl";
 pub const ANTIGRAVITY_PROXY_ENV_KEY: &str = "GOOGLE_GEMINI_BASE_URL";
 pub const ANTIGRAVITY_CLOUD_CODE_KEY: &str = "CLOUD_CODE_URL";
@@ -58,6 +61,61 @@ pub fn antigravity_manifest() -> AgentManifest {
                 "agy",
                 &paths::antigravity_paths_resolved().dir,
                 &agy_known_bin_dirs(),
+                &antigravity_desktop_paths(),
+            )
+        })),
+    }
+}
+
+pub fn antigravity_cli_manifest() -> AgentManifest {
+    AgentManifest {
+        id: "antigravity-cli".to_string(),
+        label: "Antigravity CLI".to_string(),
+        homepage: "https://antigravity.google".to_string(),
+        cli_bin: "agy".to_string(),
+        config_dir: Some(Arc::new(|| {
+            paths::normalize_path(
+                &Path::new(&paths::home())
+                    .join(".gemini")
+                    .join("antigravity-cli")
+                    .to_string_lossy(),
+            )
+        })),
+        detect: Some(Arc::new(|| {
+            let cli_dir = Path::new(&paths::home())
+                .join(".gemini")
+                .join("antigravity-cli")
+                .to_string_lossy()
+                .into_owned();
+            detect_agent_with("agy", &cli_dir, &agy_known_bin_dirs(), &[])
+        })),
+    }
+}
+
+pub fn antigravity_ide_manifest() -> AgentManifest {
+    AgentManifest {
+        id: "antigravity-ide".to_string(),
+        label: "Antigravity IDE".to_string(),
+        homepage: "https://antigravity.google".to_string(),
+        cli_bin: "antigravity".to_string(),
+        config_dir: Some(Arc::new(|| {
+            paths::normalize_path(
+                &Path::new(&paths::home())
+                    .join(".gemini")
+                    .join("antigravity-ide")
+                    .to_string_lossy(),
+            )
+        })),
+        detect: Some(Arc::new(|| {
+            let ide_dir = Path::new(&paths::home())
+                .join(".gemini")
+                .join("antigravity-ide")
+                .to_string_lossy()
+                .into_owned();
+            detect_agent_with(
+                "antigravity",
+                &ide_dir,
+                &[],
                 &antigravity_desktop_paths(),
             )
         })),
@@ -223,7 +281,7 @@ pub fn has_antigravity_context_mode_hook() -> bool {
     let Some(cfg) = try_parse_jsonc(&raw) else {
         return false;
     };
-    let Some(group) = json_map_child(&cfg, "context-mode") else {
+    let Some(group) = json_map_child(&cfg, ANTIGRAVITY_CONTEXT_GROUP) else {
         return false;
     };
     let Some(arr) = group.get("PreToolUse").and_then(|v| v.as_array()) else {
@@ -243,7 +301,9 @@ pub fn has_antigravity_context_mode_hook() -> bool {
     let Some(hook) = hooks_arr.first().and_then(|v| v.as_object()) else {
         return false;
     };
-    hook.get("command").and_then(|v| v.as_str()) == Some(ANTIGRAVITY_CONTEXT_MODE_HOOK_COMMAND)
+    hook.get("command")
+        .and_then(|v| v.as_str())
+        .is_some_and(|c| c.contains("context-hook antigravity-cli pretooluse"))
 }
 
 pub fn install_antigravity_context_mode_hook() {
@@ -267,12 +327,16 @@ pub fn install_antigravity_context_mode_hook() {
         OrderedMap::new()
     };
 
+    let (resolved_cmd, _) = toksi_command_ok(&["context-hook", "antigravity-cli", "pretooluse"]);
+    let hook_command = if resolved_cmd.is_empty() {
+        ANTIGRAVITY_CONTEXT_MODE_HOOK_COMMAND.to_string()
+    } else {
+        resolved_cmd
+    };
+
     let mut hook_cfg = OrderedMap::new();
     hook_cfg.insert("type".to_string(), Value::String("command".to_string()));
-    hook_cfg.insert(
-        "command".to_string(),
-        Value::String(ANTIGRAVITY_CONTEXT_MODE_HOOK_COMMAND.to_string()),
-    );
+    hook_cfg.insert("command".to_string(), Value::String(hook_command));
     hook_cfg.insert("timeout".to_string(), Value::from(10));
 
     let mut entry = OrderedMap::new();
@@ -291,7 +355,12 @@ pub fn install_antigravity_context_mode_hook() {
         Value::Array(vec![Value::Object(entry)]),
     );
 
-    cfg.insert("context-mode".to_string(), Value::Object(group));
+    cfg.shift_remove("context-mode");
+    cfg.shift_remove("toksi-context-mode");
+    cfg.insert(
+        ANTIGRAVITY_CONTEXT_GROUP.to_string(),
+        Value::Object(group),
+    );
 
     let next = stringify_json(&Value::Object(cfg));
     if next != raw {
@@ -307,7 +376,14 @@ pub fn remove_antigravity_context_mode_hook() {
     let Some(mut cfg) = try_parse_jsonc(&raw) else {
         return;
     };
+    let mut changed = cfg.shift_remove(ANTIGRAVITY_CONTEXT_GROUP).is_some();
     if cfg.shift_remove("context-mode").is_some() {
+        changed = true;
+    }
+    if cfg.shift_remove("toksi-context-mode").is_some() {
+        changed = true;
+    }
+    if changed {
         if cfg.is_empty() {
             let _ = fs::remove_file(&hooks_file);
             return;
@@ -1133,7 +1209,9 @@ fn filter_codegraph_index_entries(arr: &[Value]) -> Vec<Value> {
                 .and_then(|c| c.as_str())
                 .is_some_and(|s| {
                     s.contains("codegraph-hook agy")
+                        || s.contains("agy-hook codegraph-index")
                         || s.contains("context-mode hook gemini-cli")
+                        || s.contains("context-mode hook antigravity-cli")
                 })
         });
         if !drop_entry {
@@ -1247,6 +1325,7 @@ pub fn install_antigravity_projectmem_hook() -> bool {
         Value::Array(vec![Value::Object(hook)]),
     );
     cfg.shift_remove("toksi-projectmem");
+    cfg.shift_remove("projectmem-context");
     cfg.insert(
         ANTIGRAVITY_PROJECTMEM_GROUP.to_string(),
         Value::Object(group),
@@ -1279,10 +1358,14 @@ pub fn remove_antigravity_projectmem_hook() {
     let Some(mut cfg) = try_parse_jsonc(&raw) else {
         return;
     };
-    if cfg.shift_remove(ANTIGRAVITY_PROJECTMEM_GROUP).is_some() {
-        let _ = paths::write_file(&hooks_file, &stringify_json(&Value::Object(cfg.clone())));
+    let mut changed = cfg.shift_remove(ANTIGRAVITY_PROJECTMEM_GROUP).is_some();
+    if cfg.shift_remove("projectmem-context").is_some() {
+        changed = true;
     }
     if cfg.shift_remove("toksi-projectmem").is_some() {
+        changed = true;
+    }
+    if changed {
         let _ = paths::write_file(&hooks_file, &stringify_json(&Value::Object(cfg)));
     }
 }
@@ -1727,11 +1810,8 @@ fn antigravity_apply_process_env() {
     let u = antigravity_url();
     let cur = std::env::var(ANTIGRAVITY_PROXY_ENV_KEY).unwrap_or_default();
     if cur.is_empty() || cur == u {
-        // SAFETY: Toksi CLI updates process environment synchronously on main thread.
-        unsafe {
-            std::env::set_var(ANTIGRAVITY_PROXY_ENV_KEY, &u);
-            std::env::remove_var(ANTIGRAVITY_CLOUD_CODE_KEY);
-        }
+        toksi_sys::process::set_process_env(ANTIGRAVITY_PROXY_ENV_KEY, &u);
+        toksi_sys::process::remove_process_env(ANTIGRAVITY_CLOUD_CODE_KEY);
     }
 }
 
@@ -1750,16 +1830,13 @@ fn antigravity_clear_process_env() {
     let u = antigravity_url();
     for key in [ANTIGRAVITY_CLOUD_CODE_KEY, ANTIGRAVITY_PROXY_ENV_KEY] {
         if std::env::var(key).ok().as_deref() == Some(u.as_str()) {
-            // SAFETY: Toksi CLI updates process environment synchronously on main thread.
-            unsafe {
-                std::env::remove_var(key);
-            }
+            toksi_sys::process::remove_process_env(key);
         }
     }
 }
 
 fn antigravity_windows_user_env_compatible() -> bool {
-    if !paths::is_win() {
+    if !paths::is_win() || crate::tools::is_test() {
         return true;
     }
     let u = antigravity_url();
@@ -1775,7 +1852,7 @@ fn antigravity_windows_user_env_compatible() -> bool {
 }
 
 fn antigravity_write_windows_user_env() -> (bool, bool) {
-    if !paths::is_win() {
+    if !paths::is_win() || crate::tools::is_test() {
         return (false, true);
     }
     let u = antigravity_url();
@@ -1806,9 +1883,7 @@ fn antigravity_write_windows_user_env() -> (bool, bool) {
             let _ = crate::env_injector::windows::delete_env_reg_value(ANTIGRAVITY_CLOUD_CODE_KEY);
             changed = true;
         }
-        unsafe {
-            std::env::remove_var(ANTIGRAVITY_CLOUD_CODE_KEY);
-        }
+        toksi_sys::process::remove_process_env(ANTIGRAVITY_CLOUD_CODE_KEY);
 
         let marker_val = format!("proxy={}", mask);
         let _ = crate::env_injector::windows::set_env_reg_value(ANTIGRAVITY_WINDOWS_MARKER, &marker_val);
@@ -1824,7 +1899,7 @@ fn antigravity_write_windows_user_env() -> (bool, bool) {
 }
 
 fn antigravity_clear_windows_user_env() -> bool {
-    if !paths::is_win() {
+    if !paths::is_win() || crate::tools::is_test() {
         return false;
     }
     #[cfg(windows)]

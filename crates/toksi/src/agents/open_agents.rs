@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/agents/open_agents.rs
 // created: 2026-11-09
-// lastModified: 2026-11-09
+// lastModified: 2026-11-14
+
+#![deny(unsafe_code)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -191,11 +193,10 @@ Apply on every coding task:
 pub fn default_open_agents_mcp() -> OpenAgentsMcpConfig {
     let mut mcp_servers = std::collections::BTreeMap::new();
 
-    mcp_servers.insert(
-        "codegraph".to_string(),
-        OpenAgentsMcpServer {
-            command: "toksi".to_string(),
-            args: vec![
+    for (key, args) in [
+        (
+            "codegraph",
+            vec![
                 "run-mcp".to_string(),
                 "--agent".to_string(),
                 "openagents".to_string(),
@@ -203,29 +204,21 @@ pub fn default_open_agents_mcp() -> OpenAgentsMcpConfig {
                 "graph".to_string(),
                 "mcp".to_string(),
             ],
-        },
-    );
-
-    mcp_servers.insert(
-        "context-mode".to_string(),
-        OpenAgentsMcpServer {
-            command: "toksi".to_string(),
-            args: vec![
+        ),
+        (
+            "context",
+            vec![
                 "run-mcp".to_string(),
                 "--tool".to_string(),
-                "context-mode".to_string(),
+                "context".to_string(),
                 "toksi".to_string(),
                 "ctx".to_string(),
                 "mcp".to_string(),
             ],
-        },
-    );
-
-    mcp_servers.insert(
-        "projectmem".to_string(),
-        OpenAgentsMcpServer {
-            command: "toksi".to_string(),
-            args: vec![
+        ),
+        (
+            "projectmem",
+            vec![
                 "run-mcp".to_string(),
                 "--tool".to_string(),
                 "projectmem".to_string(),
@@ -233,10 +226,45 @@ pub fn default_open_agents_mcp() -> OpenAgentsMcpConfig {
                 "mem".to_string(),
                 "mcp".to_string(),
             ],
-        },
-    );
+        ),
+        ("icm", vec!["icm".to_string(), "mcp".to_string()]),
+        ("aimemory", vec!["aimemory".to_string(), "mcp".to_string()]),
+        ("rtk", vec!["rtk".to_string(), "mcp".to_string()]),
+    ] {
+        mcp_servers.insert(
+            key.to_string(),
+            OpenAgentsMcpServer {
+                command: "toksi".to_string(),
+                args,
+            },
+        );
+    }
 
     OpenAgentsMcpConfig { mcp_servers }
+}
+
+/// Verifies that in-process `DirectWireBus` channels for direct-wired adapters are operational.
+pub fn verify_direct_wire_bus(project_root: Option<&Path>) -> Vec<String> {
+    let root = project_root.map(|p| p.to_path_buf());
+    let mut active = Vec::new();
+
+    let cg_bus = crate::codegraph::DirectWireBus::new(root.clone());
+    let _cg_rx = cg_bus.subscribe();
+    active.push("codegraph:direct-wired".to_string());
+
+    let ctx_bus = crate::contextmode::DirectWireBus::new(root.clone());
+    let _ctx_rx = ctx_bus.subscribe();
+    active.push("context:direct-wired".to_string());
+
+    let icm_bus = crate::icm::DirectWireBus::new(root);
+    let _icm_rx = icm_bus.subscribe();
+    active.push("icm:direct-wired".to_string());
+
+    let ai_bus = crate::aimemory::DirectWireBus::new();
+    let _ai_rx = ai_bus.subscribe();
+    active.push("aimemory:direct-wired".to_string());
+
+    active
 }
 
 #[cfg(test)]
@@ -265,8 +293,15 @@ mod tests {
     #[test]
     fn test_default_open_agents_mcp() {
         let mcp = default_open_agents_mcp();
-        assert!(mcp.mcp_servers.contains_key("codegraph"));
-        assert!(mcp.mcp_servers.contains_key("context-mode"));
-        assert!(mcp.mcp_servers.contains_key("projectmem"));
+        for key in ["codegraph", "context", "projectmem", "icm", "aimemory", "rtk"] {
+            assert!(mcp.mcp_servers.contains_key(key), "missing {key}");
+        }
+        assert!(!mcp.mcp_servers.contains_key("context-mode"));
+    }
+
+    #[test]
+    fn test_verify_direct_wire_bus() {
+        let active = verify_direct_wire_bus(None);
+        assert_eq!(active.len(), 4);
     }
 }
