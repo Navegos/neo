@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 The code in Sources: neo/inspect-vault/TokenTracker, neo/inspect-vault/bifrost is updated; treat as newly added/updated code that must be converted, imported, and rechecked for new features, bugfixes, and telemetry metrics into consolidated toksi.
 
@@ -37,7 +37,7 @@ Requirements:
 3. Web Telemetry Cockpit (`crates/toksi/src/dashboard/`):
    - Detached background HTTP server on `127.0.0.1:9100` (`toksi dashboard start|stop|restart [--foreground]`).
    - Bundled futuristic SPA assets (HTML/CSS/JS) embedded via `include_str!` with exact 9 tabs above.
-   - Live SSE metrics feed broadcasting authentic token savings (configured-only agents & `<byok, model, effort>` profiles), clickable `.heatmap-cell` modal, OS Keyring (`gemini:antigravity` normalized), and real DB Export/Import/Backup/Restore.
+   - Live SSE metrics feed broadcasting authentic token savings (configured-only agents & `<byok, model, effort>` profiles), clickable `.heatmap-cell` modal, `skill-scanner` CEL/SARIF (Tab 5), `defenseclaw` fail-closed hookguard & audit evidence (Tab 6), interactive Plugin Manager `/api/plugins` (Tab 7), OS Keyring (`gemini:antigravity` normalized), and real DB Export/Import/Backup/Restore including `plugins_registry` (Tab 9).
 4. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 

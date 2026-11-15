@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 The code in Source: neo/inspect-vault/bifrost is updated; treat as newly added/updated code that must be converted, imported, and rechecked for new UI components, control panels, and dashboard widgets into consolidated toksi.
 
@@ -60,3 +60,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- dashboard` passes 100%.
 - `toksi dashboard --open` launches the server in the background and prints the local dashboard URL.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum
+- Mirror Wave 18 controls in `:9100` HTMX/Alpine Web Cockpit: live `tokview` effort/token telemetry, `openwiki` interactive CodeGraph architecture diagrams, `plan_checkpoints` pause/resume controls, `skill-scanner` CEL/SARIF + built-in 41-language static security findings (Tab 5), `defenseclaw` fail-closed guardrails & `/api/security/audit-evidence` + `sage` threat alerts (Tab 6), Interactive Plugin Manager `/api/plugins` + `agentskills` healer diff preview + Google Cloud ADC (`AGY_ADC_AUTH=true`) status badge (Tab 7), and `plugins_registry` SQLite DB export/import (Tab 9).

@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_16_3_OPEN_AGENTS_AND_README_VERIFICATION.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_16_3_OPEN_AGENTS_AND_README_VERIFICATION.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 The code in Sources: neo/inspect-vault/agents-structures, neo/inspect-vault/tokless is updated; treat as newly added/updated code that must be converted, imported, and rechecked for new directory layouts, agent schemas, and protocol compliance into consolidated toksi.
 
@@ -33,9 +33,9 @@ Requirements:
    - Purge legacy `toksi-*` / `tokless_*` / `agy-hook codegraph-index` / `rtk hook cursor` references and auto-merge nested subfolder `.<agent>/` / `.toksi/` dirs.
    - Lifecycle management operations via CLI (`toksi agent ...`), TUI, and Web Dashboard: `install`, `health`, `mismatch`, `upgrade`, `fix`, `restore`, `remove`, `edit`.
 2. Comprehensive Technical README (`crates/toksi/README.md`):
-   - Unified 7-port network architecture (`:8787`, `:8788` Grok, `:8789`/`:8790` Copilot, `:18787` BYOK, `:9099` Gateway, `:9100` Cockpit).
-   - `~/.toksi/config.toml` reference & `toksi daemon|proxy|dashboard start|stop|restart --agents` CLI control.
-   - Native `toksi chat|run|exec|swarm` coding CLI (`src/agent_runtime/`), `DirectWireBus` (`direct-wired`), and 10 in-chat slash commands (`/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`).
+   - Unified 8-port network architecture (`:8787`, `:8788` Grok, `:8789`/`:8790` Copilot, `:9098` Protocol Bus, `:9099` Gateway, `:9100` Cockpit, `:18787` BYOK w/ Google Cloud ADC `AGY_ADC_AUTH=true`), **13** slash commands (incl. `/security`, `/plugin`, `/resume`), `src/plugins/` Unified Plugin System (`toksi plugin`, `plugins_registry`), `<enforce>` skills/security guard (`defenseclaw` + `skill-scanner`), `agentskills` YAML healer, and all **67** audited vaults (`36` + `31` Wave 18).
+   - `~/.toksi/config.toml` (`[plugins]`, `[security]`) reference & `toksi daemon|proxy|dashboard start|stop|restart --agents` CLI control.
+   - Native `toksi chat|run|exec|swarm|plugin|security|agent resume` coding CLI (`src/agent_runtime/`), `DirectWireBus` (`direct-wired`), and **13** in-chat slash commands (`/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/plugin`, `/resume`).
    - 65/90+ Categories 1–5 + 22 local engines, multi-instance `<byok, model, effort>` routing, **zero paid-tier restrictions**, read-only quota windows, and mandatory Headroom BYOK optimization.
    - 41+ Tree-sitter languages, strict `<repo>/.toksi/<tool>` repo-only storage, monorepo subproject partitioning, `.gitignore`/`.ignore` dynamic purge, and 9-tab TUI/Web parity.
    - Complete CLI command reference (`--help` matched 1:1) and `.toksi/test-baseline.json` incremental verification guide.

@@ -2,9 +2,9 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
-Always treat all 36 reference vaults in neo/inspect-vault/* — especially TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt, plus Wave 17 agentic vaults (hermes-agent, openclaw, openclaw-rs, mofa, mofa-engine, mofaclaw, codex, crustly, crush, goose, grok-build, gemini-cli, crewAI) — as active code to inspect, fix bugs in, and wire cleanly into consolidated toksi.
+Always treat all 67 reference vaults in neo/inspect-vault/* — the 36 Waves 1–17 vaults (including TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt, hermes-agent, openclaw, openclaw-rs, mofa, mofa-engine, mofaclaw, codex, crustly, crush, goose, grok-build, gemini-cli, crewAI) plus the 31 Wave 18 vaults bridged in PHASE_18_1..PHASE_18_3 (including defenseclaw and skill-scanner) — as active code to inspect, fix bugs in, and wire cleanly into consolidated toksi.
 
 Execute Phase 15.6: Advanced Vault Intelligence Engines Consolidation.
 Sources:
@@ -66,3 +66,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- codegraph` and `cargo test -p toksi -- telemetry` pass 100%.
 - Structural AST searches using ast-grep patterns match targeted functions accurately.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum
+- Incorporate Wave 18 data/wiki/observability vaults (`lance`, `openwiki`, `tokview`, `langfuse`), security/governance engines (`defenseclaw`, `skill-scanner`), Unified Plugin System (`src/plugins/`), and agent frameworks (`langgraph`, `langchain`, `langflow`, `deepagents`, `bosun`, `Codewhale`, `cline`, `kilocode`, `alphacode`, `zeroclaw`, `agent-control`) into native Rust adapters (`PHASE_18_1` / `PHASE_18_2`), maintaining 100% parity across all 67 audited vaults.

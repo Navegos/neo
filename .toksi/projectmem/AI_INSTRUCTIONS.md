@@ -8,7 +8,7 @@ This file is stable operating guidance. Do not rewrite it unless the user asks o
 
 ## Start of every session
 
-**Step 1 — Identify your mode by reading `.projectmem/summary.md` and `.projectmem/PROJECT_MAP.md`.**
+**Step 1 — Identify your mode by reading `.toksi/projectmem/summary.md` and `.toksi/projectmem/PROJECT_MAP.md`.**
 
 - **Setup Mode** — `summary.md` and/or `PROJECT_MAP.md` still contain the **placeholder text** from `pjm init`.
 - **Maintenance Mode** — `summary.md` AND `PROJECT_MAP.md` contain real project content.
@@ -17,10 +17,10 @@ This file is stable operating guidance. Do not rewrite it unless the user asks o
 
 | File | MCP tool | Purpose |
 | --- | --- | --- |
-| `.projectmem/AI_INSTRUCTIONS.md` | `get_instructions()` | Workflow rules (this file) |
-| `.projectmem/summary.md` | `get_summary()` | Distilled project memory (what HAPPENED) |
-| `.projectmem/PROJECT_MAP.md` | `get_project_map()` | Structural layout |
-| `.projectmem/plan.md` | `get_plan()` | Ideas + plans (what we INTEND to do) |
+| `.toksi/projectmem/AI_INSTRUCTIONS.md` | `get_instructions()` | Workflow rules (this file) |
+| `.toksi/projectmem/summary.md` | `get_summary()` | Distilled project memory (what HAPPENED) |
+| `.toksi/projectmem/PROJECT_MAP.md` | `get_project_map()` | Structural layout |
+| `.toksi/projectmem/plan.md` | `get_plan()` | Ideas + plans (what we INTEND to do) |
 
 Prefer the MCP tools when available — they're cheaper than reading files individually (the summary is a bounded snapshot, a few hundred tokens on a young project and a few thousand on an aged one) and they auto-resolve the project root regardless of your working directory.
 

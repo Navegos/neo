@@ -1,52 +1,87 @@
-/plan replan, investigate. research, implementing, converting, missing features, addons, extende, enhances, addons, updates, agents. tools, skills, bug fixes, the master plan (# Toksi Native Consolidation Master Architecture Plan) to crates/toksi/CONSOLIDATION_PLAN.md
+/plan replan, investigate. research, implementing, converting, disciplinar and coding standards, conventions, security, portability, missing features, addons, extende, enhances, updates, agents. tools, skills, bug fixes, the master plan (# Toksi Native Consolidation Master Architecture Plan) to crates/toksi/CONSOLIDATION_PLAN.md
 the term <byok providers> means all byok agent's provider and all byok cloud, local and gateway providers.
 the term <repo> means a folder with <repo>/.git/ git (folder and files structure).
 the term <etc's> means everithing else we need, for wath we talking in the text line its added, new features, enhances and addons implementatins are important also.
 the term <detail's> means a full extensive, thecnicall and better detailed, for wath we talking in the text line its added.
-Read <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.projectmem/plan.md, <repo>/.projectmem/PROJECT_MAP.md, <repo>/.projectmem/summary.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, <etc's>.
-We need a disciplinar and coding standards and conventions, portability (windows, linux, macos), all tasks are important and must be detailed for the agent's workers get the jobs done and technically correct.
-Descipline and organize the correct structured way to apply the plans.
-neo\inspect-vault\tokless					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\bifrost					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\headroom					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\rtk						allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\context-mode				allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\codegraph					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\projectmem				allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\ai-memory					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\icm						allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\ponytail					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\caveman					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\andrej-karpathy-skills
-neo\inspect-vault\TokenTracker				allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\jcodemunch-mcp			allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\repomix					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\ast-grep					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\scip						allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\mem0						allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\chroma					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\litellm					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\TokenEconomizer			allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\agent-opt					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\grok-build				allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\codex				    	allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\crush					    allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\crustly					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\goose					    allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\hermes-agent			    allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\openclaw					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\openclaw-rs				allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\mofaclaw					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\mofaclaw					allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\mofa					    allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\mofa-engine				allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\gemini-cli				allways treat this folders as new code added and we need to research, convert, import, implement.
-neo\inspect-vault\crewAI				    allways treat this folders as new code added and we need to research, convert, import, implement.
+the term <enforce> means we must enforce security in our coding standards, all code, skills, script's, command', file's, must be in our repo distribution, security analyzed and cleanned for malicious and bad code.
+Read <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, <etc's>.
+repair in plans files for .projectmem/*.md legacy folder structure, now its in <repo>/.toksi/projectmem/ folder structure, import and merge folders and files, deleting generic folder structures after all.
+We need a disciplinar and coding standards, conventions, security, portability (windows, linux, macos), all tasks are important and must be detailed for the agent's workers get the jobs done and technically correct, and without exposing security risk's to all agent's and user's.
+Descipline and organize, reorganize, the correct structured way to apply the plans, if the plan it's as a large plan for (researching, implementating, study, converting, fixing, testing) that can burn tumuch time to finish lets distribute work across multiple plans.
+
+neo\inspect-vault\tokless					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\bifrost					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\headroom					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\rtk						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\context-mode				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\codegraph					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\projectmem				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\ai-memory					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\icm						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\ponytail					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\caveman					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\TokenTracker				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\jcodemunch-mcp			allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\repomix					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\ast-grep					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\scip						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\mem0						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\chroma					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\lance						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\agent-client-protocol		allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\litellm					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\TokenEconomizer			allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\tokview					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\agent-opt					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\agent-control				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\sage						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\grok-build				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\codex				    	allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\codex-security			allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\crush					    allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\crustly					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\goose					    allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\hermes-agent			    allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\openclaw					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\openclaw-rs				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\mofaclaw					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\mofaclaw					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\mofa					    allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\mofa-engine				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\python-genai				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\python-aiplatform			allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\gemini-cli				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\crewAI				    allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\langgraph					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\langchain					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\langfuse					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\langflow					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\deepagents				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\openwiki					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\bosun						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\Codewhale					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\cline						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\kilocode					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\alphacode					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\zeroclaw					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\research-securety-skills	allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\deepsec					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\agent-skills				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\openagent-skills			allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\osv-scanner				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\semgrep					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\semgrep-rules				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\defenseclaw				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\skill-scanner				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
+neo\inspect-vault\andrej-karpathy-skills	skills to research and import. <enforce>
+neo\inspect-vault\openclaw-agent-skills		skills to research and import. <enforce>
+neo\inspect-vault\agentskills				skills to research and import. <enforce>
+
 if in the code from neo\inspect-vault\* list above as new and updated code we must inspect, convert, import, implement to the consolidated toksi, allways research for updates, new features, addons, new agents, bugfixes, <etc's>, in the code from neo\inspect-vault\* list above.
-Our real plan to implement a smart performant unified, (one daemon launch and its all ready to use, agent,proxy,gateway,loadbalancer,memory,tools,skills,toking savings <etc's>), tokless -> (toksi), bifrost, context-mode, codegraph, headroom, projectmem, ai-memory, icm, rtk, caveman, ponytail, andrej-karpathy-skills, TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt, in rust code. Please check all implementation for broken code or features not implemented or updated code and implement.
-And our real plan to implement our real full coding cli agent with all possible and full extensive features of all agents, toksi agent, unified with all tools and code, that can agent to agent, command, stream chats,messages agent to agent, multi-agent automation, <etc's>, <detail's>.
-Toksi its nor only a toking saving, its also an agent with all tools and features implemented, <etc's>, <detail's>.
-Research every implementation for every neo\inspect-vault\* dir that we are implementing or converting, for missing features, addons, extendes, enhances, updates, agents, bug fixes, news, <etc's>.
+Our real plan to implement a smart performant unified, (one daemon launch and its all ready to use, agent,proxy,gateway,loadbalancer,routing,memory,tools,skills,security,toking savings <etc's>), tokless -> (toksi), bifrost, context-mode, codegraph, headroom, projectmem, ai-memory, icm, rtk, caveman, ponytail, andrej-karpathy-skills, TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt, in rust code. Please check all implementation for broken code or features not implemented or updated code and implement.
+And our real plan to implement our real full coding cli agent with all possible and full extensive features of all agents, toksi agent, unified with all tools and code, that can agent to agent, command, stream chats,messages agent to agent, multi-agent automation, <etc's>, <detail's>, <enforce>.
+Toksi its not only a toking saving, its also an agent with all tools and feature's , unified, implementation's, from neo\inspect-vault\* (agent's), we are unifing all agent's in one toksi agent, if duplicated code, chat command's, skills, research the functional unification consilidation. toksi agent dont use chat's command's /agent_name command, it uses the unified chat command /<command> in toksi chat, <etc's>, <detail's>, <enforce>.
+Research every implementation for every neo\inspect-vault\* dir that we are implementing or converting, for missing features, addons, extendes, enhances, updates, agents, bug fixes, news, security's, <etc's>, <enforce>.
 neo\inspect-vault\agents-structures examples for agent's folders structures, mcp, hooks, settings configurations, .json, .toml, <etc's>.
 We must Extende Tree-sitter parsers support with: Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, C#, Kotlin, Scala, PHP, Ruby, Swift, Zig, Elixir, Erlang, OCaml, Haskell, Lua, Julia, HTML, CSS, SCSS, TSX, Vue, Svelte, GraphQL, Bash, Dockerfile, HCL, Nix, Make, CMake, JSON, YAML, TOML, Protocol Buffers, SQL, Markdown, LaTeX.
 Agentic CLI & Bridge Providers: Bifrost CLI (Maxim AI agent-to-gateway bridge), Claude Code (Anthropic), Codex CLI (OpenAI), Gemini CLI / Antigravity CLI (Google), Aider, Goose (Block / Linux Foundation), Kilo CLI, OpenCode, Qwen Code (Alibaba Cloud), Grok Build (xAI), GitHub Copilot CLI, Amazon Q Developer CLI, Warp AI / Agentic Terminal, Mentat, Plandex, Crush, Devika, OpenHands CLI (OpenDevin), SWE-agent, GPT-Engineer, and Shell-Genie.
@@ -54,7 +89,7 @@ Agentic LSP & Protocol Providers: Continue.dev (Continue LSP sidecar & daemon), 
 Agentic Editors & IDE Providers: Cursor (Anysphere), Windsurf / Cascade (Cognition / Codeium), GitHub Copilot Workspace & Agent Mode (Microsoft / GitHub), Void Editor, Zed (Zed AI with Anthropic / Ollama / Assistant mode), Trae (ByteDance), Replit Agent (Replit), Positron AI (Posit), PearAI, Melty, and Amazon Q Developer for JetBrains & VS Code.
 Agentic Service & Platform Providers: Cognition AI (Devin), Factory AI (Code Droids), All-Hands AI (OpenHands Cloud), Augment Code, Magic.dev, Poolside AI, Sweep AI, CodeRabbit, Qodo (formerly CodiumAI), Grit.io, Poolside, Ellipsis, and GitHub Copilot Agent HQ.
 Agentic Proxy, Gateway & Router Providers: Bifrost (Maxim AI high-performance LLM/MCP/agent gateway), OpenRouter, Portkey, LiteLLM Proxy, Cloudflare AI Gateway, Helicone, Martian, Vercel AI Gateway, BerriAI, APIClaw, Langfuse, and Unify AI.
-Research extende the providers and agent's with the above Agentic list.
+Research and extende the providers and agent's with the above Agentic list.
 We gonna use forward slashes / and stop using backward slashes(\\) for all directories windows or unix, because git bash fails, lets be git friendly, for JavaScript / TypeScript / Node.js Python (hook,mcp) JSON5 / TOML requiring \\ like in config's hooks.json commands: the cmd commands its the default \\ double backward slashes C:\\Programs\\neo\\bin\\toksi.exe.
 The binaries needed (command's|process's, bash's, cmd's, toksi, tool's, agents-cli's, <etc's>'s) for settings saved in (.db .json, <etc's>) for (agents, tools, cli's, ide's), and that we needed to launch (command's|process's, bash's, cmd's, toksi, tool's, agents-cli's, <etc's>), they must be present in Env Path, we gonna test wath we need for the time, and if not found in Env Path, inform user the needed (command's|process's, bash's, cmd's, toksi, tool's, agents-cli's, <etc's>) and inform user do add to the Env Path and to retry again, we don't want to encode the full paths everywhere, we want to be portable everywhere, so using Env Path and just calling the process name (rule of test and inform user).
 The toksi.db we gonna store-it by default in users/.toksi and not in localdata/toksi.
@@ -63,7 +98,7 @@ Update <repo>/crates/toksi/README.md with all thechnical help, uses, config's, a
 Making the tui and web-ui dashboard the most beautiful and with (mouse capabilities like click <etc's>), with all thecnical features, config's, detailed agent observations (for each agent provider and all), detailed realistics agent toking savings/uses/quotas for each agent provider and all gateway/routings/loadbalencer/providers, config's, all config's, management, we need performance, capabilities, and beautiful ui, <etc's>.
 add bifrost also to the BYOK Providers if we need code in neo\inspect-vault\bifrost has all the info.
 if we are missing some BYOK Providers, please study how to adding to our BYOK Providers.
-the LLM routing gateway,loadbalancer, only start working if we have one BYOK Provider configured, and do not fails or bugs, if we are only using an agent launched from the agent cli like agy.exe or copilot.exe <etc's>, we can also add the agent cli to the byok providers as, smart lauch agent cli in the background, wen the agent cli is properly authenticated and chat messages reachable.
+the LLM routing gateway,loadbalancer, only start working if we have one BYOK Provider configured, and do not fails or bugs, if we are only using an agent launched from the agent cli like agy.exe or copilot.exe <etc's>, we can also add the agent cli to the byok providers as, smart lauch agent cli in the background, when the agent cli is properly authenticated and chat messages reachable.
 the web-ui dashboard, can run in the background to not block the terminal window, like the toksi dashboard.
 the detailed realistics agent toking savings/uses/quotas/mem are tracked from the current agent or byok we are using and not some virtual adress, this must be real agent quota uses and tracking, the toking saving uses most come from the current connected chat session, this must be real and not a virtual mathematical processing.
 toksi tui, dashboard, its counting Tokens Savings without none of agent's or gateways are working, we need performance, capabilities, beautiful ui, and a fidign counting and ratings <etc's>, we imperative and important to get a realistic and fedign count stats and tokings savings without costs or more tokens wastes, gettings its stats by using the agent ai channel we must use ai api to get free no costly uses.
@@ -78,21 +113,75 @@ Smart background launch starts CLI bridge when authenticated via OS Keyring/sess
 We need to fix tools hocks and mcp config names from toksi-projectmem, toksi-context-mode, toksi-codegraph-index, to projectmem, context, codegraph.
 The hocks command from example: agy-hook codegraph-index to codegraph-hook agy all tools and cli/agents/ides with same standards.
 If we need to differentiate the agent cli from agent editor, please add the same standards, example: antigravity;agy;antigravity-ide, copilot-cli;copilot-vscode, <etc's>.
-The mcp instructions dirs example: from context-mode to context.
+Simplify namings conventions ofr tools commands, mcp instructions, dirs, example: from context-mode to context.
 In the workspace|repository dir structure, only has .toksi in the first workspace|repository dir, and if in subfolders or and crates/crate1 <etc's> the .toksi folder its imported to the first repository workspace|repository dir, and if already has contents the contents are merged (important the .db most be carefully merged), and old legacy .toksi folder deleted.
 The .codegraph, .headroom, .projectmem, .context-mode, .icm, .ai-memory, .rtk, must be inside the .toksi folder, in users/ dir and workspace/|repository/ dir, and if in subfolders or and crates/crate1 <etc's> the .codegraph .projectmem folder its imported to the first repository workspace|repository dir .toksi/*.toolname.
 In the workspace|repository dir structure its only created and used at .claude, .cursor, .vscode, .grok, .cline <etc's> in the first workspace|repository dir, if toksi creates|uses this dir, its in the first workspace|repository dir.
 The agent hooks, mcps, instructions, rules, skills, config's, are auto installed (install|health|missmatch,upgrade|fix|<etc's>) to the /user/.agents_dir/ if selected for install, the user can select wath to install (agent hooks, mcps, instructions, rules, skills, config's, <etc's>), and managed with cli, tui, web-ui dashboard, and individually (manage, edit, inspect errors, reinstall, remove, install, health, missmatch, upgrade, fix, restore, <etc's>), and to install in to the workspace|repository its not automatically installed and its only installed if the user selects to installs later on.
 All code imports, converts, must use standards and conventions, and marked in plans the standards conventions renamings <etc's>.
 toksi process as high latency and hangs, we need performance and capabilities.
-toksi bugs wen network reconnects, some way to fix using reloading network connection or reloading toksi, network reconnections puts toksi in a dorment state and agent's cant read toksi network after network error or reconnection.
+toksi bugs when network reconnects, some way to fix using reloading network connection or reloading toksi, network reconnections puts toksi in a dorment state and agent's cant read toksi network after network error or reconnection.
 we gonna research that tools agent's like mcp tools, that saves the instructions and json setings to the folder structure in example (user|repository workspace dir) in example: (.gemini/antigravity/mcp or .copilot/mcp or .claude/mcp or .agents/mcp) are saved and used in example: (.gemini/antigravity/skills or .copilot/skills or .claude/skills or .agents/skills).
 we gonna use .gitignore or .ignore, to ignore content, for the crucial optimization of code base files and folders in the vector db content memory indexing, to hide artifacts or vendor bundles from the LLM, prevents massive directories from overwhelming the codebase vector search embedding cache, makes effect in the integrated tools like ai-memory, icm, codegraph, context-mode, projectmem, the .gitignore or .ignore content added later can remove the already indexed content in the vector content memory db and purging of the ignored content in the vector db content memory embedding cache.
+adapt toksi token optimization's with thinking efforts, High, Medium, Low,
+adapt google cloud ADC authentication for google cloud AI Platform Enterprise Services login where env AGY_ADC_AUTH=true enables agy to use Antigravity in Gemini Enterprise mode. the user cand add as byok gateway. the user must configure right for usage like: vscode need's "gcp.project": "GCP_PROJECT", "gcp.location": "region" and gcloud auth application-default login --project GCP_PROJECT.
+we must include all needed skills in our repo for distribution and if needed to install to agents skills, the propose to have a secure and pree-ready to use skills without exposing security risk's to all agent's and user's.
+we must research if no skills are duplicated, overwrites each other, blok's each other, that skills.md are an agentskills correctly yaml formatting, if some of the skills are incorrectly formatting it heals the skills.md yaml formatting.
+Like in Tree-sitter parsers languages types, We must implement in toksi an static code security analysis helper tool for all know languages, scripts, actions, it's responsible to comunicate with toksi agent for security flaw's when agent ask's for code analysis. We can use language analysis tools also like rust-analyzer, gopls, clang-tidy. But most important implement our won analysis tool.
+we must implement a safe prompt's or plan mechanism, error's, fail's to finish, if the plans errors or agent fails to finish the plan, or because network disconnect or agent usage rate limits ends, we must save the already work done with the current chat in projectmem and plan, to later in other chat we can recontinue the unfinished plan.
+we are implementig a plugin system for toksi load and gets new features or addons right on toksi agent, commands, tools, chats commands, agents wires hooks (MCP, A2A, ACP, stdio, SSE, HTTP), agent to agent, <etc's>, <detail's>, <enforce>.
+
+genial and add all plans to (# Toksi Native Consolidation Master Architecture Plan) to <repo>/crates/toksi/CONSOLIDATION_PLAN.md
+write me the Prompt for each new phase please, (# Toksi Native Consolidation Master Architecture Plan), maintaining knowledge, observability and capability of the full master planing.
+all chats must know our full <repo>/crates/toksi/CONSOLIDATION_PLAN.md to not lose knowledge, observability and capability of the full master planing.
+the <repo>/crates/toksi/CONSOLIDATION_PLAN.md must contain everithing and be the technical detailed master PLAN, where the detailed ### Phase (numbers), defined with all the technical plan structured and detailed for the jobs to do.
+in the <repo>/.agents/brain/*.md (we have an index guide (INDEX_AND_EXECUTION_GUIDE.md)) where we devide Phases (per file) -> (PHASE_01_RTK_FILTER_ENGINE.md, PHASE_02_PROJECTMEM_PURE_RUST.md, <etc's>...) the detailed ### Phase (number), defined with all the technical plan structured and detailed for the jobs to do for the Phase (number), with the ready to run prompts, we must reedit each one forcefully.
+save, change, edit, reedit, modify, update, all plans in <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, <repo>/.agents/brain/*.md, do not use folders plans outside of workspace dir like users/.gemini/antigravity/brain
+In CONSOLIDATION_PLAN, please organize the Phases, and write me the Prompt for each one in <repo>/.agents/brain/*.md.
+in the <repo>/.agents/brain/*.md forcefully update all files plans disciplinarly, consistently, structured and organized.
+the next plan files needs to be reedited and updated according ou plans, (INDEX_AND_EXECUTION_GUIDE.md, PHASE_01_RTK_FILTER_ENGINE.md, PHASE_02_PROJECTMEM_PURE_RUST.md, PHASE_03_CONTEXTMODE_PURE_RUST.md, PHASE_04_ICM_AND_AIMEMORY.md, PHASE_05_CODEGRAPH_PURE_RUST.md, PHASE_06_IN_TREE_RULES_AND_skills.md, PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md, PHASE_08_DOWNLOADER_PURGE.md, PHASE_09_LEGACY_HEALING_UNHIJACK.md, PHASE_10_NON_DESTRUCTIVE_ENV_INJECTION.md, PHASE_11_AGENT_DOCTOR_SELF_HEALING.md, PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md, PHASE_13_E2E_VERIFICATION_BENCHMARKS.md, PHASE_14_KEYRING_AND_CONFIG_SQLITE_DB.md, PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md, PHASE_15_2_UNIFIED_5_PORT_DAEMON.md, PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md, PHASE_15_4_MULTI_PROTOCOL_AND_IGNORE_PURGE.md, PHASE_15_5_TOKEN_ACCOUNTING_AND_NETWORK_HEALING.md, PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md, PHASE_16_1_MOUSE_CAPABLE_TUI.md, PHASE_16_2_WEB_COCKPIT_DASHBOARD.md, PHASE_16_3_OPEN_AGENTS_AND_README_VERIFICATION.md).
+we add, edit, reedit, modify, import, convert, update, extend, fix, all things correctly, you are a technical and professional multitasks developer.
+
+We are enabling toksi to have a toml config file, in user/.toksi/config.toml. like enabling the user to change all ports adresses and <etc's>.
+We are adding to config.toml the agent the user wants to set by for toksi proxy|daemon up|start|restart --agents
+We are adding to toksi dashboard stop start restart, to toksi proxy down up|restart --agents
+We are adding to toksi daemon stop start|restart --agents
+We are adding to config.toml the byok agent's (cli|ide|inprocess) providers to be used.
+We are adding to config.toml the byok cloud or gateway providers to be used.
+We are adding to config.toml the byok agent's (cli|ide|inprocess) to wire HOOKS, MCP, A2A, ACP, stdio, SSE, HTTP.
+We only wire, use and show byok agent's (cli|ide|inprocess) providers, if correctly configured, and it was selected and configured by the user.
+We only use and show byok gateway providers, if correctly configured, and it was selected and configured by the user.
+In config.toml the <byok providers> configured, allow user to change the ai api adress's.
+all providers api key's must be set in db, and also in db we can add edit update modify all <byok providers> configured to use. This can be done from the cli, tui, dashboard, chat commands.
+In config.toml and db allow the <byok providers> configuring, allow user to set the default ai model (and thinking effort if provider and ai model its compatible for think effort), so each byok provider configured before can be configured with model and think effort. This can be done from the cli, tui, dashboard, chat commands.
+all <byok providers> configured, must pass to the proxy headroom token optimizer, and all available tools also, we are omptimizing all agents and <byok providers>.
+we are removing restrictions for PAID qualified agent BYOK rotation, from the code and everywhere. the user its free to add the agent's thath works and acessible, configured in the system and configured in the toksi settings config's.
+if we can hook directly to the agent (cli|ide|inprocess) for the (MCP, A2A, ACP, stdio, SSE, HTTP) without the need to wire the (MCP, A2A, ACP, stdio, SSE, HTTP) in the agent's config's, we can get better performance, and toksi can work as as agent to agent commands/messages/<etc's>, the agent (cli|ide|inprocess) can be marked as direct wired, but the user can also wire in the agent's config's () but inform user.
+toksi must provide the capability to get the ai model's available in the byok agent's (cli|ide|inprocess) providers and byok gateway providers, the toksi proxy system get agent type cabalitities as (agent to agent commands, chat, message's processing, <etc's>), and capability for the user select with chat /byok (list of byok's) /model (list of model's for the selected byok) /effort (list of efforts for the selected model) (the user must select the byok first than the model thant effort), or /byokmodel <byok> <model> <effort> (if <effort> its not compatible with the model its ignored), and sets the (agent (cli|ide|inprocess) provider) the (byok agent's providers) and or (byok providers gateway) and the toksi settings, with the model and effort the user wants to use for the byok and or agent. like toksi kooked to agy and typing this commands in agy chats runs the implemented commands dirfectly fast performante without hangs or aborts or infinity loops, chat commands used by user /byok /model /effort or /byokmodel sets the db to be used later by gatway and routing, <etc's>, <detail's>.
+capability for /projectmem /context /codegraph /icm /ai-memory /rtk <etc's> all chat commands we need for a smart unified toksi agent type cabalitities (agent to agent commands, chat, message's processing, <etc's>), like toksi kooked to agy and typing this commands in agy chats runs the implemented commands dirfectly fast performante without hangs or aborts or infinity loops.
+we are changing the toksi tui and dashboard web-ui for a futuristic, modern, beautiful and performance ui. Must have all config's, must be technically naming conventions, must show the agent and <byok providers> that its correctly configured in toksi, toksi must not use other agent cli or byok that its not configured by the user.
+in the TUI dashboard web-ui, rename Waterfall & Savings to Savings were must be a detailed list for the configured agents and <byok providers>, token savings, individually token savings an overal savings, tokens used, implemented tools compressions and savings, prompt savings, prompt reductions, <etc's>, <detail's>.
+in the TUI dashboard web-ui, The War Room needs <detail's>, for agents implemented tools, <etc's>, <detail's>.
+in the TUI dashboard web-ui, rename Agent Fleet to AI Agent Fleet & Quotas, here, show all agent's available in toksi, if found the user can procede with config if not found show as graied (the user adding the agent to the path can proceed), the user can wire unwire, see the plans the user its using (if the ai agent api allows this), see quotas and detailed uses times hour day week month year (from the ai agent api), <etc's>, <detail's>.
+in the TUI dashboard web-ui, Memory Decision DAG, needs to work properly, for its uses in agent's, its erros, its sucess's, Subsystem Failure Heatmap also cliking dont do nothing we cant see the problems, <etc's>, <detail's>.
+in the TUI dashboard web-ui, CodeGraph Explorer, needs to work properly, <etc's>, <detail's>.
+in the TUI dashboard web-ui, Sandbox Insperctor, needs to work properly, <etc's>, <detail's>.
+in the TUI dashboard web-ui, System Controls, <etc's>, <detail's>.
+in the TUI dashboard web-ui, AI Gateway & Quotas, needs to work properly, the Dynamic Complexity Routing & Algorithm must be configured indevidually for each agent and <byok providers> <byok, model, think effort>, and allow the user to configure the same byok multiple times with different model's (this allow the user to use other models in rounting, some byok's as different and separated quotas for different models), here we can use <byok><models><effort> already setted in configs or db, <etc's>, <detail's>.
+in the TUI dashboard web-ui, Keyring & Database, Keyring must only the key used by the configured agent's and the service name its wrong for example antigravity key name its gemini:antigravity so this its broken and badly implemented, also Toksi Configuration SQLite DB must allow to export db and import db directly, <etc's>, <detail's>.
+The codegraph, projectmem, context, icm, ai-memory, that are in workspace <repo>/.<tool> and they must be in the folder <repo>/.toksi/<tool> and not in the <user>/.toksi/<tool>
+The codegraph, projectmem, context, icm, ai-memory, idexes only the <repo> an taking account for the .gitigonre and .ignore., no other content outside the <repo> structure its indexed. so if agent (cli|ide|inprocess) its working in <repo> only the contents inside the <repo> its indexed. if agent (cli|ide|inprocess) its working in other folder thats its not a <repo> we are no indexing its contents. And obviously we are not indexing the <repo>/.git folder but the contents inside <repo>/ allwaiys taking account .gitignore and .ignore.
+in the prompt for the plan execution where all test that already run and confirmed working don't need to rerurn, if the code for the afected for the tests type are not changed or unaffected code path.
+The codegraph, projectmem, context, icm, ai-memory, lives inside the root <repo> example <repo>/.toksi/<tool>, we dont need to create .toksi/<tool> inside subfolders or rust crates folders only the <repo>/.toksi/<tool> its enough for all repo aware, we dont need to create agents folders inside subfolders or in the rust crates folders root <repo>/.<agent> its enough for all repo aware, if the subfolder or rust crates folder as this elements please mergeit to the root <repo>/.toksi/<tool> or <repo>/.<agent>.
+The codegraph, projectmem, context, icm, ai-memory, rtk, and all tools must be multi-project aware inside <repo>, like rust can have multi projects like <repo>/crates/project<1,2,3,4,5>/, and capable tho destingish and evaluate individually all projects inside <repo>, if we have files that leave outside of <repo>/.toksi/<tool> please merge to here to be used by the tools.
+read @crates/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_and_quota_architecture.md for <byok providers>, Comprehensive Reference: AI Providers, Local Inference Engines, Agent Ecosystems, Protocols, and Quota Enforcement Architecture.
+Research the implementation of toxi and tools for each agent, Agentic CLI & Bridge Providers, Agentic LSP & Protocol Providers, Agentic Editors & Native IDE Providers, Agentic Service & Cloud Platform Providers, Agentic Proxy, Gateway & Router Providers.
+
 Folder structure for config's, json, settings, mcps, skills, rules, <etc's>:
 This folders structures are the default knowledge for the folder structure used by the known cli/agents/ides.
 
 .agents Protocol
-An open directory convention for AI agent configuration. One place for MCP tools, AGENTS.md instructions, Skills, Sub-Agents, Tasks, Memories, and model config — in plain, version-controllable files.
+An open directory convention for AI agent configuration. One place for MCP tools, AGENTS.md instructions, skills, Sub-Agents, Tasks, Memories, and model config — in plain, version-controllable files.
 
 	Open standard agent's folder, The .agents/ folder is a standardized, vendor-agnostic directory convention used to store AI agent configurations, guidelines, skills, and memory in a project.
 
@@ -693,51 +782,4 @@ CATEGORY 3: AGENTIC EDITORS & IDE PROVIDERS
   - onInlineAccepted            : Inline code suggestion accepted
   - onInlineRejected            : Inline code suggestion rejected
 ================================================================================
-
-genial and add all plans to (# Toksi Native Consolidation Master Architecture Plan) to <repo>/crates/toksi/CONSOLIDATION_PLAN.md
-write me the Prompt for each new phase please, (# Toksi Native Consolidation Master Architecture Plan), maintaining knowledge, observability and capability of the full master planing.
-all chats must know our full <repo>/crates/toksi/CONSOLIDATION_PLAN.md to not lose knowledge, observability and capability of the full master planing.
-the <repo>/crates/toksi/CONSOLIDATION_PLAN.md must contain everithing and be the technical detailed master PLAN, where the detailed ### Phase (numbers), defined with all the technical plan structured and detailed for the jobs to do.
-in the <repo>/.agents/brain/*.md (we have an index guide (INDEX_AND_EXECUTION_GUIDE.md)) where we devide Phases (per file) -> (PHASE_01_RTK_FILTER_ENGINE.md, PHASE_02_PROJECTMEM_PURE_RUST.md, <etc's>...) the detailed ### Phase (number), defined with all the technical plan structured and detailed for the jobs to do for the Phase (number), with the ready to run prompts, we must reedit each one forcefully.
-save, change, edit, reedit, modify, update, all plans in <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.projectmem/plan.md, <repo>/.projectmem/PROJECT_MAP.md, <repo>/.projectmem/summary.md, <repo>/.agents/brain/*.md, do not use folders plans outside of workspace dir like users/.gemini/antigravity/brain
-In CONSOLIDATION_PLAN, please organize the Phases, and write me the Prompt for each one in <repo>/.agents/brain/*.md.
-in the <repo>/.agents/brain/*.md forcefully update all files plans disciplinarly, consistently, structured and organized.
-the next plan files needs to be reedited and updated according ou plans, (INDEX_AND_EXECUTION_GUIDE.md, PHASE_01_RTK_FILTER_ENGINE.md, PHASE_02_PROJECTMEM_PURE_RUST.md, PHASE_03_CONTEXTMODE_PURE_RUST.md, PHASE_04_ICM_AND_AIMEMORY.md, PHASE_05_CODEGRAPH_PURE_RUST.md, PHASE_06_IN_TREE_RULES_AND_SKILLS.md, PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md, PHASE_08_DOWNLOADER_PURGE.md, PHASE_09_LEGACY_HEALING_UNHIJACK.md, PHASE_10_NON_DESTRUCTIVE_ENV_INJECTION.md, PHASE_11_AGENT_DOCTOR_SELF_HEALING.md, PHASE_12_TUI_AND_TELEMETRY_DASHBOARD.md, PHASE_13_E2E_VERIFICATION_BENCHMARKS.md, PHASE_14_KEYRING_AND_CONFIG_SQLITE_DB.md, PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md, PHASE_15_2_UNIFIED_5_PORT_DAEMON.md, PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md, PHASE_15_4_MULTI_PROTOCOL_AND_IGNORE_PURGE.md, PHASE_15_5_TOKEN_ACCOUNTING_AND_NETWORK_HEALING.md, PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md, PHASE_16_1_MOUSE_CAPABLE_TUI.md, PHASE_16_2_WEB_COCKPIT_DASHBOARD.md, PHASE_16_3_OPEN_AGENTS_AND_README_VERIFICATION.md).
-we add, edit, reedit, modify, import, convert, update, extend, fix, all things correctly, you are a technical and professional multitasks developer.
-
-We are enabling toksi to have a toml config file, in user/.toksi/config.toml. like enabling the user to change all ports adresses and <etc's>.
-We are adding to config.toml the agent the user wants to set by for toksi proxy|daemon up|start|restart --agents
-We are adding to toksi dashboard stop start restart, to toksi proxy down up|restart --agents
-We are adding to toksi daemon stop start|restart --agents
-We are adding to config.toml the byok agent's (cli|ide|inprocess) providers to be used.
-We are adding to config.toml the byok cloud or gateway providers to be used.
-We are adding to config.toml the byok agent's (cli|ide|inprocess) to wire HOOKS, MCP, A2A, ACP, stdio, SSE, HTTP.
-We only wire, use and show byok agent's (cli|ide|inprocess) providers, if correctly configured, and it was selected and configured by the user.
-We only use and show byok gateway providers, if correctly configured, and it was selected and configured by the user.
-In config.toml the <byok providers> configured, allow user to change the ai api adress's.
-all providers api key's must be set in db, and also in db we can add edit update modify all <byok providers> configured to use. This can be done from the cli, tui, dashboard, chat commands.
-In config.toml and db allow the <byok providers> configuring, allow user to set the default ai model (and thinking effort if provider and ai model its compatible for think effort), so each byok provider configured before can be configured with model and think effort. This can be done from the cli, tui, dashboard, chat commands.
-all <byok providers> configured, must pass to the proxy headroom token optimizer, and all available tools also, we are omptimizing all agents and <byok providers>.
-we are removing restrictions for PAID qualified agent BYOK rotation, from the code and everywhere. the user its free to add the agent's thath works and acessible, configured in the system and configured in the toksi settings config's.
-if we can hook directly to the agent (cli|ide|inprocess) for the (MCP, A2A, ACP, stdio, SSE, HTTP) without the need to wire the (MCP, A2A, ACP, stdio, SSE, HTTP) in the agent's config's, we can get better performance, and toksi can work as as agent to agent commands/messages/<etc's>, the agent (cli|ide|inprocess) can be marked as direct wired, but the user can also wire in the agent's config's () but inform user.
-toksi must provide the capability to get the ai model's available in the byok agent's (cli|ide|inprocess) providers and byok gateway providers, the toksi proxy system get agent type cabalitities as (agent to agent commands, chat, message's processing, <etc's>), and capability for the user select with chat /byok (list of byok's) /model (list of model's for the selected byok) /effort (list of efforts for the selected model) (the user must select the byok first than the model thant effort), or /byokmodel <byok> <model> <effort> (if <effort> its not compatible with the model its ignored), and sets the (agent (cli|ide|inprocess) provider) the (byok agent's providers) and or (byok providers gateway) and the toksi settings, with the model and effort the user wants to use for the byok and or agent. like toksi kooked to agy and typing this commands in agy chats runs the implemented commands dirfectly fast performante without hangs or aborts or infinity loops, chat commands used by user /byok /model /effort or /byokmodel sets the db to be used later by gatway and routing, <etc's>, <detail's>.
-capability for /projectmem /context /codegraph /icm /ai-memory /rtk <etc's> all chat commands we need for a smart unified toksi agent type cabalitities (agent to agent commands, chat, message's processing, <etc's>), like toksi kooked to agy and typing this commands in agy chats runs the implemented commands dirfectly fast performante without hangs or aborts or infinity loops.
-we are changing the toksi tui and dashboard web-ui for a futuristic, modern, beautiful and performance ui. Must have all config's, must be technically naming conventions, must show the agent and <byok providers> that its correctly configured in toksi, toksi must not use other agent cli or byok that its not configured by the user.
-in the TUI dashboard web-ui, rename Waterfall & Savings to Savings were must be a detailed list for the configured agents and <byok providers>, token savings, individually token savings an overal savings, tokens used, implemented tools compressions and savings, prompt savings, prompt reductions, <etc's>, <detail's>.
-in the TUI dashboard web-ui, The War Room needs <detail's>, for agents implemented tools, <etc's>, <detail's>.
-in the TUI dashboard web-ui, rename Agent Fleet to AI Agent Fleet & Quotas, here, show all agent's available in toksi, if found the user can procede with config if not found show as graied (the user adding the agent to the path can proceed), the user can wire unwire, see the plans the user its using (if the ai agent api allows this), see quotas and detailed uses times hour day week month year (from the ai agent api), <etc's>, <detail's>.
-in the TUI dashboard web-ui, Memory Decision DAG, needs to work properly, for its uses in agent's, its erros, its sucess's, Subsystem Failure Heatmap also cliking dont do nothing we cant see the problems, <etc's>, <detail's>.
-in the TUI dashboard web-ui, CodeGraph Explorer, needs to work properly, <etc's>, <detail's>.
-in the TUI dashboard web-ui, Sandbox Insperctor, needs to work properly, <etc's>, <detail's>.
-in the TUI dashboard web-ui, System Controls, <etc's>, <detail's>.
-in the TUI dashboard web-ui, AI Gateway & Quotas, needs to work properly, the Dynamic Complexity Routing & Algorithm must be configured indevidually for each agent and <byok providers> <byok, model, think effort>, and allow the user to configure the same byok multiple times with different model's (this allow the user to use other models in rounting, some byok's as different and separated quotas for different models), here we can use <byok><models><effort> already setted in configs or db, <etc's>, <detail's>.
-in the TUI dashboard web-ui, Keyring & Database, Keyring must only the key used by the configured agent's and the service name its wrong for example antigravity key name its gemini:antigravity so this its broken and badly implemented, also Toksi Configuration SQLite DB must allow to export db and import db directly, <etc's>, <detail's>.
-The codegraph, projectmem, context, icm, ai-memory, that are in workspace <repo>/.<tool> and they must be in the folder <repo>/.toksi/<tool> and not in the <user>/.toksi/<tool>
-The codegraph, projectmem, context, icm, ai-memory, idexes only the <repo> an taking account for the .gitigonre and .ignore., no other content outside the <repo> structure its indexed. so if agent (cli|ide|inprocess) its working in <repo> only the contents inside the <repo> its indexed. if agent (cli|ide|inprocess) its working in other folder thats its not a <repo> we are no indexing its contents. And obviously we are not indexing the <repo>/.git folder but the contents inside <repo>/ allwaiys taking account .gitignore and .ignore.
-in the prompt for the plan execution where all test that already run and confirmed working don't need to rerurn, if the code for the afected for the tests type are not changed or unaffected code path.
-The codegraph, projectmem, context, icm, ai-memory, lives inside the root <repo> example <repo>/.toksi/<tool>, we dont need to create .toksi/<tool> inside subfolders or rust crates folders only the <repo>/.toksi/<tool> its enough for all repo aware, we dont need to create agents folders inside subfolders or in the rust crates folders root <repo>/.<agent> its enough for all repo aware, if the subfolder or rust crates folder as this elements please mergeit to the root <repo>/.toksi/<tool> or <repo>/.<agent>.
-The codegraph, projectmem, context, icm, ai-memory, rtk, and all tools must be multi-project aware inside <repo>, like rust can have multi projects like <repo>/crates/project<1,2,3,4,5>/, and capable tho destingish and evaluate individually all projects inside <repo>, if we have files that leave outside of <repo>/.toksi/<tool> please merge to here to be used by the tools.
-read @crates/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_and_quota_architecture.md for <byok providers>, Comprehensive Reference: AI Providers, Local Inference Engines, Agent Ecosystems, Protocols, and Quota Enforcement Architecture.
-Research the implementation of toxi and tools for each agent, Agentic CLI & Bridge Providers, Agentic LSP & Protocol Providers, Agentic Editors & Native IDE Providers, Agentic Service & Cloud Platform Providers, Agentic Proxy, Gateway & Router Providers.
-
 

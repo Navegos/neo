@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 13.3–13.5), .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_17_6_TOKEN_ACCOUNTING_NETWORK_HEAL_AND_GATEWAY.md first.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 13.3–13.5), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_6_TOKEN_ACCOUNTING_NETWORK_HEAL_AND_GATEWAY.md first.
 
 Execute Phase 17.6: Ground-Truth SSE Accounting, Gateway Real Dispatch, OS Reconnect Watchdog, & ConnectRPC Passthrough.
 Sources:
@@ -50,3 +50,10 @@ Requirements:
 ### 2. Verification Criteria
 - Gateway routes real mock OpenAI/Anthropic/Gemini/Responses SSE chunks without `"AI Gateway operational"` stubs and reports `0` tokens when idle.
 - ConnectRPC binary frame round-trip test and simulated pool-reset reconnect test pass 100%.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum
+- Add `tokview` + `langfuse`-compatible local trace & effort-level token accounting (`Low`/`Medium`/`High`) (`PHASE_18_1`, `PHASE_18_3`).
+- Route `AGY_ADC_AUTH=true` profiles through native Google Cloud ADC Vertex endpoints (`https://{location}-aiplatform.googleapis.com/v1beta1/...`) with cached OAuth2 refresh-token / service-account exchange and clear `gcloud auth application-default login` diagnostics (`PHASE_18_3`).
+- Expose `:9098` Protocol Bus alongside `:8787..:8790`, `:9099`, `:9100`, and `:18787` (unified **8-port daemon**).

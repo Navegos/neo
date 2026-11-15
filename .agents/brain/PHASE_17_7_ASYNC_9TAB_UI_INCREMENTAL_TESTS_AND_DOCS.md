@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 11 & 13.5–13.6), .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_17_7_ASYNC_9TAB_UI_INCREMENTAL_TESTS_AND_DOCS.md first.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 11 & 13.5–13.6), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_7_ASYNC_9TAB_UI_INCREMENTAL_TESTS_AND_DOCS.md first.
 
 Execute Phase 17.7: Final 9-Tab UI Parity, Incremental Test Engine, & Complete Documentation Verification.
 Targets:
@@ -39,7 +39,7 @@ Requirements:
    - `Keyring & Database`: configured-only Keyring (`gemini:antigravity` normalized), live key editor, SQLite table browser, working `Export` (`POST /api/db/export`), `Import` (`POST /api/db/import` with `overwrite`), Backup/Restore, legacy nested `<repo>` repair.
 2. Ship `.toksi/test-baseline.json` Incremental Test Skip Harness + Integration Suites `phase14`–`phase17_7`:
    - Recompute BLAKE3 over `Cargo.lock` + suite `watched_paths`; print `[SKIP-UNCHANGED] <suite>` for clean untouched suites while running dirty/failed suites and always running `cargo check --workspace` & `cargo clippy --workspace --all-targets -- -D warnings`.
-   - Add integration suites covering `phase14`–`phase17_7` (config TOML, free BYOK, multi-profile `<byok, model, effort>`, Keyring `gemini:antigravity`, `live_zone` + `/byok/` Headroom, 41+ Tree-sitter & repo-only isolation, `TokenEconomizer`/`agent-opt`/`ctx-hook`/`runmcp`, `agent_runtime` + 10 slash cmds + `DirectWireBus`, gateway/ConnectRPC/reconnect, 9-tab API/SSE).
+   - Add integration suites covering `phase14`–`phase18_4` (config TOML incl. `[plugins]`/`[security]`, free BYOK, multi-profile `<byok, model, effort>`, `plugins_registry`, Keyring `gemini:antigravity` & `AGY_ADC_AUTH=true`, `live_zone` + `/byok/` Headroom + effort scaling, 41+ Tree-sitter & repo-only isolation, `TokenEconomizer`/`agent-opt`/`ctx-hook`/`runmcp`, `agent_runtime` + **13** slash cmds incl. `/plugin` + `DirectWireBus`, gateway/ConnectRPC/reconnect, 9-tab API/SSE incl. `skill-scanner` Tab 5, `defenseclaw` Tab 6, Plugin Manager Tab 7, `<enforce>`/`agentskills` healer/41-lang SAST, and `.toksi/projectmem/plan_checkpoints/`).
 3. Finalize `main.rs` `--help` & `crates/toksi/README.md`, then execute final full build + clippy + tests.
 4. Verification:
    - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test -p toksi` (and verify subsequent incremental run logs `[SKIP-UNCHANGED]`).

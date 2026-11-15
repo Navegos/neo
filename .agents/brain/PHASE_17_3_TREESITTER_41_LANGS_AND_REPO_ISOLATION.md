@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 13.2–13.3), .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_17_3_TREESITTER_41_LANGS_AND_REPO_ISOLATION.md first.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 13.2–13.3), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_3_TREESITTER_41_LANGS_AND_REPO_ISOLATION.md first.
 
 Execute Phase 17.3: 41+ Tree-sitter Languages, `<repo>/.toksi/<tool>` Repo-Only Storage, Monorepo Partitioning, & `.ignore` Purge.
 Sources:
@@ -54,3 +54,9 @@ Requirements:
 ### 2. Verification Criteria
 - Indexing a fixture workspace with files in all 41+ languages extracts real symbols under `#![deny(unsafe_code)]`.
 - Running `toksi graph index` from `<repo>/crates/subpkg` writes ONLY to `<repo>/.toksi/codegraph/symbols.db` with `subproject_id = "subpkg"`, and never creates files in `~/.toksi/codegraph/` or outside `<repo>`.
+
+---
+
+## Wave 18 (v5.0) Architecture & Audit Correction
+- **Audited `crates/toksi/src/codegraph/kernel/langs.rs` Fact Check**: `langs.rs` declares 45 language IDs with **no duplicate `"kotlin"` entry**; however, `grammar_for()` (`L74-118`) has no match arm for `"dockerfile"`, and `"vue"` / `"scss"` currently alias `tree_sitter_html` / `tree_sitter_css`. Resolve `"dockerfile"` grammar binding and `"vue"`/`"scss"` specialization here so both CodeGraph (`Phase 17.3`) and the built-in 41-language static code security analyzer (`Phase 18.2`, `src/security/analyzer.rs`) achieve 100% AST rule coverage.
+- Enforce canonical `<repo>/.toksi/projectmem/` and `<repo>/.toksi/codegraph/` isolation with zero `.projectmem/` leakage.

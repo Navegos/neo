@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 Execute Phase 15.1: Workspace Topology, Forward-Slash Normalization, Standards & PATH Validation.
 Targets:
@@ -47,6 +47,8 @@ Requirements:
      * `<repo>/.toksi/icm`
      * `<repo>/.toksi/ai-memory`
      * `<repo>/.toksi/rtk`
+     * `<repo>/.toksi/security` (OSV offline cache, `defenseclaw` JSONL audit evidence, `codesig`)
+     * `<repo>/.toksi/plugins` (plus `<repo>/.agents/plugins` & `~/.toksi/plugins` under `[plugins].plugin_dirs`)
    - Automatically migrate loose legacy folders (`.codegraph`, `.projectmem`, `.context-mode`, `.icm`, `.ai-memory`, `.rtk`) into `<repo>/.toksi/<tool>`. Remove home-dir workspace leakage (`~/.toksi/{projectmem,icm,ai-memory,context,codegraph}`).
 6. Root-Only Workspace Agent Dirs:
    - Agent config folders (`.claude`, `.cursor`, `.vscode`, `.grok`, `.cline`, `.agents`) ONLY exist in root `<repo>/` (or user `~/.<agent>/`), and are NEVER installed into `<repo>/` automatically unless the user opts into repo mode.

@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_15_4_MULTI_PROTOCOL_AND_IGNORE_PURGE.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_15_4_MULTI_PROTOCOL_AND_IGNORE_PURGE.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 Execute Phase 15.4: Multi-Protocol Architecture & Dynamic Ignore Purging.
 Targets:
@@ -54,3 +54,10 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- multi_protocol` passes 100%.
 - Adding `*.tmp` to `.gitignore` triggers automatic removal of `.tmp` records from FTS5 index.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum
+- Bind `:9098` as the dedicated Protocol Bus port (`MCP` stdio/SSE/HTTP, `A2A` v1.0, and `ACP` Agent Client Protocol from `inspect-vault/agent-client-protocol`) alongside `:8787..:8790`, `:9099`, `:9100`, and `:18787` (`PHASE_18_1`).
+- Mount Unified Plugin System (`src/plugins/hooks.rs`) protocol endpoints (`MCP`, `A2A`, `ACP`, `stdio`, `SSE`, `HTTP` on `:9098`), `DirectWireBus` wire hooks (Categories 1–3), and `agent_to_agent` messaging under `defenseclaw` fail-closed hookguard & `skill-scanner` `<enforce>` verification (`PHASE_18_2`).
+- Publish `plan_checkpoints` pause/resume events and static security findings on `:9098` streams.

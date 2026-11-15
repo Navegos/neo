@@ -486,3 +486,8 @@ crates/*/.toksi/ai-memory/
 dist/
 release-assets/
 release_notes.md
+.toksi/projectmem/events.jsonl
+.toksi/projectmem/watch.pid
+.toksi/projectmem/watch.log
+.toksi/projectmem/structure.json
+.toksi/projectmem/.last_failure.json

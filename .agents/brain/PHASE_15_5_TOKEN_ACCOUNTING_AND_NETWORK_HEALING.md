@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_15_5_TOKEN_ACCOUNTING_AND_NETWORK_HEALING.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_15_5_TOKEN_ACCOUNTING_AND_NETWORK_HEALING.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 Execute Phase 15.5: Ground-Truth Token Accounting & Network Reconnect Healing.
 Targets:
@@ -32,7 +32,7 @@ Requirements:
 3. Universal Rules, Skills & Instructions Sync (`rules/sync.rs` + `agents/manager.rs`):
    - Sync embedded `Karpathy`, `Caveman` v4, and `Ponytail` guidelines across ONLY user-configured/selected agents (`18+` built-in + `.agents` + Category 1–5) with granular component toggles (`hooks|mcp|skills|rules|instructions|configs`), respecting `user` auto-install vs explicit `repo` opt-in.
 4. Comprehensive CLI Help (`crates/toksi/src/main.rs`):
-   - Update `help_text()` with exhaustive documentation of all commands (`chat|run|exec|swarm`, `daemon|proxy|dashboard start|stop|restart --agents`, `config`, `byok`, `db`, `auth`, `agent`, `mem`, `graph`, `ctx`, `rtk`, `doctor`), 7 ports (`8787..18787`), `~/.toksi/config.toml`, 10 slash commands, `direct-wired` bus, and `<repo>/.toksi/<tool>` rules.
+   - Update `help_text()` with exhaustive documentation of all commands (`chat|run|exec|swarm`, `daemon|proxy|dashboard start|stop|restart --agents`, `config`, `byok`, `db`, `auth`, `security`, `plugin`, `agent`, `mem`, `graph`, `ctx`, `rtk`, `doctor`), 8 ports (`8787..18787`, incl. `:9098` Protocol Bus), `~/.toksi/config.toml` (`[plugins]`, `[security]`), 13 slash commands (incl. `/security`, `/plugin`, `/resume`), `direct-wired` bus, effort-tier `tokview` attribution, and `<repo>/.toksi/<tool>` rules.
 5. Verification:
    - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```

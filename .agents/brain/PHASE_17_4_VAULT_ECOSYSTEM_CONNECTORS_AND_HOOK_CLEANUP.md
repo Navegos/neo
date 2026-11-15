@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 10 & 13.3), crates/toksi/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_and_quota_architecture.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_17_4_VAULT_ECOSYSTEM_CONNECTORS_AND_HOOK_CLEANUP.md first.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 10 & 13.3), crates/toksi/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_and_quota_architecture.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_4_VAULT_ECOSYSTEM_CONNECTORS_AND_HOOK_CLEANUP.md first.
 
 Execute Phase 17.4: Deep Vault Parity (`TokenEconomizer`, `agent-opt`, `TokenTracker`, `rtk`, `icm`, `ai-memory`, `projectmem`, `caveman` v4, `ponytail`), 65/90+ Ecosystem & 22 Local Engines, & Hook/MCP Naming Cleanup.
 Sources:
@@ -53,3 +53,9 @@ Requirements:
 - `rg "toksi-projectmem|toksi-codegraph|agy-hook codegraph-index|rtk hook cursor|tokless_|toksi-codegraph-init|resolve_npm_binary" crates/toksi/src` returns **0** hits.
 - `runmcp aimemory` serves `aimemory::mcp` tools (not `icm`); `ctx-hook` enforces real `policy/*` & `journal/*` instead of returning `0` silently.
 - `projectmem` exposes all 16 MCP tools, `icm` exposes all 28 MCP tools, and `TokenEconomizer` produces real deterministic compression.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum
+- Expand audited reference scope from **36** to **67 vaults** (`+31` Wave 18 vaults incl. `defenseclaw` and `skill-scanner` synthesized in `PHASE_18_1` / `PHASE_18_2`).
+- Enforce `<enforce>` security delimiters, `defenseclaw` fail-closed hookguard + `skill-scanner` multi-engine/CEL scan, Toksi Unified Plugin System (`src/plugins/`) hook/MCP mounts, and `agentskills` YAML frontmatter healing + deduplication (`PHASE_18_2`) across all synced rule files, `SKILL.md` assets, plugins, and agent hook catalogs.

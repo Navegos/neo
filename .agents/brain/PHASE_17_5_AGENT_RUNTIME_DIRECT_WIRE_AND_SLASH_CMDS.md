@@ -1,10 +1,10 @@
-# Phase 17.5: Native `toksi` Coding CLI & Swarm (`src/agent_runtime/`), `DirectWireBus`, & 10 In-Chat Slash Commands
+# Phase 17.5: Native `toksi` Coding CLI & Swarm (`src/agent_runtime/`), `DirectWireBus`, & 13 In-Chat Slash Commands
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Section 13.3), .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_17_5_AGENT_RUNTIME_DIRECT_WIRE_AND_SLASH_CMDS.md first.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Section 13.3), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_5_AGENT_RUNTIME_DIRECT_WIRE_AND_SLASH_CMDS.md first.
 
-Execute Phase 17.5: Native `toksi` Coding CLI & Swarm (`src/agent_runtime/`), `DirectWireBus`, & 10 In-Chat Slash Commands.
+Execute Phase 17.5: Native `toksi` Coding CLI & Swarm (`src/agent_runtime/`), `DirectWireBus`, & 13 In-Chat Slash Commands.
 Sources:
   - neo/inspect-vault/hermes-agent
   - neo/inspect-vault/openclaw
@@ -16,14 +16,15 @@ Sources:
   - neo/inspect-vault/{crustly, crush, goose, grok-build, gemini-cli}
 Targets:
   - crates/toksi/src/agent_runtime/{mod.rs, loop_engine.rs, hermes.rs, openclaw.rs, mofa.rs, crew.rs, scheduler.rs, sandbox.rs, patch.rs, slash.rs, state.rs}
-  - crates/toksi/src/commands/{agent_runtime.rs, mod.rs} (preserve `commands/agent.rs` install/health/fix lifecycle!)
+  - crates/toksi/src/commands/{agent_runtime.rs, plugin.rs, mod.rs} (preserve `commands/agent.rs` install/health/fix lifecycle!)
+  - crates/toksi/src/plugins/{mod.rs, slash_router.rs, hooks.rs}
   - crates/toksi/src/tools/{direct_wire.rs, multi_protocol.rs}
   - crates/toksi/src/headroom/proxy.rs
 
 Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly (Windows Restricted Token / Job Objects helpers in `crates/toksi-sys`); zero `.unwrap()`/`.expect()`/`panic!()`.
 2. CLI Surface Preservation: Keep existing `toksi agent list|install|health|mismatch|upgrade|fix|restore|remove|edit` intact in `commands/agent.rs`; expose top-level `toksi chat`, `toksi run "<prompt>"`, `toksi exec "<prompt>"`, and `toksi swarm "<goal>"` (with `toksi agent chat|run|swarm|exec` aliases).
-3. Fast Non-Blocking Slash Commands (`< 5ms`): In-chat slash commands (`/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`) MUST intercept both native `toksi chat` AND external hooked agent chats (`agy`, `claude`, `codex`, `cursor`, `grok`, etc.) cleanly without hangs, aborts, or infinite loops.
+3. Fast Non-Blocking Slash Commands (`< 5ms`): In-chat slash commands (`/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/plugin`, `/resume`) MUST intercept both native `toksi chat` AND external hooked agent chats (`agy`, `claude`, `codex`, `cursor`, `grok`, etc.) cleanly without hangs, aborts, or infinite loops.
 
 Requirements:
 1. Build Native Coding CLI & Swarm Engine (`crates/toksi/src/agent_runtime/`):
@@ -35,12 +36,15 @@ Requirements:
 2. Ship `DirectWireBus` (`src/tools/direct_wire.rs`) & Upgrade `tools/multi_protocol.rs`:
    - `DirectWireBus`: Zero-config-file in-process interception for tools & agent-to-agent messages (`direct-wired` mode alongside optional `config-wired`).
    - Real `A2aTaskStore` v1.0 JSON-RPC 2.0 (`SendMessage`/`GetTask` + `"message/send"`/`"tasks/get"`, SHA-256 constant-time bearer check, 1 MiB cap, `(peer, messageId)` dedupe) + `SessionActorQueue` ACP v2.0.
-3. Implement 10 In-Chat Slash Commands (`src/agent_runtime/slash.rs` + `headroom/proxy.rs`):
+3. Implement 13 In-Chat Slash Commands (`src/agent_runtime/slash.rs` + `src/plugins/slash_router.rs` + `headroom/proxy.rs`):
    - `/byok [filter]` -> lists user-configured BYOK providers & stores active BYOK step.
    - `/model [filter]` -> lists models discovered for the currently selected BYOK first.
-   - `/effort [none|low|medium|high|max|xhigh]` -> selects effort AFTER model (ignoring gracefully if unsupported).
+   - `/effort [low|medium|high]` -> selects thinking effort AFTER model & scales Headroom compression (ignoring gracefully if unsupported).
    - `/byokmodel <byok> <model> [effort]` -> one-shot atomic persistence into `~/.toksi/toksi.db` (`byok_profiles` / `agent_profile_bindings`) + `~/.toksi/config.toml` sync.
    - `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk` -> instant `< 5ms` direct tool execution returning formatted structured response inside active chat turn (including when hooked through external agents like `agy`).
+   - `/security [scan [path]|scan-skills [path]|guardrails|audit-evidence|rules|audit-skills]` -> instant 41-language SAST/OSV + `skill-scanner` + `defenseclaw` + `<enforce>` + `agentskills` YAML frontmatter check (`PHASE_18_2`).
+   - `/plugin [list|load <id>|unload <id>|reload <id>|info <id>|scan <path>|enable <id>|disable <id>]` -> instant Unified Plugin System lifecycle dispatch & `<enforce>` pre-load gate (`PHASE_18_2`).
+   - `/resume [plan_id]` -> hydrate atomic `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` and resume without re-running completed steps (`PHASE_18_3`).
 4. Verification:
    - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi`.
 ```
@@ -53,3 +57,9 @@ Requirements:
 - `toksi run "echo ok"` and `toksi swarm "analyze"` execute with `ToolLoopDetector`, `RunawayStreamWatch`, and OS sandbox guards active without hangs.
 - Typing `/byokmodel`, `/byok` -> `/model` -> `/effort`, and `/projectmem status` completes in `< 5ms`, updates `byok_profiles` / `agent_profile_bindings`, and respects unsupported effort gracefully.
 - A2A JSON-RPC 2.0 `SendMessage`/`GetTask` and ACP `SessionActorQueue` round-trip cleanly over `DirectWireBus` and HTTP/SSE.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum
+- Expand `< 5ms` universal slash commands from 10 to **13**: `/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/plugin`, `/resume` (plus plugin-registered `/plugin:*` mounts via `src/plugins/slash_router.rs`).
+- Expose `:9098` Protocol Bus (`MCP` / `A2A` / `ACP` `agent-client-protocol` + `src/plugins/` mounts) and persist safe plan checkpoints inside `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` (`PHASE_18_1`, `PHASE_18_2`, `PHASE_18_3`).

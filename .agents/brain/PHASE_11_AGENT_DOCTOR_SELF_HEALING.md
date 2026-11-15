@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_11_AGENT_DOCTOR_SELF_HEALING.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_11_AGENT_DOCTOR_SELF_HEALING.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 The code in Sources: neo/inspect-vault/tokless, neo/inspect-vault/agents-structures is updated; treat as newly added/updated code that must be converted, imported, and rechecked for new features, bugfixes, and agent harnesses into consolidated toksi.
 
@@ -49,3 +49,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- doctor` passes 100%.
 - `toksi doctor` reports granular diagnostic health across all installed agents.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum
+- Audit Unified Plugin directories (`~/.toksi/plugins`, `<repo>/.toksi/plugins`, `<repo>/.agents/plugins`), SQLite `plugins_registry` `blake3_hash` / `security_scan_status`, and `defenseclaw` `fail_closed` hookguard + `codesig` integrity (`PHASE_18_2`), flagging any `unscanned` or `blocked_fail_closed` plugins without bypassing `<enforce>`.

@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_13_E2E_VERIFICATION_BENCHMARKS.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_13_E2E_VERIFICATION_BENCHMARKS.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 Execute Phase 13: End-to-End System Verification & Benchmarks.
 Targets:
@@ -26,7 +26,7 @@ Requirements:
    - CodeGraph 41+ Tree-sitter parsing, monorepo subproject partitioning, `ast-grep`, `scip`, `jcodemunch`, `repomix`
    - Headroom `live_zone` cache preservation, `CcrStore`, `TokenEconomizer`, and mandatory `/byok/` compression pass
    - Enterprise Gateway (`:9099`/`:18787`) 65/90+ ecosystem & 22 local engines, `<byok, model, effort>` routing, zero paid-tier gates
-   - Native `toksi` Coding CLI/Swarm (`src/agent_runtime/`), `DirectWireBus`, 10 `/...` slash commands, and non-destructive env teardown
+   - Native `toksi` Coding CLI/Swarm (`src/agent_runtime/`), `DirectWireBus`, Unified Plugin System (`src/plugins/`, `defenseclaw` + `skill-scanner` fail-closed gate), **13** `/...` slash commands (`/byok`..`/rtk`, `/security`, `/plugin`, `/resume`), and non-destructive env teardown
 2. Incremental Test Skip Policy (`.toksi/test-baseline.json`):
    - Compute BLAKE3 digest over `Cargo.lock` + each suite's `watched_paths`; log `[SKIP-UNCHANGED] <suite>` for already-confirmed passing suites whose code paths and dependencies are unmodified (`--all`/`--force` runs everything). Never strip or weaken assertions!
    - Always run `cargo check --workspace` and `cargo clippy --workspace --all-targets -- -D warnings`.
@@ -51,3 +51,8 @@ Requirements:
 - `cargo test -p toksi -- --nocapture` passes 100% with 0 failures.
 - Token reduction asserts confirm >30% savings on sample agent traces.
 - All 10/10 e2e integration suites succeed.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum
+- Pair with `PHASE_18_4`: assert zero stale `.projectmem/` pre-read refs, zero legacy `crates/tokless/*` paths in docs, all **35** `.agents/brain/*.md` files present, **67** audited vaults (`36` + `31` Wave 18 incl. `defenseclaw`, `skill-scanner`), 8-port daemon coverage (`:9098` Protocol Bus), **13** slash commands (`/security`, `/plugin`, `/resume`), `src/plugins/` Unified Plugin System, `plugins_registry` SQLite DDL, and clean incremental updates to `<repo>/.toksi/test-baseline.json`.

@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_14_KEYRING_AND_CONFIG_SQLITE_DB.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_14_KEYRING_AND_CONFIG_SQLITE_DB.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 Execute Phase 14: OS Keyring Integration, Config SQLite DB & BYOK Gateway Pre-Registration.
 Targets:
@@ -15,8 +15,8 @@ Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly across `crates/toksi/src/`. Isolate unavoidable Windows Credential Manager Win32 FFI calls (`advapi32.dll`: `CredReadW`, `CredWriteW`, `CredDeleteW`) inside leaf crate `crates/toksi-sys` with explicit `// SAFETY:` proofs.
 2. Zero Warnings Policy: Compile cleanly under `RUSTFLAGS="-D warnings"`.
 3. Zero Panics Policy: Strictly prohibit `.unwrap()`, `.expect()`, `panic!()`. Use `thiserror` for domain errors.
-4. Database Storage Mandate: Store `toksi.db` by default in user home (`~/.toksi/toksi.db`), NOT in `localdata/toksi` (`AppData/Local/toksi`). Multi-instance `<byok, model, effort>` support via `byok_profiles` table (`UNIQUE(provider_id, instance_label, model_id, thinking_effort)`), `agent_profile_bindings`, and `quota_windows`.
-5. Migration & Transfer Invariant: Auto-migrate legacy `LOCALAPPDATA/toksi/toksi.db` and JSON registries on startup; fix `db/operations.rs` `export_dump()` (must include `provider_models`, `byok_profiles`, `gateway_configs`, `agent_profile_bindings`, `quota_windows`) and `import_dump(..., overwrite: true)`.
+4. Database Storage Mandate: Store `toksi.db` by default in user home (`~/.toksi/toksi.db`), NOT in `localdata/toksi` (`AppData/Local/toksi`). Multi-instance `<byok, model, effort>` support via `byok_profiles` table (`UNIQUE(provider_id, instance_label, model_id, thinking_effort)`), `agent_profile_bindings`, `quota_windows`, and `plugins_registry` (Unified Plugin manifest, `blake3_hash`, capabilities, protocols, `security_scan_status`).
+5. Migration & Transfer Invariant: Auto-migrate legacy `LOCALAPPDATA/toksi/toksi.db` and JSON registries on startup; fix `db/operations.rs` `export_dump()` (must include `provider_models`, `byok_profiles`, `gateway_configs`, `agent_profile_bindings`, `quota_windows`, `plugins_registry`) and `import_dump(..., overwrite: true)`.
 6. Keyring Normalization & Privacy: Fix `keyring/mod.rs:216` broken `("antigravity", "gemini", "antigravity")` lookup so `gemini:antigravity` alias resolves cleanly; display ONLY user-configured agents/BYOK credentials in UI/CLI; zeroize all secret buffers on drop.
 
 Requirements:
@@ -53,3 +53,9 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- keyring` and `cargo test -p toksi -- db` pass 100%.
 - `toksi auth status` displays authenticated providers without revealing raw secrets.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum (`AGY_ADC_AUTH=true` & `plugins_registry`)
+- Extend `byok_profiles` table in SQLite with `auth_mode`, `gcp_project`, and `gcp_location` (default `us-central1`), and add `plugins_registry` (`plugin_id`, `version`, normalized forward-slash `manifest_path`, `blake3_hash`, `capabilities_json`, `protocols_json`, `security_scan_status`, `is_enabled`, `updated_at`) for the Toksi Unified Plugin System (`src/plugins/`).
+- Add `src/keyring/adc.rs` implementing first-class Google Cloud Application Default Credentials (`AGY_ADC_AUTH=true`), reading VS Code `"gcp.project"` / `"gcp.location"` and `~/.config/gcloud/application_default_credentials.json` (`%APPDATA%/gcloud/application_default_credentials.json` on Windows) with actionable `gcloud auth application-default login --project <GCP_PROJECT>` diagnostics when absent (`PHASE_18_3`).

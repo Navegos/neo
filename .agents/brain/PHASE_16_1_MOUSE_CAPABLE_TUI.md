@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 Execute Phase 16.1: High-Performance 9-Tab Async Mouse-Capable Interactive TUI.
 Targets:
@@ -55,3 +55,10 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- tui` passes 100%.
 - TUI launches cleanly with `toksi tui` and responds to mouse clicks and arrow keys without freezing.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum
+- Tab 1 surfaces `tokview` savings/effort telemetry (`Low`/`Medium`/`High`) and `:9098` Protocol Bus status.
+- Tab 4 displays paused `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` states with one-click `/resume` trigger.
+- Tab 5 surfaces `skill-scanner` multi-engine/CEL policy findings (SARIF 2.1.0), built-in 41-language SAST/OSV findings (`src/security/`), and `agentskills` YAML frontmatter healing status; Tab 6 surfaces `defenseclaw` fail-closed hookguard, `tool-chains.json` policy, `audit-evidence`, `<enforce>` violations, and `sage` threat blocks; Tab 7 exposes Interactive Plugin Manager (`src/plugins/`), Google Cloud ADC (`AGY_ADC_AUTH=true`) project/location & `/effort` controls; Tab 9 exposes `plugins_registry` + `byok_profiles` DB export/import.

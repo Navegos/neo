@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_06_IN_TREE_RULES_AND_SKILLS.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_06_IN_TREE_RULES_AND_SKILLS.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 The code in Sources: neo/inspect-vault/andrej-karpathy-skills, neo/inspect-vault/caveman, neo/inspect-vault/ponytail is updated; treat as newly added/updated code that must be converted, imported, and rechecked for new guidelines, rule updates, and skill definitions into consolidated toksi.
 
@@ -58,3 +58,10 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- rules` passes 100%.
 - Compiled `toksi` binary contains all rules in `.rodata` with 0 disk reads required.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum
+- Enforce `<enforce>...</enforce>` wrapping on all security-critical rule blocks, script hooks, and **Toksi Unified Plugin System (`src/plugins/`)** mounts (`PHASE_18_2`).
+- Integrate the pure-Rust `agentskills` YAML frontmatter validator & auto-healer (`src/rules/skill_validator.rs`) plus semantic trigger deduplication across `agent-skills`, `openagent-skills`, `openclaw-agent-skills`, and `.agents/skills/` (`src/rules/skills_catalog.rs`).
+- Audit every synced skill, plugin, and script against **`defenseclaw`** fail-closed hookguard/audit + **`skill-scanner`** multi-engine/CEL policy + `research-securety-skills` and `sage` threat rules before activation (`toksi rules heal-skills`, `toksi security scan-skills`, `toksi plugin scan`).

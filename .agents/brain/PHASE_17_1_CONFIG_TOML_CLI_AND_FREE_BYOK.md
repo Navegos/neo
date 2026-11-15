@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 12–13), .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_17_1_CONFIG_TOML_CLI_AND_FREE_BYOK.md first.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 12–13), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_1_CONFIG_TOML_CLI_AND_FREE_BYOK.md first.
 
 Execute Phase 17.1: `~/.toksi/config.toml`, CLI Process Controls, Edition 2024 `#![deny(unsafe_code)]`, & Zero Paid-Tier Restrictions.
 Targets:
@@ -67,3 +67,9 @@ Supports dynamic `[[byok.profiles]]` overrides merged cleanly with `~/.toksi/tok
 - `rg "unsafe\s*\{" crates/toksi/src` returns **0** hits; `crates/toksi/src/{lib,main}.rs` both carry `#![deny(unsafe_code)]`.
 - `rg "FreeTierDisqualified|DISQUALIFIED-FREE|ACTIVE_PAID_PROVIDERS" crates/toksi/src` returns **0** hits.
 - `toksi config show`, `toksi daemon start --agents claude`, `toksi dashboard start`, and `toksi dashboard stop` work cleanly.
+
+---
+
+## Wave 18 (v5.0) Synchronization Addendum
+- Extend `~/.toksi/config.toml` with `[ports].protocol_bus = 9098`, `[auth.adc]` (`enabled`, `project`, `location`), `[effort]` (`default = "medium"`, dynamic provider overrides), `[security]` (`enforce_in_repo_skills = true`, `auto_heal_skill_frontmatter = true`, `static_analyzer_enabled = true`, `defenseclaw_fail_closed = true`, `skill_scanner_policy = "balanced"`), `[plugins]` (`enabled = true`, `plugin_dirs = ["~/.toksi/plugins", "<repo>/.toksi/plugins", "<repo>/.agents/plugins"]`, `enforce_security_scan = true`, `fail_closed_hooks = true`, `protocols = ["mcp", "a2a", "acp", "stdio", "sse", "http"]`, `allow_agent_to_agent = true`), and `[checkpoint]` (`auto_save_on_429`, `auto_save_milestones`).
+- Pair directly with `PHASE_18_2` (`src/plugins/`, `defenseclaw`, `skill-scanner`) and `PHASE_18_3` (`AGY_ADC_AUTH=true` + `"gcp.project"` / `"gcp.location"`).

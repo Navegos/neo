@@ -2,7 +2,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .projectmem/plan.md, .projectmem/PROJECT_MAP.md, .projectmem/summary.md, .agents/brain/PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
 The code in Sources: neo/inspect-vault/headroom, neo/inspect-vault/bifrost, and neo/inspect-vault/tokless is updated; treat as newly added/updated code that must be converted, imported, and rechecked for new features, bugfixes, and upstream provider catalog additions into consolidated toksi.
 
@@ -18,7 +18,7 @@ Targets:
 Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly in `crates/toksi`. Zero compiler warnings (`RUSTFLAGS="-D warnings"`).
 2. Zero Panics Policy: Strictly prohibit `.unwrap()`, `.expect()`, `panic!()`. Use `thiserror` for domain errors.
-3. Unified 7-Port Topology (all overridable via `~/.toksi/config.toml` `[ports]`):
+3. Unified 8-Port Topology (all overridable via `~/.toksi/config.toml` `[ports]`, expanded in Wave 18 with `:9098` Protocol Bus alongside `:8787..:8790, :9099, :9100, :18787`; pair with `PHASE_18_3` for `Low`/`Medium`/`High` thinking-effort scaling & `AGY_ADC_AUTH=true` Vertex routing):
    - Port `8787`: Headroom Streaming Proxy (Antigravity, Claude, Codex, Cursor, etc.)
    - Port `8788`: Grok OAuth Proxy Daemon (`grok_daemon.rs` — distinct from `:18787` BYOK!)
    - Port `8789`: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`)
