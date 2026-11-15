@@ -13,11 +13,11 @@
      * **Port 8788**: Grok OAuth Dedicated Proxy (`http://127.0.0.1:8788`, reverse proxy & multi-instance Grok OAuth failover)
      * **Port 8789**: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`, real Copilot reverse proxy — zero stub strings)
      * **Port 8790**: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`)
-     * **Port 9098**: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` `agent-client-protocol` / SSE / checkpoint event bus)
-     * **Port 9099**: Enterprise AI Gateway & Drop-in SDK Endpoints (`/v1/chat/completions`, `/v1/messages`, `/v1/security/scan`, `/v1beta/models/*`, `/metrics`, Google Cloud ADC Vertex proxy)
+     * **Port 9098**: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` `agent-client-protocol` / `stdio` / `SSE` / `HTTP` / checkpoint event bus) with shared `HeadroomEffortCompressor` payload compression (`Low`/`Med`/`High`) and unified `ToolTarget` routing across all 67 vault engines, `Headroom`, `Security`, and `Plugins`
+     * **Port 9099**: Enterprise AI Gateway & Drop-in SDK Endpoints (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`, `/v1/embeddings`, `/v1/security/scan`, `/v1beta/models/*`, `/metrics`, Google Cloud ADC Vertex proxy) enforcing full `HeadroomEffortCompressor` (`Low`/`Med`/`High`, `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, MCP schema pruner, RTK, Chroma/Lance semantic cache)
      * **Port 9100**: Zero-Dependency Real-Time Web Telemetry & Control Dashboard Cockpit (non-blocking background service, exact 9-tab parity, `tokview`, security & checkpoint controls)
-     * **Port 18787**: BYOK Multi-Profile & Google Cloud ADC Gateway (`http://127.0.0.1:18787`, OpenAI, Anthropic, Gemini, Vertex ADC `AGY_ADC_AUTH=true`, Ollama/vLLM/LM Studio/22 local engines via multi-instance `<byok, model, effort>` routing)
-     * **In-Process Engine**: `DirectWireBus` zero-hop `tokio::sync::broadcast` hook bus, **Toksi Unified Plugin System (`src/plugins/`)** loading agent features/CLI/tools/`/command`/wire hooks/A2A under `<enforce>`, `src/security/` (`<enforce>`, `defenseclaw` fail-closed hookguard & audit evidence, `skill-scanner` multi-engine + bounded CEL decisions, 41-lang AST SAST + OSV lockfile scanner), `src/rules/` (`agentskills` YAML frontmatter auto-healer + trigger dedup), `src/agent_runtime/` (`toksi chat|run|exec|swarm|agent resume`), `crates/toksi-sys` Windows/POSIX sandbox FFI crate, Dynamic Load Balancer, Complexity & Effort Tier Router, Dual-Tier Semantic + Lance Columnar Cache, Multi-Protocol Multiplexer (`MCP`, `A2A`, `ACP`, `stdio`, `SSE`, `HTTP`), and Non-Destructive Environment Injection (`HKCU\Environment` on Windows with `WM_SETTINGCHANGE` broadcast; session env on Unix; opt-in `--agents` flag).
+     * **Port 18787**: BYOK Multi-Profile & Google Cloud ADC Gateway (`http://127.0.0.1:18787`, OpenAI, Anthropic, Gemini, Vertex ADC `AGY_ADC_AUTH=true`, Ollama/vLLM/LM Studio/22 local engines via multi-instance `<byok, model, effort>` routing) passing every enabled request through the shared `HeadroomEffortCompressor` (`Low`/`Med`/`High`)
+     * **In-Process Engine**: `DirectWireBus` zero-hop `tokio::sync::broadcast` hook bus, **Toksi Unified Plugin System (`src/plugins/`)** loading agent features/CLI/tools/`/command`/wire hooks/A2A under `<enforce>`, `src/security/` (`<enforce>`, `defenseclaw` fail-closed hookguard & audit evidence, `skill-scanner` multi-engine + bounded CEL decisions, 41-lang AST SAST + OSV lockfile scanner), `src/rules/` (`agentskills` YAML frontmatter auto-healer + trigger dedup), `src/agent_runtime/` (`toksi chat|run|exec|swarm|agent resume`) wired out of the box ("off the back") to `:8787`, `:9098`, `:9099`, `:18787`, `HeadroomEffortCompressor`, `src/plugins/`, and all 67 consolidated `inspect-vault/*` engines with zero manual setup, `crates/toksi-sys` Windows/POSIX sandbox FFI crate, Dynamic Load Balancer, Complexity & Effort Tier Router, Dual-Tier Semantic + Lance Columnar Cache, Multi-Protocol Multiplexer (`MCP`, `A2A`, `ACP`, `stdio`, `SSE`, `HTTP`), and Non-Destructive Environment Injection (`HKCU\Environment` on Windows with `WM_SETTINGCHANGE` broadcast; session env on Unix; opt-in `--agents` flag).
    - Zero multi-command manual configuration. One `toksi daemon start --agents` launch prepares the 8-port control plane for all configured AI coding assistants across Categories 1–5 without paid-tier restrictions.
 
 2. **Network Port Separation for Maximum Latency Performance**:
@@ -122,7 +122,7 @@
     - **No Account-Tier Disqualification**: Free-tier, hobby, trial, OAuth subscription, and commercial paid BYOK keys/CLIs are **all permitted** in configured BYOK routing whenever enabled by the user. Remove all `FreeTierDisqualified`, `ACTIVE_PAID_PROVIDERS` blocking, and `[DISQUALIFIED-FREE]` gates from `tier_check.rs`, `dashboard/api.rs`, `dashboard/assets/app.js`, and `tui/`.
     - **Strict Configured-Only Activation**: Only BYOK providers, profiles, and agents explicitly configured and enabled by the user in `~/.toksi/config.toml` / `~/.toksi/toksi.db` participate in UI grids, health probes, or gateway routing (unconfigured items stay hidden or disabled; missing-from-PATH binaries render grayed out with remediation notice).
     - **Multi-Instance `<byok, model, effort>` Profiles**: The same BYOK provider may appear N times in `byok_profiles` with distinct `(provider_id, instance_label, model_id, thinking_effort, base_url, priority, weight)` and independent read-only `quota_windows` (`hour|day|week|month|year`).
-    - **Universal Headroom Pipeline Guarantee**: ALL enabled BYOK requests (including `/byok/` and `X-Toksi-Route`) pass through Headroom (`live_zone` byte surgery + `CcrStore` + `SmartCrusher` + MCP schema pruner + `chroma` semantic cache). If zero BYOKs are configured, requests pass through unintercepted without error.
+    - **Universal Headroom Pipeline Guarantee (All 7 Inference/Protocol Entrypoints)**: ALL enabled BYOK & Vertex ADC requests (`:18787`, `/byok/`, `X-Toksi-Route`), Enterprise AI Gateway calls (`:9099`), Protocol Bus payloads (`:9098` `MCP`/`A2A`/`ACP`/`stdio`/`SSE`/`HTTP`), and streaming proxies (`:8787`–`:8790`) pass through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`, `live_zone` byte surgery + `CcrStore` + `SmartCrusher` + `TokenEconomizer` + `agent-opt` + MCP schema pruner + `rtk` + `chroma`/`lance` semantic cache + `<enforce>` security/skill-scanner). If zero BYOKs are configured, requests pass through unintercepted without error.
 
 13. **Ground-Truth Session Token Accounting (Real Tokens, Real Quotas)**:
     - **Strict prohibition of synthetic or virtual mathematical tokens**:
@@ -779,7 +779,8 @@ flowchart TD
         CopilotVS["Copilot VS Code Extension"]
         CopilotCLI["Copilot CLI"]
         ProtocolClients["MCP / A2A v1.0 / ACP IDEs (agent-client-protocol)"]
-        SDKAgents["Toksi Agent CLI, Claude Code, Cursor, OpenCode, Codex, Hermes, OpenClaw, Goose, SDKs"]
+        ToksiAgent["Native Toksi Agent CLI (toksi chat|run|exec|swarm - Off the Back)"]
+        SDKAgents["External Agent CLIs & SDKs (Claude, Cursor, OpenCode, Codex, Hermes, OpenClaw, Goose)"]
         BYOKClients["BYOK Multi-Profile, Vertex ADC & 22 Local Engine Clients"]
         Browser["Web Browser (Cockpit - 9 Tabs)"]
     end
@@ -795,11 +796,12 @@ flowchart TD
         P18787["Port 18787: BYOK & Vertex ADC Gateway"]
     end
 
-    subgraph Engine["Toksi Native In-Process Core"]
+    subgraph Engine["Toksi Native In-Process Core (Zero Manual Setup)"]
+        Compress["Headroom Effort Compressor (Low/Med/High: live_zone + CcrStore + SmartCrusher + TokenEconomizer + agent-opt + RTK)"]
         LB["Load Balancer & Effort Router (<byok, model, effort>)"]
         Cache["Dual-Tier Semantic + Lance Columnar Cache"]
-        Pruner["MCP Schema Pruner & <enforce> Security Filter"]
-        Compress["Headroom Effort Compressor (Low/Med/High)"]
+        Pruner["MCP Schema Pruner & <enforce> Security Filter (defenseclaw + skill-scanner)"]
+        AllTools["Unified 67-Vault Tool & Plugin Bus (src/plugins/, CodeGraph, ProjectMem, ContextMode, ICM, AI-Memory, Security)"]
         Telemetry["Ground-Truth Telemetry & tokview (DirectWireBus)"]
         Watchdog["Network Reconnect Watchdog & Plan Checkpoints"]
     end
@@ -818,18 +820,26 @@ flowchart TD
     BYOKClients -->|"<byok, model, effort> / ADC"| P18787
     Browser -->|"HTTP/SSE"| P9100
 
+    ToksiAgent -->|"DirectWireBus (In-Process)"| AllTools
+    ToksiAgent -->|"Streaming Proxy / Headroom"| P8787
+    ToksiAgent -->|"Swarm & Tool RPC"| P9098
+    ToksiAgent -->|"SDK & Vertex ADC"| P9099
+    ToksiAgent -->|"<byok, model, effort>"| P18787
+
     P8787 --> Compress
     P8788 --> Compress
-    P18787 --> LB
     P8789 --> Compress
     P8790 --> Compress
-    P9098 --> Telemetry
-    P9099 --> LB
+    P9098 --> Compress
+    P9099 --> Compress
+    P18787 --> Compress
 
     Compress --> LB
+    Compress --> AllTools
     LB --> Cache
     Cache --> Pruner
     Pruner --> Telemetry
+    AllTools --> Telemetry
     Watchdog -.-> LB
 
     Telemetry --> Upstream
@@ -909,9 +919,10 @@ flowchart TD
   * SQLite `byok_profiles` (extended with `auth_mode`, `gcp_project`, `gcp_location`) and `~/.toksi/config.toml` `[[byok_profiles]]` allow registering multiple independent profiles under the same provider (`<provider_id, instance_label, model_id, thinking_effort, base_url, api_key_ref, priority, weight>`).
   * Single `/effort` control (`src/headroom/effort.rs`, `src/gateway/effort_router.rs`) translates cleanly across providers (`reasoning_effort`, `thinking.budget_tokens`, `generationConfig.thinkingConfig.thinkingBudget` — silently omitted if unsupported) while dynamically tuning Headroom compression aggressiveness (`Low` aggressive pruning, `Medium` balanced semantic+AST pruning, `High` lossless reasoning & deep SCIP/AST).
   * Zero-cost `/v1/models` and `/v1beta/models` endpoint discovery populates available models cleanly without burning inference tokens.
-- **Configured-Only Activation & Headroom Mandatory Pass**:
+- **Configured-Only Activation & Universal 7-Entrypoint Headroom Effort Pass**:
   * Only explicitly configured & enabled BYOK/ADC profiles and `PATH`-verified agents engage in routing and UI telemetry grids; if zero profiles are enabled, requests pass through without error.
-  * ALL enabled BYOK/ADC requests (including `/byok/` and `X-Toksi-Route` in `headroom/proxy.rs`) flow through Headroom (`live_zone` byte surgery + `CcrStore` + `SmartCrusher` + MCP schema pruner + `chroma`/`lance` semantic cache).
+  * ALL enabled requests across all 7 inference/protocol entrypoints — `:8787` (`headroom/proxy.rs` incl. `/byok/` & `X-Toksi-Route`), `:8788` (`grok_daemon.rs`), `:8789`/`:8790` (`copilot_daemon.rs`), `:9098` (`tools/multi_protocol.rs` Protocol Bus), `:9099` (`gateway/proxy.rs` Enterprise AI Gateway), and `:18787` (`headroom/byok_gateway.rs` BYOK & Vertex ADC Gateway) — flow through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone` byte surgery + `CcrStore` + `SmartCrusher` + `TokenEconomizer` + `agent-opt` + MCP schema pruner + `rtk` + `chroma`/`lance` semantic cache + `<enforce>` security).
+  * **Off-the-Back Native `toksi` Agent Guarantee**: Running `toksi chat|run|exec|swarm|agent resume` binds in-process (`DirectWireBus`) and over local endpoints (`:8787`, `:9098`, `:9099`, `:18787`) to Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), `HeadroomEffortCompressor`, `src/plugins/`, and all 67 consolidated `inspect-vault/*` engines with zero manual configuration.
   * Read-only rate-limit/quota windows (`hour | day | week | month | year`) are extracted from HTTP response headers (`x-ratelimit-*`, `anthropic-ratelimit-*`, free `/quota` checks) and surfaced as gauges without blocking rotation unless upstream actually returns HTTP `429`, at which point `cascade.rs` + `mofa-engine` 7-D `Router::route_ranked` fail over gracefully while checkpointing active plans.
 
 ---
@@ -1308,7 +1319,8 @@ Requirements:
    - pruner/mcp_pruner.rs: dynamic MCP tool schema optimizer (slashes 5,000–15,000 wasted input tokens per turn).
    - cache_align.rs: 1024-token prompt cache alignment for 90% cache discounts on Anthropic, OpenAI, Gemini.
    - adaptive_mem.rs: dynamic memory governor (scales injected memory between L0/L1/L2 based on headroom).
-3. Implement Native Enterprise AI Gateway (crates/toksi/src/gateway/):
+3. Implement Native Enterprise AI Gateway (crates/toksi/src/gateway/) + Universal Headroom Effort Pass:
+   - proxy.rs / server.rs / byok_gateway.rs / multi_protocol.rs: wire shared `HeadroomEffortCompressor` (Low/Med/High: live_zone, CcrStore, SmartCrusher, TokenEconomizer, agent-opt, mcp_pruner, rtk, chroma/lance) across `:9099`, `:18787`, and `:9098` alongside `:8787`–`:8790` (do NOT stop at align_system_prompt_to_1024 + prune_mcp_request_payload alone).
    - providers/: 39+ in-tree provider clients (reqwest, async streaming).
    - cascade.rs: dynamic failover with 8 failure categories.
    - loadbalancer.rs: round-robin, least-latency, lowest-cost, weighted selectors.
@@ -1553,15 +1565,16 @@ Targets:
 
 Requirements:
 1. Unified 8-Port Daemon Supervision (`toksi daemon start [--agents]`):
-   - Load `[ports]` defaults from `~/.toksi/config.toml` and supervise all 7 dedicated endpoints simultaneously in the background:
+   - Load `[ports]` defaults from `~/.toksi/config.toml` and supervise all 8 dedicated endpoints simultaneously in the background (with shared `HeadroomEffortCompressor` `Low`/`Medium`/`High` active on `:8787`–`:8790`, `:9098`, `:9099`, and `:18787`):
      * Port 8787: Headroom Streaming Proxy (`http://127.0.0.1:8787`, Antigravity, Anthropic, OpenAI)
      * Port 8788: Grok OAuth Dedicated Proxy (`http://127.0.0.1:8788`, reverse proxy & multi-instance Grok OAuth failover)
      * Port 8789: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`, real Copilot reverse proxy — replace all `"copilot proxy ready"` / `"wrap"` stub returns)
      * Port 8790: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`)
-     * Port 9099: Enterprise AI Gateway & Drop-in SDKs (`/v1/chat/completions`, `/v1/messages`, `/v1beta/models/*`, `/metrics`)
+     * Port 9098: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` / `stdio` / `SSE` / `HTTP`, Plugin endpoints under `<enforce>`, checkpoints, with shared `HeadroomEffortCompressor`)
+     * Port 9099: Enterprise AI Gateway & Drop-in SDKs (`/v1/chat/completions`, `/v1/messages`, `/v1beta/models/*`, `/metrics`, enforcing full `HeadroomEffortCompressor` before cache & dispatch)
      * Port 9100: Web Telemetry & Control Dashboard Cockpit (non-blocking background service, exact 9 tabs)
-     * Port 18787: BYOK Multi-Profile Gateway (`http://127.0.0.1:18787`, OpenAI, Anthropic, Gemini, Ollama/vLLM/LM Studio/22 local engines via `<byok, model, effort>` routing)
-   - Zero multi-command manual steps. One `toksi daemon start --agents` launch prepares the entire system for all configured Categories 1–5 AI coding assistants with zero paid-tier restrictions and `DirectWireBus` hook fan-out.
+     * Port 18787: BYOK & Vertex ADC Multi-Profile Gateway (`http://127.0.0.1:18787`, OpenAI, Anthropic, Gemini, Vertex ADC, Ollama/vLLM/LM Studio/22 local engines via `<byok, model, effort>` routing through `HeadroomEffortCompressor`)
+   - Zero multi-command manual steps. One `toksi daemon start --agents` launch prepares the entire system for native `toksi` agent ("off the back") and all configured Categories 1–5 AI coding assistants with zero paid-tier restrictions and `DirectWireBus` hook fan-out.
 2. Network Port Separation for Maximum Latency Performance:
    - Port 9099 strictly dedicated to high-throughput streaming LLM inference, SSE token forwarding, and protocol translation (<10 µs latency overhead).
    - Port 9100 dedicated to Web Dashboard Cockpit, SSE metrics broadcasting, static assets, and SQLite DB backup/export.
@@ -1625,8 +1638,8 @@ Targets:
   - crates/toksi/src/tools/multi_protocol.rs
 
 Requirements:
-1. Multi-Protocol Capabilities Across All Tools:
-   - Expose unified multi-protocol interfaces for all tools (`rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`):
+1. Multi-Protocol Capabilities & Shared Effort Compression Across All Tools:
+   - Expand `ToolTarget` in `tools/multi_protocol.rs` beyond the initial 6 variants (`rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`) to include `Headroom`, `Security`, `Plugins`, and all 67 consolidated `inspect-vault/*` engines, routing large payloads through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`) on `:9098`:
      * MCP (Model Context Protocol)
      * A2A (Agent-to-Agent / Agent2Agent protocol)
      * ACP (Agent Communication Protocol / Agent Client Protocol)
@@ -1842,7 +1855,7 @@ Requirements:
 1. Add `byok_profiles` (`(provider_id, instance_label, model_id, thinking_effort)` unique tuple allowing multiple profiles per provider), `agent_profile_bindings`, `quota_windows` (`hour|day|week|month|year`), and `plugins_registry` (tracking Unified Plugin manifests, `blake3_hash`, capabilities, protocols, and `security_scan_status`) tables; fix `export_dump()` to include all tables and `import_dump(..., overwrite: true)` to apply clean resets/upserts.
 2. Fix broken Antigravity Keyring service name in `keyring/mod.rs:216` (normalize `gemini:antigravity` alias cleanly) and restrict UI Keyring listing strictly to user-configured agents/BYOKs.
 3. Port pure-Rust `headroom-core` (`compute_frozen_count` + `live_zone` byte-range surgery preserving LLM prompt cache prefixes, `CcrStore` `<<ccr:HASH>>` SQLite + MCP `headroom_*`, `SmartCrusher`, `SearchCompressor`, `DiffCompressor`, `AuthMode`); delete all Python `headroom` spawns (`headroom/proxy.rs:1271`, `tools/headroom.rs:64`) and remove `cloudcode_patch.rs`.
-4. Remove the `/byok/` early bypass at `headroom/proxy.rs:619-631` so EVERY configured BYOK request passes through Headroom + Chroma HNSW/USearch/SPANN ANN `semantic_cache` (`store()` + `lookup_semantic()`).
+4. Remove the `/byok/` early bypass at `headroom/proxy.rs:619-631` and invoke the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, `mcp_pruner`, `rtk`, Chroma HNSW/USearch/SPANN ANN `semantic_cache` + `lance`) across EVERY configured inference/protocol entrypoint (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`).
 5. Verification: `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi`.
 ```
 
@@ -1906,7 +1919,7 @@ Targets:
   - crates/toksi/src/headroom/proxy.rs
 
 Requirements:
-1. Expose `toksi chat`, `toksi run "<prompt>"`, `toksi exec "<prompt>"`, `toksi swarm "<goal>"` (plus `toksi agent chat|run|swarm|exec` aliases) wired into `toksi.db` `byok_profiles` and Headroom `:8787` / Gateway `:9099`.
+1. Expose `toksi chat`, `toksi run "<prompt>"`, `toksi exec "<prompt>"`, `toksi swarm "<goal>"` (plus `toksi agent chat|run|swarm|exec` aliases) wired out of the box ("off the back", zero manual config) via `DirectWireBus` (in-process) and local `:8787`/`:9098`/`:9099`/`:18787` endpoints to `toksi.db` `byok_profiles`, Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`), `src/plugins/`, and all 67 consolidated `inspect-vault/*` engines (`rtk`, `headroom`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `lance`, `agent-client-protocol`, `agent-opt`, `agent-control`, `sage`, `defenseclaw`, `skill-scanner`, etc.).
 2. Fuse proven primitives: Hermes (`TurnFacadeMixin`, `RunawayStreamWatch`, `StopGateVerdict`, `StreamingContextScrubber`, `MoAChatCompletions`, `_BackgroundReviewRun`), OpenClaw (6-detector `ToolLoopDetector`, `PendingMessageQueue`, periodic `advisor`), OpenClaw-RS (BLAKE2b-256 `EventLog`, CRDT merge), MoFA (`SubtaskDAG` + wave `ParallelScheduler`, `SwarmHITLGate`, `ReflectionAgent`), MofaClaw (`CronService`, `HEARTBEAT.md`, `SHELL_METACHARS` RBAC), CrewAI (`ReasoningPlan`, `InterceptionPoint`/`HookAborted`, causal `EventBus`), Codex/Grok-Build (`bwrap`/seccomp/`Landlock`/`.sbpl`/`WindowsRestrictedToken`, Lark `apply_patch`, `HashlineEditTool`, `PermissionPolicy` + `ssrf_guard`).
 3. Upgrade `tools/multi_protocol.rs` with real OpenClaw `A2aTaskStore` v1.0 JSON-RPC 2.0 + `SessionActorQueue` ACP v2.0, and ship `tools/direct_wire.rs` (`DirectWireBus`) for config-less `direct-wired` interception alongside explicit `config-wired` and `src/plugins/` hook mounts.
 4. Execute all 13 instant (< 5ms) non-blocking slash commands across native CLI AND hooked `headroom/proxy.rs` chat streams: `/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/plugin`, `/resume` — persisting `<byok, model, effort>`, plugin hot-reloads, and plan checkpoints directly to `toksi.db` / `<repo>/.toksi/projectmem/plan_checkpoints/` without hangs or loops.
@@ -1928,8 +1941,8 @@ Targets:
   - crates/toksi/src/commands/daemon.rs
 
 Requirements:
-1. Replace all gateway/copilot stubs (`"AI Gateway operational"` in `gateway/server.rs:259-371`, `50/50` tokens & `0.0005` USD in `aggregators/mod.rs`, `provider.default_endpoint()` hardcode in `gateway/proxy.rs:106-148`, `"copilot proxy ready"` & `"wrap"` in `copilot_daemon.rs`): wire real `LoadBalancer`, `cascade` failover, `mofa-engine` 7-D `Router::route_ranked` (`DataClass::Confidential` local pin, `CircuitBreakerRegistry`), `/v1/responses`, `/v1/embeddings`, and live Copilot OAuth/SSE upstream streaming on `:8789`/`:8790`.
-2. Ensure `commands/daemon.rs` cleanly supervises all 8 ports: `:18787` (`byok_gateway.rs`), `:8788` (`grok_daemon.rs` OAuth, explicitly distinct from `:18787`), `:8787`, `:8789`, `:8790`, `:9098` (Protocol Bus), `:9099`, and `:9100` (all configurable via `~/.toksi/config.toml`).
+1. Replace all gateway/copilot stubs (`"AI Gateway operational"` in `gateway/server.rs:259-371`, `50/50` tokens & `0.0005` USD in `aggregators/mod.rs`, `provider.default_endpoint()` hardcode in `gateway/proxy.rs:106-148`, `"copilot proxy ready"` & `"wrap"` in `copilot_daemon.rs`), invoke the full shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, `mcp_pruner`, `chroma`/`lance`) inside `gateway/proxy.rs` (`:9099` `process_request`/`dispatch_with_cascade_async` instead of stopping at align+prune), `byok_gateway.rs` (`:18787`), and `multi_protocol.rs` (`:9098`), wire real `LoadBalancer`, `cascade` failover, `mofa-engine` 7-D `Router::route_ranked` (`DataClass::Confidential` local pin, `CircuitBreakerRegistry`), `/v1/responses`, `/v1/embeddings`, and live Copilot OAuth/SSE upstream streaming on `:8789`/`:8790`.
+2. Ensure `commands/daemon.rs` cleanly supervises all 8 ports: `:18787` (`byok_gateway.rs`), `:8788` (`grok_daemon.rs` OAuth, explicitly distinct from `:18787`), `:8787`, `:8789`, `:8790`, `:9098` (Protocol Bus w/ `HeadroomEffortCompressor`), `:9099`, and `:9100` (all configurable via `~/.toksi/config.toml`).
 3. Parse authentic SSE & Responses token usage (`cache_creation_input_tokens`, `reasoning_tokens`, Gemini `candidatesTokenCount`) and upstream `x-ratelimit-*` / `anthropic-ratelimit-*` headers into `quota_windows` (`0` when idle); zero-cost `/v1/models` refresh.
 4. Build `ArcSwap<reqwest::Client>` OS network reconnect healing watchdog + HTTP/2 ConnectRPC safe frame/header passthrough (`#0033`/`#0034` resolved).
 5. Verification: `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi`.
@@ -1977,7 +1990,7 @@ Requirements:
 1. Build pure-Rust Lance-compatible columnar vector/hybrid store in `<repo>/.toksi/ai-memory/lance/` with metadata pre-filtering (`subproject_id`, `repo_hash`, `memory_type`).
 2. Build OpenWiki CodeGraph architectural synthesizer exporting deterministic Mermaid call graphs and `.toksi/projectmem/PROJECT_MAP.md` sync.
 3. Implement `tokview` + Langfuse local-first span/generation/cost/effort attribution in `memory.db`, wired into `:9098` & `:9100` Tab 1.
-4. Expose Agent Client Protocol (`agent-client-protocol`) JSON-RPC 2.0 on `:9098/acp` alongside MCP/A2A/SSE; synthesize `langgraph` state checkpoints, `deepagents` planner, `bosun` fleet isolation, `cline`/`kilocode` Plan/Act/Code/Ask/Debug/Orchestrator modes, `alphacode` verify loop, `Codewhale` blast radius, `zeroclaw` zero-overhead sandbox traits, `defenseclaw` + `skill-scanner` security/governance architecture, and unified `src/plugins/` manifest/discovery adapters.
+4. Expose Agent Client Protocol (`agent-client-protocol`) JSON-RPC 2.0 on `:9098/acp` alongside MCP/A2A/SSE with shared `HeadroomEffortCompressor` payload compression; wire native `toksi` agent out of the box ("off the back") via `DirectWireBus` and `:8787`/`:9098`/`:9099`/`:18787` to every gateway, Protocol Bus, `src/plugins/`, and all 67 vaults; synthesize `langgraph` state checkpoints, `deepagents` planner, `bosun` fleet isolation, `cline`/`kilocode` Plan/Act/Code/Ask/Debug/Orchestrator modes, `alphacode` verify loop, `Codewhale` blast radius, `zeroclaw` zero-overhead sandbox traits, `defenseclaw` + `skill-scanner` security/governance architecture, and unified `src/plugins/` manifest/discovery adapters.
 5. Update `.toksi/test-baseline.json` and verify `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --test phase18_1_vault_synthesis_verification`.
 ```
 
@@ -2015,12 +2028,13 @@ Execute Phase 18.3: First-Class Google Cloud ADC Gateway, Thinking-Effort-Aware 
 Targets:
   - crates/toksi/src/keyring/adc.rs, crates/toksi/src/db/{schema.rs,operations.rs}
   - crates/toksi/src/gateway/{vertex_adc.rs,effort_router.rs,proxy.rs}
-  - crates/toksi/src/headroom/{effort.rs,proxy.rs}
+  - crates/toksi/src/headroom/{effort.rs,proxy.rs,byok_gateway.rs}
+  - crates/toksi/src/tools/multi_protocol.rs
   - crates/toksi/src/projectmem/plan_checkpoint.rs, crates/toksi/src/agent_runtime/checkpoint.rs
 
 Requirements:
 1. Support `AGY_ADC_AUTH=true` + VS Code `"gcp.project"` / `"gcp.location"` (`us-central1` default) + `byok_profiles` (`auth_mode`, `gcp_project`, `gcp_location`), reading `~/.config/gcloud/application_default_credentials.json` (`%APPDATA%/gcloud/application_default_credentials.json` on Windows) or `GOOGLE_APPLICATION_CREDENTIALS`, performing cached pure-Rust OAuth2/service-account token exchange and Vertex regional signing, with clear `gcloud auth application-default login --project <GCP_PROJECT>` diagnostics when absent.
-2. Implement `/effort [low|medium|high]` (`--effort`, `x-toksi-effort`, JSON body) cross-provider translation (`reasoning_effort`, `thinking.budget_tokens`, `generationConfig.thinkingConfig.thinkingBudget` — safely omitted on unsupported models) paired with dynamic Headroom scaling (`Low` aggressive, `Medium` balanced, `High` lossless reasoning & deep SCIP/AST).
+2. Implement `/effort [low|medium|high]` (`--effort`, `x-toksi-effort`, JSON body) cross-provider translation (`reasoning_effort`, `thinking.budget_tokens`, `generationConfig.thinkingConfig.thinkingBudget` — safely omitted on unsupported models) paired with shared `HeadroomEffortCompressor` scaling (`Low` aggressive, `Medium` balanced, `High` lossless reasoning & deep SCIP/AST) across ALL 7 inference/protocol entrypoints (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`) and native `src/agent_runtime/`.
 3. Persist atomic `.toksi/projectmem/plan_checkpoints/<plan_id>.json` (`write tmp -> fsync -> rename`) + active plugin state (`plugins_registry` snapshot) + `events.jsonl` + `plan.md` checkbox state at milestones/429/network drop/crash; expose `/resume` slash command and `toksi agent resume [<plan_id>]`.
 4. Verify `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --test phase18_3_adc_effort_checkpoint_verification`.
 ```

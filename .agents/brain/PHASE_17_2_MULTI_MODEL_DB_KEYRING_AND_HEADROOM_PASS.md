@@ -19,7 +19,7 @@ Targets:
 Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly; Windows Credential Manager FFI lives in `crates/toksi-sys`.
 2. Zero Panics & Prompt Cache Preservation: NEVER rewrite/strip early history turns in place if doing so breaks provider prompt caching. Use `headroom-core`'s `compute_frozen_count` + `live_zone` byte-range surgery!
-3. Mandatory BYOK Headroom Pass: Zero `/byok/` compression exemptions — EVERY configured BYOK request flows through Headroom + enabled tools (`mcp_pruner`, `SmartCrusher`, `CcrStore`, `TokenEconomizer`, `chroma` semantic cache).
+3. Universal Mandatory `HeadroomEffortCompressor` Pass: Zero `/byok/`, gateway (`:9099`), BYOK/Vertex ADC (`:18787`), or Protocol Bus (`:9098`) compression exemptions — EVERY inference/protocol entrypoint invokes the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, `mcp_pruner`, `rtk`, `chroma`/`lance` semantic cache).
 4. Configured-Only Keyring & Multi-Instance BYOK: Users can configure multiple `<byok, model, effort>` rows under the same BYOK provider (separate models, separate endpoints, separate quotas) via CLI, TUI, Web Cockpit, or `/byokmodel`.
 
 Requirements:

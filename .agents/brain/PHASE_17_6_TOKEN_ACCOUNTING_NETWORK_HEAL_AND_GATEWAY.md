@@ -26,9 +26,9 @@ Disciplinary & Portability Requirements:
 Requirements:
 1. Replace All Static Gateway & Copilot Stubs with Real Dispatch:
    - `gateway/server.rs:259-371` & `aggregators/mod.rs`: Replace `"AI Gateway operational"` static text and `50/50`/`0.0005` stubs with real `LoadBalancer` dispatch, `cascade` failover, and `mofa-engine` deterministic 7-D `Router::route_ranked` (`DataClass::Confidential` local-engine pinning, `CircuitBreakerRegistry`, `QualityGate`).
-   - `gateway/proxy.rs:106-148`: Remove `provider.default_endpoint()` hardcoding so custom user `base_url`s from `config.toml`/`byok_profiles` are always honored; implement `/v1/responses` and `/v1/embeddings` alongside `/v1/chat/completions`, `/v1/messages`, `/v1beta/models/*`.
-   - `headroom/copilot_daemon.rs`: Replace `"copilot proxy ready"` & `"wrap"` stubs on `:8789` (VS Code) and `:8790` (CLI) with authentic OAuth token refresh, Headroom tail compression, and SSE upstream streaming.
-   - `commands/daemon.rs`: Supervise `:18787` (`byok_gateway.rs`) alongside `:8787` (Headroom), `:8788` (Grok OAuth — explicitly separate from BYOK), `:8789`/`:8790` (Copilot), `:9099` (Gateway), and `:9100` (Cockpit).
+   - `gateway/proxy.rs:106-148, 207-210, 324-327`: Invoke full shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, `mcp_pruner`, `chroma`/`lance`) in `process_request` and `dispatch_with_cascade_async` (replacing align+prune-only processing); remove `provider.default_endpoint()` hardcoding so custom user `base_url`s from `config.toml`/`byok_profiles` are always honored; implement `/v1/responses` and `/v1/embeddings` alongside `/v1/chat/completions`, `/v1/messages`, `/v1beta/models/*`.
+   - `headroom/copilot_daemon.rs` & `headroom/byok_gateway.rs`: Replace `"copilot proxy ready"` & `"wrap"` stubs on `:8789` (VS Code) and `:8790` (CLI) with authentic OAuth token refresh, Headroom tail compression, and SSE upstream streaming; route all enabled `:18787` BYOK & Vertex ADC requests through `HeadroomEffortCompressor` (`Low`/`Medium`/`High`).
+   - `commands/daemon.rs`: Supervise `:18787` (`byok_gateway.rs`) alongside `:8787` (Headroom), `:8788` (Grok OAuth — explicitly separate from BYOK), `:8789`/`:8790` (Copilot), `:9098` (Protocol Bus w/ `HeadroomEffortCompressor`), `:9099` (Gateway), and `:9100` (Cockpit).
 2. Authentic SSE Usage & Rate-Limit Extraction (`telemetry/{tokentracker,collector}.rs`):
    - Parse streaming OpenAI/Responses/Anthropic (`cache_creation_input_tokens`, `cache_read_input_tokens`), OpenAI reasoning tokens, and Gemini (`candidatesTokenCount`) live without buffering entire responses.
    - Parse `x-ratelimit-*` and `anthropic-ratelimit-*` headers into `quota_windows` (`hour|day|week|month|year`), updating live TUI/Web snapshots cleanly.
@@ -45,7 +45,7 @@ Requirements:
 ## Technical Specifications & Details
 
 ### 1. Port & Routing Matrix
-- `:8787` Headroom Streaming Proxy -> `:8788` Grok OAuth (`grok_daemon.rs`) -> `:8789` Copilot VS Code -> `:8790` Copilot CLI -> `:18787` Multi-Profile BYOK Gateway -> `:9099` Enterprise AI Gateway (`mofa-engine` 7-D + `LoadBalancer` + `cascade` + `/metrics`) -> `:9100` Detached Web Cockpit.
+- `:8787` Headroom Streaming Proxy + `:8788` Grok OAuth (`grok_daemon.rs`) + `:8789` Copilot VS Code + `:8790` Copilot CLI + `:9098` Protocol Bus + `:18787` Multi-Profile BYOK/Vertex ADC Gateway + `:9099` Enterprise AI Gateway (`mofa-engine` 7-D + `LoadBalancer` + `cascade` + `/metrics`) -> ALL 7 inference/protocol entrypoints invoke the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`) -> `:9100` Detached Web Cockpit.
 
 ### 2. Verification Criteria
 - Gateway routes real mock OpenAI/Anthropic/Gemini/Responses SSE chunks without `"AI Gateway operational"` stubs and reports `0` tokens when idle.

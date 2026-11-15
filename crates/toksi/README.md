@@ -27,19 +27,21 @@ All listening ports are overridable via `~/.toksi/config.toml` (`[ports]`) and i
 │ │ :8787 Headroom Proxy       │      │ :9099 Enterprise AI Gateway & SDKs       │ │
 │ │ - HTTP/1.1 & HTTP/2 SSE    │      │ - /v1/{chat/completions,messages,        │ │
 │ │ - ConnectRPC Passthrough   │      │   responses,embeddings}, /v1beta/*       │ │
-│ │ - live_zone Cache Surgery  │      │ - /v1/security/scan & Prometheus /metrics│ │
-│ │ - Low/Med/High Effort Scale│      │ - AGY_ADC_AUTH=true Vertex AI Routing    │ │
-│ │ - 13 In-Chat /... Commands │      │ - 65/90+ Ecosystem & 22 Local Engines    │ │
-│ └────────────────────────────┘      │ - MoFA 7-D Router & Chroma/Lance Cache   │ │
-│ ┌────────────────────────────┐      └──────────────────────────────────────────┘ │
-│ │ :8788 Grok OAuth Daemon    │      ┌──────────────────────────────────────────┐ │
-│ │ :8789 Copilot VS Code      │      │ :9098 Unified Protocol Bus               │ │
-│ │ :8790 Copilot CLI          │      │ - MCP/A2A v1.0/ACP/SSE/Plugin/Checkpts   │ │
-│ └────────────────────────────┘      └──────────────────────────────────────────┘ │
-│ ┌────────────────────────────┐      ┌──────────────────────────────────────────┐ │
-│ │ :18787 BYOK Multi-Profile  │      │ :9100 Detached Web Telemetry Cockpit     │ │
-│ │ - Per-profile base_url/ADC │      │ - 9-Tab UI, tokview, Plugins & Security  │ │
-│ └────────────────────────────┘      └──────────────────────────────────────────┘ │
+│ │ - live_zone Cache Surgery  │      │ - Shared Headroom Effort Compressor      │ │
+│ │ - Low/Med/High Effort Scale│      │ - /v1/security/scan & Prometheus /metrics│ │
+│ │ - 13 In-Chat /... Commands │      │ - AGY_ADC_AUTH=true Vertex AI Routing    │ │
+│ └────────────────────────────┘      │ - 65/90+ Ecosystem & 22 Local Engines    │ │
+│ ┌────────────────────────────┐      │ - MoFA 7-D Router & Chroma/Lance Cache   │ │
+│ │ :8788 Grok OAuth Daemon    │      └──────────────────────────────────────────┘ │
+│ │ :8789 Copilot VS Code      │      ┌──────────────────────────────────────────┐ │
+│ │ :8790 Copilot CLI          │      │ :9098 Unified Protocol Bus               │ │
+│ └────────────────────────────┘      │ - MCP/A2A/ACP/SSE + Headroom Effort Pass │ │
+│ ┌────────────────────────────┐      │ - All 67 Vaults, Plugins & Checkpoints   │ │
+│ │ :18787 BYOK & Vertex ADC   │      └──────────────────────────────────────────┘ │
+│ │ - Per-profile base_url/ADC │      ┌──────────────────────────────────────────┐ │
+│ │ - Headroom Effort Compress │      │ :9100 Detached Web Telemetry Cockpit     │ │
+│ └────────────────────────────┘      │ - 9-Tab UI, tokview, Plugins & Security  │ │
+│                                     └──────────────────────────────────────────┘ │
 │                                                                                  │
 │ [ In-Process DirectWireBus & Native Rust Engines (67 Vaults) ]                   │
 │  • RTK (100+ Filters + Tracker)    • ProjectMem (JSONL + plan_checkpoints/)      │
@@ -58,10 +60,10 @@ All listening ports are overridable via `~/.toksi/config.toml` (`[ports]`) and i
 * **Port `8788`**: GitHub/xAI Grok OAuth Proxy Daemon (`grok_daemon.rs` — strictly separate from BYOK).
 * **Port `8789`**: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`).
 * **Port `8790`**: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`).
-* **Port `9098`**: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` `agent-client-protocol` / SSE / checkpoint event bus).
-* **Port `9099`**: Enterprise AI Gateway & Drop-in SDK Endpoints (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`, `/v1/embeddings`, `/v1/security/scan`, `/v1beta/models/*`, `/metrics`, Vertex AI ADC endpoints).
+* **Port `9098`**: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` `agent-client-protocol` / `stdio` / `SSE` / `HTTP` / checkpoint event bus) with shared `HeadroomEffortCompressor` payload compression (`Low`/`Medium`/`High`) across all 67 vault tools, `Headroom`, `Security`, and `Plugins`.
+* **Port `9099`**: Enterprise AI Gateway & Drop-in SDK Endpoints (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`, `/v1/embeddings`, `/v1/security/scan`, `/v1beta/models/*`, `/metrics`, Vertex AI ADC endpoints), enforcing full `HeadroomEffortCompressor` (`Low`/`Medium`/`High`) before cache & dispatch.
 * **Port `9100`**: Detached Real-Time Web Telemetry Cockpit (`toksi dashboard start|stop|restart`).
-* **Port `18787`**: Multi-Instance BYOK & Google Cloud ADC Gateway (`byok_gateway.rs` — supervised by daemon).
+* **Port `18787`**: Multi-Instance BYOK & Google Cloud ADC Gateway (`byok_gateway.rs` — supervised by daemon, routing all enabled requests through `HeadroomEffortCompressor` `Low`/`Medium`/`High`).
 
 ---
 
@@ -106,13 +108,13 @@ All listening ports are overridable via `~/.toksi/config.toml` (`[ports]`) and i
   - Emits exact remediation (`gcloud auth application-default login --project <GCP_PROJECT>`) whenever credentials or project IDs are missing.
 * **Thinking-Effort-Aware Token Optimization (`Low` / `Medium` / `High`)**:
   - Single `/effort` interface (`--effort`, header `x-toksi-effort`, or gateway JSON body) maps seamlessly across OpenAI (`reasoning_effort`), Anthropic (`thinking.budget_tokens`), and Gemini/Vertex (`generationConfig.thinkingConfig.thinkingBudget`) — silently omitting thinking fields on unsupported models.
-  - Dynamically scales Headroom compression: `Low` (aggressive compaction + top-K signatures), `Medium` (balanced AST/semantic compression), `High` (lossless reasoning, deep CodeGraph SCIP + blast radius).
+  - Dynamically scales shared `HeadroomEffortCompressor` across ALL 7 inference/protocol entrypoints (`:8787`–`:8790`, `:9098` Protocol Bus, `:9099` Enterprise AI Gateway, `:18787` BYOK & Vertex ADC Gateway): `Low` (aggressive compaction + top-K signatures), `Medium` (balanced AST/semantic compression), `High` (lossless reasoning, deep CodeGraph SCIP + blast radius).
 
 ---
 
 ## 4. Native Coding CLI (`toksi chat|run|exec|swarm`), Unified Plugins, Safe Resume & 13 Slash Commands
 
-Launch Toksi directly as your standalone AI coding CLI or multi-agent swarm orchestrator (synthesizing `hermes-agent`, `openclaw`, `openclaw-rs`, `mofa`, `mofaclaw`, `crewAI`, `codex`, `crustly`, `crush`, `goose`, `grok-build`, `gemini-cli`, `langgraph`, `deepagents`, `bosun`, `cline`, `kilocode`, `alphacode`, `zeroclaw`, `agent-control`):
+Launch Toksi directly as your standalone AI coding CLI or multi-agent swarm orchestrator — wired out of the box ("off the back") via `DirectWireBus` and local endpoints (`:8787`, `:9098`, `:9099`, `:18787`) to Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), `HeadroomEffortCompressor`, Unified Plugin System (`src/plugins/`), and all 67 consolidated vault engines (`rtk`, `headroom`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `lance`, `agent-client-protocol`, `agent-opt`, `agent-control`, `sage`, `defenseclaw`, `skill-scanner`, plus `hermes-agent`, `openclaw`, `mofa`, `crewAI`, `codex`, `goose`, `grok-build`, `gemini-cli`, `langgraph`, `deepagents`, `bosun`, `cline`, `kilocode`, `alphacode`, `zeroclaw`):
 
 ```bash
 # Interactive coding session with 3-OS sandbox, <enforce> guardrails & plan checkpoints

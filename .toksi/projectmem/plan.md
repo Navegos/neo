@@ -3,7 +3,7 @@
 - **Target Crate**: `crates/toksi` (`d:/AI/neo`)
 - **Master Architecture**: `crates/toksi/CONSOLIDATION_PLAN.md`, `crates/toksi/PLAN.md`, `crates/toksi/research/RESEARCHPLAN.md`
 - **Audited Vaults**: **67** `inspect-vault/*` repositories (`36` Waves 1–17 + `31` Wave 18) across **90+ AI coding agents, runtimes, local inference engines & security scanners**
-- **Daemon Topology**: **8-Port Unified Local Daemon** (`:8787` Headroom Proxy, `:8788` Grok OAuth, `:8789` Copilot VS Code, `:8790` Copilot CLI, `:9098` Protocol Bus MCP/A2A/ACP/SSE, `:9099` Enterprise Gateway & Metrics, `:9100` Detached Web Cockpit, `:18787` BYOK Gateway w/ Google Cloud ADC `AGY_ADC_AUTH=true`)
+- **Daemon Topology**: **8-Port Unified Local Daemon** (`:8787` Headroom Proxy, `:8788` Grok OAuth, `:8789` Copilot VS Code, `:8790` Copilot CLI, `:9098` Protocol Bus MCP/A2A/ACP/SSE, `:9099` Enterprise Gateway & Metrics, `:9100` Detached Web Cockpit, `:18787` BYOK Gateway w/ Google Cloud ADC `AGY_ADC_AUTH=true`), with ALL 7 inference/protocol entrypoints (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`) running the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`) and native `toksi` agent wired out of the box ("off the back") to every gateway, Protocol Bus, Effort Compressor, Unified Plugin System, and all 67 vault tools
 - **Universal Slash Commands (`< 5ms`)**: **13 commands**: `/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/plugin`, `/resume`
 
 ---
@@ -17,12 +17,12 @@
 - [ ] **Phase 11–14**: Self-healing `toksi doctor`, 6->9 tab Ratatui TUI & `:9099` metrics, E2E benchmarks, native OS keyring + SQLite (`byok_profiles` w/ `auth_mode`, `gcp_project`, `gcp_location`, `plugins_registry`).
 
 ### Waves 15–16: Enterprise Topology, Protocols & UI (`PHASE_15_1`..`PHASE_16_3`)
-- [ ] **Phase 15.1–15.6**: `<repo>/.toksi/` workspace isolation, unified 8-port daemon (`:9098` Protocol Bus), smart CLI providers (zero paid-tier blocks), MCP/A2A/ACP/SSE, `tokview` token attribution, vault intelligence bridges across all **67** vaults.
+- [ ] **Phase 15.1–15.6**: `<repo>/.toksi/` workspace isolation, unified 8-port daemon (`:9098` Protocol Bus + shared `HeadroomEffortCompressor` across all 7 inference/protocol ports `:8787`–`:8790`, `:9098`, `:9099`, `:18787`), smart CLI providers (zero paid-tier blocks), MCP/A2A/ACP/SSE, `tokview` token attribution, vault intelligence bridges across all **67** vaults.
 - [ ] **Phase 16.1–16.3**: Mouse-capable 9-tab Ratatui TUI, HTMX/Alpine Web Cockpit (`:9100`) with `skill-scanner` / `defenseclaw` / Plugin Manager, universal 90+ agent hooks & **13** slash commands.
 
 ### Wave 17: TOML Config, Direct Wire & Incremental Baselines (`PHASE_17_1`..`PHASE_17_7`)
 - [ ] **Phase 17.1–17.4**: Canonical `~/.toksi/config.toml` (incl. `[plugins]`, `defenseclaw_fail_closed`, `skill_scanner_policy`), multi-model SQLite catalogs (`plugins_registry`), complete `langs.rs` grammar coverage (`dockerfile`, `vue`, `scss`), vault ecosystem connectors.
-- [ ] **Phase 17.5–17.7**: Native Rust `DirectWireClient`, **13** `< 5ms` slash commands (`/plugin`), streaming SSE usage accounting + 429 self-heal, async 9-tab UI & `.toksi/test-baseline.json` incremental gates.
+- [ ] **Phase 17.5–17.7**: Native `toksi` agent (`src/agent_runtime/`) wired out of the box ("off the back") via `DirectWireClient` + `:8787`/`:9098`/`:9099`/`:18787` to every gateway, Protocol Bus, `HeadroomEffortCompressor`, `src/plugins/`, and all 67 vault tools, **13** `< 5ms` slash commands (`/plugin`), streaming SSE usage accounting + 429 self-heal, async 9-tab UI & `.toksi/test-baseline.json` incremental gates.
 
 ### Wave 18 (v5.0): 31 New Vaults, Unified Plugins, `defenseclaw`, `skill-scanner`, ADC, Effort & Checkpoints (`PHASE_18_1`..`PHASE_18_4`)
 - [ ] **Phase 18.1**: Synthesize **31** new Wave 18 vaults (`lance`, `openwiki`, `tokview`, `agent-control`, `agent-client-protocol`, `python-genai`, `python-aiplatform`, `langgraph`, `langchain`, `langfuse`, `langflow`, `deepagents`, `bosun`, `Codewhale`, `cline`, `kilocode`, `alphacode`, `zeroclaw`, `sage`, `codex-security`, `deepsec`, `osv-scanner`, `semgrep`, `semgrep-rules`, `research-securety-skills`, `agent-skills`, `openagent-skills`, `openclaw-agent-skills`, `agentskills`, `defenseclaw`, `skill-scanner`) + `src/plugins/` manifest/discovery foundations.

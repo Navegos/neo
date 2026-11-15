@@ -22,9 +22,9 @@ Disciplinary & Portability Requirements:
    - Port `8788`: Grok OAuth Daemon (`grok_daemon.rs` — NOT BYOK!)
    - Port `8789`: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`)
    - Port `8790`: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`)
-   - Port `9098`: Unified Protocol Bus (`MCP`, `A2A` v1.0, `ACP`, `stdio`/`SSE`/`HTTP`, Unified Plugin System endpoints under `<enforce>`, `plan_checkpoints`, & security events)
-   - Port `18787`: BYOK Multi-Profile Gateway (`byok_gateway.rs` — supervised by daemon)
-   - Port `9099`: Enterprise AI Gateway & Drop-in SDKs + `/metrics` (Dedicated inference thread pool, <10 µs latency overhead)
+   - Port `9098`: Unified Protocol Bus (`MCP`, `A2A` v1.0, `ACP`, `stdio`/`SSE`/`HTTP`, shared `HeadroomEffortCompressor` payload compression, Unified Plugin System endpoints under `<enforce>`, `plan_checkpoints`, & security events)
+   - Port `18787`: BYOK Multi-Profile & Vertex ADC Gateway (`byok_gateway.rs` — supervised by daemon, routed through shared `HeadroomEffortCompressor` `Low`/`Medium`/`High`)
+   - Port `9099`: Enterprise AI Gateway & Drop-in SDKs + `/metrics` (Dedicated inference thread pool, <10 µs latency overhead, executing full `HeadroomEffortCompressor` `Low`/`Medium`/`High` before cache/failover)
    - Port `9100`: Detached Web Dashboard Cockpit (Isolated non-blocking background service, zero TCP backpressure on inference)
 4. Non-Destructive Environment Lifecycle: Clean teardown of Windows `HKCU\Environment` variables (`WM_SETTINGCHANGE` broadcast) and Unix session env on daemon shutdown (never inject `CLOUD_CODE_URL`).
 

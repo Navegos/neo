@@ -19,7 +19,7 @@ Your goals in Rust (`crates/toksi`):
      * OpenAI / Codex / Copilot / DeepSeek / Grok -> `reasoning_effort: "low" | "medium" | "high"`.
      * Anthropic -> `thinking: { type: "enabled", budget_tokens: 1024 | 8192 | 32768 }` (auto-omitted for non-thinking models).
      * Gemini / Vertex ADC -> `generationConfig.thinkingConfig.thinkingBudget` (e.g. `1024 | 8192 | 24576` or model-specific min/max clamp; silently stripped if model does not support thinking).
-   - Tune Toksi compression aggressiveness by effort tier:
+   - Tune Toksi compression aggressiveness by effort tier across ALL 7 inference/protocol entrypoints (`:8787`–`:8790` proxies, `:9098` Protocol Bus, `:9099` Enterprise AI Gateway `gateway/proxy.rs`, and `:18787` BYOK & Vertex ADC Gateway `byok_gateway.rs`) plus native `src/agent_runtime/` via the shared `HeadroomEffortCompressor`:
      * `Low`: fast heuristic pruning, RTK max compaction, top-K AST slices, zero multi-hop SCIP expansion.
      * `Medium`: balanced Headroom semantic compression + AST body pruning + ICM summary cache.
      * `High`: lossless reasoning/system prompt preservation, deep CodeGraph SCIP + blast-radius context, zero truncation of user constraints or error backtraces.

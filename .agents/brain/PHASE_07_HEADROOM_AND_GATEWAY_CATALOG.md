@@ -23,10 +23,10 @@ Disciplinary & Portability Requirements:
    - Port `8788`: Grok OAuth Proxy Daemon (`grok_daemon.rs` — distinct from `:18787` BYOK!)
    - Port `8789`: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`)
    - Port `8790`: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`)
-   - Port `18787`: BYOK Multi-Profile Gateway (`byok_gateway.rs` — supervised by daemon)
-   - Port `9099`: Enterprise AI Gateway & Drop-in SDKs + `/metrics` (Inference thread pool, <10 µs latency overhead)
+   - Port `18787`: BYOK Multi-Profile & Vertex ADC Gateway (`byok_gateway.rs` — supervised by daemon, routed through shared `HeadroomEffortCompressor`)
+   - Port `9099`: Enterprise AI Gateway & Drop-in SDKs + `/metrics` (Inference thread pool, <10 µs latency overhead, enforcing full `HeadroomEffortCompressor` + `<enforce>`)
    - Port `9100`: Detached Web Dashboard Cockpit (Isolated listener, zero backpressure on LLM streaming)
-4. Zero Paid-Tier Restrictions & Open Multi-Instance BYOK: Remove ALL `FreeTierDisqualified` / `ACTIVE_PAID_PROVIDERS` / `[PAID]` gating. Support multiple `<byok, model, effort>` instances per provider, editable custom API `base_url`s, configured-only routing activation, and mandatory Headroom pass across ALL BYOK traffic (fix `/byok/` early return at `headroom/proxy.rs:619-631`).
+4. Zero Paid-Tier Restrictions & Open Multi-Instance BYOK: Remove ALL `FreeTierDisqualified` / `ACTIVE_PAID_PROVIDERS` / `[PAID]` gating. Support multiple `<byok, model, effort>` instances per provider, editable custom API `base_url`s, configured-only routing activation, and mandatory `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone` + `CcrStore` + `SmartCrusher` + `TokenEconomizer` + `agent-opt` + `mcp_pruner` + `rtk` + `chroma`/`lance`) across ALL 7 inference/protocol entrypoints (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`; fix `/byok/` early return at `headroom/proxy.rs:619-631` and extend `gateway/proxy.rs` beyond align+prune).
 5. Ground-Truth Token Accounting: Real tokens (`cache_creation_input_tokens`, Responses usage, Gemini `candidatesTokenCount`) parsed from live SSE streams; prohibition of virtual/synthetic math (`0` when idle); zero-cost `/v1/models` refresh & read-only `hour..year` `quota_windows`.
 
 Requirements:

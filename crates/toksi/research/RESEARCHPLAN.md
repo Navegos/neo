@@ -276,14 +276,22 @@ flowchart LR
     A1 -->|Copilot Routes| P8789
     A1 -->|Copilot CLI| P8790
     A1 -->|MCP / A2A / ACP| P9098
-    A2 -->|In-Process + Bus| P8787
+    A1 -->|SDK & Vertex ADC| P9099
+    A1 -->|"<byok, model, effort>"| P18787["BYOK & Vertex ADC Gateway (:18787)"]
+    A2 -->|In-Process DirectWireBus + HTTP| Compress["Headroom Effort Compressor (Low/Med/High)"]
     A2 -->|Swarm & Tool Calls| P9098
+    A2 -->|AI Gateway & BYOK| P9099
+    A2 -->|Multi-Profile BYOK| P18787
+    A2 -->|Off-the-Back All 67 Vaults| Tools
 
-    P8787 --> Tools
-    P8787 -->|Headroom + Effort Optimized| P9099
-    P8789 --> P8787
-    P8790 --> P8787
-    P9098 --> Tools
+    P8787 --> Compress
+    P8789 --> Compress
+    P8790 --> Compress
+    P9098 --> Compress
+    P9099 --> Compress
+    P18787 --> Compress
+    Compress -->|Headroom + Effort Optimized| Tools
+    Compress -->|Routed & Compressed| P9099
     P9099 --> Heal
     Heal --> Cloud
     Heal --> Local
@@ -448,6 +456,7 @@ flowchart TD
 ### 5.2 Multi-Agent Capabilities, Direct-Wiring, & Unified Slash Commands
 
 1. **Synthesized Reference Capabilities from Inspect Vaults:**
+   - **Out-of-the-Box ("Off the Back") Full Platform Wiring (`src/agent_runtime/`):** Running `toksi chat|run|exec|swarm|agent resume` requires zero manual configuration to bind in-process (`DirectWireBus`) and over local endpoints (`:8787`, `:9098`, `:9099`, `:18787`) to Enterprise AI Gateway (`:9099`), BYOK & Vertex ADC Gateway (`:18787`), Protocol Bus (`:9098` `MCP`/`A2A`/`ACP`/`stdio`/`SSE`/`HTTP`), shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`), Unified Plugin System (`src/plugins/`), and all 67 consolidated `inspect-vault/*` engines (`rtk`, `headroom`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `lance`, `agent-client-protocol`, `agent-opt`, `agent-control`, `sage`, `defenseclaw`, `skill-scanner`, `osv-scanner`, `semgrep`, etc.) with `<enforce>` active by default.
    - **Reasoning, Verification & Thinking-Effort Adaptation (`hermes-agent`, `ponytail`, `karpathy-skills`, `Line 124`):** Adapt Headroom pruning aggressiveness, context window budget, and `reasoning_effort`/`thinkingBudget` across **`Low`**, **`Medium`**, and **`High`** profiles (`Low` = aggressive RTK/Economizer pruning + concise fast model routing; `Medium` = balanced context + standard CCR; `High` = lossless reasoning-chain retention + deep CodeGraph/SCIP slices + Hermes critic reflection).
    - **Agent-to-Agent Bus & Swarm Automation (`mofa`, `mofa-engine`, `mofaclaw`, `openclaw`, `openclaw-rs`, `crewAI`, `deepagents`, `langgraph`):** Pure-Rust typed `AgentMessage` envelope (`Command`, `StreamChunk`, `TaskHandoff`, `Escalation`, `Heartbeat`) over in-process channels, stdio, SSE, HTTP, A2A JSON-RPC 2.0, and ACP (`agent-client-protocol`). Supports role presets (`.codex/agents/*.toml`, `.agents/agents/`), 6-detector `ToolLoopDetector`, `SubtaskDAG` + wave scheduler, and cron/autonomous background runs (`toksi agent exec`).
    - **Isolated Patching & OS Sandboxing (`codex-rs`, `crush`, `crustly`, `goose`, `grok-build`):** `apply_patch` + `HashlineEditTool`, Git worktree isolation, and 3-OS process sandbox (`bwrap`/Landlock, Seatbelt, Windows Restricted Token/Job Objects).
@@ -584,7 +593,7 @@ Cross-referencing `src/gateway/providers/mod.rs` and `crates/toksi/research/full
 - **Thinking-Effort-Aware Token Optimization (`Line 124`):**
   - Translate thinking effort (`Low`, `Medium`, `High`, plus `None`/`Max`/`XHigh` where supported) cleanly across Anthropic (`thinking.budget_tokens`), OpenAI (`reasoning_effort`), Gemini/CloudCode/Vertex (`generationConfig.thinkingConfig.thinkingBudget`), xAI (`reasoning_effort`/`reasoning_format`), and DeepSeek (`reasoning_content`)—silently omitting unsupported effort fields when a model rejects them (`Line 157`).
   - Scale Toksi's Headroom/Economizer/Context pruning policies automatically with the active thinking effort (`Low` = maximum compression & concise context; `Medium` = balanced pruning; `High` = preserve full AST/reasoning/decision chains while stripping log boilerplate).
-- **Mandatory Headroom Pass (`Line 154`):** All configured `<byok providers>` route through Headroom optimization + active tool compression (except raw binary/ConnectRPC auth handshakes).
+- **Mandatory Headroom Pass (`Line 154`):** All configured `<byok providers>`, Vertex ADC (`:18787`), Enterprise AI Gateway (`:9099`), Protocol Bus (`:9098`), and streaming proxies (`:8787`–`:8790`) route through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, MCP schema pruner, `rtk`, `chroma`/`lance`, and `<enforce>` security) — except raw binary/ConnectRPC auth handshakes.
 
 ### 7.4 Dynamic Model Discovery & Zero-Cost Ground-Truth Telemetry (`Lines 101–102, 157`)
 
@@ -1320,8 +1329,9 @@ flowchart LR
    - Keep `commands/agent.rs` lifecycle intact while wiring `toksi chat`, `toksi run`, `toksi exec`, `toksi swarm`, `toksi resume` (and `toksi agent <cmd>` aliases) via `src/commands/agent_runtime.rs` + `src/agent_runtime/`.
    - Synthesize `hermes-agent` (`TurnFacadeMixin`, `RunawayStreamWatch`, `StopGateVerdict`, `StreamingContextScrubber`, `MoAChatCompletions`), `openclaw` (6-detector `ToolLoopDetector`, `A2aTaskStore` JSON-RPC 2.0, `SessionActorQueue`, `advisor`), `openclaw-rs` (BLAKE2b-256 `EventLog`, CRDT merge), `mofa`/`mofa-engine`/`mofaclaw` (`SubtaskDAG`, wave scheduler, `SwarmHITLGate`, `Router::route_ranked`, `SHELL_METACHARS` RBAC), `codex-rs` (3-OS sandbox + `apply_patch`), `grok-build` (`HashlineEditTool`), `langgraph` (durable checkpoint/resume), `agent-client-protocol` (ACP schema), `cline`/`kilocode` (mode switches), `zeroclaw`/`alphacode` (lightweight execution & `alphagrep`).
 2. **Broken Code, Stubs & Parity Fixes Across Intelligence Vaults (`crates/toksi/src/`):**
-   - `headroom/` & `tools/headroom.rs`: Pure-Rust `live_zone` + `CcrStore` + `SmartCrusher` + `/byok/` interception are active in `proxy.rs:615, 706` and `copilot_daemon.rs:790`; verify removal of any residual legacy Python references, wire live semantic cache (`lance` / `chroma` ANN), integrate `TokenEconomizer` + `agent-opt`, and scale compression dynamically for `Low`/`Medium`/`High` thinking effort.
-   - `gateway/{server.rs,proxy.rs,providers/aggregators/mod.rs}`: Replace static stubs and fake `50/50` / `0.0005` numbers with real `LoadBalancer` dispatch, `Router::route_ranked`, real SSE `StreamAccumulator`, `/v1/responses`, `/v1/embeddings`, live `/v1/models`, and real Copilot upstream on `:8789`/`:8790`. Supervise `:18787` BYOK gateway; keep `:8788` = Grok OAuth.
+   - `headroom/` & `tools/{headroom,multi_protocol}.rs`: Pure-Rust `live_zone` + `CcrStore` + `SmartCrusher` + `/byok/` interception + shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`, `TokenEconomizer`, `agent-opt`, `mcp_pruner`, `rtk`, `chroma`/`lance`, `<enforce>` security) MUST execute across all 7 inference/protocol entrypoints (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`); expand `multi_protocol.rs` `ToolTarget` beyond the initial 6 variants to cover `Headroom`, `Security`, `Plugins`, and all 67 consolidated vault engines while removing any residual legacy Python references.
+   - `gateway/{server.rs,proxy.rs,providers/aggregators/mod.rs}` & `headroom/byok_gateway.rs`: Route every request through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`, `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`) instead of stopping at `align_system_prompt_to_1024` + `prune_mcp_request_payload`; replace static stubs and fake `50/50` / `0.0005` numbers with real `LoadBalancer` dispatch, `Router::route_ranked`, real SSE `StreamAccumulator`, `/v1/responses`, `/v1/embeddings`, live `/v1/models`, and real Copilot upstream on `:8789`/`:8790`. Supervise `:18787` BYOK & Vertex ADC gateway; keep `:8788` = Grok OAuth.
+   - `agent_runtime/` & `plugins/` (Out-of-the-Box "Off the Back" Contract): Default `toksi chat|run|exec|swarm|agent resume` execution MUST bind in-process (`DirectWireBus`) and over local endpoints (`:8787`, `:9098`, `:9099`, `:18787`) to Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), `HeadroomEffortCompressor`, `src/plugins/`, and all 67 `inspect-vault/*` tools with zero manual setup.
    - `commands/ctx.rs:22` & `commands/runmcp.rs:167–170`: Already wired to `contextmode::hooks::run_context_hook` and `aimemory::mcp`—audit full feature parity (`core/policy/*`, `core/journal/*`, `core/compaction/*`, `mem0`, `openwiki`).
    - `commands/index.rs::find_project_dir()` (`L25–78`): Remove `.projectmem` from `PROJECT_MARKERS` and stop falling back to `marker_root` / non-Git `current` directories—walk strictly to `<repo>/.git/` root, partition `<repo>/crates/*` via `subproject_id` inside root `<repo>/.toksi/`, and ensure `global.rs`/`icm`/`aimemory`/`contextmode`/`codegraph` never store repo indexes in `~/.toksi/<tool>` or index non-Git dirs.
    - `codegraph/kernel/langs.rs`: Add missing `"dockerfile"` match in `grammar_for()` (`L74–118`) and dedicated `vue`/`scss` SFC grammars; consolidate unwired `ast_grep.rs`, `scip.rs`, `jcodemunch.rs`, `repomix.rs`, `TokenTracker`, `tokview`, `rtk` SQLite `Tracker`/`tee`/`discover`, `icm` (missing upstream MCP tools), `projectmem` (missing MCP tools + `staleness`/`structure`), `caveman` v4, and `ponytail` companion modes.
