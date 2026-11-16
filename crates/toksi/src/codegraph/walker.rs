@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/walker.rs
 // created: 2026-10-28
-// lastModified: 2026-11-09
+// lastModified: 2026-11-16
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -104,6 +104,113 @@ pub fn is_build_or_vendor_artifact(name: &str) -> bool {
         || name.ends_with(".lock")
 }
 
+/// Returns true if a normalized relative path falls under a build/vendor artifact
+/// directory, preserving `build/` packages nested beneath a `src/` source tree.
+pub fn is_skipped_rel_path(rel_path: &str) -> bool {
+    let norm = crate::util::paths::normalize_path(rel_path);
+    let mut saw_src = false;
+    let parts: Vec<&str> = norm.split('/').filter(|s| !s.is_empty()).collect();
+    for (idx, seg) in parts.iter().enumerate() {
+        let is_dir_seg = idx + 1 < parts.len();
+        if *seg == "src" && is_dir_seg {
+            saw_src = true;
+            continue;
+        }
+        if seg.eq_ignore_ascii_case("build") && is_dir_seg {
+            if !saw_src {
+                return true;
+            }
+            continue;
+        }
+        if is_build_or_vendor_artifact(seg) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Detects whether a relative path belongs to a test suite or test-support tree.
+pub fn is_test_file(rel_path: &str) -> bool {
+    let norm = crate::util::paths::normalize_path(rel_path);
+    let file_name = norm.rsplit('/').next().unwrap_or(&norm);
+    let lower_name = file_name.to_ascii_lowercase();
+
+    if lower_name.starts_with("test_") || lower_name.starts_with("test.") {
+        return true;
+    }
+
+    if let Some((stem, ext)) = file_name.rsplit_once('.')
+        && !ext.is_empty()
+    {
+        let lower_stem = stem.to_ascii_lowercase();
+        for suffix in [
+            "_test", ".test", "-test",
+            "_tests", ".tests", "-tests",
+            "_unittest", ".unittest", "-unittest",
+            "_unittests", ".unittests", "-unittests",
+            "_spec", ".spec", "-spec",
+            "_specs", ".specs", "-specs",
+        ] {
+            if lower_stem.ends_with(suffix) {
+                return true;
+            }
+        }
+        for camel_suffix in ["Test", "Tests", "TestCase", "Tester", "Spec", "Specs"] {
+            if stem.ends_with(camel_suffix) && stem.len() > camel_suffix.len() {
+                return true;
+            }
+        }
+    }
+
+    let parts: Vec<&str> = norm.split('/').filter(|s| !s.is_empty()).collect();
+    let dir_parts = if parts.len() > 1 { &parts[..parts.len() - 1] } else { &[][..] };
+    for seg in dir_parts {
+        let seg_lower = seg.to_ascii_lowercase();
+        if matches!(
+            seg_lower.as_str(),
+            "tests"
+                | "test"
+                | "__tests__"
+                | "spec"
+                | "specs"
+                | "testlib"
+                | "testing"
+                | "e2e"
+                | "testdata"
+                | "testutil"
+                | "testutils"
+                | "test-utils"
+                | "test_utils"
+                | "fakes"
+                | "mocks"
+                | "__mocks__"
+                | "stubs"
+                | "unittests"
+        ) {
+            return true;
+        }
+        if seg_lower.ends_with("-test")
+            || seg_lower.ends_with("_test")
+            || seg_lower.ends_with("-tests")
+            || seg_lower.ends_with("_tests")
+            || seg_lower.ends_with("-testing")
+            || seg_lower.ends_with("_testing")
+            || seg_lower.ends_with("-unittest")
+            || seg_lower.ends_with("_unittest")
+            || seg_lower.ends_with("-unittests")
+            || seg_lower.ends_with("_unittests")
+        {
+            return true;
+        }
+        if (seg.ends_with("Test") || seg.ends_with("Tests") || seg.ends_with("Spec"))
+            && seg.len() > 4
+        {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn build_project_ignore(root: &Path) -> Gitignore {
     let mut builder = GitignoreBuilder::new(root);
     let gitignore_path = root.join(".gitignore");
@@ -119,6 +226,7 @@ pub fn build_project_ignore(root: &Path) -> Gitignore {
 
 pub fn walk_project_files(root: &Path) -> Vec<WalkedFile> {
     let mut files = Vec::new();
+    let root_owned = root.to_path_buf();
     let walker = WalkBuilder::new(root)
         .standard_filters(true)
         .hidden(true)
@@ -127,9 +235,19 @@ pub fn walk_project_files(root: &Path) -> Vec<WalkedFile> {
         .git_global(true)
         .git_exclude(true)
         .add_custom_ignore_filename(".ignore")
-        .filter_entry(|entry| {
+        .filter_entry(move |entry| {
             let name = entry.file_name().to_string_lossy();
-            if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) && is_build_or_vendor_artifact(&name) {
+            let is_dir = entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false);
+            if is_dir && entry.depth() > 0 && name.eq_ignore_ascii_case("build") {
+                let rel = entry.path().strip_prefix(&root_owned).unwrap_or(entry.path());
+                let norm_rel = crate::util::paths::normalize_path(&rel.to_string_lossy());
+                return norm_rel
+                    .split('/')
+                    .rev()
+                    .skip(1)
+                    .any(|seg| seg.eq_ignore_ascii_case("src"));
+            }
+            if is_dir && is_build_or_vendor_artifact(&name) {
                 return false;
             }
             if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) && name.ends_with(".lock") {

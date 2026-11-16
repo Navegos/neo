@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/wire.rs
 // created: 2026-11-13
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -56,8 +56,8 @@ impl DirectWireBus {
     pub fn broadcast(
         &self,
         msg: WireMessage,
-    ) -> Result<usize, broadcast::error::SendError<WireMessage>> {
-        self.sender.send(msg)
+    ) -> Result<usize, Box<broadcast::error::SendError<WireMessage>>> {
+        self.sender.send(msg).map_err(Box::new)
     }
 
     /// Dispatch a CodeGraph tool call in-process without IPC or network overhead.

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/polyglot.rs
 // created: 2026-11-13
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::collections::{HashMap, HashSet};
 use tree_sitter::{Node, Parser};
@@ -591,10 +591,13 @@ fn scan_sfc_template(
 pub fn extract_structural(file_path: &str, content: &str, language: &str) -> FileExtraction {
     let norm_path = normalize_path(file_path);
     let canon_lang = langs::canonical_language(language);
-    if let Some(ts_lang) = langs::grammar_for(canon_lang) {
-        if let Some(cst) = extract_polyglot_cst(&norm_path, content, canon_lang, ts_lang) {
-            return cst;
-        }
+    if canon_lang == "dockerfile" {
+        return extract_fallback_outline(&norm_path, content, canon_lang);
+    }
+    if let Some(ts_lang) = langs::grammar_for(canon_lang)
+        && let Some(cst) = extract_polyglot_cst(&norm_path, content, canon_lang, ts_lang)
+    {
+        return cst;
     }
     extract_fallback_outline(&norm_path, content, canon_lang)
 }
@@ -1060,7 +1063,19 @@ fn extract_fallback_outline(norm_path: &str, content: &str, language: &str) -> F
 
 fn extract_line_symbol(line: &str, language: &str) -> Option<(String, &'static str, String)> {
     if language == "dockerfile" {
-        for kw in ["FROM ", "ARG ", "ENV ", "EXPOSE ", "WORKDIR ", "ENTRYPOINT ", "CMD "] {
+        for kw in [
+            "FROM ",
+            "ARG ",
+            "ENV ",
+            "EXPOSE ",
+            "WORKDIR ",
+            "ENTRYPOINT ",
+            "CMD ",
+            "RUN ",
+            "COPY ",
+            "ADD ",
+            "LABEL ",
+        ] {
             if let Some(rest) = line.strip_prefix(kw) {
                 let name = rest.split_whitespace().next().unwrap_or(kw.trim()).to_string();
                 let kind = if kw == "FROM " { "stage" } else { "instruction" };

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/codegraph.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::env;
 use std::fs;
@@ -252,12 +252,11 @@ pub fn has_codegraph_index(dir: &str) -> bool {
         if let Ok(entries) = fs::read_dir(cg_dir) {
             for entry in entries.flatten() {
                 let name = entry.file_name().to_string_lossy().to_lowercase();
-                if name.ends_with(".db") || name.ends_with(".sqlite") || name.ends_with(".json") {
-                    if let Ok(meta) = entry.metadata() {
-                        if meta.len() > 0 {
-                            return true;
-                        }
-                    }
+                if (name.ends_with(".db") || name.ends_with(".sqlite") || name.ends_with(".json"))
+                    && let Ok(meta) = entry.metadata()
+                    && meta.len() > 0
+                {
+                    return true;
                 }
             }
         }
@@ -275,10 +274,10 @@ pub fn codegraph_index_healthy(dir: &str) -> bool {
         root.join(".codegraph").join("symbols.db"),
         root.join(".codegraph").join("codegraph.db"),
     ] {
-        if db_path.exists() {
-            if let Ok(meta) = fs::metadata(&db_path) {
-                return meta.len() >= 4096;
-            }
+        if db_path.exists()
+            && let Ok(meta) = fs::metadata(&db_path)
+        {
+            return meta.len() >= 4096;
         }
     }
     has_codegraph_index(dir)
@@ -450,14 +449,14 @@ pub fn build_codegraph() -> ToolManifest {
     tool.channel = Channel::Binary;
     tool.needs_node = false;
     tool.min_node_major = 0;
-    tool.install = Some(Arc::new(|opts| codegraph_ensure_installed(opts)));
+    tool.install = Some(Arc::new(codegraph_ensure_installed));
     tool.index_ready = Some(Arc::new(|| {
         let cwd = env::current_dir()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| ".".into());
         has_codegraph_index(&cwd) && codegraph_index_healthy(&cwd)
     }));
-    tool.index_project = Some(Arc::new(|dir, opts| codegraph_index_project(dir, opts)));
+    tool.index_project = Some(Arc::new(codegraph_index_project));
 
     let agents = [
         "claude", "opencode", "opencode2", "codex", "antigravity", "copilot", "droid", "grok",

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-11-14
+// lastModified: 2026-11-16
 
 use std::collections::HashMap;
 use std::env;
@@ -229,7 +229,7 @@ fn parse_list(raw: Option<&String>, allowed: &[String]) -> Result<Option<Vec<Str
 fn is_session_boot_arg(args: &[String]) -> bool {
     match args {
         [cmd, ..] if cmd == "run-mcp" || cmd == "rtk-hook" || cmd == "grok-hook" || cmd == "codex-perm"
-            || cmd == "codegraph-hook" || cmd == "agy-hook" || cmd == "cursor-hook" || cmd == "copilot-hook"
+            || cmd == "codegraph-hook" || cmd == "cursor-hook" || cmd == "copilot-hook"
             || cmd == "projectmem-hook" || cmd == "ctx-hook" || cmd == "context-hook" || cmd == "context-mode-hook"
             || cmd == "icm-hook" => true,
         [a, b, ..] if (a == "rtk" || a == "codegraph" || a == "ctx" || a == "context" || a == "context-mode" || a == "icm") && b == "hook" => true,

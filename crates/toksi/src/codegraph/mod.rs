@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 #![deny(unsafe_code)]
 
@@ -53,11 +53,110 @@ pub enum CodeGraphError {
     Extract(String),
 }
 
-/// Resolve `<repo>/.toksi/codegraph/symbols.db`, enforcing repo-only storage
-/// in non-test builds and merging any nested/legacy CodeGraph DBs into root.
-pub fn try_resolve_db_path(root: &Path) -> Result<PathBuf, CodeGraphError> {
-    let clean_input = PathBuf::from(crate::util::paths::normalize_path(&root.to_string_lossy()));
-    let repo_root = match crate::icm::store::find_repo_root_and_subproject(Some(root)) {
+fn fold_case_for_os(s: &str) -> String {
+    if cfg!(any(windows, target_os = "macos")) {
+        s.to_ascii_lowercase()
+    } else {
+        s.to_string()
+    }
+}
+
+fn is_same_or_under_norm(candidate: &str, base: &str) -> bool {
+    let c = fold_case_for_os(candidate.trim_end_matches('/'));
+    let b = fold_case_for_os(base.trim_end_matches('/'));
+    if b.is_empty() {
+        return false;
+    }
+    c == b || c.starts_with(&format!("{}/", b))
+}
+
+fn is_sensitive_project_path(path: &Path) -> Option<String> {
+    let mut candidates = Vec::new();
+    let raw_norm = crate::util::paths::normalize_path(&path.to_string_lossy());
+    if !raw_norm.is_empty() {
+        candidates.push(raw_norm);
+    }
+    if let Ok(canon) = fs::canonicalize(path) {
+        let canon_norm = crate::util::paths::normalize_path(&canon.to_string_lossy());
+        if !candidates.contains(&canon_norm) {
+            candidates.push(canon_norm);
+        }
+    }
+
+    let mut sys_roots: Vec<String> = if cfg!(windows) {
+        let mut w = vec!["C:/Windows".to_string()];
+        for var in ["WINDIR", "SystemRoot"] {
+            if let Ok(v) = std::env::var(var) {
+                let n = crate::util::paths::normalize_path(&v);
+                if !n.is_empty() && !w.contains(&n) {
+                    w.push(n);
+                }
+            }
+        }
+        w
+    } else {
+        vec![
+            "/etc".to_string(),
+            "/private/etc".to_string(),
+            "/usr".to_string(),
+            "/bin".to_string(),
+            "/sbin".to_string(),
+            "/var/log".to_string(),
+        ]
+    };
+
+    for cand in &candidates {
+        for sys in &sys_roots {
+            if is_same_or_under_norm(cand, sys) {
+                return Some(format!("Refusing to operate on sensitive system directory: {}", cand));
+            }
+        }
+    }
+    sys_roots.clear();
+
+    let mut home_bases = Vec::new();
+    if let Some(h) = dirs::home_dir() {
+        home_bases.push(crate::util::paths::normalize_path(&h.to_string_lossy()));
+        if let Ok(ch) = fs::canonicalize(&h) {
+            home_bases.push(crate::util::paths::normalize_path(&ch.to_string_lossy()));
+        }
+    }
+    let env_home = crate::util::paths::home();
+    if !env_home.is_empty() && !home_bases.contains(&env_home) {
+        home_bases.push(env_home);
+    }
+
+    for cand in &candidates {
+        for hb in &home_bases {
+            let hb_trim = hb.trim_end_matches('/');
+            for sub in [".ssh", ".gnupg", ".aws", ".kube"] {
+                let sensitive = format!("{}/{}", hb_trim, sub);
+                if is_same_or_under_norm(cand, &sensitive) {
+                    return Some(format!("Refusing to operate on sensitive directory: {}", cand));
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn try_resolve_root_and_db_path(root: &Path) -> Result<(PathBuf, PathBuf), CodeGraphError> {
+    let clean_raw = PathBuf::from(crate::util::paths::normalize_path(&root.to_string_lossy()));
+    let effective_input = if clean_raw.is_file() {
+        clean_raw
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or(clean_raw)
+    } else {
+        clean_raw
+    };
+
+    if let Some(reason) = is_sensitive_project_path(&effective_input) {
+        return Err(CodeGraphError::Security(reason));
+    }
+
+    let repo_root = match crate::icm::store::find_repo_root_and_subproject(Some(&effective_input)) {
         Ok((r, _)) => {
             let clean = crate::util::paths::normalize_path(&r.to_string_lossy());
             PathBuf::from(clean)
@@ -73,15 +172,25 @@ pub fn try_resolve_db_path(root: &Path) -> Result<PathBuf, CodeGraphError> {
             #[cfg(test)]
             {
                 let _ = e;
-                clean_input.clone()
+                effective_input.clone()
             }
         }
     };
 
+    if let Some(reason) = is_sensitive_project_path(&repo_root) {
+        return Err(CodeGraphError::Security(reason));
+    }
+
     let toksi_dir = repo_root.join(".toksi").join("codegraph");
     let toksi_db = toksi_dir.join("symbols.db");
-    migrate_nested_codegraph_dbs(&repo_root, &clean_input, &toksi_dir, &toksi_db);
-    Ok(toksi_db)
+    migrate_nested_codegraph_dbs(&repo_root, &effective_input, &toksi_dir, &toksi_db);
+    Ok((repo_root, toksi_db))
+}
+
+/// Resolve `<repo>/.toksi/codegraph/symbols.db`, enforcing repo-only storage
+/// in non-test builds and merging any nested/legacy CodeGraph DBs into root.
+pub fn try_resolve_db_path(root: &Path) -> Result<PathBuf, CodeGraphError> {
+    try_resolve_root_and_db_path(root).map(|(_, db)| db)
 }
 
 /// Best-effort wrapper returning the repository-root CodeGraph DB path.
@@ -168,10 +277,10 @@ fn migrate_nested_codegraph_dbs(
                 let _ = fs::remove_file(&nested_db);
                 if let Some(parent) = nested_db.parent() {
                     let _ = fs::remove_dir(parent);
-                    if let Some(gp) = parent.parent() {
-                        if gp.file_name().and_then(|s| s.to_str()) == Some(".toksi") {
-                            let _ = fs::remove_dir(gp);
-                        }
+                    if let Some(gp) = parent.parent()
+                        && gp.file_name().and_then(|s| s.to_str()) == Some(".toksi")
+                    {
+                        let _ = fs::remove_dir(gp);
                     }
                 }
             }
@@ -199,14 +308,14 @@ impl CodeGraph {
         };
         let norm_root = PathBuf::from(crate::util::paths::normalize_path(&abs_root.to_string_lossy()));
 
-        let db_path = try_resolve_db_path(&norm_root)?;
+        let (resolved_root, db_path) = try_resolve_root_and_db_path(&norm_root)?;
         let cache = SymbolCache::open(&db_path)?;
         let nodes = cache.get_all_nodes();
         let edges = cache.get_all_edges();
         let engine = CodeGraphEngine::build(nodes, edges);
 
         Ok(Self {
-            root: norm_root,
+            root: resolved_root,
             cache,
             engine,
         })
@@ -314,10 +423,10 @@ pub fn resolve_coordinate(root: &Path, file_path: &str, line: u32) -> Option<Str
         return Some(node.qualified_name.clone());
     }
 
-    if cg.ensure_indexed().unwrap_or(false) {
-        if let Some(node) = cg.engine.resolve_coordinate(rel_str, line) {
-            return Some(node.qualified_name.clone());
-        }
+    if cg.ensure_indexed().unwrap_or(false)
+        && let Some(node) = cg.engine.resolve_coordinate(rel_str, line)
+    {
+        return Some(node.qualified_name.clone());
     }
 
     None
@@ -344,6 +453,11 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
     let mut force = false;
     let mut depth = 2usize;
     let mut kind_filter: Option<String> = None;
+    let mut format_flag: Option<String> = None;
+    let mut tests_filter: Option<bool> = None;
+    let mut lang_filter: Option<String> = None;
+    let mut strictness_flag: Option<String> = None;
+    let mut out_path: Option<String> = None;
     let mut limit = 20usize;
     let mut max_files = 5usize;
     let mut query = String::new();
@@ -365,6 +479,27 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
         } else if arg == "--kind" && idx + 1 < rest.len() {
             kind_filter = Some(rest[idx + 1].clone());
             idx += 2;
+        } else if arg == "--format" && idx + 1 < rest.len() {
+            format_flag = Some(rest[idx + 1].clone());
+            idx += 2;
+        } else if arg == "--tests" {
+            tests_filter = Some(true);
+            idx += 1;
+        } else if arg == "--no-tests" {
+            tests_filter = Some(false);
+            idx += 1;
+        } else if (arg == "--lang" || arg == "--language") && idx + 1 < rest.len() {
+            lang_filter = Some(rest[idx + 1].clone());
+            idx += 2;
+        } else if arg == "--strictness" && idx + 1 < rest.len() {
+            strictness_flag = Some(rest[idx + 1].clone());
+            idx += 2;
+        } else if (arg == "--out" || arg == "-o") && idx + 1 < rest.len() {
+            out_path = Some(rest[idx + 1].clone());
+            idx += 2;
+        } else if arg == "--pattern" && idx + 1 < rest.len() {
+            query = rest[idx + 1].clone();
+            idx += 2;
         } else if (arg == "--limit" || arg == "-n") && idx + 1 < rest.len() {
             if let Ok(l) = rest[idx + 1].parse::<usize>() {
                 limit = l;
@@ -385,6 +520,27 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
 
     if subcmd == "mcp" || subcmd == "serve" {
         return mcp::run_mcp_server();
+    }
+
+    if matches!(subcmd, "help" | "--help" | "-h") {
+        println!("Usage: toksi graph <explore|impact|symbols|index|cycles|implementations|ast-grep|scip|outline|repomix> [options]");
+        println!("Commands:");
+        println!("  explore          Semantic and call-path code explorer");
+        println!("  impact           Compute blast-radius of modifying a symbol");
+        println!("  symbols          Search and list AST symbols (aliases: symbol, search)");
+        println!("  index            Build/update AST call-graph index");
+        println!("  status           Show index statistics");
+        println!("  files            List indexed files (--format package, --tests, --no-tests)");
+        println!("  callers          Find callers of a symbol");
+        println!("  callees          Find callees called by a symbol");
+        println!("  implementations  List types implementing/extending a trait, interface, or class");
+        println!("  cycles           Find circular file import/dependency cycles (exits 1 if found)");
+        println!("  ast-grep         Structural CST pattern search across repository");
+        println!("  scip             Export/inspect SCIP protobuf symbol index (--out <file>)");
+        println!("  outline          Generate condensed jcodemunch AST outline");
+        println!("  repomix          Pack repository context with secretlint & BPE token counts");
+        println!("  mcp              Run in-process MCP server");
+        return 0;
     }
 
     let mut cg = match CodeGraph::open(&root) {
@@ -433,11 +589,16 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
         }
         "files" => {
             let _ = cg.ensure_indexed();
-            let files = cg.cache.get_indexed_files();
-            println!("{} indexed files:", files.len());
-            for (file, lang, count) in files {
-                println!("  {:<50} [{}] ({} symbols)", file, lang, count);
-            }
+            let args_val = match tests_filter {
+                Some(t) => serde_json::json!({
+                    "format": format_flag.as_deref().unwrap_or("list"),
+                    "tests": t
+                }),
+                None => serde_json::json!({
+                    "format": format_flag.as_deref().unwrap_or("list")
+                }),
+            };
+            println!("{}", mcp::handle_files(&cg, &args_val));
             0
         }
         "symbols" | "search" => {
@@ -508,13 +669,15 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
             let callers = cg.engine.get_callers(&focal.id);
             println!("Callers of `{}` ({}):", focal.name, callers.len());
             for (caller, edge) in callers {
+                let rec = if caller.id == focal.id { " (recursive)" } else { "" };
                 println!(
-                    "  {:<12} {:<30} {}:{} ({})",
+                    "  {:<12} {:<30} {}:{} ({}){}",
                     caller.kind,
                     caller.name,
                     caller.file_path,
                     edge.line.unwrap_or(caller.start_line),
-                    edge.kind
+                    edge.kind,
+                    rec
                 );
             }
             0
@@ -599,23 +762,183 @@ pub fn run_graph_cli(argv: &[String]) -> i32 {
             println!("{}", res);
             0
         }
-        "help" | "--help" | "-h" => {
-            println!("Usage: toksi graph <explore|impact|symbols|index> [options]");
-            println!("Commands:");
-            println!("  explore    Semantic and call-path code explorer");
-            println!("  impact     Compute blast-radius of modifying a symbol");
-            println!("  symbols    Search and list AST symbols (aliases: symbol, search)");
-            println!("  index      Build/update AST call-graph index");
-            println!("  status     Show index statistics");
-            println!("  files      List indexed files");
-            println!("  callers    Find callers of a symbol");
-            println!("  callees    Find callees called by a symbol");
-            println!("  mcp        Run in-process MCP server");
+        "implementations" | "impls" => {
+            if query.is_empty() {
+                eprintln!("Usage: toksi graph implementations <symbol> [--depth <n>]");
+                return 1;
+            }
+            let _ = cg.ensure_indexed();
+            let res = mcp::handle_implementations(
+                &cg,
+                &serde_json::json!({
+                    "symbol": query,
+                    "depth": depth
+                }),
+            );
+            println!("{}", res);
             0
+        }
+        "cycles" => {
+            let _ = cg.ensure_indexed();
+            let cycles = cg.engine.find_file_cycles();
+            if format_flag.as_deref() == Some("json") {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&cycles).unwrap_or_else(|_| "[]".into())
+                );
+                return if cycles.is_empty() { 0 } else { 1 };
+            }
+            if cycles.is_empty() {
+                println!("No circular file dependencies found.");
+                0
+            } else {
+                println!("Found {} circular file dependency group(s):", cycles.len());
+                for (i, group) in cycles.iter().enumerate() {
+                    println!("  {}. ({} files) {}", i + 1, group.len(), group.join(" <-> "));
+                }
+                1
+            }
+        }
+        "ast-grep" => {
+            if query.is_empty() {
+                eprintln!("Usage: toksi graph ast-grep <pattern> [--lang <lang>] [--strictness <cst|smart|ast|relaxed|signature>]");
+                return 1;
+            }
+            let strictness = match strictness_flag.as_deref().map(str::to_ascii_lowercase).as_deref() {
+                Some("cst") => MatchStrictness::Cst,
+                Some("ast") => MatchStrictness::Ast,
+                Some("relaxed") => MatchStrictness::Relaxed,
+                Some("signature") => MatchStrictness::Signature,
+                _ => MatchStrictness::Smart,
+            };
+            let mut engine = AstGrepEngine::new();
+            engine.add_rule(AstRule {
+                id: "cli-pattern".to_string(),
+                language: lang_filter.unwrap_or_default(),
+                pattern: query,
+                kind: kind_filter,
+                regex: None,
+                message: None,
+                strictness,
+            });
+            match engine.search_directory(&cg.root) {
+                Ok(hits) => {
+                    println!("Found {} AST matches:", hits.len());
+                    for h in hits.iter().take(limit) {
+                        println!("  {}:{}:{} | {}", h.file_path, h.line, h.column, h.matched_text);
+                    }
+                    0
+                }
+                Err(e) => {
+                    eprintln!("{} ast-grep failed: {}", C.red("Error:"), e);
+                    1
+                }
+            }
+        }
+        "scip" => {
+            let _ = cg.ensure_indexed();
+            let scip_idx = ScipIndex::from_codegraph(&cg);
+            if let Some(ref out_file) = out_path {
+                match scip_idx.write_protobuf(Path::new(out_file)) {
+                    Ok(()) => {
+                        println!("{} wrote SCIP index ({} docs) to {}", C.green("Success:"), scip_idx.documents.len(), out_file);
+                        return 0;
+                    }
+                    Err(e) => {
+                        eprintln!("{} Failed to write SCIP index: {}", C.red("Error:"), e);
+                        return 1;
+                    }
+                }
+            }
+            if format_flag.as_deref() == Some("json") {
+                match scip_idx.to_json_pretty() {
+                    Ok(j) => println!("{}", j),
+                    Err(e) => {
+                        eprintln!("{} JSON encode failed: {}", C.red("Error:"), e);
+                        return 1;
+                    }
+                }
+            } else {
+                let total_occ: usize = scip_idx.documents.iter().map(|d| d.occurrences.len()).sum();
+                let total_sym: usize = scip_idx.documents.iter().map(|d| d.symbols.len()).sum();
+                let pb_len = scip_idx.to_protobuf().len();
+                println!(
+                    "SCIP Index: {} documents, {} symbols, {} occurrences ({} protobuf bytes)",
+                    scip_idx.documents.len(),
+                    total_sym,
+                    total_occ,
+                    pb_len
+                );
+            }
+            0
+        }
+        "outline" => {
+            let _ = cg.ensure_indexed();
+            if !query.is_empty() {
+                if let Some((file, slice)) = jcodemunch::extract_symbol_slice_o1(&cg, &query) {
+                    println!("// O(1) slice from {}\n{}", file, slice);
+                } else {
+                    println!("{}", jcodemunch::summarize_from_cache_o1(&cg, &query));
+                }
+                0
+            } else {
+                match generate_repo_outline(&cg.root, depth) {
+                    Ok(outline) => {
+                        println!(
+                            "Repository Outline: {} ({} files, {} symbols)",
+                            outline.root, outline.total_files, outline.total_symbols
+                        );
+                        for f in outline.files.iter().take(limit) {
+                            println!("  {} [{}] ({} symbols, {} lines)", f.file_path, f.language, f.symbols.len(), f.line_count);
+                        }
+                        0
+                    }
+                    Err(e) => {
+                        eprintln!("{} Outline failed: {}", C.red("Error:"), e);
+                        1
+                    }
+                }
+            }
+        }
+        "repomix" => {
+            let fmt = match format_flag.as_deref().map(str::to_ascii_lowercase).as_deref() {
+                Some("markdown") | Some("md") => RepomixFormat::Markdown,
+                Some("json") => RepomixFormat::Json,
+                _ => RepomixFormat::Xml,
+            };
+            let opts = RepomixOptions {
+                format: fmt,
+                ..RepomixOptions::default()
+            };
+            match pack_workspace(&cg.root, &opts) {
+                Ok(bundle) => {
+                    if let Some(ref out_file) = out_path {
+                        if let Err(e) = fs::write(out_file, &bundle.rendered_output) {
+                            eprintln!("{} Write failed: {}", C.red("Error:"), e);
+                            return 1;
+                        }
+                        println!(
+                            "{} packed {} files (~{} BPE tokens, {} secrets redacted) -> {}",
+                            C.green("Success:"),
+                            bundle.total_files,
+                            bundle.total_estimated_tokens,
+                            bundle.total_redacted_secrets,
+                            out_file
+                        );
+                    } else {
+                        println!("{}", bundle.rendered_output);
+                    }
+                    0
+                }
+                Err(e) => {
+                    eprintln!("{} Repomix failed: {}", C.red("Error:"), e);
+                    1
+                }
+            }
         }
         _ => {
             eprintln!(
-                "Unknown graph command '{}'. Available: explore, impact, symbols, index, status, files, callers, callees, mcp",
+                "Unknown graph command '{}'. Available: explore, impact, symbols, index, status, files, callers, callees, implementations, cycles, ast-grep, scip, outline, repomix, mcp",
                 subcmd
             );
             1

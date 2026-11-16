@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/repomix.rs
 // created: 2026-11-09
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -25,18 +25,13 @@ pub enum RepomixError {
 }
 
 /// Output formatting protocol for packed codebase contexts.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RepomixFormat {
+    #[default]
     Xml,
     Markdown,
     Json,
-}
-
-impl Default for RepomixFormat {
-    fn default() -> Self {
-        Self::Xml
-    }
 }
 
 fn default_true() -> bool {
@@ -243,13 +238,13 @@ pub fn package_files(
         });
     }
 
-    if let Some(budget) = options.max_tokens {
-        if total_estimated_tokens > budget {
-            return Err(RepomixError::TokenBudgetExceeded {
-                actual: total_estimated_tokens,
-                limit: budget,
-            });
-        }
+    if let Some(budget) = options.max_tokens
+        && total_estimated_tokens > budget
+    {
+        return Err(RepomixError::TokenBudgetExceeded {
+            actual: total_estimated_tokens,
+            limit: budget,
+        });
     }
 
     let mut rendered = String::new();

@@ -854,5 +854,93 @@ impl OrderService {
     assert!(loc.contains("OrderService::process_payment"));
 }
 
+#[test]
+fn test_phase5_cycles_implementations_and_extended_cli() {
+    use toksi::codegraph::kernel::langs;
+
+    for lang in langs::LANGUAGES {
+        assert!(langs::grammar_for(lang).is_some(), "missing grammar for {lang}");
+    }
+
+    let temp = tempdir().unwrap();
+    let root = temp.path();
+    let root_str = root.to_string_lossy().to_string();
+
+    fs::create_dir_all(root.join(".git")).unwrap();
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::create_dir_all(root.join("tests")).unwrap();
+    fs::write(root.join("package.json"), r#"{"name":"demo-app"}"#).unwrap();
+    fs::write(root.join("Dockerfile"), "FROM rust:1.80-slim\nRUN cargo test\n").unwrap();
+    fs::write(
+        root.join("src/a.rs"),
+        "use crate::b;\npub trait Handler { fn handle(&self); }\npub struct MyHandler;\nimpl Handler for MyHandler { fn handle(&self) {} }\npub fn ping() { b::pong(); }\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("src/b.rs"),
+        "use crate::a;\npub fn pong() { a::ping(); }\n",
+    )
+    .unwrap();
+    fs::write(root.join("tests/smoke_test.rs"), "fn test_smoke() {}\n").unwrap();
+
+    assert_eq!(
+        run_graph_cli(&["index".into(), "--root".into(), root_str.clone(), "--force".into()]),
+        0
+    );
+    assert_eq!(
+        run_graph_cli(&["cycles".into(), "--root".into(), root_str.clone()]),
+        1,
+        "cycles command should exit 1 when cycle exists"
+    );
+    assert_eq!(
+        run_graph_cli(&["implementations".into(), "Handler".into(), "--root".into(), root_str.clone()]),
+        0
+    );
+    assert_eq!(
+        run_graph_cli(&["files".into(), "--format".into(), "package".into(), "--no-tests".into(), "--root".into(), root_str.clone()]),
+        0
+    );
+    assert_eq!(
+        run_graph_cli(&["scip".into(), "--root".into(), root_str.clone()]),
+        0
+    );
+    assert_eq!(
+        run_graph_cli(&["outline".into(), "--root".into(), root_str.clone()]),
+        0
+    );
+    assert_eq!(
+        run_graph_cli(&["repomix".into(), "--format".into(), "markdown".into(), "--root".into(), root_str.clone()]),
+        0
+    );
+
+    let bad_mcp = handle_mcp_message(&json!({
+        "jsonrpc": "2.0",
+        "id": 99,
+        "method": "tools/call",
+        "params": {
+            "name": "codegraph_cycles",
+            "arguments": ["not-an-object"]
+        }
+    }))
+    .unwrap();
+    assert_eq!(bad_mcp["error"]["code"], -32602);
+
+    let impl_mcp = handle_mcp_message(&json!({
+        "jsonrpc": "2.0",
+        "id": 100,
+        "method": "tools/call",
+        "params": {
+            "name": "codegraph_implementations",
+            "arguments": {
+                "symbol": "Handler",
+                "projectPath": root.join("src/a.rs").to_string_lossy()
+            }
+        }
+    }))
+    .unwrap();
+    let impl_text = impl_mcp["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(impl_text.contains("MyHandler"), "expected MyHandler in: {impl_text}");
+}
+
 
 

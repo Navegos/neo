@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/ast_grep.rs
 // created: 2026-11-09
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::collections::HashMap;
 use std::fs;
@@ -93,11 +93,20 @@ impl AstGrepEngine {
         self.rules.push(rule);
     }
 
-    /// Searches a single source file using Tree-sitter CST matching (with structural token fallback).
     pub fn search_source(
         &self,
         file_path: &str,
         content: &str,
+    ) -> Result<Vec<AstMatch>, AstGrepError> {
+        let inferred_lang = walker::detect_language(Path::new(&normalize_path(file_path)));
+        self.search_source_with_lang(file_path, content, inferred_lang)
+    }
+
+    fn search_source_with_lang(
+        &self,
+        file_path: &str,
+        content: &str,
+        default_lang: Option<&str>,
     ) -> Result<Vec<AstMatch>, AstGrepError> {
         let norm_path = normalize_path(file_path);
         let mut matches = Vec::new();
@@ -111,30 +120,35 @@ impl AstGrepEngine {
                 None => None,
             };
 
-            let canon_lang = langs::canonical_language(&rule.language);
+            let raw_lang = if rule.language.trim().is_empty() {
+                default_lang.unwrap_or("")
+            } else {
+                rule.language.as_str()
+            };
+            let canon_lang = langs::canonical_language(raw_lang);
             let mut matched_via_cst = false;
 
-            if let Some(ts_lang) = langs::grammar_for(canon_lang) {
-                if let Some(cst_matches) = search_via_treesitter(
+            if let Some(ts_lang) = langs::grammar_for(canon_lang)
+                && let Some(cst_matches) = search_via_treesitter(
                     &norm_path,
                     content,
                     ts_lang,
                     rule,
                     regex_filter.as_ref(),
-                )? {
-                    matches.extend(cst_matches);
-                    matched_via_cst = true;
-                }
+                )?
+            {
+                matches.extend(cst_matches);
+                matched_via_cst = true;
             }
 
             if !matched_via_cst {
                 let compiled = compile_structural_pattern(&rule.pattern)?;
                 for (idx, line) in content.lines().enumerate() {
                     if let Some(captures) = match_line_structural(line, &compiled) {
-                        if let Some(ref re) = regex_filter {
-                            if !re.is_match(line) {
-                                continue;
-                            }
+                        if let Some(ref re) = regex_filter
+                            && !re.is_match(line)
+                        {
+                            continue;
                         }
                         matches.push(AstMatch {
                             rule_id: rule.id.clone(),
@@ -165,7 +179,8 @@ impl AstGrepEngine {
                 continue;
             }
             if let Ok(content) = fs::read_to_string(&wf.path) {
-                let file_matches = self.search_source(&wf.rel_path, &content)?;
+                let file_matches =
+                    self.search_source_with_lang(&wf.rel_path, &content, Some(wf.language))?;
                 all_matches.extend(file_matches);
             }
         }
@@ -260,11 +275,10 @@ fn unwrap_pattern_root<'a>(mut node: Node<'a>) -> Option<Node<'a>> {
                 | "chunk"
                 | "expression_statement"
         ) && node.named_child_count() == 1
+            && let Some(child) = node.named_child(0)
         {
-            if let Some(child) = node.named_child(0) {
-                node = child;
-                continue;
-            }
+            node = child;
+            continue;
         }
         break;
     }
@@ -304,11 +318,11 @@ fn search_via_treesitter(
     let mut seen_ranges = std::collections::HashSet::new();
 
     while let Some(candidate) = cursor_stack.pop() {
-        if let Some(ref req_kind) = rule.kind {
-            if candidate.kind() != req_kind {
-                push_children_rev(candidate, &mut cursor_stack);
-                continue;
-            }
+        if let Some(ref req_kind) = rule.kind
+            && candidate.kind() != req_kind
+        {
+            push_children_rev(candidate, &mut cursor_stack);
+            continue;
         }
 
         let mut captures = HashMap::new();

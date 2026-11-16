@@ -3,16 +3,17 @@
 // project: neo
 // file: crates/toksi/src/codegraph/mcp.rs
 // created: 2026-10-28
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::io::{self, BufRead, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
 
+use super::walker;
 use super::CodeGraph;
 
 pub fn run_mcp_server() -> i32 {
@@ -100,7 +101,7 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
                         },
                         {
                             "name": "codegraph_symbol",
-                            "description": "Inspect AST symbol definition: file, lines, docstring, kind, signature, callers, callees, and dependencies.",
+                            "description": "Inspect AST symbol definition: file, lines, byte slice, docstring, kind, signature, callers, callees, and dependencies.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
@@ -163,16 +164,26 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
                             }
                         },
                         {
-                            "name": "codegraph_symbol",
-                            "description": "Detailed AST symbol view: file coordinate, byte slice, signature, callers, and callees.",
+                            "name": "codegraph_implementations",
+                            "description": "Lists types that implement or extend a trait, interface, protocol, or base class.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
-                                    "symbol": { "type": "string", "description": "Symbol name or node id." },
-                                    "id": { "type": "string", "description": "Optional node id alias." },
+                                    "symbol": { "type": "string", "description": "Trait, interface, protocol, or class name." },
+                                    "depth": { "type": "number", "description": "Subclass traversal depth, 1–6. Defaults to 2." },
                                     "projectPath": { "type": "string", "description": "Optional project root path." }
                                 },
                                 "required": ["symbol"]
+                            }
+                        },
+                        {
+                            "name": "codegraph_cycles",
+                            "description": "Finds circular import/dependency strongly connected components across project files.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "projectPath": { "type": "string", "description": "Optional project root path." }
+                                }
                             }
                         },
                         {
@@ -187,10 +198,13 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
                         },
                         {
                             "name": "codegraph_files",
-                            "description": "Lists all indexed files and symbol counts.",
+                            "description": "Lists all indexed files and symbol counts, with optional package grouping and test filters.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
+                                    "format": { "type": "string", "description": "Listing format: 'list' (default) or 'package'." },
+                                    "tests": { "type": "boolean", "description": "Include only test files when true, or exclude when false." },
+                                    "noTests": { "type": "boolean", "description": "Exclude test files when true." },
                                     "projectPath": { "type": "string", "description": "Optional project root path." }
                                 }
                             }
@@ -202,6 +216,19 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
         "tools/call" => {
             let params = req.get("params").cloned().unwrap_or(json!({}));
             let tool_name = params.get("name").and_then(|n| n.as_str()).unwrap_or("");
+            if let Some(raw_args) = params.get("arguments")
+                && !raw_args.is_object()
+                && !raw_args.is_null()
+            {
+                return Some(json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": {
+                        "code": -32602,
+                        "message": "Invalid params: arguments must be an object"
+                    }
+                }));
+            }
             let args = params.get("arguments").cloned().unwrap_or(json!({}));
 
             let project_path = args
@@ -211,7 +238,14 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
                 .or_else(|| env::var("CODEGRAPH_PROJECT_DIR").ok())
                 .unwrap_or_else(|| ".".into());
 
-            let mut cg = match CodeGraph::open(&PathBuf::from(&project_path)) {
+            let mut project_path_buf = PathBuf::from(&project_path);
+            if project_path_buf.is_file()
+                && let Some(parent) = project_path_buf.parent()
+            {
+                project_path_buf = parent.to_path_buf();
+            }
+
+            let mut cg = match CodeGraph::open(&project_path_buf) {
                 Ok(c) => c,
                 Err(e) => {
                     return Some(json!({
@@ -258,8 +292,12 @@ pub fn handle_tool_call(cg: &CodeGraph, tool_name: &str, args: &Value) -> (Strin
         "callers" | "codegraph_callers" => (handle_callers(cg, args), false),
         "callees" | "codegraph_callees" => (handle_callees(cg, args), false),
         "search" | "codegraph_search" => (handle_search(cg, args), false),
+        "implementations" | "impls" | "codegraph_implementations" => {
+            (handle_implementations(cg, args), false)
+        }
+        "cycles" | "codegraph_cycles" => (handle_cycles(cg), false),
         "status" | "codegraph_status" => (handle_status(cg), false),
-        "files" | "codegraph_files" => (handle_files(cg), false),
+        "files" | "codegraph_files" => (handle_files(cg, args), false),
         _ => (format!("Unknown tool: {}", tool_name), true),
     }
 }
@@ -288,7 +326,7 @@ pub(crate) fn handle_explore(cg: &CodeGraph, args: &Value) -> String {
     }
 
     let mut sorted_files: Vec<(String, Vec<&super::kernel::SymbolNode>)> = file_groups.into_iter().collect();
-    sorted_files.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+    sorted_files.sort_by_key(|a| std::cmp::Reverse(a.1.len()));
     if sorted_files.len() > max_files {
         sorted_files.truncate(max_files);
     }
@@ -332,21 +370,44 @@ pub(crate) fn handle_explore(cg: &CodeGraph, args: &Value) -> String {
         out.push('\n');
     }
 
-    // Blast radius impact summary for focal symbol
+    // Blast radius impact summary & type implementors for focal symbol
     if let Some(primary) = matched_nodes.first() {
         if let Some(report) = cg.engine.compute_blast_radius(&primary.id, 2) {
+            let trunc_note = if report.truncated { " *(truncated)*" } else { "" };
             out.push_str(&format!(
-                "### Blast Radius: `{}` (risk: {:.1}/100)\n\
+                "### Blast Radius: `{}` (risk: {:.1}/100){}\n\
                  - Upstream Callers: {}\n\
                  - Downstream Dependencies: {}\n\
                  - Affected Files ({}): {}\n\n",
                 primary.name,
                 report.risk_score,
+                trunc_note,
                 report.upstream_dependents.len(),
                 report.downstream_dependencies.len(),
                 report.affected_files.len(),
                 report.affected_files.join(", ")
             ));
+        }
+
+        let impls = cg.engine.find_implementations(&primary.id, 2);
+        if !impls.is_empty() {
+            out.push_str(&format!("### Implementations & Subtypes ({})\n", impls.len()));
+            for imp in impls.iter().take(10) {
+                let test_tag = if imp.is_test { " [test]" } else { "" };
+                out.push_str(&format!(
+                    "- `{}` ({}, {}) in `{}:{}`{}\n",
+                    imp.node.qualified_name,
+                    imp.node.kind,
+                    imp.relation,
+                    imp.node.file_path,
+                    imp.node.start_line,
+                    test_tag
+                ));
+            }
+            if impls.len() > 10 {
+                out.push_str(&format!("- ... and {} more\n", impls.len() - 10));
+            }
+            out.push('\n');
         }
     }
 
@@ -416,9 +477,14 @@ pub(crate) fn handle_impact(cg: &CodeGraph, args: &Value) -> String {
         "# Blast Radius: `{}` ({})\n",
         report.focal_name, report.focal_file
     ));
+    let trunc_note = if report.truncated {
+        " | *(truncated at 400 impacted symbols)*"
+    } else {
+        ""
+    };
     out.push_str(&format!(
-        "Risk Score: **{:.1}/100** | Traversal Depth: **{}**\n\n",
-        report.risk_score, report.depth
+        "Risk Score: **{:.1}/100** | Traversal Depth: **{}**{}\n\n",
+        report.risk_score, report.depth, trunc_note
     ));
 
     out.push_str("### Affected Files\n");
@@ -482,13 +548,15 @@ pub(crate) fn handle_callers(cg: &CodeGraph, args: &Value) -> String {
         out.push_str("No callers found.\n");
     } else {
         for (caller, edge) in callers {
+            let rec_tag = if caller.id == focal.id { " (recursive)" } else { "" };
             out.push_str(&format!(
-                "- `{}` ({}) in `{}:{}` ({})\n",
+                "- `{}` ({}) in `{}:{}` ({}){}\n",
                 caller.name,
                 caller.kind,
                 caller.file_path,
                 edge.line.unwrap_or(caller.start_line),
-                edge.kind
+                edge.kind,
+                rec_tag
             ));
         }
     }
@@ -614,6 +682,75 @@ pub(crate) fn handle_node(cg: &CodeGraph, args: &Value) -> String {
         out.push_str(&format!("- `{}` ({}) in `{}`\n", callee.name, callee.kind, callee.file_path));
     }
 
+    let impls = cg.engine.find_implementations(&node.id, 2);
+    if !impls.is_empty() {
+        out.push_str(&format!("\n### Implementations / Subtypes ({})\n", impls.len()));
+        for imp in impls {
+            let test_tag = if imp.is_test { " [test]" } else { "" };
+            out.push_str(&format!(
+                "- [depth {}] `{}` ({}, {}) in `{}:{}`{}\n",
+                imp.depth,
+                imp.node.qualified_name,
+                imp.node.kind,
+                imp.relation,
+                imp.node.file_path,
+                imp.node.start_line,
+                test_tag
+            ));
+        }
+    }
+
+    out
+}
+
+pub(crate) fn handle_implementations(cg: &CodeGraph, args: &Value) -> String {
+    let symbol = match args.get("symbol").and_then(|s| s.as_str()) {
+        Some(s) if !s.trim().is_empty() => s.trim(),
+        _ => return "Missing required 'symbol' argument.".into(),
+    };
+    let depth = args
+        .get("depth")
+        .and_then(|d| d.as_u64())
+        .map(|d| d.clamp(1, 6) as usize)
+        .unwrap_or(2);
+
+    let impls = cg.engine.find_implementations(symbol, depth);
+    if impls.is_empty() {
+        return format!("No implementations or subtypes found for '{}'.", symbol);
+    }
+
+    let mut out = format!("# Implementations of `{}` ({})\n\n", symbol, impls.len());
+    for imp in impls {
+        let test_tag = if imp.is_test { " [test]" } else { "" };
+        out.push_str(&format!(
+            "- [depth {}] `{}` ({}, {}) in `{}:{}`{}\n",
+            imp.depth,
+            imp.node.qualified_name,
+            imp.node.kind,
+            imp.relation,
+            imp.node.file_path,
+            imp.node.start_line,
+            test_tag
+        ));
+    }
+    out
+}
+
+pub(crate) fn handle_cycles(cg: &CodeGraph) -> String {
+    let cycles = cg.engine.find_file_cycles();
+    if cycles.is_empty() {
+        return "No circular file dependencies found.".to_string();
+    }
+
+    let mut out = format!("# Circular File Dependencies ({} cycles)\n\n", cycles.len());
+    for (idx, group) in cycles.iter().enumerate() {
+        out.push_str(&format!(
+            "{}. Cycle ({} files): {}\n",
+            idx + 1,
+            group.len(),
+            group.join(" <-> ")
+        ));
+    }
     out
 }
 
@@ -636,11 +773,131 @@ pub(crate) fn handle_status(cg: &CodeGraph) -> String {
     )
 }
 
-pub(crate) fn handle_files(cg: &CodeGraph) -> String {
-    let files = cg.cache.get_indexed_files();
+pub(crate) fn handle_files(cg: &CodeGraph, args: &Value) -> String {
+    let format_mode = args
+        .get("format")
+        .and_then(|v| v.as_str())
+        .unwrap_or("list");
+    let tests_opt = args.get("tests").and_then(|v| v.as_bool());
+    let no_tests = args.get("noTests").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    let files: Vec<(String, String, usize)> = cg
+        .cache
+        .get_indexed_files()
+        .into_iter()
+        .filter(|(file, _, _)| {
+            let is_t = walker::is_test_file(file);
+            if no_tests && is_t {
+                return false;
+            }
+            match tests_opt {
+                Some(true) => is_t,
+                Some(false) => !is_t,
+                None => true,
+            }
+        })
+        .collect();
+
+    if format_mode.eq_ignore_ascii_case("package") {
+        let mut dir_cache: HashMap<String, String> = HashMap::new();
+        let mut groups: BTreeMap<String, Vec<(String, String, usize)>> = BTreeMap::new();
+        for item in &files {
+            let pkg = resolve_owning_package(&cg.root, &item.0, &mut dir_cache);
+            groups.entry(pkg).or_default().push(item.clone());
+        }
+        let pkg_count = groups.keys().filter(|k| k.as_str() != "no owning package").count();
+        let mut out = format!(
+            "# Files by Package ({} files, {} packages)\n\n",
+            files.len(),
+            pkg_count
+        );
+        for (pkg, pkg_files) in groups {
+            out.push_str(&format!("## {} ({} files)\n", pkg, pkg_files.len()));
+            for (file, lang, sym_count) in pkg_files {
+                let test_tag = if walker::is_test_file(&file) { " [test]" } else { "" };
+                out.push_str(&format!("- `{}` [{}]{} — {} symbols\n", file, lang, test_tag, sym_count));
+            }
+            out.push('\n');
+        }
+        return out;
+    }
+
     let mut out = format!("# Indexed Files ({})\n\n", files.len());
     for (file, lang, sym_count) in files {
-        out.push_str(&format!("- `{}` [{}] — {} symbols\n", file, lang, sym_count));
+        let test_tag = if walker::is_test_file(&file) { " [test]" } else { "" };
+        out.push_str(&format!("- `{}` [{}]{} — {} symbols\n", file, lang, test_tag, sym_count));
     }
     out
+}
+
+fn resolve_owning_package(root: &Path, rel_file: &str, cache: &mut HashMap<String, String>) -> String {
+    let dir_rel = Path::new(rel_file)
+        .parent()
+        .map(|p| crate::util::paths::normalize_path(&p.to_string_lossy()))
+        .unwrap_or_default();
+    if let Some(cached) = cache.get(&dir_rel) {
+        return cached.clone();
+    }
+
+    let mut cur = if dir_rel.is_empty() {
+        root.to_path_buf()
+    } else {
+        root.join(&dir_rel)
+    };
+
+    let mut found: Option<String> = None;
+    loop {
+        if let Some(name) = read_package_manifest_name(&cur) {
+            found = Some(name);
+            break;
+        }
+        if cur == root {
+            break;
+        }
+        if !cur.pop() || !cur.starts_with(root) {
+            break;
+        }
+    }
+
+    let resolved = found.unwrap_or_else(|| {
+        let sub = super::cache::derive_subproject_id(rel_file);
+        if sub == "." {
+            "no owning package".to_string()
+        } else {
+            sub
+        }
+    });
+    cache.insert(dir_rel, resolved.clone());
+    resolved
+}
+
+fn read_package_manifest_name(dir: &Path) -> Option<String> {
+    for manifest in ["package.json", "composer.json"] {
+        let p = dir.join(manifest);
+        if p.is_file()
+            && let Ok(raw) = fs::read_to_string(&p)
+            && let Ok(val) = serde_json::from_str::<Value>(raw.trim_start_matches('\u{feff}'))
+            && let Some(name) = val.get("name").and_then(|v| v.as_str())
+        {
+            let trimmed = name.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    let cargo_toml = dir.join("Cargo.toml");
+    if cargo_toml.is_file()
+        && let Ok(raw) = fs::read_to_string(&cargo_toml)
+        && let Ok(val) = toml::from_str::<toml::Value>(&raw)
+        && let Some(name) = val
+            .get("package")
+            .and_then(|pkg| pkg.get("name"))
+            .and_then(|v| v.as_str())
+    {
+        let trimmed = name.trim();
+        if !trimmed.is_empty() {
+            return Some(trimmed.to_string());
+        }
+    }
+    None
 }

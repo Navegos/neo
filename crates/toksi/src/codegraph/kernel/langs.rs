@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/langs.rs
 // created: 2026-10-28
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 //! Language registry: maps codegraph language names to native Tree-sitter grammars.
 
@@ -100,7 +100,7 @@ pub fn grammar_for(language: &str) -> Option<Language> {
         "css" | "scss" => Some(tree_sitter_css::LANGUAGE.into()),
         "svelte" => Some(tree_sitter_svelte_ng::LANGUAGE.into()),
         "graphql" => Some(tree_sitter_graphql::LANGUAGE.into()),
-        "bash" => Some(tree_sitter_bash::LANGUAGE.into()),
+        "bash" | "dockerfile" => Some(tree_sitter_bash::LANGUAGE.into()),
         "hcl" => Some(tree_sitter_hcl::LANGUAGE.into()),
         "nix" => Some(tree_sitter_nix::LANGUAGE.into()),
         "make" => Some(tree_sitter_make::LANGUAGE.into()),

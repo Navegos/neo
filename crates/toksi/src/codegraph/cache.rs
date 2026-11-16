@@ -3,9 +3,9 @@
 // project: neo
 // file: crates/toksi/src/codegraph/cache.rs
 // created: 2026-10-28
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -166,6 +166,10 @@ impl SymbolCache {
         let line_offsets = source.map(build_line_offsets);
 
         let tx = self.conn.transaction()?;
+        tx.execute(
+            "DELETE FROM edges WHERE source_id IN (SELECT id FROM nodes WHERE file_path = ?1)",
+            params![rel_norm],
+        )?;
         tx.execute("DELETE FROM files WHERE file_path = ?1", params![rel_norm])?;
         tx.execute("DELETE FROM nodes WHERE file_path = ?1", params![rel_norm])?;
         tx.execute("DELETE FROM refs WHERE file_path = ?1", params![rel_norm])?;
@@ -259,13 +263,35 @@ impl SymbolCache {
     pub fn save_resolved_edges(&mut self, edges: &[SymbolEdge]) -> Result<(), rusqlite::Error> {
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM edges WHERE kind = 'calls'", [])?;
+        let mut existing: HashSet<(String, String, String, Option<u32>)> = HashSet::new();
+        {
+            let mut stmt = tx.prepare("SELECT source_id, target_id, kind, line FROM edges")?;
+            let rows = stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, Option<u32>>(3)?,
+                ))
+            })?;
+            for row in rows.flatten() {
+                existing.insert(row);
+            }
+        }
         {
             let mut insert_edge = tx.prepare_cached(
                 "INSERT INTO edges (source_id, target_id, kind, line, column)
                  VALUES (?1, ?2, ?3, ?4, ?5)",
             )?;
             for e in edges {
-                insert_edge.execute(params![e.source_id, e.target_id, e.kind, e.line, e.column])?;
+                if existing.insert((
+                    e.source_id.clone(),
+                    e.target_id.clone(),
+                    e.kind.clone(),
+                    e.line,
+                )) {
+                    insert_edge.execute(params![e.source_id, e.target_id, e.kind, e.line, e.column])?;
+                }
             }
         }
         tx.commit()?;
@@ -400,8 +426,7 @@ impl SymbolCache {
             let full_path = root.join(&normalized);
             let is_dir = full_path.is_dir();
             let is_ignored = ignore.matched_path_or_any_parents(&full_path, is_dir).is_ignore()
-                || super::walker::is_build_or_vendor_artifact(&normalized)
-                || normalized.split('/').any(super::walker::is_build_or_vendor_artifact);
+                || super::walker::is_skipped_rel_path(&normalized);
 
             if is_ignored {
                 self.remove_file(&rel_path)?;
@@ -642,14 +667,14 @@ pub fn derive_subproject_id(rel_path: &str) -> String {
     let norm = normalize_path(rel_path);
     let trimmed = norm.trim_start_matches("./").trim_start_matches('/');
     let mut parts = trimmed.split('/');
-    if let (Some(first), Some(second)) = (parts.next(), parts.next()) {
-        if matches!(
+    if let (Some(first), Some(second)) = (parts.next(), parts.next())
+        && matches!(
             first,
             "crates" | "packages" | "apps" | "services" | "libs" | "modules" | "subprojects"
-        ) && !second.is_empty()
-        {
-            return format!("{}/{}", first, second);
-        }
+        )
+        && !second.is_empty()
+    {
+        return format!("{}/{}", first, second);
     }
     ".".to_string()
 }

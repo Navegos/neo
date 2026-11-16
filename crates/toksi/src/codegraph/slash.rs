@@ -35,10 +35,13 @@ pub fn handle_slash_command(input: &str, root: Option<&Path>) -> String {
              - `/codegraph status` - Show index statistics and database location\n\
              - `/codegraph explore <query>` - Semantic AST code and call-path explorer\n\
              - `/codegraph impact <symbol>` - Blast-radius impact analysis of modifying a symbol\n\
-             - `/codegraph symbols [query]` - Search AST symbols (functions, classes, structs)\n\
+             - `/codegraph symbols [query]` - Search AST symbols (supports `kind:`, `lang:`, `path:`, `name:`)\n\
              - `/codegraph callers <symbol>` - Find callers of a symbol\n\
              - `/codegraph callees <symbol>` - Find callees called by a symbol\n\
-             - `/codegraph files` - List indexed project files\n\
+             - `/codegraph implementations <symbol>` - List types implementing or extending a trait/interface/class\n\
+             - `/codegraph cycles` - Detect circular file import/dependency cycles\n\
+             - `/codegraph files [package]` - List indexed project files (optionally grouped by package)\n\
+             - `/codegraph outline <symbol|file>` - O(1) cached symbol slice or file AST outline\n\
              - `/codegraph index` - Trigger incremental re-index of project\n\
              - `/codegraph help` - Show this help message"
                 .to_string()
@@ -87,7 +90,7 @@ pub fn handle_slash_command(input: &str, root: Option<&Path>) -> String {
             super::mcp::handle_impact(&cg, &json!({ "symbol": symbol, "depth": 2 }))
         }
         "symbols" | "search" => {
-            let query = parts.get(2).copied().unwrap_or("");
+            let query = parts.get(2..).map(|p| p.join(" ")).unwrap_or_default();
             let _ = cg.ensure_indexed();
             super::mcp::handle_search(&cg, &json!({ "query": query, "limit": 20 }))
         }
@@ -107,17 +110,38 @@ pub fn handle_slash_command(input: &str, root: Option<&Path>) -> String {
             let _ = cg.ensure_indexed();
             super::mcp::handle_callees(&cg, &json!({ "symbol": symbol }))
         }
+        "implementations" | "impls" => {
+            let symbol = parts.get(2).copied().unwrap_or("");
+            if symbol.is_empty() {
+                return "Usage: `/codegraph implementations <symbol>`".to_string();
+            }
+            let _ = cg.ensure_indexed();
+            super::mcp::handle_implementations(&cg, &json!({ "symbol": symbol, "depth": 2 }))
+        }
+        "cycles" => {
+            let _ = cg.ensure_indexed();
+            super::mcp::handle_cycles(&cg)
+        }
+        "outline" => {
+            let target = parts.get(2..).map(|p| p.join(" ")).unwrap_or_default();
+            if target.is_empty() {
+                return "Usage: `/codegraph outline <symbol_or_file>`".to_string();
+            }
+            let _ = cg.ensure_indexed();
+            if let Some((file, slice)) = super::jcodemunch::extract_symbol_slice_o1(&cg, &target) {
+                format!("`{}`:\n```\n{}\n```", file, slice)
+            } else {
+                super::jcodemunch::summarize_from_cache_o1(&cg, &target)
+            }
+        }
         "files" => {
             let _ = cg.ensure_indexed();
-            let files = cg.cache.get_indexed_files();
-            let mut out = format!("**Indexed Files ({}):**\n", files.len());
-            for (file, lang, count) in files.iter().take(50) {
-                out.push_str(&format!("- `{file}` [{lang}] ({count} symbols)\n"));
-            }
-            if files.len() > 50 {
-                out.push_str(&format!("... and {} more files", files.len() - 50));
-            }
-            out
+            let fmt = if parts.get(2).copied() == Some("package") {
+                "package"
+            } else {
+                "list"
+            };
+            super::mcp::handle_files(&cg, &json!({ "format": fmt }))
         }
         _ => format!("Unknown codegraph command `{sub}`. Use `/codegraph help`."),
     }

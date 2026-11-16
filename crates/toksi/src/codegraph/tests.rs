@@ -3,19 +3,17 @@
 // project: neo
 // file: crates/toksi/src/codegraph/tests.rs
 // created: 2026-10-28
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
-#[cfg(test)]
-mod tests {
-    use std::fs;
-    use std::path::Path;
-    use tempfile::tempdir;
+use std::fs;
+use std::path::Path;
+use tempfile::tempdir;
 
-    use crate::codegraph::cache::{content_hash, SymbolCache};
-    use crate::codegraph::graph::CodeGraphEngine;
-    use crate::codegraph::kernel::{extract_file, SymbolEdge, SymbolNode, SymbolRef};
-    use crate::codegraph::walker::{detect_language, walk_project_files, WalkedFile};
-    use crate::codegraph::CodeGraph;
+use crate::codegraph::cache::{content_hash, SymbolCache};
+use crate::codegraph::graph::{parse_search_query, CodeGraphEngine};
+use crate::codegraph::kernel::{extract_file, SymbolEdge, SymbolNode, SymbolRef};
+use crate::codegraph::walker::{detect_language, is_test_file, walk_project_files, WalkedFile};
+use crate::codegraph::CodeGraph;
 
     #[test]
     fn test_extract_rust() {
@@ -207,8 +205,8 @@ int main() {
         let files = walk_project_files(root);
         let paths: Vec<String> = files.into_iter().map(|f| f.rel_path).collect();
 
-        assert!(paths.contains(&"src/lib.rs".to_string()));
-        assert!(paths.contains(&"src/app.py".to_string()));
+        assert!(paths.iter().any(|p| p == "src/lib.rs"));
+        assert!(paths.iter().any(|p| p == "src/app.py"));
         assert!(!paths.iter().any(|p| p.contains("node_modules")));
         assert!(!paths.iter().any(|p| p.contains("target")));
     }
@@ -414,9 +412,9 @@ int main() {
         // Downstream dependencies should contain db_query
         assert!(report.downstream_dependencies.iter().any(|n| n.node.name == "db_query"));
 
-        assert!(report.affected_files.contains(&"api.rs".to_string()));
-        assert!(report.affected_files.contains(&"service.rs".to_string()));
-        assert!(report.affected_files.contains(&"db.rs".to_string()));
+        assert!(report.affected_files.iter().any(|f| f == "api.rs"));
+        assert!(report.affected_files.iter().any(|f| f == "service.rs"));
+        assert!(report.affected_files.iter().any(|f| f == "db.rs"));
         assert!(report.risk_score > 0.0);
     }
 
@@ -952,12 +950,11 @@ pub fn save_order() {}
         use crate::codegraph::kernel::{extract_file, langs};
 
         for lang in langs::LANGUAGES {
-            if *lang != "dockerfile" {
-                assert!(langs::grammar_for(lang).is_some(), "missing Tree-sitter grammar for {lang}");
-            }
+            assert!(langs::grammar_for(lang).is_some(), "missing Tree-sitter grammar for {lang}");
         }
 
         let samples: &[(&str, &str, &str, &str)] = &[
+            ("Dockerfile", "dockerfile", "FROM rust:1.80-slim\nRUN cargo build --release\n", "rust:1.80-slim"),
             ("src/App.java", "java", "public class App { public void run() {} }", "App"),
             ("src/App.cs", "csharp", "public class Service { public void Exec() {} }", "Service"),
             ("app.rb", "ruby", "class Worker\n  def perform\n  end\nend\n", "Worker"),
@@ -1089,5 +1086,161 @@ int caller(int v) { return g_ops.run(v); }
         assert_eq!(derive_subproject_id("crates/project2/src/lib.rs"), "crates/project2");
         assert!(crate::codegraph::user_home_db_path().is_none());
     }
-}
+
+    #[test]
+    fn test_file_cycles_implementations_query_parser_and_mcp_hardening() {
+        use crate::codegraph::mcp::handle_mcp_message;
+        use serde_json::json;
+
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join(".git")).unwrap();
+        fs::create_dir_all(root.join("packages/pkg-a/src/build")).unwrap();
+        fs::create_dir_all(root.join("packages/pkg-a/tests")).unwrap();
+
+        fs::write(root.join("packages/pkg-a/package.json"), r#"{"name":"@scope/pkg-a"}"#).unwrap();
+        fs::write(
+            root.join("packages/pkg-a/src/a.ts"),
+            "import { beta } from './b';\nexport interface Runner { run(): void; }\nexport class Alpha implements Runner { run() { beta(); } }\nexport function res_send(body: string) { return body; }\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("packages/pkg-a/src/b.ts"),
+            "import { Alpha } from './a';\nexport function beta() { return new Alpha(); }\nexport function factorial(n: number): number { return n <= 1 ? 1 : n * factorial(n - 1); }\n",
+        )
+        .unwrap();
+        // `src/build/` should be walked (unlike root `build/`)
+        fs::write(
+            root.join("packages/pkg-a/src/build/page.ts"),
+            "export function buildPage() {}\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join("packages/pkg-a/tests/a.test.ts"),
+            "export function testAlpha() {}\n",
+        )
+        .unwrap();
+
+        let mut cg = CodeGraph::open(root).unwrap();
+        cg.ensure_indexed().unwrap();
+
+        // 1. Circular dependency detection
+        let cycles = cg.engine.find_file_cycles();
+        assert!(!cycles.is_empty(), "expected cycle between a.ts and b.ts");
+        assert!(cycles[0].iter().any(|p| p.ends_with("a.ts")));
+        assert!(cycles[0].iter().any(|p| p.ends_with("b.ts")));
+
+        // 2. Trait/Interface implementation hierarchy
+        let impls = cg.engine.find_implementations("Runner", 2);
+        assert!(
+            impls.iter().any(|e| e.node.name == "Alpha"),
+            "expected Alpha implementing Runner, got {:?}",
+            impls
+        );
+
+        // 3. Field-qualified query parser & call-expression normalization
+        let pq = parse_search_query("kind:function path:src/a res.send(body)");
+        assert_eq!(pq.kinds, vec!["function"]);
+        assert_eq!(pq.path_filters, vec!["src/a"]);
+        assert_eq!(pq.terms, vec!["send"]);
+
+        let leaf_q = parse_search_query("leaf(entry)");
+        assert_eq!(leaf_q.terms, vec!["leaf"]);
+
+        // 4. Qualified scope lookup boundary (`Format.Price` != `LegacyFormat.Price`)
+        let mut q_engine = CodeGraphEngine::new();
+        q_engine.add_node(SymbolNode {
+            id: "legacy:price".into(),
+            name: "Price".into(),
+            qualified_name: "LegacyFormat::Price".into(),
+            kind: "class".into(),
+            visibility: None,
+            file_path: "src/legacy.ts".into(),
+            start_line: 1,
+            end_line: 3,
+            start_column: 0,
+            end_column: 1,
+            docstring: None,
+            signature: None,
+            return_type: None,
+        });
+        q_engine.add_node(SymbolNode {
+            id: "fmt:price".into(),
+            name: "Price".into(),
+            qualified_name: "Format::Price".into(),
+            kind: "class".into(),
+            visibility: None,
+            file_path: "src/format.ts".into(),
+            start_line: 1,
+            end_line: 3,
+            start_column: 0,
+            end_column: 1,
+            docstring: None,
+            signature: None,
+            return_type: None,
+        });
+        let matched = q_engine.find_symbols_by_name("Format.Price");
+        assert_eq!(matched.len(), 1);
+        assert_eq!(matched[0].id, "fmt:price");
+
+        // 5. Recursive self-call
+        let callers_resp = handle_mcp_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "tools/call",
+            "params": {
+                "name": "codegraph_callers",
+                "arguments": {
+                    "symbol": "factorial",
+                    "projectPath": root.to_string_lossy()
+                }
+            }
+        }))
+        .unwrap();
+        let callers_text = callers_resp["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(callers_text.contains("(recursive)"), "expected recursive marker: {callers_text}");
+
+        // 6. Test file detection & src/build inclusion & package grouping
+        assert!(is_test_file("packages/pkg-a/tests/a.test.ts"));
+        assert!(!is_test_file("src/latest.kt"));
+        assert!(is_test_file("src/wire_format_unittest.cc"));
+
+        let files_resp = handle_mcp_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "tools/call",
+            "params": {
+                "name": "codegraph_files",
+                "arguments": {
+                    "format": "package",
+                    "projectPath": root.join("packages/pkg-a/src/a.ts").to_string_lossy()
+                }
+            }
+        }))
+        .unwrap();
+        let files_text = files_resp["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(files_text.contains("@scope/pkg-a"));
+        assert!(files_text.contains("src/build/page.ts"));
+        assert!(files_text.contains("[test]"));
+
+        // 7. Non-object MCP arguments return -32602
+        let bad_args_resp = handle_mcp_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 12,
+            "method": "tools/call",
+            "params": {
+                "name": "codegraph_status",
+                "arguments": "alpha"
+            }
+        }))
+        .unwrap();
+        assert_eq!(bad_args_resp["error"]["code"], -32602);
+
+        // 8. Sensitive directory rejection (~/.ssh)
+        if let Some(home) = dirs::home_dir() {
+            let ssh = home.join(".ssh");
+            let err = crate::codegraph::try_resolve_db_path(&ssh);
+            assert!(matches!(err, Err(crate::codegraph::CodeGraphError::Security(_))));
+        }
+    }
 

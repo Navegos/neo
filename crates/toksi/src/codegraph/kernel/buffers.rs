@@ -230,6 +230,10 @@ impl Arena {
         self.buf.len() as u32
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
+
     pub fn into_vec(self) -> Vec<u8> {
         self.buf
     }

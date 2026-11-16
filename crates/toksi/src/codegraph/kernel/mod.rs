@@ -3,7 +3,23 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
+
+#![allow(
+    clippy::collapsible_if,
+    clippy::unnecessary_to_owned,
+    clippy::let_and_return,
+    clippy::len_without_is_empty,
+    clippy::manual_contains,
+    clippy::question_mark,
+    clippy::if_same_then_else,
+    clippy::while_let_loop,
+    clippy::needless_update,
+    clippy::unnecessary_map_or,
+    clippy::doc_lazy_continuation,
+    clippy::manual_pattern_char_comparison,
+    clippy::needless_lifetimes
+)]
 
 #[macro_export]
 macro_rules! stack_guard {
