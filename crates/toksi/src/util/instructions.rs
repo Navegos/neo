@@ -3,9 +3,10 @@
 // project: neo
 // file: crates/toksi/src/util/instructions.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::path::Path;
+use std::sync::OnceLock;
 use super::paths::ensure_dir;
 
 pub const TOKSI_OWNERS: &[&str] = &[
@@ -137,10 +138,25 @@ pub fn install_cursor_project_rules(
     Ok(true)
 }
 
-const AGENT_INSTRUCTIONS_TEMPLATE: &str = include_str!("agent_instructions.md");
+static AGENT_INSTRUCTIONS_CACHE: OnceLock<String> = OnceLock::new();
 
-fn normalized_agent_instructions() -> String {
-    AGENT_INSTRUCTIONS_TEMPLATE.replace("\r\n", "\n")
+fn build_fallback_instructions() -> String {
+    format!(
+        "# Agent Instructions\n\nApply on every coding task:\n\n**Skills (apply):**\n- Principles — think, simplify, edit surgically, verify.\n- Response Style (caveman) — terse prose, full technical accuracy.\n- Build Discipline (ponytail) — reuse first, write only what must exist.\n\n**Tools (call):**\n- Code Index (codegraph) — MCP `codegraph_explore` for structure, flows, dependencies.\n- Context Tools (context-mode) — MCP `ctx_*` for large, uncertain, multi-source analysis.\n- Project Memory (projectmem) — MCP tools log issues, attempts, fixes, decisions, gotchas.\n\n## Principles\n\n{}\n\n## Response Style (caveman)\n\n{}\n\n## Build Discipline (ponytail)\n\n{}\n\n## Code Index (codegraph)\n\nMCP tool `codegraph_explore` gives source, call path, and blast radius in one call.\n\n## Context Tools (context-mode)\n\nMCP tools `ctx_*` keep large or uncertain analysis out of context.\n\n## Project Memory (projectmem)\n\nMCP tools record issues, attempts, fixes, decisions, and gotchas.\n",
+        crate::rules::RuleKind::Principles.section_body(),
+        crate::rules::RuleKind::Caveman.section_body(),
+        crate::rules::RuleKind::Ponytail.section_body(),
+    )
+}
+
+fn normalized_agent_instructions() -> &'static str {
+    AGENT_INSTRUCTIONS_CACHE
+        .get_or_init(|| {
+            crate::rules::skills_repo::read_agent_instructions_template()
+                .unwrap_or_else(build_fallback_instructions)
+                .replace("\r\n", "\n")
+        })
+        .as_str()
 }
 
 pub fn instruction_index_section() -> String {

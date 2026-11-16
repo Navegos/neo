@@ -3,24 +3,29 @@
 // project: neo
 // file: crates/toksi/src/rules/cli.rs
 // created: 2026-10-31
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::path::{Path, PathBuf};
 use crate::rules::{
     caveman_rule, inject_rule_at_path, inspect_agent_rules, patch_agents_md,
     patch_all_agent_configs, patch_claude_md, ponytail_rule, remove_rule_from_path,
-    sync_all_rules_with_options, RuleKind, SyncComponents, SyncOptions,
+    skill_validator, skills_repo, sync_all_rules_with_options, RuleKind, SyncComponents,
+    SyncOptions,
 };
 use crate::util::colors::*;
 
 pub fn print_rules_help() {
     println!(
-        "toksi rules — Manage in-tree coding rules & skills (principles, caveman, ponytail)\n\n\
+        "toksi rules — Manage externalized coding rules & skills (principles, caveman, ponytail)\n\n\
         Usage:\n\
           toksi rules list\n\
           toksi rules show <rule|mode|spec> [--cursor] [--body]\n\
           toksi rules patch [target_dir_or_file] [--rules <r1,r2>]\n\
           toksi rules sync [target_dir] [--rules <r1,r2>] [--agents <a1,a2>] [--components <c1,c2>] [--workspace] [--global]\n\
+          toksi rules grade [path]\n\
+          toksi rules heal [path]\n\
+          toksi rules catalog\n\
+          toksi rules repo-sync\n\
           toksi rules inject <file> <rule>\n\
           toksi rules remove <file> <rule>\n\
           toksi rules status [target_dir]\n\n\
@@ -337,6 +342,178 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
                 }
             }
             0
+        }
+        "grade" => {
+            let target = if rest.is_empty() {
+                skills_repo::SkillsRepoConfig::load().stage_agents_dir
+            } else {
+                PathBuf::from(&rest[0])
+            };
+            let report = if target.is_file() {
+                match std::fs::read_to_string(&target) {
+                    Ok(raw) => {
+                        let single = skill_validator::analyze_content(
+                            &target.to_string_lossy(),
+                            &raw,
+                            None,
+                        );
+                        let errors = single
+                            .findings
+                            .iter()
+                            .filter(|f| f.severity == skill_validator::FindingSeverity::Error)
+                            .count();
+                        let warnings = single
+                            .findings
+                            .iter()
+                            .filter(|f| f.severity == skill_validator::FindingSeverity::Warning)
+                            .count();
+                        let infos = single
+                            .findings
+                            .iter()
+                            .filter(|f| f.severity == skill_validator::FindingSeverity::Info)
+                            .count();
+                        skill_validator::BatchValidationReport {
+                            score: single.score,
+                            grade: single.grade,
+                            error_count: errors,
+                            warning_count: warnings,
+                            info_count: infos,
+                            files: vec![single],
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error reading {}: {}", target.display(), e);
+                        return 1;
+                    }
+                }
+            } else {
+                match skill_validator::analyze_directory(&target) {
+                    Ok(rep) => rep,
+                    Err(e) => {
+                        eprintln!("Error grading {}: {}", target.display(), e);
+                        return 1;
+                    }
+                }
+            };
+            println!(
+                "=== SkillDoctor Grade: {} ({}/100) — {} files ({} err, {} warn, {} info) ===",
+                report.grade,
+                report.score,
+                report.files.len(),
+                report.error_count,
+                report.warning_count,
+                report.info_count
+            );
+            for f in &report.files {
+                println!(
+                    "  [{} {:>3}] {} (agentskills={}, enforce={}, vetted={})",
+                    f.grade,
+                    f.score,
+                    f.file_path,
+                    f.is_valid_agentskills,
+                    f.has_enforce_guard,
+                    f.vetted_for_install
+                );
+            }
+            0
+        }
+        "heal" => {
+            let target = if rest.is_empty() {
+                skills_repo::SkillsRepoConfig::load().stage_agents_dir
+            } else {
+                PathBuf::from(&rest[0])
+            };
+            let mut healed_count = 0usize;
+            let mut stack = vec![target.clone()];
+            while let Some(cur) = stack.pop() {
+                if cur.is_dir() {
+                    if let Ok(entries) = std::fs::read_dir(&cur) {
+                        for entry in entries.flatten() {
+                            stack.push(entry.path());
+                        }
+                    }
+                } else if cur.is_file() {
+                    let lower = cur
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("")
+                        .to_ascii_lowercase();
+                    if lower == "skill.md" || lower.ends_with(".skill.md") {
+                        if let Ok(raw) = std::fs::read_to_string(&cur) {
+                            let parent_dir = cur
+                                .parent()
+                                .and_then(|p| p.file_name())
+                                .and_then(|n| n.to_str())
+                                .filter(|d| !d.eq_ignore_ascii_case("skills"));
+                            let res = skill_validator::heal_skill_content(
+                                &cur.to_string_lossy(),
+                                &raw,
+                                parent_dir,
+                                true,
+                            );
+                            if res.changed {
+                                if let Err(e) = std::fs::write(&cur, &res.output) {
+                                    eprintln!("Error writing {}: {}", cur.display(), e);
+                                    return 1;
+                                }
+                                healed_count += 1;
+                                println!("  {} Healed {}: {}", C.green(Sym::CHECK), cur.display(), res.applied.join(", "));
+                            }
+                        }
+                    }
+                }
+            }
+            println!("Healed {} skill file(s).", healed_count);
+            0
+        }
+        "catalog" => {
+            let cfg = skills_repo::SkillsRepoConfig::load();
+            match skills_repo::discover_vetted_catalog(&cfg) {
+                Ok(cat) => {
+                    println!(
+                        "=== Vetted Skills Catalog: {} skills, {} collisions resolved, {} blocked ===",
+                        cat.entries.len(),
+                        cat.collisions.len(),
+                        cat.blocked_skills.len()
+                    );
+                    for entry in &cat.entries {
+                        println!(
+                            "  [{} {:>3}] {} ({}) — triggers: {}",
+                            entry.grade,
+                            entry.score,
+                            entry.name,
+                            entry.origin.as_str(),
+                            entry.triggers.join(", ")
+                        );
+                    }
+                    0
+                }
+                Err(e) => {
+                    eprintln!("Error building skills catalog: {}", e);
+                    1
+                }
+            }
+        }
+        "repo-sync" => {
+            let cfg = skills_repo::SkillsRepoConfig::load();
+            match skills_repo::sync_external_skills_repo(&cfg) {
+                Ok(rep) => {
+                    println!(
+                        "Synced {} external file(s) to {} (catalog={}, healed={}, collisions={}, blocked={})",
+                        rep.synced_files.len(),
+                        cfg.skills_dir.display(),
+                        rep.catalog_count,
+                        rep.healed_files.len(),
+                        rep.collision_count,
+                        rep.blocked_files.len()
+                    );
+                    0
+                }
+                Err(e) => {
+                    eprintln!("Error syncing external skills repo: {}", e);
+                    1
+                }
+            }
         }
         other => {
             eprintln!("Error: unknown subcommand '{}'", other);

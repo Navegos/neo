@@ -3,32 +3,33 @@
 // project: neo
 // file: crates/toksi/src/rules/mod.rs
 // created: 2026-10-29
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
-//! In-tree rules and skills engine for AI coding agents.
+//! Externalized rules and skills engine for AI coding agents (Zero Binary Bloat).
 //!
-//! Provides embedded, zero-dependency guidelines compiled directly into the
-//! toksi binary with `include_str!`, eliminating external repository clone links.
-//!
-//! Exposes functions to inject, patch, and verify instructions across agent
-//! configs (`CLAUDE.md`, `.cursor/rules/`, `AGENTS.md`, and custom agent paths).
+//! Stages vetted rule and skill definitions outside `crates/toksi/` (`<neo>/rules/`,
+//! `<neo>/agents/`, and `<skills>` `Navegos/skills`), wraps payloads in `<enforce>`,
+//! validates/heals YAML frontmatter via `skilldoctor` + `agentskills`, and syncs
+//! user-configured agents across workspace root and user home directories.
 
 #![deny(unsafe_code)]
 
 pub mod caveman;
 pub mod cli;
-pub mod embedded;
 pub mod ponytail;
 pub mod principles;
+pub mod skill_validator;
+pub mod skills_catalog;
+pub mod skills_repo;
 pub mod sync;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
+pub use caveman as caveman_rule;
 pub use cli::run_rules_cli;
-pub use embedded::caveman as caveman_rule;
-pub use embedded::ponytail as ponytail_rule;
-pub use embedded::principles as principles_rule;
+pub use ponytail as ponytail_rule;
+pub use principles as principles_rule;
 pub use sync::{
     matches_sync_target_filename, resolve_configured_agents, resolve_workspace_root,
     sync_all_rules, sync_all_rules_with_options, sync_global_rules,
@@ -36,6 +37,75 @@ pub use sync::{
     sync_workspace_rules_with_options, wire_mcp_skills, SyncComponents, SyncOptions, SyncReport,
     SyncScope, MANAGED_MCP_TOOLS, SUPPORTED_AGENT_DIRS,
 };
+
+pub const ENFORCE_OPEN_TAG: &str = "<enforce>";
+pub const ENFORCE_CLOSE_TAG: &str = "</enforce>";
+pub const TOKSI_RULES_START: &str = "<!-- TOKSI-RULES-START -->";
+pub const TOKSI_RULES_END: &str = "<!-- TOKSI-RULES-END -->";
+
+/// Externalized skill package descriptor (`SKILL.md` in `skills/<dir_name>/`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SkillAsset {
+    pub dir_name: &'static str,
+    pub skill_md: &'static str,
+}
+
+pub type EmbeddedSkill = SkillAsset;
+
+/// Externalized Gemini custom command descriptor (`.toml` in `commands/<filename>`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CommandAsset {
+    pub filename: &'static str,
+    pub toml: &'static str,
+}
+
+pub type EmbeddedCommand = CommandAsset;
+
+/// Extracts section body content below the top `# ...` heading using normalized `\n` newlines.
+pub(crate) fn extract_section_body(raw_markdown: &str) -> String {
+    let raw = raw_markdown.replace("\r\n", "\n");
+    if let Some(pos) = raw.find('\n') {
+        raw[pos + 1..].trim().to_string()
+    } else {
+        raw.trim().to_string()
+    }
+}
+
+/// Returns true if text contains matching `<enforce>...</enforce>` guardrail tags.
+pub fn has_enforce_guard(text: &str) -> bool {
+    let norm = text.replace("\r\n", "\n");
+    if let Some(start) = norm.find(ENFORCE_OPEN_TAG) {
+        norm[start + ENFORCE_OPEN_TAG.len()..].contains(ENFORCE_CLOSE_TAG)
+    } else {
+        false
+    }
+}
+
+/// Wraps text in `<enforce>\n...\n</enforce>` if not already guarded.
+pub fn wrap_enforce_guard(text: &str) -> String {
+    let norm = text.replace("\r\n", "\n");
+    if has_enforce_guard(&norm) {
+        return norm;
+    }
+    let trimmed = norm.trim();
+    if trimmed.is_empty() {
+        format!("{}\n{}", ENFORCE_OPEN_TAG, ENFORCE_CLOSE_TAG)
+    } else {
+        format!("{}\n{}\n{}", ENFORCE_OPEN_TAG, trimmed, ENFORCE_CLOSE_TAG)
+    }
+}
+
+/// Strips outer `<enforce>` / `</enforce>` lines when extracting raw prompt text.
+pub fn strip_enforce_guard(text: &str) -> String {
+    let norm = text.replace("\r\n", "\n");
+    norm.lines()
+        .filter(|l| {
+            let t = l.trim();
+            t != ENFORCE_OPEN_TAG && t != ENFORCE_CLOSE_TAG
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
 
 pub type DynError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -84,9 +154,9 @@ impl RuleKind {
     /// Returns the canonical rule identifier string.
     pub const fn as_str(&self) -> &'static str {
         match self {
-            RuleKind::Principles => embedded::principles::ID,
-            RuleKind::Caveman => embedded::caveman::ID,
-            RuleKind::Ponytail => embedded::ponytail::ID,
+            RuleKind::Principles => principles::ID,
+            RuleKind::Caveman => caveman::ID,
+            RuleKind::Ponytail => ponytail::ID,
         }
     }
 
@@ -103,99 +173,99 @@ impl RuleKind {
     /// Returns the title of the rule.
     pub const fn title(&self) -> &'static str {
         match self {
-            RuleKind::Principles => embedded::principles::TITLE,
-            RuleKind::Caveman => embedded::caveman::TITLE,
-            RuleKind::Ponytail => embedded::ponytail::TITLE,
+            RuleKind::Principles => principles::TITLE,
+            RuleKind::Caveman => caveman::TITLE,
+            RuleKind::Ponytail => ponytail::TITLE,
         }
     }
 
     /// Returns the short description of the rule.
     pub const fn description(&self) -> &'static str {
         match self {
-            RuleKind::Principles => embedded::principles::DESCRIPTION,
-            RuleKind::Caveman => embedded::caveman::DESCRIPTION,
-            RuleKind::Ponytail => embedded::ponytail::DESCRIPTION,
+            RuleKind::Principles => principles::DESCRIPTION,
+            RuleKind::Caveman => caveman::DESCRIPTION,
+            RuleKind::Ponytail => ponytail::DESCRIPTION,
         }
     }
 
     /// Returns the section header markdown tag (e.g. `## Principles`).
     pub const fn section_header(&self) -> &'static str {
         match self {
-            RuleKind::Principles => embedded::principles::SECTION_HEADER,
-            RuleKind::Caveman => embedded::caveman::SECTION_HEADER,
-            RuleKind::Ponytail => embedded::ponytail::SECTION_HEADER,
+            RuleKind::Principles => principles::SECTION_HEADER,
+            RuleKind::Caveman => caveman::SECTION_HEADER,
+            RuleKind::Ponytail => ponytail::SECTION_HEADER,
         }
     }
 
     /// Returns the Cursor project rule file name (e.g. `principles.mdc`).
     pub const fn cursor_filename(&self) -> &'static str {
         match self {
-            RuleKind::Principles => embedded::principles::CURSOR_FILENAME,
-            RuleKind::Caveman => embedded::caveman::CURSOR_FILENAME,
-            RuleKind::Ponytail => embedded::ponytail::CURSOR_FILENAME,
+            RuleKind::Principles => principles::CURSOR_FILENAME,
+            RuleKind::Caveman => caveman::CURSOR_FILENAME,
+            RuleKind::Ponytail => ponytail::CURSOR_FILENAME,
         }
     }
 
     /// Returns the skill directory name (e.g. `principles`).
     pub const fn skill_dir_name(&self) -> &'static str {
         match self {
-            RuleKind::Principles => embedded::principles::SKILL_DIR_NAME,
-            RuleKind::Caveman => embedded::caveman::SKILL_DIR_NAME,
-            RuleKind::Ponytail => embedded::ponytail::SKILL_DIR_NAME,
+            RuleKind::Principles => principles::SKILL_DIR_NAME,
+            RuleKind::Caveman => caveman::SKILL_DIR_NAME,
+            RuleKind::Ponytail => ponytail::SKILL_DIR_NAME,
         }
     }
 
     /// Returns the standalone skill definition (`SKILL.md` format with YAML frontmatter).
     pub fn skill_definition(&self) -> &'static str {
         match self {
-            RuleKind::Principles => embedded::principles::skill_definition(),
-            RuleKind::Caveman => embedded::caveman::skill_definition(),
-            RuleKind::Ponytail => embedded::ponytail::skill_definition(),
+            RuleKind::Principles => principles::skill_definition(),
+            RuleKind::Caveman => caveman::skill_definition(),
+            RuleKind::Ponytail => ponytail::skill_definition(),
         }
     }
 
-    /// Returns the embedded raw markdown string for the rule.
+    /// Returns the externalized raw markdown string for the rule.
     pub fn markdown(&self) -> &'static str {
         match self {
-            RuleKind::Principles => embedded::principles::markdown(),
-            RuleKind::Caveman => embedded::caveman::markdown(),
-            RuleKind::Ponytail => embedded::ponytail::markdown(),
+            RuleKind::Principles => principles::markdown(),
+            RuleKind::Caveman => caveman::markdown(),
+            RuleKind::Ponytail => ponytail::markdown(),
         }
     }
 
-    /// Returns the embedded Cursor `.mdc` file content with YAML frontmatter.
+    /// Returns the externalized Cursor `.mdc` file content with YAML frontmatter.
     pub fn cursor_rule(&self) -> &'static str {
         match self {
-            RuleKind::Principles => embedded::principles::cursor_rule(),
-            RuleKind::Caveman => embedded::caveman::cursor_rule(),
-            RuleKind::Ponytail => embedded::ponytail::cursor_rule(),
+            RuleKind::Principles => principles::cursor_rule(),
+            RuleKind::Caveman => caveman::cursor_rule(),
+            RuleKind::Ponytail => ponytail::cursor_rule(),
         }
     }
 
     /// Returns all primary and companion skills bundled with this rule kind.
-    pub fn skills(&self) -> &'static [embedded::EmbeddedSkill] {
+    pub fn skills(&self) -> &'static [SkillAsset] {
         match self {
-            RuleKind::Principles => embedded::principles::companion_skills(),
-            RuleKind::Caveman => embedded::caveman::companion_skills(),
-            RuleKind::Ponytail => embedded::ponytail::companion_skills(),
+            RuleKind::Principles => principles::companion_skills(),
+            RuleKind::Caveman => caveman::companion_skills(),
+            RuleKind::Ponytail => ponytail::companion_skills(),
         }
     }
 
     /// Returns Gemini custom `.toml` commands bundled with this rule kind.
-    pub fn gemini_commands(&self) -> &'static [embedded::EmbeddedCommand] {
+    pub fn gemini_commands(&self) -> &'static [CommandAsset] {
         match self {
             RuleKind::Principles => &[],
-            RuleKind::Caveman => embedded::caveman::gemini_commands(),
-            RuleKind::Ponytail => embedded::ponytail::gemini_commands(),
+            RuleKind::Caveman => caveman::gemini_commands(),
+            RuleKind::Ponytail => ponytail::gemini_commands(),
         }
     }
 
     /// Returns the section body content.
     pub fn section_body(&self) -> String {
         match self {
-            RuleKind::Principles => embedded::principles::section_body(),
-            RuleKind::Caveman => embedded::caveman::section_body(),
-            RuleKind::Ponytail => embedded::ponytail::section_body(),
+            RuleKind::Principles => principles::section_body(),
+            RuleKind::Caveman => caveman::section_body(),
+            RuleKind::Ponytail => ponytail::section_body(),
         }
     }
 }
@@ -237,6 +307,8 @@ pub fn render_rules_markdown(rules: &[RuleKind], user_preamble: Option<&str>) ->
     }
 
     if !rules.is_empty() {
+        out.push_str(TOKSI_RULES_START);
+        out.push('\n');
         out.push_str("# Agent Instructions\n\n");
         out.push_str("Apply on every coding task:\n\n");
         out.push_str("**Skills (apply):**\n");
@@ -255,8 +327,10 @@ pub fn render_rules_markdown(rules: &[RuleKind], user_preamble: Option<&str>) ->
             }
             out.push_str(rule.section_header());
             out.push_str("\n\n");
-            out.push_str(&rule.section_body());
+            out.push_str(&wrap_enforce_guard(&rule.section_body()));
         }
+        out.push('\n');
+        out.push_str(TOKSI_RULES_END);
         out.push('\n');
     }
 
@@ -312,8 +386,10 @@ fn parse_content_sections(content: &str) -> (String, Vec<RuleKind>) {
     for line in content.lines() {
         let trimmed = line.trim();
 
-        if trimmed == "# Agent Instructions" {
-            in_index_section = true;
+        if trimmed == "# Agent Instructions" || trimmed == TOKSI_RULES_START || trimmed == TOKSI_RULES_END {
+            if trimmed == "# Agent Instructions" {
+                in_index_section = true;
+            }
             continue;
         }
 
@@ -700,15 +776,33 @@ pub fn patch_skills_dir(target: impl AsRef<Path>, rules: &[RuleKind]) -> Result<
     fs::create_dir_all(&skills_dir)?;
 
     let mut written = Vec::new();
+    let mut seen_names = std::collections::BTreeSet::new();
     for &rule in rules {
         for skill in rule.skills() {
+            let key = skill.dir_name.to_ascii_lowercase();
+            if !seen_names.insert(key) {
+                continue;
+            }
             let skill_dir = skills_dir.join(skill.dir_name);
             fs::create_dir_all(&skill_dir)?;
             let file_path = skill_dir.join("SKILL.md");
-            fs::write(&file_path, skill.skill_md)?;
-            written.push(PathBuf::from(crate::util::paths::normalize_path(
-                &file_path.to_string_lossy(),
-            )));
+            let file_str = crate::util::paths::normalize_path(&file_path.to_string_lossy());
+            let healed = crate::rules::skill_validator::heal_skill_content(
+                &file_str,
+                skill.skill_md,
+                Some(skill.dir_name),
+                true,
+            );
+            let check = crate::rules::skill_validator::analyze_content(
+                &file_str,
+                &healed.output,
+                Some(crate::rules::skill_validator::FileKind::Skill),
+            );
+            if !check.vetted_for_install {
+                continue;
+            }
+            fs::write(&file_path, &healed.output)?;
+            written.push(PathBuf::from(file_str));
         }
     }
 

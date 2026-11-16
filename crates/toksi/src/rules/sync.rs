@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rules/sync.rs
 // created: 2026-11-05
-// lastModified: 2026-11-14
+// lastModified: 2026-11-16
 
 //! Universal rules, skills, hooks, MCP & config synchronizer for user-configured agents.
 //!
@@ -12,7 +12,8 @@
 //! - Granular component toggles (`hooks`, `mcp`, `skills`, `rules`, `instructions`, `configs`).
 //! - First workspace root resolution (`.git` root via `find_project_dir`) + nested subfolder merge.
 //! - Universal forward-slash (`/`) paths via `normalize_path()`.
-//! - Zero external network fetches at runtime; all rules/skills/commands are embedded compile-time assets.
+//! - Zero binary bloat: externalized `<skills>` & staged `<neo>/rules/`, `<neo>/agents/` payloads
+//!   healed via `skilldoctor` + `agentskills` and vetted under `<enforce>` before install.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -26,6 +27,8 @@ use crate::rules::{
     patch_copilot_md, patch_cursor_rules, patch_cursorrules, patch_gemini_commands,
     patch_gemini_md, patch_markdown_file, patch_skills_dir, RuleKind, RulesError,
 };
+use crate::rules::skill_validator::{analyze_content, heal_skill_content, FileKind};
+use crate::rules::skills_repo::{discover_vetted_catalog, SkillsRepoConfig};
 use crate::util::paths::{home, normalize_path};
 
 pub type DynError = Box<dyn std::error::Error + Send + Sync>;
@@ -799,12 +802,14 @@ pub fn wire_mcp_skills_for_dirs(
                 let skill_file = tool_skill.join("SKILL.md");
                 if !skill_file.exists() {
                     fs::create_dir_all(&tool_skill).map_err(|e| RulesError::io(&tool_skill, e))?;
-                    let manifest = format!(
-                        "---\nname: {}\ndescription: Toksi consolidated {} intelligence tool for AI coding agents.\nlicense: Apache-2.0\n---\n\n# {}\n\nToksi in-process tool wire for {}.\n",
+                    let raw_manifest = format!(
+                        "---\nname: {}\ndescription: Toksi consolidated {} intelligence tool for AI coding agents.\nlicense: Apache-2.0\n---\n\n<enforce>\n# {}\n\nToksi in-process tool wire for {}.\n</enforce>\n",
                         tool, tool, tool, tool
                     );
-                    fs::write(&skill_file, manifest).map_err(|e| RulesError::io(&skill_file, e))?;
-                    wired.push(PathBuf::from(normalize_path(&skill_file.to_string_lossy())));
+                    let skill_str = normalize_path(&skill_file.to_string_lossy());
+                    let healed = heal_skill_content(&skill_str, &raw_manifest, Some(tool), true);
+                    fs::write(&skill_file, &healed.output).map_err(|e| RulesError::io(&skill_file, e))?;
+                    wired.push(PathBuf::from(skill_str));
                 }
             }
         }
@@ -1034,6 +1039,39 @@ fn sync_harness_rules_and_instructions(
     }
 }
 
+fn install_vetted_skills_into_agent_dir(
+    agent_dir: &Path,
+    rules: &[RuleKind],
+) -> Result<Vec<PathBuf>, DynError> {
+    let mut written = patch_skills_dir(agent_dir, rules)?;
+
+    let cfg = SkillsRepoConfig::load();
+    if cfg.user_skills_dir.exists() {
+        let user_only_cfg = SkillsRepoConfig {
+            skills_dir: agent_dir.join("__unused_skills_dir"),
+            stage_agents_dir: agent_dir.join("__unused_stage_dir"),
+            ..cfg
+        };
+        if let Ok(catalog) = discover_vetted_catalog(&user_only_cfg) {
+            let skills_dir = agent_dir.join("skills");
+            for entry in catalog.entries {
+                let skill_dir = skills_dir.join(&entry.name);
+                fs::create_dir_all(&skill_dir)?;
+                let target = skill_dir.join("SKILL.md");
+                let target_norm = normalize_path(&target.to_string_lossy());
+                let healed = heal_skill_content(&target_norm, &entry.content, Some(&entry.name), true);
+                let rep = analyze_content(&target_norm, &healed.output, Some(FileKind::Skill));
+                if rep.vetted_for_install {
+                    fs::write(&target, &healed.output)?;
+                    written.push(PathBuf::from(target_norm));
+                }
+            }
+        }
+    }
+
+    Ok(written)
+}
+
 fn sync_harness_skills(
     base_dir: &Path,
     agent_dir: &Path,
@@ -1041,7 +1079,7 @@ fn sync_harness_skills(
     rules: &[RuleKind],
     report: &mut SyncReport,
 ) {
-    match patch_skills_dir(agent_dir, rules) {
+    match install_vetted_skills_into_agent_dir(agent_dir, rules) {
         Ok(paths) => {
             for p in paths {
                 report.record_updated(p);
@@ -1052,7 +1090,7 @@ fn sync_harness_skills(
 
     if let Some(sec) = spec.secondary_dir {
         if spec.id == "copilot" {
-            match patch_skills_dir(base_dir.join(sec), rules) {
+            match install_vetted_skills_into_agent_dir(&base_dir.join(sec), rules) {
                 Ok(paths) => {
                     for p in paths {
                         report.record_updated(p);
