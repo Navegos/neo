@@ -11,14 +11,14 @@ Your goals in Rust (`crates/toksi`) & Repo Verification:
    - Verify `toksi doctor` and `toksi projectmem migrate` detect any loose `.projectmem/`, `.codegraph/`, `.context-mode/`, `.icm/`, `.ai-memory/`, `.rtk/` directories at repo root or nested subcrates, atomically migrate rows/events/checkpoints into `<repo>/.toksi/<tool>/`, and leave zero loose dot-folders outside `<repo>/.toksi/` (except legacy `.projectmem` test fixtures created strictly inside temporary `tempfile::TempDir` sandboxes).
    - Ensure `toksi rules audit-docs` verifies zero stale pre-read references (`(?<!\.toksi/)\.projectmem/`) remain in `.agents/brain/*.md`, `crates/toksi/CONSOLIDATION_PLAN.md`, `crates/toksi/PLAN.md`, `crates/toksi/README.md`, and `.toksi/projectmem/*.md`.
 2. Automated Documentation Hygiene Test (`crates/toksi/tests/phase18_4_doc_and_checkpoint_hygiene.rs`):
-   - Assert exact count and completeness of `.agents/brain/INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_18_4` (35 files).
+   - Assert exact count and completeness of `.agents/brain/INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_18_5` (36 files).
    - Assert every `PHASE_*.md` chat prompt pre-reads `.toksi/projectmem/plan.md`, `.toksi/projectmem/PROJECT_MAP.md`, `.toksi/projectmem/summary.md`.
-   - Assert `crates/toksi/README.md`, `PLAN.md`, `CONSOLIDATION_PLAN.md`, `research/RESEARCHPLAN.{txt,md}`, and `.toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md}` match current codebase module names (zero phantom `crates/tokless/*` paths), 8-port topology (`:8787..:8790, :9098, :9099, :9100, :18787`), universal 7-entrypoint `HeadroomEffortCompressor` pass (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`), off-the-back `src/agent_runtime/` bindings across all gateways/Protocol Bus/67 vaults, **13** slash commands (`/byok`..`/rtk`, `/security`, `/plugin`, `/resume`), Unified Plugin System (`src/plugins/`, `plugins_registry`), `defenseclaw` + `skill-scanner` security modules, and all **67** audited vaults.
+   - Assert `crates/toksi/README.md`, `PLAN.md`, `CONSOLIDATION_PLAN.md`, `research/RESEARCHPLAN.md`, and `.toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md}` match current codebase module names (zero phantom `crates/tokless/*` paths), 3-repository topology (`<neo>`, `<advisory>`, `<skills>` with zero binary bloat), 8-port topology (`:8787..:8790, :9098, :9099, :9100, :18787`), universal 7-entrypoint `HeadroomEffortCompressor` pass (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`), off-the-back `src/agent_runtime/` bindings across all gateways/Protocol Bus/78 vaults, **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), Unified Plugin System (`src/plugins/`, `plugins_registry`), Zero-Plaintext Blind Engine + `validator/` + `adr.rs` + `sandbox.rs` + `guard.rs` kill-switch + `defenseclaw` + `skill-scanner`, and all **78** mandated vaults.
 3. Run Full Workspace Verification Gate & Update `.toksi/test-baseline.json`:
    - `cargo check --workspace`
    - `cargo clippy --workspace --all-targets -- -D warnings`
    - `cargo test --workspace` (saving structured baseline diff to `<repo>/.toksi/test-baseline.json`).
-   - Print final Wave 18 / v5.0 parity report and confirm zero blockers remain.
+   - Print final Wave 18 / v5.1 parity report and confirm zero blockers remain.
 ```
 
 ---
@@ -29,9 +29,10 @@ Your goals in Rust (`crates/toksi`) & Repo Verification:
 - **Workspace Memory Root**: Always `<repo>/.toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md,events.jsonl,plan_checkpoints/<plan_id>.json}`. Never bare `.projectmem/` or `~/.toksi/projectmem/`.
 - **Legacy Path Cleanup**: Eliminate stale `crates/tokless/*` documentation references in favor of `crates/toksi/*`.
 - **Master Architecture Alignment**:
-  - Audited Vaults: **67** (`36` Waves 1–17 + `31` Wave 18 incl. `defenseclaw`, `skill-scanner`).
+  - Audited Vaults: **78** (`36` Waves 1–17 + `42` Wave 18 new & companion vaults incl. `opencode`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `defenseclaw`, `skill-scanner`, `<advisory>`, `<skills>`).
+  - Three-Repository Ecosystem: `<neo>` (`Navegos/neo`), `<advisory>` (`Navegos/advisory`), `<skills>` (`Navegos/skills`) with externalized skills/rules staged outside `crates/toksi/` (zero binary bloat).
   - Daemon Topology: **8 Ports** (`:8787` Headroom, `:8788` Grok OAuth, `:8789` Copilot VS Code, `:8790` Copilot CLI, `:9098` Protocol Bus, `:9099` Gateway, `:9100` Web Cockpit, `:18787` BYOK Gateway).
-  - Universal Slash Commands: **13** (`/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/plugin`, `/resume`).
-  - Unified Plugins & Fail-Closed Security: `src/plugins/*`, `commands/plugin.rs`, SQLite `plugins_registry`, `[plugins]`/`[security]` in `~/.toksi/config.toml`, `defenseclaw` + `skill-scanner` integration in `src/security/*`.
-  - Phases & Brain Files: **35** files in `.agents/brain/` (`INDEX_AND_EXECUTION_GUIDE.md` + 34 `PHASE_*.md` files covering Phases 1–14, 15.1–15.6, 16.1–16.3, 17.1–17.7, 18.1–18.4).
+  - Universal Slash Commands: **16** (`/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`).
+  - Unified Plugins & Fail-Closed Security: `src/plugins/*`, `commands/plugin.rs`, SQLite `plugins_registry`, `[plugins]`/`[security]`/`[repositories]` in `~/.toksi/config.toml`, Zero-Plaintext Blind Engine + `src/validator/*` + `src/security/adr.rs` + `src/agent_runtime/sandbox.rs` + `src/commands/guard.rs` kill-switch + `defenseclaw` + `skill-scanner` integration.
+  - Phases & Brain Files: **36** files in `.agents/brain/` (`INDEX_AND_EXECUTION_GUIDE.md` + 35 `PHASE_*.md` files covering Phases 1–14, 15.1–15.6, 16.1–16.3, 17.1–17.7, 18.1–18.5).
   - Verification Gate: `cargo check --workspace` + `cargo clippy --workspace --all-targets -- -D warnings` + incremental `<repo>/.toksi/test-baseline.json`.

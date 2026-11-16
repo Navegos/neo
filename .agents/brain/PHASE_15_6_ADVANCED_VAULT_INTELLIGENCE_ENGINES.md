@@ -4,7 +4,7 @@
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_15_6_ADVANCED_VAULT_INTELLIGENCE_ENGINES.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
 
-Always treat all 67 reference vaults in neo/inspect-vault/* — the 36 Waves 1–17 vaults (including TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt, hermes-agent, openclaw, openclaw-rs, mofa, mofa-engine, mofaclaw, codex, crustly, crush, goose, grok-build, gemini-cli, crewAI) plus the 31 Wave 18 vaults bridged in PHASE_18_1..PHASE_18_3 (including defenseclaw and skill-scanner) — as active code to inspect, fix bugs in, and wire cleanly into consolidated toksi.
+Always treat all 78 mandated vaults in neo/inspect-vault/* — the 36 Waves 1–17 vaults (including TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt, hermes-agent, openclaw, openclaw-rs, mofa, mofa-engine, mofaclaw, codex, crustly, crush, goose, grok-build, gemini-cli, crewAI) plus the 42 Wave 18 new & companion vaults bridged in PHASE_18_1..PHASE_18_5 (including opencode, cve-*, osv-schema, skilldoctor, sandbox-runtime, defenseclaw, skill-scanner, <advisory>, <skills>) — as active code to inspect, fix bugs in, and wire cleanly into consolidated toksi.
 
 Execute Phase 15.6: Advanced Vault Intelligence Engines Consolidation.
 Sources:
@@ -69,5 +69,5 @@ Requirements:
 
 ---
 
-## Wave 18 (v5.0) Synchronization Addendum
-- Incorporate Wave 18 data/wiki/observability vaults (`lance`, `openwiki`, `tokview`, `langfuse`), security/governance engines (`defenseclaw`, `skill-scanner`), Unified Plugin System (`src/plugins/`), and agent frameworks (`langgraph`, `langchain`, `langflow`, `deepagents`, `bosun`, `Codewhale`, `cline`, `kilocode`, `alphacode`, `zeroclaw`, `agent-control`) into native Rust adapters (`PHASE_18_1` / `PHASE_18_2`), maintaining 100% parity across all 67 audited vaults.
+## Wave 18 (v5.1) Synchronization Addendum
+- Incorporate Wave 18 data/wiki/observability vaults (`lance`, `openwiki`, `tokview`, `langfuse`), security/CVE/validator/governance engines (`cve-schema`, `cve-validation-library`, `cve-services`, `osv-schema`, `cve-bin-tool`, `cve-lite-cli`, `defenseclaw`, `skill-scanner`, `skilldoctor`, `<advisory>`, `<skills>`), Unified Plugin System (`src/plugins/`), ADR + Sandbox + Kill-Switch (`adr.rs`, `sandbox.rs` w/ `sandbox-runtime` & `sbx`, `guard.rs`), and agent frameworks (`opencode`, `langgraph`, `langchain`, `langflow`, `deepagents`, `bosun`, `Codewhale`, `cline`, `kilocode`, `alphacode`, `zeroclaw`, `agent-control`) into native Rust adapters (`PHASE_18_1`, `PHASE_18_2`, `PHASE_18_5`), maintaining 100% parity across all 78 mandated vaults.

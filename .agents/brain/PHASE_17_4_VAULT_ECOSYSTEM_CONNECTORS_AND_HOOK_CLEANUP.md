@@ -35,7 +35,7 @@ Requirements:
    - **`rtk`**: Port SQLite `Tracker` (`rtk gain` JSON/history), `tee` failure saver, `discover` missed-savings scanner, `learn` TOML/correction detector.
    - **`projectmem`**: Add 3 missing MCP tools (`precheck_file`, `list_projects`, `current_project`) + `staleness`/`structure`.
    - **`icm`**: Add ~23 missing MCP tools (`memoir_*`, `feedback_*`, `transcript_*`, `icm_pin`/`forget`/`consolidate`), `temporal` decay, `fusion` RRF.
-   - **`caveman` v4 & `ponytail`**: Embed v4 companion modes (`/ultracave`, `/megacave`, `caveman-commit`, `caveman-review`, `caveman-compress`, `shrink`, `browse`, `.blocks`) + `ponytail` modes/statusline via `include_str!`.
+   - **`caveman` v4 & `ponytail`**: Stage v4 companion modes (`/ultracave`, `/megacave`, `caveman-commit`, `caveman-review`, `caveman-compress`, `shrink`, `browse`, `.blocks`) + `ponytail` modes/statusline externally outside `crates/toksi/` (`<neo>/agents/`, `<neo>/rules/`, synced to `<skills>` `Navegos/skills` with zero binary bloat, healed/graded via `skilldoctor` + `agentskills`).
 3. Register Full 65/90+ Categories 1–5 Ecosystem & 22 Local Inference Engines:
    - Wire all Category 1–5 connectors, webhooks, PR/review MCP/A2A hooks, router headers (`x-portkey-*`, `cf-aig-*`, `Helicone-*`), AND 22 local inference engines (`Ollama`, `vLLM`, `llama.cpp`, `LM Studio`, `SGLang`, `TGI`, `Exo`, `MLC`, etc.) into `gateway/providers/` + `agents/` + `PATH`/endpoint discovery.
 4. Reconcile `agents-structures/` & Purge Legacy Remnants:
@@ -56,6 +56,6 @@ Requirements:
 
 ---
 
-## Wave 18 (v5.0) Synchronization Addendum
-- Expand audited reference scope from **36** to **67 vaults** (`+31` Wave 18 vaults incl. `defenseclaw` and `skill-scanner` synthesized in `PHASE_18_1` / `PHASE_18_2`).
-- Enforce `<enforce>` security delimiters, `defenseclaw` fail-closed hookguard + `skill-scanner` multi-engine/CEL scan, Toksi Unified Plugin System (`src/plugins/`) hook/MCP mounts, and `agentskills` YAML frontmatter healing + deduplication (`PHASE_18_2`) across all synced rule files, `SKILL.md` assets, plugins, and agent hook catalogs.
+## Wave 18 (v5.1) Synchronization Addendum
+- Expand audited reference scope from **36** to **78 mandated vaults** (`+42` Wave 18 new & companion vaults incl. `opencode`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `defenseclaw`, `skill-scanner`, `<advisory>`, `<skills>` synthesized in `PHASE_18_1` / `PHASE_18_2` / `PHASE_18_5`).
+- Enforce `<enforce>` security delimiters, `defenseclaw` fail-closed hookguard + `skill-scanner` multi-engine/CEL scan, `skilldoctor` + `agentskills` YAML frontmatter healing + deduplication (`PHASE_18_2`), externalized `<skills>` staging (zero binary bloat), Toksi Unified Plugin System (`src/plugins/`) hook/MCP mounts, and OpenCode `.opencode/hooks.json` unification (`PHASE_18_5`) across all synced rule files, `SKILL.md` assets, plugins, and agent hook catalogs.

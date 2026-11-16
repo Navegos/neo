@@ -25,7 +25,7 @@ Requirements:
    - Audit and verify configured agent configurations (`18+` built-in adapters including `"openagents"` + Category 1–5 layouts) across user homes and workspace roots.
    - Detect and fix broken legacy MCP configurations (purge stale `node`, `npx`, `python`, `uvx`, `toksi-*`, `tokless_*`, `toksi-codegraph-init.js` commands, replacing with native `toksi <tool>` / `DirectWireBus`).
    - Standardize hook configurations across all agents to `<tool>-hook <agent>` (e.g. `codegraph-hook agy`, `projectmem-hook agy`; purge `agy-hook codegraph-index` and `rtk hook cursor`).
-   - Validate presence of required in-tree rules (`Karpathy`, `Caveman` v4, `Ponytail`), skills, and instructions (`~/.toksi/config.toml` compliant).
+   - Validate presence of externalized `<enforce>` rules (`Karpathy`, `Caveman` v4, `Ponytail` staged outside `crates/toksi/` and synced via `<skills>`), skills (`skilldoctor` + `agentskills` YAML healer), and instructions (`~/.toksi/config.toml` compliant).
 2. Implement `toksi doctor --fix`:
    - Automatically repairs misconfigured MCP configs, repairs legacy hooks, removes stale shims, and synchronizes rules strictly for configured agents (never touching workspace repo automatically without explicit opt-in).
    - Merges any nested subfolder `.toksi` / `.<agent>` directories into root `<repo>/.toksi/` / `<repo>/.<agent>/` and cleans them up.
@@ -52,5 +52,5 @@ Requirements:
 
 ---
 
-## Wave 18 (v5.0) Synchronization Addendum
-- Audit Unified Plugin directories (`~/.toksi/plugins`, `<repo>/.toksi/plugins`, `<repo>/.agents/plugins`), SQLite `plugins_registry` `blake3_hash` / `security_scan_status`, and `defenseclaw` `fail_closed` hookguard + `codesig` integrity (`PHASE_18_2`), flagging any `unscanned` or `blocked_fail_closed` plugins without bypassing `<enforce>`.
+## Wave 18 (v5.1) Synchronization Addendum
+- Audit Unified Plugin directories (`~/.toksi/plugins`, `<repo>/.toksi/plugins`, `<repo>/.agents/plugins`), SQLite `plugins_registry` `blake3_hash` / `security_scan_status`, externalized `<skills>` (`Navegos/skills`) & `<advisory>` (`Navegos/advisory`) repository links, `CommandGuard` + `adr.rs` + `sandbox.rs` health, and `defenseclaw` `fail_closed` hookguard + `codesig` integrity (`PHASE_18_2` / `PHASE_18_5`), flagging any `unscanned` or `blocked_fail_closed` plugins without bypassing `<enforce>`.

@@ -30,9 +30,9 @@ Requirements:
    - Atomically swaps `ArcSwap<reqwest::Client>` pools and closes/re-arms stale connections without requiring daemon restarts.
    - Preserves HTTP/2 ConnectRPC framing & streaming headers cleanly (resolving `#0033`/`#0034`).
 3. Universal Rules, Skills & Instructions Sync (`rules/sync.rs` + `agents/manager.rs`):
-   - Sync embedded `Karpathy`, `Caveman` v4, and `Ponytail` guidelines across ONLY user-configured/selected agents (`18+` built-in + `.agents` + Category 1–5) with granular component toggles (`hooks|mcp|skills|rules|instructions|configs`), respecting `user` auto-install vs explicit `repo` opt-in.
+   - Sync externalized `<enforce>` `Karpathy`, `Caveman` v4, and `Ponytail` guidelines (staged outside `crates/toksi/` in `<neo>/agents/` & `<neo>/rules/`, zero binary bloat) across ONLY user-configured/selected agents (`18+` built-in + `.agents` + Category 1–5) with granular component toggles (`hooks|mcp|skills|rules|instructions|configs`), respecting `user` auto-install vs explicit `repo` opt-in.
 4. Comprehensive CLI Help (`crates/toksi/src/main.rs`):
-   - Update `help_text()` with exhaustive documentation of all commands (`chat|run|exec|swarm`, `daemon|proxy|dashboard start|stop|restart --agents`, `config`, `byok`, `db`, `auth`, `security`, `plugin`, `agent`, `mem`, `graph`, `ctx`, `rtk`, `doctor`), 8 ports (`8787..18787`, incl. `:9098` Protocol Bus), `~/.toksi/config.toml` (`[plugins]`, `[security]`), 13 slash commands (incl. `/security`, `/plugin`, `/resume`), `direct-wired` bus, effort-tier `tokview` attribution, and `<repo>/.toksi/<tool>` rules.
+   - Update `help_text()` with exhaustive documentation of all commands (`chat|run|exec|swarm`, `daemon|proxy|dashboard start|stop|restart --agents`, `config`, `byok`, `db`, `auth`, `security`, `compile-blind`, `advisory`, `skills`, `sandbox`, `plugin`, `agent`, `mem`, `graph`, `ctx`, `rtk`, `doctor`), 8 ports (`8787..18787`, incl. `:9098` Protocol Bus), `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`), **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `direct-wired` bus, effort-tier `tokview` attribution, and `<repo>/.toksi/<tool>` rules.
 5. Verification:
    - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```

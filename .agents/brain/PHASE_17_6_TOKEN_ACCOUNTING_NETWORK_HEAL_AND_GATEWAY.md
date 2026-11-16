@@ -53,7 +53,7 @@ Requirements:
 
 ---
 
-## Wave 18 (v5.0) Synchronization Addendum
+## Wave 18 (v5.1) Synchronization Addendum
 - Add `tokview` + `langfuse`-compatible local trace & effort-level token accounting (`Low`/`Medium`/`High`) (`PHASE_18_1`, `PHASE_18_3`).
 - Route `AGY_ADC_AUTH=true` profiles through native Google Cloud ADC Vertex endpoints (`https://{location}-aiplatform.googleapis.com/v1beta1/...`) with cached OAuth2 refresh-token / service-account exchange and clear `gcloud auth application-default login` diagnostics (`PHASE_18_3`).
 - Expose `:9098` Protocol Bus alongside `:8787..:8790`, `:9099`, `:9100`, and `:18787` (unified **8-port daemon**).

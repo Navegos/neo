@@ -57,6 +57,6 @@ Requirements:
 
 ---
 
-## Wave 18 (v5.0) Architecture & Audit Correction
+## Wave 18 (v5.1) Architecture & Audit Correction
 - **Audited `crates/toksi/src/codegraph/kernel/langs.rs` Fact Check**: `langs.rs` declares 45 language IDs with **no duplicate `"kotlin"` entry**; however, `grammar_for()` (`L74-118`) has no match arm for `"dockerfile"`, and `"vue"` / `"scss"` currently alias `tree_sitter_html` / `tree_sitter_css`. Resolve `"dockerfile"` grammar binding and `"vue"`/`"scss"` specialization here so both CodeGraph (`Phase 17.3`) and the built-in 41-language static code security analyzer (`Phase 18.2`, `src/security/analyzer.rs`) achieve 100% AST rule coverage.
 - Enforce canonical `<repo>/.toksi/projectmem/` and `<repo>/.toksi/codegraph/` isolation with zero `.projectmem/` leakage.

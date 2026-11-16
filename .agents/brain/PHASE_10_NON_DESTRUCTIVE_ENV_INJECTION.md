@@ -43,7 +43,7 @@ Requirements:
 - **RAII Teardown Guard** (`src/env_injector/teardown.rs`): Guarantees that proxy environment overrides (e.g. `HTTP_PROXY`, `OPENAI_BASE_URL`, `ANTIGRAVITY_BASE_URL`) never outlive the daemon.
 
 ### 2. Disciplinary Standards & Invariants
-- Unsafe FFI blocks in `windows.rs` must have explicit safety documentation validating pointer validity and null termination.
+- Unsafe Win32 Registry/Broadcast FFI blocks live isolated inside `crates/toksi-sys` with explicit safety documentation validating pointer validity and null termination (`crates/toksi/src/env_injector/windows.rs` stays `#![deny(unsafe_code)]`).
 - Zero leftover proxy environment variables after daemon termination.
 
 ### 3. Verification Criteria

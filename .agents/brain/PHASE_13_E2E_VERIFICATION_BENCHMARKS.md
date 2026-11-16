@@ -26,7 +26,7 @@ Requirements:
    - CodeGraph 41+ Tree-sitter parsing, monorepo subproject partitioning, `ast-grep`, `scip`, `jcodemunch`, `repomix`
    - Headroom `live_zone` cache preservation, `CcrStore`, `TokenEconomizer`, and mandatory `/byok/` compression pass
    - Enterprise Gateway (`:9099`/`:18787`) 65/90+ ecosystem & 22 local engines, `<byok, model, effort>` routing, zero paid-tier gates
-   - Native `toksi` Coding CLI/Swarm (`src/agent_runtime/`), `DirectWireBus`, Unified Plugin System (`src/plugins/`, `defenseclaw` + `skill-scanner` fail-closed gate), **13** `/...` slash commands (`/byok`..`/rtk`, `/security`, `/plugin`, `/resume`), and non-destructive env teardown
+   - Native `toksi` Coding CLI/Swarm (`src/agent_runtime/`), `DirectWireBus`, Unified Plugin System (`src/plugins/`, `defenseclaw` + `skill-scanner` fail-closed gate), ADR + Isolated Agent Sandbox (`sbx`/`sandbox-runtime`/3-OS), `CommandGuard` kill-switch, Zero-Plaintext Blind Engine + `src/validator/`, externalized `<skills>` sync, **16** `/...` slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), and non-destructive env teardown
 2. Incremental Test Skip Policy (`.toksi/test-baseline.json`):
    - Compute BLAKE3 digest over `Cargo.lock` + each suite's `watched_paths`; log `[SKIP-UNCHANGED] <suite>` for already-confirmed passing suites whose code paths and dependencies are unmodified (`--all`/`--force` runs everything). Never strip or weaken assertions!
    - Always run `cargo check --workspace` and `cargo clippy --workspace --all-targets -- -D warnings`.
@@ -54,5 +54,5 @@ Requirements:
 
 ---
 
-## Wave 18 (v5.0) Synchronization Addendum
-- Pair with `PHASE_18_4`: assert zero stale `.projectmem/` pre-read refs, zero legacy `crates/tokless/*` paths in docs, all **35** `.agents/brain/*.md` files present, **67** audited vaults (`36` + `31` Wave 18 incl. `defenseclaw`, `skill-scanner`), 8-port daemon coverage (`:9098` Protocol Bus), **13** slash commands (`/security`, `/plugin`, `/resume`), `src/plugins/` Unified Plugin System, `plugins_registry` SQLite DDL, and clean incremental updates to `<repo>/.toksi/test-baseline.json`.
+## Wave 18 (v5.1) Synchronization Addendum
+- Pair with `PHASE_18_4`: assert zero stale `.projectmem/` pre-read refs, zero legacy `crates/tokless/*` paths in docs, all **36** `.agents/brain/*.md` files present (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_18_5`), **78** mandated vaults (`36` + `42` Wave 18 incl. `opencode`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `defenseclaw`, `skill-scanner`, `<advisory>`, `<skills>`), zero embedded skills/rules inside `crates/toksi/`, 8-port daemon coverage (`:9098` Protocol Bus), **16** slash commands (`/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `src/plugins/` Unified Plugin System, `src/validator/`, `src/security/adr.rs`, `src/commands/guard.rs`, `plugins_registry` + zero-plaintext SQLite DDL, and clean incremental updates to `<repo>/.toksi/test-baseline.json`.

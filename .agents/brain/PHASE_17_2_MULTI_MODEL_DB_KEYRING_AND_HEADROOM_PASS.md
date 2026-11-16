@@ -25,8 +25,8 @@ Disciplinary & Portability Requirements:
 Requirements:
 1. SQLite Multi-Instance BYOK Schema (`db/schema.rs` & `operations.rs` & `migrate.rs`):
    - Add `byok_profiles` table (`UNIQUE(provider_id, instance_label, model_id, thinking_effort)` with `base_url`, `auth_mode`, `headroom_enabled`, `priority`, `weight`).
-   - Add `agent_profile_bindings` (`agent_id`, `primary_profile`, `fallback_chain`, `wire_mode`, `routing_algo`), `quota_windows` (`hour|day|week|month|year`), and `plugins_registry` (`plugin_id`, `version`, `manifest_path`, `blake3_hash`, `capabilities_json`, `protocols_json`, `security_scan_status`, `is_enabled`, `updated_at`).
-   - Fix `export_dump()` to export `provider_models`, `byok_profiles`, `gateway_configs`, `agent_profile_bindings`, `quota_windows`, and `plugins_registry`.
+   - Add `agent_profile_bindings` (`agent_id`, `primary_profile`, `fallback_chain`, `wire_mode`, `routing_algo`), `quota_windows` (`hour|day|week|month|year`), `plugins_registry` (`plugin_id`, `version`, `manifest_path`, `blake3_hash`, `capabilities_json`, `protocols_json`, `security_scan_status`, `is_enabled`, `updated_at`), `blind_signatures`, `advisory_embargoes`, and `adr_audit_events`.
+   - Fix `export_dump()` to export `provider_models`, `byok_profiles`, `gateway_configs`, `agent_profile_bindings`, `quota_windows`, `plugins_registry`, `blind_signatures`, `advisory_embargoes`, and `adr_audit_events` (zero plaintext exploits/PoCs).
    - Fix `import_dump(..., overwrite: bool)` so `overwrite == true` cleanly resets & re-imports without stale row collisions.
    - Add `toksi byok add|list|update|delete|set-url|set-model` CLI CRUD subcommands.
 2. Fix OS Keyring Alias Normalization (`keyring/mod.rs:216`):
@@ -56,6 +56,6 @@ See `RESEARCHPLAN.md` Section 13.4 for exact `byok_profiles`, `agent_profile_bin
 
 ---
 
-## Wave 18 (v5.0) Synchronization Addendum
-- Extend `byok_profiles` table schema with `auth_mode`, `gcp_project`, and `gcp_location` (`us-central1` default) for `AGY_ADC_AUTH=true` Vertex routing (`PHASE_18_3`), and persist Unified Plugin descriptors/scan verdicts in `plugins_registry` (`PHASE_18_2`).
+## Wave 18 (v5.1) Synchronization Addendum
+- Extend `byok_profiles` table schema with `auth_mode`, `gcp_project`, and `gcp_location` (`us-central1` default) for `AGY_ADC_AUTH=true` Vertex routing (`PHASE_18_3`), and persist Unified Plugin descriptors/scan verdicts in `plugins_registry` (`PHASE_18_2`), zero-plaintext signatures/embargoes in `blind_signatures` & `advisory_embargoes` (`PHASE_18_2`), and ADR/kill-switch events in `adr_audit_events` (`PHASE_18_5`).
 - Wire `Low` / `Medium` / `High` thinking-effort aggressiveness into `headroom-core` `live_zone` compression passes and cross-provider reasoning budget translation (`reasoning_effort`, `thinking.budget_tokens`, `generationConfig.thinkingConfig.thinkingBudget`).

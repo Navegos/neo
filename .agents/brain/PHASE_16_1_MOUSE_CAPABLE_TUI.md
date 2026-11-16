@@ -58,7 +58,7 @@ Requirements:
 
 ---
 
-## Wave 18 (v5.0) Synchronization Addendum
+## Wave 18 (v5.1) Synchronization Addendum
 - Tab 1 surfaces `tokview` savings/effort telemetry (`Low`/`Medium`/`High`) and `:9098` Protocol Bus status.
 - Tab 4 displays paused `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` states with one-click `/resume` trigger.
-- Tab 5 surfaces `skill-scanner` multi-engine/CEL policy findings (SARIF 2.1.0), built-in 41-language SAST/OSV findings (`src/security/`), and `agentskills` YAML frontmatter healing status; Tab 6 surfaces `defenseclaw` fail-closed hookguard, `tool-chains.json` policy, `audit-evidence`, `<enforce>` violations, and `sage` threat blocks; Tab 7 exposes Interactive Plugin Manager (`src/plugins/`), Google Cloud ADC (`AGY_ADC_AUTH=true`) project/location & `/effort` controls; Tab 9 exposes `plugins_registry` + `byok_profiles` DB export/import.
+- Tab 5 surfaces `skill-scanner` multi-engine/CEL policy findings (SARIF 2.1.0), built-in 41-language SAST/OSV findings (`src/security/`), `Navegos/advisory` O(1) prefix search + `publish-pr` status, and `skilldoctor`/`agentskills` YAML frontmatter healing status; Tab 6 surfaces OS sandbox (`native` / `sandbox-runtime` / `sbx`), ADR interception & quarantine events (`adr.rs`), `CommandGuard` offensive-policy + bypass kill-switch audit log (`guard.rs`), `defenseclaw` fail-closed hookguard/`tool-chains.json`/`audit-evidence`, `<enforce>` violations, and `sage` threat blocks; Tab 7 exposes Interactive Plugin Manager (`src/plugins/`), External `<skills>` Sync Manager (`Navegos/skills` + user skills dir, `[repositories]`), Google Cloud ADC (`AGY_ADC_AUTH=true`) project/location & `/effort` controls; Tab 9 exposes `plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events` + `byok_profiles` DB export/import.

@@ -27,7 +27,7 @@ Your goals in Rust (`crates/toksi`):
 3. Safe Plan Checkpoint & Crash-Proof Resume (`src/projectmem/plan_checkpoint.rs`, `src/agent_runtime/checkpoint.rs`, `/resume`):
    - Persist atomic plan execution state (`write tmp -> fsync -> rename`) inside `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` paired with append-only `events.jsonl` and checkbox sync in `<repo>/.toksi/projectmem/plan.md`.
    - Record step ID, status (`pending | running | completed | paused | failed`), files touched (with SHA-256 pre/post digest), verified test baseline delta, active effort/model profile, active enabled plugin snapshot (`active_plugins` synced with `plugins_registry`), and handoff summary before yielding on milestones, rate-limit `429` exhaustion, network drop, `SIGINT`, or crash.
-   - Implement `/resume` slash command (one of **13** universal slash commands alongside `/security` and `/plugin`) and `toksi agent resume [<plan_id>]` CLI + `:9098` ACP/MCP notification to validate dirty working tree diffs, hydrate ProjectMem context, re-verify enabled plugins under `<enforce>`, and restart from the exact incomplete step without re-running completed work.
+   - Implement `/resume` slash command (one of **16** universal slash commands alongside `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`) and `toksi agent resume [<plan_id>]` CLI + `:9098` ACP/MCP notification to validate dirty working tree diffs, hydrate ProjectMem context, re-verify enabled plugins under `<enforce>`, and restart from the exact incomplete step without re-running completed work.
 4. Update `.toksi/test-baseline.json` and run `cargo test --test phase18_3_adc_effort_checkpoint_verification`.
 ```
 
@@ -37,7 +37,7 @@ Your goals in Rust (`crates/toksi`):
 
 ### 1. Google Cloud ADC (`AGY_ADC_AUTH=true`) Resolution Order
 1. Explicit CLI/env overrides: `AGY_ADC_AUTH=true`, `TOKSI_GCP_PROJECT` / `GOOGLE_CLOUD_PROJECT`, `TOKSI_GCP_LOCATION` / `GOOGLE_CLOUD_LOCATION`.
-2. `~/.toksi/config.toml` `[auth.adc]` section (`enabled`, `project`, `location`, `credentials_path`) and SQLite `byok_profiles` (`auth_mode = 'adc'`, `gcp_project`, `gcp_location`).
+2. `~/.toksi/config.toml` `[auth.gcp_adc]` section (`agy_adc_auth`, `gcp_project`, `gcp_location`, `credentials_path`) and SQLite `byok_profiles` (`auth_mode = 'adc'`, `gcp_project`, `gcp_location`).
 3. IDE settings bridge (VS Code `settings.json` keys `"gcp.project"`, `"gcp.location"`, `"agy.adcAuth"`).
 4. Credential file discovery:
    - `GOOGLE_APPLICATION_CREDENTIALS` env path (if set).

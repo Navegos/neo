@@ -16,7 +16,7 @@ Targets:
 Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
 2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors.
-3. Multi-Protocol, Shared Effort Compression & DirectWire Standard: Expand `ToolTarget` in `tools/multi_protocol.rs` beyond the initial 6 variants (`rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`) to expose `Headroom`, `Security`, `Plugins`, and all 67 consolidated `inspect-vault/*` engines over **real** `MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, and `HTTP` on `:9098`, route large payloads/responses through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`), and bind config-less `DirectWireBus` (`direct-wired`) alongside `config-wired`.
+3. Multi-Protocol, Shared Effort Compression & DirectWire Standard: Expand `ToolTarget` in `tools/multi_protocol.rs` beyond the initial 6 variants (`rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`) to expose `Headroom`, `Security`, `Advisory`, `Sandbox`, `Plugins`, and all **78** consolidated `inspect-vault/*` engines over **real** `MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, and `HTTP` on `:9098`, route large payloads/responses through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`), and bind config-less `DirectWireBus` (`direct-wired`) alongside `config-wired`.
 4. Universal Forward-Slash (`/`) Standard: Use `normalize_path()` across all ignore matchers and vector index paths.
 5. Repo-Only & Dynamic Vector Purge: Restrict indexing strictly inside `<repo>` (never outside `.git` repo root and never inside `<repo>/.git/`), store caches only in `<repo>/.toksi/<tool>`, track monorepo `subproject_id`, and automatically purge SQLite FTS5 & Chroma ANN embedding caches when `.gitignore` / `.ignore` rules change.
 
@@ -57,7 +57,7 @@ Requirements:
 
 ---
 
-## Wave 18 (v5.0) Synchronization Addendum
+## Wave 18 (v5.1) Synchronization Addendum
 - Bind `:9098` as the dedicated Protocol Bus port (`MCP` stdio/SSE/HTTP, `A2A` v1.0, and `ACP` Agent Client Protocol from `inspect-vault/agent-client-protocol`) alongside `:8787..:8790`, `:9099`, `:9100`, and `:18787` (`PHASE_18_1`).
 - Mount Unified Plugin System (`src/plugins/hooks.rs`) protocol endpoints (`MCP`, `A2A`, `ACP`, `stdio`, `SSE`, `HTTP` on `:9098`), `DirectWireBus` wire hooks (Categories 1–3), and `agent_to_agent` messaging under `defenseclaw` fail-closed hookguard & `skill-scanner` `<enforce>` verification (`PHASE_18_2`).
 - Publish `plan_checkpoints` pause/resume events and static security findings on `:9098` streams.

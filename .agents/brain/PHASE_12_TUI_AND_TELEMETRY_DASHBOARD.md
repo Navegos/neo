@@ -37,7 +37,7 @@ Requirements:
 3. Web Telemetry Cockpit (`crates/toksi/src/dashboard/`):
    - Detached background HTTP server on `127.0.0.1:9100` (`toksi dashboard start|stop|restart [--foreground]`).
    - Bundled futuristic SPA assets (HTML/CSS/JS) embedded via `include_str!` with exact 9 tabs above.
-   - Live SSE metrics feed broadcasting authentic token savings (configured-only agents & `<byok, model, effort>` profiles), clickable `.heatmap-cell` modal, `skill-scanner` CEL/SARIF (Tab 5), `defenseclaw` fail-closed hookguard & audit evidence (Tab 6), interactive Plugin Manager `/api/plugins` (Tab 7), OS Keyring (`gemini:antigravity` normalized), and real DB Export/Import/Backup/Restore including `plugins_registry` (Tab 9).
+   - Live SSE metrics feed broadcasting authentic token savings (configured-only agents & `<byok, model, effort>` profiles), clickable `.heatmap-cell` modal, `skill-scanner` CEL/SARIF + `Navegos/advisory` O(1) prefix search (Tab 5), `defenseclaw` fail-closed hookguard & audit evidence + ADR/sandbox/kill-switch events (Tab 6), interactive Plugin Manager `/api/plugins` + External `<skills>` sync (Tab 7), OS Keyring (`gemini:antigravity` normalized), and real DB Export/Import/Backup/Restore including `plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events` (Tab 9).
 4. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
