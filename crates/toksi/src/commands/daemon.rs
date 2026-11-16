@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/daemon.rs
 // created: 2026-10-27
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 #![deny(unsafe_code)]
 
@@ -13,13 +13,153 @@ use std::process::Command;
 use std::thread::sleep;
 use std::time::Duration;
 
+use thiserror::Error;
+
 use crate::commands::doctor_stats::process_alive;
 use crate::headroom::proxy::proxy_running;
 use crate::util::colors::*;
 use crate::util::headroom::headroom_paths_resolved;
 use crate::util::headroom_proxy::proxy_routing_enabled;
 use crate::util::logger::L;
-use crate::util::paths::{ensure_dir, read_file_safe, toksi_abs_strict, write_file_atomic};
+use crate::util::paths::{ensure_dir, read_file_safe, toksi_abs_strict, which, write_file_atomic};
+
+#[derive(Debug, Error)]
+pub enum DaemonError {
+    #[error("Daemon configuration error: {0}")]
+    Config(#[from] crate::config::ConfigError),
+
+    #[error("Port validation error: {0}")]
+    PortValidation(String),
+
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DaemonServicePlan {
+    pub selected_agents: Vec<String>,
+    pub explicit_agents: bool,
+    pub headroom_proxy: bool,
+    pub grok_oauth_proxy: bool,
+    pub copilot_vscode_proxy: bool,
+    pub copilot_cli_proxy: bool,
+    pub protocol_bus: bool,
+    pub byok_gateway: bool,
+    pub ai_gateway: bool,
+    pub dashboard: bool,
+}
+
+fn parse_agents_csv(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+fn parse_daemon_args(argv: &[String]) -> (String, Option<Vec<String>>, bool) {
+    let mut subcmd = String::new();
+    let mut agents: Option<Vec<String>> = None;
+    let mut help = false;
+    let mut i = 0;
+    while i < argv.len() {
+        let a = &argv[i];
+        if a == "--help" || a == "-h" || a == "help" {
+            help = true;
+        } else if (a == "--agents" || a == "--agent") && i + 1 < argv.len() {
+            let parsed = parse_agents_csv(&argv[i + 1]);
+            agents = Some(parsed);
+            i += 1;
+        } else if let Some(raw) = a
+            .strip_prefix("--agents=")
+            .or_else(|| a.strip_prefix("--agent="))
+        {
+            agents = Some(parse_agents_csv(raw));
+        } else if subcmd.is_empty() && !a.starts_with('-') {
+            subcmd = a.clone();
+        }
+        i += 1;
+    }
+    if subcmd.is_empty() {
+        subcmd = "status".to_string();
+    }
+    (subcmd, agents, help)
+}
+
+pub fn resolve_daemon_plan(explicit: Option<&[String]>) -> DaemonServicePlan {
+    let (agents, has_explicit) = match explicit {
+        Some(list) if !list.is_empty() => (
+            list.iter()
+                .map(|s| s.trim().to_ascii_lowercase())
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>(),
+            true,
+        ),
+        _ => {
+            let cfg_agents = crate::config::resolve_default_agents();
+            if cfg_agents.is_empty() {
+                (Vec::new(), false)
+            } else {
+                (cfg_agents, true)
+            }
+        }
+    };
+
+    if has_explicit {
+        let all = agents.iter().any(|a| a == "all" || a == "*");
+        let has_grok = all || agents.iter().any(|a| matches!(a.as_str(), "grok" | "grok-cli" | "grok-ide"));
+        let has_copilot_vscode = all
+            || agents
+                .iter()
+                .any(|a| matches!(a.as_str(), "copilot" | "copilot-vscode" | "copilot-ide"));
+        let has_copilot_cli = all
+            || agents
+                .iter()
+                .any(|a| matches!(a.as_str(), "copilot" | "copilot-cli"));
+        let has_byok = all
+            || agents.iter().any(|a| a == "byok")
+            || crate::headroom::byok_gateway::byok_routes_configured();
+        let has_headroom = all
+            || agents.iter().any(|a| {
+                !matches!(
+                    a.as_str(),
+                    "grok" | "grok-cli" | "grok-ide" | "copilot" | "copilot-vscode" | "copilot-ide" | "copilot-cli"
+                )
+            });
+
+        return DaemonServicePlan {
+            selected_agents: agents,
+            explicit_agents: true,
+            headroom_proxy: has_headroom || proxy_routing_enabled(),
+            grok_oauth_proxy: has_grok,
+            copilot_vscode_proxy: has_copilot_vscode,
+            copilot_cli_proxy: has_copilot_cli,
+            protocol_bus: true,
+            byok_gateway: has_byok,
+            ai_gateway: true,
+            dashboard: true,
+        };
+    }
+
+    let grok_configured = crate::agents::grok::grok_proxy_applicable();
+    let copilot_vscode_configured = crate::agents::copilot::copilot_vscode_proxy_wired()
+        || crate::agents::proxy_provider::is_vscode_extension_installed("github.copilot-chat");
+    let copilot_cli_configured =
+        crate::agents::copilot::copilot_proxy_wired() || !which("copilot").is_empty();
+    let byok_configured = crate::headroom::byok_gateway::byok_routes_configured();
+
+    DaemonServicePlan {
+        selected_agents: Vec::new(),
+        explicit_agents: false,
+        headroom_proxy: true,
+        grok_oauth_proxy: grok_configured,
+        copilot_vscode_proxy: copilot_vscode_configured,
+        copilot_cli_proxy: copilot_cli_configured,
+        protocol_bus: true,
+        byok_gateway: byok_configured,
+        ai_gateway: true,
+        dashboard: true,
+    }
+}
 
 fn daemon_pid_file() -> String {
     Path::new(&headroom_paths_resolved().root)
@@ -46,40 +186,49 @@ pub fn is_daemon_running() -> bool {
     process_alive(pid)
 }
 
+fn daemon_help_text() -> String {
+    format!(
+        "{} — toksi unified 8-port background supervisor\n\n\
+        {}\n  toksi daemon start [--agents <list>]    Start daemon supervisor in background\n\
+          toksi daemon stop                       Stop daemon supervisor and clean env\n\
+          toksi daemon status                     Check daemon and 8-port endpoint health\n\
+          toksi daemon restart [--agents <list>]  Restart supervisor\n",
+        C.bold("toksi daemon"),
+        C.bold("Usage:")
+    )
+}
+
 pub fn run_daemon_cli(argv: &[String]) -> i32 {
-    let subcmd = argv.first().map(|s| s.as_str()).unwrap_or("status");
-    match subcmd {
-        "start" => daemon_start(),
+    let (subcmd, agents_opt, help) = parse_daemon_args(argv);
+    if help {
+        println!("{}", daemon_help_text());
+        return 0;
+    }
+    match subcmd.as_str() {
+        "start" => daemon_start(agents_opt.as_deref()),
         "stop" => daemon_stop(),
         "status" => daemon_status(),
-        "run" | "__run-foreground" => daemon_run_foreground(),
+        "run" | "__run-foreground" => daemon_run_foreground(agents_opt.as_deref()),
         "restart" => {
             daemon_stop();
             sleep(Duration::from_millis(500));
-            daemon_start()
+            daemon_start(agents_opt.as_deref())
         }
         _ => {
-            println!(
-                "{} — toksi background supervisor\n\n\
-                {}\n  toksi daemon start    Start daemon supervisor in background\n\
-                  toksi daemon stop     Stop daemon supervisor\n\
-                  toksi daemon status   Check daemon and proxy health\n\
-                  toksi daemon restart  Restart supervisor",
-                C.bold("toksi daemon"),
-                C.bold("Usage:")
-            );
+            println!("{}", daemon_help_text());
             1
         }
     }
 }
 
 fn daemon_status() -> i32 {
-    let ports = crate::util::ports::resolved_ports();
+    let ports = crate::config::resolved_ports();
     let running = is_daemon_running();
     let hr_running = proxy_running();
     let grok_running = crate::headroom::grok_daemon::grok_oauth_proxy_running();
     let copilot_running = crate::headroom::copilot_daemon::copilot_proxy_running();
     let copilot_cli_running = crate::headroom::copilot_daemon::copilot_cli_proxy_running();
+    let bus_running = crate::tools::multi_protocol::is_protocol_bus_running();
     let byok_running = crate::headroom::byok_gateway::byok_gateway_live();
     let gw_running = crate::gateway::server::is_gateway_running();
     let dash_running = crate::dashboard::is_dashboard_running();
@@ -115,6 +264,12 @@ fn daemon_status() -> i32 {
         if copilot_cli_running { "running" } else { "stopped" }
     ));
     L.raw(&format!(
+        "  {} Unified Protocol Bus ({}): {}",
+        if bus_running { C.green(Sym::CHECK) } else { C.gray("•") },
+        ports.protocol_bus,
+        if bus_running { "running" } else { "stopped" }
+    ));
+    L.raw(&format!(
         "  {} BYOK Multi-Profile gateway ({}): {}",
         if byok_running { C.green(Sym::CHECK) } else { C.gray("•") },
         ports.byok_gateway,
@@ -140,9 +295,15 @@ fn daemon_status() -> i32 {
     0
 }
 
-fn daemon_start() -> i32 {
+fn daemon_start(explicit_agents: Option<&[String]>) -> i32 {
+    let ports = crate::config::resolved_ports();
+    if let Err(e) = ports.validate() {
+        L.err(&format!("Cannot start daemon: {}", e));
+        return 1;
+    }
+
     if is_daemon_running() {
-        let _ = crate::env_injector::inject_proxy_env();
+        let _ = crate::env_injector::inject_proxy_env_for_ports(&ports);
         L.raw(&format!("  {} Toksi daemon already running", C.green(Sym::CHECK)));
         return 0;
     }
@@ -169,13 +330,18 @@ fn daemon_start() -> i32 {
         return 1;
     }
 
-    // Connect non-destructive environment injection so environment is ready before VS Code or IDEs launch
-    if let Err(e) = crate::env_injector::inject_proxy_env() {
+    // Non-destructive environment injection so environment is ready before IDEs launch
+    if let Err(e) = crate::env_injector::inject_proxy_env_for_ports(&ports) {
         L.warn(&format!("Environment injection warning: {}", e));
     }
 
     let mut cmd = Command::new(&exe);
     cmd.args(["daemon", "__run-foreground"]);
+    if let Some(list) = explicit_agents
+        && !list.is_empty()
+    {
+        cmd.args(["--agents", &list.join(",")]);
+    }
     crate::env_injector::apply_env_to_command(&mut cmd);
     cmd.stdin(std::process::Stdio::null());
     cmd.stdout(std::process::Stdio::null());
@@ -239,7 +405,15 @@ fn daemon_stop() -> i32 {
     let _ = write_file_atomic(daemon_stop_file(), "stop");
     let pid_str = read_file_safe(daemon_pid_file()).unwrap_or_default().trim().to_string();
     if let Ok(pid) = pid_str.parse::<u32>() {
-        let _ = crate::headroom::process_identity::kill_process(pid);
+        for _ in 0..10 {
+            if !process_alive(pid) {
+                break;
+            }
+            sleep(Duration::from_millis(100));
+        }
+        if process_alive(pid) {
+            let _ = crate::headroom::process_identity::kill_process(pid);
+        }
     }
 
     let _ = fs::remove_file(daemon_pid_file());
@@ -249,7 +423,7 @@ fn daemon_stop() -> i32 {
     0
 }
 
-fn daemon_run_foreground() -> i32 {
+fn daemon_run_foreground(explicit_agents: Option<&[String]>) -> i32 {
     let pid = std::process::id();
     let _ = ensure_dir(&headroom_paths_resolved().root);
     if let Err(e) = write_file_atomic(daemon_pid_file(), &pid.to_string()) {
@@ -257,56 +431,64 @@ fn daemon_run_foreground() -> i32 {
         return 1;
     }
 
+    let plan = resolve_daemon_plan(explicit_agents);
+    let ports = crate::config::resolved_ports();
+
     // Register teardown handlers (SIGINT, SIGTERM, Ctrl+C) and RAII guard
     crate::env_injector::register_teardown_handlers();
     let mut teardown_guard = crate::env_injector::TeardownGuard::new();
-    let _ = crate::env_injector::inject_proxy_env();
+    let _ = crate::env_injector::inject_proxy_env_for_ports(&ports);
 
     let rt = match tokio::runtime::Builder::new_multi_thread()
+        .thread_name("toksi-daemon-supervisor")
         .enable_all()
         .build()
     {
         Ok(r) => r,
         Err(e) => {
             L.err(&format!("Failed to build Tokio runtime: {}", e));
+            let _ = fs::remove_file(daemon_pid_file());
             let _ = crate::env_injector::teardown_proxy_env();
             teardown_guard.disarm();
             return 1;
         }
     };
 
-    let run_res = rt.block_on(async {
-        run_supervised_daemon_async().await
-    });
-
+    let run_res = rt.block_on(run_supervised_daemon_async(plan));
     if let Err(e) = run_res {
         L.err(&format!("Daemon supervisor encountered error: {}", e));
     }
 
+    let _ = fs::remove_file(daemon_pid_file());
+    let _ = fs::remove_file(daemon_stop_file());
     let _ = crate::env_injector::teardown_proxy_env();
     teardown_guard.disarm();
 
     0
 }
 
-async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn run_supervised_daemon_async(
+    plan: DaemonServicePlan,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     crate::env_injector::register_teardown_handlers();
 
-    let p_hr = crate::headroom::proxy::proxy_port();
-    let p_grok = crate::headroom::grok_daemon::grok_oauth_proxy_port();
-    let p_copilot = crate::headroom::copilot_daemon::copilot_proxy_port();
-    let p_copilot_cli = crate::headroom::copilot_daemon::copilot_cli_proxy_port();
-    let p_byok = crate::util::byok::byok_gateway_port();
-    let p_gw = crate::gateway::server::gateway_port();
-    let p_dash = crate::dashboard::dashboard_port();
-
+    let ports = crate::config::resolved_ports();
+    ports.validate()?;
     if let Err(e) = crate::headroom::copilot_daemon::validate_copilot_ports() {
         L.err(&format!("Port validation error: {}", e));
         return Err(e.into());
     }
 
-    // Supervise 7 dedicated endpoints simultaneously
-    let mut hr_task = if !crate::headroom::proxy::proxy_running() {
+    let p_hr = ports.headroom_proxy;
+    let p_grok = ports.grok_oauth_proxy;
+    let p_copilot = ports.copilot_vscode_proxy;
+    let p_copilot_cli = ports.copilot_cli_proxy;
+    let p_bus = ports.protocol_bus;
+    let p_byok = ports.byok_gateway;
+    let p_gw = ports.ai_gateway;
+    let p_dash = ports.dashboard;
+
+    let mut hr_task = if plan.headroom_proxy && !crate::headroom::proxy::proxy_running() {
         Some(tokio::spawn(async move {
             if let Err(e) = crate::headroom::proxy::run_native_headroom_proxy(p_hr).await {
                 L.warn(&format!("Headroom proxy error: {}", e));
@@ -316,19 +498,24 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
         None
     };
 
-    let mut grok_task = if !crate::headroom::grok_daemon::grok_oauth_proxy_running() {
-        Some(tokio::spawn(async move {
-            if let Err(e) = crate::headroom::grok_daemon::run_native_grok_proxy(p_grok).await {
-                L.warn(&format!("Grok OAuth proxy error: {}", e));
-            }
-        }))
-    } else {
-        None
-    };
+    let mut grok_task =
+        if plan.grok_oauth_proxy && !crate::headroom::grok_daemon::grok_oauth_proxy_running() {
+            Some(tokio::spawn(async move {
+                if let Err(e) = crate::headroom::grok_daemon::run_native_grok_proxy(p_grok).await {
+                    L.warn(&format!("Grok OAuth proxy error: {}", e));
+                }
+            }))
+        } else {
+            None
+        };
 
-    let mut copilot_task = if !crate::headroom::copilot_daemon::copilot_proxy_running() {
+    let mut copilot_task = if plan.copilot_vscode_proxy
+        && !crate::headroom::copilot_daemon::copilot_proxy_running()
+    {
         Some(tokio::spawn(async move {
-            if let Err(e) = crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot, false).await {
+            if let Err(e) =
+                crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot, false).await
+            {
                 L.warn(&format!("Copilot VS Code proxy error: {}", e));
             }
         }))
@@ -336,9 +523,14 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
         None
     };
 
-    let mut copilot_cli_task = if !crate::headroom::copilot_daemon::copilot_cli_proxy_running() {
+    let mut copilot_cli_task = if plan.copilot_cli_proxy
+        && !crate::headroom::copilot_daemon::copilot_cli_proxy_running()
+    {
         Some(tokio::spawn(async move {
-            if let Err(e) = crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot_cli, true).await {
+            if let Err(e) =
+                crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot_cli, true)
+                    .await
+            {
                 L.warn(&format!("Copilot CLI proxy error: {}", e));
             }
         }))
@@ -346,9 +538,23 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
         None
     };
 
-    let mut byok_task = if !crate::headroom::byok_gateway::byok_gateway_live() {
+    let mut bus_task = if plan.protocol_bus && !crate::tools::multi_protocol::is_protocol_bus_running() {
         Some(tokio::spawn(async move {
-            if let Err(e) = crate::headroom::byok_gateway::run_byok_gateway_serve().await {
+            if let Err(e) = crate::tools::multi_protocol::run_protocol_bus_server(p_bus).await {
+                L.warn(&format!("Protocol Bus server error: {}", e));
+            }
+        }))
+    } else {
+        None
+    };
+
+    let byok_allow_empty = plan.explicit_agents && plan.byok_gateway;
+    let mut byok_task = if plan.byok_gateway && !crate::headroom::byok_gateway::byok_gateway_live() {
+        Some(tokio::spawn(async move {
+            if let Err(e) =
+                crate::headroom::byok_gateway::run_byok_gateway_serve_on_port(p_byok, byok_allow_empty)
+                    .await
+            {
                 L.warn(&format!("BYOK gateway error: {}", e));
             }
         }))
@@ -356,50 +562,62 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
         None
     };
 
-    let mut gw_task = if !crate::gateway::server::is_gateway_running() {
-        Some(tokio::spawn(async move {
-            let server = crate::gateway::server::GatewayServer::new("127.0.0.1", p_gw);
-            if let Err(e) = server.run().await {
-                L.warn(&format!("AI Gateway server error: {}", e));
+    // Port 9099 (AI Gateway) and Port 9100 (Web Cockpit) run on strictly isolated OS thread pools
+    let mut gw_handle = if plan.ai_gateway && !crate::gateway::server::is_gateway_running() {
+        match crate::gateway::server::spawn_isolated_gateway("127.0.0.1", p_gw) {
+            Ok(h) => Some(h),
+            Err(e) => {
+                L.warn(&format!("Failed spawning isolated AI Gateway thread: {}", e));
+                None
             }
-        }))
+        }
     } else {
         None
     };
 
-    let (dash_shutdown_tx, _) = tokio::sync::watch::channel(false);
-    let mut dash_task = if !crate::dashboard::is_dashboard_running() {
-        let mut server = crate::dashboard::DashboardServer::new("127.0.0.1", p_dash);
-        server.shutdown_tx = Some(dash_shutdown_tx);
-        Some(tokio::spawn(async move {
-            if let Err(e) = server.run().await {
-                L.warn(&format!("Dashboard server error: {}", e));
+    let mut dash_handle = if plan.dashboard && !crate::dashboard::is_dashboard_running() {
+        match crate::dashboard::spawn_isolated_dashboard("127.0.0.1", p_dash) {
+            Ok(h) => Some(h),
+            Err(e) => {
+                L.warn(&format!("Failed spawning isolated Dashboard thread: {}", e));
+                None
             }
-        }))
+        }
     } else {
         None
     };
 
+    let fmt_state = |enabled: bool| if enabled { "active" } else { "skipped (unconfigured)" };
     L.raw(&format!(
-        "  {} Supervised 7 dedicated endpoints:\n\
-           {} Headroom Proxy (:{p_hr})\n\
-           {} Grok OAuth Proxy (:{p_grok})\n\
-           {} Copilot VS Code Proxy (:{p_copilot})\n\
-           {} Copilot CLI Proxy (:{p_copilot_cli})\n\
-           {} BYOK Multi-Profile Gateway (:{p_byok})\n\
-           {} AI Gateway (:{p_gw})\n\
-           {} Web Dashboard Cockpit (:{p_dash})",
+        "  {} Supervised 8-port control plane:\n\
+           {} Headroom Proxy (:{p_hr}) — {}\n\
+           {} Grok OAuth Proxy (:{p_grok}) — {}\n\
+           {} Copilot VS Code Proxy (:{p_copilot}) — {}\n\
+           {} Copilot CLI Proxy (:{p_copilot_cli}) — {}\n\
+           {} Unified Protocol Bus (:{p_bus}) — {}\n\
+           {} BYOK Multi-Profile Gateway (:{p_byok}) — {}\n\
+           {} AI Gateway (:{p_gw}) — {}\n\
+           {} Web Dashboard Cockpit (:{p_dash}) — {}",
         C.green(Sym::CHECK),
         C.cyan("•"),
+        fmt_state(plan.headroom_proxy),
         C.cyan("•"),
+        fmt_state(plan.grok_oauth_proxy),
         C.cyan("•"),
+        fmt_state(plan.copilot_vscode_proxy),
         C.cyan("•"),
+        fmt_state(plan.copilot_cli_proxy),
         C.cyan("•"),
+        fmt_state(plan.protocol_bus),
         C.cyan("•"),
-        C.cyan("•")
+        fmt_state(plan.byok_gateway),
+        C.cyan("•"),
+        fmt_state(plan.ai_gateway),
+        C.cyan("•"),
+        fmt_state(plan.dashboard),
     ));
 
-    // Supervisor watch loop
+    // Non-blocking supervisor watch loop
     let mut last_ignore_check = std::time::Instant::now();
     let mut last_gitignore_mtime = std::collections::HashMap::<String, std::time::SystemTime>::new();
 
@@ -418,7 +636,7 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
             }
         }
 
-        // Periodic Dynamic Ignore Purging (every 5 seconds)
+        // Periodic Dynamic Ignore Purging (every 5 seconds) offloaded from async reactor
         if last_ignore_check.elapsed() >= Duration::from_secs(5) {
             last_ignore_check = std::time::Instant::now();
             if let Ok(curr_dir) = std::env::current_dir() {
@@ -426,112 +644,142 @@ async fn run_supervised_daemon_async() -> Result<(), Box<dyn std::error::Error +
                 let ignore_path = curr_dir.join(".ignore");
 
                 let mut changed = false;
-                for p in &[&gitignore_path, &ignore_path] {
-                    if p.exists() {
+                for p in [&gitignore_path, &ignore_path] {
+                    if p.exists()
+                        && let Ok(meta) = fs::metadata(p)
+                        && let Ok(mtime) = meta.modified()
+                    {
                         let path_key = p.to_string_lossy().to_string();
-                        if let Ok(meta) = fs::metadata(p) {
-                            if let Ok(mtime) = meta.modified() {
-                                if let Some(prev) = last_gitignore_mtime.get(&path_key) {
-                                    if *prev != mtime {
-                                        changed = true;
-                                        last_gitignore_mtime.insert(path_key, mtime);
-                                    }
-                                } else {
-                                    last_gitignore_mtime.insert(path_key, mtime);
-                                }
+                        if let Some(prev) = last_gitignore_mtime.get(&path_key) {
+                            if *prev != mtime {
+                                changed = true;
+                                last_gitignore_mtime.insert(path_key, mtime);
                             }
+                        } else {
+                            last_gitignore_mtime.insert(path_key, mtime);
                         }
                     }
                 }
 
                 if changed {
-                    // Trigger dynamic purge across all indexing subsystems
-                    let cg_db = crate::codegraph::resolve_db_path(&curr_dir);
-                    if cg_db.exists() {
-                        if let Ok(mut cg_cache) = crate::codegraph::cache::SymbolCache::open(&cg_db) {
+                    let _ = tokio::task::spawn_blocking(move || {
+                        let cg_db = crate::codegraph::resolve_db_path(&curr_dir);
+                        if cg_db.exists()
+                            && let Ok(mut cg_cache) = crate::codegraph::cache::SymbolCache::open(&cg_db)
+                        {
                             let _ = cg_cache.purge_ignored_files(&curr_dir);
                         }
-                    }
 
-                    let ctx_db = crate::contextmode::fts::resolve_content_store_path(Some(&curr_dir));
-                    if ctx_db.exists() {
-                        if let Ok(mut ctx_fts) = crate::contextmode::fts::ContentStore::open(&ctx_db) {
+                        let ctx_db =
+                            crate::contextmode::fts::resolve_content_store_path(Some(&curr_dir));
+                        if ctx_db.exists()
+                            && let Ok(mut ctx_fts) = crate::contextmode::fts::ContentStore::open(&ctx_db)
+                        {
                             let _ = ctx_fts.purge_ignored_sources(&curr_dir);
                         }
-                    }
 
-                    if let Ok(mut icm_store) = crate::icm::store::IcmStore::open_default() {
-                        let _ = icm_store.purge_ignored_memories(&curr_dir);
-                    }
+                        if let Ok(mut icm_store) = crate::icm::store::IcmStore::open_default() {
+                            let _ = icm_store.purge_ignored_memories(&curr_dir);
+                        }
 
-                    let wiki_store = crate::aimemory::wiki::WikiStore::open_default();
-                    let _ = wiki_store.purge_ignored_pages(&curr_dir);
+                        let wiki_store = crate::aimemory::wiki::WikiStore::open_default();
+                        let _ = wiki_store.purge_ignored_pages(&curr_dir);
+                    })
+                    .await;
                 }
             }
         }
 
-        // Auto-heal tasks if any finished prematurely
-        if let Some(ref t) = hr_task {
-            if t.is_finished() && !crate::headroom::proxy::proxy_running() {
-                hr_task = Some(tokio::spawn(async move {
-                    let _ = crate::headroom::proxy::run_native_headroom_proxy(p_hr).await;
-                }));
-            }
+        // Non-blocking auto-heal for any supervised task/thread that exited unexpectedly
+        if let Some(ref t) = hr_task
+            && t.is_finished()
+        {
+            hr_task = Some(tokio::spawn(async move {
+                let _ = crate::headroom::proxy::run_native_headroom_proxy(p_hr).await;
+            }));
         }
-        if let Some(ref t) = grok_task {
-            if t.is_finished() && !crate::headroom::grok_daemon::grok_oauth_proxy_running() {
-                grok_task = Some(tokio::spawn(async move {
-                    let _ = crate::headroom::grok_daemon::run_native_grok_proxy(p_grok).await;
-                }));
-            }
+        if let Some(ref t) = grok_task
+            && t.is_finished()
+        {
+            grok_task = Some(tokio::spawn(async move {
+                let _ = crate::headroom::grok_daemon::run_native_grok_proxy(p_grok).await;
+            }));
         }
-        if let Some(ref t) = copilot_task {
-            if t.is_finished() && !crate::headroom::copilot_daemon::copilot_proxy_running() {
-                copilot_task = Some(tokio::spawn(async move {
-                    let _ = crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot, false).await;
-                }));
-            }
+        if let Some(ref t) = copilot_task
+            && t.is_finished()
+        {
+            copilot_task = Some(tokio::spawn(async move {
+                let _ =
+                    crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot, false)
+                        .await;
+            }));
         }
-        if let Some(ref t) = copilot_cli_task {
-            if t.is_finished() && !crate::headroom::copilot_daemon::copilot_cli_proxy_running() {
-                copilot_cli_task = Some(tokio::spawn(async move {
-                    let _ = crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot_cli, true).await;
-                }));
-            }
+        if let Some(ref t) = copilot_cli_task
+            && t.is_finished()
+        {
+            copilot_cli_task = Some(tokio::spawn(async move {
+                let _ =
+                    crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot_cli, true)
+                        .await;
+            }));
         }
-        if let Some(ref t) = byok_task {
-            if t.is_finished() && !crate::headroom::byok_gateway::byok_gateway_live() {
-                byok_task = Some(tokio::spawn(async move {
-                    let _ = crate::headroom::byok_gateway::run_byok_gateway_serve().await;
-                }));
-            }
+        if let Some(ref t) = bus_task
+            && t.is_finished()
+        {
+            bus_task = Some(tokio::spawn(async move {
+                let _ = crate::tools::multi_protocol::run_protocol_bus_server(p_bus).await;
+            }));
         }
-        if let Some(ref t) = gw_task {
-            if t.is_finished() && !crate::gateway::server::is_gateway_running() {
-                gw_task = Some(tokio::spawn(async move {
-                    let server = crate::gateway::server::GatewayServer::new("127.0.0.1", p_gw);
-                    let _ = server.run().await;
-                }));
-            }
+        if let Some(ref t) = byok_task
+            && t.is_finished()
+        {
+            byok_task = Some(tokio::spawn(async move {
+                let _ = crate::headroom::byok_gateway::run_byok_gateway_serve_on_port(
+                    p_byok,
+                    byok_allow_empty,
+                )
+                .await;
+            }));
         }
-        if let Some(ref t) = dash_task {
-            if t.is_finished() && !crate::dashboard::is_dashboard_running() {
-                dash_task = Some(tokio::spawn(async move {
-                    let server = crate::dashboard::DashboardServer::new("127.0.0.1", p_dash);
-                    let _ = server.run().await;
-                }));
-            }
+        if let Some(ref mut h) = gw_handle
+            && h.is_finished()
+            && let Ok(next) = crate::gateway::server::spawn_isolated_gateway("127.0.0.1", p_gw)
+        {
+            gw_handle = Some(next);
+        }
+        if let Some(ref mut h) = dash_handle
+            && h.is_finished()
+            && let Ok(next) = crate::dashboard::spawn_isolated_dashboard("127.0.0.1", p_dash)
+        {
+            dash_handle = Some(next);
         }
     }
 
-    // Clean teardown of tasks
-    if let Some(t) = hr_task { t.abort(); }
-    if let Some(t) = grok_task { t.abort(); }
-    if let Some(t) = copilot_task { t.abort(); }
-    if let Some(t) = copilot_cli_task { t.abort(); }
-    if let Some(t) = byok_task { t.abort(); }
-    if let Some(t) = gw_task { t.abort(); }
-    if let Some(t) = dash_task { t.abort(); }
+    // Clean teardown of all tasks and isolated thread pools
+    if let Some(t) = hr_task {
+        t.abort();
+    }
+    if let Some(t) = grok_task {
+        t.abort();
+    }
+    if let Some(t) = copilot_task {
+        t.abort();
+    }
+    if let Some(t) = copilot_cli_task {
+        t.abort();
+    }
+    if let Some(t) = bus_task {
+        t.abort();
+    }
+    if let Some(t) = byok_task {
+        t.abort();
+    }
+    if let Some(mut h) = gw_handle {
+        h.shutdown();
+    }
+    if let Some(mut h) = dash_handle {
+        h.shutdown();
+    }
 
     Ok(())
 }
@@ -548,48 +796,127 @@ mod tests {
     }
 
     #[test]
+    fn test_daemon_agents_plan_skips_unselected_agents() {
+        let claude_only = vec!["claude".to_string()];
+        let plan = resolve_daemon_plan(Some(&claude_only));
+        assert!(plan.headroom_proxy);
+        assert!(plan.protocol_bus);
+        assert!(plan.ai_gateway);
+        assert!(plan.dashboard);
+        assert!(!plan.grok_oauth_proxy);
+        assert!(!plan.copilot_vscode_proxy);
+        assert!(!plan.copilot_cli_proxy);
+
+        let copilot_and_grok = vec!["copilot".to_string(), "grok".to_string()];
+        let plan_cg = resolve_daemon_plan(Some(&copilot_and_grok));
+        assert!(plan_cg.grok_oauth_proxy);
+        assert!(plan_cg.copilot_vscode_proxy);
+        assert!(plan_cg.copilot_cli_proxy);
+
+        let all = vec!["all".to_string()];
+        let plan_all = resolve_daemon_plan(Some(&all));
+        assert!(plan_all.headroom_proxy);
+        assert!(plan_all.grok_oauth_proxy);
+        assert!(plan_all.copilot_vscode_proxy);
+        assert!(plan_all.copilot_cli_proxy);
+        assert!(plan_all.protocol_bus);
+        assert!(plan_all.byok_gateway);
+        assert!(plan_all.ai_gateway);
+        assert!(plan_all.dashboard);
+    }
+
+    #[test]
+    fn test_parse_daemon_args() {
+        let argv = vec![
+            "start".to_string(),
+            "--agents".to_string(),
+            "claude,copilot".to_string(),
+        ];
+        let (cmd, agents, help) = parse_daemon_args(&argv);
+        assert_eq!(cmd, "start");
+        assert_eq!(
+            agents,
+            Some(vec!["claude".to_string(), "copilot".to_string()])
+        );
+        assert!(!help);
+    }
+
+    #[test]
     fn test_copilot_dual_port_configuration() {
         assert_eq!(crate::headroom::copilot_daemon::DEFAULT_COPILOT_PROXY_PORT, 8789);
-        assert_eq!(crate::headroom::copilot_daemon::DEFAULT_COPILOT_CLI_PROXY_PORT, 8790);
+        assert_eq!(
+            crate::headroom::copilot_daemon::DEFAULT_COPILOT_CLI_PROXY_PORT,
+            8790
+        );
         let res = crate::headroom::copilot_daemon::validate_copilot_ports();
         assert!(res.is_ok());
     }
 
     #[tokio::test]
-    async fn test_gateway_and_dashboard_simultaneous_isolation() {
+    async fn test_gateway_dashboard_and_protocol_bus_isolated() {
+        let bus_port = 29098;
         let gw_port = 29099;
         let dash_port = 29100;
 
-        let gw_server = crate::gateway::server::GatewayServer::new("127.0.0.1", gw_port);
-        let gw_task = tokio::spawn(async move {
-            let _ = gw_server.run().await;
+        let bus_task = tokio::spawn(async move {
+            let _ = crate::tools::multi_protocol::run_protocol_bus_server(bus_port).await;
         });
+        let mut gw_handle =
+            match crate::gateway::server::spawn_isolated_gateway("127.0.0.1", gw_port) {
+                Ok(h) => h,
+                Err(_) => {
+                    bus_task.abort();
+                    return;
+                }
+            };
+        let mut dash_handle =
+            match crate::dashboard::spawn_isolated_dashboard("127.0.0.1", dash_port) {
+                Ok(h) => h,
+                Err(_) => {
+                    gw_handle.shutdown();
+                    bus_task.abort();
+                    return;
+                }
+            };
 
-        let (dash_stop_tx, _) = tokio::sync::watch::channel(false);
-        let mut dash_server = crate::dashboard::DashboardServer::new("127.0.0.1", dash_port);
-        dash_server.shutdown_tx = Some(dash_stop_tx);
-        let dash_task = tokio::spawn(async move {
-            let _ = dash_server.run().await;
-        });
-
-        tokio::time::sleep(Duration::from_millis(150)).await;
+        assert_ne!(gw_handle.thread_name, dash_handle.thread_name);
+        tokio::time::sleep(Duration::from_millis(200)).await;
 
         let Ok(client) = reqwest::Client::builder().no_proxy().build() else {
-            gw_task.abort();
-            dash_task.abort();
+            gw_handle.shutdown();
+            dash_handle.shutdown();
+            bus_task.abort();
             return;
         };
 
-        // Simultaneous queries to Port 9099 and Port 9100
-        let req_gw = client.get(format!("http://127.0.0.1:{}/healthz", gw_port)).send();
-        let req_dash = client.get(format!("http://127.0.0.1:{}/api/status", dash_port)).send();
+        let req_bus = client
+            .get(format!("http://127.0.0.1:{}/livez", bus_port))
+            .send();
+        let req_gw = client
+            .get(format!("http://127.0.0.1:{}/healthz", gw_port))
+            .send();
+        let req_dash = client
+            .get(format!("http://127.0.0.1:{}/api/status", dash_port))
+            .send();
 
-        let (res_gw, res_dash) = tokio::join!(req_gw, req_dash);
+        let (res_bus, res_gw, res_dash) = tokio::join!(req_bus, req_gw, req_dash);
+
+        if let Ok(resp) = res_bus {
+            assert_eq!(resp.status().as_u16(), 200);
+            let body: serde_json::Value = resp.json().await.unwrap_or_default();
+            assert_eq!(
+                body.get("service").and_then(|v| v.as_str()),
+                Some("toksi-protocol-bus")
+            );
+        }
 
         if let Ok(resp) = res_gw {
             assert_eq!(resp.status().as_u16(), 200);
             let body: serde_json::Value = resp.json().await.unwrap_or_default();
-            assert_eq!(body.get("service").and_then(|v| v.as_str()), Some("ai-gateway"));
+            assert_eq!(
+                body.get("service").and_then(|v| v.as_str()),
+                Some("ai-gateway")
+            );
         }
 
         if let Ok(resp) = res_dash {
@@ -598,8 +925,9 @@ mod tests {
             assert!(body.get("tokens_saved_lifetime").is_some());
         }
 
-        gw_task.abort();
-        dash_task.abort();
+        gw_handle.shutdown();
+        dash_handle.shutdown();
+        bus_task.abort();
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -608,7 +936,8 @@ mod tests {
         let p_cli = 29102;
 
         let t_vscode = tokio::spawn(async move {
-            let _ = crate::headroom::copilot_daemon::run_native_copilot_proxy(p_vscode, false).await;
+            let _ =
+                crate::headroom::copilot_daemon::run_native_copilot_proxy(p_vscode, false).await;
         });
         let t_cli = tokio::spawn(async move {
             let _ = crate::headroom::copilot_daemon::run_native_copilot_proxy(p_cli, true).await;
@@ -622,21 +951,39 @@ mod tests {
             return;
         };
 
-        let res_vscode = client.get(format!("http://127.0.0.1:{}/livez", p_vscode)).send().await;
-        let res_cli = client.get(format!("http://127.0.0.1:{}/livez", p_cli)).send().await;
+        let res_vscode = client
+            .get(format!("http://127.0.0.1:{}/livez", p_vscode))
+            .send()
+            .await;
+        let res_cli = client
+            .get(format!("http://127.0.0.1:{}/livez", p_cli))
+            .send()
+            .await;
 
         if let Ok(resp) = res_vscode {
             assert_eq!(resp.status().as_u16(), 200);
             let body: serde_json::Value = resp.json().await.unwrap_or_default();
-            assert_eq!(body.get("service").and_then(|v| v.as_str()), Some("headroom-proxy"));
-            assert_eq!(body.get("subservice").and_then(|v| v.as_str()), Some("copilot-vscode-proxy"));
+            assert_eq!(
+                body.get("service").and_then(|v| v.as_str()),
+                Some("headroom-proxy")
+            );
+            assert_eq!(
+                body.get("subservice").and_then(|v| v.as_str()),
+                Some("copilot-vscode-proxy")
+            );
         }
 
         if let Ok(resp) = res_cli {
             assert_eq!(resp.status().as_u16(), 200);
             let body: serde_json::Value = resp.json().await.unwrap_or_default();
-            assert_eq!(body.get("service").and_then(|v| v.as_str()), Some("headroom-proxy"));
-            assert_eq!(body.get("subservice").and_then(|v| v.as_str()), Some("copilot-cli-proxy"));
+            assert_eq!(
+                body.get("service").and_then(|v| v.as_str()),
+                Some("headroom-proxy")
+            );
+            assert_eq!(
+                body.get("subservice").and_then(|v| v.as_str()),
+                Some("copilot-cli-proxy")
+            );
         }
 
         t_vscode.abort();

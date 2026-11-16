@@ -5,16 +5,21 @@
 // created: 2026-11-09
 // lastModified: 2026-11-13
 
+#![deny(unsafe_code)]
+
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
 use crate::util::paths::normalize_path;
+
+pub const DEFAULT_PROTOCOL_BUS_PORT: u16 = crate::config::DEFAULT_PROTOCOL_BUS_PORT;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -465,10 +470,10 @@ impl MultiProtocolDispatcher {
 
     fn dispatch_projectmem(&self, req: &UnifiedRequest, root: &Path) -> UnifiedResponse {
         let mut payload = req.payload.clone();
-        if payload.get("project").is_none() {
-            if let Some(obj) = payload.as_object_mut() {
-                obj.insert("project".to_string(), Value::from(root.to_string_lossy().to_string()));
-            }
+        if payload.get("project").is_none()
+            && let Some(obj) = payload.as_object_mut()
+        {
+            obj.insert("project".to_string(), Value::from(root.to_string_lossy().to_string()));
         }
         let res = crate::projectmem::mcp::execute_mcp_tool(&req.action, &payload);
         UnifiedResponse::success(
@@ -645,6 +650,280 @@ impl MultiProtocolDispatcher {
 
 pub fn unified_dispatcher() -> Arc<MultiProtocolDispatcher> {
     Arc::new(MultiProtocolDispatcher::new(None))
+}
+
+pub fn protocol_bus_port() -> u16 {
+    crate::config::resolved_ports().protocol_bus
+}
+
+pub fn protocol_bus_live_z(port: u16, timeout: Duration) -> bool {
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let Ok(mut stream) = std::net::TcpStream::connect_timeout(&addr, timeout) else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(timeout));
+    let _ = stream.set_write_timeout(Some(timeout));
+    use std::io::{Read, Write};
+    let req = format!(
+        "GET /livez HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n",
+        port
+    );
+    if stream.write_all(req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut buf = [0u8; 512];
+    let Ok(n) = stream.read(&mut buf) else {
+        return false;
+    };
+    if n == 0 {
+        return false;
+    }
+    let s = String::from_utf8_lossy(&buf[..n]);
+    (s.starts_with("HTTP/1.1 200") || s.starts_with("HTTP/1.0 200"))
+        && (s.contains("toksi-protocol-bus") || s.contains("\"status\":\"ok\""))
+}
+
+pub fn is_protocol_bus_running() -> bool {
+    protocol_bus_live_z(protocol_bus_port(), Duration::from_millis(500))
+}
+
+/// Runs the Unified Protocol Bus listener on Port `9098` (MCP, A2A v1.0, ACP, stdio, SSE, HTTP).
+pub async fn run_protocol_bus_server(
+    port: u16,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use tokio::net::TcpListener;
+
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let listener = TcpListener::bind(addr).await?;
+    let dispatcher = unified_dispatcher();
+
+    loop {
+        match listener.accept().await {
+            Ok((stream, _)) => {
+                let disp = Arc::clone(&dispatcher);
+                tokio::spawn(async move {
+                    let _ = serve_protocol_bus_connection(stream, port, disp).await;
+                });
+            }
+            Err(_) => break,
+        }
+    }
+    Ok(())
+}
+
+async fn serve_protocol_bus_connection(
+    mut stream: tokio::net::TcpStream,
+    port: u16,
+    dispatcher: Arc<MultiProtocolDispatcher>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use tokio::io::AsyncWriteExt;
+
+    loop {
+        let Some(req) = crate::headroom::byok_gateway::read_http_request(&mut stream).await? else {
+            return Ok(());
+        };
+        let is_close_requested = req.headers.iter().any(|(k, v)| {
+            k.eq_ignore_ascii_case("connection") && v.eq_ignore_ascii_case("close")
+        });
+        let (path, _, _) = crate::headroom::byok_gateway::split_uri_path_and_query(&req.raw_uri);
+
+        if req.method.eq_ignore_ascii_case("OPTIONS") {
+            let headers = vec![
+                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+                ("Access-Control-Allow-Methods".to_string(), "GET, POST, OPTIONS".to_string()),
+                ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
+            ];
+            crate::headroom::byok_gateway::write_http_response(
+                &mut stream,
+                204,
+                "No Content",
+                &headers,
+                b"",
+            )
+            .await?;
+            if is_close_requested {
+                let _ = stream.shutdown().await;
+                break;
+            }
+            continue;
+        }
+
+        if path == "/livez" || path == "/healthz" || path == "/readyz" {
+            let body = serde_json::json!({
+                "service": "toksi-protocol-bus",
+                "port": port,
+                "status": "ok",
+                "protocols": ["mcp", "a2a", "acp", "stdio", "sse", "http", "directwire"]
+            });
+            let bytes = serde_json::to_vec(&body).unwrap_or_default();
+            let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
+            if is_close_requested {
+                headers.push(("Connection".to_string(), "close".to_string()));
+            }
+            crate::headroom::byok_gateway::write_http_response(
+                &mut stream,
+                200,
+                "OK",
+                &headers,
+                &bytes,
+            )
+            .await?;
+            if is_close_requested {
+                let _ = stream.shutdown().await;
+                break;
+            }
+            continue;
+        }
+
+        if path == "/metrics" {
+            let metrics = crate::telemetry::render_metrics();
+            crate::headroom::byok_gateway::write_http_response(
+                &mut stream,
+                200,
+                "OK",
+                &[(
+                    "Content-Type".to_string(),
+                    "text/plain; version=0.0.4; charset=utf-8".to_string(),
+                )],
+                metrics.as_bytes(),
+            )
+            .await?;
+            if is_close_requested {
+                let _ = stream.shutdown().await;
+                break;
+            }
+            continue;
+        }
+
+        if path == "/sse" || path == "/events" {
+            let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\nAccess-Control-Allow-Origin: *\r\n\r\nevent: ready\ndata: {\"service\":\"toksi-protocol-bus\",\"status\":\"ok\"}\n\n";
+            stream.write_all(head.as_bytes()).await?;
+            stream.flush().await?;
+
+            let mut rx = dispatcher.codegraph_wire().subscribe();
+            loop {
+                tokio::select! {
+                    _ = tokio::time::sleep(Duration::from_secs(15)) => {
+                        if stream.write_all(b": keepalive\n\n").await.is_err() {
+                            break;
+                        }
+                        let _ = stream.flush().await;
+                    }
+                    msg = rx.recv() => {
+                        match msg {
+                            Ok(evt) => {
+                                let json = serde_json::to_string(&evt).unwrap_or_else(|_| "{}".to_string());
+                                let frame = format!("event: wire\ndata: {}\n\n", json);
+                                if stream.write_all(frame.as_bytes()).await.is_err() {
+                                    break;
+                                }
+                                let _ = stream.flush().await;
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                        }
+                    }
+                }
+            }
+            return Ok(());
+        }
+
+        let default_proto = match path.as_str() {
+            "/mcp" => ProtocolKind::Mcp,
+            "/a2a" => ProtocolKind::A2a,
+            "/acp" => ProtocolKind::Acp,
+            "/stdio" => ProtocolKind::Stdio,
+            _ => ProtocolKind::Http,
+        };
+
+        let mut body_val: Value = match serde_json::from_slice(&req.body) {
+            Ok(v) => v,
+            Err(e) => {
+                let err = serde_json::json!({ "error": format!("Invalid JSON payload: {}", e) });
+                let bytes = serde_json::to_vec(&err).unwrap_or_default();
+                crate::headroom::byok_gateway::write_http_response(
+                    &mut stream,
+                    400,
+                    "Bad Request",
+                    &[("Content-Type".to_string(), "application/json".to_string())],
+                    &bytes,
+                )
+                .await?;
+                if is_close_requested {
+                    let _ = stream.shutdown().await;
+                    break;
+                }
+                continue;
+            }
+        };
+
+        // Shared HeadroomEffortCompressor pass across Protocol Bus payloads
+        let _stats = crate::headroom::effort::HeadroomEffortCompressor::default()
+            .compress_json_payload(&path, &req.headers, &mut body_val);
+
+        let unified_req = if let Ok(r) = serde_json::from_value::<UnifiedRequest>(body_val.clone()) {
+            r
+        } else {
+            let proto = body_val
+                .get("protocol")
+                .and_then(Value::as_str)
+                .and_then(|s| s.parse::<ProtocolKind>().ok())
+                .unwrap_or(default_proto);
+            let tool = body_val
+                .get("tool")
+                .and_then(Value::as_str)
+                .and_then(|s| s.parse::<ToolTarget>().ok())
+                .unwrap_or(ToolTarget::Headroom);
+            let action = body_val
+                .get("action")
+                .or_else(|| body_val.get("method"))
+                .and_then(Value::as_str)
+                .unwrap_or("status")
+                .to_string();
+            let payload = body_val
+                .get("payload")
+                .or_else(|| body_val.get("params"))
+                .cloned()
+                .unwrap_or(body_val);
+            UnifiedRequest::new(proto, tool, action, payload)
+        };
+
+        let disp_clone = Arc::clone(&dispatcher);
+        let resp = tokio::task::spawn_blocking(move || disp_clone.dispatch(&unified_req))
+            .await
+            .unwrap_or_else(|e| {
+                UnifiedResponse::error(
+                    default_proto,
+                    ToolTarget::Headroom,
+                    format!("Protocol bus task failed: {}", e),
+                )
+            });
+
+        let ctype = if resp.protocol == ProtocolKind::Sse {
+            "text/event-stream"
+        } else {
+            "application/json"
+        };
+        let frame = resp.format_protocol_frame();
+        let mut headers = vec![("Content-Type".to_string(), ctype.to_string())];
+        if is_close_requested {
+            headers.push(("Connection".to_string(), "close".to_string()));
+        }
+        crate::headroom::byok_gateway::write_http_response(
+            &mut stream,
+            200,
+            "OK",
+            &headers,
+            frame.as_bytes(),
+        )
+        .await?;
+
+        if is_close_requested {
+            let _ = stream.shutdown().await;
+            break;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

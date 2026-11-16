@@ -110,7 +110,7 @@ fn help_text() -> String {
           {cmd_tui}               Full mouse-capable multi-tab interactive terminal control center\n\
           {cmd_dashboard}         Embedded web telemetry & control cockpit (--port, --open)\n\
           {cmd_prime}             Generate unified context primer for AI agent sessions\n\
-          {cmd_daemon}            Unified 7-port background supervisor with auto-healing network watchdog\n\
+          {cmd_daemon}            Unified 8-port background supervisor with auto-healing network watchdog\n\
           {cmd_info}              Show installation details, paths, config locations, and database status\n\
           {cmd_index}             Build per-project AST code graph index in current directory\n\
           {cmd_disable}           Disable agent hooks and proxy routing without removing files\n\
@@ -122,7 +122,7 @@ fn help_text() -> String {
           {cmd_icm}               Instant Context Memory (ICM) SQLite FTS5 BM25 knowledge engine\n\
           {cmd_handoff}           Multi-agent claim-once context handoffs across 17+ agents\n\
           {cmd_rules}             Manage in-tree coding rules & skills (principles, caveman, ponytail)\n\
-          {cmd_proxy}             Manage streaming Headroom and Copilot proxy supervisors: up|down|status\n\
+          {cmd_proxy}             Manage streaming Headroom and Copilot proxy supervisors: up|start|down|stop|restart|status\n\
           {cmd_auth}              OS Keyring credential manager: status|get|set|delete|sync\n\
           {cmd_db}                SQLite config database: status|export|import|backup|restore\n\
           {cmd_agent}             Agent directory lifecycle: install|health|mismatch|upgrade|fix|restore|remove|edit\n\
@@ -132,6 +132,7 @@ fn help_text() -> String {
           {p8788}           Grok OAuth Proxy Daemon (cli-chat-proxy.grok.com / xAI)\n\
           {p8789}           GitHub Copilot VS Code Proxy (DEFAULT_COPILOT_PROXY_PORT)\n\
           {p8790}           GitHub Copilot CLI Proxy (DEFAULT_COPILOT_CLI_PROXY_PORT)\n\
+          {p9098}           Unified Protocol Bus (MCP, A2A v1.0, ACP, stdio, SSE, HTTP)\n\
           {p18787}          BYOK Multi-Profile Gateway\n\
           {p9099}           Enterprise AI Gateway & Drop-in SDKs (/v1/chat/completions, /v1/messages, /metrics)\n\
           {p9100}           Web Telemetry & Control Dashboard Cockpit (non-blocking background service)\n\n\
@@ -183,11 +184,12 @@ fn help_text() -> String {
         cmd_db = cy("toksi db"),
         cmd_agent = cy("toksi agent"),
         cmd_self_update = cy("toksi self-update"),
-        sec_ports = bd("Dedicated 7-Port Network Topology:"),
+        sec_ports = bd("Dedicated 8-Port Network Topology:"),
         p8787 = yl("Port 8787"),
         p8788 = yl("Port 8788"),
         p8789 = yl("Port 8789"),
         p8790 = yl("Port 8790"),
+        p9098 = yl("Port 9098"),
         p18787 = yl("Port 18787"),
         p9099 = yl("Port 9099"),
         p9100 = yl("Port 9100"),

@@ -106,24 +106,28 @@ pub fn real_upstream_urls() -> (String, String) {
     let mut anthropic = DEFAULT_ANTHROPIC_TARGET_URL.to_string();
     let mut openai = DEFAULT_OPENAI_TARGET_URL.to_string();
 
-    if let Ok(v) = std::env::var("TOKSI_HEADROOM_ANTHROPIC_URL") {
-        if !v.trim().is_empty() {
-            anthropic = v.trim().to_string();
-        }
-    } else if let Some(st) = read_proxy_runtime() {
-        if !st.anthropic_api_url.is_empty() {
-            anthropic = st.anthropic_api_url;
-        }
+    if let Some(v) = crate::config::resolve_custom_base_url("anthropic") {
+        anthropic = v;
+    } else if let Ok(v) = std::env::var("TOKSI_HEADROOM_ANTHROPIC_URL")
+        && !v.trim().is_empty()
+    {
+        anthropic = v.trim().to_string();
+    } else if let Some(st) = read_proxy_runtime()
+        && !st.anthropic_api_url.is_empty()
+    {
+        anthropic = st.anthropic_api_url;
     }
 
-    if let Ok(v) = std::env::var("TOKSI_HEADROOM_OPENAI_URL") {
-        if !v.trim().is_empty() {
-            openai = v.trim().to_string();
-        }
-    } else if let Some(st) = read_proxy_runtime() {
-        if !st.openai_api_url.is_empty() {
-            openai = st.openai_api_url;
-        }
+    if let Some(v) = crate::config::resolve_custom_base_url("openai") {
+        openai = v;
+    } else if let Ok(v) = std::env::var("TOKSI_HEADROOM_OPENAI_URL")
+        && !v.trim().is_empty()
+    {
+        openai = v.trim().to_string();
+    } else if let Some(st) = read_proxy_runtime()
+        && !st.openai_api_url.is_empty()
+    {
+        openai = st.openai_api_url;
     }
 
     (anthropic, openai)
@@ -137,7 +141,9 @@ pub fn proxy_upstream_urls() -> (String, String) {
 /// Returns optional upstream overrides for the Gemini (`--gemini-api-url`)
 /// and CloudCode (`--cloudcode-api-url`) provider routes.
 pub fn proxy_upstream_gemini_urls() -> (String, String) {
-    let gemini = if let Ok(v) = std::env::var("TOKSI_HEADROOM_GEMINI_URL") {
+    let gemini = if let Some(v) = crate::config::resolve_custom_base_url("gemini") {
+        v
+    } else if let Ok(v) = std::env::var("TOKSI_HEADROOM_GEMINI_URL") {
         v.trim().to_string()
     } else if let Some(st) = read_proxy_runtime() {
         st.gemini_api_url
@@ -145,7 +151,9 @@ pub fn proxy_upstream_gemini_urls() -> (String, String) {
         String::new()
     };
 
-    let cloudcode = if let Ok(v) = std::env::var("TOKSI_HEADROOM_CLOUDCODE_URL") {
+    let cloudcode = if let Some(v) = crate::config::resolve_custom_base_url("cloudcode") {
+        v
+    } else if let Ok(v) = std::env::var("TOKSI_HEADROOM_CLOUDCODE_URL") {
         v.trim().to_string()
     } else if let Some(st) = read_proxy_runtime() {
         st.cloudcode_api_url
@@ -561,29 +569,32 @@ pub fn proxy_live_z_timeout(timeout: Duration) -> bool {
 }
 
 fn proxy_live_z_for_port_timeout(port: u16, timeout: Duration) -> bool {
-    let url = format!("http://127.0.0.1:{}/livez", port);
-    let Ok(client) = reqwest::blocking::Client::builder()
-        .timeout(timeout)
-        .build()
-    else {
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let Ok(mut stream) = std::net::TcpStream::connect_timeout(&addr, timeout) else {
         return false;
     };
-    let Ok(resp) = client.get(&url).send() else {
+    let _ = stream.set_read_timeout(Some(timeout));
+    let _ = stream.set_write_timeout(Some(timeout));
+    use std::io::Read;
+    let req = format!(
+        "GET /livez HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n",
+        port
+    );
+    if stream.write_all(req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut buf = [0u8; 512];
+    let Ok(n) = stream.read(&mut buf) else {
         return false;
     };
-    if !resp.status().is_success() {
+    if n == 0 {
         return false;
     }
-    #[derive(Deserialize)]
-    struct LiveResp {
-        #[serde(default)]
-        service: String,
-        #[serde(default)]
-        status: String,
-    }
-    resp.json::<LiveResp>()
-        .map(|l| l.service == "headroom-proxy" || l.service == "toksi-headroom-native" || l.status == "ok")
-        .unwrap_or(false)
+    let s = String::from_utf8_lossy(&buf[..n]);
+    (s.starts_with("HTTP/1.1 200") || s.starts_with("HTTP/1.0 200"))
+        && (s.contains("headroom-proxy")
+            || s.contains("toksi-headroom-native")
+            || s.contains("\"status\":\"ok\""))
 }
 
 pub fn proxy_running() -> bool {

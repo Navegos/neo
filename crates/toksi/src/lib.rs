@@ -7,6 +7,7 @@
 
 #![recursion_limit = "256"]
 
+pub mod config;
 pub mod core;
 pub mod util;
 pub mod headroom;

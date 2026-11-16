@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/reconnect.rs
 // created: 2026-11-09
-// lastModified: 2026-11-09
+// lastModified: 2026-11-16
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -49,7 +49,8 @@ pub struct AutoHealingClientPool {
     last_reconnect_epoch_secs: AtomicU64,
     status: RwLock<NetworkStatus>,
     async_client: RwLock<reqwest::Client>,
-    blocking_client: RwLock<reqwest::blocking::Client>,
+    loopback_async_client: RwLock<reqwest::Client>,
+    blocking_client: RwLock<Option<reqwest::blocking::Client>>,
     last_known_interface_hash: AtomicU64,
 }
 
@@ -58,7 +59,7 @@ impl AutoHealingClientPool {
     /// and short idle pool TTLs to eliminate hanging connections.
     pub fn new() -> Result<Self, NetworkHealingError> {
         let async_client = Self::build_async_client()?;
-        let blocking_client = Self::build_blocking_client()?;
+        let loopback_async_client = Self::build_loopback_async_client()?;
         let initial_hash = Self::compute_network_interface_signature();
 
         let now_secs = std::time::SystemTime::now()
@@ -73,7 +74,8 @@ impl AutoHealingClientPool {
             last_reconnect_epoch_secs: AtomicU64::new(now_secs),
             status: RwLock::new(NetworkStatus::Healthy),
             async_client: RwLock::new(async_client),
-            blocking_client: RwLock::new(blocking_client),
+            loopback_async_client: RwLock::new(loopback_async_client),
+            blocking_client: RwLock::new(None),
             last_known_interface_hash: AtomicU64::new(initial_hash),
         })
     }
@@ -81,6 +83,19 @@ impl AutoHealingClientPool {
     /// Builds a fresh `reqwest::Client` with bounded idle socket timeouts and keep-alives.
     fn build_async_client() -> Result<reqwest::Client, NetworkHealingError> {
         reqwest::Client::builder()
+            .pool_idle_timeout(Some(Duration::from_secs(15)))
+            .pool_max_idle_per_host(10)
+            .tcp_keepalive(Some(Duration::from_secs(10)))
+            .timeout(Duration::from_secs(60))
+            .connect_timeout(Duration::from_secs(5))
+            .build()
+            .map_err(NetworkHealingError::from)
+    }
+
+    /// Builds a fresh loopback `reqwest::Client` bypassing `HTTP_PROXY`/`HTTPS_PROXY`.
+    fn build_loopback_async_client() -> Result<reqwest::Client, NetworkHealingError> {
+        reqwest::Client::builder()
+            .no_proxy()
             .pool_idle_timeout(Some(Duration::from_secs(15)))
             .pool_max_idle_per_host(10)
             .tcp_keepalive(Some(Duration::from_secs(10)))
@@ -108,12 +123,11 @@ impl AutoHealingClientPool {
         let mut hasher = DefaultHasher::new();
 
         // Query local address resolved for public DNS route
-        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
-            if socket.connect("1.1.1.1:53").is_ok() {
-                if let Ok(local_addr) = socket.local_addr() {
-                    local_addr.hash(&mut hasher);
-                }
-            }
+        if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0")
+            && socket.connect("1.1.1.1:53").is_ok()
+            && let Ok(local_addr) = socket.local_addr()
+        {
+            local_addr.hash(&mut hasher);
         }
 
         // Include hostname hash
@@ -148,10 +162,43 @@ impl AutoHealingClientPool {
         Ok(lock.clone())
     }
 
+    /// Returns a cloned handle to the active loopback `reqwest::Client` (bypasses HTTP_PROXY).
+    pub fn get_loopback_async_client(&self) -> Result<reqwest::Client, NetworkHealingError> {
+        let lock = self
+            .loopback_async_client
+            .read()
+            .map_err(|_| NetworkHealingError::LockPoisoned)?;
+        Ok(lock.clone())
+    }
+
     /// Returns a cloned handle to the active `reqwest::blocking::Client`.
     pub fn get_blocking_client(&self) -> Result<reqwest::blocking::Client, NetworkHealingError> {
-        let lock = self.blocking_client.read().map_err(|_| NetworkHealingError::LockPoisoned)?;
-        Ok(lock.clone())
+        if let Some(existing) = self
+            .blocking_client
+            .read()
+            .map_err(|_| NetworkHealingError::LockPoisoned)?
+            .clone()
+        {
+            return Ok(existing);
+        }
+
+        let built = if tokio::runtime::Handle::try_current().is_ok() {
+            std::thread::spawn(Self::build_blocking_client)
+                .join()
+                .map_err(|_| NetworkHealingError::LockPoisoned)??
+        } else {
+            Self::build_blocking_client()?
+        };
+
+        let mut lock = self
+            .blocking_client
+            .write()
+            .map_err(|_| NetworkHealingError::LockPoisoned)?;
+        if let Some(ref existing) = *lock {
+            return Ok(existing.clone());
+        }
+        *lock = Some(built.clone());
+        Ok(built)
     }
 
     /// Invalidates stale connection pools, reconstructs fresh HTTP clients with clean DNS,
@@ -164,7 +211,7 @@ impl AutoHealingClientPool {
         }
 
         let new_async = Self::build_async_client()?;
-        let new_blocking = Self::build_blocking_client()?;
+        let new_loopback = Self::build_loopback_async_client()?;
 
         {
             let mut async_lock = self.async_client.write().map_err(|_| NetworkHealingError::LockPoisoned)?;
@@ -172,8 +219,22 @@ impl AutoHealingClientPool {
         }
 
         {
+            let mut loopback_lock = self
+                .loopback_async_client
+                .write()
+                .map_err(|_| NetworkHealingError::LockPoisoned)?;
+            *loopback_lock = new_loopback;
+        }
+
+        {
             let mut blocking_lock = self.blocking_client.write().map_err(|_| NetworkHealingError::LockPoisoned)?;
-            *blocking_lock = new_blocking;
+            if let Some(old_blocking) = blocking_lock.take() {
+                if tokio::runtime::Handle::try_current().is_ok() {
+                    std::thread::spawn(move || drop(old_blocking));
+                } else {
+                    drop(old_blocking);
+                }
+            }
         }
 
         let new_gen = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
@@ -286,12 +347,11 @@ impl AutoHealingClientPool {
                 self.check_and_heal_interface_change();
 
                 // 2. If status was degraded, probe and restore if healthy
-                if self.status() == NetworkStatus::Degraded {
-                    if self.probe_network_connectivity("1.1.1.1:53", Duration::from_secs(1))
-                        || self.probe_network_connectivity("8.8.8.8:53", Duration::from_secs(1))
-                    {
-                        let _ = self.invalidate_and_reconnect("network connectivity restored after degradation");
-                    }
+                if self.status() == NetworkStatus::Degraded
+                    && (self.probe_network_connectivity("1.1.1.1:53", Duration::from_secs(1))
+                        || self.probe_network_connectivity("8.8.8.8:53", Duration::from_secs(1)))
+                {
+                    let _ = self.invalidate_and_reconnect("network connectivity restored after degradation");
                 }
             }
         })
@@ -311,7 +371,10 @@ pub fn global_healing_pool() -> &'static AutoHealingClientPool {
             eprintln!("[WARN] AutoHealingClientPool fallback init: {}", e);
             // Fallback pool creation
             let async_client = reqwest::Client::new();
-            let blocking_client = reqwest::blocking::Client::new();
+            let loopback_async_client = reqwest::Client::builder()
+                .no_proxy()
+                .build()
+                .unwrap_or_else(|_| reqwest::Client::new());
             AutoHealingClientPool {
                 generation: AtomicU64::new(1),
                 consecutive_transport_failures: AtomicU32::new(0),
@@ -319,7 +382,8 @@ pub fn global_healing_pool() -> &'static AutoHealingClientPool {
                 last_reconnect_epoch_secs: AtomicU64::new(0),
                 status: RwLock::new(NetworkStatus::Healthy),
                 async_client: RwLock::new(async_client),
-                blocking_client: RwLock::new(blocking_client),
+                loopback_async_client: RwLock::new(loopback_async_client),
+                blocking_client: RwLock::new(None),
                 last_known_interface_hash: AtomicU64::new(0),
             }
         })
@@ -331,6 +395,18 @@ pub fn auto_healing_async_client() -> reqwest::Client {
     global_healing_pool()
         .get_async_client()
         .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+/// Retrieves the active loopback `reqwest::Client` (no proxy) with auto-healed pools.
+pub fn auto_healing_loopback_async_client() -> reqwest::Client {
+    global_healing_pool()
+        .get_loopback_async_client()
+        .unwrap_or_else(|_| {
+            reqwest::Client::builder()
+                .no_proxy()
+                .build()
+                .unwrap_or_else(|_| reqwest::Client::new())
+        })
 }
 
 /// Retrieves the active `reqwest::blocking::Client` with auto-healed socket connection pools.

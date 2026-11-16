@@ -457,15 +457,7 @@ pub fn audit_toksi_config_toml() -> Vec<String> {
     };
 
     let p = &cfg.ports;
-    let port_entries = [
-        ("headroom_proxy", p.headroom_proxy),
-        ("grok_oauth_proxy", p.grok_oauth_proxy),
-        ("copilot_vscode_proxy", p.copilot_vscode_proxy),
-        ("copilot_cli_proxy", p.copilot_cli_proxy),
-        ("byok_gateway", p.byok_gateway),
-        ("ai_gateway", p.ai_gateway),
-        ("dashboard", p.dashboard),
-    ];
+    let port_entries = p.all_ports();
     let mut seen_ports: std::collections::HashMap<u16, &str> = std::collections::HashMap::new();
     for (name, port) in port_entries {
         if port < 1024 {

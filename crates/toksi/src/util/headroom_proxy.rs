@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/util/headroom_proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::path::Path;
 use serde::{Deserialize, Serialize};
@@ -100,17 +100,19 @@ pub fn clear_proxy_routing_preference() -> std::io::Result<()> {
 }
 
 pub fn headroom_proxy_port() -> u16 {
-    if let Ok(raw) = std::env::var("TOKSI_HEADROOM_PROXY_PORT") {
-        if let Ok(n) = raw.trim().parse::<u16>() {
-            if n > 0 {
-                return n;
-            }
-        }
+    if let Some(port) = crate::config::runtime_headroom_port_override() {
+        return port;
+    }
+    if let Ok(raw) = std::env::var("TOKSI_HEADROOM_PROXY_PORT")
+        && let Ok(n) = raw.trim().parse::<u16>()
+        && n > 0
+    {
+        return n;
     }
     if let Some(st) = read_proxy_runtime() {
         return st.port;
     }
-    crate::util::ports::resolved_ports().headroom_proxy
+    crate::config::resolved_ports().headroom_proxy
 }
 
 pub fn headroom_proxy_url() -> String {

@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/dashboard/server.rs
 // created: 2026-10-30
-// lastModified: 2026-11-09
+// lastModified: 2026-11-16
+
+#![deny(unsafe_code)]
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -208,6 +210,76 @@ impl HttpResponse {
     }
 }
 
+pub struct IsolatedDashboardHandle {
+    shutdown_tx: tokio::sync::watch::Sender<bool>,
+    join_handle: Option<std::thread::JoinHandle<()>>,
+    pub thread_name: String,
+    pub port: u16,
+}
+
+impl IsolatedDashboardHandle {
+    pub fn is_finished(&self) -> bool {
+        self.join_handle
+            .as_ref()
+            .map(|h| h.is_finished())
+            .unwrap_or(true)
+    }
+
+    pub fn shutdown(&mut self) {
+        let _ = self.shutdown_tx.send(true);
+        if let Some(handle) = self.join_handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+impl Drop for IsolatedDashboardHandle {
+    fn drop(&mut self) {
+        let _ = self.shutdown_tx.send(true);
+    }
+}
+
+/// Spawns Port 9100 Web Dashboard Cockpit in its own isolated OS thread & Tokio reactor
+/// strictly separated from Port 9099 inference threads so slow browser downloads or SSE
+/// clients cannot induce TCP backpressure on streaming LLM inference.
+pub fn spawn_isolated_dashboard(
+    host: &str,
+    port: u16,
+) -> std::io::Result<IsolatedDashboardHandle> {
+    let (shutdown_tx, _shutdown_rx) = tokio::sync::watch::channel(false);
+    let host_owned = host.to_string();
+    let thread_name = format!("toksi-dashboard-{}", port);
+    let tx_for_server = shutdown_tx.clone();
+
+    let join_handle = std::thread::Builder::new()
+        .name(thread_name.clone())
+        .spawn(move || {
+            let Ok(rt) = tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(2)
+                .thread_name("toksi-dashboard-cockpit")
+                .enable_all()
+                .build()
+            else {
+                crate::util::logger::L.err("Failed to initialize isolated Dashboard Tokio runtime");
+                return;
+            };
+            rt.block_on(async move {
+                let mut server = DashboardServer::new(&host_owned, port);
+                server.shutdown_tx = Some(tx_for_server);
+                if let Err(e) = server.run().await {
+                    crate::util::logger::L.warn(&format!("Dashboard server error: {}", e));
+                }
+            });
+        })?;
+
+    Ok(IsolatedDashboardHandle {
+        shutdown_tx,
+        join_handle: Some(join_handle),
+        thread_name,
+        port,
+    })
+}
+
 impl DashboardServer {
     pub fn new(host: &str, port: u16) -> Self {
         Self {
@@ -237,7 +309,7 @@ impl DashboardServer {
                             });
                         }
                         Err(e) => {
-                            eprintln!("Dashboard server accept error: {}", e);
+                            crate::util::logger::L.warn(&format!("Dashboard server accept error: {}", e));
                             tokio::time::sleep(Duration::from_millis(50)).await;
                         }
                     }
@@ -264,9 +336,13 @@ async fn handle_connection(
     let mut buf = vec![0u8; 65536];
     let mut total_read = 0;
 
-    // Read initial request bytes
+    // Read initial request bytes with bounded timeout so stalled browser sockets cannot hang tasks
     loop {
-        let n = stream.read(&mut buf[total_read..]).await?;
+        let n = match tokio::time::timeout(Duration::from_secs(10), stream.read(&mut buf[total_read..])).await {
+            Ok(Ok(n)) => n,
+            Ok(Err(e)) => return Err(e.into()),
+            Err(_) => return Ok(()),
+        };
         if n == 0 {
             return Ok(());
         }
@@ -281,20 +357,29 @@ async fn handle_connection(
 
                 let resp = route_request(&req);
                 let bytes = resp.to_bytes();
-                stream.write_all(&bytes).await?;
-                stream.flush().await?;
+                let _ = tokio::time::timeout(Duration::from_secs(10), async {
+                    stream.write_all(&bytes).await?;
+                    stream.flush().await
+                })
+                .await;
                 return Ok(());
             }
             Err(e) if e == "Incomplete HTTP headers" || e == "Incomplete request body" => {
                 if total_read >= buf.len() {
+                    if buf.len() >= 4 * 1024 * 1024 {
+                        return Err("Request too large".into());
+                    }
                     buf.resize(buf.len() * 2, 0);
                 }
                 continue;
             }
             Err(e) => {
                 let resp = HttpResponse::bad_request(&e);
-                stream.write_all(&resp.to_bytes()).await?;
-                stream.flush().await?;
+                let _ = tokio::time::timeout(Duration::from_secs(5), async {
+                    stream.write_all(&resp.to_bytes()).await?;
+                    stream.flush().await
+                })
+                .await;
                 return Ok(());
             }
         }

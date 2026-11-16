@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/commands/proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-11-01
+// lastModified: 2026-11-16
+
+#![deny(unsafe_code)]
 
 use std::collections::HashSet;
 
@@ -46,6 +48,30 @@ pub fn resolve_proxy_agents(requested: &Option<Vec<String>>, for_up: bool) -> (V
         return (selected, unknown);
     }
 
+    let cfg_defaults = crate::config::resolve_default_agents();
+    if !cfg_defaults.is_empty() {
+        let mut selected = Vec::new();
+        for id in cfg_defaults {
+            let norm = match id.as_str() {
+                "antigravity-cli" | "antigravity-ide" | "agy" => "antigravity".to_string(),
+                "copilot-cli" | "copilot-vscode" | "copilot-ide" => "copilot".to_string(),
+                "claude-cli" | "claude-code" | "claude-desktop" => "claude".to_string(),
+                "cursor-cli" | "cursor-ide" => "cursor".to_string(),
+                "grok-cli" | "grok-ide" => "grok".to_string(),
+                _ => id,
+            };
+            if valid_set.contains(norm.as_str())
+                && !selected.contains(&norm)
+                && (!for_up || (norm != "grok" && proxy_agent_applicable(&norm)))
+            {
+                selected.push(norm);
+            }
+        }
+        if !selected.is_empty() {
+            return (selected, Vec::new());
+        }
+    }
+
     let mut auto = Vec::new();
     for id in valid_ids {
         if for_up && id == "grok" {
@@ -83,6 +109,9 @@ pub fn validate_proxy_lane_ports() -> Result<(), String> {
             main_p, cop_p, cop_cli_p
         ));
     }
+    crate::config::resolved_ports()
+        .validate()
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -149,17 +178,17 @@ pub fn run_proxy_up(opts: InitOptions) -> i32 {
         let label = get_agent(id)
             .map(|a| a.label.clone())
             .unwrap_or_else(|| id.clone());
-        if let Some(spec) = proxy_spec_for(id) {
-            if spec.wire_kind == ProxyWireKind::Manual {
-                tree_leaf(&format!(
-                    "{} {} {}",
-                    C.cyan(Sym::INFO),
-                    paint_name(&pad_end(&label, 16)),
-                    C.cyan("manual setup required")
-                ));
-                manual_notes.extend(proxy_instructions(id));
-                continue;
-            }
+        if let Some(spec) = proxy_spec_for(id)
+            && spec.wire_kind == ProxyWireKind::Manual
+        {
+            tree_leaf(&format!(
+                "{} {} {}",
+                C.cyan(Sym::INFO),
+                paint_name(&pad_end(&label, 16)),
+                C.cyan("manual setup required")
+            ));
+            manual_notes.extend(proxy_instructions(id));
+            continue;
         }
         let ok = configure_proxy_agent(id);
         if ok {
@@ -335,9 +364,10 @@ pub fn proxy_help_text() -> String {
     let cy = |s: &str| C.cyan(s);
     format!(
         "{} — headroom HTTP-proxy daemon (cache mode)\n\n\
-        {}\n  {}       Start local Headroom and route agents through it\n\
-          {}     Restore Toksi-owned routing and stop Headroom\n\
-          {}   Show daemon + per-agent wiring state\n\n\
+        {}\n  {}   Start local Headroom and route agents through it\n\
+          {}   Restore Toksi-owned routing and stop Headroom\n\
+          {}        Restart local Headroom and re-apply agent routing\n\
+          {}         Show daemon + per-agent wiring state\n\n\
         {}\n  Native agent settings are changed; shell startup files are not.\n\
           Existing OAuth/BYOK settings are preserved where supported.\n\
           If you edit a managed setting, down refuses to overwrite it.\n\n\
@@ -347,12 +377,20 @@ pub fn proxy_help_text() -> String {
           --help             Show this help\n",
         C.bold(&cy("toksi proxy")),
         C.bold("Usage:"),
-        cy("toksi proxy up"),
-        cy("toksi proxy down"),
+        cy("toksi proxy up|start"),
+        cy("toksi proxy down|stop"),
+        cy("toksi proxy restart"),
         cy("toksi proxy status"),
         C.bold("Safety:"),
         C.bold("Flags:")
     )
+}
+
+fn parse_agents_csv(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 pub fn run_proxy_cli(argv: &[String]) -> i32 {
@@ -372,55 +410,51 @@ pub fn run_proxy_cli(argv: &[String]) -> i32 {
         } else if a == "--verbose" {
             verbose = true;
         } else if (a == "--agents" || a == "--agent") && i + 1 < argv.len() {
-            let raw = &argv[i + 1];
-            let list: Vec<String> = raw
-                .split(',')
-                .map(|s| s.trim().to_lowercase())
-                .filter(|s| !s.is_empty())
-                .collect();
-            agents_opt = Some(list);
+            agents_opt = Some(parse_agents_csv(&argv[i + 1]));
             i += 1;
-        } else if a.starts_with("--agents=") || a.starts_with("--agent=") {
-            let raw = a.split_once('=').unwrap().1;
-            let list: Vec<String> = raw
-                .split(',')
-                .map(|s| s.trim().to_lowercase())
-                .filter(|s| !s.is_empty())
-                .collect();
-            agents_opt = Some(list);
+        } else if let Some(raw) = a
+            .strip_prefix("--agents=")
+            .or_else(|| a.strip_prefix("--agent="))
+        {
+            agents_opt = Some(parse_agents_csv(raw));
         } else if (a == "--port" || a == "-p") && i + 1 < argv.len() {
-            if let Ok(p) = argv[i + 1].parse::<u16>() {
-                unsafe { std::env::set_var("TOKSI_HEADROOM_PROXY_PORT", p.to_string()); }
+            if let Ok(p) = argv[i + 1].parse::<u16>()
+                && p > 0
+            {
+                crate::config::set_runtime_headroom_port_override(Some(p));
             }
             serve_mode = true;
             i += 1;
-        } else if a.starts_with("--port=") {
-            let p_str = a.split_once('=').unwrap().1;
-            if let Ok(p) = p_str.parse::<u16>() {
-                unsafe { std::env::set_var("TOKSI_HEADROOM_PROXY_PORT", p.to_string()); }
+        } else if let Some(p_str) = a.strip_prefix("--port=") {
+            if let Ok(p) = p_str.parse::<u16>()
+                && p > 0
+            {
+                crate::config::set_runtime_headroom_port_override(Some(p));
             }
             serve_mode = true;
         } else if a == "--anthropic-api-url" && i + 1 < argv.len() {
-            unsafe { std::env::set_var("ANTHROPIC_BASE_URL", &argv[i + 1]); }
+            crate::config::set_runtime_base_url_override("anthropic", &argv[i + 1]);
             serve_mode = true;
             i += 1;
         } else if a == "--openai-api-url" && i + 1 < argv.len() {
-            unsafe { std::env::set_var("OPENAI_BASE_URL", &argv[i + 1]); }
+            crate::config::set_runtime_base_url_override("openai", &argv[i + 1]);
             serve_mode = true;
             i += 1;
         } else if a == "--gemini-api-url" && i + 1 < argv.len() {
-            unsafe { std::env::set_var("GOOGLE_GEMINI_BASE_URL", &argv[i + 1]); }
+            crate::config::set_runtime_base_url_override("gemini", &argv[i + 1]);
             serve_mode = true;
             i += 1;
         } else if a == "--cloudcode-api-url" && i + 1 < argv.len() {
-            unsafe { std::env::set_var("CLOUD_CODE_URL", &argv[i + 1]); }
+            crate::config::set_runtime_base_url_override("cloudcode", &argv[i + 1]);
             serve_mode = true;
             i += 1;
         } else if a == "--no-cache" {
             serve_mode = true;
         } else if cmd.is_empty() && !a.starts_with('-') {
-            if let Ok(p) = a.parse::<u16>() {
-                unsafe { std::env::set_var("TOKSI_HEADROOM_PROXY_PORT", p.to_string()); }
+            if let Ok(p) = a.parse::<u16>()
+                && p > 0
+            {
+                crate::config::set_runtime_headroom_port_override(Some(p));
                 serve_mode = true;
             } else {
                 cmd = a.clone();
@@ -446,8 +480,16 @@ pub fn run_proxy_cli(argv: &[String]) -> i32 {
     };
 
     match cmd.as_str() {
-        "up" => run_proxy_up(opts),
-        "down" => run_proxy_down(opts),
+        "up" | "start" => run_proxy_up(opts),
+        "down" | "stop" => run_proxy_down(opts),
+        "restart" => {
+            let down_code = run_proxy_down(opts.clone());
+            if down_code != 0 {
+                return down_code;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            run_proxy_up(opts)
+        }
         "status" | "" => run_proxy_status(opts),
         "serve" => {
             if let Err(e) = crate::headroom::proxy::run_proxy_foreground() {

@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/dashboard/mod.rs
 // created: 2026-10-30
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
+
+#![deny(unsafe_code)]
 
 pub mod api;
 pub mod assets;
@@ -19,13 +21,38 @@ pub use server::*;
 pub use sse::*;
 pub use state::*;
 
+use std::path::Path;
+
 use crate::util::colors::*;
+use crate::util::headroom::headroom_paths_resolved;
 use crate::util::logger::L;
+use crate::util::paths::{ensure_dir, read_file_safe, write_file_atomic};
 
 pub const DEFAULT_DASHBOARD_PORT: u16 = 9100;
 
 pub fn dashboard_port() -> u16 {
-    crate::util::ports::resolved_ports().dashboard
+    crate::config::resolved_ports().dashboard
+}
+
+fn dashboard_pid_file() -> String {
+    Path::new(&headroom_paths_resolved().root)
+        .join("dashboard.pid")
+        .to_string_lossy()
+        .to_string()
+}
+
+pub fn stop_dashboard_process() -> bool {
+    let pid_file = dashboard_pid_file();
+    let Some(raw) = read_file_safe(&pid_file) else {
+        return false;
+    };
+    let Ok(pid) = raw.trim().parse::<u32>() else {
+        let _ = std::fs::remove_file(&pid_file);
+        return false;
+    };
+    let killed = crate::headroom::process_identity::kill_process(pid).is_ok();
+    let _ = std::fs::remove_file(&pid_file);
+    killed
 }
 
 pub fn dashboard_live_z(port: u16, timeout: std::time::Duration) -> bool {
@@ -70,26 +97,38 @@ pub fn open_browser(url: &str) {
 }
 
 pub fn run_dashboard_cli(argv: &[String]) -> i32 {
-    let mut port: u16 = DEFAULT_DASHBOARD_PORT;
+    let mut port: u16 = dashboard_port();
     let mut open = false;
     let mut foreground = false;
+    let mut action = "start";
 
     let mut i = 0;
     while i < argv.len() {
         let arg = &argv[i];
         if arg == "--help" || arg == "-h" {
-            println!("Usage: toksi dashboard [--port <port>] [--open] [--foreground]");
-            println!("Runs the Web Telemetry Cockpit on Port 9100 in the background by default.");
+            println!("Usage: toksi dashboard [start|stop|restart|status] [--port <port>] [--open] [--foreground]");
+            println!("Runs the Web Telemetry Cockpit on Port {} (config.toml [ports].dashboard) in the background by default.", port);
             return 0;
+        } else if matches!(arg.as_str(), "start" | "stop" | "restart" | "status") {
+            action = match arg.as_str() {
+                "stop" => "stop",
+                "restart" => "restart",
+                "status" => "status",
+                _ => "start",
+            };
         } else if arg == "--port" || arg == "-p" {
             if i + 1 < argv.len() {
-                if let Ok(p) = argv[i + 1].parse::<u16>() {
+                if let Ok(p) = argv[i + 1].parse::<u16>()
+                    && p > 0
+                {
                     port = p;
                 }
                 i += 1;
             }
-        } else if arg.starts_with("--port=") {
-            if let Ok(p) = arg["--port=".len()..].parse::<u16>() {
+        } else if let Some(raw_p) = arg.strip_prefix("--port=") {
+            if let Ok(p) = raw_p.parse::<u16>()
+                && p > 0
+            {
                 port = p;
             }
         } else if arg == "--open" || arg == "-o" {
@@ -100,10 +139,35 @@ pub fn run_dashboard_cli(argv: &[String]) -> i32 {
         i += 1;
     }
 
+    if action == "status" {
+        let running = dashboard_live_z(port, std::time::Duration::from_millis(500));
+        println!(
+            "  {} Web Telemetry Cockpit (:{}) is {}",
+            if running { C.green(Sym::CHECK) } else { C.yellow(Sym::WARN) },
+            port,
+            if running { "running" } else { "stopped" }
+        );
+        return 0;
+    }
+
+    if action == "stop" {
+        if stop_dashboard_process() || !dashboard_live_z(port, std::time::Duration::from_millis(300)) {
+            println!("  {} Web Telemetry Cockpit stopped", C.green(Sym::CHECK));
+            return 0;
+        }
+        L.warn(&format!("Dashboard on :{} may be supervised by `toksi daemon`; run `toksi daemon stop` if still active", port));
+        return 0;
+    }
+
+    if action == "restart" {
+        let _ = stop_dashboard_process();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+    }
+
     let url = format!("http://127.0.0.1:{}", port);
 
     // If already running
-    if is_dashboard_running() {
+    if dashboard_live_z(port, std::time::Duration::from_millis(500)) {
         println!(
             "\n  {} {}\n  {} {}\n",
             C.cyan("toksi"),
@@ -138,7 +202,9 @@ pub fn run_dashboard_cli(argv: &[String]) -> i32 {
         }
 
         match cmd.spawn() {
-            Ok(_) => {
+            Ok(child) => {
+                let _ = ensure_dir(&headroom_paths_resolved().root);
+                let _ = write_file_atomic(dashboard_pid_file(), &child.id().to_string());
                 std::thread::sleep(std::time::Duration::from_millis(600));
                 println!(
                     "\n  {} {}\n  {} {}\n  {} {}\n  {} {}\n",
@@ -163,7 +229,15 @@ pub fn run_dashboard_cli(argv: &[String]) -> i32 {
         }
     }
 
-    let rt = match tokio::runtime::Runtime::new() {
+    let _ = ensure_dir(&headroom_paths_resolved().root);
+    let _ = write_file_atomic(dashboard_pid_file(), &std::process::id().to_string());
+
+    let rt = match tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .thread_name("toksi-dashboard-cockpit")
+        .enable_all()
+        .build()
+    {
         Ok(r) => r,
         Err(e) => {
             L.err(&format!("Failed to initialize Tokio runtime: {}", e));
@@ -188,8 +262,19 @@ pub fn run_dashboard_cli(argv: &[String]) -> i32 {
         open_browser(&url);
     }
 
-    let server = DashboardServer::new("127.0.0.1", port);
-    if let Err(e) = rt.block_on(server.run()) {
+    let (shutdown_tx, _) = tokio::sync::watch::channel(false);
+    let tx_sig = shutdown_tx.clone();
+    let mut server = DashboardServer::new("127.0.0.1", port);
+    server.shutdown_tx = Some(shutdown_tx);
+    let res = rt.block_on(async move {
+        tokio::spawn(async move {
+            let _ = crate::env_injector::wait_for_shutdown_signal().await;
+            let _ = tx_sig.send(true);
+        });
+        server.run().await
+    });
+    let _ = std::fs::remove_file(dashboard_pid_file());
+    if let Err(e) = res {
         L.err(&format!("Dashboard server terminated: {}", e));
         return 1;
     }

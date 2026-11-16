@@ -5,11 +5,12 @@
 // created: 2026-10-11
 // lastModified: 2026-11-16
 
+#![deny(unsafe_code)]
+
 use std::fs::File;
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
-use serde::Deserialize;
 
 use super::process_identity::{
     identify_process, kill_process, process_gone, spawn_detached, ProcessIdentityInfo,
@@ -50,27 +51,30 @@ pub fn grok_proxy_args(port: u16) -> Vec<String> {
 }
 
 pub fn grok_proxy_live_z(timeout: Duration) -> bool {
-    let url = format!("http://127.0.0.1:{}/livez", grok_oauth_proxy_port());
-    let Ok(client) = reqwest::blocking::Client::builder()
-        .timeout(timeout)
-        .build()
-    else {
+    let port = grok_oauth_proxy_port();
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let Ok(mut stream) = std::net::TcpStream::connect_timeout(&addr, timeout) else {
         return false;
     };
-    let Ok(resp) = client.get(&url).send() else {
+    let _ = stream.set_read_timeout(Some(timeout));
+    let _ = stream.set_write_timeout(Some(timeout));
+    use std::io::{Read, Write};
+    let req = format!(
+        "GET /livez HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n",
+        port
+    );
+    if stream.write_all(req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut buf = [0u8; 512];
+    let Ok(n) = stream.read(&mut buf) else {
         return false;
     };
-    if !resp.status().is_success() {
+    if n == 0 {
         return false;
     }
-    #[derive(Deserialize)]
-    struct LiveResp {
-        #[serde(default)]
-        service: String,
-    }
-    resp.json::<LiveResp>()
-        .map(|l| l.service == "headroom-proxy")
-        .unwrap_or(false)
+    let s = String::from_utf8_lossy(&buf[..n]);
+    (s.starts_with("HTTP/1.1 200") || s.starts_with("HTTP/1.0 200")) && s.contains("headroom-proxy")
 }
 
 pub fn grok_oauth_proxy_running() -> bool {
@@ -116,12 +120,12 @@ pub fn grok_rollback_with_identity(
     cause: Box<dyn std::error::Error + Send + Sync>,
 ) -> Box<dyn std::error::Error + Send + Sync> {
     let record_raw = read_file_safe(pid_file);
-    if let Some(exp) = expected {
-        if !exp.executable.is_empty() {
-            match identify_process(pid) {
-                Ok(current) if current.equal(exp) => {}
-                _ => return cause,
-            }
+    if let Some(exp) = expected
+        && !exp.executable.is_empty()
+    {
+        match identify_process(pid) {
+            Ok(current) if current.equal(exp) => {}
+            _ => return cause,
         }
     }
     if let Err(err) = kill_process(pid) {
@@ -134,11 +138,11 @@ pub fn grok_rollback_with_identity(
             if let Some(ref expected_raw) = record_raw {
                 match read_file_safe(pid_file) {
                     Some(ref current) if current == expected_raw => {
-                        if let Err(err) = std::fs::remove_file(pid_file) {
-                            if err.kind() != std::io::ErrorKind::NotFound {
-                                return format!("{}; grok rollback record removal: {}", cause, err)
-                                    .into();
-                            }
+                        if let Err(err) = std::fs::remove_file(pid_file)
+                            && err.kind() != std::io::ErrorKind::NotFound
+                        {
+                            return format!("{}; grok rollback record removal: {}", cause, err)
+                                .into();
                         }
                     }
                     _ => {
@@ -311,14 +315,14 @@ pub fn clear_stale_grok_proxy_record() -> Result<(), Box<dyn std::error::Error +
     }
     match read_file_safe(&pid_file) {
         Some(ref current) if current == &raw => {
-            if let Err(err) = std::fs::remove_file(&pid_file) {
-                if err.kind() != std::io::ErrorKind::NotFound {
-                    return Err(format!(
-                        "remove stale grok proxy ownership record {}: {}",
-                        pid_file, err
-                    )
-                    .into());
-                }
+            if let Err(err) = std::fs::remove_file(&pid_file)
+                && err.kind() != std::io::ErrorKind::NotFound
+            {
+                return Err(format!(
+                    "remove stale grok proxy ownership record {}: {}",
+                    pid_file, err
+                )
+                .into());
             }
             Ok(())
         }
@@ -451,10 +455,40 @@ pub async fn run_native_grok_proxy(port: u16) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
+pub fn resolve_grok_upstream_url(path: &str) -> String {
+    if path.starts_with("/v1/messages") {
+        if let Ok(v) = std::env::var("TOKSI_GROK_ANTHROPIC_URL")
+            && !v.trim().is_empty()
+        {
+            return v.trim().trim_end_matches('/').to_string();
+        }
+        if let Some(v) = crate::config::resolve_custom_base_url("grok-anthropic")
+            .or_else(|| crate::config::resolve_custom_base_url("anthropic"))
+        {
+            return v;
+        }
+        "https://api.anthropic.com".to_string()
+    } else {
+        if let Ok(v) = std::env::var("TOKSI_GROK_UPSTREAM_URL")
+            && !v.trim().is_empty()
+        {
+            return v.trim().trim_end_matches('/').to_string();
+        }
+        if let Some(v) = crate::config::resolve_custom_base_url("grok-oauth")
+            .or_else(|| crate::config::resolve_custom_base_url("grok"))
+        {
+            return v;
+        }
+        "https://cli-chat-proxy.grok.com".to_string()
+    }
+}
+
 async fn serve_grok_connection(
     mut stream: tokio::net::TcpStream,
     port: u16,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use tokio::io::AsyncWriteExt;
+
     loop {
         let Some(req) = super::byok_gateway::read_http_request(&mut stream).await? else {
             return Ok(());
@@ -462,7 +496,29 @@ async fn serve_grok_connection(
         let is_close_requested = req.headers.iter().any(|(k, v)| {
             k.eq_ignore_ascii_case("connection") && v.eq_ignore_ascii_case("close")
         });
-        let (path, _, _) = super::byok_gateway::split_uri_path_and_query(&req.raw_uri);
+        let (path, _, query) = super::byok_gateway::split_uri_path_and_query(&req.raw_uri);
+
+        if req.method.eq_ignore_ascii_case("OPTIONS") {
+            let cors_headers = vec![
+                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+                ("Access-Control-Allow-Methods".to_string(), "GET, POST, OPTIONS".to_string()),
+                ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
+            ];
+            super::byok_gateway::write_http_response(
+                &mut stream,
+                204,
+                "No Content",
+                &cors_headers,
+                b"",
+            )
+            .await?;
+            if is_close_requested {
+                let _ = stream.shutdown().await;
+                break;
+            }
+            continue;
+        }
+
         if path == "/livez" || path == "/healthz" || path == "/readyz" {
             let body = format!(
                 r#"{{"service":"headroom-proxy","subservice":"grok-oauth","port":{},"status":"ok"}}"#,
@@ -473,21 +529,21 @@ async fn serve_grok_connection(
                 headers.push(("Connection".to_string(), "close".to_string()));
             }
             super::byok_gateway::write_http_response(&mut stream, 200, "OK", &headers, body.as_bytes()).await?;
+        } else if path == "/metrics" {
+            let metrics = crate::telemetry::render_metrics();
+            super::byok_gateway::write_http_response(
+                &mut stream,
+                200,
+                "OK",
+                &[(
+                    "Content-Type".to_string(),
+                    "text/plain; version=0.0.4; charset=utf-8".to_string(),
+                )],
+                metrics.as_bytes(),
+            )
+            .await?;
         } else {
-            let mut upstream_base = if path.starts_with("/v1/messages") {
-                std::env::var("TOKSI_GROK_ANTHROPIC_URL")
-                    .unwrap_or_else(|_| "https://api.anthropic.com".to_string())
-            } else {
-                std::env::var("TOKSI_GROK_UPSTREAM_URL")
-                    .unwrap_or_else(|_| "https://cli-chat-proxy.grok.com".to_string())
-            };
-            upstream_base = upstream_base.trim_end_matches('/').to_string();
-            let target_url = format!("{}{}", upstream_base, req.raw_uri);
-            let client = reqwest::Client::builder()
-                .timeout(Duration::from_secs(120))
-                .build()?;
-            let method = reqwest::Method::from_bytes(req.method.as_bytes())
-                .unwrap_or(reqwest::Method::POST);
+            let upstream_base = resolve_grok_upstream_url(&path);
             let req_body = if req.method.eq_ignore_ascii_case("POST")
                 && !req.body.is_empty()
                 && !super::byok_gateway::is_proto_or_connect_request(&path, &req.headers)
@@ -498,60 +554,29 @@ async fn serve_grok_connection(
             } else {
                 req.body.clone()
             };
-            let mut builder = client.request(method, &target_url).body(req_body);
-            for (k, v) in &req.headers {
-                if !k.eq_ignore_ascii_case("host")
-                    && !k.eq_ignore_ascii_case("content-length")
-                    && !k.eq_ignore_ascii_case("connection")
-                {
-                    builder = builder.header(k.as_str(), v.as_str());
-                }
-            }
-            match builder.send().await {
-                Ok(resp) => {
-                    let status = resp.status().as_u16();
-                    let reason = resp.status().canonical_reason().unwrap_or("OK").to_string();
-                    let mut resp_headers = Vec::new();
-                    for (k, v) in resp.headers() {
-                        let ks = k.as_str();
-                        if ks.eq_ignore_ascii_case("transfer-encoding")
-                            || ks.eq_ignore_ascii_case("content-length")
-                            || ks.eq_ignore_ascii_case("connection")
-                        {
-                            continue;
-                        }
-                        if let Ok(vs) = v.to_str() {
-                            resp_headers.push((ks.to_string(), vs.to_string()));
-                        }
-                    }
-                    if is_close_requested {
-                        resp_headers.push(("Connection".to_string(), "close".to_string()));
-                    }
-                    let resp_bytes = resp.bytes().await.unwrap_or_default();
-                    super::byok_gateway::write_http_response(
-                        &mut stream,
-                        status,
-                        &reason,
-                        &resp_headers,
-                        &resp_bytes,
-                    )
-                    .await?;
-                }
-                Err(e) => {
-                    let err_body = format!(r#"{{"error":"grok upstream request failed: {}"}}"#, e);
-                    super::byok_gateway::write_http_response(
-                        &mut stream,
-                        502,
-                        "Bad Gateway",
-                        &[("Content-Type".to_string(), "application/json".to_string())],
-                        err_body.as_bytes(),
-                    )
-                    .await?;
-                }
+            if let Err(e) = super::byok_gateway::forward_streaming_to_byok_target(
+                &upstream_base,
+                &req.method,
+                &path,
+                Some(&query),
+                &req.headers,
+                &req_body,
+                &mut stream,
+            )
+            .await
+            {
+                let err_body = format!(r#"{{"error":"grok upstream request failed: {}"}}"#, e);
+                super::byok_gateway::write_http_response(
+                    &mut stream,
+                    502,
+                    "Bad Gateway",
+                    &[("Content-Type".to_string(), "application/json".to_string())],
+                    err_body.as_bytes(),
+                )
+                .await?;
             }
         }
         if is_close_requested {
-            use tokio::io::AsyncWriteExt;
             let _ = stream.shutdown().await;
             break;
         }

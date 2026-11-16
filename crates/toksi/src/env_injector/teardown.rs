@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/env_injector/teardown.rs
 // created: 2026-10-31
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 #![deny(unsafe_code)]
 
@@ -444,8 +444,8 @@ mod tests {
         };
         match inject_proxy_env() {
             Ok(injected) => {
-                assert!(injected.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
-                assert!(!injected.contains(&"CLOUD_CODE_URL".to_string()));
+                assert!(injected.iter().any(|k| k == "GOOGLE_GEMINI_BASE_URL"));
+                assert!(!injected.iter().any(|k| k == "CLOUD_CODE_URL"));
                 let tear_res = teardown_proxy_env();
                 assert!(tear_res.is_ok());
             }

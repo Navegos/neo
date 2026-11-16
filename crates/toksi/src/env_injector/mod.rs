@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/env_injector/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 #![deny(unsafe_code)]
 
@@ -25,8 +25,9 @@ pub use heal::{
 };
 pub use teardown::{
     EnvSnapshot, TeardownGuard, inject_proxy_env, inject_proxy_env_and_guard,
-    inject_proxy_env_for_ports, inject_proxy_env_for_url, register_teardown_handlers,
-    resolved_proxy_env_url, teardown_proxy_env, wait_for_shutdown_signal,
+    inject_proxy_env_for_ports, inject_proxy_env_for_url, proxy_url_from_ports,
+    register_teardown_handlers, resolved_proxy_env_url, teardown_proxy_env,
+    wait_for_shutdown_signal,
 };
 
 pub const TOKSI_OWNED_MARKER: &str = "TOKSI_OWNED";

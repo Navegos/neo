@@ -5,10 +5,13 @@
 // created: 2026-10-11
 // lastModified: 2026-11-16
 
+#![deny(unsafe_code)]
+
 use std::fs::OpenOptions;
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::time::{Duration, Instant};
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use super::process_identity::{
     identify_process, kill_process, process_gone, spawn_detached, ProcessIdentityInfo,
@@ -35,8 +38,9 @@ pub fn copilot_cli_proxy_port() -> u16 {
 }
 
 pub fn validate_copilot_ports() -> Result<(), String> {
-    let vscode_port = copilot_proxy_port();
-    let cli_port = copilot_cli_proxy_port();
+    let ports = crate::config::resolved_ports();
+    let vscode_port = ports.copilot_vscode_proxy;
+    let cli_port = ports.copilot_cli_proxy;
     if vscode_port == cli_port {
         return Err(format!(
             "Port collision detected: Copilot VS Code and CLI proxy cannot both use port {}",
@@ -46,7 +50,7 @@ pub fn validate_copilot_ports() -> Result<(), String> {
     if vscode_port == 0 || cli_port == 0 {
         return Err("Copilot proxy ports must be greater than 0".to_string());
     }
-    Ok(())
+    ports.validate().map_err(|e| e.to_string())
 }
 
 pub fn copilot_proxy_files() -> (String, String) {
@@ -93,7 +97,7 @@ pub fn copilot_cli_proxy_args() -> Vec<String> {
 
 pub fn copilot_port_live_z(port: u16, timeout: Duration) -> bool {
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
-    let Ok(mut stream) = std::net::TcpStream::connect(&addr) else {
+    let Ok(mut stream) = std::net::TcpStream::connect(addr) else {
         return false;
     };
     let _ = stream.set_read_timeout(Some(timeout));
@@ -166,16 +170,16 @@ fn copilot_vscode_proxy_wired() -> bool {
     }
     let needle = format!(":{}", copilot_proxy_port());
     for p in settings_paths {
-        if let Some(raw) = read_file_safe(&p) {
-            if raw.contains(&needle) {
-                return true;
-            }
+        if let Some(raw) = read_file_safe(&p)
+            && raw.contains(&needle)
+        {
+            return true;
         }
     }
     false
 }
 
-/// Starts Headroom's OAuth-aware VS Code wrapper when needed.
+/// Starts Headroom's OAuth-aware Copilot VS Code proxy when needed.
 /// Fails open because session hooks must not block Copilot startup.
 /// Skips start when VS Code is not Toksi-wired so `proxy down` stays down.
 pub fn ensure_copilot_proxy_up() {
@@ -306,26 +310,23 @@ pub fn rollback_copilot_proxy(
 ) -> Box<dyn std::error::Error + Send + Sync> {
     let mut owned = false;
     let record_raw = read_file_safe(pid_file);
-    if let Some(ref raw) = record_raw {
-        if let Ok(record) = serde_json::from_str::<ProxyOwnership>(raw) {
-            if record.pid == pid {
-                if let Ok(identity) = identify_process(pid) {
-                    if identity.matches_record(&record) {
-                        owned = true;
-                    }
-                }
-            }
-        }
+    if let Some(ref raw) = record_raw
+        && let Ok(record) = serde_json::from_str::<ProxyOwnership>(raw)
+        && record.pid == pid
+        && let Ok(identity) = identify_process(pid)
+        && identity.matches_record(&record)
+    {
+        owned = true;
     }
 
     let expected_empty = expected.map(|e| e.executable.is_empty()).unwrap_or(true);
     if owned || expected_empty {
-        if let Some(exp) = expected {
-            if !exp.executable.is_empty() {
-                match identify_process(pid) {
-                    Ok(current) if current.equal(exp) => {}
-                    _ => return cause,
-                }
+        if let Some(exp) = expected
+            && !exp.executable.is_empty()
+        {
+            match identify_process(pid) {
+                Ok(current) if current.equal(exp) => {}
+                _ => return cause,
             }
         }
         if let Err(err) = kill_process(pid) {
@@ -339,11 +340,10 @@ pub fn rollback_copilot_proxy(
             if let Some(ref expected_raw) = record_raw {
                 match read_file_safe(pid_file) {
                     Some(ref current) if current == expected_raw => {
-                        if let Err(err) = std::fs::remove_file(pid_file) {
-                            if err.kind() != std::io::ErrorKind::NotFound {
-                                return format!("{}; rollback record removal: {}", cause, err)
-                                    .into();
-                            }
+                        if let Err(err) = std::fs::remove_file(pid_file)
+                            && err.kind() != std::io::ErrorKind::NotFound
+                        {
+                            return format!("{}; rollback record removal: {}", cause, err).into();
                         }
                     }
                     _ => {
@@ -706,6 +706,155 @@ pub fn stop_copilot_cli_proxy() -> Result<(), Box<dyn std::error::Error + Send +
     Err(format!("Copilot CLI proxy did not stop (pid {})", record.pid).into())
 }
 
+#[derive(Debug, Clone, Default)]
+struct CachedCopilotToken {
+    github_token: String,
+    copilot_token: String,
+    expires_at_epoch: u64,
+}
+
+static COPILOT_OAUTH_CACHE: LazyLock<Mutex<Option<CachedCopilotToken>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+fn now_epoch_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+fn extract_bearer_raw(headers: &[(String, String)]) -> Option<String> {
+    headers.iter().find_map(|(k, v)| {
+        if !k.eq_ignore_ascii_case("authorization") {
+            return None;
+        }
+        let trimmed = v.trim();
+        if trimmed.len() >= 7
+            && trimmed.get(..6).is_some_and(|s| s.eq_ignore_ascii_case("bearer"))
+            && trimmed.as_bytes()[6].is_ascii_whitespace()
+        {
+            let tok = trimmed[6..].trim();
+            if !tok.is_empty() {
+                return Some(tok.to_string());
+            }
+        }
+        None
+    })
+}
+
+fn is_github_oauth_token(tok: &str) -> bool {
+    tok.starts_with("gho_") || tok.starts_with("ghu_") || tok.starts_with("github_pat_")
+}
+
+async fn resolve_copilot_upstream_headers(
+    upstream_base: &str,
+    service_name: &str,
+    headers: &[(String, String)],
+) -> Vec<(String, String)> {
+    let mut out = headers.to_vec();
+    let is_real_copilot = upstream_base.contains("githubcopilot.com");
+    if !is_real_copilot {
+        return out;
+    }
+
+    let incoming_tok = extract_bearer_raw(&out);
+    let github_tok = match incoming_tok {
+        Some(ref t) if !is_github_oauth_token(t) => return out,
+        Some(t) => t,
+        None => match crate::gateway::agent_cli::read_copilot_session() {
+            Some(t) => t,
+            None => return out,
+        },
+    };
+
+    if is_github_oauth_token(&github_tok) {
+        let now = now_epoch_secs();
+        if let Ok(guard) = COPILOT_OAUTH_CACHE.lock()
+            && let Some(ref cached) = *guard
+            && cached.github_token == github_tok
+            && cached.expires_at_epoch > now.saturating_add(60)
+        {
+            out.retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
+            out.push(("Authorization".to_string(), format!("Bearer {}", cached.copilot_token)));
+            return out;
+        }
+
+        let client = crate::gateway::reconnect::auto_healing_async_client();
+        let token_endpoint = std::env::var("TOKSI_COPILOT_TOKEN_URL")
+            .unwrap_or_else(|_| "https://api.github.com/copilot_internal/v2/token".to_string());
+        if let Ok(resp) = client
+            .get(&token_endpoint)
+            .header("Authorization", format!("token {}", github_tok))
+            .header("Accept", "application/json")
+            .header("User-Agent", "toksi-copilot-proxy/3.0")
+            .send()
+            .await
+            && resp.status().is_success()
+            && let Ok(val) = resp.json::<serde_json::Value>().await
+            && let Some(copilot_tok) = val.get("token").and_then(serde_json::Value::as_str)
+            && !copilot_tok.is_empty()
+        {
+            let expires_at = val
+                .get("expires_at")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or_else(|| now.saturating_add(1500));
+            if let Ok(mut guard) = COPILOT_OAUTH_CACHE.lock() {
+                *guard = Some(CachedCopilotToken {
+                    github_token: github_tok,
+                    copilot_token: copilot_tok.to_string(),
+                    expires_at_epoch: expires_at,
+                });
+            }
+            out.retain(|(k, _)| !k.eq_ignore_ascii_case("authorization"));
+            out.push(("Authorization".to_string(), format!("Bearer {}", copilot_tok)));
+        } else if extract_bearer_raw(&out).is_none() {
+            out.push(("Authorization".to_string(), format!("Bearer {}", github_tok)));
+        }
+    }
+
+    if !out
+        .iter()
+        .any(|(k, _)| k.eq_ignore_ascii_case("copilot-integration-id"))
+    {
+        let integ = if service_name.contains("cli") {
+            "copilot-cli"
+        } else {
+            "vscode-chat"
+        };
+        out.push(("Copilot-Integration-Id".to_string(), integ.to_string()));
+    }
+
+    out
+}
+
+pub fn resolve_copilot_upstream_url(is_cli: bool) -> String {
+    if is_cli {
+        if let Ok(v) = std::env::var("TOKSI_COPILOT_CLI_UPSTREAM_URL")
+            && !v.trim().is_empty()
+        {
+            return v.trim().trim_end_matches('/').to_string();
+        }
+        if let Some(v) = crate::config::resolve_custom_base_url("copilot-cli")
+            .or_else(|| crate::config::resolve_custom_base_url("copilot"))
+        {
+            return v;
+        }
+        "https://api.githubcopilot.com".to_string()
+    } else {
+        if let Ok(v) = std::env::var("TOKSI_COPILOT_UPSTREAM_URL")
+            && !v.trim().is_empty()
+        {
+            return v.trim().trim_end_matches('/').to_string();
+        }
+        if let Some(v) = crate::config::resolve_custom_base_url("copilot-vscode")
+            .or_else(|| crate::config::resolve_custom_base_url("copilot"))
+        {
+            return v;
+        }
+        "https://api.individual.githubcopilot.com".to_string()
+    }
+}
+
 /// Native in-process async proxy listener for Copilot endpoints (VS Code or CLI)
 pub async fn run_native_copilot_proxy(
     port: u16,
@@ -723,9 +872,10 @@ pub async fn run_native_copilot_proxy(
     loop {
         match listener.accept().await {
             Ok((mut stream, _)) => {
+                let _ = stream.set_nodelay(true);
                 let service = s_name.to_string();
                 tokio::spawn(async move {
-                    let _ = serve_copilot_connection(&mut stream, port, &service).await;
+                    let _ = serve_copilot_connection(&mut stream, port, &service, is_cli).await;
                 });
             }
             Err(_) => break,
@@ -738,7 +888,10 @@ async fn serve_copilot_connection(
     stream: &mut tokio::net::TcpStream,
     port: u16,
     service_name: &str,
+    is_cli: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use tokio::io::AsyncWriteExt;
+
     loop {
         let Some(req) = crate::headroom::byok_gateway::read_http_request(stream).await? else {
             return Ok(());
@@ -748,7 +901,28 @@ async fn serve_copilot_connection(
             k.eq_ignore_ascii_case("connection") && v.eq_ignore_ascii_case("close")
         });
 
-        let (path, _, _) = crate::headroom::byok_gateway::split_uri_path_and_query(&req.raw_uri);
+        let (path, _, query) = crate::headroom::byok_gateway::split_uri_path_and_query(&req.raw_uri);
+
+        if req.method.eq_ignore_ascii_case("OPTIONS") {
+            let cors_headers = vec![
+                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+                ("Access-Control-Allow-Methods".to_string(), "GET, POST, OPTIONS".to_string()),
+                ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
+            ];
+            crate::headroom::byok_gateway::write_http_response(
+                stream,
+                204,
+                "No Content",
+                &cors_headers,
+                b"",
+            )
+            .await?;
+            if is_close_requested {
+                let _ = stream.shutdown().await;
+                break;
+            }
+            continue;
+        }
 
         if path == "/livez" || path == "/healthz" || path == "/readyz" {
             let body = format!(
@@ -768,38 +942,52 @@ async fn serve_copilot_connection(
             )
             .await?;
             if is_close_requested {
-                use tokio::io::AsyncWriteExt;
                 let _ = stream.shutdown().await;
                 break;
             }
             continue;
         }
 
-        // Real OAuth/SSE upstream streaming via Headroom live_zone + auto-healing pool
-        let upstream_base = if service_name.contains("cli") {
-            std::env::var("TOKSI_COPILOT_CLI_UPSTREAM_URL")
-                .unwrap_or_else(|_| "https://api.githubcopilot.com".to_string())
-        } else {
-            std::env::var("TOKSI_COPILOT_UPSTREAM_URL")
-                .unwrap_or_else(|_| "https://api.individual.githubcopilot.com".to_string())
-        };
+        if path == "/metrics" {
+            let metrics = crate::telemetry::render_metrics();
+            crate::headroom::byok_gateway::write_http_response(
+                stream,
+                200,
+                "OK",
+                &[(
+                    "Content-Type".to_string(),
+                    "text/plain; version=0.0.4; charset=utf-8".to_string(),
+                )],
+                metrics.as_bytes(),
+            )
+            .await?;
+            if is_close_requested {
+                let _ = stream.shutdown().await;
+                break;
+            }
+            continue;
+        }
+
+        // Real OAuth/SSE upstream streaming via HeadroomEffortCompressor + auto-healing pool
+        let upstream_base = resolve_copilot_upstream_url(is_cli);
+        let effective_headers =
+            resolve_copilot_upstream_headers(&upstream_base, service_name, &req.headers).await;
         let mut compressed_body = if req.method.eq_ignore_ascii_case("POST")
             && !req.body.is_empty()
-            && !crate::headroom::byok_gateway::is_proto_or_connect_request(&path, &req.headers)
+            && !crate::headroom::byok_gateway::is_proto_or_connect_request(&path, &effective_headers)
         {
             let (compressed, _) = crate::headroom::effort::HeadroomEffortCompressor::default()
-                .compress_http_request(&path, &req.headers, &req.body);
+                .compress_http_request(&path, &effective_headers, &req.body);
             compressed
         } else {
             req.body.clone()
         };
-        let (_, _, query) = crate::headroom::byok_gateway::split_uri_path_and_query(&req.raw_uri);
         if let Err(e) = crate::headroom::byok_gateway::forward_streaming_to_byok_target(
             &upstream_base,
             &req.method,
             &path,
             Some(&query),
-            &req.headers,
+            &effective_headers,
             &compressed_body,
             stream,
         )
@@ -818,7 +1006,6 @@ async fn serve_copilot_connection(
         }
 
         if is_close_requested {
-            use tokio::io::AsyncWriteExt;
             let _ = stream.shutdown().await;
             break;
         }

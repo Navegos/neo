@@ -48,6 +48,76 @@ pub struct GatewayServer {
     pub host: String,
     pub port: u16,
     pub orchestrator: Arc<GatewayProxyOrchestrator>,
+    pub shutdown_tx: Option<tokio::sync::watch::Sender<bool>>,
+}
+
+pub struct IsolatedGatewayHandle {
+    shutdown_tx: tokio::sync::watch::Sender<bool>,
+    join_handle: Option<std::thread::JoinHandle<()>>,
+    pub thread_name: String,
+    pub port: u16,
+}
+
+impl IsolatedGatewayHandle {
+    pub fn is_finished(&self) -> bool {
+        self.join_handle
+            .as_ref()
+            .map(|h| h.is_finished())
+            .unwrap_or(true)
+    }
+
+    pub fn shutdown(&mut self) {
+        let _ = self.shutdown_tx.send(true);
+        if let Some(handle) = self.join_handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+impl Drop for IsolatedGatewayHandle {
+    fn drop(&mut self) {
+        let _ = self.shutdown_tx.send(true);
+    }
+}
+
+/// Spawns Port 9099 Enterprise AI Gateway in its own isolated OS thread & Tokio reactor
+/// strictly separated from Port 9100 Web Dashboard traffic so browser clients can never
+/// cause TCP backpressure or reactor contention on streaming LLM inference.
+pub fn spawn_isolated_gateway(
+    host: &str,
+    port: u16,
+) -> std::io::Result<IsolatedGatewayHandle> {
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    let host_owned = host.to_string();
+    let thread_name = format!("toksi-gateway-{}", port);
+    let tx_for_server = shutdown_tx.clone();
+
+    let join_handle = std::thread::Builder::new()
+        .name(thread_name.clone())
+        .spawn(move || {
+            let Ok(rt) = tokio::runtime::Builder::new_multi_thread()
+                .thread_name("toksi-gateway-inference")
+                .enable_all()
+                .build()
+            else {
+                crate::util::logger::L.err("Failed to initialize isolated Gateway Tokio runtime");
+                return;
+            };
+            rt.block_on(async move {
+                let mut server = GatewayServer::new(&host_owned, port);
+                server.shutdown_tx = Some(tx_for_server);
+                if let Err(e) = server.run_with_shutdown(shutdown_rx).await {
+                    crate::util::logger::L.warn(&format!("AI Gateway server error: {}", e));
+                }
+            });
+        })?;
+
+    Ok(IsolatedGatewayHandle {
+        shutdown_tx,
+        join_handle: Some(join_handle),
+        thread_name,
+        port,
+    })
 }
 
 impl GatewayServer {
@@ -56,6 +126,7 @@ impl GatewayServer {
             host: host.to_string(),
             port,
             orchestrator: Arc::new(GatewayProxyOrchestrator::new()),
+            shutdown_tx: None,
         }
     }
 
@@ -64,31 +135,53 @@ impl GatewayServer {
             host: host.to_string(),
             port,
             orchestrator,
+            shutdown_tx: None,
         }
     }
 
     pub async fn run(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let (_tx, rx) = tokio::sync::watch::channel(false);
+        let shutdown_rx = self
+            .shutdown_tx
+            .as_ref()
+            .map(|tx| tx.subscribe())
+            .unwrap_or(rx);
+        self.run_with_shutdown(shutdown_rx).await
+    }
+
+    pub async fn run_with_shutdown(
+        &self,
+        mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let addr = format!("{}:{}", self.host, self.port);
         let listener = TcpListener::bind(&addr).await?;
         crate::util::logger::L.info(&format!("AI Gateway listening on http://{}", addr));
 
         loop {
-            match listener.accept().await {
-                Ok((stream, _)) => {
-                    // TCP_NODELAY: disable Nagle's algorithm for sub-10µs latency overhead
-                    let _ = stream.set_nodelay(true);
-                    let orch = self.orchestrator.clone();
-                    let port = self.port;
-                    tokio::spawn(async move {
-                        let _ = handle_gateway_connection(stream, port, orch).await;
-                    });
+            tokio::select! {
+                _ = shutdown_rx.changed() => {
+                    break;
                 }
-                Err(e) => {
-                    eprintln!("Gateway accept error: {}", e);
-                    tokio::time::sleep(Duration::from_millis(10)).await;
+                res = listener.accept() => {
+                    match res {
+                        Ok((stream, _)) => {
+                            // TCP_NODELAY: disable Nagle's algorithm for sub-10µs latency overhead
+                            let _ = stream.set_nodelay(true);
+                            let orch = self.orchestrator.clone();
+                            let port = self.port;
+                            tokio::spawn(async move {
+                                let _ = handle_gateway_connection(stream, port, orch).await;
+                            });
+                        }
+                        Err(e) => {
+                            crate::util::logger::L.warn(&format!("Gateway accept error: {}", e));
+                            tokio::time::sleep(Duration::from_millis(10)).await;
+                        }
+                    }
                 }
             }
         }
+        Ok(())
     }
 }
 

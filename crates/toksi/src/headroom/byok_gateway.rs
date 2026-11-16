@@ -5,6 +5,8 @@
 // created: 2026-10-05
 // lastModified: 2026-11-16
 
+#![deny(unsafe_code)]
+
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
 use std::path::Path;
@@ -203,18 +205,19 @@ pub fn load_byok_routes() -> Result<(), Box<dyn std::error::Error + Send + Sync>
     Ok(())
 }
 
-/// Reports whether a valid route registry has entries.
+/// Reports whether a valid route registry or enabled BYOK profile has entries.
 pub fn byok_routes_configured() -> bool {
     let needs_load = ACTIVE_BYOK_ROUTES.read().unwrap_or_else(|e| e.into_inner()).is_none();
     if needs_load && load_byok_routes().is_err() {
         return false;
     }
-    ACTIVE_BYOK_ROUTES
+    let has_routes = ACTIVE_BYOK_ROUTES
         .read()
         .unwrap_or_else(|e| e.into_inner())
         .as_ref()
         .map(|tbl| !tbl.items.is_empty())
-        .unwrap_or(false)
+        .unwrap_or(false);
+    has_routes || crate::config::enabled_byok_profile_count() > 0
 }
 
 pub fn lookup_byok_route(id: &str) -> Option<BYOKRoute> {
@@ -397,27 +400,32 @@ pub fn byok_target_path(target: &str, incoming: &str) -> String {
 }
 
 pub fn byok_gateway_live() -> bool {
-    let url = format!("{}/livez", byok_gateway_url());
-    let Ok(client) = reqwest::blocking::Client::builder()
-        .timeout(Duration::from_millis(300))
-        .build()
-    else {
+    let port = byok_gateway_port();
+    let timeout = Duration::from_millis(300);
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let Ok(mut stream) = std::net::TcpStream::connect_timeout(&addr, timeout) else {
         return false;
     };
-    let Ok(resp) = client.get(&url).send() else {
+    let _ = stream.set_read_timeout(Some(timeout));
+    let _ = stream.set_write_timeout(Some(timeout));
+    use std::io::{Read, Write};
+    let req = format!(
+        "GET /livez HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n",
+        port
+    );
+    if stream.write_all(req.as_bytes()).is_err() {
+        return false;
+    }
+    let mut buf = [0u8; 512];
+    let Ok(n) = stream.read(&mut buf) else {
         return false;
     };
-    if !resp.status().is_success() {
+    if n == 0 {
         return false;
     }
-    #[derive(Deserialize)]
-    struct LiveResp {
-        #[serde(default)]
-        service: String,
-    }
-    resp.json::<LiveResp>()
-        .map(|l| l.service == "toksi-byok-gateway")
-        .unwrap_or(false)
+    let s = String::from_utf8_lossy(&buf[..n]);
+    (s.starts_with("HTTP/1.1 200") || s.starts_with("HTTP/1.0 200"))
+        && s.contains("toksi-byok-gateway")
 }
 
 pub fn start_byok_gateway() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -553,7 +561,8 @@ fn sha256_digest(data: &[u8]) -> [u8; 32] {
     }
     msg.extend_from_slice(&bit_len.to_be_bytes());
 
-    for chunk in msg.chunks_exact(64) {
+    let (chunks, _) = msg.as_chunks::<64>();
+    for chunk in chunks {
         let mut w = [0u32; 64];
         for i in 0..16 {
             w[i] = u32::from_be_bytes([
@@ -766,12 +775,54 @@ async fn run_byok_watcher(
 }
 
 pub async fn run_byok_gateway_serve() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let port = byok_gateway_port();
+    let allow_empty = crate::config::enabled_byok_profile_count() > 0;
+    run_byok_gateway_serve_on_port(port, allow_empty).await
+}
+
+pub async fn run_byok_gateway_serve_on_port(
+    port: u16,
+    allow_empty: bool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     load_byok_routes()?;
+    let routes = configured_byok_routes();
+    if routes.is_empty() && allow_empty {
+        let addr = SocketAddr::from(([127, 0, 0, 1], port));
+        let listener = TcpListener::bind(addr).await?;
+        L.info(&format!("BYOK gateway listening on {} (idle/profile mode)", addr));
+        let (stop_tx, mut stop_rx) = watch::channel(false);
+        *BYOK_GATEWAY_SHUTDOWN.lock().unwrap_or_else(|e| e.into_inner()) = Some(stop_tx.clone());
+        let watcher_stop = stop_rx.clone();
+        tokio::spawn(run_byok_watcher(
+            byok_routes_path(),
+            watcher_stop,
+            Duration::from_millis(200),
+        ));
+        loop {
+            tokio::select! {
+                _ = stop_rx.changed() => break,
+                accept_res = listener.accept() => {
+                    match accept_res {
+                        Ok((stream, _)) => {
+                            let _ = stream.set_nodelay(true);
+                            tokio::spawn(async move {
+                                let _ = serve_gateway_connection(stream, None).await;
+                            });
+                        }
+                        Err(_) => break,
+                    }
+                }
+            }
+        }
+        let _ = stop_tx.send(true);
+        *BYOK_GATEWAY_SHUTDOWN.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        return Ok(());
+    }
+
     let coordinator = RoutingCoordinator::new(Duration::from_secs(30))
         .await
         .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { format!("start routing coordinator: {}", e).into() })?;
 
-    let routes = configured_byok_routes();
     if routes.is_empty() {
         let _ = coordinator.close();
         return Err("no BYOK routes configured".into());
@@ -829,7 +880,7 @@ pub async fn run_byok_gateway_serve() -> Result<(), Box<dyn std::error::Error + 
     *BYOK_GATEWAY_SHUTDOWN.lock().unwrap_or_else(|e| e.into_inner()) = Some(stop_tx.clone());
 
     let mut lane_addrs = Vec::with_capacity(lane_listeners.len());
-    for (lane_listener, target_url) in lane_listeners.into_iter().zip(targets.into_iter()) {
+    for (lane_listener, target_url) in lane_listeners.into_iter().zip(targets) {
         let addr = lane_listener.local_addr()?;
         lane_addrs.push(addr);
         let mut lane_stop = stop_rx.clone();
@@ -870,7 +921,6 @@ pub async fn run_byok_gateway_serve() -> Result<(), Box<dyn std::error::Error + 
             .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { format!("acquire BYOK lane {}: {}", lane.id, e).into() })?;
     }
 
-    let port = byok_gateway_port();
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = TcpListener::bind(addr).await?;
     L.info(&format!("BYOK gateway listening on {}", addr));
@@ -963,10 +1013,10 @@ pub(crate) async fn read_http_request(
             let val = v.trim().to_string();
             if key.eq_ignore_ascii_case("content-length") {
                 content_length = val.parse::<usize>().unwrap_or(0);
-            } else if key.eq_ignore_ascii_case("transfer-encoding") {
-                if val.to_ascii_lowercase().contains("chunked") {
-                    is_chunked = true;
-                }
+            } else if key.eq_ignore_ascii_case("transfer-encoding")
+                && val.to_ascii_lowercase().contains("chunked")
+            {
+                is_chunked = true;
             }
             headers.push((key, val));
         }
@@ -1506,30 +1556,29 @@ pub fn enrich_headers_with_keyring_credentials(
         if let Some(tok) = crate::keyring::get_agent_token("openai").map(|e| e.access_token).or_else(|| std::env::var("OPENAI_API_KEY").ok()) {
             out.push(("Authorization".to_string(), format!("Bearer {}", tok)));
         }
-    } else if let Ok(arc) = crate::db::shared_db() {
-        if let Ok(db) = arc.lock() {
-            if let Ok(providers) = db.list_providers() {
-                for p in providers {
-                    if target_lower.contains(&p.base_url.to_lowercase()) || p.base_url.to_lowercase().contains(&target_lower) {
-                        if let Ok(keys) = db.list_keys_for_provider(&p.id) {
-                            if let Some(active_key) = keys.into_iter().find(|k| k.is_active) {
-                                let secret = if active_key.secret_ref.starts_with("keyring://") {
-                                    let rest = &active_key.secret_ref["keyring://".len()..];
-                                    let (svc, acc) = rest.split_once('/').unwrap_or((rest, "default"));
-                                    crate::keyring::get_credential(svc, acc).unwrap_or(active_key.secret_ref)
-                                } else {
-                                    active_key.secret_ref
-                                };
-                                if p.protocol == "anthropic-messages" {
-                                    out.push(("x-api-key".to_string(), secret));
-                                } else {
-                                    out.push(("Authorization".to_string(), format!("Bearer {}", secret)));
-                                }
-                                break;
-                            }
-                        }
-                    }
+    } else if let Ok(arc) = crate::db::shared_db()
+        && let Ok(db) = arc.lock()
+        && let Ok(providers) = db.list_providers()
+    {
+        for p in providers {
+            if (target_lower.contains(&p.base_url.to_lowercase())
+                || p.base_url.to_lowercase().contains(&target_lower))
+                && let Ok(keys) = db.list_keys_for_provider(&p.id)
+                && let Some(active_key) = keys.into_iter().find(|k| k.is_active)
+            {
+                let secret = if active_key.secret_ref.starts_with("keyring://") {
+                    let rest = &active_key.secret_ref["keyring://".len()..];
+                    let (svc, acc) = rest.split_once('/').unwrap_or((rest, "default"));
+                    crate::keyring::get_credential(svc, acc).unwrap_or(active_key.secret_ref)
+                } else {
+                    active_key.secret_ref
+                };
+                if p.protocol == "anthropic-messages" {
+                    out.push(("x-api-key".to_string(), secret));
+                } else {
+                    out.push(("Authorization".to_string(), format!("Bearer {}", secret)));
                 }
+                break;
             }
         }
     }
@@ -1585,7 +1634,11 @@ pub async fn forward_to_byok_target(
         }
     }
 
-    let client = crate::gateway::reconnect::auto_healing_async_client();
+    let client = if target_url.host_str().is_some_and(is_loopback_host) {
+        crate::gateway::reconnect::auto_healing_loopback_async_client()
+    } else {
+        crate::gateway::reconnect::auto_healing_async_client()
+    };
 
     let req_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
     let mut req_builder = client.request(req_method.clone(), target_url);
@@ -1683,7 +1736,7 @@ pub fn format_connect_error(status: u16, message: &str) -> (Vec<(String, String)
         403 => "permission_denied",
         404 => "not_found",
         429 => "resource_exhausted",
-        502 | 503 | 504 => "unavailable",
+        502..=504 => "unavailable",
         _ => "internal",
     };
     let body_json = serde_json::json!({
@@ -1807,7 +1860,11 @@ pub async fn forward_streaming_to_byok_target(
         }
     }
 
-    let client = crate::gateway::reconnect::auto_healing_async_client();
+    let client = if target_url.host_str().is_some_and(is_loopback_host) {
+        crate::gateway::reconnect::auto_healing_loopback_async_client()
+    } else {
+        crate::gateway::reconnect::auto_healing_async_client()
+    };
 
     let req_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
     let mut req_builder = client.request(req_method.clone(), target_url);
@@ -1897,24 +1954,24 @@ pub async fn forward_streaming_to_byok_target(
     let mut is_stream = false;
     let path_low = incoming_path.to_ascii_lowercase();
     for (k, v) in resp.headers() {
-        if k.as_str().eq_ignore_ascii_case("content-type") {
-            if let Ok(v_str) = v.to_str() {
-                let low = v_str.to_ascii_lowercase();
-                if low.contains("text/event-stream")
-                    || low.contains("application/x-ndjson")
-                    || (low.contains("stream") && path_low.contains("stream"))
-                    || (low.contains("grpc") && (path_low.contains("stream") || path_low.contains("task")))
-                {
-                    is_stream = true;
-                }
+        if k.as_str().eq_ignore_ascii_case("content-type")
+            && let Ok(v_str) = v.to_str()
+        {
+            let low = v_str.to_ascii_lowercase();
+            if low.contains("text/event-stream")
+                || low.contains("application/x-ndjson")
+                || (low.contains("stream") && path_low.contains("stream"))
+                || (low.contains("grpc") && (path_low.contains("stream") || path_low.contains("task")))
+            {
+                is_stream = true;
             }
         }
-        if k.as_str().eq_ignore_ascii_case("transfer-encoding") {
-            if let Ok(v_str) = v.to_str() {
-                if v_str.to_ascii_lowercase().contains("chunked") && (path_low.contains("stream") || path_low.contains("messages")) {
-                    is_stream = true;
-                }
-            }
+        if k.as_str().eq_ignore_ascii_case("transfer-encoding")
+            && let Ok(v_str) = v.to_str()
+            && v_str.to_ascii_lowercase().contains("chunked")
+            && (path_low.contains("stream") || path_low.contains("messages"))
+        {
+            is_stream = true;
         }
     }
     if path_low.contains("stream") && resp.content_length().is_none() {
