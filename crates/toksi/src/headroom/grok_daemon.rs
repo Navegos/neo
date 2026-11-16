@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/grok_daemon.rs
 // created: 2026-10-11
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::fs::File;
 use std::path::Path;
@@ -488,9 +488,13 @@ async fn serve_grok_connection(
                 .build()?;
             let method = reqwest::Method::from_bytes(req.method.as_bytes())
                 .unwrap_or(reqwest::Method::POST);
-            let auth_mode = super::auth_mode::classify_auth_mode(&req.headers);
-            let req_body = if auth_mode.should_compress_live_zone() {
-                super::live_zone::compress_request_body_safe(&path, &req.body)
+            let req_body = if req.method.eq_ignore_ascii_case("POST")
+                && !req.body.is_empty()
+                && !super::byok_gateway::is_proto_or_connect_request(&path, &req.headers)
+            {
+                let (compressed, _) = super::effort::HeadroomEffortCompressor::default()
+                    .compress_http_request(&path, &req.headers, &req.body);
+                compressed
             } else {
                 req.body.clone()
             };

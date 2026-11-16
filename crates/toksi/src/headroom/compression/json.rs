@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/compression/json.rs
 // created: 2026-10-28
-// lastModified: 2026-10-31
+// lastModified: 2026-11-16
 
 use serde_json::Value;
 
@@ -165,11 +165,14 @@ mod tests {
         }"#;
 
         let res = prune_json(input, &JsonPrunerConfig::default());
-        let val: Value = serde_json::from_str(&res).unwrap();
-        assert_eq!(val["status"], "ok");
-        assert_eq!(val["data"]["id"], 123);
-        assert!(val.get("error").is_none());
-        assert!(val["data"].get("debug").is_none());
+        let parsed = serde_json::from_str::<Value>(&res);
+        assert!(parsed.is_ok());
+        if let Ok(val) = parsed {
+            assert_eq!(val["status"], "ok");
+            assert_eq!(val["data"]["id"], 123);
+            assert!(val.get("error").is_none());
+            assert!(val["data"].get("debug").is_none());
+        }
         assert!(!res.contains(' '));
     }
 

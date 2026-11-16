@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/proxy.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::collections::BTreeSet;
 use std::sync::{Arc, OnceLock};
@@ -445,6 +445,91 @@ pub fn headroom_allowed_base_urls_checked() -> Result<String, Box<dyn std::error
     Ok(keys.join(","))
 }
 
+/// Validates an optional `x-headroom-base-url` override header without blocking the Tokio reactor.
+/// Rejects private, loopback, link-local, or non-HTTP(S) targets unless explicitly allowlisted
+/// in `HEADROOM_ALLOWED_BASE_URLS` / configured BYOK origins.
+pub fn validate_headroom_base_url_override(
+    headers: &[(String, String)],
+) -> Result<Option<String>, String> {
+    let Some((_, raw)) = headers
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("x-headroom-base-url"))
+    else {
+        return Ok(None);
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    let parsed = url::Url::parse(trimmed)
+        .map_err(|e| format!("Invalid x-headroom-base-url '{}': {}", trimmed, e))?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err(format!(
+            "Unsupported scheme '{}' in x-headroom-base-url",
+            parsed.scheme()
+        ));
+    }
+    let host = parsed
+        .host_str()
+        .ok_or_else(|| "Missing host in x-headroom-base-url".to_string())?;
+    let origin_raw = match parsed.port() {
+        Some(p) => format!("{}://{}:{}", parsed.scheme(), host, p),
+        None => format!("{}://{}", parsed.scheme(), host),
+    };
+    let canon = canonical_allowlist_origin(&origin_raw)
+        .map_err(|e| format!("Invalid origin in x-headroom-base-url: {}", e))?;
+
+    let allowed = headroom_allowed_base_urls();
+    if allowed.split(',').any(|entry| !entry.is_empty() && entry == canon) {
+        return Ok(Some(trimmed.trim_end_matches('/').to_string()));
+    }
+
+    let clean_host = host.trim_matches(['[', ']']).to_ascii_lowercase();
+    if clean_host == "localhost"
+        || clean_host.ends_with(".localhost")
+        || clean_host.ends_with(".local")
+        || clean_host == "metadata.google.internal"
+    {
+        return Err(format!(
+            "Rejected private or non-allowlisted x-headroom-base-url host: {}",
+            clean_host
+        ));
+    }
+
+    if let Ok(ip) = clean_host.parse::<std::net::IpAddr>() {
+        if !super::byok_gateway::is_public_upstream_ip(ip) {
+            return Err(format!(
+                "Rejected private IP in x-headroom-base-url: {}",
+                ip
+            ));
+        }
+        return Ok(Some(trimmed.trim_end_matches('/').to_string()));
+    }
+
+    use std::net::ToSocketAddrs;
+    let port = parsed.port_or_known_default().unwrap_or(443);
+    let addrs: Vec<std::net::SocketAddr> = (clean_host.as_str(), port)
+        .to_socket_addrs()
+        .map_err(|e| format!("DNS resolution failed for x-headroom-base-url '{}': {}", clean_host, e))?
+        .collect();
+    if addrs.is_empty() || addrs.iter().any(|a| !super::byok_gateway::is_public_upstream_ip(a.ip())) {
+        return Err(format!(
+            "Rejected x-headroom-base-url '{}' resolving to private/non-public address",
+            clean_host
+        ));
+    }
+
+    Ok(Some(trimmed.trim_end_matches('/').to_string()))
+}
+
+pub async fn validate_headroom_base_url_override_async(
+    headers: Vec<(String, String)>,
+) -> Result<Option<String>, String> {
+    tokio::task::spawn_blocking(move || validate_headroom_base_url_override(&headers))
+        .await
+        .map_err(|e| format!("x-headroom-base-url validation task error: {}", e))?
+}
+
 pub fn resolve_headroom_bin() -> String {
     let t = crate::util::paths::toksi_persisted_abs();
     if !t.is_empty() && exists(&t) {
@@ -605,10 +690,35 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
             continue;
         }
 
+        // Guard `x-headroom-base-url` override off the event loop (reject private/unsafe URLs with 400)
+        let override_base_url = match validate_headroom_base_url_override_async(req.headers.clone()).await {
+            Ok(url_opt) => url_opt,
+            Err(err_msg) => {
+                let err_json = serde_json::json!({
+                    "error": {
+                        "type": "invalid_request_error",
+                        "message": err_msg
+                    }
+                });
+                let err_bytes = serde_json::to_vec(&err_json).unwrap_or_default();
+                super::byok_gateway::write_http_response(
+                    &mut stream,
+                    400,
+                    "Bad Request",
+                    &[("Content-Type".to_string(), "application/json".to_string())],
+                    &err_bytes,
+                ).await?;
+                if is_close_requested {
+                    break;
+                }
+                continue;
+            }
+        };
+
         // Explicit ConnectRPC / protobuf / gRPC passthrough (#0033 / #0034): never rewrite body
         let is_connect_proto = super::byok_gateway::is_proto_or_connect_request(&path, &req.headers);
 
-        // Mandatory Headroom optimization across ALL traffic (standard + /byok/) except ConnectRPC
+        // Mandatory HeadroomEffortCompressor across ALL traffic (standard + /byok/) except ConnectRPC
         let mut cache_hit_resp: Option<(String, String)> = None;
         if !is_connect_proto && req.method.eq_ignore_ascii_case("POST") && !req.body.is_empty() {
             let is_llm_path = path.starts_with("/v1/messages")
@@ -621,7 +731,8 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
                 || path.contains(":streamGenerateMessage")
                 || path.ends_with("/chat/completions")
                 || path.ends_with("/completions")
-                || path.ends_with("/responses");
+                || path.ends_with("/responses")
+                || path.ends_with("/converse");
 
             if is_llm_path {
                 if let Ok(json_val) = serde_json::from_slice::<serde_json::Value>(&req.body) {
@@ -651,37 +762,16 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
                             };
                             cache_hit_resp = Some((ctype, payload));
                         } else {
-                            let auth_mode = super::auth_mode::classify_auth_mode(&req.headers);
-                            let mut working_body = req.body.clone();
-                            // 1. Structural MCP pruning + cache alignment only when PAYG or prefix unfrozen
-                            let frozen_count = super::live_zone::compute_frozen_count(&json_val);
-                            if auth_mode.should_mutate_cache_control() && frozen_count == 0 {
-                                let mut mutated = json_val.clone();
-                                super::adaptive_mem::inject_adaptive_memory(&mut mutated);
-                                let pruner_cfg = super::pruner::McpPrunerConfig::default();
-                                let _ = super::pruner::prune_mcp_request_payload(&mut mutated, &pruner_cfg);
-                                if path.starts_with("/v1/messages") {
-                                    super::cache_align::auto_place_anthropic_cache_control(&mut mutated);
-                                }
-                                super::cache_align::stabilize_cache_keys(&mut mutated);
-                                if let Ok(bytes) = serde_json::to_vec(&mutated) {
-                                    if bytes.len() <= working_body.len() {
-                                        working_body = bytes;
-                                    }
-                                }
-                            }
-                            // 2. Pure-Rust live-zone byte-range surgery (always preserves frozen prefixes byte-identical)
-                            let compressed = super::live_zone::compress_request_body_safe(&path, &working_body);
+                            let (compressed, stats) = super::effort::HeadroomEffortCompressor::default()
+                                .compress_http_request(&path, &req.headers, &req.body);
                             if compressed.len() < req.body.len() {
                                 crate::util::logger::L.debug(&format!(
-                                    "[HEADROOM] compressed {} bytes -> {} bytes ({})",
+                                    "[HEADROOM] effort={} compressed {} bytes -> {} bytes",
+                                    stats.effort.as_str(),
                                     req.body.len(),
                                     compressed.len(),
-                                    auth_mode.as_str()
                                 ));
                                 req.body = compressed;
-                            } else if working_body.len() < req.body.len() {
-                                req.body = working_body;
                             }
                         }
                     }
@@ -775,7 +865,9 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
                     || (k_low == "authorization" && v.contains("ya29."))
             });
 
-        let target_base = if is_google_request {
+        let target_base = if let Some(explicit) = override_base_url {
+            explicit
+        } else if is_google_request {
             if path.starts_with("/google.gca.aicode")
                 || path.starts_with("/v1main")
                 || path.contains("aicode")

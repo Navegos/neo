@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/byok_gateway.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -1217,7 +1217,17 @@ async fn serve_proxy_connection(
         return Ok(());
     };
     let (path, _, query) = split_uri_path_and_query(&req.raw_uri);
-    forward_streaming_to_byok_target(target_base, &req.method, &path, Some(&query), &req.headers, &req.body, &mut stream).await
+    let optimized_body = if req.method.eq_ignore_ascii_case("POST")
+        && !req.body.is_empty()
+        && !is_proto_or_connect_request(&path, &req.headers)
+    {
+        super::effort::HeadroomEffortCompressor::default()
+            .compress_http_request(&path, &req.headers, &req.body)
+            .0
+    } else {
+        req.body
+    };
+    forward_streaming_to_byok_target(target_base, &req.method, &path, Some(&query), &req.headers, &optimized_body, &mut stream).await
 }
 
 pub async fn handle_byok_gateway_request(
@@ -1409,8 +1419,18 @@ pub async fn handle_byok_gateway_request(
         }
     }
 
-    let (path, _, query) = split_uri_path_and_query(raw_uri);
-    forward_to_byok_target(&proxy_target, method, &path, Some(&query), headers, body).await
+    let (orig_path, _, query) = split_uri_path_and_query(raw_uri);
+    let optimized_body = if method.eq_ignore_ascii_case("POST")
+        && !body.is_empty()
+        && !is_proto_or_connect_request(&path, headers)
+    {
+        super::effort::HeadroomEffortCompressor::default()
+            .compress_http_request(&path, headers, body)
+            .0
+    } else {
+        body.to_vec()
+    };
+    forward_to_byok_target(&proxy_target, method, &orig_path, Some(&query), headers, &optimized_body).await
 }
 
 fn check_upstream_host_allowed(target_url: &url::Url) -> Result<(), String> {

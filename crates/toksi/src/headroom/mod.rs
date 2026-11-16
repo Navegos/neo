@@ -16,6 +16,7 @@ pub mod ccr;
 pub mod compression;
 pub mod copilot_daemon;
 pub mod diff_compressor;
+pub mod effort;
 pub mod error;
 pub mod grok_daemon;
 pub mod headroom;
@@ -46,6 +47,7 @@ pub use copilot_daemon::{
     DEFAULT_COPILOT_CLI_PROXY_PORT, DEFAULT_COPILOT_PROXY_PORT,
 };
 pub use diff_compressor::*;
+pub use effort::*;
 pub use error::*;
 pub use grok_daemon::*;
 pub use headroom::*;

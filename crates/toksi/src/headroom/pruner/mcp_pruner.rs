@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/pruner/mcp_pruner.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-16
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -230,7 +230,7 @@ mod tests {
         assert!(pruned_schema["properties"]["path"].get("title").is_none());
         assert!(pruned_schema["properties"]["verbose_desc"]["description"]
             .as_str()
-            .unwrap()
+            .unwrap_or("")
             .ends_with("..."));
     }
 
@@ -268,8 +268,11 @@ mod tests {
             ]
         });
 
-        let stats = prune_mcp_request_payload(&mut req, &McpPrunerConfig::default()).unwrap();
-        assert_eq!(stats.tools_after, 1);
+        let stats = prune_mcp_request_payload(&mut req, &McpPrunerConfig::default());
+        assert!(stats.is_some());
+        if let Some(s) = stats {
+            assert_eq!(s.tools_after, 1);
+        }
         assert!(req["tools"][0]["input_schema"].get("$schema").is_none());
     }
 }

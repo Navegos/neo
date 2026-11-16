@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/compression/economizer.rs
 // created: 2026-11-09
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
@@ -323,7 +323,7 @@ End of prompt.
             }
         });
         let pruned = econ.prune_json_schema(&mut schema);
-        let desc = pruned["properties"]["code"]["description"].as_str().unwrap();
+        let desc = pruned["properties"]["code"]["description"].as_str().unwrap_or("");
         assert!(desc.ends_with("..."));
         assert!(desc.len() <= 105);
     }

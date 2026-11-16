@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/proxy.rs
 // created: 2026-10-31
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -20,10 +20,9 @@ use crate::gateway::providers::{
     UnifiedResponse,
 };
 use crate::gateway::reconnect::global_healing_pool;
-use crate::gateway::router::{RouteCandidate, Router, RoutingPolicy};
+use crate::gateway::router::{RouteCandidate, ReasoningEffort, Router, RoutingPolicy};
 use crate::gateway::semantic_cache::DualTierSemanticCache;
-use crate::headroom::cache_align::align_system_prompt_to_1024;
-use crate::headroom::pruner::{prune_mcp_request_payload, McpPrunerConfig};
+use crate::headroom::effort::{EffortLevel, HeadroomEffortCompressor};
 use crate::telemetry::cost::calculate_cost;
 use crate::telemetry::tokentracker::{global_token_tracker, ParsedTokenUsage};
 
@@ -43,14 +42,14 @@ impl GatewayProxyOrchestrator {
         Self::default()
     }
 
-    /// Fast Tier-1 cache lookup
+    /// Fast Tier-1 SHA-256 + Tier-2 HNSW semantic vector cache lookup
     pub fn lookup_cache(&self, provider: &str, prompt: &str) -> Option<String> {
-        self.semantic_cache.lookup_exact(provider, prompt)
+        self.semantic_cache.lookup_or_semantic(provider, prompt)
     }
 
-    /// Stores response in semantic cache
+    /// Stores response in dual-tier semantic cache (exact + HNSW ANN vector)
     pub fn store_cache(&self, provider: &str, prompt: &str, content: &str) {
-        self.semantic_cache.store(provider, prompt, content, None);
+        self.semantic_cache.store_auto(provider, prompt, content);
     }
 
     /// Records tokens with circuit breaker
@@ -160,7 +159,7 @@ impl GatewayProxyOrchestrator {
         );
 
         self.semantic_cache
-            .store(provider.as_str(), prompt_str, &parsed.content, None);
+            .store_auto(provider.as_str(), prompt_str, &parsed.content);
 
         if let Some(vk) = vk_opt {
             self.governance.release_and_record_spend(vk, real_cost);
@@ -204,12 +203,19 @@ impl GatewayProxyOrchestrator {
             self.governance.check_and_acquire(vk, 1000)?;
         }
 
-        align_system_prompt_to_1024(payload);
-        let pruner_cfg = McpPrunerConfig::default();
-        let _prune_stats = prune_mcp_request_payload(payload, &pruner_cfg);
+        let headroom_path = if provider == ProviderId::Anthropic {
+            "/v1/messages"
+        } else {
+            "/v1/chat/completions"
+        };
+        let _hr_stats = HeadroomEffortCompressor::gateway_default().compress_json_payload(
+            headroom_path,
+            &[],
+            payload,
+        );
 
         let prompt_str = payload.to_string();
-        if let Some(cached_resp) = self.semantic_cache.lookup_exact(provider.as_str(), &prompt_str) {
+        if let Some(cached_resp) = self.lookup_cache(provider.as_str(), &prompt_str) {
             if let Some(vk) = vk_opt {
                 self.governance.release_and_record_spend(vk, 0.0);
             }
@@ -321,9 +327,23 @@ impl GatewayProxyOrchestrator {
             self.governance.check_and_acquire(vk, 1000)?;
         }
 
-        align_system_prompt_to_1024(payload);
-        let pruner_cfg = McpPrunerConfig::default();
-        let _prune_stats = prune_mcp_request_payload(payload, &pruner_cfg);
+        let effort_headers: Vec<(String, String)> = match policy.effort {
+            Some(ReasoningEffort::Low) => {
+                vec![("x-toksi-effort".to_string(), EffortLevel::Low.as_str().to_string())]
+            }
+            Some(ReasoningEffort::Medium) => {
+                vec![("x-toksi-effort".to_string(), EffortLevel::Medium.as_str().to_string())]
+            }
+            Some(ReasoningEffort::High) => {
+                vec![("x-toksi-effort".to_string(), EffortLevel::High.as_str().to_string())]
+            }
+            None => Vec::new(),
+        };
+        let _hr_stats = HeadroomEffortCompressor::gateway_default().compress_json_payload(
+            "/v1/chat/completions",
+            &effort_headers,
+            payload,
+        );
         let prompt_str = payload.to_string();
 
         let ranked = self
@@ -336,12 +356,9 @@ impl GatewayProxyOrchestrator {
             return Err("No healthy routing candidates satisfy policy constraints".to_string());
         }
 
-        // Exact cache hit check against primary ranked candidate
+        // Dual-tier (exact SHA-256 + HNSW ANN) cache hit check against primary ranked candidate
         let primary_provider = ranked[0].candidate.provider;
-        if let Some(cached_resp) = self
-            .semantic_cache
-            .lookup_exact(primary_provider.as_str(), &prompt_str)
-        {
+        if let Some(cached_resp) = self.lookup_cache(primary_provider.as_str(), &prompt_str) {
             if let Some(vk) = vk_opt {
                 self.governance.release_and_record_spend(vk, 0.0);
             }

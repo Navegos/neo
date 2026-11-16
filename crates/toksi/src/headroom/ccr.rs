@@ -3,13 +3,14 @@
 // project: neo
 // file: crates/toksi/src/headroom/ccr.rs
 // created: 2026-11-13
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 //! Compress-Cache-Retrieve (CCR) reversible storage (`<<ccr:HASH>>`) with SQLite WAL +
 //! in-memory backends and MCP retrieval (`headroom_retrieve` / `headroom_search`).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -23,6 +24,39 @@ use super::error::{HeadroomError, HeadroomResult};
 pub const DEFAULT_TTL: Duration = Duration::from_secs(1800);
 /// Absolute maximum lifetime multiplier over idle TTL.
 pub const DEFAULT_MAX_LIFETIME_MULTIPLIER: u32 = 8;
+/// Default bounded capacity for in-memory CCR stores.
+pub const DEFAULT_IN_MEMORY_CAPACITY: usize = 2048;
+/// Maximum clamped TTL in seconds so `now + ttl_seconds` in SQLite signed 64-bit arithmetic never overflows.
+pub const MAX_SQLITE_TTL_SECS: i64 = i64::MAX / 4;
+
+/// Clamps an arbitrary `u64` TTL into `1..=MAX_SQLITE_TTL_SECS` (zero stays 0).
+fn clamp_ttl_secs(secs: u64) -> i64 {
+    i64::try_from(secs)
+        .unwrap_or(MAX_SQLITE_TTL_SECS)
+        .min(MAX_SQLITE_TTL_SECS)
+}
+
+/// Redacts credentials (`user:password@` or `:password@`, plus sensitive query parameters) from URLs before logging.
+pub fn redact_url_credentials(raw_url: &str) -> String {
+    let trimmed = raw_url.trim();
+    let Some((scheme, rest)) = trimmed.split_once("://") else {
+        return "[redacted-url]".to_string();
+    };
+    let no_query = rest.split(&['?', '#'][..]).next().unwrap_or(rest);
+    let (authority, path) = match no_query.find('/') {
+        Some(idx) => (&no_query[..idx], &no_query[idx..]),
+        None => (no_query, ""),
+    };
+    let clean_host = match authority.rfind('@') {
+        Some(idx) => &authority[idx + 1..],
+        None => authority,
+    };
+    if path.is_empty() || path == "/" {
+        format!("{}://{}", scheme, clean_host)
+    } else {
+        format!("{}://{}{}", scheme, clean_host, path)
+    }
+}
 
 /// Trait shared across CCR storage backends.
 pub trait CcrStore: Send + Sync {
@@ -56,22 +90,26 @@ pub fn marker_for(hash: &str) -> String {
 fn now_unix_secs() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
+        .map(|d| i64::try_from(d.as_secs()).unwrap_or(MAX_SQLITE_TTL_SECS))
         .unwrap_or(0)
 }
 
 #[derive(Debug, Clone)]
 struct MemEntry {
     original: String,
+    seq: u64,
     created_at: i64,
     last_accessed: i64,
     ttl_seconds: i64,
 }
 
-/// Thread-safe in-memory CCR store (default for unit tests and ephemeral runs).
+/// Thread-safe bounded in-memory CCR store (default for unit tests and ephemeral runs).
 #[derive(Debug)]
 pub struct InMemoryCcrStore {
     entries: RwLock<HashMap<String, MemEntry>>,
+    order: Mutex<VecDeque<(String, u64)>>,
+    next_seq: AtomicU64,
+    max_entries: usize,
     default_ttl_seconds: i64,
     max_lifetime_seconds: i64,
 }
@@ -84,10 +122,19 @@ impl Default for InMemoryCcrStore {
 
 impl InMemoryCcrStore {
     pub fn new(default_ttl_seconds: u64) -> Self {
-        let ttl = i64::try_from(default_ttl_seconds).unwrap_or(i64::MAX);
-        let max_life = ttl.saturating_mul(i64::from(DEFAULT_MAX_LIFETIME_MULTIPLIER));
+        Self::with_capacity(default_ttl_seconds, DEFAULT_IN_MEMORY_CAPACITY)
+    }
+
+    pub fn with_capacity(default_ttl_seconds: u64, max_entries: usize) -> Self {
+        let ttl = clamp_ttl_secs(default_ttl_seconds);
+        let max_life = ttl
+            .saturating_mul(i64::from(DEFAULT_MAX_LIFETIME_MULTIPLIER))
+            .min(MAX_SQLITE_TTL_SECS);
         Self {
             entries: RwLock::new(HashMap::new()),
+            order: Mutex::new(VecDeque::new()),
+            next_seq: AtomicU64::new(1),
+            max_entries: max_entries.max(1),
             default_ttl_seconds: ttl,
             max_lifetime_seconds: max_life,
         }
@@ -97,22 +144,52 @@ impl InMemoryCcrStore {
         e.last_accessed.saturating_add(e.ttl_seconds) < now
             || e.created_at.saturating_add(self.max_lifetime_seconds) < now
     }
+
+    fn compact_order(&self, order: &mut VecDeque<(String, u64)>, map: &HashMap<String, MemEntry>) {
+        let limit = self.max_entries.max(16).saturating_mul(2);
+        if order.len() > limit {
+            order.retain(|(k, seq)| map.get(k).is_some_and(|e| e.seq == *seq));
+        }
+    }
 }
 
 impl CcrStore for InMemoryCcrStore {
     fn put(&self, hash: &str, payload: &str) {
         let now = now_unix_secs();
+        let mut order = self.order.lock().unwrap_or_else(|e| e.into_inner());
         let mut map = self.entries.write().unwrap_or_else(|e| e.into_inner());
         map.retain(|_, v| !self.is_expired(v, now));
+
+        if let Some(existing) = map.get_mut(hash) {
+            existing.original = payload.to_string();
+            existing.created_at = now;
+            existing.last_accessed = now;
+            existing.ttl_seconds = self.default_ttl_seconds;
+            return;
+        }
+
+        while map.len() >= self.max_entries {
+            let Some((oldest_key, oldest_seq)) = order.pop_front() else {
+                break;
+            };
+            if map.get(&oldest_key).is_some_and(|e| e.seq == oldest_seq) {
+                map.remove(&oldest_key);
+            }
+        }
+
+        let seq = self.next_seq.fetch_add(1, Ordering::Relaxed);
         map.insert(
             hash.to_string(),
             MemEntry {
                 original: payload.to_string(),
+                seq,
                 created_at: now,
                 last_accessed: now,
                 ttl_seconds: self.default_ttl_seconds,
             },
         );
+        order.push_back((hash.to_string(), seq));
+        self.compact_order(&mut order, &map);
     }
 
     fn get(&self, hash: &str) -> Option<String> {
@@ -169,8 +246,10 @@ impl SqliteCcrStore {
             [],
         )?;
 
-        let ttl = i64::try_from(default_ttl_seconds).unwrap_or(i64::MAX);
-        let max_life = ttl.saturating_mul(i64::from(DEFAULT_MAX_LIFETIME_MULTIPLIER));
+        let ttl = clamp_ttl_secs(default_ttl_seconds);
+        let max_life = ttl
+            .saturating_mul(i64::from(DEFAULT_MAX_LIFETIME_MULTIPLIER))
+            .min(MAX_SQLITE_TTL_SECS);
         Ok(Self {
             conn: Mutex::new(conn),
             default_ttl_seconds: ttl,
@@ -334,13 +413,54 @@ mod tests {
         let _ = std::fs::create_dir_all(&dir);
         let db_file = dir.join("ccr_test.db");
         let _ = std::fs::remove_file(&db_file);
-        let sqlite = SqliteCcrStore::open(&db_file, 60).expect("sqlite open");
-        sqlite.put(&key, payload);
-        assert_eq!(sqlite.get(&key).as_deref(), Some(payload));
+        let sqlite_res = SqliteCcrStore::open(&db_file, 60);
+        assert!(sqlite_res.is_ok());
+        if let Ok(sqlite) = sqlite_res {
+            sqlite.put(&key, payload);
+            assert_eq!(sqlite.get(&key).as_deref(), Some(payload));
 
-        let mcp_res = handle_mcp_ccr_tool("headroom_retrieve", &json!({ "hash": marker_for(&key) }), &sqlite)
-            .expect("mcp retrieve");
-        assert_eq!(mcp_res["found"], Value::Bool(true));
+            let mcp_res = handle_mcp_ccr_tool(
+                "headroom_retrieve",
+                &json!({ "hash": marker_for(&key) }),
+                &sqlite,
+            );
+            assert!(mcp_res.is_ok());
+            if let Ok(res_val) = mcp_res {
+                assert_eq!(res_val["found"], Value::Bool(true));
+            }
+        }
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_sqlite_huge_ttl_and_url_redaction() {
+        let dir = std::env::temp_dir().join(format!("toksi_ccr_huge_ttl_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let db_file = dir.join("ccr_huge.db");
+        let _ = std::fs::remove_file(&db_file);
+        let sqlite_res = SqliteCcrStore::open(&db_file, u64::MAX);
+        assert!(sqlite_res.is_ok());
+        if let Ok(sqlite) = sqlite_res {
+            sqlite.put("k", "payload");
+            assert_eq!(sqlite.get("k").as_deref(), Some("payload"));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let redacted = redact_url_credentials("redis://user:secret@cache.internal:6379/0?token=abc");
+        assert!(!redacted.contains("secret"));
+        assert!(!redacted.contains("token=abc"));
+        assert_eq!(redacted, "redis://cache.internal:6379/0");
+    }
+
+    #[test]
+    fn test_in_memory_reput_and_capacity_eviction() {
+        let store = InMemoryCcrStore::with_capacity(60, 2);
+        store.put("a", "v1");
+        store.put("b", "v2");
+        store.put("a", "v1-updated");
+        store.put("c", "v3");
+        // Capacity 2 keeps at most 2 entries and preserves the updated "a" or newest "c"
+        assert!(store.len() <= 2);
+        assert_eq!(store.get("c").as_deref(), Some("v3"));
     }
 }

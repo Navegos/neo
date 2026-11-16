@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/copilot_daemon.rs
 // created: 2026-10-11
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::fs::OpenOptions;
 use std::path::Path;
@@ -787,7 +787,9 @@ async fn serve_copilot_connection(
             && !req.body.is_empty()
             && !crate::headroom::byok_gateway::is_proto_or_connect_request(&path, &req.headers)
         {
-            crate::headroom::live_zone::compress_request_body_safe(&path, &req.body)
+            let (compressed, _) = crate::headroom::effort::HeadroomEffortCompressor::default()
+                .compress_http_request(&path, &req.headers, &req.body);
+            compressed
         } else {
             req.body.clone()
         };

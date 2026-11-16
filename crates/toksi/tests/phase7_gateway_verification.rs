@@ -444,3 +444,86 @@ fn test_phase7_gateway_proxy_orchestrator_end_to_end() {
     assert_eq!(resp2.unwrap().id, "cache-hit");
 }
 
+#[test]
+fn test_phase7_bifrost_new_providers_custom_tools_and_semantic_cache() {
+    use toksi::gateway::compat::{chat_to_responses_json, responses_to_chat_completions};
+    use toksi::gateway::providers::{build_provider_client, ProviderCategory};
+    use toksi::gateway::semantic_cache::compute_prompt_embedding;
+
+    // 1. MachGen & Soniox catalog additions (94 total providers)
+    assert_eq!(ProviderId::ALL.len(), 94);
+    assert_eq!(ProviderId::from_name("machgen"), Some(ProviderId::MachGen));
+    assert_eq!(ProviderId::from_name("mach-gen"), Some(ProviderId::MachGen));
+    assert_eq!(ProviderId::from_name("soniox"), Some(ProviderId::Soniox));
+    assert_eq!(ProviderId::MachGen.category(), ProviderCategory::Multimodal);
+    assert_eq!(ProviderId::Soniox.category(), ProviderCategory::Multimodal);
+
+    let mach = build_provider_client(ProviderId::MachGen);
+    let mach_body = mach.format_request(&UnifiedRequest {
+        model: "machgen-v1".to_string(),
+        messages: vec![json!({"role": "user", "content": "sunset skyline"})],
+        system: None,
+        max_tokens: None,
+        temperature: None,
+        stream: None,
+        tools: None,
+        extra: HashMap::new(),
+    });
+    assert_eq!(mach_body["task_type"], "T2I");
+
+    let soniox = build_provider_client(ProviderId::Soniox);
+    let soniox_body = soniox.format_request(&UnifiedRequest {
+        model: "soniox-tts".to_string(),
+        messages: vec![json!({"role": "user", "content": "hello world"})],
+        system: None,
+        max_tokens: None,
+        temperature: None,
+        stream: None,
+        tools: None,
+        extra: HashMap::new(),
+    });
+    assert_eq!(soniox_body["audio_format"], "mp3");
+
+    // 2. Responses custom tool conversion & response mapping
+    let resp_req = json!({
+        "model": "gpt-4o",
+        "input": "run python",
+        "tools": [{"type": "custom", "name": "py_exec", "description": "Execute python"}]
+    });
+    let chat_req = responses_to_chat_completions(&resp_req);
+    assert_eq!(chat_req["tools"][0]["function"]["name"], "py_exec");
+
+    let chat_resp = json!({
+        "id": "chatcmpl-1",
+        "model": "gpt-4o",
+        "choices": [{
+            "message": {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{
+                    "id": "call_1",
+                    "type": "custom",
+                    "custom": {"name": "py_exec", "input": "print(42)"}
+                }]
+            }
+        }],
+        "usage": {"prompt_tokens": 10, "completion_tokens": 5}
+    });
+    let resp_out = chat_to_responses_json(&chat_resp, "gpt-4o");
+    assert_eq!(resp_out["output"][0]["type"], "custom_tool_call");
+    assert_eq!(resp_out["output"][0]["input"], "print(42)");
+
+    // 3. Deterministic Tier-2 HNSW semantic cache via orchestrator
+    let orch = GatewayProxyOrchestrator::new();
+    let prompt_a = "Explain how Rust ownership and borrowing prevent data races in concurrent services.";
+    let prompt_b = "Explain how Rust ownership and borrowing prevent data races in concurrent service.";
+    let emb_a = compute_prompt_embedding(prompt_a);
+    let emb_b = compute_prompt_embedding(prompt_b);
+    assert!(cosine_similarity(&emb_a, &emb_b) >= 0.92);
+    orch.store_cache("openai", prompt_a, "Ownership tracks single writer XOR multiple readers.");
+    assert_eq!(
+        orch.lookup_cache("openai", prompt_b).as_deref(),
+        Some("Ownership tracks single writer XOR multiple readers.")
+    );
+}
+

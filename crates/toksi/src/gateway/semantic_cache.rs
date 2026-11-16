@@ -327,6 +327,30 @@ impl DualTierSemanticCache {
         None
     }
 
+    /// Dual-tier lookup: exact SHA-256 first (<1ms), then Chroma-style HNSW semantic vector fallback.
+    pub fn lookup_or_semantic(&self, model: &str, prompt: &str) -> Option<String> {
+        if let Some(exact) = self.lookup_exact(model, prompt) {
+            return Some(exact);
+        }
+        if prompt.len() >= 32 {
+            let emb = compute_prompt_embedding(prompt);
+            if let Some((resp, _score)) = self.lookup_semantic(&emb, model) {
+                return Some(resp);
+            }
+        }
+        None
+    }
+
+    /// Stores a response along with its deterministic prompt embedding for Tier-2 HNSW semantic lookup.
+    pub fn store_auto(&self, model: &str, prompt: &str, response: &str) {
+        let emb = if prompt.len() >= 32 {
+            Some(compute_prompt_embedding(prompt))
+        } else {
+            None
+        };
+        self.store(model, prompt, response, emb);
+    }
+
     pub fn store(&self, model: &str, prompt: &str, response: &str, embedding: Option<Vec<f32>>) {
         let hash = Self::compute_prompt_hash(model, prompt);
         let entry = CachedEntry {
@@ -467,6 +491,46 @@ pub fn l2_distance(a: &[f32], b: &[f32]) -> f32 {
         return f32::MAX;
     }
     a.iter().zip(b.iter()).map(|(x, y)| (x - y) * (x - y)).sum::<f32>().sqrt()
+}
+
+/// Deterministic 32-D signed feature projection over normalized tokens & character trigrams
+/// for fast in-process Tier-2 HNSW semantic caching without external embedding models.
+pub fn compute_prompt_embedding(text: &str) -> Vec<f32> {
+    const DIM: usize = 32;
+    let mut vec = vec![0.0f32; DIM];
+    let lower = text.to_ascii_lowercase();
+
+    let mut hash_token = |bytes: &[u8], weight: f32| {
+        let mut h: u64 = 0xcbf29ce484222325;
+        for &b in bytes {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        let idx = (h as usize) % DIM;
+        let sign = if ((h >> 8) & 1) == 0 { 1.0 } else { -1.0 };
+        vec[idx] += sign * weight;
+    };
+
+    for word in lower.split_whitespace() {
+        let clean = word.trim_matches(|c: char| !c.is_ascii_alphanumeric());
+        if clean.len() >= 2 {
+            hash_token(clean.as_bytes(), 2.0);
+        }
+    }
+    let bytes = lower.as_bytes();
+    if bytes.len() >= 3 {
+        for w in bytes.windows(3) {
+            hash_token(w, 0.5);
+        }
+    }
+
+    let norm: f32 = vec.iter().map(|v| v * v).sum::<f32>().sqrt();
+    if norm > 0.0 {
+        for v in &mut vec {
+            *v /= norm;
+        }
+    }
+    vec
 }
 
 #[cfg(test)]

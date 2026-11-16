@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/providers/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 pub mod accelerator;
 pub mod aggregators;
@@ -29,7 +29,7 @@ pub enum ProviderCategory {
     Ecosystem,
 }
 
-/// Enumeration of all 92 in-tree AI providers (Categories 1-5 + 23 local inference engines)
+/// Enumeration of all 94 in-tree AI providers (Categories 1-5 + 23 local inference engines)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum ProviderId {
     // Frontier (9)
@@ -95,7 +95,7 @@ pub enum ProviderId {
     ZeroOne,
     StepFun,
 
-    // Multimodal (12)
+    // Multimodal (14)
     ElevenLabs,
     Runware,
     Runway,
@@ -108,6 +108,8 @@ pub enum ProviderId {
     Luma,
     Kling,
     Suno,
+    MachGen,
+    Soniox,
 
     // Local Inference Engines (23)
     LlamaCpp,
@@ -221,7 +223,7 @@ impl ProviderId {
         ProviderId::OpenCode,
     ];
 
-    pub const ALL: [ProviderId; 92] = [
+    pub const ALL: [ProviderId; 94] = [
         ProviderId::Anthropic,
         ProviderId::Azure,
         ProviderId::Bedrock,
@@ -289,6 +291,8 @@ impl ProviderId {
         ProviderId::Luma,
         ProviderId::Kling,
         ProviderId::Suno,
+        ProviderId::MachGen,
+        ProviderId::Soniox,
         ProviderId::LlamaCpp,
         ProviderId::Ollama,
         ProviderId::SGLang,
@@ -385,6 +389,8 @@ impl ProviderId {
             Self::Luma => "luma",
             Self::Kling => "kling",
             Self::Suno => "suno",
+            Self::MachGen => "machgen",
+            Self::Soniox => "soniox",
             Self::LlamaCpp => "llamacpp",
             Self::Ollama => "ollama",
             Self::SGLang => "sglang",
@@ -431,6 +437,7 @@ impl ProviderId {
             "google" => "gemini",
             "grok" => "xai",
             "01ai" | "yi" => "zeroone",
+            "mach-gen" | "mach_gen" => "machgen",
             _ => n.as_str(),
         };
         Self::ALL.into_iter().find(|p| p.as_str() == canonical)
@@ -460,7 +467,8 @@ impl ProviderId {
 
             Self::ElevenLabs | Self::Runware | Self::Runway | Self::Stability |
             Self::Fal | Self::BlackForestLabs | Self::AssemblyAI | Self::Deepgram |
-            Self::Cartesia | Self::Luma | Self::Kling | Self::Suno => ProviderCategory::Multimodal,
+            Self::Cartesia | Self::Luma | Self::Kling | Self::Suno |
+            Self::MachGen | Self::Soniox => ProviderCategory::Multimodal,
 
             Self::LlamaCpp | Self::Ollama | Self::SGLang | Self::VLLM |
             Self::TGI | Self::LMStudio | Self::LocalAI | Self::TabbyAPI |
@@ -543,6 +551,8 @@ impl ProviderId {
             Self::Luma => "https://api.lumalabs.ai/dream-machine/v1",
             Self::Kling => "https://api.klingai.com/v1",
             Self::Suno => "https://api.suno.ai/v1",
+            Self::MachGen => "https://api.machgen.ai",
+            Self::Soniox => "https://api.soniox.com",
             Self::LlamaCpp => "http://127.0.0.1:8080/v1",
             Self::Ollama => "http://127.0.0.1:11434/v1",
             Self::SGLang => "http://127.0.0.1:30000/v1",

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/auth_mode.rs
 // created: 2026-11-13
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 //! Authentication mode classifier ported from `headroom-core::auth_mode`.
 
@@ -39,6 +39,20 @@ impl AuthMode {
     }
 }
 
+/// Extracts a Bearer token case-insensitively (`Bearer `, `bearer\t`, etc.) per RFC 9110 §11.1.
+pub fn extract_bearer_token(trimmed: &str) -> Option<&str> {
+    if trimmed.len() >= 7
+        && trimmed.get(..6).is_some_and(|s| s.eq_ignore_ascii_case("bearer"))
+        && trimmed.as_bytes()[6].is_ascii_whitespace()
+    {
+        let token = trimmed[6..].trim();
+        if !token.is_empty() {
+            return Some(token);
+        }
+    }
+    None
+}
+
 /// Classifies request auth mode from HTTP headers (case-insensitive).
 pub fn classify_auth_mode(headers: &[(String, String)]) -> AuthMode {
     let mut has_api_key = false;
@@ -71,8 +85,7 @@ pub fn classify_auth_mode(headers: &[(String, String)]) -> AuthMode {
             }
         }
         if lower == "authorization" {
-            if let Some(token) = trimmed.strip_prefix("Bearer ").or_else(|| trimmed.strip_prefix("bearer ")) {
-                let t = token.trim();
+            if let Some(t) = extract_bearer_token(trimmed) {
                 if t.starts_with("ya29.") || t.starts_with("sk-ant-oat") || t.starts_with("ghu_") || t.starts_with("gho_") {
                     has_oauth = true;
                 } else {
@@ -103,6 +116,14 @@ mod tests {
         );
         assert_eq!(
             classify_auth_mode(&[("Authorization".into(), "Bearer ya29.test".into())]),
+            AuthMode::OAuth
+        );
+        assert_eq!(
+            classify_auth_mode(&[("Authorization".into(), "bearer   sk-ant-api03-lower".into())]),
+            AuthMode::Payg
+        );
+        assert_eq!(
+            classify_auth_mode(&[("Authorization".into(), "BEARER\tsk-ant-oat01-upper".into())]),
             AuthMode::OAuth
         );
         assert_eq!(

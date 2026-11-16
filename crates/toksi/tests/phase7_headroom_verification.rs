@@ -366,3 +366,171 @@ fn test_phase7_sse_stream_transformer() {
     let s = String::from_utf8_lossy(&transformed);
     assert!(s.contains("message_delta"));
 }
+
+#[test]
+fn test_phase7_headroom_core_updates_and_effort_pipeline() {
+    use toksi::headroom::auth_mode::{classify_auth_mode, AuthMode};
+    use toksi::headroom::ccr::{redact_url_credentials, CcrStore, InMemoryCcrStore, SqliteCcrStore};
+    use toksi::headroom::diff_compressor::reduce_hunk_context;
+    use toksi::headroom::effort::{
+        apply_effort_wire_translation, detect_effort_level, EffortLevel, HeadroomEffortCompressor,
+    };
+    use toksi::headroom::live_zone::compress_request_body_with_store;
+    use toksi::headroom::proxy::validate_headroom_base_url_override;
+    use toksi::headroom::responses_compat::flatten_responses_tools;
+    use toksi::headroom::search_compressor::{parse_search_line, SearchCompressor};
+    use toksi::headroom::smart_crusher::SmartCrusher;
+    use toksi::tools::multi_protocol::{MultiProtocolDispatcher, ProtocolKind, ToolTarget, UnifiedRequest};
+
+    // 1. AuthMode case-insensitive Bearer & tab separator
+    assert_eq!(
+        classify_auth_mode(&[("authorization".into(), "bearer   sk-ant-api03-x".into())]),
+        AuthMode::Payg
+    );
+    assert_eq!(
+        classify_auth_mode(&[("Authorization".into(), "BEARER\tsk-ant-oat01-y".into())]),
+        AuthMode::OAuth
+    );
+
+    // 2. SqliteCcrStore u64::MAX TTL clamping + URL credential redaction
+    let tmp = std::env::temp_dir().join(format!("toksi_p7_ccr_{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&tmp);
+    let db_path = tmp.join("ccr_huge.db");
+    let _ = std::fs::remove_file(&db_path);
+    if let Ok(sqlite) = SqliteCcrStore::open(&db_path, u64::MAX) {
+        sqlite.put("k-max", "payload-max");
+        assert_eq!(sqlite.get("k-max").as_deref(), Some("payload-max"));
+    }
+    let _ = std::fs::remove_dir_all(&tmp);
+    assert_eq!(
+        redact_url_credentials("redis://user:pass@redis.internal:6379/0"),
+        "redis://redis.internal:6379/0"
+    );
+
+    // 3. SearchCompressor timestamp rejection & verbatim order
+    assert_eq!(parse_search_line("12:00:01 info starting"), None);
+    let mut grep_rows = vec!["  src/lib.rs-1-let a = 1;".to_string()];
+    for i in 2..=25 {
+        if i == 15 {
+            grep_rows.push(format!("  src/lib.rs:{}:error: root cause", i));
+        } else {
+            grep_rows.push(format!("  src/lib.rs-{}-let x_{} = {};", i, i, i));
+        }
+    }
+    let grep_raw = grep_rows.join("\n");
+    let mem_store = InMemoryCcrStore::default();
+    let grep_comp = SearchCompressor::default()
+        .compress(&grep_raw, "error", Some(&mem_store))
+        .unwrap_or_default();
+    assert!(grep_comp.contains("  src/lib.rs-1-let a = 1;"));
+    assert!(grep_comp.contains("  src/lib.rs:15:error: root cause"));
+
+    // 4. DiffCompressor hunk split & @@ header renumbering
+    let hunk = vec![
+        "@@ -7,14 +7,14 @@ fn demo()".to_string(),
+        " l7".to_string(),
+        " l8".to_string(),
+        " l9".to_string(),
+        "-l10".to_string(),
+        "+l10_new".to_string(),
+        " l11".to_string(),
+        " l12".to_string(),
+        " l13".to_string(),
+        " l14".to_string(),
+        " l15".to_string(),
+        " l16".to_string(),
+        "-l17".to_string(),
+        "+l17_new".to_string(),
+        " l18".to_string(),
+        " l19".to_string(),
+        " l20".to_string(),
+    ];
+    let split = reduce_hunk_context(&hunk, 2);
+    let hdrs: Vec<&str> = split.iter().filter(|l| l.starts_with("@@ ")).map(|s| s.as_str()).collect();
+    assert_eq!(hdrs, vec!["@@ -8,5 +8,5 @@ fn demo()", "@@ -15,5 +15,5 @@ fn demo()"]);
+
+    // 5. SmartCrusher query-anchor preservation
+    let items: Vec<serde_json::Value> = (0..35)
+        .map(|i| json!({"number": 4450 + i, "status": if i == 25 { "ok" } else { "failed" }}))
+        .collect();
+    let arr_raw = serde_json::to_string(&items).unwrap_or_default();
+    let crushed = SmartCrusher::default()
+        .compress_json_str_with_query(&arr_raw, "Who opened #4475?", Some(&mem_store))
+        .unwrap_or_default();
+    assert!(crushed.contains("4475"));
+
+    // 6. Gemini & Bedrock Converse marker-free live_zone compression
+    let repeated_logs = "2026-11-15T10:00:00Z [INFO] worker pool healthy\n".repeat(30);
+    let gem_req = json!({
+        "contents": [
+            {"role": "model", "parts": [{"text": "thought", "thought": true, "thoughtSignature": "sig-keep"}]},
+            {"role": "user", "parts": [{"text": repeated_logs}]}
+        ]
+    });
+    let gem_bytes = serde_json::to_vec(&gem_req).unwrap_or_default();
+    let gem_out = compress_request_body_with_store("/v1beta/models/gemini-2.5-pro:generateContent", &gem_bytes, &mem_store);
+    assert!(gem_out.len() < gem_bytes.len());
+    let gem_str = String::from_utf8_lossy(&gem_out);
+    assert!(gem_str.contains("sig-keep"));
+    assert!(!gem_str.contains("<<ccr:"));
+
+    // 7. x-headroom-base-url private IP / unsafe override rejection
+    assert!(validate_headroom_base_url_override(&[(
+        "x-headroom-base-url".into(),
+        "http://169.254.169.254/latest".into()
+    )]).is_err());
+    assert!(validate_headroom_base_url_override(&[(
+        "x-headroom-base-url".into(),
+        "http://10.0.0.1:8080".into()
+    )]).is_err());
+
+    // 8. HeadroomEffortCompressor wire translation + frozen prefix preservation
+    let headers = vec![("x-toksi-effort".into(), "high".into())];
+    let mut oai = json!({"model": "o3-mini", "messages": [{"role": "user", "content": "hi"}]});
+    assert_eq!(detect_effort_level(&headers, Some(&oai)), EffortLevel::High);
+    assert!(apply_effort_wire_translation("/v1/chat/completions", &mut oai, EffortLevel::High, true));
+    assert_eq!(oai["reasoning_effort"], "high");
+
+    let frozen_req = json!({
+        "model": "claude-3-7-sonnet",
+        "messages": [
+            {"role": "user", "content": [{"type": "text", "text": "FROZEN", "cache_control": {"type": "ephemeral"}}]},
+            {"role": "user", "content": [{"type": "tool_result", "content": grep_raw}]}
+        ]
+    });
+    let frozen_bytes = serde_json::to_vec(&frozen_req).unwrap_or_default();
+    let (comp_bytes, stats) = HeadroomEffortCompressor::default().compress_http_request(
+        "/v1/messages",
+        &[("x-api-key".into(), "sk-ant-api03-test".into())],
+        &frozen_bytes,
+    );
+    assert!(comp_bytes.len() < frozen_bytes.len());
+    assert_eq!(stats.frozen_prefix_turns, 1);
+
+    // 9. Custom tool call flatten + restore round-trip
+    let resp_tools_req = json!({
+        "model": "gpt-4o",
+        "tools": [{"type": "custom", "name": "code_exec", "description": "Run code"}]
+    });
+    let resp_tools_bytes = serde_json::to_vec(&resp_tools_req).unwrap_or_default();
+    let (flat_bytes, ns_map, ok) = flatten_responses_tools(&resp_tools_bytes);
+    assert!(ok);
+    assert!(String::from_utf8_lossy(&flat_bytes).contains("code_exec"));
+    let sse = b"data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"name\":\"code_exec\",\"arguments\":\"{\\\"input\\\":\\\"print(1)\\\"}\"}}\n\n";
+    let fixed = transform_sse_bytes(sse, ns_map);
+    let fixed_str = String::from_utf8_lossy(&fixed);
+    assert!(fixed_str.contains("custom_tool_call"));
+    assert!(fixed_str.contains("print(1)"));
+
+    // 10. MultiProtocolDispatcher ToolTarget::Headroom
+    let dispatcher = MultiProtocolDispatcher::new(None);
+    let proto_req = UnifiedRequest::new(
+        ProtocolKind::Mcp,
+        ToolTarget::Headroom,
+        "compress",
+        json!({"content": grep_raw, "effort": "low"}),
+    );
+    let proto_resp = dispatcher.dispatch(&proto_req);
+    assert_eq!(proto_resp.status, "ok");
+    assert_eq!(proto_resp.tool, ToolTarget::Headroom);
+}

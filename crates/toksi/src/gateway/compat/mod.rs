@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/compat/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-16
 
 use serde_json::Value;
 use crate::gateway::normalizer::{anthropic_to_openai, openai_to_anthropic};
@@ -70,6 +70,50 @@ pub fn responses_to_chat_completions(body: &Value) -> Value {
         "model": model,
         "messages": messages,
     });
+    if let Some(tools) = body.get("tools").and_then(Value::as_array) {
+        let converted: Vec<Value> = tools
+            .iter()
+            .filter_map(|t| {
+                let t_type = t.get("type").and_then(Value::as_str).unwrap_or("");
+                if t_type == "custom" {
+                    let name = t.get("name").and_then(Value::as_str)?;
+                    let mut func_obj = serde_json::json!({
+                        "name": name,
+                        "parameters": {
+                            "type": "object",
+                            "properties": { "input": { "type": "string" } },
+                            "required": ["input"]
+                        }
+                    });
+                    if let Some(desc) = t.get("description") {
+                        func_obj["description"] = desc.clone();
+                    }
+                    Some(serde_json::json!({
+                        "type": "function",
+                        "function": func_obj
+                    }))
+                } else if t_type == "function" && t.get("function").is_none() {
+                    let name = t.get("name").and_then(Value::as_str)?;
+                    let mut func_obj = serde_json::json!({ "name": name });
+                    if let Some(desc) = t.get("description") {
+                        func_obj["description"] = desc.clone();
+                    }
+                    if let Some(params) = t.get("parameters") {
+                        func_obj["parameters"] = params.clone();
+                    }
+                    Some(serde_json::json!({
+                        "type": "function",
+                        "function": func_obj
+                    }))
+                } else {
+                    Some(t.clone())
+                }
+            })
+            .collect();
+        if !converted.is_empty() {
+            out["tools"] = Value::Array(converted);
+        }
+    }
     if let Some(max_toks) = body.get("max_output_tokens").or_else(|| body.get("max_tokens")) {
         out["max_tokens"] = max_toks.clone();
     }
@@ -93,28 +137,67 @@ pub fn chat_to_responses_json(resp: &Value, fallback_model: &str) -> Value {
         .get("model")
         .and_then(Value::as_str)
         .unwrap_or(fallback_model);
-    let content = resp
+    let first_msg = resp
         .get("choices")
         .and_then(Value::as_array)
         .and_then(|a| a.first())
-        .and_then(|c| c.get("message"))
+        .and_then(|c| c.get("message"));
+    let content = first_msg
         .and_then(|m| m.get("content"))
         .and_then(Value::as_str)
         .unwrap_or("");
     let (input_tokens, output_tokens) = crate::gateway::providers::parse_openai_usage(resp);
 
-    serde_json::json!({
-        "id": id,
-        "object": "response",
-        "model": model,
-        "output": [{
+    let mut output_items: Vec<Value> = Vec::new();
+    if !content.is_empty()
+        || first_msg
+            .and_then(|m| m.get("tool_calls"))
+            .and_then(Value::as_array)
+            .is_none_or(|a| a.is_empty())
+    {
+        output_items.push(serde_json::json!({
             "type": "message",
             "role": "assistant",
             "content": [{
                 "type": "output_text",
                 "text": content
             }]
-        }],
+        }));
+    }
+
+    if let Some(tool_calls) = first_msg
+        .and_then(|m| m.get("tool_calls"))
+        .and_then(Value::as_array)
+    {
+        for tc in tool_calls {
+            let call_id = tc.get("id").and_then(Value::as_str).unwrap_or("");
+            if tc.get("type").and_then(Value::as_str) == Some("custom") {
+                if let Some(custom) = tc.get("custom") {
+                    output_items.push(serde_json::json!({
+                        "type": "custom_tool_call",
+                        "call_id": call_id,
+                        "name": custom.get("name").and_then(Value::as_str).unwrap_or(""),
+                        "input": custom.get("input").and_then(Value::as_str).unwrap_or("")
+                    }));
+                    continue;
+                }
+            }
+            if let Some(func) = tc.get("function") {
+                output_items.push(serde_json::json!({
+                    "type": "function_call",
+                    "call_id": call_id,
+                    "name": func.get("name").and_then(Value::as_str).unwrap_or(""),
+                    "arguments": func.get("arguments").and_then(Value::as_str).unwrap_or("{}")
+                }));
+            }
+        }
+    }
+
+    serde_json::json!({
+        "id": id,
+        "object": "response",
+        "model": model,
+        "output": output_items,
         "output_text": content,
         "usage": {
             "input_tokens": input_tokens,

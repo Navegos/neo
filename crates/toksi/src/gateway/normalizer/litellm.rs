@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/normalizer/litellm.rs
 // created: 2026-11-09
-// lastModified: 2026-11-09
+// lastModified: 2026-11-16
 
 use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
@@ -313,28 +313,43 @@ mod tests {
     fn test_litellm_alias_resolution() {
         let matrix = LiteLLMMatrix::new();
 
-        let m1 = matrix.resolve_model("claude-3-7-sonnet").expect("resolve 3.7 sonnet");
-        assert_eq!(m1.canonical_name, "claude-3-7-sonnet-20250219");
-        assert_eq!(m1.provider, "anthropic");
-        assert_eq!(m1.context_window, 200000);
+        let m1 = matrix.resolve_model("claude-3-7-sonnet");
+        assert!(m1.is_some());
+        if let Some(info) = m1 {
+            assert_eq!(info.canonical_name, "claude-3-7-sonnet-20250219");
+            assert_eq!(info.provider, "anthropic");
+            assert_eq!(info.context_window, 200000);
+        }
 
-        let m2 = matrix.resolve_model("chatgpt-4o").expect("resolve chatgpt-4o");
-        assert_eq!(m2.canonical_name, "gpt-4o");
-        assert_eq!(m2.provider, "openai");
+        let m2 = matrix.resolve_model("chatgpt-4o");
+        assert!(m2.is_some());
+        if let Some(info) = m2 {
+            assert_eq!(info.canonical_name, "gpt-4o");
+            assert_eq!(info.provider, "openai");
+        }
 
-        let m3 = matrix.resolve_model("deepseek-r1").expect("resolve deepseek-r1");
-        assert_eq!(m3.canonical_name, "deepseek-reasoner");
-        assert_eq!(m3.provider, "deepseek");
+        let m3 = matrix.resolve_model("deepseek-r1");
+        assert!(m3.is_some());
+        if let Some(info) = m3 {
+            assert_eq!(info.canonical_name, "deepseek-reasoner");
+            assert_eq!(info.provider, "deepseek");
+        }
 
-        let m4 = matrix.resolve_model("codestral").expect("resolve codestral");
-        assert_eq!(m4.provider, "mistral");
+        let m4 = matrix.resolve_model("codestral");
+        assert!(m4.is_some());
+        if let Some(info) = m4 {
+            assert_eq!(info.provider, "mistral");
+        }
     }
 
     #[test]
     fn test_pricing_calculation() {
         let matrix = LiteLLMMatrix::new();
-        let info = matrix.resolve_model("gpt-4o").expect("gpt-4o");
-        assert_eq!(info.pricing.input_cost_per_million, 2.50);
-        assert_eq!(info.pricing.output_cost_per_million, 10.00);
+        let info = matrix.resolve_model("gpt-4o");
+        assert!(info.is_some());
+        if let Some(m) = info {
+            assert_eq!(m.pricing.input_cost_per_million, 2.50);
+            assert_eq!(m.pricing.output_cost_per_million, 10.00);
+        }
     }
 }

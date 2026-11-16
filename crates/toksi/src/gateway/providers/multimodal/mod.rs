@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/providers/multimodal/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
 
 use std::collections::HashMap;
 use serde_json::{json, Value};
@@ -47,10 +47,28 @@ impl ProviderClient for MultimodalProvider {
     }
 
     fn format_request(&self, req: &UnifiedRequest) -> Value {
-        json!({
-            "model": req.model,
-            "prompt": req.messages.last().and_then(|m| m.get("content")).cloned().unwrap_or(json!("")),
-        })
+        let prompt = req
+            .messages
+            .last()
+            .and_then(|m| m.get("content"))
+            .cloned()
+            .unwrap_or(json!(""));
+        match self.provider_id {
+            ProviderId::MachGen => json!({
+                "model": req.model,
+                "task_type": req.extra.get("task_type").cloned().unwrap_or(json!("T2I")),
+                "prompt": prompt,
+            }),
+            ProviderId::Soniox => json!({
+                "model": req.model,
+                "text": prompt,
+                "audio_format": req.extra.get("audio_format").cloned().unwrap_or(json!("mp3")),
+            }),
+            _ => json!({
+                "model": req.model,
+                "prompt": prompt,
+            }),
+        }
     }
 
     fn parse_response(&self, resp: &Value) -> Result<UnifiedResponse, String> {

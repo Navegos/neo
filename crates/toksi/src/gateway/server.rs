@@ -375,6 +375,23 @@ fn error_json_bytes(message: &str, err_type: &str) -> Vec<u8> {
     serde_json::to_vec(&body).unwrap_or_default()
 }
 
+fn routing_policy_for_request(
+    req: &ParsedHttpRequest,
+    payload: &Value,
+) -> crate::gateway::router::RoutingPolicy {
+    use crate::gateway::router::{ReasoningEffort, RoutingPolicy};
+    use crate::headroom::effort::{detect_effort_level, EffortLevel};
+    let mapped = match detect_effort_level(&req.headers, Some(payload)) {
+        EffortLevel::Low => ReasoningEffort::Low,
+        EffortLevel::Medium => ReasoningEffort::Medium,
+        EffortLevel::High => ReasoningEffort::High,
+    };
+    RoutingPolicy {
+        effort: Some(mapped),
+        ..RoutingPolicy::default()
+    }
+}
+
 fn resolve_candidates_for_request(
     req: &ParsedHttpRequest,
     model: &str,
@@ -407,7 +424,7 @@ async fn handle_openai_chat_completions(
     let explicit_key = extract_auth_key(req);
     let explicit_upstream = header_value(req, "x-toksi-upstream");
     let candidates = resolve_candidates_for_request(req, &model, crate::gateway::providers::ProviderId::OpenAI);
-    let policy = crate::gateway::router::RoutingPolicy::default();
+    let policy = routing_policy_for_request(req, &payload);
 
     match orchestrator
         .dispatch_with_cascade_async(
@@ -471,6 +488,7 @@ async fn handle_openai_responses(
     let explicit_key = extract_auth_key(req);
     let explicit_upstream = header_value(req, "x-toksi-upstream");
     let candidates = resolve_candidates_for_request(req, &model, crate::gateway::providers::ProviderId::OpenAI);
+    let policy = routing_policy_for_request(req, &raw_body);
 
     match orchestrator
         .dispatch_with_cascade_async(
@@ -479,7 +497,7 @@ async fn handle_openai_responses(
             explicit_key.as_deref(),
             explicit_upstream,
             &candidates,
-            &crate::gateway::router::RoutingPolicy::default(),
+            &policy,
             &mut chat_payload,
         )
         .await
@@ -586,6 +604,7 @@ async fn handle_anthropic_messages(
     let explicit_key = extract_auth_key(req);
     let explicit_upstream = header_value(req, "x-toksi-upstream");
     let candidates = resolve_candidates_for_request(req, &model, crate::gateway::providers::ProviderId::Anthropic);
+    let policy = routing_policy_for_request(req, &payload);
 
     match orchestrator
         .dispatch_with_cascade_async(
@@ -594,7 +613,7 @@ async fn handle_anthropic_messages(
             explicit_key.as_deref(),
             explicit_upstream,
             &candidates,
-            &crate::gateway::router::RoutingPolicy::default(),
+            &policy,
             &mut payload,
         )
         .await
@@ -688,6 +707,7 @@ async fn handle_gemini_models(
     let explicit_key = extract_auth_key(req);
     let explicit_upstream = header_value(req, "x-toksi-upstream");
     let candidates = resolve_candidates_for_request(req, &model, crate::gateway::providers::ProviderId::Gemini);
+    let policy = routing_policy_for_request(req, &raw_body);
 
     match orchestrator
         .dispatch_with_cascade_async(
@@ -696,7 +716,7 @@ async fn handle_gemini_models(
             explicit_key.as_deref(),
             explicit_upstream,
             &candidates,
-            &crate::gateway::router::RoutingPolicy::default(),
+            &policy,
             &mut chat_payload,
         )
         .await

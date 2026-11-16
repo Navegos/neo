@@ -74,6 +74,7 @@ pub enum ToolTarget {
     Projectmem,
     Icm,
     Aimemory,
+    Headroom,
 }
 
 impl ToolTarget {
@@ -85,6 +86,7 @@ impl ToolTarget {
             Self::Projectmem => "projectmem",
             Self::Icm => "icm",
             Self::Aimemory => "aimemory",
+            Self::Headroom => "headroom",
         }
     }
 }
@@ -106,6 +108,7 @@ impl FromStr for ToolTarget {
             "projectmem" => Ok(Self::Projectmem),
             "icm" => Ok(Self::Icm),
             "aimemory" | "ai-memory" => Ok(Self::Aimemory),
+            "headroom" => Ok(Self::Headroom),
             other => Err(ProtocolError::UnknownTool(other.to_string())),
         }
     }
@@ -311,6 +314,7 @@ impl MultiProtocolDispatcher {
             ToolTarget::Projectmem => self.dispatch_projectmem(req, &root),
             ToolTarget::Icm => self.dispatch_icm(req),
             ToolTarget::Aimemory => self.dispatch_aimemory(req),
+            ToolTarget::Headroom => self.dispatch_headroom(req),
         }
     }
 
@@ -537,6 +541,104 @@ impl MultiProtocolDispatcher {
         } else {
             let val = serde_json::from_str(&text).unwrap_or_else(|_| Value::String(text.clone()));
             UnifiedResponse::success(req.protocol, req.tool, val, Some(text))
+        }
+    }
+
+    fn dispatch_headroom(&self, req: &UnifiedRequest) -> UnifiedResponse {
+        match req.action.as_str() {
+            "headroom_retrieve" | "retrieve" => {
+                let store = crate::headroom::ccr::global_ccr_store();
+                match crate::headroom::ccr::handle_mcp_ccr_tool(
+                    "headroom_retrieve",
+                    &req.payload,
+                    store.as_ref(),
+                ) {
+                    Ok(val) => {
+                        let text = val.get("content").and_then(Value::as_str).map(|s| s.to_string());
+                        UnifiedResponse::success(req.protocol, req.tool, val, text)
+                    }
+                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, e.to_string()),
+                }
+            }
+            "headroom_search" | "search" => {
+                let store = crate::headroom::ccr::global_ccr_store();
+                match crate::headroom::ccr::handle_mcp_ccr_tool(
+                    "headroom_search",
+                    &req.payload,
+                    store.as_ref(),
+                ) {
+                    Ok(val) => {
+                        let text = serde_json::to_string(&val).ok();
+                        UnifiedResponse::success(req.protocol, req.tool, val, text)
+                    }
+                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, e.to_string()),
+                }
+            }
+            "compress" | "headroom_compress" | "effort_compress" => {
+                let effort_str = req
+                    .payload
+                    .get("effort")
+                    .and_then(Value::as_str)
+                    .unwrap_or("medium");
+                let headers = vec![("x-toksi-effort".to_string(), effort_str.to_string())];
+                let path = req
+                    .payload
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .unwrap_or("/v1/chat/completions");
+
+                if let Some(payload_obj) = req.payload.get("payload").cloned() {
+                    let mut mutable_payload = payload_obj;
+                    let stats = crate::headroom::effort::HeadroomEffortCompressor::default()
+                        .compress_json_payload(path, &headers, &mut mutable_payload);
+                    let res = serde_json::json!({
+                        "payload": mutable_payload,
+                        "stats": stats,
+                    });
+                    let text = serde_json::to_string(&res).ok();
+                    UnifiedResponse::success(req.protocol, req.tool, res, text)
+                } else {
+                    let content = req
+                        .payload
+                        .get("content")
+                        .and_then(Value::as_str)
+                        .unwrap_or("");
+                    let hint = req.payload.get("hint").and_then(Value::as_str);
+                    let effort = crate::headroom::effort::EffortLevel::from_str_loose(effort_str)
+                        .unwrap_or_default();
+                    let compressed_content = crate::headroom::compression::compress_content(content, hint);
+                    let econ_opts = crate::headroom::compression::economizer::EconomizerOptions {
+                        deduplicate_instructions: effort != crate::headroom::effort::EffortLevel::High,
+                        minify_whitespace: effort == crate::headroom::effort::EffortLevel::Low,
+                        strip_redundant_comments: effort != crate::headroom::effort::EffortLevel::High,
+                        prune_schema_verbose_descriptions: effort != crate::headroom::effort::EffortLevel::High,
+                        loop_guard_threshold: effort.loop_guard_threshold(),
+                    };
+                    let mut econ = crate::headroom::compression::economizer::TokenEconomizer::new(econ_opts);
+                    let (final_text, report) = econ.economize_prompt(&compressed_content);
+                    let chosen = if final_text.len() < compressed_content.len() {
+                        final_text
+                    } else {
+                        compressed_content
+                    };
+                    let bytes_saved = content.len().saturating_sub(chosen.len());
+                    let res = serde_json::json!({
+                        "compressed": chosen,
+                        "effort": effort.as_str(),
+                        "original_bytes": content.len(),
+                        "compressed_bytes": chosen.len(),
+                        "bytes_saved": bytes_saved,
+                        "estimated_tokens_saved": bytes_saved / 4,
+                        "economizer_report": report,
+                    });
+                    UnifiedResponse::success(req.protocol, req.tool, res, Some(chosen))
+                }
+            }
+            other => UnifiedResponse::error(
+                req.protocol,
+                req.tool,
+                format!("Headroom action '{}' not implemented", other),
+            ),
         }
     }
 }

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/responses_compat.rs
 // created: 2026-10-11
-// lastModified: 2026-10-31
+// lastModified: 2026-11-16
 
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
@@ -32,6 +32,34 @@ pub fn flatten_responses_tools(raw: &[u8]) -> (Vec<u8>, NamespaceMap, bool) {
         match tool_type {
             "function" => {
                 flat.push(Value::Object(tool));
+            }
+            "custom" => {
+                let name = tool
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                if name.is_empty() {
+                    continue;
+                }
+                let mut synth = Map::new();
+                synth.insert("type".to_string(), Value::String("function".to_string()));
+                synth.insert("name".to_string(), Value::String(name.clone()));
+                if let Some(desc) = tool.get("description") {
+                    synth.insert("description".to_string(), desc.clone());
+                }
+                synth.insert(
+                    "parameters".to_string(),
+                    serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "input": { "type": "string" }
+                        },
+                        "required": ["input"]
+                    }),
+                );
+                ns_map.insert(name.clone(), ["__custom__".to_string(), name]);
+                flat.push(Value::Object(synth));
             }
             "namespace" => {
                 let name = tool
@@ -249,8 +277,31 @@ impl<R> SseFixupBody<R> {
             .unwrap_or("")
             .to_string();
         if let Some(pair) = self.ns_map.get(&name) {
-            item.insert("namespace".to_string(), Value::String(pair[0].clone()));
-            item.insert("name".to_string(), Value::String(pair[1].clone()));
+            if pair[0] == "__custom__" {
+                item.insert("type".to_string(), Value::String("custom_tool_call".to_string()));
+                item.insert("name".to_string(), Value::String(pair[1].clone()));
+                if let Some(args_val) = item.remove("arguments") {
+                    let raw_input = if let Some(s) = args_val.as_str() {
+                        if let Ok(parsed) = serde_json::from_str::<Value>(s) {
+                            parsed
+                                .get("input")
+                                .and_then(Value::as_str)
+                                .map(|v| v.to_string())
+                                .unwrap_or_else(|| s.to_string())
+                        } else {
+                            s.to_string()
+                        }
+                    } else if let Some(s) = args_val.get("input").and_then(Value::as_str) {
+                        s.to_string()
+                    } else {
+                        args_val.to_string()
+                    };
+                    item.insert("input".to_string(), Value::String(raw_input));
+                }
+            } else {
+                item.insert("namespace".to_string(), Value::String(pair[0].clone()));
+                item.insert("name".to_string(), Value::String(pair[1].clone()));
+            }
         }
     }
 
