@@ -5,6 +5,8 @@
 // created: 2026-11-04
 // lastModified: 2026-11-09
 
+#![deny(unsafe_code)]
+
 pub mod migrate;
 pub mod operations;
 pub mod schema;
@@ -43,6 +45,26 @@ pub fn default_db_path() -> PathBuf {
     PathBuf::from(data_dir).join("toksi.db")
 }
 
+pub fn migrate_legacy_db_into(db: &mut ToksiConfigDb) {
+    let db_dir = match db.path().parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => return,
+    };
+    let marker = db_dir.join(".legacy_db_migrated");
+    if marker.exists() {
+        return;
+    }
+    let legacy_data_dir = crate::util::paths::legacy_toksi_data_dir();
+    if legacy_data_dir.is_empty() {
+        return;
+    }
+    let legacy_db = PathBuf::from(&legacy_data_dir).join("toksi.db");
+    if legacy_db.is_file() && legacy_db != db.path() {
+        let _ = db.merge_from_file(&legacy_db);
+        let _ = std::fs::write(&marker, "1\n");
+    }
+}
+
 pub fn open_default_db() -> Result<ToksiConfigDb, rusqlite::Error> {
     let p = default_db_path();
     let mut db = match ToksiConfigDb::open(&p) {
@@ -57,6 +79,7 @@ pub fn open_default_db() -> Result<ToksiConfigDb, rusqlite::Error> {
             }
         }
     };
+    migrate_legacy_db_into(&mut db);
     let _ = sync_from_legacy_byok_json(&mut db);
     Ok(db)
 }

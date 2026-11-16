@@ -208,6 +208,7 @@ pub fn handle_agents() -> serde_json::Value {
     let mut rows = Vec::new();
     for ag in agent_manifests {
         let detection = ag.detect();
+        let in_path = crate::util::env_path::is_executable_in_path(&ag.cli_bin);
         let is_proxy_wired = proxy_agent_wired(&ag.id);
         let is_wired = init_agent_fully_wired(&ag.id, &tools) || is_proxy_wired;
 
@@ -249,6 +250,7 @@ pub fn handle_agents() -> serde_json::Value {
             id: ag.id.clone(),
             label: ag.label.clone(),
             installed: detection.installed,
+            in_path,
             wired: is_wired,
             connected_provider: provider.to_string(),
             active_model: model.to_string(),
@@ -262,6 +264,8 @@ pub fn handle_agents() -> serde_json::Value {
             "id": item.id,
             "label": item.label,
             "installed": item.installed,
+            "in_path": item.in_path,
+            "cli_bin": ag.cli_bin,
             "source": detection.source,
             "wired": item.wired,
             "port": port,

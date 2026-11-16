@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tools/projectmem.rs
 // created: 2026-10-05
-// lastModified: 2026-11-14
+// lastModified: 2026-11-16
 
 use std::env;
 use std::fs;
@@ -55,7 +55,7 @@ pub fn ensure_projectmem_project(root: &str) -> Result<(), String> {
     if root.is_empty() {
         return Ok(());
     }
-    let pm_dir = Path::new(root).join(".projectmem");
+    let pm_dir = Path::new(root).join(".toksi").join("projectmem");
     sweep_projectmem_temps(&pm_dir.to_string_lossy());
     if pm_dir.join("summary.md").exists() && pm_dir.join("PROJECT_MAP.md").exists() {
         projectmem_git_exclude(root);
@@ -112,14 +112,17 @@ pub fn projectmem_git_exclude(root: &str) {
     let _ = ensure_dir(&info_dir);
     let exclude = info_dir.join("exclude");
     let existing = read_file_safe(&exclude).unwrap_or_default();
-    if existing.lines().any(|l| l.trim() == ".projectmem/" || l.trim() == ".projectmem") {
+    if existing
+        .lines()
+        .any(|l| l.trim() == ".toksi/" || l.trim() == ".toksi" || l.trim() == ".toksi/projectmem/")
+    {
         return;
     }
     let mut updated = existing;
     if !updated.is_empty() && !updated.ends_with('\n') {
         updated.push('\n');
     }
-    updated.push_str(".projectmem/\n");
+    updated.push_str(".toksi/\n");
     let _ = write_file_atomic(&exclude, &updated);
 }
 
@@ -214,10 +217,16 @@ fn truncate_str(s: &str, limit: usize) -> String {
 }
 
 pub fn projectmem_session_text(root: &str) -> String {
-    let pm_dir = Path::new(root).join(".projectmem");
-    if !pm_dir.is_dir() {
-        return String::new();
-    }
+    let toksi_pm = Path::new(root).join(".toksi").join("projectmem");
+    let pm_dir = if toksi_pm.is_dir() {
+        toksi_pm
+    } else {
+        let legacy = Path::new(root).join(".projectmem");
+        if !legacy.is_dir() {
+            return String::new();
+        }
+        legacy
+    };
     let mut sections = Vec::new();
 
     if let Some(summary) = read_file_safe(pm_dir.join("summary.md")) {
@@ -846,12 +855,12 @@ pub fn projectmem_index_project(dir: &str, opts: &RunOpts) -> Result<bool, DynEr
     }
     ensure_projectmem_project(dir).map_err(|e| -> DynError { e.into() })?;
     refresh_projectmem_rule_files(dir);
-    Ok(exists(Path::new(dir).join(".projectmem").join("summary.md")))
+    Ok(exists(Path::new(dir).join(".toksi").join("projectmem").join("summary.md")))
 }
 
 pub fn build_projectmem() -> ToolManifest {
     let mut tool = ToolManifest::new("projectmem", "Project Memory");
-    tool.description = "Cross-session persistent project memory in .projectmem/".into();
+    tool.description = "Cross-session persistent project memory in .toksi/projectmem/".into();
     tool.homepage = "https://github.com/Navegos/projectmem".into();
     tool.install_hint = "Native embedded in toksi (toksi mem)".into();
     tool.channel = Channel::Binary;
@@ -860,7 +869,11 @@ pub fn build_projectmem() -> ToolManifest {
         let cwd = env::current_dir()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| ".".into());
-        exists(Path::new(&cwd).join(".projectmem").join("summary.md"))
+        let root = crate::commands::index::find_project_dir(&cwd);
+        if root.is_empty() {
+            return false;
+        }
+        exists(Path::new(&root).join(".toksi").join("projectmem").join("summary.md"))
     }));
     tool.index_project = Some(Arc::new(|dir, opts| projectmem_index_project(dir, opts)));
 

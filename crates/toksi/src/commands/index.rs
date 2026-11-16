@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/commands/index.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
+
+#![deny(unsafe_code)]
 
 use std::collections::HashSet;
 use std::env;
@@ -20,61 +22,52 @@ use crate::util::colors::*;
 use crate::util::instructions::install_cursor_project_rules;
 use crate::util::jsonc::{stringify_json, try_parse_jsonc, OrderedMap, Value};
 use crate::util::logger::L;
-use crate::util::paths::{ensure_process_path, exists, is_win};
-
-const PROJECT_MARKERS: &[&str] = &[
-    ".git",
-    "package.json",
-    "go.mod",
-    "Cargo.toml",
-    "pyproject.toml",
-    "pom.xml",
-    "build.gradle",
-    "tsconfig.json",
-    "requirements.txt",
-    ".projectmem",
-];
+use crate::util::paths::{ensure_process_path, exists, home, is_win, normalize_path};
 
 pub fn looks_like_project(dir: &str) -> bool {
     if dir.is_empty() {
         return false;
     }
     let p = Path::new(dir);
-    for m in PROJECT_MARKERS {
-        if exists(p.join(m)) {
-            return true;
-        }
-    }
-    false
+    exists(p.join(".git"))
 }
 
+/// Walks strictly up to the `.git` repository root (never stopping at nested
+/// `Cargo.toml` / `package.json` inside `<repo>/crates/*`).
+/// Returns `String::new()` if `dir` is inside `.git/`, is bare user home `~`,
+/// or is not inside a `.git` repository.
 pub fn find_project_dir(dir: &str) -> String {
     let raw = PathBuf::from(dir);
     let current = std::fs::canonicalize(&raw)
         .or_else(|_| std::path::absolute(&raw))
         .unwrap_or(raw);
-    let mut git_root = None;
-    let mut marker_root = None;
+
+    // Prohibit operating inside `.git/`
+    for comp in current.components() {
+        if comp.as_os_str() == ".git" {
+            return String::new();
+        }
+    }
+
+    let canon_home = dirs::home_dir()
+        .and_then(|h| std::fs::canonicalize(h).ok())
+        .map(|h| normalize_path(&h.to_string_lossy()))
+        .unwrap_or_else(home);
+
     let mut iter = current.clone();
     loop {
         if exists(iter.join(".git")) {
-            git_root = Some(iter.clone());
-            break;
-        }
-        if marker_root.is_none() && looks_like_project(&iter.to_string_lossy()) {
-            marker_root = Some(iter.clone());
+            let norm = normalize_path(&iter.to_string_lossy());
+            if !canon_home.is_empty() && norm.eq_ignore_ascii_case(&canon_home) {
+                return String::new();
+            }
+            return norm;
         }
         if !iter.pop() {
             break;
         }
     }
-    if let Some(gr) = git_root {
-        return crate::util::paths::normalize_path(&gr.to_string_lossy());
-    }
-    if let Some(mr) = marker_root {
-        return crate::util::paths::normalize_path(&mr.to_string_lossy());
-    }
-    crate::util::paths::normalize_path(&current.to_string_lossy())
+    String::new()
 }
 
 pub fn cursor_project_dir(dir: &str) -> String {
@@ -165,15 +158,14 @@ pub fn run_index(opts: InitOptions, auto: bool) -> i32 {
         }
     };
 
-    let dir = if auto {
-        let p = find_project_dir(&cwd);
-        if !looks_like_project(&p) {
-            return 0;
+    let dir = find_project_dir(&cwd);
+    if !looks_like_project(&dir) {
+        if !auto {
+            L.err("refusing workspace indexing: current directory is not inside a .git repository root (no .toksi or home store created)");
+            return 1;
         }
-        p
-    } else {
-        cwd
-    };
+        return 0;
+    }
 
     let all_tools = list_tools();
     let indexable: Vec<_> = all_tools.iter().filter(|t| t.index_project.is_some()).collect();

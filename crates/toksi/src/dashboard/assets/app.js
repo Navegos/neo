@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/assets/app.js
 // created: 2026-10-30
-// lastModified: 2026-11-09
+// lastModified: 2026-11-16
 
 // toksi dashboard client application - pure vanilla ES6+ with zero external npm dependencies
 
@@ -294,16 +294,18 @@ found 0 vulnerabilities`,
     grid.innerHTML = '';
 
     this.state.agents.forEach(ag => {
+      const inPath = ag.in_path !== false;
       const card = document.createElement('div');
-      card.className = `agent-card ${ag.wired ? 'wired' : 'unwired'}`;
+      card.className = `agent-card ${ag.wired ? 'wired' : 'unwired'}${inPath ? '' : ' missing-in-path'}`;
+      const pathHint = inPath ? '' : `<div style="font-size: 0.7rem; color: var(--text-muted);" title="Add '${ag.cli_bin || ag.id}' to your system PATH">PATH: missing (${ag.cli_bin || ag.id})</div>`;
       card.innerHTML = `
         <div class="agent-head">
           <div>
             <div class="agent-name">${ag.label}</div>
             <div class="agent-id">ID: ${ag.id}</div>
           </div>
-          <span class="badge ${ag.installed ? 'badge-cyan' : 'badge-gray'}">
-            ${ag.installed ? (ag.source || 'INSTALLED') : 'NOT DETECTED'}
+          <span class="badge ${!inPath ? 'badge-gray' : (ag.installed ? 'badge-cyan' : 'badge-gray')}">
+            ${!inPath ? 'NOT IN PATH' : (ag.installed ? (ag.source || 'INSTALLED') : 'NOT DETECTED')}
           </span>
         </div>
         <div class="agent-details">
@@ -311,6 +313,7 @@ found 0 vulnerabilities`,
           <div>Provider: <strong style="color: var(--accent-cyan);">${ag.connected_provider || 'Bifrost'}</strong> (${ag.active_model || 'auto'})</div>
           <div>Latency: <span style="font-family: var(--font-mono); font-size: 0.75rem;">${ag.latency_breakdown_ms ? ag.latency_breakdown_ms.total_roundtrip_ms.toFixed(1) + 'ms (AST: ' + ag.latency_breakdown_ms.ast_compression_ms.toFixed(2) + 'ms)' : 'idle'}</span></div>
           <div>Savings: <span style="color: #34d399; font-weight: 600;">+${Number(ag.tokens_saved_ground_truth || 0).toLocaleString()} tok ($${(ag.cost_saved_usd || 0).toFixed(2)})</span></div>
+          ${pathHint}
           <div style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${ag.config_path}">
             Cfg: ${ag.config_path}
           </div>

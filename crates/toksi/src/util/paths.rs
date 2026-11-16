@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/util/paths.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
+
+#![deny(unsafe_code)]
 
 use std::path::Path;
 use std::sync::RwLock;
@@ -19,7 +21,7 @@ pub fn is_win() -> bool {
     IS_WIN
 }
 pub fn temp_dir() -> String {
-    std::env::temp_dir().to_string_lossy().to_string()
+    normalize_path(&std::env::temp_dir().to_string_lossy())
 }
 
 pub fn normalize_path(p: &str) -> String {
@@ -34,6 +36,29 @@ pub fn normalize_path(p: &str) -> String {
         trimmed
     };
     let mut replaced = clean.replace('\\', "/");
+    // Handle tilde expansion (~ or ~/...)
+    if replaced == "~" || replaced.starts_with("~/") {
+        let home_dir = HOME_OVERRIDE
+            .read()
+            .ok()
+            .and_then(|g| g.clone())
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                dirs::home_dir()
+                    .map(|d| d.to_string_lossy().to_string())
+                    .filter(|s| !s.is_empty())
+            })
+            .or_else(|| std::env::var("HOME").ok().filter(|s| !s.is_empty()));
+        if let Some(h) = home_dir {
+            let norm_h = h.trim().replace('\\', "/");
+            let base_h = norm_h.trim_end_matches('/');
+            replaced = if replaced == "~" {
+                base_h.to_string()
+            } else {
+                format!("{}/{}", base_h, &replaced[2..])
+            };
+        }
+    }
     // Handle UNC paths: preserve leading double slashes //server/...
     let is_unc = clean.starts_with(r"\\") || clean.starts_with("//");
     if is_unc && !replaced.starts_with("//") {
@@ -232,15 +257,25 @@ pub fn toksi_data_dir() -> String {
         if !legacy_dir.is_empty() && legacy_dir != toksi_home {
             let lp = Path::new(&legacy_dir);
             let tp = Path::new(&toksi_home);
-            if lp.exists() && !tp.exists() {
-                let _ = std::fs::create_dir_all(tp);
-                if let Ok(entries) = std::fs::read_dir(lp) {
-                    for entry in entries.flatten() {
-                        let dest = tp.join(entry.file_name());
-                        if !dest.exists() {
-                            let _ = std::fs::copy(entry.path(), dest);
+            if lp.exists() {
+                if !tp.exists() {
+                    let _ = std::fs::create_dir_all(tp);
+                    if let Ok(entries) = std::fs::read_dir(lp) {
+                        for entry in entries.flatten() {
+                            let dest = tp.join(entry.file_name());
+                            if entry.path().is_file() && !dest.exists() {
+                                let _ = std::fs::copy(entry.path(), dest);
+                            }
                         }
                     }
+                }
+                let legacy_byok = lp.join("headroom").join("byok.routes.json");
+                let target_byok = tp.join("headroom").join("byok.routes.json");
+                if legacy_byok.is_file() && !target_byok.exists() {
+                    if let Some(parent) = target_byok.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::copy(&legacy_byok, &target_byok);
                 }
             }
         }
@@ -275,10 +310,9 @@ fn default_toksi_data_dir() -> String {
 }
 
 pub fn install_marker_path() -> String {
-    Path::new(&toksi_data_dir())
+    normalize_path(&Path::new(&toksi_data_dir())
         .join("install.json")
-        .to_string_lossy()
-        .to_string()
+        .to_string_lossy())
 }
 
 pub fn exists(p: impl AsRef<Path>) -> bool {
@@ -373,10 +407,10 @@ pub fn which(bin: &str) -> String {
         return String::new();
     }
     if let Some(real_path) = find_real_binary(bin, &Vec::<std::path::PathBuf>::new()) {
-        return real_path.to_string_lossy().to_string();
+        return normalize_path(&real_path.to_string_lossy());
     }
     which::which(bin)
-        .map(|p| p.to_string_lossy().to_string())
+        .map(|p| normalize_path(&p.to_string_lossy()))
         .unwrap_or_default()
 }
 
@@ -468,9 +502,6 @@ pub fn known_binary_aliases(name: &str) -> Vec<String> {
         ],
         "toksi" => vec![
             "toksi".to_string(),
-        ],
-        "tokless" => vec![
-            "tokless".to_string(),
         ],
         _ => vec![trimmed.to_string()],
     }
@@ -752,12 +783,7 @@ pub fn is_go_test_executable(exe: &str) -> bool {
 pub fn toksi_abs() -> String {
     if let Ok(exe) = std::env::current_exe() {
         if let Ok(resolved) = std::fs::canonicalize(&exe) {
-            let path_str = resolved.to_string_lossy().to_string();
-            let clean_str = if IS_WIN && path_str.starts_with(r"\\?\") {
-                path_str[4..].to_string()
-            } else {
-                path_str
-            };
+            let clean_str = normalize_path(&resolved.to_string_lossy());
             if !clean_str.contains([' ', '\t']) && !is_test_executable(&clean_str) {
                 return clean_str;
             }
@@ -769,12 +795,7 @@ pub fn toksi_abs() -> String {
 pub fn toksi_abs_strict() -> String {
     if let Ok(exe) = std::env::current_exe() {
         if let Ok(resolved) = std::fs::canonicalize(&exe) {
-            let path_str = resolved.to_string_lossy().to_string();
-            let clean_str = if IS_WIN && path_str.starts_with(r"\\?\") {
-                path_str[4..].to_string()
-            } else {
-                path_str
-            };
+            let clean_str = normalize_path(&resolved.to_string_lossy());
             if !clean_str.contains([' ', '\t']) && !is_test_executable(&clean_str) {
                 let stem = Path::new(&clean_str)
                     .file_stem()
@@ -789,14 +810,14 @@ pub fn toksi_abs_strict() -> String {
     }
     let w = which("toksi");
     if !w.is_empty() && Path::new(&w).is_absolute() {
-        return w;
+        return normalize_path(&w);
     }
     String::new()
 }
 
 pub fn toksi_persisted_abs() -> String {
     if let Ok(cur) = std::env::current_exe() {
-        let s = cur.to_string_lossy().to_string();
+        let s = normalize_path(&cur.to_string_lossy());
         if stable_executable(&s) {
             let stem = cur
                 .file_stem()
@@ -817,31 +838,31 @@ pub fn toksi_persisted_abs() -> String {
                     .unwrap_or("")
                     .to_ascii_lowercase();
                 if base == "toksi" {
-                    return marker.path;
+                    return normalize_path(&marker.path);
                 }
             }
         }
     }
     let mut known = vec![
-        Path::new(&home())
-            .join(".local")
-            .join("bin")
-            .join("toksi")
-            .to_string_lossy()
-            .to_string(),
+        normalize_path(
+            &Path::new(&home())
+                .join(".local")
+                .join("bin")
+                .join("toksi")
+                .to_string_lossy(),
+        ),
     ];
     if IS_WIN {
         known.clear();
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
             if !local.is_empty() {
-                known.push(
-                    Path::new(&local)
+                known.push(normalize_path(
+                    &Path::new(&local)
                         .join("Programs")
                         .join("toksi")
                         .join("toksi.exe")
-                        .to_string_lossy()
-                        .to_string(),
-                );
+                        .to_string_lossy(),
+                ));
             }
         }
     } else {
@@ -849,12 +870,12 @@ pub fn toksi_persisted_abs() -> String {
     }
     for path in known {
         if stable_executable(&path) {
-            return path;
+            return normalize_path(&path);
         }
     }
     let path = which("toksi");
     if Path::new(&path).is_absolute() && stable_executable(&path) {
-        return path;
+        return normalize_path(&path);
     }
     if std::env::var("TOKSI_TEST").unwrap_or_default() == "1" {
         return "toksi".to_string();
@@ -885,6 +906,14 @@ pub struct InstallRecord {
 
 // Agent Paths
 
+fn join_norm(base: &str, parts: &[&str]) -> String {
+    let mut pb = std::path::PathBuf::from(base);
+    for p in parts {
+        pb.push(p);
+    }
+    normalize_path(&pb.to_string_lossy())
+}
+
 pub struct ClaudePaths {
     pub dir: String,
     pub settings: String,
@@ -896,17 +925,15 @@ pub fn claude_code_paths() -> ClaudePaths {
     let h = home();
     let (dir, global_json) = match std::env::var("CLAUDE_CONFIG_DIR") {
         Ok(d) if !d.is_empty() => {
-            let gj = Path::new(&d).join(".claude.json").to_string_lossy().to_string();
-            (d, gj)
+            let norm_d = normalize_path(&d);
+            let gj = join_norm(&norm_d, &[".claude.json"]);
+            (norm_d, gj)
         }
-        _ => (
-            Path::new(&h).join(".claude").to_string_lossy().to_string(),
-            Path::new(&h).join(".claude.json").to_string_lossy().to_string(),
-        ),
+        _ => (join_norm(&h, &[".claude"]), join_norm(&h, &[".claude.json"])),
     };
     ClaudePaths {
-        settings: Path::new(&dir).join("settings.json").to_string_lossy().to_string(),
-        instructions: Path::new(&dir).join("CLAUDE.md").to_string_lossy().to_string(),
+        settings: join_norm(&dir, &["settings.json"]),
+        instructions: join_norm(&dir, &["CLAUDE.md"]),
         dir,
         global_json,
     }
@@ -923,32 +950,28 @@ pub struct OpenCodePaths {
 fn opencode_config_dir() -> String {
     if let Ok(d) = std::env::var("OPENCODE_CONFIG_DIR") {
         if !d.is_empty() {
-            return d;
+            return normalize_path(&d);
         }
     }
     if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
         if !x.is_empty() {
-            return Path::new(&x).join("opencode").to_string_lossy().to_string();
+            return join_norm(&x, &["opencode"]);
         }
     }
-    Path::new(&home())
-        .join(".config")
-        .join("opencode")
-        .to_string_lossy()
-        .to_string()
+    join_norm(&home(), &[".config", "opencode"])
 }
 
 pub fn opencode_paths_resolved() -> OpenCodePaths {
     let dir = opencode_config_dir();
     let candidates = [
-        Path::new(&dir).join("opencode.jsonc").to_string_lossy().to_string(),
-        Path::new(&dir).join("opencode.json").to_string_lossy().to_string(),
-        Path::new(&dir).join("config.json").to_string_lossy().to_string(),
+        join_norm(&dir, &["opencode.jsonc"]),
+        join_norm(&dir, &["opencode.json"]),
+        join_norm(&dir, &["config.json"]),
     ];
-    let mut config = Path::new(&dir).join("opencode.jsonc").to_string_lossy().to_string();
+    let mut config = join_norm(&dir, &["opencode.jsonc"]);
     if let Ok(custom) = std::env::var("OPENCODE_CONFIG") {
         if !custom.is_empty() {
-            config = custom;
+            config = normalize_path(&custom);
         } else {
             for c in candidates {
                 if exists(&c) {
@@ -966,9 +989,9 @@ pub fn opencode_paths_resolved() -> OpenCodePaths {
         }
     }
     OpenCodePaths {
-        instructions: Path::new(&dir).join("AGENTS.md").to_string_lossy().to_string(),
-        plugins_dir: Path::new(&dir).join("plugins").to_string_lossy().to_string(),
-        rules_dir: Path::new(&dir).join("rules").to_string_lossy().to_string(),
+        instructions: join_norm(&dir, &["AGENTS.md"]),
+        plugins_dir: join_norm(&dir, &["plugins"]),
+        rules_dir: join_norm(&dir, &["rules"]),
         dir,
         config,
     }
@@ -982,23 +1005,29 @@ pub fn opencode_config_dir_v2() -> String {
     let v1_dir = opencode_config_dir();
     let v1_path = Path::new(&v1_dir);
     let v2_name = format!("{}2", v1_path.file_name().and_then(|n| n.to_str()).unwrap_or("opencode"));
-    let mut v2_dir = v1_path.parent().map(|p| p.join(&v2_name)).unwrap_or_else(|| Path::new(&v2_name).to_path_buf()).to_string_lossy().to_string();
+    let mut v2_dir = normalize_path(
+        &v1_path
+            .parent()
+            .map(|p| p.join(&v2_name))
+            .unwrap_or_else(|| Path::new(&v2_name).to_path_buf())
+            .to_string_lossy(),
+    );
     if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
         if !x.is_empty() {
-            v2_dir = Path::new(&x).join("opencode2").to_string_lossy().to_string();
+            v2_dir = join_norm(&x, &["opencode2"]);
         }
     }
-    let legacy_dir = Path::new(&home()).join(".opencode2").to_string_lossy().to_string();
+    let legacy_dir = join_norm(&home(), &[".opencode2"]);
     for dir in [&v1_dir, &v2_dir, &legacy_dir] {
         for name in ["opencode2.jsonc", "opencode2.json", "opencode2.config.json"] {
-            if exists(Path::new(dir).join(name).to_string_lossy().as_ref()) {
+            if exists(join_norm(dir, &[name])) {
                 return dir.clone();
             }
         }
     }
     for dir in [&v1_dir, &v2_dir, &legacy_dir] {
         for name in ["opencode.jsonc", "opencode.json", "config.json"] {
-            if exists(Path::new(dir).join(name).to_string_lossy().as_ref()) {
+            if exists(join_norm(dir, &[name])) {
                 return dir.clone();
             }
         }
@@ -1019,18 +1048,18 @@ pub fn opencode_paths_v2() -> OpenCodePaths {
         "opencode.json",
         "config.json",
     ];
-    let mut config = Path::new(&dir).join("opencode.jsonc").to_string_lossy().to_string();
+    let mut config = join_norm(&dir, &["opencode.jsonc"]);
     for name in candidates {
-        let candidate = Path::new(&dir).join(name).to_string_lossy().to_string();
+        let candidate = join_norm(&dir, &[name]);
         if exists(&candidate) {
             config = candidate;
             break;
         }
     }
     OpenCodePaths {
-        instructions: Path::new(&dir).join("AGENTS.md").to_string_lossy().to_string(),
-        plugins_dir: Path::new(&dir).join("plugins").to_string_lossy().to_string(),
-        rules_dir: Path::new(&dir).join("rules").to_string_lossy().to_string(),
+        instructions: join_norm(&dir, &["AGENTS.md"]),
+        plugins_dir: join_norm(&dir, &["plugins"]),
+        rules_dir: join_norm(&dir, &["rules"]),
         dir,
         config,
     }
@@ -1044,33 +1073,26 @@ pub struct KiloPaths {
 }
 
 pub fn kilo_paths_resolved() -> KiloPaths {
-    let mut dir = std::env::var("KILO_CONFIG_DIR").unwrap_or_default();
-    if dir.starts_with("~/") {
-        dir = Path::new(&home()).join(&dir[2..]).to_string_lossy().to_string();
-    }
+    let mut dir = normalize_path(&std::env::var("KILO_CONFIG_DIR").unwrap_or_default());
     if dir.is_empty() {
         if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
             if !x.is_empty() {
-                dir = Path::new(&x).join("kilo").to_string_lossy().to_string();
+                dir = join_norm(&x, &["kilo"]);
             }
         }
         if dir.is_empty() {
-            dir = Path::new(&home())
-                .join(".config")
-                .join("kilo")
-                .to_string_lossy()
-                .to_string();
+            dir = join_norm(&home(), &[".config", "kilo"]);
         }
     }
     if !Path::new(&dir).is_absolute() {
         if let Ok(cwd) = std::env::current_dir() {
-            dir = cwd.join(&dir).to_string_lossy().to_string();
+            dir = normalize_path(&cwd.join(&dir).to_string_lossy());
         }
     }
     KiloPaths {
-        config: Path::new(&dir).join("kilo.jsonc").to_string_lossy().to_string(),
-        plugins_dir: Path::new(&dir).join("plugin").to_string_lossy().to_string(),
-        instructions: Path::new(&dir).join("AGENTS.md").to_string_lossy().to_string(),
+        config: join_norm(&dir, &["kilo.jsonc"]),
+        plugins_dir: join_norm(&dir, &["plugin"]),
+        instructions: join_norm(&dir, &["AGENTS.md"]),
         dir,
     }
 }
@@ -1085,40 +1107,27 @@ pub struct ClinePaths {
 }
 
 pub fn cline_paths_resolved() -> ClinePaths {
-    let mut dir = std::env::var("CLINE_DIR").unwrap_or_default();
-    if dir.starts_with("~/") {
-        dir = Path::new(&home()).join(&dir[2..]).to_string_lossy().to_string();
-    }
+    let mut dir = normalize_path(&std::env::var("CLINE_DIR").unwrap_or_default());
     if dir.is_empty() {
-        dir = Path::new(&home()).join(".cline").to_string_lossy().to_string();
+        dir = join_norm(&home(), &[".cline"]);
     }
     if !Path::new(&dir).is_absolute() {
         if let Ok(cwd) = std::env::current_dir() {
-            dir = cwd.join(&dir).to_string_lossy().to_string();
+            dir = normalize_path(&cwd.join(&dir).to_string_lossy());
         }
     }
-    let mut data_dir = std::env::var("CLINE_DATA_DIR").unwrap_or_default();
-    if data_dir.starts_with("~/") {
-        data_dir = Path::new(&home()).join(&data_dir[2..]).to_string_lossy().to_string();
-    }
+    let mut data_dir = normalize_path(&std::env::var("CLINE_DATA_DIR").unwrap_or_default());
     if data_dir.is_empty() {
-        data_dir = Path::new(&dir).join("data").to_string_lossy().to_string();
+        data_dir = join_norm(&dir, &["data"]);
     }
-    let mut mcp_config = std::env::var("CLINE_MCP_SETTINGS_PATH").unwrap_or_default();
-    if mcp_config.starts_with("~/") {
-        mcp_config = Path::new(&home()).join(&mcp_config[2..]).to_string_lossy().to_string();
-    }
+    let mut mcp_config = normalize_path(&std::env::var("CLINE_MCP_SETTINGS_PATH").unwrap_or_default());
     if mcp_config.is_empty() {
-        mcp_config = Path::new(&data_dir)
-            .join("settings")
-            .join("cline_mcp_settings.json")
-            .to_string_lossy()
-            .to_string();
+        mcp_config = join_norm(&data_dir, &["settings", "cline_mcp_settings.json"]);
     }
-    let rules_dir = Path::new(&dir).join("rules").to_string_lossy().to_string();
+    let rules_dir = join_norm(&dir, &["rules"]);
     ClinePaths {
-        hooks_dir: Path::new(&dir).join("hooks").to_string_lossy().to_string(),
-        instructions: Path::new(&rules_dir).join("AGENTS.md").to_string_lossy().to_string(),
+        hooks_dir: join_norm(&dir, &["hooks"]),
+        instructions: join_norm(&rules_dir, &["AGENTS.md"]),
         dir,
         data_dir,
         mcp_config,
@@ -1136,10 +1145,11 @@ pub fn codex_paths_resolved() -> CodexPaths {
     let dir = std::env::var("CODEX_HOME")
         .ok()
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| Path::new(&home()).join(".codex").to_string_lossy().to_string());
+        .map(|s| normalize_path(&s))
+        .unwrap_or_else(|| join_norm(&home(), &[".codex"]));
     CodexPaths {
-        config: Path::new(&dir).join("config.toml").to_string_lossy().to_string(),
-        instructions: Path::new(&dir).join("AGENTS.md").to_string_lossy().to_string(),
+        config: join_norm(&dir, &["config.toml"]),
+        instructions: join_norm(&dir, &["AGENTS.md"]),
         dir,
     }
 }
@@ -1154,19 +1164,15 @@ pub struct AntigravityPaths {
 }
 
 pub fn antigravity_paths_resolved() -> AntigravityPaths {
-    let gemini = Path::new(&home()).join(".gemini").to_string_lossy().to_string();
-    let dir = Path::new(&gemini).join("antigravity").to_string_lossy().to_string();
-    let mcp_config = Path::new(&dir).join("mcp_config.json").to_string_lossy().to_string();
+    let gemini = join_norm(&home(), &[".gemini"]);
+    let dir = join_norm(&gemini, &["antigravity"]);
+    let mcp_config = join_norm(&dir, &["mcp_config.json"]);
     AntigravityPaths {
         mcp_config: mcp_config.clone(),
         mcp_config_ide: mcp_config,
-        mcp_config_cli: Path::new(&gemini)
-            .join("config")
-            .join("mcp_config.json")
-            .to_string_lossy()
-            .to_string(),
-        settings: Path::new(&gemini).join("settings.json").to_string_lossy().to_string(),
-        instructions: Path::new(&gemini).join("GEMINI.md").to_string_lossy().to_string(),
+        mcp_config_cli: join_norm(&gemini, &["config", "mcp_config.json"]),
+        settings: join_norm(&gemini, &["settings.json"]),
+        instructions: join_norm(&gemini, &["GEMINI.md"]),
         dir,
     }
 }
@@ -1180,25 +1186,22 @@ pub struct CopilotPaths {
 }
 
 pub fn copilot_paths_resolved() -> CopilotPaths {
-    let mut dir = std::env::var("COPILOT_HOME").unwrap_or_default();
+    let mut dir = normalize_path(&std::env::var("COPILOT_HOME").unwrap_or_default());
     if dir.is_empty() {
         if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
             if !x.is_empty() {
-                dir = Path::new(&x).join("copilot").to_string_lossy().to_string();
+                dir = join_norm(&x, &["copilot"]);
             }
         }
         if dir.is_empty() {
-            dir = Path::new(&home()).join(".copilot").to_string_lossy().to_string();
+            dir = join_norm(&home(), &[".copilot"]);
         }
     }
     CopilotPaths {
-        mcp_config: Path::new(&dir).join("mcp-config.json").to_string_lossy().to_string(),
-        settings: Path::new(&dir).join("settings.json").to_string_lossy().to_string(),
-        hooks_dir: Path::new(&dir).join("hooks").to_string_lossy().to_string(),
-        instructions: Path::new(&dir)
-            .join("copilot-instructions.md")
-            .to_string_lossy()
-            .to_string(),
+        mcp_config: join_norm(&dir, &["mcp-config.json"]),
+        settings: join_norm(&dir, &["settings.json"]),
+        hooks_dir: join_norm(&dir, &["hooks"]),
+        instructions: join_norm(&dir, &["copilot-instructions.md"]),
         dir,
     }
 }
@@ -1211,22 +1214,22 @@ pub struct CursorPaths {
 }
 
 pub fn cursor_paths_resolved() -> CursorPaths {
-    let mut dir = Path::new(&home()).join(".cursor").to_string_lossy().to_string();
+    let mut dir = join_norm(&home(), &[".cursor"]);
     if !IS_WIN && std::env::consts::OS != "macos" {
         if let Ok(env) = std::env::var("CURSOR_CONFIG_DIR") {
             if !env.is_empty() {
-                dir = env;
+                dir = normalize_path(&env);
             }
         } else if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
             if !x.is_empty() {
-                dir = Path::new(&x).join("cursor").to_string_lossy().to_string();
+                dir = join_norm(&x, &["cursor"]);
             }
         }
     }
     CursorPaths {
-        mcp_config: Path::new(&dir).join("mcp.json").to_string_lossy().to_string(),
-        rules_dir: Path::new(&dir).join("rules").to_string_lossy().to_string(),
-        cli_config: Path::new(&dir).join("cli-config.json").to_string_lossy().to_string(),
+        mcp_config: join_norm(&dir, &["mcp.json"]),
+        rules_dir: join_norm(&dir, &["rules"]),
+        cli_config: join_norm(&dir, &["cli-config.json"]),
         dir,
     }
 }
@@ -1246,12 +1249,13 @@ pub fn grok_paths_resolved() -> GrokPaths {
     let dir = std::env::var("GROK_HOME")
         .ok()
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| Path::new(&home()).join(".grok").to_string_lossy().to_string());
-    let install_dir = Path::new(&home()).join(".local").join("bin").to_string_lossy().to_string();
+        .map(|s| normalize_path(&s))
+        .unwrap_or_else(|| join_norm(&home(), &[".grok"]));
+    let install_dir = join_norm(&home(), &[".local", "bin"]);
     let bin_name = if IS_WIN { "grok.exe" } else { "grok" };
     GrokPaths {
-        config: Path::new(&dir).join("config.toml").to_string_lossy().to_string(),
-        bin: Path::new(&install_dir).join(bin_name).to_string_lossy().to_string(),
+        config: join_norm(&dir, &["config.toml"]),
+        bin: join_norm(&install_dir, &[bin_name]),
         install_dir,
         dir,
     }
@@ -1265,7 +1269,7 @@ pub struct OmpPaths {
 }
 
 pub fn omp_paths_resolved() -> OmpPaths {
-    let dir = Path::new(&home()).join(".omp").to_string_lossy().to_string();
+    let dir = join_norm(&home(), &[".omp"]);
     let agent_dir = std::env::var("OMP_CODING_AGENT_DIR")
         .ok()
         .filter(|s| !s.is_empty())
@@ -1274,14 +1278,11 @@ pub fn omp_paths_resolved() -> OmpPaths {
                 .ok()
                 .filter(|s| !s.is_empty())
         })
-        .unwrap_or_else(|| Path::new(&dir).join("agent").to_string_lossy().to_string());
+        .map(|s| normalize_path(&s))
+        .unwrap_or_else(|| join_norm(&dir, &["agent"]));
     OmpPaths {
-        config: Path::new(&agent_dir).join("mcp.json").to_string_lossy().to_string(),
-        rtk_extension: Path::new(&agent_dir)
-            .join("extensions")
-            .join("toksi-rtk.ts")
-            .to_string_lossy()
-            .to_string(),
+        config: join_norm(&agent_dir, &["mcp.json"]),
+        rtk_extension: join_norm(&agent_dir, &["extensions", "toksi-rtk.ts"]),
         agent_dir,
         dir,
     }
@@ -1296,19 +1297,16 @@ pub struct PiPaths {
 }
 
 pub fn pi_paths_resolved() -> PiPaths {
-    let dir = Path::new(&home()).join(".pi").to_string_lossy().to_string();
+    let dir = join_norm(&home(), &[".pi"]);
     let agent_dir = std::env::var("PI_CODING_AGENT_DIR")
         .ok()
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| Path::new(&dir).join("agent").to_string_lossy().to_string());
+        .map(|s| normalize_path(&s))
+        .unwrap_or_else(|| join_norm(&dir, &["agent"]));
     PiPaths {
-        settings: Path::new(&agent_dir).join("settings.json").to_string_lossy().to_string(),
-        mcp_config: Path::new(&agent_dir).join("mcp.json").to_string_lossy().to_string(),
-        rtk_extension: Path::new(&agent_dir)
-            .join("extensions")
-            .join("rtk.ts")
-            .to_string_lossy()
-            .to_string(),
+        settings: join_norm(&agent_dir, &["settings.json"]),
+        mcp_config: join_norm(&agent_dir, &["mcp.json"]),
+        rtk_extension: join_norm(&agent_dir, &["extensions", "rtk.ts"]),
         agent_dir,
         dir,
     }
@@ -1322,18 +1320,15 @@ pub struct ZcodePaths {
 }
 
 pub fn zcode_paths_resolved() -> ZcodePaths {
-    let mut home_val = std::env::var("ZCODE_DIST_HOME").unwrap_or_default();
-    if home_val.starts_with("~/") {
-        home_val = Path::new(&home()).join(&home_val[2..]).to_string_lossy().to_string();
-    }
+    let mut home_val = normalize_path(&std::env::var("ZCODE_DIST_HOME").unwrap_or_default());
     if home_val.is_empty() {
-        home_val = Path::new(&home()).join(".zcode").join("runtime").to_string_lossy().to_string();
+        home_val = join_norm(&home(), &[".zcode", "runtime"]);
     }
     ZcodePaths {
         dir: home_val,
-        config: Path::new(&home()).join(".zcode").join("cli").join("config.json").to_string_lossy().to_string(),
-        instructions: Path::new(&home()).join(".zcode").join("AGENTS.md").to_string_lossy().to_string(),
-        mcp_config: Path::new(&home()).join(".zcode").join("cli").join("config.json").to_string_lossy().to_string(),
+        config: join_norm(&home(), &[".zcode", "cli", "config.json"]),
+        instructions: join_norm(&home(), &[".zcode", "AGENTS.md"]),
+        mcp_config: join_norm(&home(), &[".zcode", "cli", "config.json"]),
     }
 }
 
@@ -1345,17 +1340,14 @@ pub struct KimiPaths {
 }
 
 pub fn kimi_paths_resolved() -> KimiPaths {
-    let mut home_val = std::env::var("KIMI_CODE_HOME").unwrap_or_default();
-    if home_val.starts_with("~/") {
-        home_val = Path::new(&home()).join(&home_val[2..]).to_string_lossy().to_string();
-    }
+    let mut home_val = normalize_path(&std::env::var("KIMI_CODE_HOME").unwrap_or_default());
     if home_val.is_empty() {
-        home_val = Path::new(&home()).join(".kimi-code").to_string_lossy().to_string();
+        home_val = join_norm(&home(), &[".kimi-code"]);
     }
     KimiPaths {
-        config: Path::new(&home_val).join("config.toml").to_string_lossy().to_string(),
-        instructions: Path::new(&home_val).join("AGENTS.md").to_string_lossy().to_string(),
-        mcp_config: Path::new(&home_val).join("mcp.json").to_string_lossy().to_string(),
+        config: join_norm(&home_val, &["config.toml"]),
+        instructions: join_norm(&home_val, &["AGENTS.md"]),
+        mcp_config: join_norm(&home_val, &["mcp.json"]),
         dir: home_val,
     }
 }
@@ -1367,16 +1359,13 @@ pub struct AmpPaths {
 }
 
 pub fn amp_paths_resolved() -> AmpPaths {
-    let mut dir = std::env::var("AMP_CONFIG_DIR").unwrap_or_default();
-    if dir.starts_with("~/") {
-        dir = Path::new(&home()).join(&dir[2..]).to_string_lossy().to_string();
-    }
+    let mut dir = normalize_path(&std::env::var("AMP_CONFIG_DIR").unwrap_or_default());
     if dir.is_empty() {
-        dir = Path::new(&home()).join(".config").join("amp").to_string_lossy().to_string();
+        dir = join_norm(&home(), &[".config", "amp"]);
     }
     AmpPaths {
-        config: Path::new(&dir).join("settings.json").to_string_lossy().to_string(),
-        instructions: Path::new(&dir).join("AGENTS.md").to_string_lossy().to_string(),
+        config: join_norm(&dir, &["settings.json"]),
+        instructions: join_norm(&dir, &["AGENTS.md"]),
         dir,
     }
 }
@@ -1413,6 +1402,10 @@ mod tests {
         assert_eq!(normalize_path(r"\\?\C:\foo\bar"), "C:/foo/bar");
         assert_eq!(normalize_path("/home/user/.toksi/toksi.db"), "/home/user/.toksi/toksi.db");
         assert_eq!(normalize_path(""), "");
+
+        let expanded = normalize_path(r"~\.toksi\toksi.db");
+        assert!(!expanded.contains('\\'));
+        assert!(expanded.ends_with("/.toksi/toksi.db"));
     }
 
     #[test]
@@ -1441,10 +1434,6 @@ mod tests {
         let toksi_aliases = known_binary_aliases("toksi");
         assert!(toksi_aliases.contains(&"toksi".to_string()));
         assert!(!toksi_aliases.contains(&"tokless".to_string()));
-
-        let tokless_aliases = known_binary_aliases("tokless");
-        assert!(tokless_aliases.contains(&"tokless".to_string()));
-        assert!(!tokless_aliases.contains(&"toksi".to_string()));
     }
 
     #[test]

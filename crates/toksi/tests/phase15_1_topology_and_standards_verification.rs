@@ -163,7 +163,7 @@ fn test_phase15_1_standard_tool_hooks_and_mcp_naming() {
     assert_eq!(agent_mcp_to_skills_path(".copilot", "context"), ".copilot/skills/context");
     assert_eq!(agent_mcp_to_skills_path(".claude", "projectmem"), ".claude/skills/projectmem");
 
-    // 4. Agent taxonomy: CLI vs Editor/IDE
+    // 4. Agent taxonomy: CLI vs Editor/IDE (non-collapsing)
     assert!(is_agent_cli("antigravity-cli"));
     assert!(is_agent_cli("agy"));
     assert!(is_agent_cli("copilot-cli"));
@@ -176,4 +176,65 @@ fn test_phase15_1_standard_tool_hooks_and_mcp_naming() {
     assert!(is_agent_ide("claude-desktop"));
     assert!(is_agent_ide("cursor-ide"));
     assert!(is_agent_ide("grok-ide"));
+
+    assert_eq!(normalize_hook_agent_name("antigravity-cli"), "antigravity-cli");
+    assert_eq!(normalize_hook_agent_name("antigravity-ide"), "antigravity-ide");
+    assert_eq!(normalize_hook_agent_name("copilot-cli"), "copilot-cli");
+    assert_eq!(normalize_hook_agent_name("copilot-vscode"), "copilot-vscode");
+    assert_eq!(normalize_hook_agent_name("claude-cli"), "claude-cli");
+    assert_eq!(normalize_hook_agent_name("claude-desktop"), "claude-desktop");
+    assert_eq!(normalize_hook_agent_name("cursor-cli"), "cursor-cli");
+    assert_eq!(normalize_hook_agent_name("cursor-ide"), "cursor-ide");
+    assert_eq!(normalize_hook_agent_name("grok-cli"), "grok-cli");
+    assert_eq!(normalize_hook_agent_name("grok-ide"), "grok-ide");
+    assert_eq!(normalize_hook_agent_name("openagents"), "openagents");
+}
+
+#[test]
+fn test_phase15_1_find_project_dir_requires_git_and_skips_nested_manifests() {
+    use toksi::commands::index::{find_project_dir, looks_like_project};
+
+    let temp_root = tempfile::tempdir().expect("tempdir");
+    let non_git = temp_root.path().join("non_git_crate");
+    fs::create_dir_all(&non_git).expect("mkdir");
+    fs::write(non_git.join("Cargo.toml"), "[package]\nname = \"x\"\n").expect("write Cargo.toml");
+
+    // Outside any .git repo, find_project_dir must return empty without creating stores
+    assert_eq!(find_project_dir(&non_git.to_string_lossy()), "");
+    assert!(!looks_like_project(&non_git.to_string_lossy()));
+    assert!(!non_git.join(".toksi").exists());
+
+    // Inside a .git monorepo, nested Cargo.toml must be skipped in favor of .git root
+    let repo = temp_root.path().join("repo");
+    let sub_crate = repo.join("crates").join("sub");
+    fs::create_dir_all(repo.join(".git")).expect("mkdir .git");
+    fs::create_dir_all(&sub_crate).expect("mkdir sub");
+    fs::write(sub_crate.join("Cargo.toml"), "[package]\nname = \"sub\"\n").expect("write sub Cargo.toml");
+
+    let resolved = find_project_dir(&sub_crate.to_string_lossy());
+    let expected = normalize_path(&fs::canonicalize(&repo).expect("canon").to_string_lossy());
+    assert_eq!(resolved, expected);
+    assert!(looks_like_project(&resolved));
+}
+
+#[test]
+fn test_phase15_1_ai_memory_layout_and_dashboard_in_path() {
+    let temp_root = tempfile::tempdir().expect("tempdir");
+    let repo = temp_root.path();
+    fs::create_dir_all(repo.join(".git")).expect("mkdir .git");
+    let legacy_ai = repo.join(".ai-memory");
+    fs::create_dir_all(&legacy_ai).expect("mkdir .ai-memory");
+    fs::write(legacy_ai.join("wiki.md"), "# Wiki\n").expect("write wiki");
+
+    let count = consolidate_nested_toksi_dirs(repo).expect("consolidate");
+    assert!(count >= 1);
+    assert!(!legacy_ai.exists());
+    assert!(repo.join(".toksi").join("ai-memory").join("wiki.md").exists());
+
+    let agents_val = toksi::dashboard::api::handle_agents();
+    let arr = agents_val.as_array().expect("agents array");
+    assert!(!arr.is_empty());
+    for item in arr {
+        assert!(item.get("in_path").and_then(|v| v.as_bool()).is_some());
+    }
 }

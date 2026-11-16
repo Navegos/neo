@@ -446,6 +446,11 @@ tr:hover td {
   border-left: 4px solid #475569;
 }
 
+.agent-card.missing-in-path {
+  opacity: 0.55;
+  filter: grayscale(0.7);
+}
+
 .agent-head {
   display: flex;
   justify-content: space-between;

@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/db/operations.rs
 // created: 2026-11-04
-// lastModified: 2026-11-04
+// lastModified: 2026-11-16
+
+#![deny(unsafe_code)]
 
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -721,7 +723,7 @@ impl ToksiConfigDb {
         if dest_path.exists() {
             let _ = std::fs::remove_file(dest_path);
         }
-        let dest_str = dest_path.to_string_lossy().to_string();
+        let dest_str = crate::util::paths::normalize_path(&dest_path.to_string_lossy());
         self.conn.execute("VACUUM INTO ?1", params![dest_str])?;
         Ok(())
     }
@@ -739,7 +741,7 @@ impl ToksiConfigDb {
         let file_size_bytes = std::fs::metadata(&self.path).map(|m| m.len()).unwrap_or(0);
 
         Ok(DbStats {
-            db_path: self.path.to_string_lossy().to_string(),
+            db_path: crate::util::paths::normalize_path(&self.path.to_string_lossy()),
             providers_count,
             keys_count,
             models_count,
@@ -773,14 +775,35 @@ pub fn merge_toksi_db(target_path: &Path, source_path: &Path) -> Result<usize, r
 
 /// Merges records from another memory.db (ICM) into target_path row-by-row without data loss.
 pub fn merge_memory_db(target_path: &Path, source_path: &Path) -> Result<usize, rusqlite::Error> {
+    merge_memory_db_with_subproject(target_path, source_path, "")
+}
+
+/// Merges records from a nested subproject memory.db into target_path, tagging memories with `subproject_id`.
+pub fn merge_memory_db_with_subproject(
+    target_path: &Path,
+    source_path: &Path,
+    subproject_id: &str,
+) -> Result<usize, rusqlite::Error> {
     if !source_path.exists() {
         return Ok(0);
     }
+    let clean_sub = crate::util::paths::normalize_path(subproject_id)
+        .trim_matches('/')
+        .to_string();
     if !target_path.exists() {
         if let Some(parent) = target_path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        std::fs::copy(source_path, target_path).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        std::fs::copy(source_path, target_path)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+        if !clean_sub.is_empty() && clean_sub != "." {
+            if let Ok(conn) = Connection::open(target_path) {
+                let _ = conn.execute(
+                    "UPDATE memories SET subproject_id = ?1 WHERE subproject_id = '' OR subproject_id = '.'",
+                    params![clean_sub],
+                );
+            }
+        }
         return Ok(1);
     }
     let target_conn = Connection::open(target_path)?;
@@ -794,6 +817,12 @@ pub fn merge_memory_db(target_path: &Path, source_path: &Path) -> Result<usize, 
         [],
     ) {
         rows_merged += n;
+        if !clean_sub.is_empty() && clean_sub != "." {
+            let _ = target_conn.execute(
+                "UPDATE memories SET subproject_id = ?1 WHERE (subproject_id = '' OR subproject_id = '.') AND id IN (SELECT id FROM src_mem.memories)",
+                params![clean_sub],
+            );
+        }
     }
     if let Ok(n) = target_conn.execute(
         "INSERT OR REPLACE INTO facts SELECT * FROM src_mem.facts",
@@ -819,46 +848,18 @@ pub fn merge_memory_db(target_path: &Path, source_path: &Path) -> Result<usize, 
 
 /// Merges records from another symbols.db (CodeGraph) into target_path row-by-row without data loss.
 pub fn merge_symbols_db(target_path: &Path, source_path: &Path) -> Result<usize, rusqlite::Error> {
+    merge_symbols_db_with_subproject(target_path, source_path, ".")
+}
+
+/// Merges records from a nested subproject symbols.db into target_path, tagging rows with `subproject_id`.
+pub fn merge_symbols_db_with_subproject(
+    target_path: &Path,
+    source_path: &Path,
+    subproject_id: &str,
+) -> Result<usize, rusqlite::Error> {
     if !source_path.exists() {
         return Ok(0);
     }
-    if !target_path.exists() {
-        if let Some(parent) = target_path.parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        std::fs::copy(source_path, target_path).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-        return Ok(1);
-    }
-    let target_conn = Connection::open(target_path)?;
-    target_conn.busy_timeout(std::time::Duration::from_millis(5000))?;
-    let src_str = crate::util::paths::normalize_path(&source_path.to_string_lossy());
-    target_conn.execute("ATTACH DATABASE ?1 AS src_sym", params![src_str])?;
-
-    let mut rows_merged = 0;
-    if let Ok(n) = target_conn.execute(
-        "INSERT OR REPLACE INTO files SELECT * FROM src_sym.files",
-        [],
-    ) {
-        rows_merged += n;
-    }
-    if let Ok(n) = target_conn.execute(
-        "INSERT OR REPLACE INTO nodes SELECT * FROM src_sym.nodes",
-        [],
-    ) {
-        rows_merged += n;
-    }
-    if let Ok(n) = target_conn.execute(
-        "INSERT OR IGNORE INTO edges SELECT * FROM src_sym.edges",
-        [],
-    ) {
-        rows_merged += n;
-    }
-    if let Ok(n) = target_conn.execute(
-        "INSERT OR IGNORE INTO refs SELECT * FROM src_sym.refs",
-        [],
-    ) {
-        rows_merged += n;
-    }
-    let _ = target_conn.execute("DETACH DATABASE src_sym", []);
-    Ok(rows_merged)
+    let mut cache = crate::codegraph::SymbolCache::open(target_path)?;
+    cache.merge_from_db(source_path, subproject_id)
 }

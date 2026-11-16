@@ -64,6 +64,7 @@ pub struct AgentRow {
     pub id: String,
     pub label: String,
     pub installed: bool,
+    pub in_path: bool,
     pub detect_source: String,
     pub wired: bool,
     pub port: String,
@@ -616,6 +617,7 @@ impl App {
         let mut rows = Vec::new();
         for ag in agent_manifests {
             let detection = ag.detect();
+            let in_path = crate::util::env_path::is_executable_in_path(&ag.cli_bin);
             let is_proxy_wired = proxy_agent_wired(&ag.id);
             let is_wired = init_agent_fully_wired(&ag.id, &tools) || is_proxy_wired;
 
@@ -635,6 +637,7 @@ impl App {
                 id: ag.id.clone(),
                 label: ag.label.clone(),
                 installed: detection.installed,
+                in_path,
                 detect_source: detection.source,
                 wired: is_wired,
                 port,

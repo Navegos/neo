@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/views/agents.rs
 // created: 2026-10-30
-// lastModified: 2026-11-09
+// lastModified: 2026-11-16
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -69,23 +69,26 @@ pub fn render_agents_view(f: &mut Frame, area: Rect, app: &App) {
                 Style::default()
             };
 
-            let detect_badge = if agent.installed {
+            let detect_badge = if !agent.in_path {
+                Span::styled("not in PATH", Style::default().fg(Color::DarkGray))
+            } else if agent.installed {
                 Span::styled(format!("✓ {}", agent.detect_source), Style::default().fg(Color::Cyan))
             } else {
                 Span::styled("not found", Style::default().fg(Color::DarkGray))
             };
 
+            let label_style = if !agent.in_path {
+                Style::default().fg(Color::DarkGray)
+            } else if is_selected {
+                Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+
             Row::new(vec![
                 Cell::from(Span::styled(wire_badge, wire_style)),
-                Cell::from(Span::styled(&agent.id, Style::default().fg(Color::Yellow))),
-                Cell::from(Span::styled(
-                    &agent.label,
-                    if is_selected {
-                        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default().fg(Color::White)
-                    },
-                )),
+                Cell::from(Span::styled(&agent.id, if agent.in_path { Style::default().fg(Color::Yellow) } else { Style::default().fg(Color::DarkGray) })),
+                Cell::from(Span::styled(&agent.label, label_style)),
                 Cell::from(detect_badge),
                 Cell::from(Span::styled(&agent.port, Style::default().fg(Color::Gray))),
                 Cell::from(Span::styled(&agent.tools_summary, Style::default().fg(Color::DarkGray))),

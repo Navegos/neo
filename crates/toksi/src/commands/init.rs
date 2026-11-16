@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/commands/init.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
+
+#![deny(unsafe_code)]
 
 use std::collections::HashMap;
 use std::env;
@@ -40,23 +42,33 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
             ));
         }
 
-        // Workspace topology: single root .toksi and root-only agent dirs
-        if let Ok(merged) = crate::commands::doctor::consolidate_nested_toksi_dirs(std::path::Path::new(".")) {
-            if merged > 0 {
-                L.info(&format!(
-                    "Consolidated {} nested .toksi directory/directories into root workspace .toksi",
-                    merged
-                ));
+        // Workspace topology: single root .toksi and root-only agent dirs (strictly at .git root)
+        let _ = crate::commands::doctor::clean_home_workspace_leakage();
+        if let Ok(cwd) = env::current_dir() {
+            let repo_root = find_project_dir(&cwd.to_string_lossy());
+            if looks_like_project(&repo_root) {
+                let root_path = std::path::Path::new(&repo_root);
+                if let Ok(merged) = crate::commands::doctor::consolidate_nested_toksi_dirs(root_path) {
+                    if merged > 0 {
+                        L.info(&format!(
+                            "Consolidated {} nested .toksi directory/directories into root workspace .toksi",
+                            merged
+                        ));
+                    }
+                }
+                if let Ok(merged_agents) = crate::commands::doctor::consolidate_nested_agent_dirs(root_path) {
+                    if merged_agents > 0 {
+                        L.info(&format!(
+                            "Consolidated {} nested agent config directory/directories into workspace root",
+                            merged_agents
+                        ));
+                    }
+                }
             }
         }
-        if let Ok(merged_agents) = crate::commands::doctor::consolidate_nested_agent_dirs(std::path::Path::new(".")) {
-            if merged_agents > 0 {
-                L.info(&format!(
-                    "Consolidated {} nested agent config directory/directories into workspace root",
-                    merged_agents
-                ));
-            }
-        }
+        let _ = crate::util::env_path::validate_binaries_with_notice(
+            crate::util::env_path::MONITORED_PATH_BINARIES,
+        );
     }
 
     if env::var("TOKSI_INSTALLER_RUN").as_deref() == Ok("1") {

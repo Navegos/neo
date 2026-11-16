@@ -46,6 +46,7 @@ pub struct AgentObservationItem {
     pub id: String,
     pub label: String,
     pub installed: bool,
+    pub in_path: bool,
     pub wired: bool,
     pub connected_provider: String,
     pub active_model: String,

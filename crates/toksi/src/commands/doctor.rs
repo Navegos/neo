@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor.rs
 // created: 2026-10-05
-// lastModified: 2026-11-14
+// lastModified: 2026-11-16
 
 #![deny(unsafe_code)]
 
@@ -101,6 +101,62 @@ fn merge_directory_recursive(src: &std::path::Path, dst: &std::path::Path) {
     }
 }
 
+const HOME_WORKSPACE_LEAK_DIRS: &[&str] = &[
+    "projectmem",
+    "icm",
+    "ai-memory",
+    "aimemory",
+    "context",
+    "context-mode",
+    "codegraph",
+];
+
+pub fn audit_home_workspace_leakage() -> Vec<String> {
+    let h = crate::util::paths::home();
+    if h.is_empty() {
+        return Vec::new();
+    }
+    let home_toksi = std::path::Path::new(&h).join(".toksi");
+    let mut warnings = Vec::new();
+    for tool in HOME_WORKSPACE_LEAK_DIRS {
+        let leaked = home_toksi.join(tool);
+        if leaked.is_dir() {
+            warnings.push(format!(
+                "[WARNING] Home-dir workspace store leakage detected at {}; workspace tools belong strictly in <repo>/.toksi/<tool>.",
+                normalize_path(&leaked.to_string_lossy())
+            ));
+        }
+    }
+    warnings
+}
+
+pub fn clean_home_workspace_leakage() -> std::io::Result<usize> {
+    let h = crate::util::paths::home();
+    if h.is_empty() {
+        return Ok(0);
+    }
+    let home_toksi = std::path::Path::new(&h).join(".toksi");
+    let mut removed = 0usize;
+    for tool in HOME_WORKSPACE_LEAK_DIRS {
+        let leaked = home_toksi.join(tool);
+        if leaked.is_dir() && std::fs::remove_dir_all(&leaked).is_ok() {
+            removed += 1;
+        }
+    }
+    Ok(removed)
+}
+
+fn subproject_id_for(root_canon: &std::path::Path, dir: &std::path::Path) -> String {
+    let dir_canon = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+    if dir_canon == *root_canon {
+        return ".".to_string();
+    }
+    dir_canon
+        .strip_prefix(root_canon)
+        .map(|rel| normalize_path(&rel.to_string_lossy()))
+        .unwrap_or_else(|_| ".".to_string())
+}
+
 pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<usize> {
     let mut consolidated_count = 0;
     let root_canon = match std::fs::canonicalize(root) {
@@ -108,17 +164,14 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
         Err(_) => root.to_path_buf(),
     };
     let root_toksi = root_canon.join(".toksi");
-    if !root_toksi.exists() {
-        let _ = std::fs::create_dir_all(&root_toksi);
-    }
 
     let tool_migrations = [
         (".codegraph", "codegraph"),
         (".context-mode", "context"),
         (".context", "context"),
         (".icm", "icm"),
-        (".ai-memory", "aimemory"),
-        (".aimemory", "aimemory"),
+        (".ai-memory", "ai-memory"),
+        (".aimemory", "ai-memory"),
         (".rtk", "rtk"),
         (".projectmem", "projectmem"),
     ];
@@ -149,7 +202,10 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
                         Err(_) => path.clone(),
                     };
                     if path_canon != root_toksi {
-                        // Merge SQLite DBs row-by-row before deleting!
+                        let _ = std::fs::create_dir_all(&root_toksi);
+                        let sub_id = subproject_id_for(&root_canon, &dir);
+
+                        // Merge SQLite DBs row-by-row tagged with subproject_id before deleting!
                         // a) toksi.db
                         let sub_toksi_db = path.join("toksi.db");
                         if sub_toksi_db.exists() {
@@ -163,15 +219,22 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
                             (path.join("projectmem").join("memory.db"), root_toksi.join("projectmem").join("memory.db")),
                         ] {
                             if mem_sub.exists() {
-                                let _ = crate::db::merge_memory_db(&dst_rel, &mem_sub);
+                                let _ = crate::db::merge_memory_db_with_subproject(&dst_rel, &mem_sub, &sub_id);
                             }
                         }
                         // c) symbols.db (in sub/.toksi or sub/.toksi/codegraph)
                         for sym_sub in [path.join("symbols.db"), path.join("codegraph").join("symbols.db")] {
                             if sym_sub.exists() {
                                 let root_sym = root_toksi.join("codegraph").join("symbols.db");
-                                let _ = crate::db::merge_symbols_db(&root_sym, &sym_sub);
+                                let _ = crate::db::merge_symbols_db_with_subproject(&root_sym, &sym_sub, &sub_id);
                             }
+                        }
+
+                        // Normalize legacy .toksi/aimemory -> .toksi/ai-memory before directory merge
+                        let nested_aimem = path.join("aimemory");
+                        if nested_aimem.is_dir() {
+                            merge_directory_recursive(&nested_aimem, &root_toksi.join("ai-memory"));
+                            let _ = std::fs::remove_dir_all(&nested_aimem);
                         }
 
                         // Recursively merge subdirectories and files into root .toksi
@@ -187,17 +250,27 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
                         Err(_) => dir.clone(),
                     };
                     if dir_canon != root_canon {
+                        let _ = std::fs::create_dir_all(&root_toksi);
+                        let sub_id = subproject_id_for(&root_canon, &dir);
                         let target_tool_dir = root_toksi.join(tool_name);
                         let _ = std::fs::create_dir_all(&target_tool_dir);
                         if *tool_name == "codegraph" {
                             let sub_sym = path.join("symbols.db");
                             if sub_sym.exists() {
-                                let _ = crate::db::merge_symbols_db(&target_tool_dir.join("symbols.db"), &sub_sym);
+                                let _ = crate::db::merge_symbols_db_with_subproject(
+                                    &target_tool_dir.join("symbols.db"),
+                                    &sub_sym,
+                                    &sub_id,
+                                );
                             }
                         } else if *tool_name == "icm" || *tool_name == "projectmem" {
                             let sub_mem = path.join("memory.db");
                             if sub_mem.exists() {
-                                let _ = crate::db::merge_memory_db(&target_tool_dir.join("memory.db"), &sub_mem);
+                                let _ = crate::db::merge_memory_db_with_subproject(
+                                    &target_tool_dir.join("memory.db"),
+                                    &sub_mem,
+                                    &sub_id,
+                                );
                             }
                         }
                         merge_directory_recursive(&path, &target_tool_dir);
@@ -212,21 +285,19 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
     }
 
     // 2. Consolidate loose legacy tool folders at workspace root into .toksi/<tool>
-    for (legacy_name, tool_name) in tool_migrations
-        .iter()
-        .filter(|(legacy_name, _)| *legacy_name != ".projectmem")
-    {
+    for (legacy_name, tool_name) in tool_migrations {
         let legacy_path = root_canon.join(legacy_name);
         if legacy_path.exists() && legacy_path.is_dir() {
+            let _ = std::fs::create_dir_all(&root_toksi);
             let target_tool_dir = root_toksi.join(tool_name);
             let _ = std::fs::create_dir_all(&target_tool_dir);
-            if *legacy_name == ".codegraph" {
+            if legacy_name == ".codegraph" {
                 let sub_sym = legacy_path.join("symbols.db");
                 if sub_sym.exists() {
                     let root_sym = target_tool_dir.join("symbols.db");
                     let _ = crate::db::merge_symbols_db(&root_sym, &sub_sym);
                 }
-            } else if *legacy_name == ".icm" {
+            } else if legacy_name == ".icm" {
                 let sub_mem = legacy_path.join("memory.db");
                 if sub_mem.exists() {
                     let root_mem = target_tool_dir.join("memory.db");
@@ -239,19 +310,13 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
         }
     }
 
-    // Mirror/migrate loose .projectmem into .toksi/projectmem
-    let legacy_pjm = root_canon.join(".projectmem");
-    if legacy_pjm.exists() && legacy_pjm.is_dir() {
-        let target_pjm = root_toksi.join("projectmem");
-        let _ = std::fs::create_dir_all(&target_pjm);
-        if let Ok(entries) = std::fs::read_dir(&legacy_pjm) {
-            for entry in entries.flatten() {
-                let dest = target_pjm.join(entry.file_name());
-                if !dest.exists() {
-                    let _ = std::fs::copy(entry.path(), dest);
-                }
-            }
-        }
+    // Migrate legacy root .toksi/aimemory -> .toksi/ai-memory if present
+    let legacy_aimem = root_toksi.join("aimemory");
+    if legacy_aimem.is_dir() {
+        let target_aimem = root_toksi.join("ai-memory");
+        merge_directory_recursive(&legacy_aimem, &target_aimem);
+        let _ = std::fs::remove_dir_all(&legacy_aimem);
+        consolidated_count += 1;
     }
 
     Ok(consolidated_count)
@@ -461,6 +526,15 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
     let tools = list_tools();
 
     if fix {
+        if let Ok(cleaned) = clean_home_workspace_leakage()
+            && cleaned > 0
+        {
+            L.raw(&format!(
+                "  {} Cleaned {} home-directory workspace store leakage folder(s) under ~/.toksi/",
+                C.green(Sym::CHECK),
+                cleaned
+            ));
+        }
         if let Some(ref ws) = ws_opt {
             if let Ok(merged) = consolidate_nested_toksi_dirs(ws) {
                 if merged > 0 {
@@ -722,9 +796,10 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
     }
 
     let cli_warnings = audit_agent_cli_binaries();
-    if !cli_warnings.is_empty() {
-        tree_corner("PATH Validation");
-        for w in cli_warnings {
+    let home_leak_warnings = audit_home_workspace_leakage();
+    if !cli_warnings.is_empty() || !home_leak_warnings.is_empty() {
+        tree_corner("PATH & Topology Validation");
+        for w in cli_warnings.into_iter().chain(home_leak_warnings.into_iter()) {
             for line in w.lines() {
                 tree_leaf(&C.yellow(line));
             }

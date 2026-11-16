@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/mcp_adapters.rs
 // created: 2026-10-20
-// lastModified: 2026-11-14
+// lastModified: 2026-11-16
 
 #![deny(unsafe_code)]
 
@@ -70,6 +70,10 @@ pub fn normalize_mcp_tool_id(tool_id: &str) -> &'static str {
         | "tokless_aimemory"
         | "tokless-aimemory" => "aimemory",
         "rtk" | "toksi-rtk" | "tokless_rtk" | "tokless-rtk" => "rtk",
+        "security" | "toksi-security" => "security",
+        "advisory" | "toksi-advisory" => "advisory",
+        "skills" | "toksi-skills" => "skills",
+        "sandbox" | "toksi-sandbox" => "sandbox",
         _ => "tool",
     }
 }
@@ -744,8 +748,8 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
             nested: "mcp.servers".to_string(),
         })),
         "dsh" => Some(Arc::new(DshMcpAdapter)),
-        "claude" => Some(Arc::new(FnAgentMcpAdapter {
-            id: "claude".to_string(),
+        "claude" | "claude-cli" | "claude-desktop" => Some(Arc::new(FnAgentMcpAdapter {
+            id: id.to_string(),
             configure: Arc::new(|req| {
                 let (changed, file) = configure_claude_mcp(&req.tool_id);
                 McpReply { changed, file, err: None }
@@ -845,8 +849,8 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
                 }
             }),
         })),
-        "cursor" => Some(Arc::new(FnAgentMcpAdapter {
-            id: "cursor".to_string(),
+        "cursor" | "cursor-cli" | "cursor-ide" => Some(Arc::new(FnAgentMcpAdapter {
+            id: id.to_string(),
             configure: Arc::new(|req| {
                 let (mut changed, file) = configure_cursor_mcp(&req.tool_id);
                 if configure_cursor_mcp_permissions(&req.tool_id) {
@@ -1003,8 +1007,8 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
                 }
             }),
         })),
-        "grok" => Some(Arc::new(FnAgentMcpAdapter {
-            id: "grok".to_string(),
+        "grok" | "grok-cli" | "grok-ide" => Some(Arc::new(FnAgentMcpAdapter {
+            id: id.to_string(),
             configure: Arc::new(|req| {
                 match configure_grok_mcp(&req.tool_id) {
                     Ok((changed, file)) => McpReply { changed, file, err: None },
@@ -1170,8 +1174,12 @@ pub const AUDIT_MCP_TOOLS: &[&str] = &[
 
 pub fn agent_mcp_json_files(agent_id: &str) -> Vec<(String, String)> {
     match agent_id {
-        "claude" => vec![(normalize_path(&claude_code_paths().global_json), "mcpServers".into())],
-        "cursor" => vec![(normalize_path(&cursor_global_mcp_path()), "mcpServers".into())],
+        "claude" | "claude-cli" | "claude-desktop" => {
+            vec![(normalize_path(&claude_code_paths().global_json), "mcpServers".into())]
+        }
+        "cursor" | "cursor-cli" | "cursor-ide" => {
+            vec![(normalize_path(&cursor_global_mcp_path()), "mcpServers".into())]
+        }
         "opencode" => vec![(normalize_path(&opencode_paths_resolved().config), "mcp".into())],
         "opencode2" => vec![(normalize_path(&opencode_paths_v2().config), "mcp".into())],
         "antigravity" | "antigravity-cli" | "antigravity-ide" => antigravity_mcp_config_files()
@@ -1211,7 +1219,7 @@ pub fn agent_mcp_json_files(agent_id: &str) -> Vec<(String, String)> {
 
 pub fn agent_workspace_mcp_json_files(agent_id: &str, workspace_root: &Path) -> Vec<(String, String)> {
     match agent_id {
-        "cursor" => vec![(
+        "cursor" | "cursor-cli" | "cursor-ide" => vec![(
             normalize_path(&workspace_root.join(".cursor").join("mcp.json").to_string_lossy()),
             "mcpServers".into(),
         )],
@@ -1219,7 +1227,7 @@ pub fn agent_workspace_mcp_json_files(agent_id: &str, workspace_root: &Path) -> 
             normalize_path(&workspace_root.join(".vscode").join("mcp.json").to_string_lossy()),
             "servers".into(),
         )],
-        "claude" => vec![(
+        "claude" | "claude-cli" | "claude-desktop" => vec![(
             normalize_path(&workspace_root.join(".mcp.json").to_string_lossy()),
             "mcpServers".into(),
         )],
@@ -1477,10 +1485,14 @@ mod tests {
             "zcode",
             "dsh",
             "claude",
+            "claude-cli",
+            "claude-desktop",
             "opencode",
             "opencode2",
             "codex",
             "cursor",
+            "cursor-cli",
+            "cursor-ide",
             "antigravity",
             "antigravity-cli",
             "antigravity-ide",
@@ -1489,6 +1501,8 @@ mod tests {
             "copilot-vscode",
             "droid",
             "grok",
+            "grok-cli",
+            "grok-ide",
             "pi",
             "omp",
             "kilo",

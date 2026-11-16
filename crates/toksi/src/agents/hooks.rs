@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/agents/hooks.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-16
+
+#![deny(unsafe_code)]
 
 pub use super::antigravity::*;
 pub use super::claude::*;
@@ -36,45 +38,110 @@ pub fn standard_hook_command(tool: &str, agent: &str) -> Vec<String> {
 /// Normalizes tool names for hooks:
 /// e.g. `toksi-projectmem` -> `projectmem`, `toksi-context-mode` / `context-mode` -> `context`, `toksi-codegraph` -> `codegraph`
 pub fn normalize_hook_tool_name(tool: &str) -> &'static str {
-    match tool.trim() {
-        "projectmem" | "toksi-projectmem" | "pjm" => "projectmem",
-        "context" | "context-mode" | "toksi-context-mode" | "ctx" => "context",
-        "codegraph" | "toksi-codegraph" | "graph" => "codegraph",
-        "rtk" | "toksi-rtk" => "rtk",
-        "icm" | "toksi-icm" => "icm",
-        "aimemory" | "ai-memory" | "toksi-aimemory" => "aimemory",
+    match tool.trim().to_ascii_lowercase().as_str() {
+        "projectmem"
+        | "toksi-projectmem"
+        | "tokless-projectmem"
+        | "tokless_projectmem"
+        | "projectmem-context"
+        | "pjm" => "projectmem",
+        "context"
+        | "context-mode"
+        | "contextmode"
+        | "toksi-context"
+        | "toksi-context-mode"
+        | "tokless-context"
+        | "tokless_context"
+        | "tokless-context-mode"
+        | "ctx" => "context",
+        "codegraph"
+        | "toksi-codegraph"
+        | "toksi-codegraph-index"
+        | "tokless-codegraph"
+        | "tokless_codegraph"
+        | "tokless-codegraph-index"
+        | "graph" => "codegraph",
+        "rtk" | "toksi-rtk" | "tokless-rtk" | "tokless_rtk" => "rtk",
+        "icm" | "toksi-icm" | "tokless-icm" | "tokless_icm" => "icm",
+        "aimemory"
+        | "ai-memory"
+        | "ai_memory"
+        | "toksi-aimemory"
+        | "toksi-ai-memory"
+        | "tokless-aimemory"
+        | "tokless_aimemory" => "aimemory",
         "headroom" | "toksi-headroom" => "headroom",
+        "security" | "toksi-security" => "security",
         _ => "tool",
     }
 }
 
-/// Normalizes agent identifiers for hook syntax
+/// Normalizes agent identifiers for hook syntax while preserving CLI vs IDE distinction:
+/// `antigravity-cli` vs `antigravity-ide`, `copilot-cli` vs `copilot-vscode`,
+/// `claude-cli` vs `claude-desktop`, `cursor-cli` vs `cursor-ide`, `grok-cli` vs `grok-ide`,
+/// plus `"openagents"`.
 pub fn normalize_hook_agent_name(agent: &str) -> &'static str {
     match agent.trim().to_ascii_lowercase().as_str() {
-        "antigravity" | "agy" | "antigravity-cli" | "antigravity-ide" => "agy",
-        "copilot" | "copilot-cli" | "copilot-vscode" | "copilot-ide" => "copilot",
-        "claude" | "claude-cli" | "claude-desktop" | "claude-code" => "claude",
-        "cursor" | "cursor-cli" | "cursor-ide" => "cursor",
-        "grok" | "grok-cli" | "grok-ide" => "grok",
+        "antigravity" | "agy" => "agy",
+        "antigravity-cli" => "antigravity-cli",
+        "antigravity-ide" => "antigravity-ide",
+        "copilot" => "copilot",
+        "copilot-cli" => "copilot-cli",
+        "copilot-vscode" | "copilot-ide" => "copilot-vscode",
+        "claude" => "claude",
+        "claude-cli" | "claude-code" => "claude-cli",
+        "claude-desktop" => "claude-desktop",
+        "cursor" => "cursor",
+        "cursor-cli" => "cursor-cli",
+        "cursor-ide" => "cursor-ide",
+        "grok" => "grok",
+        "grok-cli" => "grok-cli",
+        "grok-ide" => "grok-ide",
         "codex" => "codex",
         "cline" => "cline",
         "droid" | "factory" => "droid",
-        "opencode" | "opencode2" => "opencode",
+        "opencode" => "opencode",
+        "opencode2" => "opencode2",
+        "openagents" => "openagents",
         "pi" => "pi",
         "omp" => "omp",
         "kilo" => "kilo",
         "kimi" => "kimi",
         "zcode" => "zcode",
+        "amp" => "amp",
+        "dsh" => "dsh",
         _ => "agent",
     }
 }
 
-/// Checks whether a command string matches standard hook pattern
+fn family_base_agent(norm_agent: &str) -> &'static str {
+    match norm_agent {
+        "antigravity-cli" | "antigravity-ide" => "agy",
+        "copilot-cli" | "copilot-vscode" => "copilot",
+        "claude-cli" | "claude-desktop" => "claude",
+        "cursor-cli" | "cursor-ide" => "cursor",
+        "grok-cli" | "grok-ide" => "grok",
+        "opencode2" => "opencode",
+        _ => "",
+    }
+}
+
+/// Checks whether a command string matches standard hook pattern `<tool>-hook <agent>`
 pub fn is_hook_command_match(cmd_str: &str, tool: &str, agent: &str) -> bool {
     let norm_tool = normalize_hook_tool_name(tool);
     let norm_agent = normalize_hook_agent_name(agent);
     let standard = format!("{}-hook {}", norm_tool, norm_agent);
-    cmd_str.contains(&standard)
+    if cmd_str.contains(&standard) {
+        return true;
+    }
+    let base = family_base_agent(norm_agent);
+    if !base.is_empty() {
+        let family = format!("{}-hook {}", norm_tool, base);
+        if cmd_str.contains(&family) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Differentiates agent CLI vs agent editor/IDE
@@ -106,9 +173,15 @@ mod tests {
     #[test]
     fn test_standard_hook_command() {
         assert_eq!(standard_hook_command("codegraph", "agy"), vec!["codegraph-hook", "agy"]);
+        assert_eq!(standard_hook_command("codegraph", "antigravity-cli"), vec!["codegraph-hook", "antigravity-cli"]);
+        assert_eq!(standard_hook_command("codegraph", "antigravity-ide"), vec!["codegraph-hook", "antigravity-ide"]);
         assert_eq!(standard_hook_command("projectmem", "copilot"), vec!["projectmem-hook", "copilot"]);
+        assert_eq!(standard_hook_command("projectmem", "copilot-cli"), vec!["projectmem-hook", "copilot-cli"]);
+        assert_eq!(standard_hook_command("projectmem", "copilot-vscode"), vec!["projectmem-hook", "copilot-vscode"]);
         assert_eq!(standard_hook_command("context-mode", "cursor"), vec!["context-hook", "cursor"]);
-        assert_eq!(standard_hook_command("toksi-rtk", "claude-cli"), vec!["rtk-hook", "claude"]);
+        assert_eq!(standard_hook_command("toksi-rtk", "claude-cli"), vec!["rtk-hook", "claude-cli"]);
+        assert_eq!(standard_hook_command("rtk", "claude-desktop"), vec!["rtk-hook", "claude-desktop"]);
+        assert_eq!(standard_hook_command("context", "openagents"), vec!["context-hook", "openagents"]);
     }
 
     #[test]

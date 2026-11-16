@@ -4,6 +4,24 @@
 // file: crates/toksi/src/util/env_path.rs
 // created: 2026-11-08
 
+#![deny(unsafe_code)]
+
+use crate::util::logger::L;
+
+/// Required/monitored system & agent binaries checked against PATH.
+pub const MONITORED_PATH_BINARIES: &[&str] = &[
+    "bash",
+    #[cfg(windows)]
+    "cmd",
+    "toksi",
+    "agy",
+    "copilot",
+    "claude",
+    "codex",
+    "cursor",
+    "grok",
+];
+
 /// Environment PATH Validation Mandate ("Rule of Test and Inform User")
 ///
 /// Validates whether a required binary exists in system PATH.
@@ -52,6 +70,15 @@ pub fn check_executable_in_path(cmd: &str) -> Result<(), String> {
     ))
 }
 
+/// Non-error boolean helper for UI/fleet status probes.
+pub fn is_executable_in_path(cmd: &str) -> bool {
+    let trimmed = cmd.trim();
+    if trimmed.is_empty() {
+        return true;
+    }
+    check_executable_in_path(trimmed).is_ok()
+}
+
 /// Checks multiple executables and returns all missing binary errors.
 pub fn check_executables_in_path(cmds: &[&str]) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
@@ -67,6 +94,21 @@ pub fn check_executables_in_path(cmds: &[&str]) -> Result<(), Vec<String>> {
     }
 }
 
+/// Validates binaries in PATH and logs a non-blocking actionable notice for missing entries.
+pub fn validate_binaries_with_notice(cmds: &[&str]) -> Vec<(String, bool)> {
+    let mut results = Vec::with_capacity(cmds.len());
+    for &cmd in cmds {
+        match check_executable_in_path(cmd) {
+            Ok(()) => results.push((cmd.to_string(), true)),
+            Err(notice) => {
+                L.debug(&notice);
+                results.push((cmd.to_string(), false));
+            }
+        }
+    }
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -78,6 +120,8 @@ mod tests {
         let err = res.err().unwrap_or_default();
         assert!(err.contains("[ERROR] Required executable 'definitely_not_existing_binary_xyz_12345' not found in system PATH."));
         assert!(err.contains("Please add 'definitely_not_existing_binary_xyz_12345' to your PATH environment variable and retry."));
+        assert!(!is_executable_in_path("definitely_not_existing_binary_xyz_12345"));
+        assert!(is_executable_in_path(""));
     }
 
     #[test]
@@ -85,6 +129,7 @@ mod tests {
         // Cargo should be in PATH when running cargo tests
         let res = check_executable_in_path("cargo");
         assert!(res.is_ok());
+        assert!(is_executable_in_path("cargo"));
     }
 
     #[test]
@@ -96,5 +141,11 @@ mod tests {
         assert!(res_err.is_err());
         let errs = res_err.err().unwrap_or_default();
         assert_eq!(errs.len(), 2);
+    }
+
+    #[test]
+    fn test_validate_binaries_with_notice() {
+        let status = validate_binaries_with_notice(&["cargo", "definitely_missing_agent_xyz"]);
+        assert_eq!(status, vec![("cargo".to_string(), true), ("definitely_missing_agent_xyz".to_string(), false)]);
     }
 }
