@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/mcp.rs
 // created: 2026-10-28
-// lastModified: 2026-11-16
+// lastModified: 2026-11-18
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
@@ -17,6 +17,10 @@ use super::walker;
 use super::CodeGraph;
 
 pub fn run_mcp_server() -> i32 {
+    run_mcp_server_with_root(None)
+}
+
+pub fn run_mcp_server_with_root(default_root: Option<&str>) -> i32 {
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut reader = stdin.lock();
@@ -34,7 +38,7 @@ pub fn run_mcp_server() -> i32 {
         }
 
         if let Ok(req) = serde_json::from_str::<Value>(trimmed) {
-            let resp = handle_mcp_message(&req);
+            let resp = handle_mcp_message_with_root(&req, default_root);
             if let Some(resp_val) = resp {
                 let _ = writeln!(writer, "{}", resp_val);
                 let _ = writer.flush();
@@ -46,6 +50,10 @@ pub fn run_mcp_server() -> i32 {
 }
 
 pub fn handle_mcp_message(req: &Value) -> Option<Value> {
+    handle_mcp_message_with_root(req, None)
+}
+
+pub fn handle_mcp_message_with_root(req: &Value, default_root: Option<&str>) -> Option<Value> {
     let id = req.get("id").cloned();
     let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
 
@@ -235,6 +243,7 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
                 .get("projectPath")
                 .and_then(|p| p.as_str())
                 .map(String::from)
+                .or_else(|| default_root.filter(|s| !s.trim().is_empty()).map(String::from))
                 .or_else(|| env::var("CODEGRAPH_PROJECT_DIR").ok())
                 .unwrap_or_else(|| ".".into());
 

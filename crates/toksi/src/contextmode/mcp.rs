@@ -944,10 +944,19 @@ impl ContextMcpServer {
 }
 
 pub fn run_mcp_server() -> i32 {
-    let project_root = std::env::var("CONTEXT_MODE_PROJECT_DIR")
-        .or_else(|_| std::env::var("PROJECTMEM_ROOT"))
-        .ok()
+    run_mcp_server_with_root(None)
+}
+
+pub fn run_mcp_server_with_root(default_root: Option<&str>) -> i32 {
+    let project_root = default_root
+        .filter(|s| !s.trim().is_empty())
         .map(PathBuf::from)
+        .or_else(|| {
+            std::env::var("CONTEXT_MODE_PROJECT_DIR")
+                .or_else(|_| std::env::var("PROJECTMEM_ROOT"))
+                .ok()
+                .map(PathBuf::from)
+        })
         .or_else(|| std::env::current_dir().ok());
 
     let server = ContextMcpServer::new(project_root);

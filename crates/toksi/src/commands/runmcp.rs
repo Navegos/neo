@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/commands/runmcp.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
+
+#![deny(unsafe_code)]
 
 use std::env;
 use std::io::{self, Read};
@@ -136,10 +138,7 @@ pub fn run_mcp(argv: &[String]) -> i32 {
             let _ = ensure_projectmem_project(&root);
             refresh_projectmem_rule_files(&root);
         }
-        unsafe {
-            std::env::set_var("CODEGRAPH_PROJECT_DIR", &root);
-        }
-        return crate::codegraph::mcp::run_mcp_server();
+        return crate::codegraph::mcp::run_mcp_server_with_root(Some(&root));
     }
 
     let is_projectmem = actual_cmd_args.iter().any(|a| a.contains("projectmem") || a.contains("pjm-mcp")) || tool == "projectmem";
@@ -149,19 +148,13 @@ pub fn run_mcp(argv: &[String]) -> i32 {
             let _ = ensure_projectmem_project(&root);
             refresh_projectmem_rule_files(&root);
         }
-        unsafe {
-            std::env::set_var("PROJECTMEM_ROOT", &root);
-        }
-        return crate::projectmem::mcp::run_mcp_server();
+        return crate::projectmem::mcp::run_mcp_server_with_root(Some(&root));
     }
 
     let is_contextmode = actual_cmd_args.iter().any(|a| a.contains("context-mode") || a.contains("ctx-mcp")) || tool == "context-mode" || tool == "context" || context_mode;
     if is_contextmode {
         let root = projectmem_root(&workspace);
-        unsafe {
-            std::env::set_var("CONTEXT_MODE_PROJECT_DIR", &root);
-        }
-        return crate::contextmode::mcp::run_mcp_server();
+        return crate::contextmode::mcp::run_mcp_server_with_root(Some(&root));
     }
 
     let is_aimemory = actual_cmd_args.iter().any(|a| a.contains("aimemory") || a.contains("ai-memory") || a.contains("handoff"))
@@ -174,16 +167,6 @@ pub fn run_mcp(argv: &[String]) -> i32 {
         || tool == "icm" || tool == "icm-mcp";
     if is_icm {
         return crate::icm::mcp::run_mcp_server();
-    }
-
-    let is_codegraph = actual_cmd_args.iter().any(|a| a.contains("codegraph"))
-        || tool == "codegraph";
-    if is_codegraph {
-        let root = projectmem_root(&workspace);
-        unsafe {
-            std::env::set_var("CODEGRAPH_PROJECT_DIR", &root);
-        }
-        return crate::codegraph::mcp::run_mcp_server();
     }
 
     let env_vars = Vec::new();

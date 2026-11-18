@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase8_downloader_purge_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-11-09
+// lastModified: 2026-11-18
 
 use std::path::Path;
 use toksi::agents::register as register_all_agents;
@@ -40,14 +40,18 @@ fn test_phase8_all_17_agents_registered() {
     register_all_agents();
     toksi::tools::register();
 
-    let expected_17_agents = [
+    let expected_agents = [
         "claude",
         "opencode",
         "opencode2",
         "codex",
         "cursor",
         "antigravity",
+        "antigravity-cli",
+        "antigravity-ide",
         "copilot",
+        "copilot-cli",
+        "copilot-vscode",
         "droid",
         "grok",
         "kilo",
@@ -64,12 +68,13 @@ fn test_phase8_all_17_agents_registered() {
     let registered = list_agents();
     assert_eq!(
         registered.len(),
-        18,
-        "Expected all agent harnesses registered, found {}",
+        expected_agents.len(),
+        "Expected all {} agent harnesses registered, found {}",
+        expected_agents.len(),
         registered.len()
     );
 
-    for agent_id in expected_17_agents {
+    for agent_id in expected_agents {
         let manifest = get_agent(agent_id);
         assert!(
             manifest.is_some(),

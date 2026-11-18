@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/util/exec.rs
 // created: 2026-10-05
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
+
+#![deny(unsafe_code)]
 
 use std::io::Read;
 use std::path::Path;

@@ -724,7 +724,11 @@ pub fn mcp_tools_list() -> Value {
 }
 
 pub fn execute_mcp_tool(name: &str, args: &Value) -> String {
-    let project_arg = args.get("project").and_then(|v| v.as_str());
+    execute_mcp_tool_with_root(name, args, None)
+}
+
+pub fn execute_mcp_tool_with_root(name: &str, args: &Value, default_root: Option<&str>) -> String {
+    let project_arg = args.get("project").and_then(|v| v.as_str()).or(default_root);
     let root = match resolve_project_root(project_arg) {
         Ok(r) => r,
         Err(e) => return format!("projectmem tool error: {}", e),
@@ -830,6 +834,10 @@ pub fn execute_mcp_tool(name: &str, args: &Value) -> String {
 }
 
 pub fn handle_mcp_message(req: &Value) -> Option<Value> {
+    handle_mcp_message_with_root(req, None)
+}
+
+pub fn handle_mcp_message_with_root(req: &Value, default_root: Option<&str>) -> Option<Value> {
     let id = req.get("id").cloned();
     let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
 
@@ -873,7 +881,7 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
                 .cloned()
                 .unwrap_or_else(|| json!({}));
 
-            let result_text = execute_mcp_tool(name, &args);
+            let result_text = execute_mcp_tool_with_root(name, &args, default_root);
             Some(json!({
                 "jsonrpc": "2.0",
                 "id": id,
@@ -905,6 +913,10 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
 }
 
 pub fn run_mcp_server() -> i32 {
+    run_mcp_server_with_root(None)
+}
+
+pub fn run_mcp_server_with_root(default_root: Option<&str>) -> i32 {
     let stdin = io::stdin();
     let stdout = io::stdout();
     let mut reader = stdin.lock();
@@ -930,7 +942,7 @@ pub fn run_mcp_server() -> i32 {
             }
         };
 
-        let resp = handle_mcp_message(&req);
+        let resp = handle_mcp_message_with_root(&req, default_root);
 
         if let Some(r) = resp {
             if let Ok(serialized) = serde_json::to_string(&r) {
