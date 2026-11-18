@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rules/skills_repo.rs
 // created: 2026-11-16
-// lastModified: 2026-11-16
+// lastModified: 2026-11-18
 
 //! Externalized `<skills>` (`Navegos/skills`) & staged `<neo>/rules/`, `<neo>/agents/`
 //! repository loader and synchronizer (Zero Binary Bloat Policy).
@@ -427,6 +427,75 @@ pub fn sync_external_skills_repo(cfg: &SkillsRepoConfig) -> Result<SkillsRepoSyn
     Ok(report)
 }
 
+/// Fetches official vetted skills online from `[repositories].skills_pages_url`
+/// (e.g., `https://navegos.github.io/skills/`), heals YAML frontmatter via
+/// `skilldoctor` + `agentskills`, verifies `<enforce>` security vetting, and
+/// stages clean `SKILL.md` files into `cfg.skills_dir`.
+pub async fn fetch_online_skills_from_pages(
+    cfg: &SkillsRepoConfig,
+    skill_names: &[&str],
+) -> Result<SkillsRepoSyncReport, RulesError> {
+    let base = cfg.skills_pages_url.trim_end_matches('/');
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| RulesError::Http {
+            url: base.to_string(),
+            message: e.to_string(),
+        })?;
+
+    let dest_skills_dir = cfg.skills_dir.join("skills");
+    fs::create_dir_all(&dest_skills_dir).map_err(|e| RulesError::io(&dest_skills_dir, e))?;
+
+    let mut report = SkillsRepoSyncReport::default();
+    for raw_name in skill_names {
+        let name = raw_name.trim();
+        if name.is_empty() || name.contains("..") || name.contains('/') || name.contains('\\') {
+            continue;
+        }
+        let url = format!("{}/skills/{}/SKILL.md", base, name);
+        let resp = client.get(&url).send().await.map_err(|e| RulesError::Http {
+            url: url.clone(),
+            message: e.to_string(),
+        })?;
+        if !resp.status().is_success() {
+            report.blocked_files.push((
+                url,
+                format!("HTTP {}", resp.status().as_u16()),
+            ));
+            continue;
+        }
+        let raw = resp.text().await.map_err(|e| RulesError::Http {
+            url: url.clone(),
+            message: e.to_string(),
+        })?;
+
+        let target_dir = dest_skills_dir.join(name);
+        let target_file = target_dir.join("SKILL.md");
+        let target_norm = normalize_path(&target_file.to_string_lossy());
+        let healed = heal_skill_content(&target_norm, &raw, Some(name), true);
+        let check = analyze_content(&target_norm, &healed.output, Some(FileKind::Skill));
+        if !check.vetted_for_install {
+            report.blocked_files.push((
+                target_norm,
+                "failed skilldoctor/defenseclaw <enforce> security gate".to_string(),
+            ));
+            continue;
+        }
+
+        fs::create_dir_all(&target_dir).map_err(|e| RulesError::io(&target_dir, e))?;
+        fs::write(&target_file, &healed.output).map_err(|e| RulesError::io(&target_file, e))?;
+        let pb = PathBuf::from(&target_norm);
+        if healed.changed {
+            report.healed_files.push(pb.clone());
+        }
+        report.synced_files.push(pb);
+        report.catalog_count += 1;
+    }
+
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,10 +514,12 @@ mod tests {
         isolated.skills_dir = tmp.path().join("skills-repo");
         isolated.user_skills_dir = tmp.path().join("user-skills");
         let sync_rep = sync_external_skills_repo(&isolated)?;
-        assert!(sync_rep.catalog_count >= 16);
+        assert!(sync_rep.catalog_count >= 28);
         assert!(sync_rep.blocked_files.is_empty());
         assert!(isolated.skills_dir.join("skills/ultracave/SKILL.md").is_file());
         assert!(isolated.skills_dir.join("skills/ponytail-debt/SKILL.md").is_file());
+        assert!(isolated.skills_dir.join("skills/investigate-first/SKILL.md").is_file());
+        assert!(isolated.skills_dir.join("skills/caveman-explore/SKILL.md").is_file());
         Ok(())
     }
 }

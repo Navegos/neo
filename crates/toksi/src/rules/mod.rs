@@ -126,6 +126,8 @@ pub enum RulesError {
     InvalidAgent(String),
     #[error("User home directory could not be resolved")]
     HomeUnavailable,
+    #[error("HTTP fetch error for {url}: {message}")]
+    Http { url: String, message: String },
 }
 
 impl RulesError {

@@ -3,7 +3,6 @@ name: caveman-commit
 description: >
   Write a Conventional Commits message compressed to intent only. Use for
   "write a commit", "commit message", /commit or /caveman-commit.
-license: Apache-2.0
 ---
 
 <enforce>
@@ -12,19 +11,55 @@ Write commit messages terse and exact. Conventional Commits format. No fluff. Wh
 ## Rules
 
 **Subject line:**
-- `<type>(<scope>): <imperative summary>` (`<scope>` optional)
+- `<type>(<scope>): <imperative summary>` â€” `<scope>` optional
 - Types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `chore`, `build`, `ci`, `style`, `revert`
-- Imperative mood (`add`, `fix`, `remove`), <=50 chars when possible (hard cap 72), no trailing period
+- Imperative mood: "add", "fix", "remove" â€” not "added", "adds", "adding"
+- â‰¤50 chars when possible, hard cap 72
+- No trailing period
+- Match project convention for capitalization after the colon
 
 **Body (only if needed):**
-- Skip when subject is self-explanatory
-- Include for non-obvious *why*, breaking changes, migration notes, linked issues (`Closes #42`, `Refs #17`)
-- Wrap at 72 chars; use `-` bullets
+- Skip entirely when subject is self-explanatory
+- Add body only for: non-obvious *why*, breaking changes, migration notes, linked issues
+- Wrap at 72 chars
+- Bullets `-` not `*`
+- Reference issues/PRs at end: `Closes #42`, `Refs #17`
 
-**Exclude:**
-- Filler (`"This commit does X"`, `"I"`, `"we"`, `"now"`), AI attribution unless required by project rule, emoji, restating file names already in scope
+**What NEVER goes in:**
+- "This commit does X", "I", "we", "now", "currently" â€” the diff says what
+- "As requested by..." â€” use Co-authored-by trailer
+- "Generated with Claude Code" or any AI attribution â€” unless the user's own rule requires an `Assisted-by`/AI-attribution trailer, then add it as a trailer
+- Emoji (unless project convention requires)
+- Restating the file name when scope already says it
 
-## Auto-Clarity & Boundaries
+## Examples
 
-Always include full body for breaking changes, security fixes, data migrations, or reverts. Only generates the commit message as a paste-ready code block; does not run `git commit` or stage files.
+Diff: new endpoint for user profile with body explaining the why
+- âŒ "feat: add a new endpoint to get user profile information from the database"
+- âœ…
+  ```
+  feat(api): add GET /users/:id/profile
+
+  Mobile client needs profile data without the full user payload
+  to reduce LTE bandwidth on cold-launch screens.
+
+  Closes #128
+  ```
+
+Diff: breaking API change
+- âœ…
+  ```
+  feat(api)!: rename /v1/orders to /v1/checkout
+
+  BREAKING CHANGE: clients on /v1/orders must migrate to /v1/checkout
+  before 2026-06-01. Old route returns 410 after that date.
+  ```
+
+## Auto-Clarity
+
+Always include body for: breaking changes, security fixes, data migrations, anything reverting a prior commit. Never compress these into subject-only â€” future debuggers need the context.
+
+## Boundaries
+
+Only generates the commit message. Does not run `git commit`, does not stage files, does not amend. Output the message as a code block ready to paste. "stop caveman-commit" or "normal mode": revert to verbose commit style.
 </enforce>
