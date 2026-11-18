@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/env_injector/heal.rs
 // created: 2026-10-12
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 //! Phase 09 & 11: Legacy Healing & Binary Un-Hijack Engine.
 //!
@@ -89,9 +89,11 @@ const LEGACY_SHIM_MARKERS: &[&str] = &[
     "toksi:grok-cli-proxy",
     "toksi:copilot-shim",
     "toksi:kilo-shim",
+    "toksi:grok-launcher",
     "tokless:antigravity-cli-proxy",
     "tokless:antigravity-launcher",
     "tokless:grok-cli-proxy",
+    "tokless:grok-launcher",
     "tokless:copilot-shim",
     "tokless:kilo-shim",
     "TOKSI_ANTIGRAVITY_HEADROOM_MANAGED",
@@ -110,6 +112,7 @@ const LEGACY_SHIM_MARKERS: &[&str] = &[
 /// Orphaned JSON state files created by legacy shim installers in the data dir.
 const LEGACY_STATE_FILES: &[&str] = &[
     "antigravity-cli-proxy.json",
+    "antigravity-ide-proxy.json",
     "grok-cli-proxy.json",
     "copilot-cli-proxy.json",
     "kilo-cli-proxy.json",
@@ -720,14 +723,7 @@ fn is_candidate_shim_or_sidecar_filename(name: &str) -> bool {
         return true;
     }
     // Check known hijacked binary names and scripts
-    let prefixes = [
-        "agy",
-        "antigravity",
-        "grok",
-        "copilot",
-        "kilo",
-    ];
-    prefixes.iter().any(|p| {
+    KNOWN_AGENT_STEMS.iter().any(|p| {
         lower == *p
             || lower == format!("{p}.cmd")
             || lower == format!("{p}.bat")
@@ -1012,6 +1008,41 @@ mod tests {
         let report = heal_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
         assert!(report.is_clean());
         assert!(legit_agy.exists(), "Legitimate agy.cmd must not be deleted!");
+
+        let _ = fs::remove_dir_all(bin_dir);
+        let _ = fs::remove_dir_all(data_dir);
+        Ok(())
+    }
+
+    #[test]
+    fn test_heal_grok_launcher_shim_and_ide_state() -> TestResult {
+        let bin_dir = make_temp_dir("grok-bin")?;
+        let data_dir = make_temp_dir("grok-data")?;
+
+        let real_grok = bin_dir.join("grok.real");
+        let shim_grok = bin_dir.join("grok");
+        fs::write(&real_grok, b"REAL_GROK_ELF")?;
+        fs::write(
+            &shim_grok,
+            "#!/bin/sh\n# tokless:grok-launcher port=8788\nREAL=\"grok.real\"\nexec \"$REAL\" \"$@\"\n",
+        )?;
+
+        let ide_state = data_dir.join("antigravity-ide-proxy.json");
+        fs::write(&ide_state, "{}")?;
+
+        let report = heal_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
+        assert!(report.errors.is_empty(), "errors: {:?}", report.errors);
+        assert_eq!(report.restored_binaries.len(), 1);
+        assert_eq!(report.removed_state_files.len(), 1);
+        assert!(!real_grok.exists());
+        assert!(!ide_state.exists());
+
+        let expected_grok = if IS_WIN {
+            bin_dir.join("grok.exe")
+        } else {
+            bin_dir.join("grok")
+        };
+        assert_eq!(fs::read(&expected_grok)?, b"REAL_GROK_ELF");
 
         let _ = fs::remove_dir_all(bin_dir);
         let _ = fs::remove_dir_all(data_dir);

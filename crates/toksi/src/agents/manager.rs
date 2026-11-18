@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/agents/manager.rs
 // created: 2026-11-09
-// lastModified: 2026-11-14
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
@@ -299,7 +299,7 @@ impl AgentManager {
         let label = get_agent(agent_id).map(|a| a.label.clone()).unwrap_or_else(|| agent_id.to_string());
 
         let mut missing_hooks = Vec::new();
-        let missing_mcp_servers = Vec::new();
+        let mut missing_mcp_servers = Vec::new();
 
         // Check essential tools wiring
         for &tool in &["codegraph", "context", "projectmem", "rtk", "icm", "aimemory"] {
@@ -307,6 +307,31 @@ impl AgentManager {
             if !hook_sub.exists() && !user_dir.join("hooks.json").exists() {
                 missing_hooks.push(tool.to_string());
             }
+        }
+
+        let mcp_raw = match agent_id {
+            "openagents" => read_file_safe(user_dir.join("mcp.json")),
+            "claude" => read_file_safe(user_dir.join(".mcp.json"))
+                .or_else(|| read_file_safe(PathBuf::from(home()).join(".claude.json"))),
+            "antigravity" | "antigravity-cli" | "antigravity-ide" | "agy" => {
+                read_file_safe(user_dir.join("mcp_config.json"))
+                    .or_else(|| read_file_safe(user_dir.join("config").join("mcp_config.json")))
+            }
+            "cursor" | "droid" => read_file_safe(user_dir.join("mcp.json")),
+            "codex" | "grok" => read_file_safe(user_dir.join("config.toml")),
+            "copilot" | "copilot-cli" | "copilot-vscode" => {
+                read_file_safe(user_dir.join("mcp-config.json"))
+            }
+            _ => None,
+        };
+        if let Some(raw) = mcp_raw {
+            for &tool in &["codegraph", "context", "projectmem"] {
+                if !raw.contains(tool) {
+                    missing_mcp_servers.push(tool.to_string());
+                }
+            }
+        } else {
+            missing_mcp_servers.extend(["codegraph", "context", "projectmem"].iter().map(|s| (*s).to_string()));
         }
 
         let outdated_rules = !user_dir.join("skills").exists() && !user_dir.join("rules").exists();
@@ -662,9 +687,20 @@ fn rewrite_legacy_hook_command_string(cmd: &str, default_agent: Option<&str>) ->
 
     for (legacy, standard) in [
         ("agy-hook codegraph-index", "codegraph-hook agy"),
+        ("antigravity-hook codegraph-index", "codegraph-hook antigravity"),
         ("copilot-hook codegraph-index", "codegraph-hook copilot"),
+        ("copilot-cli-hook codegraph-index", "codegraph-hook copilot-cli"),
+        ("copilot-vscode-hook codegraph-index", "codegraph-hook copilot-vscode"),
         ("cursor-hook codegraph-index", "codegraph-hook cursor"),
         ("codex-hook codegraph-index", "codegraph-hook codex"),
+        ("claude-hook codegraph-index", "codegraph-hook claude"),
+        ("grok-hook codegraph-index", "codegraph-hook grok"),
+        ("opencode-hook codegraph-index", "codegraph-hook opencode"),
+        ("droid-hook codegraph-index", "codegraph-hook droid"),
+        ("cline-hook codegraph-index", "codegraph-hook cline"),
+        ("kilo-hook codegraph-index", "codegraph-hook kilo"),
+        ("amp-hook codegraph-index", "codegraph-hook amp"),
+        ("kimi-hook codegraph-index", "codegraph-hook kimi"),
     ] {
         if updated.contains(legacy) {
             updated = updated.replace(legacy, standard);
@@ -681,7 +717,7 @@ fn rewrite_legacy_hook_command_string(cmd: &str, default_agent: Option<&str>) ->
         changed = true;
     }
 
-    for agent in ["cursor", "copilot", "claude", "codex", "agy"] {
+    for agent in ["cursor", "copilot", "claude", "codex", "agy", "grok", "opencode", "droid"] {
         let legacy_rtk = format!("rtk hook {agent}");
         let std_rtk = format!("rtk-hook {agent}");
         if updated.trim() == legacy_rtk {
@@ -1105,6 +1141,90 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
         }
     }
 
+    // 6. Repair legacy MCP entries in TOML configs (.codex/config.toml, .grok/config.toml)
+    for (tf, agent_id) in [
+        (base_dir.join(".codex").join("config.toml"), "codex"),
+        (base_dir.join(".grok").join("config.toml"), "grok"),
+    ] {
+        let Some(raw) = read_file_safe(&tf) else {
+            continue;
+        };
+        let Ok(mut doc) = raw.parse::<toml::Table>() else {
+            continue;
+        };
+        let mut changed = false;
+        if let Some(toml::Value::Table(servers)) = doc.get_mut("mcp_servers") {
+            let keys: Vec<String> = servers.keys().cloned().collect();
+            for k in keys {
+                if !is_known_legacy_or_canonical_mcp_key(&k) {
+                    continue;
+                }
+                let norm = normalize_mcp_tool_id(&k);
+                if norm == "tool" {
+                    continue;
+                }
+                let Some(entry_val) = servers.get(&k).cloned() else {
+                    continue;
+                };
+                let is_legacy_cmd = entry_val
+                    .as_table()
+                    .and_then(|t| t.get("command"))
+                    .and_then(|v| v.as_str())
+                    .map(crate::agents::mcp_adapters::is_legacy_mcp_runner_str)
+                    .unwrap_or(false)
+                    || entry_val
+                        .as_table()
+                        .and_then(|t| t.get("args"))
+                        .and_then(|v| v.as_array())
+                        .map(|arr| {
+                            arr.iter().any(|a| {
+                                a.as_str()
+                                    .map(crate::agents::mcp_adapters::is_legacy_mcp_runner_str)
+                                    .unwrap_or(false)
+                            })
+                        })
+                        .unwrap_or(false);
+
+                let repaired = if is_legacy_cmd {
+                    let spawn = if norm == "codegraph" {
+                        wrap_auto_index(agent_id, pick_mcp_spawn("codegraph", &["serve", "--mcp"]))
+                    } else {
+                        mcp_spawn_for(norm)
+                    };
+                    let mut tbl = entry_val.as_table().cloned().unwrap_or_default();
+                    tbl.insert("command".to_string(), toml::Value::String(spawn.command));
+                    tbl.insert(
+                        "args".to_string(),
+                        toml::Value::Array(spawn.args.into_iter().map(toml::Value::String).collect()),
+                    );
+                    toml::Value::Table(tbl)
+                } else {
+                    entry_val
+                };
+
+                if k != norm {
+                    servers.remove(&k);
+                    if !servers.contains_key(norm) {
+                        servers.insert(norm.to_string(), repaired);
+                    }
+                    changed = true;
+                } else if is_legacy_cmd {
+                    servers.insert(k, repaired);
+                    changed = true;
+                }
+            }
+        }
+        if changed
+            && let Ok(serialized) = toml::to_string_pretty(&doc)
+            && write_file_atomic(&tf, &serialized).is_ok()
+        {
+            actions.push(format!(
+                "Repaired TOML MCP config in {}",
+                normalize_path(&tf.to_string_lossy())
+            ));
+        }
+    }
+
     actions
 }
 
@@ -1231,5 +1351,37 @@ mod tests {
         assert_eq!(pick_mcp_spawn("rtk", &[]).args, vec!["rtk", "mcp"]);
         assert_eq!(AgentManager::wire_mode("openagents"), WireMode::DirectWired);
         assert_eq!(AgentManager::wire_mode("claude"), WireMode::ConfigWired);
+    }
+
+    #[test]
+    fn test_heal_toml_mcp_configs_for_codex_and_grok() -> TestResult {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+
+        let codex_toml = root.join(".codex").join("config.toml");
+        fs::create_dir_all(codex_toml.parent().ok_or("no parent")?)?;
+        fs::write(
+            &codex_toml,
+            r#"[mcp_servers.context-mode]
+command = "npx"
+args = ["-y", "context-mode"]
+
+[mcp_servers.toksi-projectmem]
+command = "node"
+args = ["toksi-projectmem.js"]
+"#,
+        )?;
+
+        let actions = heal_all_agent_legacy_configs(Some(root));
+        assert!(!actions.is_empty());
+
+        let healed = fs::read_to_string(&codex_toml)?;
+        assert!(healed.contains("[mcp_servers.context]"));
+        assert!(healed.contains("[mcp_servers.projectmem]"));
+        assert!(!healed.contains("npx"));
+        assert!(!healed.contains("toksi-projectmem.js"));
+        assert!(healed.contains("toksi"));
+        assert!(healed.contains("\"ctx\"") && healed.contains("\"mem\""));
+        Ok(())
     }
 }

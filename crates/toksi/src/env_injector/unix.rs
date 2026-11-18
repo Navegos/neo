@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/env_injector/unix.rs
 // created: 2026-10-31
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
@@ -464,8 +464,8 @@ mod tests {
             Some(&conf_path),
             false,
         )?;
-        assert!(res.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
-        assert!(!res.contains(&CLOUD_CODE_URL_KEY.to_string()));
+        assert!(res.iter().any(|k| k == "GOOGLE_GEMINI_BASE_URL"));
+        assert!(!res.iter().any(|k| k == CLOUD_CODE_URL_KEY));
         assert!(conf_path.is_file());
 
         let parsed = read_environment_d_entries(&conf_path);
@@ -490,7 +490,7 @@ mod tests {
         );
 
         let purged = teardown_unix_env_in(Some(&conf_path), Some(&legacy_path), false)?;
-        assert!(purged.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
+        assert!(purged.iter().any(|k| k == "GOOGLE_GEMINI_BASE_URL"));
         assert!(!conf_path.exists());
         assert_eq!(
             crate::env_injector::effective_env_var("GOOGLE_GEMINI_BASE_URL"),

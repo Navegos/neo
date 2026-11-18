@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/commands/doctor.rs
 // created: 2026-10-05
-// lastModified: 2026-11-16
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
@@ -392,7 +392,9 @@ pub fn consolidate_nested_agent_dirs(root: &std::path::Path) -> std::io::Result<
                         Err(_) => path.clone(),
                     };
                     if path_canon.parent() != Some(&root_canon) {
-                        let _ = crate::agents::manager::migrate_legacy_mcp_dirs_to_skills(&path);
+                        if let Some(parent) = path.parent() {
+                            let _ = crate::agents::manager::migrate_legacy_mcp_dirs_to_skills(parent);
+                        }
                         let root_dest = root_canon.join(&name);
                         merge_directory_recursive(&path, &root_dest);
                         let _ = std::fs::remove_dir_all(&path);
@@ -488,6 +490,170 @@ pub fn audit_toksi_config_toml() -> Vec<String> {
     }
 
     warnings
+}
+
+pub fn audit_externalized_skills_and_rules(ws: Option<&std::path::Path>) -> Vec<String> {
+    let mut rows = Vec::new();
+    let cfg = crate::rules::skills_repo::SkillsRepoConfig::load();
+
+    // 1. Verify externalized <enforce> rules (Karpathy, Caveman v4, Ponytail)
+    for id in ["principles", "caveman", "ponytail"] {
+        let content = crate::rules::skills_repo::read_rule_markdown(id);
+        if content.trim().is_empty() {
+            rows.push(format!(
+                "{} externalized rule '{}.md' missing from {}",
+                C.yellow(Sym::WARN),
+                id,
+                normalize_path(&cfg.stage_rules_dir.to_string_lossy())
+            ));
+        } else if crate::rules::has_enforce_guard(&content) {
+            rows.push(format!(
+                "{} externalized rule '{}.md' (<enforce> verified)",
+                C.green(Sym::CHECK),
+                id
+            ));
+        } else {
+            rows.push(format!(
+                "{} externalized rule '{}.md' present (no <enforce> guard)",
+                C.cyan(Sym::BULLET),
+                id
+            ));
+        }
+    }
+
+    // 2. Run skilldoctor + agentskills YAML spec validation on externalized stage & user skills
+    for (label, dir) in [
+        ("staged agents/skills", cfg.stage_agents_dir.as_path()),
+        ("user skills (~/.toksi/user-skills)", cfg.user_skills_dir.as_path()),
+    ] {
+        if !dir.is_dir() {
+            continue;
+        }
+        if let Ok(report) = crate::rules::skill_validator::analyze_directory(dir) {
+            if report.files.is_empty() {
+                continue;
+            }
+            if report.error_count == 0 {
+                rows.push(format!(
+                    "{} skilldoctor ({}): {} files, score {}/100 ({:?})",
+                    C.green(Sym::CHECK),
+                    label,
+                    report.files.len(),
+                    report.score,
+                    report.grade
+                ));
+            } else {
+                rows.push(format!(
+                    "{} skilldoctor ({}): {} files, score {}/100 ({:?}), {} errors, {} warnings — run {}",
+                    C.yellow(Sym::WARN),
+                    label,
+                    report.files.len(),
+                    report.score,
+                    report.grade,
+                    report.error_count,
+                    report.warning_count,
+                    paint_cmd("toksi doctor --fix")
+                ));
+            }
+        }
+    }
+
+    // 3. Canonical <repo>/.toksi/projectmem/ vs legacy <repo>/.projectmem/ check
+    if let Some(root) = ws {
+        let legacy_pm = root.join(".projectmem");
+        if legacy_pm.is_dir() {
+            rows.push(format!(
+                "{} legacy {} detected — run {} to migrate into .toksi/projectmem/",
+                C.yellow(Sym::WARN),
+                normalize_path(&legacy_pm.to_string_lossy()),
+                paint_cmd("toksi doctor --fix")
+            ));
+        }
+    }
+
+    rows
+}
+
+pub fn heal_externalized_skills_in_dir(dir: &std::path::Path) -> usize {
+    if !dir.is_dir() {
+        return 0;
+    }
+    let mut healed = 0usize;
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(cur) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&cur) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+            if path.is_dir() {
+                if name != ".git" && name != "target" && name != "node_modules" {
+                    stack.push(path);
+                }
+                continue;
+            }
+            let lower = name.to_ascii_lowercase();
+            if lower == "skill.md" || lower.ends_with(".skill.md") {
+                let Some(raw) = crate::util::paths::read_file_safe(&path) else {
+                    continue;
+                };
+                let parent_name = path
+                    .parent()
+                    .and_then(|p| p.file_name())
+                    .and_then(|n| n.to_str());
+                let path_str = normalize_path(&path.to_string_lossy());
+                let res = crate::rules::skill_validator::heal_skill_content(
+                    &path_str,
+                    &raw,
+                    parent_name,
+                    true,
+                );
+                if res.changed
+                    && crate::util::paths::write_file_atomic(&path, &res.output).is_ok()
+                {
+                    healed += 1;
+                }
+            }
+        }
+    }
+    healed
+}
+
+pub fn audit_wave18_topology(ws: Option<&std::path::Path>) -> Vec<String> {
+    let mut rows = Vec::new();
+    let cfg = crate::rules::skills_repo::SkillsRepoConfig::load();
+    rows.push(format!(
+        "{} Externalized <skills> remote: {}",
+        C.green(Sym::CHECK),
+        cfg.skills_remote
+    ));
+
+    let h = crate::util::paths::home();
+    let mut plugin_dirs = Vec::new();
+    if !h.is_empty() {
+        plugin_dirs.push(std::path::PathBuf::from(&h).join(".toksi").join("plugins"));
+    }
+    if let Some(root) = ws {
+        plugin_dirs.push(root.join(".toksi").join("plugins"));
+        plugin_dirs.push(root.join(".agents").join("plugins"));
+    }
+    for pdir in plugin_dirs {
+        if !pdir.is_dir() {
+            continue;
+        }
+        let count = std::fs::read_dir(&pdir)
+            .ok()
+            .map(|rd| rd.flatten().filter(|e| e.path().is_dir()).count())
+            .unwrap_or(0);
+        rows.push(format!(
+            "{} Plugin directory {}: {} plugin(s)",
+            C.green(Sym::CHECK),
+            normalize_path(&pdir.to_string_lossy()),
+            count
+        ));
+    }
+    rows
 }
 
 pub fn run_doctor(offline: bool, json_output: bool, fix: bool) -> i32 {
@@ -636,6 +802,31 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
                 let _ = crate::agents::verify_direct_wire_bus(ws_opt.as_deref());
             }
         }
+
+        // Heal externalized user skills (and workspace .agents/skills only on explicit --workspace opt-in)
+        let skills_cfg = crate::rules::skills_repo::SkillsRepoConfig::load();
+        let user_skills_healed = heal_externalized_skills_in_dir(&skills_cfg.user_skills_dir);
+        if user_skills_healed > 0 {
+            L.raw(&format!(
+                "  {} Healed {} skill file(s) in ~/.toksi/user-skills (skilldoctor + agentskills)",
+                C.green(Sym::CHECK),
+                user_skills_healed
+            ));
+            fixed_count += user_skills_healed;
+        }
+        if let Some(ref ws) = ws_opt {
+            let ws_skills = ws.join(".agents").join("skills");
+            let ws_healed = heal_externalized_skills_in_dir(&ws_skills);
+            if ws_healed > 0 {
+                L.raw(&format!(
+                    "  {} Healed {} workspace skill file(s) in .agents/skills",
+                    C.green(Sym::CHECK),
+                    ws_healed
+                ));
+                fixed_count += ws_healed;
+            }
+        }
+
         if fixed_count > 0 {
             L.raw(&format!(
                 "  {} Repaired agent settings (in-tree rules and in-process native MCP)",
@@ -716,6 +907,8 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
         });
     let tool_stats = doctor_tool_stats(&cwd, true);
     let config_warnings = audit_toksi_config_toml();
+    let skills_audit = audit_externalized_skills_and_rules(ws_opt.as_deref());
+    let topology_audit = audit_wave18_topology(ws_opt.as_deref());
 
     if json_output {
         #[derive(serde::Serialize)]
@@ -723,11 +916,15 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
             agents: &'a [AgentReport],
             stats: &'a std::collections::HashMap<String, Vec<String>>,
             config_warnings: &'a [String],
+            skills_audit: &'a [String],
+            topology_audit: &'a [String],
         }
         let doc = DoctorJson {
             agents: &reports,
             stats: &tool_stats,
             config_warnings: &config_warnings,
+            skills_audit: &skills_audit,
+            topology_audit: &topology_audit,
         };
         if let Ok(out) = serde_json::to_string_pretty(&doc) {
             println!("{}", out);
@@ -783,6 +980,14 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
         tree_corner("Rules");
         for r in rules_rows {
             tree_leaf(&r);
+        }
+        tree_close();
+    }
+
+    if !skills_audit.is_empty() || !topology_audit.is_empty() {
+        tree_corner("Externalized Skills (<enforce>) & Topology");
+        for s in skills_audit.iter().chain(topology_audit.iter()) {
+            tree_leaf(s);
         }
         tree_close();
     }
@@ -1156,5 +1361,30 @@ mod tests {
     fn test_doctor_env_report_runs() {
         let rows = doctor_env_report();
         assert!(!rows.is_empty());
+    }
+
+    #[test]
+    fn test_heal_externalized_skills_in_dir_adds_frontmatter_and_enforce() -> Result<(), Box<dyn std::error::Error>> {
+        let temp = tempfile::tempdir()?;
+        let skill_dir = temp.path().join("my-skill");
+        std::fs::create_dir_all(&skill_dir)?;
+        let skill_file = skill_dir.join("SKILL.md");
+        std::fs::write(&skill_file, "Follow strict engineering discipline.\n")?;
+
+        let healed = heal_externalized_skills_in_dir(temp.path());
+        assert_eq!(healed, 1);
+
+        let updated = std::fs::read_to_string(&skill_file)?;
+        assert!(updated.contains("name: my-skill"));
+        assert!(updated.contains("<enforce>"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_audit_externalized_skills_and_wave18_topology() {
+        let rows = audit_externalized_skills_and_rules(None);
+        assert!(!rows.is_empty());
+        let topo = audit_wave18_topology(None);
+        assert!(!topo.is_empty());
     }
 }

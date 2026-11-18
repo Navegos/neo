@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/env_injector/windows.rs
 // created: 2026-10-31
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
@@ -121,7 +121,7 @@ pub fn restore_windows_reg_snapshot(
     for &k in MANAGED_PROXY_KEYS {
         if !snapshot.iter().any(|s| s.key.eq_ignore_ascii_case(k)) {
             let _ = delete_hkcu_env_value(k);
-            if !restored_or_purged.contains(&k.to_string()) {
+            if !restored_or_purged.iter().any(|existing| existing == k) {
                 restored_or_purged.push(k.to_string());
             }
         }
@@ -337,9 +337,9 @@ mod tests {
 
         match inject_windows_env(test_url) {
             Ok(injected) => {
-                assert!(injected.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
-                assert!(injected.contains(&"ANTHROPIC_BASE_URL".to_string()));
-                assert!(injected.contains(&TOKSI_OWNED_MARKER.to_string()));
+                assert!(injected.iter().any(|k| k == "GOOGLE_GEMINI_BASE_URL"));
+                assert!(injected.iter().any(|k| k == "ANTHROPIC_BASE_URL"));
+                assert!(injected.iter().any(|k| k == TOKSI_OWNED_MARKER));
                 assert_eq!(
                     crate::env_injector::effective_env_var("GOOGLE_GEMINI_BASE_URL").as_deref(),
                     Some(test_url)
@@ -364,6 +364,7 @@ mod tests {
                     None
                 );
                 assert_eq!(crate::env_injector::effective_env_var(CLOUD_CODE_URL_KEY), None);
+                crate::env_injector::overlay_restore_or_clear(&[], MANAGED_PROXY_KEYS);
             }
             Err(e) => {
                 assert!(e.is_access_denied(), "unexpected error: {e}");
@@ -374,6 +375,9 @@ mod tests {
     #[test]
     #[cfg(windows)]
     fn test_windows_snapshot_restores_original_reg_value() {
+        let Ok(_lock) = crate::env_injector::TEST_ENV_LOCK.lock() else {
+            return;
+        };
         let test_key = "TOKSI_UNIT_TEST_SNAPSHOT_RESTORE";
         let orig_val = "https://original.example.com";
         let _ = delete_env_reg_value(test_key);
@@ -396,5 +400,6 @@ mod tests {
         assert_eq!(get_env_reg_value(test_key).as_deref(), Some(orig_val));
 
         let _ = delete_env_reg_value(test_key);
+        crate::env_injector::overlay_restore_or_clear(&[], &[test_key]);
     }
 }
