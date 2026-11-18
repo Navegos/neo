@@ -30,11 +30,20 @@ pub struct TeeRecord {
 }
 
 pub fn save_tee_output(cmd: &str, raw_output: &str, exit_code: i32) -> Result<Option<String>, RtkError> {
+    save_tee_output_in(None, cmd, raw_output, exit_code)
+}
+
+pub fn save_tee_output_in(
+    dir: Option<&Path>,
+    cmd: &str,
+    raw_output: &str,
+    exit_code: i32,
+) -> Result<Option<String>, RtkError> {
     if raw_output.len() < MIN_TEE_BYTES {
         return Ok(None);
     }
 
-    let (rtk_dir, _) = resolve_rtk_dir(None)?;
+    let (rtk_dir, _) = resolve_rtk_dir(dir)?;
     let tee_dir = rtk_dir.join("tee");
     if !tee_dir.exists() {
         fs::create_dir_all(&tee_dir).map_err(RtkError::Io)?;
@@ -84,12 +93,16 @@ pub fn save_tee_output(cmd: &str, raw_output: &str, exit_code: i32) -> Result<Op
 }
 
 pub fn recall_output(hash: &str) -> Result<String, RtkError> {
+    recall_output_in(None, hash)
+}
+
+pub fn recall_output_in(dir: Option<&Path>, hash: &str) -> Result<String, RtkError> {
     let trimmed = hash.trim();
     if trimmed.is_empty() {
         return Err(RtkError::NotFound("hash parameter cannot be empty".to_string()));
     }
 
-    let (rtk_dir, _) = resolve_rtk_dir(None)?;
+    let (rtk_dir, _) = resolve_rtk_dir(dir)?;
     let tee_dir = rtk_dir.join("tee");
 
     // 1. Check direct file by prefix
@@ -121,7 +134,11 @@ pub fn recall_output(hash: &str) -> Result<String, RtkError> {
 }
 
 pub fn list_recalls(limit: usize) -> Result<Vec<TeeRecord>, RtkError> {
-    let (rtk_dir, _) = resolve_rtk_dir(None)?;
+    list_recalls_in(None, limit)
+}
+
+pub fn list_recalls_in(dir: Option<&Path>, limit: usize) -> Result<Vec<TeeRecord>, RtkError> {
+    let (rtk_dir, _) = resolve_rtk_dir(dir)?;
     let db_path = rtk_dir.join("tracking.db");
     if !db_path.exists() {
         return Ok(Vec::new());
@@ -166,7 +183,11 @@ pub fn list_recalls(limit: usize) -> Result<Vec<TeeRecord>, RtkError> {
 }
 
 pub fn clear_recalls() -> Result<usize, RtkError> {
-    let (rtk_dir, _) = resolve_rtk_dir(None)?;
+    clear_recalls_in(None)
+}
+
+pub fn clear_recalls_in(dir: Option<&Path>) -> Result<usize, RtkError> {
+    let (rtk_dir, _) = resolve_rtk_dir(dir)?;
     let tee_dir = rtk_dir.join("tee");
     let mut count = 0;
     if let Ok(entries) = fs::read_dir(&tee_dir) {
@@ -270,7 +291,7 @@ mod tests {
         fs::create_dir_all(&git_dir)?;
 
         let raw_long = "error[E0308]: mismatched types\n".repeat(20);
-        let hint = save_tee_output("cargo test", &raw_long, 101)?;
+        let hint = save_tee_output_in(Some(tmp.path()), "cargo test", &raw_long, 101)?;
         assert!(hint.is_some());
         let hint_str = hint.unwrap_or_default();
         assert!(hint_str.contains("toksi rtk recall"));
@@ -279,14 +300,14 @@ mod tests {
         let hash = parts.last().unwrap_or(&"").trim_end_matches(']');
         assert!(!hash.is_empty());
 
-        let recovered = recall_output(hash)?;
+        let recovered = recall_output_in(Some(tmp.path()), hash)?;
         assert_eq!(recovered, raw_long);
 
-        let list = list_recalls(5)?;
+        let list = list_recalls_in(Some(tmp.path()), 5)?;
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].hash, hash);
 
-        let cleared = clear_recalls()?;
+        let cleared = clear_recalls_in(Some(tmp.path()))?;
         assert_eq!(cleared, 1);
         Ok(())
     }

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/live_zone.rs
 // created: 2026-11-13
-// lastModified: 2026-11-16
+// lastModified: 2026-11-18
 
 //! Zero-unsafe `RawValue` byte-range surgery preserving frozen LLM prompt-cache prefixes
 //! across Anthropic `/v1/messages`, OpenAI `/v1/chat/completions`, OpenAI `/v1/responses`,
@@ -415,7 +415,15 @@ pub fn compress_text_block_with_query(
         }
     }
 
-    let compressed = compress_content(raw, None);
+    let rtk_pre = if !query.is_empty() && crate::rtk::can_filter(query) {
+        Some(crate::rtk::compress_tool_output(query, raw))
+    } else if crate::rtk::has_ansi(raw) {
+        Some(crate::rtk::strip_ansi(raw))
+    } else {
+        None
+    };
+    let effective_raw = rtk_pre.as_deref().unwrap_or(raw);
+    let compressed = compress_content(effective_raw, None);
     if let Some(ccr) = store {
         if compressed.len() + 64 < raw.len() {
             let key = compute_key(raw.as_bytes());

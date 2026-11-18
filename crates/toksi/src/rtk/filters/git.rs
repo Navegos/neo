@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/git.rs
 // created: 2026-10-27
-// lastModified: 2026-11-05
+// lastModified: 2026-11-18
 
 use std::collections::{BTreeMap, BTreeSet};
 use crate::rtk::ansi::strip_ansi;
@@ -18,7 +18,7 @@ pub fn filter_git(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> Stri
     let clean = strip_ansi(raw);
 
     let parts: Vec<&str> = cmd.split_whitespace().collect();
-    let subcommand = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
+    let subcommand = super::extract_subcommand("git", &parts);
 
     match subcommand {
         "status" => filter_git_status(&clean),
@@ -590,7 +590,7 @@ pub fn filter_gh(cmd: &str, stdout: &str, stderr: &str, _exit_code: i32) -> Stri
     };
     let clean = strip_ansi(raw);
     let parts: Vec<&str> = cmd.split_whitespace().collect();
-    let subcommand = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
+    let subcommand = super::extract_subcommand("git", &parts);
     let action = parts.iter().skip(2).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
 
     match (subcommand, action) {
@@ -618,7 +618,7 @@ pub fn filter_glab(cmd: &str, stdout: &str, stderr: &str, _exit_code: i32) -> St
     };
     let clean = strip_ansi(raw);
     let parts: Vec<&str> = cmd.split_whitespace().collect();
-    let subcommand = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
+    let subcommand = super::extract_subcommand("git", &parts);
 
     match subcommand {
         "mr" | "issue" | "pipeline" => filter_gh_tabular_list(&clean),
@@ -635,7 +635,7 @@ pub fn filter_gt(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> Strin
     };
     let clean = strip_ansi(raw);
     let parts: Vec<&str> = cmd.split_whitespace().collect();
-    let subcommand = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
+    let subcommand = super::extract_subcommand("git", &parts);
 
     match subcommand {
         "status" => filter_git_status(&clean),

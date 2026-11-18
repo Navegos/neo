@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/main.rs
 // created: 2026-10-05
-// lastModified: 2026-11-16
+// lastModified: 2026-11-18
 
 use std::collections::HashMap;
 use std::env;
@@ -234,7 +234,7 @@ fn is_session_boot_arg(args: &[String]) -> bool {
             || cmd == "codegraph-hook" || cmd == "cursor-hook" || cmd == "copilot-hook"
             || cmd == "projectmem-hook" || cmd == "ctx-hook" || cmd == "context-hook" || cmd == "context-mode-hook"
             || cmd == "icm-hook" => true,
-        [a, b, ..] if (a == "rtk" || a == "codegraph" || a == "ctx" || a == "context" || a == "context-mode" || a == "icm") && b == "hook" => true,
+        [a, b, ..] if (a == "codegraph" || a == "ctx" || a == "context" || a == "context-mode" || a == "icm") && b == "hook" => true,
         [a, b, ..] if a == "mem" && b == "mcp" => true,
         [a, b, ..] if (a == "ctx" || a == "context" || a == "context-mode") && b == "mcp" => true,
         [a, b, ..] if a == "graph" && b == "mcp" => true,

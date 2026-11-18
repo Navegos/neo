@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/mod.rs
 // created: 2026-10-27
-// lastModified: 2026-11-08
+// lastModified: 2026-11-18
 
 pub mod build;
 pub mod git;
@@ -39,6 +39,66 @@ pub fn normalize_bin_name(bin: &str) -> &str {
     s
 }
 
+/// Extract the canonical subcommand for a normalized binary, skipping toolchain overrides
+/// (`+nightly`) and prefix flags that take values (`-C dir`, `--manifest-path path`, etc.).
+pub fn extract_subcommand<'a>(bin: &str, parts: &[&'a str]) -> &'a str {
+    let mut i = 1;
+    // Rustup +toolchain override is only valid as the first argument to cargo/rustc
+    if matches!(bin, "cargo" | "rustc" | "rustup")
+        && parts.get(i).is_some_and(|p| p.starts_with('+'))
+    {
+        i += 1;
+    }
+
+    while i < parts.len() {
+        let arg = parts[i];
+        if arg == "--" {
+            return "";
+        }
+        if arg.starts_with('-') {
+            // Skip `--flag=value` (single token)
+            if arg.contains('=') {
+                i += 1;
+                continue;
+            }
+            let takes_value = match bin {
+                "cargo" => matches!(
+                    arg,
+                    "-C" | "-Z"
+                        | "-p"
+                        | "--package"
+                        | "--manifest-path"
+                        | "--target-dir"
+                        | "--config"
+                        | "--color"
+                        | "--message-format"
+                        | "--target"
+                        | "-j"
+                        | "--jobs"
+                        | "-F"
+                        | "--features"
+                        | "--explain"
+                ),
+                "git" => matches!(
+                    arg,
+                    "-C" | "-c"
+                        | "--git-dir"
+                        | "--work-tree"
+                        | "--namespace"
+                        | "--exec-path"
+                        | "--super-prefix"
+                        | "--config-env"
+                ),
+                _ => matches!(arg, "-C" | "--config" | "--color"),
+            };
+            i += if takes_value { 2 } else { 1 };
+            continue;
+        }
+        return arg;
+    }
+    ""
+}
+
 /// Check if a command can be filtered by either native filters or declarative TOML filters.
 pub fn is_filterable_command(cmd_line: &str) -> bool {
     let trimmed = cmd_line.trim();
@@ -51,7 +111,7 @@ pub fn is_filterable_command(cmd_line: &str) -> bool {
     }
     let raw_bin = parts.first().copied().unwrap_or("");
     let bin = normalize_bin_name(raw_bin);
-    let sub = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
+    let sub = extract_subcommand(bin, &parts);
 
     match bin {
         "git" | "gh" | "glab" | "gt" => true,
@@ -83,7 +143,7 @@ pub fn filter_command_output(cmd_line: &str, stdout: &str, stderr: &str, exit_co
     }
     let raw_bin = parts.first().copied().unwrap_or("");
     let bin = normalize_bin_name(raw_bin);
-    let sub = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
+    let sub = extract_subcommand(bin, &parts);
 
     match bin {
         "git" => filter_git(trimmed, stdout, stderr, exit_code),
@@ -135,5 +195,40 @@ pub fn filter_command_output(cmd_line: &str, stdout: &str, stderr: &str, exit_co
                 stderr.to_string()
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_subcommand_cargo_toolchain_and_prefixes() {
+        let p1: Vec<&str> = "cargo +nightly test -p toksi".split_whitespace().collect();
+        assert_eq!(extract_subcommand("cargo", &p1), "test");
+
+        let p2: Vec<&str> = "cargo --manifest-path foo/Cargo.toml --locked clippy"
+            .split_whitespace()
+            .collect();
+        assert_eq!(extract_subcommand("cargo", &p2), "clippy");
+
+        let p3: Vec<&str> = "cargo -Z unstable-options --color=always check"
+            .split_whitespace()
+            .collect();
+        assert_eq!(extract_subcommand("cargo", &p3), "check");
+
+        let p4: Vec<&str> = "git -C inspect-vault/rtk status -sb".split_whitespace().collect();
+        assert_eq!(extract_subcommand("git", &p4), "status");
+    }
+
+    #[test]
+    fn test_filter_cargo_toolchain_and_git_c() {
+        let raw_test = "test a ... ok\ntest b ... ok\ntest result: ok. 2 passed; 0 failed;\n";
+        let out = filter_command_output("cargo +nightly -p toksi test", raw_test, "", 0);
+        assert_eq!(out, "cargo test: 2 passed (1 suites)");
+
+        let raw_git = "## main...origin/main\nM  foo.rs\n";
+        let out_git = filter_command_output("git -C sub/dir status", raw_git, "", 0);
+        assert!(out_git.contains("staged (1):"));
     }
 }

@@ -318,6 +318,10 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/modelexpress
 <neo>/inspect-vault/nixl
 <neo>/inspect-vault/exllamav2
+<neo>/inspect-vault/agent-code
+<neo>/inspect-vault/agent-manager
+<neo>/inspect-vault/unsloth
+<neo>/inspect-vault/unsloth-studio
 }
 
 Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.

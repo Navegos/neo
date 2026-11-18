@@ -141,10 +141,20 @@ pub struct PeriodStat {
     pub avg_time_ms: u64,
 }
 
+pub const DEFAULT_HISTORY_DAYS: i64 = 90;
+
+pub fn resolve_history_days(configured: Option<i64>) -> i64 {
+    match configured {
+        Some(d) if d > 0 => d,
+        _ => DEFAULT_HISTORY_DAYS,
+    }
+}
+
 pub struct Tracker {
     conn: Connection,
     rtk_dir: PathBuf,
     subproject_id: String,
+    history_days: i64,
 }
 
 impl Tracker {
@@ -186,7 +196,13 @@ impl Tracker {
             conn,
             rtk_dir,
             subproject_id,
+            history_days: DEFAULT_HISTORY_DAYS,
         })
+    }
+
+    pub fn with_history_days(mut self, days: Option<i64>) -> Self {
+        self.history_days = resolve_history_days(days);
+        self
     }
 
     pub fn rtk_dir(&self) -> &Path {
@@ -233,12 +249,15 @@ impl Tracker {
             ],
         )?;
 
-        let _ = self.cleanup_old(90);
+        let _ = self.cleanup_old(self.history_days);
         Ok(())
     }
 
     pub fn cleanup_old(&self, days: i64) -> Result<usize, RtkError> {
-        let cutoff = Utc::now() - chrono::Duration::days(days);
+        let effective_days = resolve_history_days(Some(days));
+        let Some(cutoff) = Utc::now().checked_sub_signed(chrono::Duration::days(effective_days)) else {
+            return Ok(0);
+        };
         let cutoff_str = cutoff.to_rfc3339();
         let deleted = self.conn.execute(
             "DELETE FROM command_history WHERE timestamp < ?1",
@@ -632,6 +651,21 @@ mod tests {
         let history = tracker.get_history(10)?;
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].original_cmd, "git status");
+        Ok(())
+    }
+
+    #[test]
+    fn test_resolve_history_days_and_unrepresentable_cutoff() -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(resolve_history_days(Some(30)), 30);
+        assert_eq!(resolve_history_days(None), DEFAULT_HISTORY_DAYS);
+        assert_eq!(resolve_history_days(Some(0)), DEFAULT_HISTORY_DAYS);
+
+        let tmp = tempdir()?;
+        fs::create_dir_all(tmp.path().join(".git"))?;
+        let tracker = Tracker::for_dir(Some(tmp.path()))?.with_history_days(Some(i64::from(u32::MAX)));
+        tracker.record("git status", "toksi rtk git status", 100, 20, 5, 0)?;
+        assert_eq!(tracker.cleanup_old(i64::from(u32::MAX))?, 0);
+        assert_eq!(tracker.get_history(10)?.len(), 1);
         Ok(())
     }
 }

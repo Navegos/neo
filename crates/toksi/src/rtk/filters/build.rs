@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/rtk/filters/build.rs
 // created: 2026-10-27
-// lastModified: 2026-11-08
+// lastModified: 2026-11-18
 
 use std::collections::BTreeMap;
 use crate::rtk::ansi::strip_ansi;
@@ -19,8 +19,8 @@ pub fn filter_build(cmd: &str, stdout: &str, stderr: &str, exit_code: i32) -> St
     };
     let clean = strip_ansi(&combined);
     let parts: Vec<&str> = cmd.split_whitespace().collect();
-    let bin = parts.first().copied().unwrap_or("");
-    let sub = parts.iter().skip(1).find(|&&p| !p.starts_with('-')).copied().unwrap_or("");
+    let bin = super::normalize_bin_name(parts.first().copied().unwrap_or(""));
+    let sub = super::extract_subcommand(bin, &parts);
 
     match bin {
         "cargo" => filter_cargo_build(&clean, sub, exit_code),
