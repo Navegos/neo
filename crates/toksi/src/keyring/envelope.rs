@@ -5,6 +5,8 @@
 // created: 2026-11-04
 // lastModified: 2026-11-04
 
+#![deny(unsafe_code)]
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -26,6 +28,16 @@ impl Zeroize for OAuthEnvelope {
         if let Some(ref mut refresh) = self.refresh_token {
             refresh.zeroize();
         }
+        if let Some(ref mut tok_type) = self.token_type {
+            tok_type.zeroize();
+        }
+        self.raw_json = None;
+    }
+}
+
+impl Drop for OAuthEnvelope {
+    fn drop(&mut self) {
+        self.zeroize();
     }
 }
 

@@ -3,12 +3,16 @@
 // project: neo
 // file: crates/toksi/tests/keyring_db_byok_verification.rs
 // created: 2026-11-04
-// lastModified: 2026-11-04
+// lastModified: 2026-11-18
 
-use toksi::db::{ByokRouteRecord, ProviderRecord, ToksiConfigDb};
+use toksi::db::{
+    AdrAuditEventRecord, AdvisoryEmbargoRecord, BlindSignatureRecord, ByokProfileRecord,
+    ByokRouteRecord, PluginRegistryRecord, ProviderModelRecord, ProviderRecord, ToksiConfigDb,
+};
 use toksi::headroom::byok_gateway::enrich_headers_with_keyring_credentials;
 use toksi::keyring::{
-    encode_base64, get_credential, parse_credential_envelope, set_credential,
+    delete_spire_svid, encode_base64, get_agent_token, get_credential, inspect_adc_status,
+    parse_credential_envelope, read_spire_svid, set_credential, store_spire_svid,
 };
 
 #[test]
@@ -120,5 +124,145 @@ fn test_os_keyring_get_and_set() {
         assert_eq!(read_back.as_deref(), Some(secret));
         toksi::keyring::delete_credential(svc, acc);
     }
+}
+
+#[test]
+fn test_wave18_db_dump_and_blind_signature_guard() {
+    let mut db = ToksiConfigDb::open_in_memory().expect("open memory db");
+
+    db.upsert_provider(&ProviderRecord {
+        id: "vertex".to_string(),
+        name: "Google Cloud Vertex AI".to_string(),
+        protocol: "google-gemini".to_string(),
+        base_url: "https://us-central1-aiplatform.googleapis.com".to_string(),
+        is_enabled: true,
+        auth_type: "adc".to_string(),
+        metadata_json: "{}".to_string(),
+        created_at: 1000,
+        updated_at: 1000,
+    })
+    .expect("upsert provider");
+
+    db.upsert_provider_model(&ProviderModelRecord {
+        id: "gemini-2.5-pro".to_string(),
+        provider_id: "vertex".to_string(),
+        display_name: "Gemini 2.5 Pro".to_string(),
+        context_window: 1_000_000,
+        max_output_tokens: 65536,
+        supports_streaming: true,
+        supports_tools: true,
+        is_default: true,
+        created_at: 1000,
+    })
+    .expect("upsert model");
+
+    db.upsert_byok_profile(&ByokProfileRecord {
+        id: "vertex.adc.high".to_string(),
+        provider_id: "vertex".to_string(),
+        instance_label: "adc".to_string(),
+        model_id: "gemini-2.5-pro".to_string(),
+        thinking_effort: "high".to_string(),
+        base_url: "https://us-central1-aiplatform.googleapis.com".to_string(),
+        secret_ref: "adc://gcloud".to_string(),
+        auth_mode: "adc".to_string(),
+        gcp_project: "my-gcp-project".to_string(),
+        gcp_location: "us-central1".to_string(),
+        priority: 20,
+        weight: 1,
+        is_active: true,
+        created_at: 1000,
+        updated_at: 1000,
+    })
+    .expect("upsert profile");
+
+    db.upsert_plugin(&PluginRegistryRecord {
+        id: "toksi.security.scanner".to_string(),
+        name: "Security Scanner".to_string(),
+        version: "1.0.0".to_string(),
+        manifest_json: "{}".to_string(),
+        blake3_hash: "0123456789abcdef".to_string(),
+        capabilities_json: r#"["tool"]"#.to_string(),
+        protocols_json: r#"["MCP"]"#.to_string(),
+        security_scan_status: "passed".to_string(),
+        is_enabled: true,
+        installed_at: 1000,
+        updated_at: 1000,
+    })
+    .expect("upsert plugin");
+
+    // Reject raw exploit PoC / regex in blind_signatures
+    let raw_poc = BlindSignatureRecord {
+        id: "bad-sig".to_string(),
+        signature_kind: "blake3_ngram".to_string(),
+        signature_payload: "(eval|exec)\\(.*\\)".to_string(),
+        severity: "high".to_string(),
+        language: "python".to_string(),
+        created_at: 1000,
+    };
+    assert!(db.upsert_blind_signature(&raw_poc).is_err());
+
+    // Accept valid blind blake3 hex signature
+    db.upsert_blind_signature(&BlindSignatureRecord {
+        id: "good-sig".to_string(),
+        signature_kind: "blake3_ngram".to_string(),
+        signature_payload: "deadbeef0123456789abcdef".to_string(),
+        severity: "high".to_string(),
+        language: "python".to_string(),
+        created_at: 1000,
+    })
+    .expect("upsert blind sig");
+
+    db.upsert_advisory_embargo(&AdvisoryEmbargoRecord {
+        advisory_id: "GHSA-0001".to_string(),
+        disclosure_state: "embargoed".to_string(),
+        embargo_until_epoch: 2_000_000_000,
+        upstream_repo: "Navegos/advisory".to_string(),
+        pr_url: None,
+        updated_at: 1000,
+    })
+    .expect("upsert embargo");
+
+    db.insert_adr_audit_event(&AdrAuditEventRecord {
+        id: "adr-1".to_string(),
+        agent_id: "antigravity".to_string(),
+        action: "shell_exec".to_string(),
+        decision: "allowed".to_string(),
+        reason: "policy_ok".to_string(),
+        created_at: 1000,
+    })
+    .expect("insert adr event");
+
+    let dump = db.export_dump().expect("export dump");
+    assert_eq!(dump.provider_models.len(), 1);
+    assert_eq!(dump.byok_profiles.len(), 1);
+    assert_eq!(dump.byok_profiles[0].auth_mode, "adc");
+    assert_eq!(dump.byok_profiles[0].gcp_project, "my-gcp-project");
+    assert_eq!(dump.plugins_registry.len(), 1);
+    assert_eq!(dump.blind_signatures.len(), 1);
+    assert_eq!(dump.advisory_embargoes.len(), 1);
+    assert_eq!(dump.adr_audit_events.len(), 1);
+
+    let mut db2 = ToksiConfigDb::open_in_memory().expect("open memory db 2");
+    let imported = db2.import_dump(&dump, true).expect("import overwrite true");
+    assert_eq!(imported, 7);
+
+    // Import with overwrite=false should insert 0 new rows when already present
+    let imported_no_overwrite = db2.import_dump(&dump, false).expect("import overwrite false");
+    assert_eq!(imported_no_overwrite, 0);
+}
+
+#[test]
+fn test_adc_and_spire_svid_and_alias() {
+    let adc = inspect_adc_status();
+    assert!(!adc.gcp_location.is_empty());
+
+    let spiffe_id = "spiffe://toksi.local/agent/test";
+    if store_spire_svid(spiffe_id, "svid-token-test-12345") {
+        let env = read_spire_svid(spiffe_id);
+        assert_eq!(env.as_ref().map(|e| e.access_token.as_str()), Some("svid-token-test-12345"));
+        assert!(delete_spire_svid(spiffe_id));
+    }
+
+    let _ = get_agent_token("gemini:antigravity");
 }
 

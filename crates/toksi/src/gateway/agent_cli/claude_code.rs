@@ -3,16 +3,16 @@
 // project: neo
 // file: crates/toksi/src/gateway/agent_cli/claude_code.rs
 // created: 2026-10-31
-// lastModified: 2026-11-04
+// lastModified: 2026-11-18
 
 use serde_json::Value;
 use crate::keyring::get_agent_token;
 
 pub fn read_claude_code_session() -> Option<String> {
     // 1. Check OS Keyring first
-    if let Some(env) = get_agent_token("claude") {
+    if let Some(mut env) = get_agent_token("claude") {
         if !env.is_expired(30) && !env.access_token.is_empty() {
-            return Some(env.access_token);
+            return Some(env.take_access_token());
         }
     }
 

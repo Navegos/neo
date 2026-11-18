@@ -133,7 +133,7 @@ fn test_governance_navigation_and_actions() {
 #[test]
 fn test_agent_selection_and_modal() {
     let mut app = App::new();
-    app.current_tab = 1; // Agents tab
+    app.current_tab = 2; // Agents tab (Tab 3)
 
     if !app.agents.items.is_empty() {
         app.handle_key(press_key(KeyCode::Char('j'))); // Move down

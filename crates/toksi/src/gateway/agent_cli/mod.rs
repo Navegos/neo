@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/gateway/agent_cli/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 pub mod antigravity;
 pub mod claude;
@@ -123,11 +123,11 @@ impl LocalAgentCli {
 pub fn detect_local_agent_session(agent: &str) -> Option<LocalAgentSession> {
     let lower = agent.to_lowercase();
     // 1. Try native OS Keyring first
-    if let Some(env) = crate::keyring::get_agent_token(&lower) {
+    if let Some(mut env) = crate::keyring::get_agent_token(&lower) {
         if !env.is_expired(30) && !env.access_token.is_empty() {
             return Some(LocalAgentSession {
                 agent: lower,
-                token: env.access_token,
+                token: env.take_access_token(),
                 source: crate::keyring::current_backend_name().to_string(),
             });
         }

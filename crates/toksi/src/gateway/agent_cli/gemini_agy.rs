@@ -3,21 +3,21 @@
 // project: neo
 // file: crates/toksi/src/gateway/agent_cli/gemini_agy.rs
 // created: 2026-10-31
-// lastModified: 2026-11-04
+// lastModified: 2026-11-18
 
 use serde_json::Value;
 use crate::keyring::get_agent_token;
 
 pub fn read_gemini_adc_session() -> Option<String> {
     // 1. Check native OS Keyring first (macOS Keychain, Windows Credential Manager, Linux Secret Service)
-    if let Some(env) = get_agent_token("antigravity") {
+    if let Some(mut env) = get_agent_token("antigravity") {
         if !env.is_expired(30) && !env.access_token.is_empty() {
-            return Some(env.access_token);
+            return Some(env.take_access_token());
         }
     }
-    if let Some(env) = get_agent_token("gemini") {
+    if let Some(mut env) = get_agent_token("gemini") {
         if !env.is_expired(30) && !env.access_token.is_empty() {
-            return Some(env.access_token);
+            return Some(env.take_access_token());
         }
     }
 
@@ -38,9 +38,9 @@ pub fn read_gemini_adc_session() -> Option<String> {
         for path in candidates {
             if path.exists() {
                 if let Ok(raw) = std::fs::read_to_string(&path) {
-                    if let Some(env) = crate::keyring::parse_credential_envelope(&raw) {
+                    if let Some(mut env) = crate::keyring::parse_credential_envelope(&raw) {
                         if !env.is_expired(30) && !env.access_token.is_empty() {
-                            return Some(env.access_token);
+                            return Some(env.take_access_token());
                         }
                     }
                     if let Ok(val) = serde_json::from_str::<Value>(&raw) {

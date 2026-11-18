@@ -3,10 +3,12 @@
 // project: neo
 // file: crates/toksi/src/commands/db.rs
 // created: 2026-11-04
-// lastModified: 2026-11-04
+// lastModified: 2026-11-18
+
+#![deny(unsafe_code)]
 
 use std::path::Path;
-use crate::db::{open_default_db, sync_from_legacy_byok_json, sync_to_legacy_byok_json};
+use crate::db::{merge_toksi_db, open_default_db, sync_from_legacy_byok_json, sync_to_legacy_byok_json};
 use crate::util::colors::C;
 
 pub fn run_db_cli(args: &[String]) -> i32 {
@@ -53,10 +55,17 @@ pub fn run_db_cli(args: &[String]) -> i32 {
             }
             run_db_restore(&args[1])
         }
+        "merge" => {
+            if args.len() < 2 {
+                eprintln!("Usage: toksi db merge <source.db>");
+                return 1;
+            }
+            run_db_merge(&args[1])
+        }
         "sync" => run_db_sync(),
         _ => {
             eprintln!("Unknown db command: {}", sub);
-            eprintln!("Usage: toksi db [status|export|import|backup|restore|sync]");
+            eprintln!("Usage: toksi db [status|export|import|backup|restore|merge|sync]");
             1
         }
     }
@@ -83,12 +92,18 @@ fn run_db_status() -> i32 {
     println!("Database Path:    {}", stats.db_path);
     println!("File Size:        {} bytes ({:.2} KB)", stats.file_size_bytes, stats.file_size_bytes as f64 / 1024.0);
     println!("{}", C.gray("----------------------------------------------------------------------"));
-    println!("Providers:        {}", stats.providers_count);
-    println!("Provider Keys:    {}", stats.keys_count);
-    println!("Provider Models:  {}", stats.models_count);
-    println!("BYOK Routes:      {}", stats.routes_count);
-    println!("Agent Configs:    {}", stats.agents_count);
-    println!("Gateway Configs:  {}", stats.gateway_configs_count);
+    println!("Providers:          {}", stats.providers_count);
+    println!("Provider Keys:      {}", stats.keys_count);
+    println!("Provider Models:    {}", stats.models_count);
+    println!("BYOK Routes:        {}", stats.routes_count);
+    println!("BYOK Profiles:      {}", stats.byok_profiles_count);
+    println!("Agent Configs:      {}", stats.agents_count);
+    println!("Gateway Configs:    {}", stats.gateway_configs_count);
+    println!("Quota Windows:      {}", stats.quota_windows_count);
+    println!("Plugins Registry:   {}", stats.plugins_count);
+    println!("Blind Signatures:   {}", stats.blind_signatures_count);
+    println!("Advisory Embargoes: {}", stats.advisory_embargoes_count);
+    println!("ADR Audit Events:   {}", stats.adr_audit_events_count);
     println!("{}", C.gray("----------------------------------------------------------------------"));
     0
 }
@@ -199,6 +214,25 @@ fn run_db_restore(src_path: &str) -> i32 {
         let _ = sync_to_legacy_byok_json(&db);
     }
     0
+}
+
+fn run_db_merge(src_path: &str) -> i32 {
+    let src = Path::new(src_path);
+    if !src.exists() {
+        eprintln!("Source database does not exist: {}", src_path);
+        return 1;
+    }
+    let target = crate::db::default_db_path();
+    match merge_toksi_db(&target, src) {
+        Ok(merged) => {
+            println!("Merged {} record(s) from '{}' into '{}'.", merged, src_path, target.display());
+            0
+        }
+        Err(e) => {
+            eprintln!("Failed to merge database '{}': {}", src_path, e);
+            1
+        }
+    }
 }
 
 fn run_db_sync() -> i32 {

@@ -12,6 +12,7 @@
 //! and buffer size invariants.
 
 pub mod process;
+pub mod windows_cred;
 pub mod windows_env;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

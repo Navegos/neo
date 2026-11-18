@@ -3,9 +3,19 @@
 // project: neo
 // file: crates/toksi/src/db/schema.rs
 // created: 2026-11-04
-// lastModified: 2026-11-04
+// lastModified: 2026-11-18
+
+#![deny(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
+
+fn default_auth_mode() -> String {
+    "api_key".to_string()
+}
+
+fn default_gcp_location() -> String {
+    "us-central1".to_string()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProviderRecord {
@@ -29,7 +39,7 @@ pub struct ProviderKeyRecord {
     pub is_active: bool,
     pub priority: i32,
     pub weight: i32,
-    pub last_status: String, // "ok", "rate_limited", "quota_exceeded", "invalid"
+    pub last_status: String, // "ok", "rate_limited", "quota_exceeded", "invalid", "expired", "refresh_needed"
     pub expires_at: Option<i64>,
     pub created_at: i64,
 }
@@ -86,6 +96,12 @@ pub struct ByokProfileRecord {
     pub thinking_effort: String, // "none" | "low" | "medium" | "high" | "xhigh"
     pub base_url: String,
     pub secret_ref: String,
+    #[serde(default = "default_auth_mode")]
+    pub auth_mode: String, // "api_key" | "oauth" | "adc" | "keyring"
+    #[serde(default)]
+    pub gcp_project: String,
+    #[serde(default = "default_gcp_location")]
+    pub gcp_location: String,
     pub priority: i32,
     pub weight: i32,
     pub is_active: bool,
@@ -116,6 +132,51 @@ pub struct QuotaWindowRecord {
     pub updated_at: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PluginRegistryRecord {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub manifest_json: String,
+    pub blake3_hash: String,
+    pub capabilities_json: String,
+    pub protocols_json: String,
+    pub security_scan_status: String, // "passed" | "pending" | "blocked"
+    pub is_enabled: bool,
+    pub installed_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BlindSignatureRecord {
+    pub id: String,
+    pub signature_kind: String, // "blake3_ngram" | "sparse_dfa_b64"
+    pub signature_payload: String, // strictly blind blake3 hash or base64 sparse DFA; never raw PoC/regex
+    pub severity: String,
+    pub language: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AdvisoryEmbargoRecord {
+    pub advisory_id: String,
+    pub disclosure_state: String, // "embargoed" | "ready" | "published" | "withdrawn"
+    pub embargo_until_epoch: i64,
+    pub upstream_repo: String,
+    pub pr_url: Option<String>,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AdrAuditEventRecord {
+    pub id: String,
+    pub agent_id: String,
+    pub action: String,
+    pub decision: String, // "allowed" | "sandboxed" | "blocked" | "kill_switch_triggered"
+    pub reason: String,
+    pub created_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ToksiDbDump {
     pub version: u32,
@@ -132,6 +193,14 @@ pub struct ToksiDbDump {
     pub agent_profile_bindings: Vec<AgentProfileBindingRecord>,
     #[serde(default)]
     pub quota_windows: Vec<QuotaWindowRecord>,
+    #[serde(default)]
+    pub plugins_registry: Vec<PluginRegistryRecord>,
+    #[serde(default)]
+    pub blind_signatures: Vec<BlindSignatureRecord>,
+    #[serde(default)]
+    pub advisory_embargoes: Vec<AdvisoryEmbargoRecord>,
+    #[serde(default)]
+    pub adr_audit_events: Vec<AdrAuditEventRecord>,
 }
 
 pub const SCHEMA_DDL: &str = r#"
@@ -209,6 +278,9 @@ CREATE TABLE IF NOT EXISTS byok_profiles (
     thinking_effort TEXT NOT NULL DEFAULT 'none',
     base_url TEXT NOT NULL,
     secret_ref TEXT NOT NULL DEFAULT '',
+    auth_mode TEXT NOT NULL DEFAULT 'api_key',
+    gcp_project TEXT NOT NULL DEFAULT '',
+    gcp_location TEXT NOT NULL DEFAULT 'us-central1',
     priority INTEGER NOT NULL DEFAULT 0,
     weight INTEGER NOT NULL DEFAULT 1,
     is_active INTEGER NOT NULL DEFAULT 1,
@@ -241,5 +313,46 @@ CREATE TABLE IF NOT EXISTS quota_windows (
     UNIQUE(provider_id, instance_label, window_kind)
 );
 CREATE INDEX IF NOT EXISTS idx_quota_windows_provider ON quota_windows(provider_id, window_kind);
-"#;
 
+CREATE TABLE IF NOT EXISTS plugins_registry (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    manifest_json TEXT NOT NULL DEFAULT '{}',
+    blake3_hash TEXT NOT NULL,
+    capabilities_json TEXT NOT NULL DEFAULT '[]',
+    protocols_json TEXT NOT NULL DEFAULT '[]',
+    security_scan_status TEXT NOT NULL DEFAULT 'pending',
+    is_enabled INTEGER NOT NULL DEFAULT 1,
+    installed_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS blind_signatures (
+    id TEXT PRIMARY KEY,
+    signature_kind TEXT NOT NULL CHECK(signature_kind IN ('blake3_ngram','sparse_dfa_b64')),
+    signature_payload TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'medium',
+    language TEXT NOT NULL DEFAULT 'polyglot',
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS advisory_embargoes (
+    advisory_id TEXT PRIMARY KEY,
+    disclosure_state TEXT NOT NULL CHECK(disclosure_state IN ('embargoed','ready','published','withdrawn')),
+    embargo_until_epoch INTEGER NOT NULL,
+    upstream_repo TEXT NOT NULL,
+    pr_url TEXT,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS adr_audit_events (
+    id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    decision TEXT NOT NULL CHECK(decision IN ('allowed','sandboxed','blocked','kill_switch_triggered')),
+    reason TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_adr_audit_agent ON adr_audit_events(agent_id, created_at);
+"#;

@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/byok_gateway.rs
 // created: 2026-10-05
-// lastModified: 2026-11-16
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
@@ -1553,7 +1553,7 @@ pub fn enrich_headers_with_keyring_credentials(
             out.push(("Authorization".to_string(), format!("Bearer {}", tok)));
         }
     } else if target_lower.contains("openai.com") {
-        if let Some(tok) = crate::keyring::get_agent_token("openai").map(|e| e.access_token).or_else(|| std::env::var("OPENAI_API_KEY").ok()) {
+        if let Some(tok) = crate::keyring::get_agent_token("openai").map(|mut e| e.take_access_token()).or_else(|| std::env::var("OPENAI_API_KEY").ok()) {
             out.push(("Authorization".to_string(), format!("Bearer {}", tok)));
         }
     } else if let Ok(arc) = crate::db::shared_db()

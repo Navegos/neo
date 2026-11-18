@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase13_e2e_verification.rs
 // created: 2026-10-30
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -286,7 +286,7 @@ fn test_in_process_mcp_multiplexer_live_simulated_requests() {
         "params": {}
     });
     let cg_init_resp = codegraph_handle_mcp(&cg_init).expect("codegraph init response");
-    assert_eq!(cg_init_resp["result"]["serverInfo"]["name"], "toksi-codegraph");
+    assert_eq!(cg_init_resp["result"]["serverInfo"]["name"], "codegraph");
 
     let cg_list = json!({
         "jsonrpc": "2.0",

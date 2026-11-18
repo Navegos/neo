@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/keyring/os_linux.rs
 // created: 2026-11-04
-// lastModified: 2026-11-04
+// lastModified: 2026-11-18
+
+#![deny(unsafe_code)]
 
 #[cfg(target_os = "linux")]
 use std::io::Write;

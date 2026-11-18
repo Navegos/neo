@@ -3,15 +3,24 @@
 // project: neo
 // file: crates/toksi/src/commands/auth.rs
 // created: 2026-11-04
-// lastModified: 2026-11-04
+// lastModified: 2026-11-18
 
-use crate::keyring::{audit_keyring_statuses, current_backend_name, delete_credential, get_agent_token, get_credential, set_credential};
+#![deny(unsafe_code)]
+
+use zeroize::Zeroize;
+
+use crate::db::open_default_db;
+use crate::keyring::{
+    audit_keyring_statuses, current_backend_name, delete_credential, get_agent_token,
+    get_credential, inspect_adc_status, set_credential, sync_os_credentials_to_db,
+};
 use crate::util::colors::C;
 
 pub fn run_auth_cli(args: &[String]) -> i32 {
     let sub = args.first().map(|s| s.as_str()).unwrap_or("status");
     match sub {
         "status" => run_auth_status(),
+        "adc" => run_auth_adc(),
         "get" => {
             if args.len() < 2 {
                 eprintln!("Usage: toksi auth get <service|agent> [--account <name>] [--reveal]");
@@ -70,7 +79,7 @@ pub fn run_auth_cli(args: &[String]) -> i32 {
         "sync" => run_auth_sync(),
         _ => {
             eprintln!("Unknown auth command: {}", sub);
-            eprintln!("Usage: toksi auth [status|get|set|delete|sync]");
+            eprintln!("Usage: toksi auth [status|adc|get|set|delete|sync]");
             1
         }
     }
@@ -84,35 +93,73 @@ fn run_auth_status() -> i32 {
     println!("{}", C.gray("----------------------------------------------------------------------"));
 
     let statuses = audit_keyring_statuses();
-    for s in statuses {
-        let status_str = if s.has_credential {
-            if s.is_expired {
-                C.yellow("Expired")
+    if statuses.is_empty() {
+        println!("{}", C.gray("No user-configured agents or stored OS keyring credentials."));
+    } else {
+        for s in statuses {
+            let status_str = if s.has_credential {
+                if s.is_expired {
+                    C.yellow("Expired")
+                } else {
+                    C.green("Configured")
+                }
             } else {
-                C.green("Configured")
-            }
-        } else {
-            C.gray("Missing")
-        };
+                C.gray("Missing")
+            };
 
-        let exp_str = if let Some(exp) = s.expires_at {
-            if let Some(dt) = chrono::DateTime::from_timestamp(exp, 0) {
-                dt.format("%Y-%m-%d %H:%M").to_string()
+            let exp_str = if let Some(exp) = s.expires_at {
+                if let Some(dt) = chrono::DateTime::from_timestamp(exp, 0) {
+                    dt.format("%Y-%m-%d %H:%M").to_string()
+                } else {
+                    "-".to_string()
+                }
             } else {
                 "-".to_string()
-            }
-        } else {
-            "-".to_string()
-        };
+            };
 
-        let preview = s.token_preview.unwrap_or_else(|| "-".to_string());
-        println!("{:<14} {:<24} {:<10} {:<18} {:<10}", s.agent, s.service, status_str, exp_str, preview);
+            let preview = s.token_preview.unwrap_or_else(|| "-".to_string());
+            println!("{:<14} {:<24} {:<10} {:<18} {:<10}", s.agent, s.service, status_str, exp_str, preview);
+        }
+    }
+
+    let adc = inspect_adc_status();
+    if adc.enabled {
+        println!("{}", C.gray("----------------------------------------------------------------------"));
+        let proj = adc.gcp_project.as_deref().unwrap_or("<unset>");
+        let adc_state = if adc.adc_present {
+            C.green("Ready")
+        } else {
+            C.yellow("Missing")
+        };
+        println!(
+            "Google Cloud ADC (AGY_ADC_AUTH=true): {} | project={} | location={}",
+            adc_state, proj, adc.gcp_location
+        );
+        if let Some(diag) = adc.diagnostic {
+            println!("  {}", C.yellow(&diag));
+        }
+    }
+
+    0
+}
+
+fn run_auth_adc() -> i32 {
+    let adc = inspect_adc_status();
+    println!("{}", C.bold("Google Cloud Application Default Credentials (ADC)"));
+    println!("  Enabled:  {}", adc.enabled);
+    println!("  Project:  {}", adc.gcp_project.as_deref().unwrap_or("<unset>"));
+    println!("  Location: {}", adc.gcp_location);
+    println!("  Path:     {}", adc.adc_path);
+    println!("  Present:  {}", adc.adc_present);
+    if let Some(diag) = adc.diagnostic {
+        println!("  Action:   {}", C.yellow(&diag));
+        return 1;
     }
     0
 }
 
 fn run_auth_get(service: &str, account: &str, reveal: bool) -> i32 {
-    if let Some(env) = get_agent_token(service) {
+    if let Some(mut env) = get_agent_token(service) {
         if reveal {
             println!("{}", env.access_token);
         } else {
@@ -132,10 +179,11 @@ fn run_auth_get(service: &str, account: &str, reveal: bool) -> i32 {
             };
             println!("  Token:   {} (use --reveal to view full token)", mask);
         }
+        env.zeroize();
         return 0;
     }
 
-    if let Some(secret) = get_credential(service, account) {
+    if let Some(mut secret) = get_credential(service, account) {
         if reveal {
             println!("{}", secret);
         } else {
@@ -146,6 +194,7 @@ fn run_auth_get(service: &str, account: &str, reveal: bool) -> i32 {
             };
             println!("Secret for '{}:{}': {} (use --reveal to view full token)", service, account, mask);
         }
+        secret.zeroize();
         0
     } else {
         eprintln!("No credential found for service '{}' (account '{}')", service, account);
@@ -174,33 +223,35 @@ fn run_auth_delete(service: &str, account: &str) -> i32 {
 }
 
 fn run_auth_sync() -> i32 {
-    println!("Scanning and syncing local agent session files to OS Keyring...");
-    let mut count = 0;
+    println!("Scanning and syncing local agent credentials to OS Keyring and Gateway DB...");
+    let mut db = match open_default_db() {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("Failed to open Toksi configuration database: {}", e);
+            return 1;
+        }
+    };
 
-    // 1. Antigravity / Gemini ADC
-    if let Some(tok) = crate::gateway::agent_cli::read_gemini_adc_session() {
-        if set_credential("gemini", "antigravity", &tok) {
-            println!("  Synced Antigravity/Gemini token into Keyring");
-            count += 1;
+    match sync_os_credentials_to_db(&mut db) {
+        Ok(report) => {
+            for p in &report.registered_providers {
+                println!("  Registered provider '{}' in Gateway DB", p);
+            }
+            for diag in &report.diagnostics {
+                println!("  {}", C.yellow(diag));
+            }
+            println!(
+                "Sync complete. {} keyring credential(s), {} provider(s) registered ({} refreshed) in {}.",
+                report.synced_keyring_count,
+                report.registered_providers.len(),
+                report.refreshed_tokens,
+                current_backend_name()
+            );
+            0
+        }
+        Err(e) => {
+            eprintln!("Credential pre-registration sync failed: {}", e);
+            1
         }
     }
-
-    // 2. Claude Code
-    if let Some(tok) = crate::gateway::agent_cli::read_claude_code_session() {
-        if set_credential("claude", "sessionKey", &tok) {
-            println!("  Synced Claude Code token into Keyring");
-            count += 1;
-        }
-    }
-
-    // 3. GitHub Copilot
-    if let Some(tok) = crate::gateway::agent_cli::read_copilot_session() {
-        if set_credential("git:https://github.com", "oauth_token", &tok) {
-            println!("  Synced Copilot token into Keyring");
-            count += 1;
-        }
-    }
-
-    println!("Sync complete. {} credential(s) verified in {}", count, current_backend_name());
-    0
 }

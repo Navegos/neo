@@ -12,14 +12,14 @@ use crate::util::env_path::check_executable_in_path;
 
 pub fn read_grok_session() -> Option<String> {
     // 1. Check OS Keyring first
-    if let Some(env) = get_agent_token("grok") {
+    if let Some(mut env) = get_agent_token("grok") {
         if !env.is_expired(30) && !env.access_token.is_empty() {
-            return Some(env.access_token);
+            return Some(env.take_access_token());
         }
     }
-    if let Some(env) = get_agent_token("xai") {
+    if let Some(mut env) = get_agent_token("xai") {
         if !env.is_expired(30) && !env.access_token.is_empty() {
-            return Some(env.access_token);
+            return Some(env.take_access_token());
         }
     }
 

@@ -5,6 +5,8 @@
 // created: 2026-11-04
 // lastModified: 2026-11-04
 
+#![deny(unsafe_code)]
+
 use std::path::Path;
 use crate::util::byok::{byok_routes_path, parse_byok_routes, BYOKRoute};
 use crate::util::paths::{read_file_safe, write_file_atomic};

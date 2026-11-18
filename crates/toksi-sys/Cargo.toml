@@ -9,6 +9,7 @@ description = "Isolated platform FFI wrappers for toksi with explicit safety pro
 
 [dependencies]
 thiserror = "2.0"
+zeroize = "1.9"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = [
