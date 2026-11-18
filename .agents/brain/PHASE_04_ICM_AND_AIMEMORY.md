@@ -32,7 +32,7 @@ Requirements:
    - Open Knowledge Format (OKF v0.2) markdown wiki store inside `<repo>/.toksi/ai-memory/`.
    - Claim-once multi-agent handoff state machine with atomic file lock transitions (`pending` -> `claimed` -> `completed`).
    - Progressive disclosure packer: Tiered L0 (TOC), L1 (Abstracts), L2 (Full markdown bodies) based on Headroom context budget.
-3. Prepare integration hooks for Headroom adaptive memory governor (`crates/toksi/src/headroom/adaptive_mem.rs`).
+3. Prepare integration hooks for shared 7-entrypoint `HeadroomEffortCompressor` (`crates/toksi/src/headroom/adaptive_mem.rs`, `effort.rs`) and **35-component `<toksi-siagent>`** (`cognee`/`graphiti`/`qdrant`/`lance`/`milvus`/`letta`/`text-embeddings-inference`/`NeMo-Retriever` hybrid RAG across **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 4. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
@@ -54,3 +54,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- icm` and `cargo test -p toksi -- aimemory` pass 100%.
 - Search queries with special characters (e.g. `query: "foo:bar*"`) return cleanly without FTS5 errors.
+
+---
+
+## Wave 18 (v5.2) Synchronization Addendum
+- Extend `<repo>/.toksi/ai-memory/` with `lance_store.rs`, `qdrant_store.rs`, `cognee_graph.rs`, `temporal_graph.rs` (`graphiti`), `letta_memgpt.rs`, `milvus_adapter.rs`, `mongo_bridge.rs`, `embeddings.rs` (`text-embeddings-inference`), and `retriever.rs` (`NeMo-Retriever`) for `<toksi-siagent>` (`35` components, `295` mandated vaults, `37` `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, externalized `<skills>` & `<advisory>`).

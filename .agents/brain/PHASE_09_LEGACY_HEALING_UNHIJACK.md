@@ -24,7 +24,7 @@ Requirements:
    - Clean up hijacked symlinks or junction points across Windows, Linux, and macOS.
    - Purge legacy strings/keys across configs & codebase: `tokless_*` (`paths.rs`), `toksi-projectmem`, `toksi-codegraph`, `toksi-codegraph-index`, `agy-hook codegraph-index`, `rtk hook cursor` (`main.rs:340`), `toksi-codegraph-init.js`.
    - Migrate legacy `.gemini/mcp`, `.copilot/mcp`, `.claude/mcp`, `.agents/mcp` folders to `skills/<tool>`, standardize hook invocation to `<tool>-hook <agent>`, and merge nested crate `.toksi/` / `.<agent>/` DBs/files cleanly into root `<repo>/.toksi/<tool>` / `<repo>/.<agent>`.
-2. Hook into `toksi doctor --fix` and `toksi daemon stop` (plus PATH verification via `check_executable_in_path`).
+2. Hook into `toksi doctor --fix` and `toksi daemon stop` (plus PATH verification via `check_executable_in_path`), aligned with **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 3. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
@@ -45,3 +45,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- heal` passes 100%.
 - Running `toksi doctor --fix` detects mock `.real` binaries and successfully restores them.
+
+---
+
+## Wave 18 (v5.2) Synchronization Addendum
+- Pair `heal.rs` binary un-hijack with `skilldoctor` + `agentskills` YAML frontmatter healing (`PHASE_18_2`), legacy `.projectmem/` -> `<repo>/.toksi/projectmem/` consolidation (`PHASE_18_4`), and `<enforce>` plugin verification across **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and externalized `<skills>` & `<advisory>`.

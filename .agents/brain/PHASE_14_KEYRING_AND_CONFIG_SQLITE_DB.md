@@ -31,7 +31,7 @@ Requirements:
    - Operations: Export, import, backup, restore, and row-level table merge.
 3. Pre-Registration Pipeline:
    - Synchronize discovered OS credentials (e.g. GitHub Copilot, Gemini CLI, Claude Code) into the gateway provider keys table with automatic token refresh.
-4. Expose CLI commands `toksi auth ...` and `toksi db ...`.
+4. Expose CLI commands `toksi auth ...` and `toksi db ...` for **35-component `<toksi-siagent>`** (**295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`).
 5. Ensure 0 compiler warnings and passing unit tests.
 ```
 
@@ -56,6 +56,6 @@ Requirements:
 
 ---
 
-## Wave 18 (v5.1) Synchronization Addendum (`AGY_ADC_AUTH=true`, `plugins_registry` & Zero-Plaintext Security DDL)
-- Extend `byok_profiles` table in SQLite with `auth_mode`, `gcp_project`, and `gcp_location` (default `us-central1`), and add `plugins_registry`, `blind_signatures` (`blake3_ngram | sparse_dfa_b64`), `advisory_embargoes` (`DisclosureGate`), and `adr_audit_events` (`allowed | sandboxed | blocked | kill_switch_triggered`) ensuring zero plaintext exploits ever touch disk.
-- Add `src/keyring/adc.rs` implementing first-class Google Cloud Application Default Credentials (`AGY_ADC_AUTH=true`), reading VS Code `"gcp.project"` / `"gcp.location"` and `~/.config/gcloud/application_default_credentials.json` (`%APPDATA%/gcloud/application_default_credentials.json` on Windows) with actionable `gcloud auth application-default login --project <GCP_PROJECT>` diagnostics when absent (`PHASE_18_3`).
+## Wave 18 (v5.2) Synchronization Addendum (`AGY_ADC_AUTH=true`, `plugins_registry`, SPIFFE IAM & Zero-Plaintext Security DDL)
+- Extend `byok_profiles` table in SQLite with `auth_mode`, `gcp_project`, and `gcp_location` (default `us-central1`), and add `plugins_registry`, `blind_signatures` (`blake3_ngram | sparse_dfa_b64`), `advisory_embargoes` (`DisclosureGate`), and `adr_audit_events` (`allowed | sandboxed | blocked | kill_switch_triggered`) ensuring zero plaintext exploits ever touch disk across all **295 mandated vaults**, **35-component `<toksi-siagent>`**, and **37** `.agents/brain/*.md` guides (`zero paid-tier restrictions`, canonical `<repo>/.toksi/projectmem/`).
+- Add `src/keyring/adc.rs` implementing first-class Google Cloud Application Default Credentials (`AGY_ADC_AUTH=true`), reading VS Code `"gcp.project"` / `"gcp.location"` and `~/.config/gcloud/application_default_credentials.json` (`%APPDATA%/gcloud/application_default_credentials.json` on Windows) with actionable `gcloud auth application-default login --project <GCP_PROJECT>` diagnostics when absent (`PHASE_18_3`), plus SPIRE SVID token storage in OS Keyring (`PHASE_18_6`).

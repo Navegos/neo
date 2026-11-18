@@ -43,7 +43,7 @@ Requirements:
    - `providers/`: full **65/90+ Categories 1–5 ecosystem + 22 local inference engines** (`Ollama`, `vLLM`, `llama.cpp`, `LM Studio`, `SGLang`, `TGI`, `Exo`, etc., self-hosted `Bifrost`, SageMaker, Mantle).
    - `cascade.rs`, `loadbalancer.rs`, `router.rs` (`mofa-engine` 7-D `route_ranked`), `governance.rs` (virtual keys + `CircuitBreakerRegistry`), `semantic_cache.rs` (Chroma ANN HNSW/USearch/SPANN + `foyer` spill wired live into `proxy.rs`), `compat/` (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`, `/v1/embeddings`, `/v1beta/models/*`).
 4. Supervise Copilot dual-port architecture (Port `8789` VS Code + Port `8790` CLI) with real OAuth/SSE upstream streaming (removing `"copilot proxy ready"` & `"wrap"` stubs).
-5. Ensure 0 compiler warnings and targeted `cargo test` pass.
+5. Wire all **26** local/Rust inference vaults (`ollama`, `llama.cpp`, `candle`, `candle-vllm`, `mistral.rs`, `dynamo`, `frontend-crates`, `nixl`, `radixshmem`), `RouteLLM`/`olla`/`Switchyard`/`NeMo-Relay`, `tokenizers` BPE, and `Guardrails`/`llm-guard` across the **35-component `<toksi-siagent>`** (`295` mandated vaults, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`), ensuring 0 compiler warnings and targeted `cargo test` pass.
 ```
 
 ---
@@ -64,3 +64,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- headroom` and `cargo test -p toksi -- gateway` pass 100%.
 - Prompt cache aligner produces exact 1024-token aligned boundaries.
+
+---
+
+## Wave 18 (v5.2) Synchronization Addendum
+- Route all 7 inference/protocol entrypoints (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`) through shared `HeadroomEffortCompressor` (`Low`/`Med`/`High` + `live_zone` + `CcrStore` + `SmartCrusher` + `TokenEconomizer` + `agent-opt` + MCP Pruner + `RTK` + `Chroma`/`Lance`/`Qdrant` + `<enforce>`) for **35-component `<toksi-siagent>`** across **295 mandated vaults**, **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`), canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>` (`PHASE_18_3`, `PHASE_18_6`).

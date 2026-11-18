@@ -32,7 +32,7 @@ Requirements:
 3. Universal Rules, Skills & Instructions Sync (`rules/sync.rs` + `agents/manager.rs`):
    - Sync externalized `<enforce>` `Karpathy`, `Caveman` v4, and `Ponytail` guidelines (staged outside `crates/toksi/` in `<neo>/agents/` & `<neo>/rules/`, zero binary bloat) across ONLY user-configured/selected agents (`18+` built-in + `.agents` + Category 1–5) with granular component toggles (`hooks|mcp|skills|rules|instructions|configs`), respecting `user` auto-install vs explicit `repo` opt-in.
 4. Comprehensive CLI Help (`crates/toksi/src/main.rs`):
-   - Update `help_text()` with exhaustive documentation of all commands (`chat|run|exec|swarm`, `daemon|proxy|dashboard start|stop|restart --agents`, `config`, `byok`, `db`, `auth`, `security`, `compile-blind`, `advisory`, `skills`, `sandbox`, `plugin`, `agent`, `mem`, `graph`, `ctx`, `rtk`, `doctor`), 8 ports (`8787..18787`, incl. `:9098` Protocol Bus), `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`), **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `direct-wired` bus, effort-tier `tokview` attribution, and `<repo>/.toksi/<tool>` rules.
+   - Update `help_text()` with exhaustive documentation of all commands (`chat|run|exec|swarm`, `daemon|proxy|dashboard start|stop|restart --agents`, `config`, `byok`, `db`, `auth`, `security`, `compile-blind`, `advisory`, `skills`, `sandbox`, `plugin`, `agent`, `mem`, `graph`, `ctx`, `rtk`, `doctor`), 8 ports (`8787..18787`, incl. `:9098` Protocol Bus), `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`), **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `direct-wired` bus, effort-tier `tokview` attribution, **35-component `<toksi-siagent>`** across **295 mandated vaults** (**37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`), and `<repo>/.toksi/<tool>` rules.
 5. Verification:
    - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```
@@ -51,3 +51,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- tokentracker` and `cargo test -p toksi -- reconnect` pass 100%.
 - `toksi --help` prints full usage manual without truncation or syntax errors.
+
+---
+
+## Wave 18 (v5.2) Synchronization Addendum
+- Integrate `tokview`, `langfuse`, `phoenix` OpenInference spans, `tokenspeed` TTFT/TPOT latency, `vmon` + `cuda-rust` telemetry, and `tokenizers` exact BPE counting across all **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.

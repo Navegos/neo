@@ -28,7 +28,7 @@ Requirements:
 3. RAII Teardown Guard (`teardown.rs`):
    - Stores original environment snapshots.
    - Restores original variables or deletes injected proxy keys on normal exit, `SIGINT`, `SIGTERM`, `SIGHUP`, or panic hook trigger.
-4. Integrate with `toksi daemon start` and `toksi daemon stop`.
+4. Integrate with `toksi daemon start` and `toksi daemon stop` (plus `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, `AGY_ADC_AUTH=true` Google Cloud ADC pass-through, and **35-component `<toksi-siagent>`** across **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 5. Ensure 0 compiler warnings and passing unit tests.
 ```
 
@@ -50,3 +50,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- env_injector` passes 100%.
 - Daemon exit cleans up all registered environment keys from `HKCU\Environment`.
+
+---
+
+## Wave 18 (v5.2) Synchronization Addendum
+- Enforce `CommandGuard` immediate bypass kill-switch teardown (`src/commands/guard.rs`), `AGY_ADC_AUTH=true` ADC pass-through (`PHASE_18_3`), and `:9098` Protocol Bus export across **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/` with externalized `<skills>` & `<advisory>`.

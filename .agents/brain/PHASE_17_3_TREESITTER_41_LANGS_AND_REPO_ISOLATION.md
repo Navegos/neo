@@ -40,7 +40,7 @@ Requirements:
    - Add `subproject_id` partitioning across `<repo>/crates/project1..N/` in `codegraph`, `projectmem`, `context`, `icm`, `aimemory`, and `rtk`.
    - Auto-merge any legacy nested `<repo>/crates/*/.toksi/` or home `~/.toksi/{projectmem,icm,ai-memory,context,codegraph}` artifacts into root `<repo>/.toksi/<tool>/` cleanly.
 4. Verification:
-   - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi`.
+   - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi` honoring **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
 ```
 
 ---
@@ -57,6 +57,6 @@ Requirements:
 
 ---
 
-## Wave 18 (v5.1) Architecture & Audit Correction
-- **Audited `crates/toksi/src/codegraph/kernel/langs.rs` Fact Check**: `langs.rs` declares 45 language IDs with **no duplicate `"kotlin"` entry**; however, `grammar_for()` (`L74-118`) has no match arm for `"dockerfile"`, and `"vue"` / `"scss"` currently alias `tree_sitter_html` / `tree_sitter_css`. Resolve `"dockerfile"` grammar binding and `"vue"`/`"scss"` specialization here so both CodeGraph (`Phase 17.3`) and the built-in 41-language static code security analyzer (`Phase 18.2`, `src/security/analyzer.rs`) achieve 100% AST rule coverage.
-- Enforce canonical `<repo>/.toksi/projectmem/` and `<repo>/.toksi/codegraph/` isolation with zero `.projectmem/` leakage.
+## Wave 18 (v5.2) Architecture & Audit Correction
+- **Audited `crates/toksi/src/codegraph/kernel/langs.rs` Fact Check**: `langs.rs` declares all 45 language IDs with **no duplicate `"kotlin"` entry**, and `grammar_for()` (`L99–103`) currently maps `"dockerfile"` -> `tree_sitter_bash`, `"vue"` -> `tree_sitter_html`, and `"scss"` -> `tree_sitter_css` as fallback aliases. Upgrade `"dockerfile"`, `"vue"`, and `"scss"` to dedicated Dockerfile/Vue-SFC/SCSS grammars in `crates/toksi-grammars` so both CodeGraph (`Phase 17.3`) and the built-in 41-language static code security analyzer (`Phase 18.2`, `src/security/analyzer.rs`) achieve full AST rule fidelity across **295 mandated vaults** and **35-component `<toksi-siagent>`** (**37** `.agents/brain/*.md` guides).
+- Enforce canonical `<repo>/.toksi/projectmem/` and `<repo>/.toksi/codegraph/` isolation with zero `.projectmem/` leakage and zero binary bloat (`externalized <skills>` & `<advisory>`).

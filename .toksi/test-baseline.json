@@ -1,0 +1,336 @@
+{
+    "schema_version":  1,
+    "hash_algorithm_note":  "sha256_bootstrap_until_phase17_7_blake3_runner",
+    "cargo_lock_blake3":  "11394b814a6bb5af490e3685d43d0f2ca68ee43296ab57d34969b130caf4efc3",
+    "suites":  {
+                   "antigravity_auth_verification":  {
+                                                         "watched_paths":  [
+                                                                               "crates/toksi/src/keyring/",
+                                                                               "crates/toksi/src/agents/antigravity.rs",
+                                                                               "crates/toksi/tests/antigravity_auth_verification.rs"
+                                                                           ],
+                                                         "tree_blake3":  "42d6f45c10749a8d68c5295667ff9d6d530e224ddb52ad16c1475788faa825b1",
+                                                         "last_passed_unix":  0,
+                                                         "cargo_args":  [
+                                                                            "test",
+                                                                            "-p",
+                                                                            "toksi",
+                                                                            "--test",
+                                                                            "antigravity_auth_verification"
+                                                                        ]
+                                                     },
+                   "benchmarks":  {
+                                      "watched_paths":  [
+                                                            "crates/toksi/src/",
+                                                            "crates/toksi/tests/benchmarks.rs"
+                                                        ],
+                                      "tree_blake3":  "dd5ca9880f4056b131e4adc3e955fd0a69cec577f5e52f8561dd391c8d55ae56",
+                                      "last_passed_unix":  0,
+                                      "cargo_args":  [
+                                                         "test",
+                                                         "-p",
+                                                         "toksi",
+                                                         "--test",
+                                                         "benchmarks"
+                                                     ]
+                                  },
+                   "e2e_tests":  {
+                                     "watched_paths":  [
+                                                           "crates/toksi/src/",
+                                                           "crates/toksi/tests/e2e_tests.rs"
+                                                       ],
+                                     "tree_blake3":  "93f9c049791568e9fe3604c358075fa2382224dc3ce0055d6532955b9f8dd427",
+                                     "last_passed_unix":  0,
+                                     "cargo_args":  [
+                                                        "test",
+                                                        "-p",
+                                                        "toksi",
+                                                        "--test",
+                                                        "e2e_tests"
+                                                    ]
+                                 },
+                   "keyring_db_byok_verification":  {
+                                                        "watched_paths":  [
+                                                                              "crates/toksi/src/keyring/",
+                                                                              "crates/toksi/src/db/",
+                                                                              "crates/toksi/tests/keyring_db_byok_verification.rs"
+                                                                          ],
+                                                        "tree_blake3":  "d0a01dc3957413de5407c5b0e44d983df7a048f92873a9f151ff759e6d255b1b",
+                                                        "last_passed_unix":  0,
+                                                        "cargo_args":  [
+                                                                           "test",
+                                                                           "-p",
+                                                                           "toksi",
+                                                                           "--test",
+                                                                           "keyring_db_byok_verification"
+                                                                       ]
+                                                    },
+                   "phase1_rtk_verification":  {
+                                                   "watched_paths":  [
+                                                                         "crates/toksi/src/rtk/",
+                                                                         "crates/toksi/tests/phase1_rtk_verification.rs"
+                                                                     ],
+                                                   "tree_blake3":  "20f02abcb619f3858df97dfb7b56fee677bc3117552579b4e256aad82c015408",
+                                                   "last_passed_unix":  0,
+                                                   "cargo_args":  [
+                                                                      "test",
+                                                                      "-p",
+                                                                      "toksi",
+                                                                      "--test",
+                                                                      "phase1_rtk_verification"
+                                                                  ]
+                                               },
+                   "phase2_projectmem_verification":  {
+                                                          "watched_paths":  [
+                                                                                "crates/toksi/src/projectmem/",
+                                                                                "crates/toksi/tests/phase2_projectmem_verification.rs"
+                                                                            ],
+                                                          "tree_blake3":  "1d120be3f74825c0066404decd9ac50bd37b321bf12eba79b4f905ca10685725",
+                                                          "last_passed_unix":  0,
+                                                          "cargo_args":  [
+                                                                             "test",
+                                                                             "-p",
+                                                                             "toksi",
+                                                                             "--test",
+                                                                             "phase2_projectmem_verification"
+                                                                         ]
+                                                      },
+                   "phase3_contextmode_verification":  {
+                                                           "watched_paths":  [
+                                                                                 "crates/toksi/src/contextmode/",
+                                                                                 "crates/toksi/tests/phase3_contextmode_verification.rs"
+                                                                             ],
+                                                           "tree_blake3":  "59295460ea524bcd0e0d59722d17e2bb6acedb8dc76c0d58d6984c51dc839731",
+                                                           "last_passed_unix":  0,
+                                                           "cargo_args":  [
+                                                                              "test",
+                                                                              "-p",
+                                                                              "toksi",
+                                                                              "--test",
+                                                                              "phase3_contextmode_verification"
+                                                                          ]
+                                                       },
+                   "phase4_icm_aimemory_verification":  {
+                                                            "watched_paths":  [
+                                                                                  "crates/toksi/src/icm/",
+                                                                                  "crates/toksi/src/aimemory/",
+                                                                                  "crates/toksi/tests/phase4_icm_aimemory_verification.rs"
+                                                                              ],
+                                                            "tree_blake3":  "d5ac39f9688a521257a7e99c31849805b9a613125c91ccf45bf4e34cfa68d964",
+                                                            "last_passed_unix":  0,
+                                                            "cargo_args":  [
+                                                                               "test",
+                                                                               "-p",
+                                                                               "toksi",
+                                                                               "--test",
+                                                                               "phase4_icm_aimemory_verification"
+                                                                           ]
+                                                        },
+                   "phase5_codegraph_verification":  {
+                                                         "watched_paths":  [
+                                                                               "crates/toksi/src/codegraph/",
+                                                                               "crates/toksi-grammars/src/",
+                                                                               "crates/toksi/tests/phase5_codegraph_verification.rs"
+                                                                           ],
+                                                         "tree_blake3":  "78850e5ea279ff83082f7aabdb8664801c19339628c8852b4e35e6738803ec28",
+                                                         "last_passed_unix":  0,
+                                                         "cargo_args":  [
+                                                                            "test",
+                                                                            "-p",
+                                                                            "toksi",
+                                                                            "--test",
+                                                                            "phase5_codegraph_verification"
+                                                                        ]
+                                                     },
+                   "phase6_rules_verification":  {
+                                                     "watched_paths":  [
+                                                                           "crates/toksi/src/rules/",
+                                                                           "rules/",
+                                                                           "crates/toksi/tests/phase6_rules_verification.rs"
+                                                                       ],
+                                                     "tree_blake3":  "cf43222938783e45e9585e900e5701a905f23b9590742f7e8b5441864cbbd741",
+                                                     "last_passed_unix":  1794970169,
+                                                     "cargo_args":  [
+                                                                        "test",
+                                                                        "-p",
+                                                                        "toksi",
+                                                                        "--test",
+                                                                        "phase6_rules_verification"
+                                                                    ]
+                                                 },
+                   "phase7_gateway_verification":  {
+                                                       "watched_paths":  [
+                                                                             "crates/toksi/src/gateway/",
+                                                                             "crates/toksi/tests/phase7_gateway_verification.rs"
+                                                                         ],
+                                                       "tree_blake3":  "c4fb30a3633e0f3eb41e99762798295a84c70c44cfef479091729874ecdb0ebf",
+                                                       "last_passed_unix":  0,
+                                                       "cargo_args":  [
+                                                                          "test",
+                                                                          "-p",
+                                                                          "toksi",
+                                                                          "--test",
+                                                                          "phase7_gateway_verification"
+                                                                      ]
+                                                   },
+                   "phase7_headroom_verification":  {
+                                                        "watched_paths":  [
+                                                                              "crates/toksi/src/headroom/",
+                                                                              "crates/toksi/tests/phase7_headroom_verification.rs"
+                                                                          ],
+                                                        "tree_blake3":  "4022088cf8f37abe90746947a683295e202a18bef62dc483beb00087311c950f",
+                                                        "last_passed_unix":  0,
+                                                        "cargo_args":  [
+                                                                           "test",
+                                                                           "-p",
+                                                                           "toksi",
+                                                                           "--test",
+                                                                           "phase7_headroom_verification"
+                                                                       ]
+                                                    },
+                   "phase7_system_verification":  {
+                                                      "watched_paths":  [
+                                                                            "crates/toksi/src/",
+                                                                            "crates/toksi/tests/phase7_system_verification.rs"
+                                                                        ],
+                                                      "tree_blake3":  "760e69c905aea7aa9930fef55a7e4fd6bf0aa9ff76b9fcc61c0a15ee670af723",
+                                                      "last_passed_unix":  0,
+                                                      "cargo_args":  [
+                                                                         "test",
+                                                                         "-p",
+                                                                         "toksi",
+                                                                         "--test",
+                                                                         "phase7_system_verification"
+                                                                     ]
+                                                  },
+                   "phase8_downloader_purge_verification":  {
+                                                                "watched_paths":  [
+                                                                                      "crates/toksi/src/util/",
+                                                                                      "crates/toksi/tests/phase8_downloader_purge_verification.rs"
+                                                                                  ],
+                                                                "tree_blake3":  "9e0819e5ecb917cc5161b77887c01d9e844773973e5ef6c135202593b9087ae6",
+                                                                "last_passed_unix":  0,
+                                                                "cargo_args":  [
+                                                                                   "test",
+                                                                                   "-p",
+                                                                                   "toksi",
+                                                                                   "--test",
+                                                                                   "phase8_downloader_purge_verification"
+                                                                               ]
+                                                            },
+                   "phase9_legacy_healing_verification":  {
+                                                              "watched_paths":  [
+                                                                                    "crates/toksi/src/env_injector/",
+                                                                                    "crates/toksi/tests/phase9_legacy_healing_verification.rs"
+                                                                                ],
+                                                              "tree_blake3":  "273cffe38b0aee804625d7b598711ba8b72b09330973b760d26b2554aea32db4",
+                                                              "last_passed_unix":  0,
+                                                              "cargo_args":  [
+                                                                                 "test",
+                                                                                 "-p",
+                                                                                 "toksi",
+                                                                                 "--test",
+                                                                                 "phase9_legacy_healing_verification"
+                                                                             ]
+                                                          },
+                   "phase10_env_injector_verification":  {
+                                                             "watched_paths":  [
+                                                                                   "crates/toksi/src/env_injector/",
+                                                                                   "crates/toksi-sys/src/",
+                                                                                   "crates/toksi/tests/phase10_env_injector_verification.rs"
+                                                                               ],
+                                                             "tree_blake3":  "5c660e269f0b35ffbb2b9bfc4492d018520bba12a2683673f6b135ae74d57304",
+                                                             "last_passed_unix":  0,
+                                                             "cargo_args":  [
+                                                                                "test",
+                                                                                "-p",
+                                                                                "toksi",
+                                                                                "--test",
+                                                                                "phase10_env_injector_verification"
+                                                                            ]
+                                                         },
+                   "phase11_doctor_self_healing_verification":  {
+                                                                    "watched_paths":  [
+                                                                                          "crates/toksi/src/commands/doctor.rs",
+                                                                                          "crates/toksi/src/commands/init.rs",
+                                                                                          "crates/toksi/tests/phase11_doctor_self_healing_verification.rs"
+                                                                                      ],
+                                                                    "tree_blake3":  "4f5cce040691609d33cd0ed70eb63d6ef79dad777de9cfd318723816ac7e15ee",
+                                                                    "last_passed_unix":  0,
+                                                                    "cargo_args":  [
+                                                                                       "test",
+                                                                                       "-p",
+                                                                                       "toksi",
+                                                                                       "--test",
+                                                                                       "phase11_doctor_self_healing_verification"
+                                                                                   ]
+                                                                },
+                   "phase12_tui_dashboard_verification":  {
+                                                              "watched_paths":  [
+                                                                                    "crates/toksi/src/tui/",
+                                                                                    "crates/toksi/src/dashboard/",
+                                                                                    "crates/toksi/src/telemetry/",
+                                                                                    "crates/toksi/tests/phase12_tui_dashboard_verification.rs"
+                                                                                ],
+                                                              "tree_blake3":  "78040a3b9d6b1b81023d2c2e48d2fe4ac43c6ce5b16da67c496ae86f18115846",
+                                                              "last_passed_unix":  0,
+                                                              "cargo_args":  [
+                                                                                 "test",
+                                                                                 "-p",
+                                                                                 "toksi",
+                                                                                 "--test",
+                                                                                 "phase12_tui_dashboard_verification"
+                                                                             ]
+                                                          },
+                   "phase13_e2e_verification":  {
+                                                    "watched_paths":  [
+                                                                          "crates/toksi/src/",
+                                                                          "crates/toksi/tests/phase13_e2e_verification.rs"
+                                                                      ],
+                                                    "tree_blake3":  "6ec0b767e63977d7dc1b6095f64dee1cc64ac0a89ba67ace1db781c45381606d",
+                                                    "last_passed_unix":  0,
+                                                    "cargo_args":  [
+                                                                       "test",
+                                                                       "-p",
+                                                                       "toksi",
+                                                                       "--test",
+                                                                       "phase13_e2e_verification"
+                                                                   ]
+                                                },
+                   "phase15_1_topology_and_standards_verification":  {
+                                                                         "watched_paths":  [
+                                                                                               "crates/toksi/src/util/",
+                                                                                               "crates/toksi/src/projectmem/",
+                                                                                               "crates/toksi/src/agents/",
+                                                                                               "crates/toksi/tests/phase15_1_topology_and_standards_verification.rs"
+                                                                                           ],
+                                                                         "tree_blake3":  "4397cbb1708187ab0d05753d33f43e8b4d2c2add81fe027c20e6eaef2733b7d2",
+                                                                         "last_passed_unix":  1794970169,
+                                                                         "cargo_args":  [
+                                                                                            "test",
+                                                                                            "-p",
+                                                                                            "toksi",
+                                                                                            "--test",
+                                                                                            "phase15_1_topology_and_standards_verification"
+                                                                                        ]
+                                                                     },
+                   "phase15_2_unified_8port_daemon_verification":  {
+                                                                       "watched_paths":  [
+                                                                                             "crates/toksi/src/commands/daemon.rs",
+                                                                                             "crates/toksi/src/config/",
+                                                                                             "crates/toksi/src/gateway/",
+                                                                                             "crates/toksi/src/headroom/",
+                                                                                             "crates/toksi/tests/phase15_2_unified_8port_daemon_verification.rs"
+                                                                                         ],
+                                                                       "tree_blake3":  "e7cc4240c1795c6939db9d6503bc0540edad576ba58ad27de8764c516d071845",
+                                                                       "last_passed_unix":  1794970169,
+                                                                       "cargo_args":  [
+                                                                                          "test",
+                                                                                          "-p",
+                                                                                          "toksi",
+                                                                                          "--test",
+                                                                                          "phase15_2_unified_8port_daemon_verification"
+                                                                                      ]
+                                                                   }
+               }
+}

@@ -38,7 +38,7 @@ Requirements:
    - Detached background HTTP server on `127.0.0.1:9100` (`toksi dashboard start|stop|restart [--foreground]`).
    - Bundled futuristic SPA assets (HTML/CSS/JS) embedded via `include_str!` with exact 9 tabs above.
    - Live SSE metrics feed broadcasting authentic token savings (configured-only agents & `<byok, model, effort>` profiles), clickable `.heatmap-cell` modal, `skill-scanner` CEL/SARIF + `Navegos/advisory` O(1) prefix search (Tab 5), `defenseclaw` fail-closed hookguard & audit evidence + ADR/sandbox/kill-switch events (Tab 6), interactive Plugin Manager `/api/plugins` + External `<skills>` sync (Tab 7), OS Keyring (`gemini:antigravity` normalized), and real DB Export/Import/Backup/Restore including `plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events` (Tab 9).
-4. Ensure 0 compiler warnings and targeted `cargo test` pass.
+4. Wire `tokview`, `phoenix` OpenInference spans, `tokenspeed` TTFT/TPOT, `vmon`/`cuda-rust` GPU telemetry across **35-component `<toksi-siagent>`** (**295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized zero-bloat `<skills>` & `<advisory>`), and ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
 ---
@@ -59,3 +59,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- telemetry` passes 100%.
 - `curl http://127.0.0.1:9099/metrics` returns valid Prometheus text metrics.
+
+---
+
+## Wave 18 (v5.2) Synchronization Addendum
+- Surface `tokview` + `langfuse` + `phoenix` OpenInference traces, `tokenspeed` latency percentiles, `vmon` + `cuda-rust` GPU telemetry, `opa`/`cedar`/`spire` attestation checks, and `temporal`/`restate`/`langgraph` checkpoints across all 9 TUI & `:9100` Web Cockpit tabs for **35-component `<toksi-siagent>`** (**295 mandated vaults**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized `<skills>` & `<advisory>`).

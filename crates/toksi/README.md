@@ -1,13 +1,13 @@
-# Toksi: Native Consolidation Master Engine (Wave 18 / v5.1)
+# Toksi: Native Consolidation Master Engine (Wave 18 / v5.2)
 
 [![Crates.io](https://img.shields.io/crates/v/toksi.svg)](https://crates.io/crates/toksi)
 [![Rust](https://img.shields.io/badge/rust-edition%202024-orange.svg)](https://www.rust-lang.org)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-brightgreen.svg)]()
 
-**Toksi** is an enterprise-grade, **100% Native Safe Rust (`#![deny(unsafe_code)]`)** consolidation across the **3-repository ecosystem** (`<neo>` `Navegos/neo`, `<advisory>` `Navegos/advisory`, `<skills>` `Navegos/skills`) unifying **78 mandated upstream research vaults** (`36` Waves 1–17 + `42` Wave 18 incl. `opencode`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `defenseclaw`, `skill-scanner`, `<advisory>`, `<skills>`), token optimization, intelligent proxying, **Toksi Unified Plugin System (`src/plugins/`)**, multi-protocol agent wire integration (`MCP` / `A2A` / `ACP` / `stdio` / `SSE` / `HTTP`), **Zero-Plaintext Blind Signature Engine (`BLAKE3` + `sparse::DFA`, `src/security/`)**, **Native Git/PR Validator (`src/validator/` + 12-DB `UpstreamDeduplicator`)**, **ADR Layer (`src/security/adr.rs`)**, **Isolated Agent Sandbox (`src/agent_runtime/sandbox.rs`: 3-OS native + `sandbox-runtime` + `sbx` CLI)**, **`CommandGuard` Bypass Kill-Switch (`src/commands/guard.rs`)**, fail-closed runtime governance + multi-engine/CEL skill scanning + built-in 41-language static code security & `skilldoctor`/`agentskills` YAML healer across externalized `<skills>` (zero binary bloat), Google Cloud ADC (`AGY_ADC_AUTH=true`) Vertex gateway, thinking-effort-aware (`Low`/`Medium`/`High`) compression, atomic plan checkpoints (`/resume`), autonomous coding runtime (`toksi chat|run|exec|swarm`), and 9-tab telemetry cockpits for AI coding assistants.
+**Toksi** is an enterprise-grade, **100% Native Safe Rust (`#![deny(unsafe_code)]`)** consolidation across the **3-repository ecosystem** (`<neo>` `Navegos/neo`, `<advisory>` `Navegos/advisory`, `<skills>` `Navegos/skills`) unifying **295 unique mandated upstream research vaults** (`292` unique `<deep-research>` vaults in `RESEARCHPLAN.txt:28–320` + `<advisory>` + `<skills>` + `agents-structures` = `36` Waves 1–17 + `259` Wave 18 across Sections `2.1`–`2.10`) and the **35-component `<toksi-siagent>` Superintelligence Architecture (`RESEARCHPLAN.md` Section 0.2: 26 base `<agent>` + 9 `<siagent>` extensions)** — spanning token optimization, intelligent proxying, **Toksi Unified Plugin System (`src/plugins/`)**, multi-protocol agent wire integration (`MCP` / `A2A` / `ACP` / `stdio` / `SSE` / `HTTP`), Policy-as-Code (`opa`/`cedar`) & SPIFFE IAM (`spire`), `Guardrails`/`llm-guard`/`safeagents`/`garak`/Anonymizer, **Zero-Plaintext Blind Signature Engine (`BLAKE3` + `sparse::DFA`, `src/security/`)**, **Native Git/PR Validator (`src/validator/` + 12-DB `UpstreamDeduplicator`)**, **ADR Layer (`src/security/adr.rs`)**, **5-Backend Isolated Agent Sandbox (`src/agent_runtime/sandbox.rs`: 3-OS native + `sandbox-runtime` + `OpenShell` + `E2B` + `sbx` CLI)**, **`CommandGuard` Bypass Kill-Switch (`src/commands/guard.rs`)**, fail-closed runtime governance + multi-engine/CEL skill scanning + built-in 41-language static code security & `skilldoctor`/`agentskills` YAML healer across externalized `<skills>` (zero binary bloat), Google Cloud ADC (`AGY_ADC_AUTH=true`) Vertex gateway, thinking-effort-aware (`Low`/`Medium`/`High`) compression, durable Temporal/Restate/LangGraph workflow state & atomic plan checkpoints (`/resume`), autonomous coding runtime (`toksi chat|run|exec|swarm`), and 9-tab telemetry cockpits for AI coding assistants.
 
-Toksi sits transparently between **18+ registered AI coding assistants** (expanded across **65/90+ Categories 1–5 ecosystem providers** and **Open Agents `.agents/`**) and **22 local inference engines** plus multi-instance `<byok, model, effort>` & Google Cloud ADC providers — cutting token spend by **30% to 70%** via pure-Rust `headroom-core` `live_zone` cache-preserving compression, `CcrStore`, `TokenEconomizer`, `RTK` 100+ command filters, `Context-Mode` sandboxes, **45 Tree-sitter language IDs** (41+ specified languages + Dart/R/Luau), SCIP/AST-grep/Repomix/jcodemunch/OpenWiki code intelligence, Lance columnar + SQLite hybrid memory, and repo-scoped zero-LLM memory — with zero Node.js, Python, npm, or pip dependencies and **zero paid-tier restrictions**.
+Toksi sits transparently between **18+ registered AI coding assistants** (expanded across **65/90+ Categories 1–5 ecosystem providers** and **Open Agents `.agents/`**) and **26 local & Rust-native inference engines** (`ollama`, `llama.cpp`, `candle`, `candle-vllm`, `mistral.rs`, `dynamo`, `vllm`, `sglang`, `exo`, `mlx`, `lmdeploy`, `TensorRT-LLM`, `frontend-crates`, `nixl`, plus `RouteLLM`/`olla`/`Switchyard` & 140 Section 2.8–2.10 vLLM/DeepSeek/SGLang/HF/NeMo/PyTorch/TRT/Triton/GPUStack/CUDA/Slurm compute/telemetry vaults) plus multi-instance `<byok, model, effort>` & Google Cloud ADC providers — cutting token spend by **30% to 70%** via pure-Rust `headroom-core` `live_zone` cache-preserving compression, `CcrStore`, `TokenEconomizer`, `RTK` 100+ command filters, `Context-Mode` sandboxes, **45 Tree-sitter language IDs** (41+ specified languages + Dart/R/Luau with specialized `dockerfile`/`vue`/`scss` grammars), SCIP/AST-grep/Repomix/jcodemunch/OpenWiki code intelligence, hybrid graph-vector memory (`Qdrant`, `Lance`, `Chroma`, `Cognee`, `Graphiti`, `Milvus`, `Letta`), and repo-scoped zero-LLM memory — with zero Node.js, Python, npm, or pip dependencies and **zero paid-tier restrictions**.
 
 ---
 
@@ -30,20 +30,20 @@ All listening ports are overridable via `~/.toksi/config.toml` (`[ports]`) and i
 │ │ - live_zone Cache Surgery  │      │ - Shared Headroom Effort Compressor      │ │
 │ │ - Low/Med/High Effort Scale│      │ - /v1/security/scan & Prometheus /metrics│ │
 │ │ - 16 In-Chat /... Commands │      │ - AGY_ADC_AUTH=true Vertex AI Routing    │ │
-│ └────────────────────────────┘      │ - 65/90+ Ecosystem & 22 Local Engines    │ │
+│ └────────────────────────────┘      │ - 65/90+ Ecosystem & 26 Local/Rust Engines│
 │ ┌────────────────────────────┐      │ - MoFA 7-D Router & Chroma/Lance Cache   │ │
 │ │ :8788 Grok OAuth Daemon    │      └──────────────────────────────────────────┘ │
 │ │ :8789 Copilot VS Code      │      ┌──────────────────────────────────────────┐ │
 │ │ :8790 Copilot CLI          │      │ :9098 Unified Protocol Bus               │ │
 │ └────────────────────────────┘      │ - MCP/A2A/ACP/SSE + Headroom Effort Pass │ │
-│ ┌────────────────────────────┐      │ - All 78 Vaults, Plugins & Checkpoints   │ │
+│ ┌────────────────────────────┐      │ - All 295 Vaults, <toksi-siagent> & State │
 │ │ :18787 BYOK & Vertex ADC   │      └──────────────────────────────────────────┘ │
 │ │ - Per-profile base_url/ADC │      ┌──────────────────────────────────────────┐ │
 │ │ - Headroom Effort Compress │      │ :9100 Detached Web Telemetry Cockpit     │ │
 │ └────────────────────────────┘      │ - 9-Tab UI, tokview, Plugins & Security  │ │
 │                                     └──────────────────────────────────────────┘ │
 │                                                                                  │
-│ [ In-Process DirectWireBus & Native Rust Engines (78 Vaults / 3 Repos) ]         │
+│ [ In-Process DirectWireBus & 35-Component <toksi-siagent> (295 Vaults / 3 Repos) ]         │
 │  • RTK (100+ Filters + Tracker)    • ProjectMem (JSONL + plan_checkpoints/)      │
 │  • Context-Mode (Sandbox + FTS5)   • ICM (BM25 + Memoir/Feedback/Temporal)       │
 │  • CodeGraph (45 TS/SCIP/OpenWiki) • ai-memory (OKF v0.2 Wiki + Lance Vector)    │
@@ -61,7 +61,7 @@ All listening ports are overridable via `~/.toksi/config.toml` (`[ports]`) and i
 * **Port `8788`**: GitHub/xAI Grok OAuth Proxy Daemon (`grok_daemon.rs` — strictly separate from BYOK).
 * **Port `8789`**: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`).
 * **Port `8790`**: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`).
-* **Port `9098`**: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` `agent-client-protocol` / `stdio` / `SSE` / `HTTP` / checkpoint event bus) with shared `HeadroomEffortCompressor` payload compression (`Low`/`Medium`/`High`) across all 78 vault tools, `Headroom`, `Security`, `Advisory`, `Sandbox`, and `Plugins`.
+* **Port `9098`**: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` `agent-client-protocol` / `stdio` / `SSE` / `HTTP` / Temporal-Restate-LangGraph checkpoint event bus) with shared `HeadroomEffortCompressor` payload compression (`Low`/`Medium`/`High`) across all **295** unique vault tools, `Headroom`, `Security`, `Advisory`, `Sandbox`, and `Plugins`.
 * **Port `9099`**: Enterprise AI Gateway & Drop-in SDK Endpoints (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`, `/v1/embeddings`, `/v1/security/scan`, `/v1beta/models/*`, `/metrics`, Vertex AI ADC endpoints), enforcing full `HeadroomEffortCompressor` (`Low`/`Medium`/`High`) before cache & dispatch.
 * **Port `9100`**: Detached Real-Time Web Telemetry Cockpit (`toksi dashboard start|stop|restart`).
 * **Port `18787`**: Multi-Instance BYOK & Google Cloud ADC Gateway (`byok_gateway.rs` — supervised by daemon, routing all enabled requests through `HeadroomEffortCompressor` `Low`/`Medium`/`High`).
@@ -103,7 +103,7 @@ All listening ports are overridable via `~/.toksi/config.toml` (`[ports]`) and i
 
 ## 3. Open BYOK, Google Cloud ADC (`AGY_ADC_AUTH=true`), & Thinking-Effort Optimization
 
-* **Zero Paid-Tier Restrictions**: Zero `FreeTierDisqualified` or `[PAID]` paywalls exist anywhere in Toksi. Any user-configured BYOK, Google Cloud ADC, OAuth, or local CLI profile routes freely across all 65/90+ ecosystem providers and 22 local engines (`Ollama`, `vLLM`, `llama.cpp`, `LM Studio`, `SGLang`, `Exo`, etc.).
+* **Zero Paid-Tier Restrictions**: Zero `FreeTierDisqualified` or `[PAID]` paywalls exist anywhere in Toksi. Any user-configured BYOK, Google Cloud ADC, OAuth, or local CLI profile routes freely across all 65/90+ ecosystem providers and **26** local & Rust-native inference engines (`Ollama`, `vLLM`, `llama.cpp`, `candle`, `candle-vllm`, `mistral.rs`, `dynamo`, `LM Studio`, `SGLang`, `Exo`, `MLX`, `TensorRT-LLM`, `frontend-crates`, `nixl`, etc.).
 * **First-Class Google Cloud ADC Gateway (`AGY_ADC_AUTH=true`)**:
   - Reads `AGY_ADC_AUTH=true`, VS Code `"gcp.project"` / `"gcp.location"` (`us-central1` default), `~/.toksi/config.toml` `[auth.adc]`, and `~/.config/gcloud/application_default_credentials.json` (`%APPDATA%/gcloud/application_default_credentials.json` on Windows).
   - Performs native pure-Rust OAuth2 refresh-token / service-account JWT exchange against `oauth2.googleapis.com/token` and signs requests to `https://{location}-aiplatform.googleapis.com/v1beta1/projects/{project}/locations/{location}/publishers/google/models/{model}`.
@@ -116,10 +116,10 @@ All listening ports are overridable via `~/.toksi/config.toml` (`[ports]`) and i
 
 ## 4. Native Coding CLI (`toksi chat|run|exec|swarm`), Unified Plugins, Safe Resume & 16 Slash Commands
 
-Launch Toksi directly as your standalone AI coding CLI or multi-agent swarm orchestrator — wired out of the box ("off the back") via `DirectWireBus` and local endpoints (`:8787`, `:9098`, `:9099`, `:18787`) to Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), `HeadroomEffortCompressor`, Unified Plugin System (`src/plugins/`), ADR/Sandbox/`CommandGuard`, and all **78** consolidated vault engines (`rtk`, `headroom`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `lance`, `agent-client-protocol`, `agent-opt`, `agent-control`, `opencode`, `sandbox-runtime`, `cve-*`, `osv-schema`, `skilldoctor`, `sage`, `defenseclaw`, `skill-scanner`, plus `hermes-agent`, `openclaw`, `mofa`, `crewAI`, `codex`, `goose`, `grok-build`, `gemini-cli`, `langgraph`, `deepagents`, `bosun`, `cline`, `kilocode`, `alphacode`, `zeroclaw`):
+Launch the 35-component `<toksi-siagent>` directly as your standalone AI coding CLI or multi-agent swarm orchestrator — wired out of the box ("off the back") via `DirectWireBus` and local endpoints (`:8787`, `:8788`, `:8789`, `:8790`, `:9098`, `:9099`, `:18787`) to Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), `HeadroomEffortCompressor`, Unified Plugin System (`src/plugins/`), OPA/Cedar/SPIRE IAM, Guardrails/LLM-Guard, ADR/5-backend Sandbox/`CommandGuard`, Temporal/Restate/LangGraph checkpoints, hybrid `Cognee`/`Graphiti`/`Qdrant`/`Lance`/`Chroma` memory, and all **295** unique consolidated vault engines (`rtk`, `headroom`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `lance`, `qdrant`, `cognee`, `graphiti`, `letta`, `agent-client-protocol`, `agent-opt`, `agent-control`, `opencode`, `sandbox-runtime`, `OpenShell`, `E2B`, `opa`, `cedar`, `spire`, `Guardrails`, `llm-guard`, `cve-*`, `osv-schema`, `skilldoctor`, `sage`, `defenseclaw`, `skill-scanner`, `mistral.rs`, `candle`, `vmon`, `cuda-rust`, `srt-slurm`, plus `hermes-agent`, `openclaw`, `mofa`, `crewAI`, `codex`, `goose`, `grok-build`, `gemini-cli`, `langgraph`, `temporal`, `restate`, `deepagents`, `bosun`, `cline`, `kilocode`, `alphacode`, `zeroclaw`):
 
 ```bash
-# Interactive coding session with 3-backend sandbox, <enforce> guardrails & plan checkpoints
+# Interactive coding session with 5-backend sandbox, OPA/Cedar/SPIRE/<enforce> guardrails & durable plan checkpoints
 toksi chat --effort medium
 
 # Single-shot autonomous task, blind signature compile, advisory search, or skill/plugin scan

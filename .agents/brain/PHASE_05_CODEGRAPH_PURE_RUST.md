@@ -27,7 +27,7 @@ Requirements:
 5. Incremental AST symbol cache in `<repo>/.toksi/codegraph/symbols.db`.
 6. Serve `codegraph_explore`, `codegraph_impact`, and `codegraph_symbol` via in-process multi-protocol server (`MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`, `DirectWireBus`).
 7. Connect to `crates/toksi/src/projectmem/` to auto-resolve `location: "file:line"` coordinates to AST symbol names.
-8. Expose the native CLI command `toksi graph ...`.
+8. Expose the native CLI command `toksi graph ...` wired out of the box into **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 9. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
@@ -49,3 +49,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- codegraph` passes 100%.
 - `toksi graph explore "main"` computes callers and blast radius in <50ms.
+
+---
+
+## Wave 18 (v5.2) Synchronization Addendum
+- Upgrade `"dockerfile"`, `"vue"`, and `"scss"` from fallback alias grammars (`tree_sitter_bash`, `tree_sitter_html`, `tree_sitter_css` in `langs.rs:99–103`) to dedicated grammars in `crates/toksi-grammars`; integrate `openwiki.rs`, `bpe.rs` (`tokenizers`), `embeddings.rs` (`text-embeddings-inference`), `reranker.rs` (`NeMo-Retriever`), `Codewhale` diff context, and `security/polyglot.rs` 41-language SAST across `<toksi-siagent>` (`35` components, `295` mandated vaults, `37` `.agents/brain/*.md` guides, canonical `<repo>/.toksi/projectmem/`).

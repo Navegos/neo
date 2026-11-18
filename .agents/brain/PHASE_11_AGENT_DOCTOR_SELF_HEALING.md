@@ -29,7 +29,7 @@ Requirements:
 2. Implement `toksi doctor --fix`:
    - Automatically repairs misconfigured MCP configs, repairs legacy hooks, removes stale shims, and synchronizes rules strictly for configured agents (never touching workspace repo automatically without explicit opt-in).
    - Merges any nested subfolder `.toksi` / `.<agent>` directories into root `<repo>/.toksi/` / `<repo>/.<agent>/` and cleans them up.
-3. Ensure 0 compiler warnings and targeted `cargo test` pass.
+3. Ensure 0 compiler warnings and targeted `cargo test` pass across **35-component `<toksi-siagent>`** (`295 mandated vaults`, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`).
 ```
 
 ---
@@ -52,5 +52,5 @@ Requirements:
 
 ---
 
-## Wave 18 (v5.1) Synchronization Addendum
-- Audit Unified Plugin directories (`~/.toksi/plugins`, `<repo>/.toksi/plugins`, `<repo>/.agents/plugins`), SQLite `plugins_registry` `blake3_hash` / `security_scan_status`, externalized `<skills>` (`Navegos/skills`) & `<advisory>` (`Navegos/advisory`) repository links, `CommandGuard` + `adr.rs` + `sandbox.rs` health, and `defenseclaw` `fail_closed` hookguard + `codesig` integrity (`PHASE_18_2` / `PHASE_18_5`), flagging any `unscanned` or `blocked_fail_closed` plugins without bypassing `<enforce>`.
+## Wave 18 (v5.2) Synchronization Addendum
+- Audit Unified Plugin directories (`~/.toksi/plugins`, `<repo>/.toksi/plugins`, `<repo>/.agents/plugins`), SQLite `plugins_registry` `blake3_hash` / `security_scan_status`, externalized `<skills>` (`Navegos/skills`) & `<advisory>` (`Navegos/advisory`) repository links, `CommandGuard` + `adr.rs` + 5-backend `sandbox.rs` health, `opa`/`cedar`/`spire` Policy-as-Code & IAM attestation, `Guardrails`/`llm-guard`, and `defenseclaw` `fail_closed` hookguard + `codesig` integrity (`PHASE_18_2` / `PHASE_18_5` / `PHASE_18_6`) across **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/`, flagging any `unscanned` or `blocked_fail_closed` plugins without bypassing `<enforce>`.

@@ -28,8 +28,8 @@ Requirements:
    - `heatmap.rs` (failure clustering, ROI metrics, clickable cell drilldown payloads for UI `Memory Decision DAG` modal)
    - `global.rs` (repo-registry metadata index without duplicating workspace `events.jsonl` outside `<repo>/.toksi/projectmem/`)
    - `mcp.rs` (all 16 `projectmem` MCP tools including `precheck_file`, `list_projects`, `current_project`, `staleness`, `structure`, `heatmap`) + `/projectmem` slash command integration.
-2. Support multi-protocol interfaces (`MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`) and `DirectWireBus`.
-3. Expose the native CLI command `toksi mem ...`.
+2. Support multi-protocol interfaces (`MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`) and `DirectWireBus` for `<toksi-siagent>` (**35 components**, **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
+3. Expose the native CLI command `toksi mem ...` and atomic `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` resume integration (`PHASE_18_3` / `PHASE_18_6` Temporal+Restate+LangGraph durability).
 4. Ensure zero Python runtime dependency, zero `unsafe`, 0 compiler warnings, and targeted `cargo test` pass.
 ```
 
@@ -52,3 +52,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi -- projectmem` passes 100%.
 - `toksi mem log-issue "test"` appends to `.toksi/projectmem/events.jsonl` cleanly with file locking.
+
+---
+
+## Wave 18 (v5.2) Synchronization Addendum
+- Pair `projectmem` with `temporal`/`restate`/`langgraph` atomic checkpoints (`<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json`), `openwiki` `PROJECT_MAP.md` sync, `Anonymizer` PII redaction, and `graphiti` bi-temporal `supersedes` DAG edges across `<toksi-siagent>` (35 components, 295 mandated vaults, 37 `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, externalized `<skills>` & `<advisory>`).

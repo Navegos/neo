@@ -33,6 +33,7 @@ Requirements:
    - Tool `rtk` -> internal pure Rust `src/rtk/`
    - Tool `icm` -> internal pure Rust `src/icm/`
    - Tool `ai-memory` (`aimemory`) -> internal pure Rust `src/aimemory/` (fixing `runmcp.rs` routing!)
+   - Unified into **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`).
 4. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
@@ -53,3 +54,8 @@ Requirements:
 - `cargo check -p toksi` passes with 0 warnings.
 - `cargo test -p toksi` passes 100%.
 - Search for `npminstall`, `nodewin`, or `uv.rs` across `crates/toksi/src/` returns 0 results.
+
+---
+
+## Wave 18 (v5.2) Synchronization Addendum
+- Keep zero runtime downloaders (`npm`/`pip`/`uv`/`curl`) and zero embedded `.md`/`.yaml`/`.json` skills/rules inside `crates/toksi/`; sync vetted external `<skills>` (`Navegos/skills`) and `<advisory>` (`Navegos/advisory`) cleanly under `<enforce>`, `skilldoctor`/`agentskills`, and `defenseclaw`/`skill-scanner` across **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/`.

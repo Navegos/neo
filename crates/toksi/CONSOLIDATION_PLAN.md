@@ -1,7 +1,7 @@
-# Toksi Native Consolidation Master Architecture Plan (Wave 18 / v5.1)
+# Toksi Native Consolidation Master Architecture Plan (Wave 18 / v5.2)
 **Project:** `neo/crates/toksi` (`<neo>` `Navegos/neo`, `<advisory>` `Navegos/advisory`, `<skills>` `Navegos/skills`)  
-**Status:** Approved Wave 18 (v5.1) Master Architectural Blueprint & Implementation Specification  
-**Objective:** 100% Native Rust (Edition 2024, `#![deny(unsafe_code)]` via leaf FFI crates `crates/toksi-sys` & `crates/toksi-grammars`) consolidation of all token-optimization, memory, code-intelligence (`41+` / `45` Tree-sitter language IDs), **Toksi Unified Plugin System (`src/plugins/`)**, **Zero-Plaintext Blind Signature Engine (`BLAKE3` + `sparse::DFA`, `src/security/`)**, **Native Git/PR Validator (`src/validator/` + 12-DB `UpstreamDeduplicator`)**, **Agent Detection & Response (`src/security/adr.rs`)**, **Multi-Backend Isolated Agent Sandbox (`src/agent_runtime/sandbox.rs`: 3-OS native + `sandbox-runtime` + `sbx` CLI)**, **Default-Deny `CommandGuard` & Bypass Kill-Switch (`src/commands/guard.rs`)**, `<enforce>` security & `skilldoctor` + `agentskills` YAML auto-healing across externalized `<skills>` (zero binary bloat: staged outside `crates/toksi/` in `<neo>/agents/` & `<neo>/rules/`), `defenseclaw` fail-closed runtime governance + `skill-scanner` multi-engine/CEL scanning, built-in 41-language static code security & OSV/EPSS lockfile analysis (`src/security/`), Google Cloud ADC (`AGY_ADC_AUTH=true`) & thinking-effort-aware (`Low`/`Medium`/`High`) routing, atomic `.toksi/projectmem/plan_checkpoints/` pause/resume, gateway, load-balancer, telemetry (`tokview`), and native coding CLI/swarm engines (`src/agent_runtime/` unifying `<neo>/inspect-vault/*<agent>`) directly embedded into `crates/toksi/src/*` — consolidating **all 78 mandated vaults** (`36` prior vaults: `tokless`, `bifrost`, `headroom`, `rtk`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `andrej-karpathy-skills`, `TokenTracker`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `litellm`, `TokenEconomizer`, `agent-opt`, `agents-structures`, `hermes-agent`, `openclaw`, `openclaw-rs`, `mofa`, `mofa-engine`, `mofaclaw`, `codex`, `crush`, `crustly`, `goose`, `grok-build`, `gemini-cli`, `crewAI`; plus **42 Wave 18 new & companion vaults**: `lance`, `openwiki`, `tokview`, `agent-control`, `agent-client-protocol`, `python-genai`, `python-aiplatform`, `langgraph`, `langchain`, `langfuse`, `langflow`, `deepagents`, `bosun`, `Codewhale`, `cline`, `kilocode`, `alphacode`, `zeroclaw`, `opencode`, `sandbox-runtime`, `sage`, `codex-security`, `deepsec`, `osv-scanner`, `semgrep`, `semgrep-rules`, `cve-schema`, `cve-validation-library`, `cve-services`, `osv-schema`, `cve-bin-tool`, `cve-lite-cli`, `research-securety-skills`, `agent-skills`, `openagent-skills`, `openclaw-agent-skills`, `agentskills`, `skilldoctor`, `defenseclaw`, `skill-scanner`, `<advisory>` `Navegos/advisory`, `<skills>` `Navegos/skills`) and all 65/90+ ecosystem providers & 22 local inference engines. Zero external downloaders, forward-slash (`/`) paths, `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`) + `~/.toksi/toksi.db` (`plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events`, multi-instance `<byok, model, effort>`, `gcp_project`/`gcp_location`, and zero paid-tier restrictions), strict `<repo>/.toksi/<tool>` repo-only storage (plus monorepo subproject isolation & `.gitignore`/`.ignore` dynamic purge), standardized `<tool>-hook <agent>` + `direct wired` hook bus (`MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP` on `:9098`), `.toksi/test-baseline.json` incremental test skip manifest, **16 universal slash commands** (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), and 9-tab async TUI + Web Cockpit (`:9100`).
+**Status:** Approved Wave 18 (v5.2) Master Architectural Blueprint & Implementation Specification  
+**Objective:** 100% Native Rust (Edition 2024, `#![deny(unsafe_code)]` via leaf FFI crates `crates/toksi-sys` & `crates/toksi-grammars`) consolidation of all **35 `<toksi-siagent>` Superintelligence components (`RESEARCHPLAN.md` Section 0.2: 26 base `<agent>` components + 9 `<siagent>` extensions)** — spanning token-optimization, bi-temporal knowledge graph & hybrid vector memory (`cognee`, `graphiti`, `qdrant`, `lance`, `chroma`, `milvus`, `letta`), code-intelligence (`41+` / `45` Tree-sitter language IDs with `dockerfile`/`vue`/`scss` grammar specialization), **Toksi Unified Plugin System (`src/plugins/`)**, **Zero-Plaintext Blind Signature Engine (`BLAKE3` + `sparse::DFA`, `src/security/`)**, **Native Git/PR Validator (`src/validator/` + 12-DB `UpstreamDeduplicator`)**, **Policy-as-Code (`opa`, `cedar`) & SPIFFE IAM Attestation (`spire`)**, **Guardrails / LLM-Guard / SafeAgents / Defensive Garak Eval / Anonymizer**, **Agent Detection & Response (`src/security/adr.rs`)**, **5-Backend Isolated Agent Sandbox (`src/agent_runtime/sandbox.rs`: 3-OS native + `sandbox-runtime` + `OpenShell` + `E2B` + `sbx` CLI)**, **Default-Deny `CommandGuard` & Bypass Kill-Switch (`src/commands/guard.rs`)**, `<enforce>` security & `skilldoctor` + `agentskills` YAML auto-healing across externalized `<skills>` (zero binary bloat: staged outside `crates/toksi/` in `<neo>/agents/` & `<neo>/rules/`), `defenseclaw` fail-closed runtime governance + `skill-scanner` multi-engine/CEL scanning, built-in 41-language static code security & OSV/EPSS lockfile analysis (`src/security/`), Google Cloud ADC (`AGY_ADC_AUTH=true`) & thinking-effort-aware (`Low`/`Medium`/`High`) routing, durable Temporal/Restate/LangGraph workflow state & atomic `.toksi/projectmem/plan_checkpoints/` pause/resume, gateway & disaggregated serving/routing (`RouteLLM`, `olla`, `Switchyard`, `dynamo`, `frontend-crates`), telemetry (`tokview`, `phoenix`, `tokenspeed`, `vmon`, `cuda-rust`, `srt-slurm`, eval harnesses), and native coding CLI/swarm engines (`src/agent_runtime/` unifying `<neo>/inspect-vault/*<agent>`) directly embedded into `crates/toksi/src/*` — consolidating **all 295 unique mandated vaults** (`292` unique `<deep-research>` vaults in `RESEARCHPLAN.txt:28–320` + companion repos `<advisory>` & `<skills>` + `agents-structures` = `36` prior vaults across Waves 1–17 plus **259 Wave 18 new & companion vaults** across Sections `2.1`–`2.10`: core proxy/telemetry, 41-lang CodeGraph/embeddings, graph/vector memory, protocols/SDKs, coding CLI runtimes/durable workflows, Policy-as-Code/IAM/security/skills, **26** local & pure-Rust inference engines `mistral.rs`/`candle`/`candle-vllm`/`ollama`/`llama.cpp`, **48** vLLM/DeepSeek/SGLang vaults, **41** HuggingFace/Optimum/NeMo vaults, and **51** PyTorch/TensorRT/Triton/GPUStack/CUDA/Slurm vaults) alongside all 65/90+ ecosystem providers. Zero external downloaders, forward-slash (`/`) paths, `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`) + `~/.toksi/toksi.db` (`plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events`, multi-instance `<byok, model, effort>`, `gcp_project`/`gcp_location`, and zero paid-tier restrictions), strict `<repo>/.toksi/<tool>` repo-only storage (plus monorepo subproject isolation & `.gitignore`/`.ignore` dynamic purge), standardized `<tool>-hook <agent>` + `direct wired` hook bus (`MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP` on `:9098`), `.toksi/test-baseline.json` incremental test skip manifest, **16 universal slash commands** (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), and 9-tab async TUI + Web Cockpit (`:9100`).
 
 ---
 
@@ -13,11 +13,11 @@
      * **Port 8788**: Grok OAuth Dedicated Proxy (`http://127.0.0.1:8788`, reverse proxy & multi-instance Grok OAuth failover)
      * **Port 8789**: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`, real Copilot reverse proxy — zero stub strings)
      * **Port 8790**: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`)
-     * **Port 9098**: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` `agent-client-protocol` / `stdio` / `SSE` / `HTTP` / checkpoint event bus) with shared `HeadroomEffortCompressor` payload compression (`Low`/`Med`/`High`) and unified `ToolTarget` routing across all 78 vault engines, `Headroom`, `Security`, `Advisory`, `Sandbox`, and `Plugins`
-     * **Port 9099**: Enterprise AI Gateway & Drop-in SDK Endpoints (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`, `/v1/embeddings`, `/v1/security/scan`, `/v1beta/models/*`, `/metrics`, Google Cloud ADC Vertex proxy) enforcing full `HeadroomEffortCompressor` (`Low`/`Med`/`High`, `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, MCP schema pruner, RTK, Chroma/Lance semantic cache)
-     * **Port 9100**: Zero-Dependency Real-Time Web Telemetry & Control Dashboard Cockpit (non-blocking background service, exact 9-tab parity, `tokview`, security, `Navegos/advisory` & checkpoint controls)
-     * **Port 18787**: BYOK Multi-Profile & Google Cloud ADC Gateway (`http://127.0.0.1:18787`, OpenAI, Anthropic, Gemini, Vertex ADC `AGY_ADC_AUTH=true`, Ollama/vLLM/LM Studio/22 local engines via multi-instance `<byok, model, effort>` routing) passing every enabled request through the shared `HeadroomEffortCompressor` (`Low`/`Med`/`High`)
-     * **In-Process Engine**: `DirectWireBus` zero-hop `tokio::sync::broadcast` hook bus, **Toksi Unified Plugin System (`src/plugins/`)** loading agent features/CLI/tools/`/command`/wire hooks/A2A under `<enforce>`, `src/security/` (`<enforce>`, Zero-Plaintext `BLAKE3`+`sparse::DFA`, `adr.rs` ADR Layer, `defenseclaw` fail-closed hookguard & audit evidence, `skill-scanner` multi-engine + bounded CEL decisions, 41-lang AST SAST + OSV/EPSS lockfile scanner), `src/validator/` (12-DB `UpstreamDeduplicator`, `fp_pruner`, 3-tree `shard_builder`, `git_pr_driver` for `Navegos/advisory`), `src/commands/guard.rs` (`CommandGuard` + immediate bypass kill-switch), `src/rules/` (externalized `<skills>` repo fetcher + `skilldoctor` + `agentskills` YAML frontmatter auto-healer + trigger dedup, zero binary bloat), `src/agent_runtime/` (`toksi chat|run|exec|swarm|agent resume` + `sandbox.rs` 3-OS native/`sandbox-runtime`/`sbx` isolation) wired out of the box ("off the back") to `:8787`, `:9098`, `:9099`, `:18787`, `HeadroomEffortCompressor`, `src/plugins/`, and all 78 consolidated `inspect-vault/*` engines with zero manual setup, `crates/toksi-sys` Windows/POSIX sandbox FFI crate, Dynamic Load Balancer, Complexity & Effort Tier Router, Dual-Tier Semantic + Lance Columnar Cache, Multi-Protocol Multiplexer (`MCP`, `A2A`, `ACP`, `stdio`, `SSE`, `HTTP`), and Non-Destructive Environment Injection (`HKCU\Environment` on Windows with `WM_SETTINGCHANGE` broadcast; session env on Unix; opt-in `--agents` flag).
+     * **Port 9098**: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` `agent-client-protocol` / `stdio` / `SSE` / `HTTP` / Temporal-Restate-LangGraph checkpoint event bus) with shared `HeadroomEffortCompressor` payload compression (`Low`/`Med`/`High`) and unified `ToolTarget` routing across all **295** vault engines, `Headroom`, `Security`, `Advisory`, `Sandbox`, and `Plugins`
+     * **Port 9099**: Enterprise AI Gateway & Drop-in SDK Endpoints (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`, `/v1/embeddings`, `/v1/security/scan`, `/v1beta/models/*`, `/metrics`, Google Cloud ADC Vertex proxy, pure-Rust `candle`/`mistral.rs`/`frontend-crates` bridges) enforcing full `HeadroomEffortCompressor` (`Low`/`Med`/`High`, `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, MCP schema pruner, RTK, Chroma/Lance/Qdrant semantic cache, `<enforce>`)
+     * **Port 9100**: Zero-Dependency Real-Time Web Telemetry & Control Dashboard Cockpit (non-blocking background service, exact 9-tab parity, `tokview`, `phoenix`/`tokenspeed`/`vmon` GPU metrics, security, `Navegos/advisory` & checkpoint controls)
+     * **Port 18787**: BYOK Multi-Profile & Google Cloud ADC Gateway (`http://127.0.0.1:18787`, OpenAI, Anthropic, Gemini, Vertex ADC `AGY_ADC_AUTH=true`, Ollama/vLLM/LM Studio/`mistral.rs`/`candle`/all **26** local & Rust-native engines via multi-instance `<byok, model, effort>` + `RouteLLM`/`olla`/`Switchyard` routing) passing every enabled request through the shared `HeadroomEffortCompressor` (`Low`/`Med`/`High`)
+     * **In-Process Engine (`<toksi-siagent>` Off-the-Back Core)**: `DirectWireBus` zero-hop `tokio::sync::broadcast` hook bus, **Toksi Unified Plugin System (`src/plugins/`)** loading agent features/CLI/tools/`/command`/wire hooks/A2A under `<enforce>`, `src/security/` (`<enforce>`, OPA `policy_opa`, Cedar `policy_cedar`, SPIRE `iam_attestation`, `guardrails_validators`, `llm_guard`, `safeagents`, `garak_redteam`, Zero-Plaintext `BLAKE3`+`sparse::DFA`, `adr.rs` ADR Layer, `defenseclaw` fail-closed hookguard & audit evidence, `skill-scanner` multi-engine + bounded CEL decisions, 41-lang AST SAST + OSV/EPSS lockfile scanner), `src/validator/` (12-DB `UpstreamDeduplicator`, `fp_pruner`, 3-tree `shard_builder`, `git_pr_driver` for `Navegos/advisory`), `src/commands/guard.rs` (`CommandGuard` + immediate bypass kill-switch), `src/rules/` (externalized `<skills>` repo fetcher + `skilldoctor` + `agentskills` YAML frontmatter auto-healer + trigger dedup, zero binary bloat), `src/agent_runtime/` (`toksi chat|run|exec|swarm|agent resume` + `workflow_state`/`durable_journal`/`world_model` + 5-backend `sandbox.rs` 3-OS native/`sandbox-runtime`/`OpenShell`/`E2B`/`sbx` isolation) wired out of the box ("off the back") to `:8787`, `:8788`, `:8789`, `:8790`, `:9098`, `:9099`, `:18787`, `HeadroomEffortCompressor`, `src/plugins/`, and all **295** consolidated `inspect-vault/*` engines with zero manual setup, `crates/toksi-sys` Windows/POSIX sandbox FFI crate, Dynamic Load Balancer, Complexity & Effort Tier Router, Hybrid Graph-Vector Memory (`Chroma`, `Lance`, `Qdrant`, `Cognee`, `Graphiti`, `Letta`), Multi-Protocol Multiplexer (`MCP`, `A2A`, `ACP`, `stdio`, `SSE`, `HTTP`), and Non-Destructive Environment Injection (`HKCU\Environment` on Windows with `WM_SETTINGCHANGE` broadcast; session env on Unix; opt-in `--agents` flag).
    - Zero multi-command manual configuration. One `toksi daemon start --agents` launch prepares the 8-port control plane for all configured AI coding assistants across Categories 1–5 without paid-tier restrictions.
 
 2. **Network Port Separation for Maximum Latency Performance**:
@@ -233,7 +233,11 @@ crates/toksi/src/
 ├── main.rs                   # Unified CLI entrypoint (#![deny(unsafe_code)]) & full usage help
 ├── lib.rs                    # Public crate library API (#![deny(unsafe_code)])
 ├── config/mod.rs             # Global ~/.toksi/config.toml loader, validator & DB sync
-├── agent_runtime/            # Native Toksi coding CLI & swarm (Hermes/OpenClaw/MoFA/CrewAI/Codex/Grok-Build)
+├── agent_runtime/            # 35-Component <toksi-siagent> Runtime & Swarm (Hermes/OpenClaw/MoFA/CrewAI/Codex/Grok/Temporal/Restate)
+│   ├── mod.rs, loop_engine.rs, hermes.rs, openclaw.rs, mofa.rs, crew.rs, opencode/, orchestrator.rs
+│   ├── workflow_state.rs, durable_journal.rs, world_model.rs, deep_planning.rs, graph_checkpoint.rs, fleet.rs, modes.rs
+│   ├── sandbox.rs            # 5-Backend Sandbox (3-OS Native + sandbox-runtime + OpenShell/NemoClaw + E2B + sbx 29-verb CLI)
+│   └── openshell.rs, sandbox_e2b.rs, cluster_exec.rs, rl.rs, acp.rs, codemode.rs, session.rs, patch.rs, slash.rs
 │
 ├── projectmem/               # Native Rust Port of ProjectMem — strict <repo>/.toksi/projectmem/ ONLY
 │   ├── mod.rs                # Public API facade (tool: projectmem)
@@ -241,7 +245,9 @@ crates/toksi/src/
 │   ├── store.rs              # Thread-safe JSONL append with safe fs2 / std::fs::File::lock()
 │   ├── summary.rs            # Deterministic zero-LLM summary generator
 │   ├── precheck.rs           # Git staged diff scanner vs gotchas & past failure locations
-│   ├── redaction.rs          # Zero-allocation regex sanitizer (strips keys & tokens)
+│   ├── redaction.rs          # Zero-allocation regex & Anonymizer sanitizer (strips keys, tokens & PII)
+│   ├── plan_checkpoint.rs    # Atomic checkpoint state + Temporal/Restate/LangGraph journal bridge (/resume)
+│   ├── wiki_sync.rs          # OpenWiki -> PROJECT_MAP.md synchronization
 │   ├── heatmap.rs            # Failure clustering & clickable UI ROI metrics
 │   └── mcp.rs                # Multi-protocol MCP (all 16 tools)/A2A/ACP/stdio server handlers
 │
@@ -252,30 +258,36 @@ crates/toksi/src/
 │   ├── recall.rs             # Sub-10ms keyword/temporal/RRF fusion recall (Zero LLM tokens)
 │   └── mcp.rs                # Multi-protocol MCP (~28 tools)/A2A/ACP endpoints
 │
-├── aimemory/                 # Native Rust Adaptation of ai-memory (v3.2.8) & mem0
+├── aimemory/                 # Native Rust Hybrid Graph-Vector Memory (ai-memory, Cognee, Graphiti, Qdrant, Lance, Letta, Mem0)
 │   ├── mod.rs                # ai-memory subsystem orchestrator (tool: aimemory)
 │   ├── wiki.rs               # Open Knowledge Format (OKF v0.2) markdown wiki store
 │   ├── handoff.rs            # Claim-once multi-agent handoff state machine
 │   ├── tiered.rs             # L0 (TOC) / L1 (Abstract) / L2 (Full) progressive packer
+│   ├── lance_store.rs, qdrant_store.rs, milvus_adapter.rs, mongo_bridge.rs  # Quantized HNSW & columnar vector adapters
+│   ├── cognee_graph.rs, temporal_graph.rs, letta_memgpt.rs                  # Bi-temporal ECL & OS core/archival paging
+│   ├── embeddings.rs, retriever.rs                                          # TEI / NeMo-Retriever local embed & rerank
 │   └── mem0_bridge.rs        # Personalized long-term entity-fact memory extractor
 │
-├── codegraph/                # Native Rust Tree-Sitter, SCIP & Call-Graph Engine
+├── codegraph/                # Native Rust Tree-Sitter (45 Language IDs), SCIP, OpenWiki & Call-Graph Engine
 │   ├── mod.rs                # CodeGraph facade (tool: codegraph)
-│   ├── kernel/               # Embedded Tree-sitter parsers (Rust, TS/JS, Py, Go, C/C++)
+│   ├── kernel/               # 45 language IDs (langs.rs; specializing dockerfile/vue/scss in toksi-grammars)
 │   ├── scip.rs               # SCIP protocol symbol indexer & caller cross-referencer
-│   ├── ast_grep.rs           # ast-grep structural search & replace evaluator
-│   ├── jcodemunch.rs         # jcodemunch AST chunking & semantic token search
+│   ├── ast_grep.rs           # ast-grep structural CST search & replace evaluator
+│   ├── jcodemunch.rs         # jcodemunch AST chunking & O(1) SQLite byte-offset slice retrieval
 │   ├── repomix.rs            # Repomix codebase packing & tree generator with token weights
+│   ├── openwiki.rs           # Deterministic Mermaid architectural call-graph wiki synthesizer
+│   ├── bpe.rs, embeddings.rs, reranker.rs  # Pure-Rust BPE tokenizers & local code embed/rerank bridges
 │   ├── walker.rs             # High-speed ripgrep-grade traversal with .gitignore/.ignore purge
 │   ├── graph.rs              # Petgraph AST dependency, call-path, and blast-radius
 │   ├── cache.rs              # Incremental AST symbol cache (.toksi/codegraph/symbols.db)
 │   └── mcp.rs                # Multi-protocol MCP server for codegraph_explore
 │
-├── contextmode/              # Native Rust Port of Context-Mode
+├── contextmode/              # Native Rust Port of Context-Mode & NeMo-text-processing
 │   ├── mod.rs                # ContextMode facade (tool: context)
 │   ├── sandbox.rs            # Subprocess runner with CPU timeout & memory bounds
 │   ├── filter.rs             # Output slicing, ANSI stripping, head/tail truncation
 │   ├── fts.rs                # SQLite FTS5 document chunker & BM25 search with .gitignore purge
+│   ├── text_norm.rs          # WFST deterministic text normalization & PII/secret pre-scrub
 │   ├── fetch.rs              # Async HTTP fetcher + HTML reader (reqwest)
 │   └── mcp.rs                # Multi-protocol ctx_* MCP tools
 │
@@ -297,8 +309,10 @@ crates/toksi/src/
 │   │   ├── aggregators/      # Bifrost, Cloudflare, Hugging Face, OpenRouter, Replicate
 │   │   ├── specialized/      # BytePlus, Cohere, MiniMax, Mistral, Perplexity, Sarvam, TypeSafe, XAI
 │   │   ├── multimodal/       # ElevenLabs, Runware, Runway ML
-│   │   ├── local/            # llama.cpp, Ollama, SGLang, vLLM
+│   │   ├── local/            # 26 Section 2.7 local/Rust engines (ollama, llama.cpp, candle, mistral.rs, dynamo, vllm, sglang, exo, mlx, lmdeploy, tabbyAPI, mlc-llm, TensorRT-LLM, LitServe, nixl)
 │   │   └── ecosystem/        # GitHub Copilot, OpenCode
+│   ├── local_engines.rs, inference_bridge.rs, inference_mistral.rs, inference_candle.rs, disaggregated_serving.rs
+│   ├── cost_quality_router.rs, effort_router.rs, gemini_wire.rs, vertex_adc.rs, kv_cache_bridge.rs, quant_catalog.rs
 │   ├── agent_cli/            # Local Agent CLI Providers (AntigravityCli, CopilotCli, ClaudeCli, CodexCli, CursorBridge, GrokCli)
 │   │   ├── mod.rs            # CLI provider registry & smart background launcher (no FreeTierDisqualified gate)
 │   │   ├── tier_check.rs     # Read-only quota window & subscription telemetry probe (zero blocking gates)
@@ -310,20 +324,22 @@ crates/toksi/src/
 │   │   └── grok.rs           # grok.exe background bridge & safe process spawn
 │   ├── cascade.rs            # Dynamic failover engine & 8-mode failure classifier
 │   ├── keys.rs               # Multi-key & multi-instance <byok, model, effort> pools, health, rotation
-│   ├── loadbalancer.rs       # Round-robin, least-latency, lowest-cost, weighted, 7-D mofa-engine router selectors
+│   ├── loadbalancer.rs       # Round-robin, least-latency, lowest-cost, weighted, RouteLLM/olla/7-D mofa-engine router selectors
 │   ├── routing.rs            # Complexity tier router (SIMPLE, MEDIUM, COMPLEX)
 │   ├── governance.rs         # Virtual keys (x-toksi-vk), USD budgets, TPM/RPM limits, concurrency
-│   ├── semantic_cache.rs     # Dual-tier cache: Direct SHA-256 hash + Chroma HNSW/USearch/SPANN ANN similarity
+│   ├── semantic_cache.rs     # Dual-tier cache: Direct SHA-256 hash + Chroma/Lance/Qdrant HNSW ANN similarity
 │   ├── normalizer/           # Bidirectional protocol translation (Anthropic <-> OpenAI <-> Gemini)
 │   ├── compat/               # Drop-in SDK endpoints (/v1/chat/completions, /v1/responses, /v1/messages, /v1/models, /v1beta/models/*)
 │   ├── circuit_breaker.rs    # Infinite loop detector & runaway session stopper
 │   └── proxy.rs              # High-throughput HTTP/SSE reverse proxy & reconnect watchdog
 │
-├── telemetry/                # Ground-Truth Session Metrics & TokenTracker Integration
+├── telemetry/                # Ground-Truth Session Metrics, OpenInference, GPU/Cluster & Eval Telemetry
 │   ├── mod.rs                # Telemetry facade & Prometheus exporter
 │   ├── prometheus.rs         # Text format exposition at :9099/metrics endpoint
 │   ├── collector.rs          # Lock-free non-blocking event channel (zero latency impact)
 │   ├── tokentracker.rs       # TokenTracker real-time session prompt/completion telemetry
+│   ├── tokview.rs, traces.rs, openinference.rs, tokenspeed.rs  # Effort attribution, Langfuse spans, Phoenix/TTFT/TPOT/ITL
+│   ├── gpu_monitor.rs, evals.rs, perf_tuning.rs                # vmon/cuda-rust/srt-slurm GPU probes & eval harnesses
 │   ├── cost.rs               # In-tree model catalog pricing table & USD spend/savings calculator
 │   ├── tracker.rs            # Multi-level latency breakdown (transport, provider, toksi overhead)
 │   └── cache_analytics.rs    # Direct & semantic cache hit ratios, savings ROI
@@ -345,8 +361,14 @@ crates/toksi/src/
 │   ├── caveman.rs            # ASD-STE100 primitive English compressor (v4 companion modes)
 │   └── ponytail.rs           # Lazy senior developer build discipline ladder
 │
-├── security/                 # Zero-Plaintext Blind Engine, ADR, defenseclaw, skill-scanner & 41-Lang SAST
+├── security/                 # Policy-as-Code, SPIRE IAM, Guardrails, Zero-Plaintext Blind Engine, ADR, defenseclaw, skill-scanner & 41-Lang SAST
 │   ├── mod.rs                # Unified security facade & SARIF aggregator
+│   ├── policy_opa.rs         # OPA/Rego policy engine evaluator (inspect-vault/opa, defenseclaw/policies/rego, Nomos)
+│   ├── policy_cedar.rs       # Pure-Rust Cedar PBAC/RBAC evaluator (inspect-vault/cedar)
+│   ├── iam_attestation.rs    # SPIFFE/SPIRE cryptographic workload SVID identity attestation (inspect-vault/spire)
+│   ├── guardrails_validators.rs # Guardrails RAIL schema validation & structured re-ask loops
+│   ├── llm_guard.rs          # LLM-Guard prompt/response scanners (secrets, injection, toxicity, unicode smuggling)
+│   ├── safeagents.rs, garak_redteam.rs  # Multi-agent delegation safety & authorized defensive red-team evals
 │   ├── schema.rs             # OSV 1.7.4, CVE 5.1, STIX 2.1, SARIF 2.1.0, BlindSignatures, Taxonomy
 │   ├── polyglot.rs           # Bridges 45-lang CodeGraph AST + ignore walker for sink & n-gram extraction
 │   ├── blind_compiler.rs     # toksi compile-blind gateway (raw -> keyed BLAKE3 + sparse::DFA Base64; ZERO plaintext)
@@ -798,9 +820,9 @@ flowchart TD
         CopilotVS["Copilot VS Code Extension"]
         CopilotCLI["Copilot CLI"]
         ProtocolClients["MCP / A2A v1.0 / ACP IDEs (agent-client-protocol)"]
-        ToksiAgent["Native Toksi Agent CLI (toksi chat|run|exec|swarm - Off the Back)"]
+        ToksiAgent["Native 35-Component <toksi-siagent> CLI (toksi chat|run|exec|swarm - Off the Back)"]
         SDKAgents["External Agent CLIs & SDKs (Claude, Cursor, OpenCode, Codex, Hermes, OpenClaw, Goose)"]
-        BYOKClients["BYOK Multi-Profile, Vertex ADC & 22 Local Engine Clients"]
+        BYOKClients["BYOK Multi-Profile, Vertex ADC & 26 Local/Rust Engine Clients"]
         Browser["Web Browser (Cockpit - 9 Tabs)"]
     end
 
@@ -816,17 +838,17 @@ flowchart TD
     end
 
     subgraph Engine["Toksi Native In-Process Core (Zero Manual Setup)"]
-        Compress["Headroom Effort Compressor (Low/Med/High: live_zone + CcrStore + SmartCrusher + TokenEconomizer + agent-opt + RTK)"]
-        LB["Load Balancer & Effort Router (<byok, model, effort>)"]
-        Cache["Dual-Tier Semantic + Lance Columnar Cache"]
-        Pruner["MCP Schema Pruner & <enforce> Security Filter (CommandGuard + ADR + defenseclaw + skill-scanner)"]
-        AllTools["Unified 78-Vault Tool & Plugin Bus (src/plugins/, src/validator/, CodeGraph, ProjectMem, ContextMode, ICM, AI-Memory, Security)"]
-        Telemetry["Ground-Truth Telemetry & tokview (DirectWireBus)"]
-        Watchdog["Network Reconnect Watchdog & Plan Checkpoints"]
+        Compress["Headroom Effort Compressor (Low/Med/High: live_zone + CcrStore + SmartCrusher + TokenEconomizer + agent-opt + RTK + Chroma/Lance/Qdrant)"]
+        LB["Load Balancer & Effort/Cost-Quality Router (<byok, model, effort>, RouteLLM, olla)"]
+        Cache["Dual-Tier Hybrid Graph-Vector Cache (Chroma, Lance, Qdrant, Cognee, Graphiti, Letta)"]
+        Pruner["MCP Pruner & <enforce> Policy/Security Filter (OPA, Cedar, SPIRE, Guardrails, LLM-Guard, CommandGuard, ADR, defenseclaw, skill-scanner)"]
+        AllTools["Unified 295-Vault Tool & Plugin Bus (src/plugins/, src/validator/, CodeGraph, ProjectMem, ContextMode, ICM, AI-Memory, Security)"]
+        Telemetry["Ground-Truth Telemetry & Compute Probes (tokview, Phoenix, tokenspeed, vmon, cuda-rust, srt-slurm)"]
+        Watchdog["Network Reconnect Watchdog & Temporal/Restate/LangGraph Plan Checkpoints"]
     end
 
-    subgraph Providers["65/90+ Ecosystems, 22 Local Inference Engines & Google Cloud ADC"]
-        Upstream["Anthropic, OpenAI, Gemini, Vertex ADC (AGY_ADC_AUTH=true), Bedrock, Groq, Cerebras, DeepSeek, Ollama, vLLM, LM Studio, llama.cpp"]
+    subgraph Providers["65/90+ Ecosystems, 26 Local/Rust Engines, vLLM/DeepSeek/SGLang/NeMo & Google Cloud ADC"]
+        Upstream["Anthropic, OpenAI, Gemini, Vertex ADC (AGY_ADC_AUTH=true), Bedrock, Groq, Cerebras, DeepSeek, Ollama, vLLM, SGLang, llama.cpp, mistral.rs, candle, dynamo"]
         AgentCLIs["Zero-Restriction Agent CLI Bridges (toksi swarm, agy.exe, copilot.exe, claude, codex, cursor, grok, opencode, hermes, goose, gemini-cli)"]
     end
 
@@ -844,7 +866,7 @@ flowchart TD
     ToksiAgent -->|"Swarm & Tool RPC"| P9098
     ToksiAgent -->|"SDK & Vertex ADC"| P9099
     ToksiAgent -->|"<byok, model, effort>"| P18787
-    ToksiAgent -->|"Off-the-Back All 78 Vaults"| AllTools
+    ToksiAgent -->|"Off-the-Back All 295 Vaults"| AllTools
 
     P8787 --> Compress
     P8788 --> Compress
@@ -941,33 +963,33 @@ flowchart TD
   * Zero-cost `/v1/models` and `/v1beta/models` endpoint discovery populates available models cleanly without burning inference tokens.
 - **Configured-Only Activation & Universal 7-Entrypoint Headroom Effort Pass**:
   * Only explicitly configured & enabled BYOK/ADC profiles and `PATH`-verified agents engage in routing and UI telemetry grids; if zero profiles are enabled, requests pass through without error.
-  * ALL enabled requests across all 7 inference/protocol entrypoints — `:8787` (`headroom/proxy.rs` incl. `/byok/` & `X-Toksi-Route`), `:8788` (`grok_daemon.rs`), `:8789`/`:8790` (`copilot_daemon.rs`), `:9098` (`tools/multi_protocol.rs` Protocol Bus), `:9099` (`gateway/proxy.rs` Enterprise AI Gateway), and `:18787` (`headroom/byok_gateway.rs` BYOK & Vertex ADC Gateway) — flow through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone` byte surgery + `CcrStore` + `SmartCrusher` + `TokenEconomizer` + `agent-opt` + MCP schema pruner + `rtk` + `chroma`/`lance` semantic cache + `<enforce>` security).
-  * **Off-the-Back Native `toksi` Agent Guarantee**: Running `toksi chat|run|exec|swarm|agent resume` binds in-process (`DirectWireBus`) and over local endpoints (`:8787`, `:9098`, `:9099`, `:18787`) to Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), `HeadroomEffortCompressor`, `src/plugins/`, `src/security/adr.rs`, `src/agent_runtime/sandbox.rs`, `src/commands/guard.rs`, and all **78** consolidated `inspect-vault/*` engines with zero manual configuration (unifying all `<neo>/inspect-vault/*<agent>` source commands, skills, rules, MCPs, and APIs).
+  * ALL enabled requests across all 7 inference/protocol entrypoints — `:8787` (`headroom/proxy.rs` incl. `/byok/` & `X-Toksi-Route`), `:8788` (`grok_daemon.rs`), `:8789`/`:8790` (`copilot_daemon.rs`), `:9098` (`tools/multi_protocol.rs` Protocol Bus), `:9099` (`gateway/proxy.rs` Enterprise AI Gateway), and `:18787` (`headroom/byok_gateway.rs` BYOK & Vertex ADC Gateway) — flow through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone` byte surgery + `CcrStore` + `SmartCrusher` + `TokenEconomizer` + `agent-opt` + MCP schema pruner + `rtk` + `chroma`/`lance`/`qdrant` semantic cache + `<enforce>` security).
+  * **Off-the-Back Native `<toksi-siagent>` Guarantee**: Running `toksi chat|run|exec|swarm|agent resume` binds all **35 `<toksi-siagent>` components** (`RESEARCHPLAN.md` Section 0.2: 26 base `<agent>` components + 9 `<siagent>` extensions) in-process (`DirectWireBus`) and over local endpoints (`:8787`, `:8788`, `:8789`, `:8790`, `:9098`, `:9099`, `:18787`) to Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), `HeadroomEffortCompressor`, `src/plugins/`, OPA/Cedar/SPIRE IAM, Guardrails/LLM-Guard, `src/security/adr.rs`, 5-backend `src/agent_runtime/sandbox.rs`, `src/commands/guard.rs`, Temporal/Restate/LangGraph durable checkpoints, hybrid `Cognee`/`Graphiti`/`Qdrant`/`Lance` memory, 26 local/Rust engines, and all **295** consolidated `inspect-vault/*` engines with zero manual configuration (unifying all `<neo>/inspect-vault/*<agent>` source commands, skills, rules, MCPs, and APIs).
   * Read-only rate-limit/quota windows (`hour | day | week | month | year`) are extracted from HTTP response headers (`x-ratelimit-*`, `anthropic-ratelimit-*`, free `/quota` checks) and surfaced as gauges without blocking rotation unless upstream actually returns HTTP `429`, at which point `cascade.rs` + `mofa-engine` 7-D `Router::route_ranked` fail over gracefully while checkpointing active plans.
 
 ---
 
 ## 6. Ground-Truth Session Token Accounting, `tokview` & Safe Plan Checkpoints
 
-### Real Tokens, Real Savings, Real Quotas (`tokview` + Langfuse Spans):
+### Real Tokens, Real Savings, Real Quotas (`tokview` + Langfuse + OpenInference Spans):
 1. **Payload Extraction**:
    - Parses streaming SSE chunks and HTTP completion bodies for ground-truth usage objects:
      * Anthropic: `message_delta.usage` (`input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`)
      * OpenAI: `usage.prompt_tokens`, `usage.completion_tokens`, `usage.prompt_tokens_details.cached_tokens`, `usage.completion_tokens_details.reasoning_tokens`
      * Google Gemini / Vertex ADC: `usageMetadata.promptTokenCount`, `usageMetadata.candidatesTokenCount`, `usageMetadata.thoughtsTokenCount`, `usageMetadata.cachedContentTokenCount`
-2. **True Savings & Effort Attribution (`src/telemetry/tokview.rs`, `traces.rs`)**:
+2. **True Savings & Effort Attribution (`src/telemetry/tokview.rs`, `traces.rs`, `openinference.rs`, `tokenspeed.rs`)**:
    - Zero synthetic/virtual guesses. When no agent is streaming, counter stays at 0.
-   - Records span-level savings, latency, and cost attribution per model and thinking-effort level (`Low`/`Medium`/`High`).
+   - Records span-level savings, TTFT/TPOT/ITL percentiles, GPU/node probes (`vmon`, `cuda-rust`, `srt-slurm`), and cost attribution per model and thinking-effort level (`Low`/`Medium`/`High`).
 3. **Real-Time Quota Telemetry**:
    - Captures upstream rate-limit headers (`x-ratelimit-remaining-*`, `anthropic-ratelimit-*`, `retry-after`) in both 9-tab TUI and `:9100` Web Cockpit.
-4. **Atomic Plan Checkpoint & Crash-Proof `/resume` (`src/projectmem/plan_checkpoint.rs`)**:
-   - Persists `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` (`write tmp -> fsync -> rename`) + `events.jsonl` + `plan.md` checkbox state at every milestone, HTTP `429` exhaust, network drop, `SIGINT`, or interrupt. `/resume` and `toksi agent resume` restore exact unfinished step state without repeating verified steps.
+4. **Atomic Plan Checkpoint & Crash-Proof `/resume` (`src/projectmem/plan_checkpoint.rs`, `src/agent_runtime/{workflow_state,durable_journal}.rs`)**:
+   - Persists `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` (`write tmp -> fsync -> rename`) + Temporal/Restate durable event journals + LangGraph super-steps + `events.jsonl` + `plan.md` checkbox state at every milestone, HTTP `429` exhaust, network drop, `SIGINT`, or interrupt. `/resume` and `toksi agent resume` restore exact unfinished step state without repeating verified steps.
 
 ---
 
-## 7. Externalized `<skills>`, `<enforce>` Security, `defenseclaw`, `skill-scanner`, `skilldoctor`/`agentskills`, Zero-Plaintext Engine, Validator, ADR, Sandbox & Kill-Switch
+## 7. Externalized `<skills>`, `<enforce>` Security, OPA/Cedar/SPIRE, Guardrails/LLM-Guard, `defenseclaw`, `skill-scanner`, `skilldoctor`/`agentskills`, Zero-Plaintext Engine, Validator, ADR, 5-Backend Sandbox & Kill-Switch
 
-Toksi keeps zero `.md`/`.yaml`/`.json` skill or rule payloads embedded inside `crates/toksi/` (staging curated files outside `crates/toksi/` in `<neo>/agents/` and `<neo>/rules/`, synced with `<skills>` `Navegos/skills` and configurable `~/.toksi/user-skills`), wraps synced configs/plugins in canonical `<enforce>...</enforce>` delimiters, grades and heals `SKILL.md` YAML frontmatter via `skilldoctor` + `agentskills/skills-ref`, enforces `defenseclaw` fail-closed governance + `skill-scanner` multi-engine/CEL policy across every plugin (`src/plugins/`) and skill, executes zero-plaintext `BLAKE3` + `sparse::DFA` matching & 12-DB `UpstreamDeduplicator` PR publishing against `Navegos/advisory` (`src/validator/`), intercepts untrusted execution via ADR (`src/security/adr.rs`) into 3-OS/`sandbox-runtime`/`sbx` sandboxes (`src/agent_runtime/sandbox.rs`), enforces `CommandGuard` + immediate bypass kill-switch (`src/commands/guard.rs`), and runs built-in 41-language SAST + OSV/EPSS lockfile scanning (`src/security/`).
+Toksi keeps zero `.md`/`.yaml`/`.json` skill or rule payloads embedded inside `crates/toksi/` (staging curated files outside `crates/toksi/` in `<neo>/agents/` and `<neo>/rules/`, synced with `<skills>` `Navegos/skills` and configurable `~/.toksi/user-skills`), wraps synced configs/plugins in canonical `<enforce>...</enforce>` delimiters, grades and heals `SKILL.md` YAML frontmatter via `skilldoctor` + `agentskills/skills-ref`, enforces Policy-as-Code (`opa` Rego + pure-Rust `cedar`), SPIFFE/SPIRE cryptographic workload SVID attestation (`spire`), `Guardrails` RAIL loops + `llm-guard` scanners + `safeagents`/`garak`/`Anonymizer`/`Safe-Synthesizer`, `defenseclaw` fail-closed governance + `skill-scanner` multi-engine/CEL policy across every plugin (`src/plugins/`) and skill, executes zero-plaintext `BLAKE3` + `sparse::DFA` matching & 12-DB `UpstreamDeduplicator` PR publishing against `Navegos/advisory` (`src/validator/`), intercepts untrusted execution via ADR (`src/security/adr.rs`) into 5-backend `src/agent_runtime/sandbox.rs` isolation (3-OS native + `sandbox-runtime` + `OpenShell`/`NemoClaw` + `E2B` + `sbx` CLI), enforces `CommandGuard` + immediate bypass kill-switch (`src/commands/guard.rs`), and runs built-in 41-language SAST + OSV/EPSS lockfile scanning (`src/security/`).
 
 ### 7.1 Authoritative `[repositories]`, `[security]` & `[plugins]` Config (`~/.toksi/config.toml`), Security/Plugin SQLite DDL, & 16 Slash Commands
 ```toml
@@ -1057,14 +1079,14 @@ CREATE TABLE IF NOT EXISTS adr_audit_events (
 
 ---
 
-## 8. Upstream Vaults Audit, Missing Features & Bugfix Matrix (78 Reference Engines)
+## 8. Upstream Vaults Audit, 35-Component `<toksi-siagent>` Matrix, & Wave 18 Consolidation (`295` Unique Reference Engines across Sections `2.1`–`2.10`)
 
-Continuous re-audit against all **78** mandated vaults & companion repositories in `neo/inspect-vault/*` (36 prior + 42 Wave 18) to guarantee full feature parity, upstream bug fixes, zero omitted capabilities, and real end-to-end wiring:
+Continuous re-audit against all **295 unique mandated vaults & companion repositories** (`292` unique `<deep-research>` vaults in `RESEARCHPLAN.txt:28–320` + companion repos `<advisory>` & `<skills>` + `agents-structures` = `36` prior + `259` Wave 18 additions in `neo/inspect-vault/*`) powering the **35-component `<toksi-siagent>` Superintelligence Architecture (`RESEARCHPLAN.md` Section 0.2)** to guarantee full feature parity, upstream bug fixes, zero omitted capabilities, and real end-to-end wiring:
 
 | Reference Vault | Target In-Tree Subsystem | Consolidated Features, Verified Gaps & Required Wave 17–18 Fixes | Parity Status |
 |---|---|---|---|
 | `neo/inspect-vault/tokless` | `crates/toksi/src/agents/`, `src/headroom/` | 18 registered coding agent harnesses (+ `.agents` / Category 1–5 expansion), zero-dependency JSONC parser, non-destructive `HKCU`/`Command::env` injection, 8-port proxy routing (`:8787..:8790, :9098, :9099, :9100, :18787`), `DirectWireBus`. | Complete (Wave 18 Sync) |
-| `neo/inspect-vault/bifrost` | `crates/toksi/src/gateway/` | 65/90+ Categories 1–5 + 22 local inference engines, `LoadBalancer` + `cascade`, OpenAI/Anthropic/Gemini/Responses/Embeddings adapters, circuit breakers, virtual key governance. Fix: wire `bifrost` dispatch + real `StreamAccumulator` instead of gateway stubs. | Wave 17 Fix Required |
+| `neo/inspect-vault/bifrost` | `crates/toksi/src/gateway/` | 65/90+ Categories 1–5 + 26 local/Rust inference engines, `LoadBalancer` + `cascade`, OpenAI/Anthropic/Gemini/Responses/Embeddings adapters, circuit breakers, virtual key governance. Fix: wire `bifrost` dispatch + real `StreamAccumulator` instead of gateway stubs. | Wave 17 Fix Required |
 | `neo/inspect-vault/headroom` | `crates/toksi/src/headroom/` | Port pure-Rust `headroom-core` (`compute_frozen_count` + `live_zone` byte surgery preserving prompt cache, `CcrStore` `<<ccr:HASH>>` SQLite + MCP, `SmartCrusher`, `SearchCompressor`, `DiffCompressor`, `AuthMode`), HTTP/2 ConnectRPC passthrough (`#0033`/`#0034`), mandatory `/byok/` Headroom pass; retire Python spawns + `cloudcode_patch.rs`; fix Copilot `:8789`/`:8790` real proxy. | Wave 17 Fix Required |
 | `neo/inspect-vault/rtk` | `crates/toksi/src/rtk/` | 100+ command output filters (`git`, `cargo`, `pytest`, `docker`, `npm`), zero-allocation ANSI stripper. Wave 17 additions: SQLite `Tracker` (`rtk gain` JSON/history), `tee` failure saver, `discover` missed-savings scanner, `learn` TOML/correction detector, `rtk-hook cursor` removal. | Wave 17 Completion |
 | `neo/inspect-vault/context-mode` | `crates/toksi/src/contextmode/` | Polyglot sandbox runner with CPU timeout & memory limits, SQLite FTS5 chunker, async HTTP fetcher, `ctx_*` MCP tools. Fix `commands/ctx.rs:417-434` passthrough stub by porting `core/policy/*` + `core/hooks/dispatch` + `core/journal/*` + `core/compaction/*` and `<repo>/.toksi/context/` scoping. | Wave 17 Fix Required |
@@ -1146,53 +1168,66 @@ Continuous re-audit against all **78** mandated vaults & companion repositories 
 
 `crates/toksi/src/plugins/` loads **7 first-class mount surfaces** — `agent_feature`, `cli_cmd` (`toksi plugin run <cmd>`), `tool`, `chat_cmd` (`/plugin:*`), `wire_hook` (Categories 1–3 via `DirectWireBus`), `protocol_endpoint` (`MCP`, `A2A`, `ACP`, `stdio`, `SSE`, `HTTP` on `:9098`), and `agent_to_agent` (`A2A` messaging/delegation) — under mandatory `<enforce>` pre-load verification (`skill-scanner` multi-engine + CEL gate and `defenseclaw` fail-closed hookguard). Every loaded plugin registers in SQLite `plugins_registry` (`~/.toksi/toksi.db`) with its forward-slash `manifest_path` (`plugin.toml`, `plugin.yaml`, `openclaw.plugin.json`, or native plugin descriptor), `blake3_hash`, capabilities, protocols, and scan status, and hot-reloads in `< 5ms` via `/plugin` and `toksi plugin`.
 
+### 8.4 Full Wave 18 Vaults Sections `2.1`–`2.10` (`259` Additions / `295` Total) & 35-Component `<toksi-siagent>` Architecture (`RESEARCHPLAN.md` Sections 0.2 & 2)
+
+1. **Sections 2.1–2.4 (`45` vaults; `28` Wave 18 additions):** Adds `RouteLLM`, `olla`, `phoenix` (`openinference.rs`), `tokenspeed`, `tokenizers` (`headroom/tokenizer.rs`, `codegraph/bpe.rs`), `text-embeddings-inference`, `NeMo-Retriever`, `NeMo-text-processing`, `Curator`/`DALI`, `cognee`, `graphiti`, `qdrant`, `milvus`, `letta`, `langchain-mongodb`, `modelcontextprotocol-servers`, `mcp-framework`, and `langchain-litellm` into `aimemory/`, `codegraph/`, `contextmode/`, `gateway/`, and `telemetry/`.
+2. **Section 2.5 (`41` vaults; `28` Wave 18 additions):** Adds `temporal`, `restate`, `agent-framework`, `dify`, `mastra`, `agno`, `SWE-agent`, `OpenHands`, `open-swe`, `EnterpriseBlueprints`, `kimi-code`, `loopwright`, and `hermes-webui` unified into `src/agent_runtime/` (`workflow_state.rs`, `durable_journal.rs`, `world_model.rs`, `orchestrator.rs`, `rl.rs`).
+3. **Section 2.6 (`45` entries; `43` Wave 18 additions incl. `<advisory>` & `<skills>`):** Adds `opa`, `cedar`, `Guardrails`, `llm-guard`, `spire`, `E2B`, `E2B-runtime`, `OpenShell`, `NemoClaw`, `SkillSpector`, `SkillEvaluator`, `safeagents`, `garak`, `Anonymizer`, `Safe-Synthesizer`, `huggingface-skills`, `openai-skills`, `langchain-skills`, `mofa-skills`, `NeMo-Skills`, and `NVIDIA-skills` into `src/security/`, `src/agent_runtime/sandbox.rs`, and externalized `<skills>` staging.
+4. **Sections 2.7–2.10 (`166` Wave 18 additions):**
+   - **Section 2.7 (`26` local & pure-Rust inference engines):** `ollama`, `llama.cpp`, `jan`, `Mysti`, `koboldcpp`, `llamafile`, `LocalAI`, `lmdeploy`, `tabbyAPI`, `mlc-llm`, `exo`, `mlx`, `FastChat`, `TensorRT-LLM`, `exllamav2`, `LitServe`, `candle`, `candle-vllm`, `mistral.rs`, `dynamo`, `velo`, `frontend-crates`, `aitune`, `radixshmem` (deduplicated), `modelexpress`, `nixl`.
+   - **Section 2.8 (`48` serving vaults):** `22` vLLM vaults (`vmon`, `router`, `guidellm`, `llm-compressor`, `speculators`, `lm-evaluation-harness`, etc.), `14` DeepSeek vaults (`FlashMLA`, `DeepGEMM`, `DeepEP`, `3FS`, `deepseek-recipe`, etc.), `12` SGLang vaults (`sglang`, `sgl-eval`, `genai-bench`, `SpecForge`, etc.).
+   - **Section 2.9 (`41` HF & NVIDIA NeMo vaults):** `21` HuggingFace/Optimum vaults & `20` NVIDIA NeMo/Eval vaults (`Switchyard`, `physicsnemo`, `physicsnemo-serve`, `NeMo-Fabric`, `NeMo-Relay`, `Gym`, `nemo-helix`, `RL`, `Evaluator`, `nemo-compass`, `eval-author`, `DataDesigner*`, `UserSim`, `Nemotron`).
+   - **Section 2.10 (`51` compute/CUDA/cluster vaults):** `14` PyTorch/Lightning vaults, `12` TensorRT/Triton/Compiler vaults, and `25` GPUStack/CUDA (`cuda-rust`)/RAPIDS/Slurm (`srt-slurm`)/Cluster vaults.
+5. **35-Component `<toksi-siagent>` Matrix (`RESEARCHPLAN.md` Section 0.2):** All 26 base `<agent>` components + 9 `<siagent>` Superintelligence extensions (`World Model`, `Hierarchical Planner`, `Verification Engine`, `Agent Runtime Daemon`, `IAM Attestation Layer`, `Policy-as-Code Engine`, `Circuit Breaker`, `Kill Switch`, `Immutable Audit Log`) execute in safe Rust via `DirectWireBus` and the 8-port daemon (`:8787..:8790, :9098, :9099, :9100, :18787`) through shared `HeadroomEffortCompressor`.
+
 ---
-## 9. Chronological Execution Roadmap (Phases 1–18.5)
+## 9. Chronological Execution Roadmap (Phases 1–18.6)
 
 | Phase | Subsystem | Core Focus & Actions | Key Deliverable | Status |
 |---|---|---|---|---|
 | **Phase 1** | **RTK Filter Engine** | Embed 100+ filters and zero-allocation ANSI stripper into `crates/toksi/src/rtk/`. | Core CLI filter engine; zero-overhead command filtering. | Done |
 | **Phase 2** | **ProjectMem Port** | Port models, JSONL storage, summary, precheck into `crates/toksi/src/projectmem/` inside `<repo>/.toksi/projectmem/`. | Native `toksi mem` CLI; in-process MCP server (16 tools in Wave 17) + Wave 18 checkpointing. | Done |
 | **Phase 3** | **ContextMode Port** | Port sandbox runner, FTS5 chunker, fetcher into `crates/toksi/src/contextmode/` inside `<repo>/.toksi/context/`. Pipe stdout to RTK. | Native `ctx_*` MCP tools; hook passthrough bug fixed in Wave 17. | Done |
-| **Phase 4** | **ICM & ai-memory** | Embed SQLite FTS5 store, claim-once handoffs, L0/L1/L2 briefs in `crates/toksi/src/{icm, aimemory}/` inside `<repo>/.toksi/`. | Zero-LLM persistent memory; cross-agent handoffs + Lance vector store. | Done |
-| **Phase 5** | **CodeGraph Engine** | Expand Tree-sitter parsers to 45 lang IDs via `crates/toksi-grammars` (closing `"dockerfile"`/`"vue"`/`"scss"` gaps), petgraph blast radius, `<repo>/.toksi/codegraph/` monorepo partitioning. | Sub-millisecond polyglot AST & blast radius without Node.js. | Wave 18 Sync |
+| **Phase 4** | **ICM & ai-memory** | Embed SQLite FTS5 store, claim-once handoffs, L0/L1/L2 briefs in `crates/toksi/src/{icm, aimemory}/` inside `<repo>/.toksi/`. | Zero-LLM persistent memory; cross-agent handoffs + Lance/Qdrant/Cognee/Graphiti stores. | Done |
+| **Phase 5** | **CodeGraph Engine** | Expand Tree-sitter parsers to 45 lang IDs via `crates/toksi-grammars` (`dockerfile`/`vue`/`scss` specialization), petgraph blast radius, `<repo>/.toksi/codegraph/` monorepo partitioning. | Sub-millisecond polyglot AST & blast radius without Node.js. | Wave 18 Sync |
 | **Phase 6** | **Externalized Rules & `<skills>`** | Stage Karpathy principles, Caveman v4, Ponytail modes externally outside `crates/toksi/` (`<neo>/agents/`, `<neo>/rules/`, synced to `<skills>` `Navegos/skills`, zero binary bloat) wrapped in `<enforce>` + `skilldoctor`/`agentskills` YAML healer. | Zero-bloat `<enforce>`-guarded external skills & rules with automated healing/grading. | Wave 18 Upgrade |
-| **Phase 7** | **Headroom & Native AI Gateway** | Port pure-Rust `headroom-core` `live_zone`+`CcrStore`, `Low`/`Medium`/`High` effort scaling, force `/byok/` through Headroom, 65/90+ ecosystem + 22 local engines + Google Cloud ADC. | Full in-tree Headroom & Gateway engine (`headroom/`, `gateway/`); 50–80% token cut, 0 downtime. | Wave 18 Upgrade |
+| **Phase 7** | **Headroom & Native AI Gateway** | Port pure-Rust `headroom-core` `live_zone`+`CcrStore`, `Low`/`Medium`/`High` effort scaling, force `/byok/` through Headroom, 65/90+ ecosystem + 26 local/Rust engines + Google Cloud ADC. | Full in-tree Headroom & Gateway engine (`headroom/`, `gateway/`); 50–80% token cut, 0 downtime. | Wave 18 Upgrade |
 | **Phase 8** | **Downloader Purge** | Remove `npminstall.rs`, `nodewin.rs`, `nodelinux.rs`, `uv.rs`, `util/projectmem.rs`, and `resolve_npm_binary`. Rewire all tools to native modules. | Clean `crates/toksi/src/util/`; zero downloader code. | Wave 17 Cleanup |
 | **Phase 9** | **Legacy Healing & Un-Hijack** | Implement `crates/toksi/src/env_injector/heal.rs` to restore `*.real` binaries, delete `.cmd`/wrapper shims, purge legacy `toksi-*` / `tokless_*` aliases. | Pristine binaries (`agy.exe`, `grok.exe`, `copilot`) & clean configs. | Done |
 | **Phase 10** | **Non-Destructive Env Injection** | Implement `crates/toksi/src/env_injector/{windows, unix, teardown}.rs` (FFI in `toksi-sys`, zero `set_var` `unsafe`) with `WM_SETTINGCHANGE`. | Pre-VS Code environment readiness; clean exit teardown. | Done |
 | **Phase 11** | **Agent Doctor & Self-Healing** | Upgrade `toksi doctor --fix` and `init.rs` to validate configured agents (18+ built-in + 65/90+ adapters), `DirectWireBus`, and legacy `.projectmem/` -> `<repo>/.toksi/projectmem/` merge. | Perfectly wired configured agent setups with zero legacy noise. | Done |
-| **Phase 12** | **TUI, Telemetry & Web Dashboard** | Native Prometheus `/metrics` exposition, async zero-latency collector, `tokview` + effort cost tracking, 9-tab interactive mouse TUI and web cockpit. | Native `/metrics` endpoint, `toksi tui`/`top`, and `toksi dashboard`. | Wave 18 Parity |
-| **Phase 13** | **End-to-End System Verification** | Workspace integration tests (`phase1..phase18_5`) + `.toksi/test-baseline.json` BLAKE3 incremental unchanged-suite skipping + `cargo clippy -- -D warnings`. | 0 warnings, 100% relevant tests passing, deterministic benchmarks. | Wave 18 Upgrade |
+| **Phase 12** | **TUI, Telemetry & Web Dashboard** | Native Prometheus `/metrics` exposition, async zero-latency collector, `tokview`/`phoenix`/`tokenspeed`/`vmon` effort & GPU tracking, 9-tab interactive mouse TUI and web cockpit. | Native `/metrics` endpoint, `toksi tui`/`top`, and `toksi dashboard`. | Wave 18 Parity |
+| **Phase 13** | **End-to-End System Verification** | Workspace integration tests (`phase1..phase18_6`) + `.toksi/test-baseline.json` BLAKE3 incremental unchanged-suite skipping + `cargo clippy -- -D warnings`. | 0 warnings, 100% relevant tests passing, deterministic benchmarks. | Wave 18 Upgrade |
 | **Phase 14** | **OS Keyring, ADC & Config SQLite DB** | Native Keyring via `toksi-sys` + normalized `gemini:antigravity` + `src/keyring/adc.rs` (`AGY_ADC_AUTH=true`); `~/.toksi/toksi.db` + `byok_profiles` + `plugins_registry` + zero-plaintext security tables. | `toksi auth`, `toksi db`, ADC auth, & multi-instance profile persistence. | Wave 18 Upgrade |
 | **Phase 15.1** | **Workspace Topology & Standards** | Forward-slash `/` paths standard, default SQLite in `~/.toksi/toksi.db`, strict root `<repo>/.toksi/<tool>`, monorepo subprojects, `<tool>-hook <agent>`, PATH validation mandate. | Standardized root repository topology, safe SQLite merge, clean PATH diagnostics. | Wave 17 Upgrade |
 | **Phase 15.2** | **Unified 8-Port Daemon & Supervision** | `toksi daemon start|stop|restart --agents` & `~/.toksi/config.toml` supervising `:8787`, `:8788` (Grok), `:8789`/`:8790` (Copilot), `:9098` (Protocol Bus), `:9099` (Gateway), `:9100` (Cockpit), `:18787` (BYOK/ADC). | Zero-friction 8-port daemon supervisor; complete port separation. | Wave 18 Upgrade |
 | **Phase 15.3** | **Smart Agent CLI Providers & Open BYOK Quota** | Local Agent CLIs + Bifrost/LiteLLM + Google Cloud ADC (`AGY_ADC_AUTH=true`); **zero paid-tier restrictions**; read-only quota telemetry; configured-only activation. | Reliable CLI agent bridges, zero artificial qualification walls. | Wave 18 Sync |
 | **Phase 15.4** | **Multi-Protocol & Dynamic Ignore Purge** | Real `A2aTaskStore` v1.0, `ACP` (`agent-client-protocol`) on `:9098`, `DirectWireBus`; `.gitignore`/`.ignore` dynamic purge; non-`.git` / `.git/` indexing exclusion. | Multi-protocol interoperability; zero junk in vector cache. | Wave 18 Upgrade |
 | **Phase 15.5** | **Token Accounting & Network Healing** | Ground-truth SSE & Responses usage parsing (`0` when idle), `tokview` effort tracking, rate-limit headers, zero-cost `/v1/models`, `ArcSwap<reqwest::Client>` heal, `<enforce>` rules sync. | Real token/quota telemetry; auto-reconnect recovery; pristine rules. | Wave 18 Upgrade |
-| **Phase 15.6** | **Advanced Vault Intelligence Engines** | Real wiring & bugfixes across all **78 vaults** (36 Waves 1–17 + 42 Wave 18 engines incl. `opencode`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `lance`, `openwiki`, `tokview`, `langfuse`, `langgraph`, `deepagents`, `zeroclaw`, `defenseclaw`, `skill-scanner`, `<advisory>`, `<skills>`). | Complete feature parity across all 78 vaults; zero dead stubs. | Wave 18 Upgrade |
-| **Phase 16.1** | **Mouse-Capable 9-Tab Async TUI** | Crossterm `EnableMouseCapture`, `watch::Receiver` 60 FPS loop, 9 tabs surfacing `tokview`, paused plan checkpoints, `skill-scanner` SARIF/CEL + `Navegos/advisory` search (Tab 5), ADR/sandbox/kill-switch + `defenseclaw` (Tab 6), Plugin Manager + `<skills>` Sync (Tab 7), & ADC/effort controls. | Responsive 9-tab terminal cockpit (`toksi tui`/`top`) with zero hangs. | Wave 18 Upgrade |
+| **Phase 15.6** | **Advanced Vault Intelligence Engines** | Real wiring & bugfixes across all **295 unique vaults** (`36` Waves 1–17 + `259` Wave 18 engines across Sections `2.1`–`2.10` powering all 35 `<toksi-siagent>` components). | Complete feature parity across all 295 vaults; zero dead stubs. | Wave 18 Upgrade |
+| **Phase 16.1** | **Mouse-Capable 9-Tab Async TUI** | Crossterm `EnableMouseCapture`, `watch::Receiver` 60 FPS loop, 9 tabs surfacing `tokview`, paused plan checkpoints, `skill-scanner` SARIF/CEL + `Navegos/advisory` search (Tab 5), ADR/sandbox/kill-switch + `defenseclaw` (Tab 6), Plugin Manager + External `<skills>` Sync (Tab 7), & ADC/effort controls. | Responsive 9-tab terminal cockpit (`toksi tui`/`top`) with zero hangs. | Wave 18 Upgrade |
 | **Phase 16.2** | **Futuristic 9-Tab Web Cockpit Dashboard** | Detached `:9100` web cockpit mirroring all 9 tabs (`tokview`, `openwiki`, checkpoint `/resume`, `skill-scanner` + `Navegos/advisory`, ADR/sandbox/kill-switch + `defenseclaw` `/api/security/audit-evidence`, interactive Plugin Manager `/api/plugins` + `<skills>` sync, `plugins_registry` DB export/import). | High-performance, isolated web telemetry & administration cockpit. | Wave 18 Upgrade |
-| **Phase 16.3** | **Open Agents Directory & README Verification** | `.agents/`, `.agents/mcp`, `agentskills` YAML parity across `.gemini/`..`.grok/`; `openagents` adapter; full Wave 18 `README.md` + `--help` (16 slash commands, `toksi plugin|advisory|skills|sandbox|compile-blind`, 8 ports, 3 repos). | Universal multi-agent protocol compliance; definitive documentation. | Wave 18 Upgrade |
+| **Phase 16.3** | **Open Agents Directory & README Verification** | `.agents/`, `.agents/mcp`, `agentskills` YAML parity across `.gemini/`..`.grok/`; `openagents` adapter; full Wave 18 `README.md` + `--help` (16 slash commands, `toksi plugin|advisory|skills|sandbox|compile-blind`, 8 ports, 3 repos, 295 vaults, `<toksi-siagent>`). | Universal multi-agent protocol compliance; definitive documentation. | Wave 18 Upgrade |
 | **Phase 17.1** | **`~/.toksi/config.toml`, Edition 2024 & Zero Paid Gates** | `src/config/mod.rs` (incl. `[repositories]`, `[auth.gcp_adc]`, `[optimization]`, `[security]`, `[plugins]`, `[checkpoint]`), `daemon|proxy --agents`, `dashboard start|stop|restart`, delete `FreeTierDisqualified`, `#![deny(unsafe_code)]`. | Declarative TOML control; safe pure-Rust crate core; zero paywall blocks. | Wave 18 Sync |
-| **Phase 17.2** | **Multi-Instance DB, Keyring Fix & Headroom BYOK Pass** | `byok_profiles` (incl. `auth_mode`/`gcp_project`/`gcp_location`), `plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events`, `gemini:antigravity` keyring, `headroom-core` `live_zone`+`CcrStore`, route `/byok/` through Headroom + Chroma/Lance ANN. | Multi-model BYOK profiles, security/plugin DB state, cache-preserving compression, fixed Keyring & DB transfer. | Wave 18 Sync |
-| **Phase 17.3** | **45 Tree-sitter IDs & Monorepo `<repo>/.toksi/` Isolation** | `crates/toksi-grammars`, 45 lang IDs in `langs.rs` (fixing `"dockerfile"`/`"vue"`/`"scss"` gaps), real `ast-grep`/`scip`/`jcodemunch`/`repomix`, root `.git` walk, monorepo `subproject_id`, `.ignore` purge. | Polyglot AST/SCIP intelligence across monorepos with zero home-dir bloat. | Wave 18 Sync |
-| **Phase 17.4** | **Vault Bugfixes, 65/90+ Ecosystem & Hook Cleanup** | Fix `ctx-hook` passthrough & `runmcp` `aimemory` misroute; expand all 78 vaults; register 65/90+ ecosystem + 22 local engines; `<tool>-hook <agent>`. | Zero stubbed vaults, zero legacy `toksi-*`/`tokless_*`, clean hook/MCP registry. | Wave 18 Sync |
-| **Phase 17.5** | **Native `toksi` Coding CLI/Swarm & 16 Slash Commands** | Build `src/agent_runtime/*` (`toksi chat|run|exec|swarm|agent resume`), 3-OS/`sandbox-runtime`/`sbx` sandbox, `DirectWireBus`, **16** `< 5ms` commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`). | Full in-process AI coding CLI & multi-agent swarm with 16 instant commands. | Wave 18 Sync |
-| **Phase 17.6** | **SSE Token Accuracy, Real Gateway & Reconnect Heal** | Kill static gateway/copilot stubs; wire `LoadBalancer` + `mofa-engine` 7-D router + ADC Vertex + effort routing; parse SSE/Responses usage; `ArcSwap` reconnect heal. | Authentic telemetry, zero-burn discovery, self-healing network pool. | Wave 18 Sync |
-| **Phase 17.7** | **Final 9-Tab UI Parity, Incremental Tests & Full Docs** | Finalize all 9 TUI+Web tabs, clickable heatmap/security/advisory/resume modals, `.toksi/test-baseline.json` BLAKE3 skip runner, `phase14..18_5` tests, full `README.md` & `--help`. | Production-ready Wave 18 release with instant incremental verification. | Wave 18 Sync |
-| **Phase 18.1** | **42 New/Companion Wave 18 Vaults Research & Synthesis** | Implement `lance_store.rs`, `openwiki.rs`, `tokview.rs`, `traces.rs` (Langfuse), `acp.rs` on `:9098`, `gemini_wire.rs`/`vertex_adc.rs`, `plugins/{manifest,loader}.rs`, `opencode`, `cve-*`/`osv-schema`, `skilldoctor`, `sandbox-runtime`, `langgraph`/`deepagents`/`bosun`/`cline`/`kilocode`/`alphacode`/`zeroclaw`/`defenseclaw`/`skill-scanner`. | 100% synthesis of all 42 Wave 18 vaults (78 total). | **NEW (Wave 18)** |
+| **Phase 17.2** | **Multi-Instance DB, Keyring Fix & Headroom BYOK Pass** | `byok_profiles` (incl. `auth_mode`/`gcp_project`/`gcp_location`), `plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events`, `gemini:antigravity` keyring, `headroom-core` `live_zone`+`CcrStore`, route `/byok/` through Headroom + Chroma/Lance/Qdrant ANN. | Multi-model BYOK profiles, security/plugin DB state, cache-preserving compression, fixed Keyring & DB transfer. | Wave 18 Sync |
+| **Phase 17.3** | **45 Tree-sitter IDs & Monorepo `<repo>/.toksi/` Isolation** | `crates/toksi-grammars`, 45 lang IDs in `langs.rs` (`dockerfile`/`vue`/`scss` grammar specialization), real `ast-grep`/`scip`/`jcodemunch`/`repomix`, root `.git` walk, monorepo `subproject_id`, `.ignore` purge. | Polyglot AST/SCIP intelligence across monorepos with zero home-dir bloat. | Wave 18 Sync |
+| **Phase 17.4** | **Vault Bugfixes, 65/90+ Ecosystem & Hook Cleanup** | Fix `ctx-hook` passthrough & `runmcp` `aimemory` misroute; expand all **295** vaults; register 65/90+ ecosystem + **26** local/Rust engines; `<tool>-hook <agent>`. | Zero stubbed vaults, zero legacy `toksi-*`/`tokless_*`, clean hook/MCP registry. | Wave 18 Sync |
+| **Phase 17.5** | **Native `<toksi-siagent>` Coding CLI/Swarm & 16 Slash Commands** | Build `src/agent_runtime/*` (`toksi chat|run|exec|swarm|agent resume`), 5-backend sandbox (`3-OS`/`sandbox-runtime`/`OpenShell`/`E2B`/`sbx`), `DirectWireBus`, **16** `< 5ms` commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`). | Full in-process 35-component `<toksi-siagent>` CLI & swarm with 16 instant commands. | Wave 18 Sync |
+| **Phase 17.6** | **SSE Token Accuracy, Real Gateway & Reconnect Heal** | Kill static gateway/copilot stubs; wire `LoadBalancer` + `RouteLLM`/`olla`/`mofa-engine` 7-D router + ADC Vertex + effort routing; parse SSE/Responses usage; `ArcSwap` reconnect heal. | Authentic telemetry, zero-burn discovery, self-healing network pool. | Wave 18 Sync |
+| **Phase 17.7** | **Final 9-Tab UI Parity, Incremental Tests & Full Docs** | Finalize all 9 TUI+Web tabs, clickable heatmap/security/advisory/resume modals, `.toksi/test-baseline.json` BLAKE3 skip runner, `phase14..18_6` tests, full `README.md` & `--help`. | Production-ready Wave 18 release with instant incremental verification. | Wave 18 Sync |
+| **Phase 18.1** | **259 New/Companion Wave 18 Vaults Research & Synthesis** | Synthesize all 259 Wave 18 vaults across Sections `2.1`–`2.10` (`295` unique total incl. `lance`, `qdrant`, `cognee`, `graphiti`, `openwiki`, `tokview`, `temporal`, `restate`, `opa`, `cedar`, `spire`, `Guardrails`, `llm-guard`, `OpenShell`, `E2B`, `opencode`, `sandbox-runtime`, `defenseclaw`, `skill-scanner`, `skilldoctor`, 26 local/Rust engines, 140 vLLM/DeepSeek/SGLang/HF/NeMo/CUDA/Slurm vaults, `<advisory>`, `<skills>`) + `plugins/{manifest,loader}.rs`. | 100% synthesis of all 259 Wave 18 vaults (295 total). | **NEW (Wave 18)** |
 | **Phase 18.2** | **Unified Plugins, Zero-Plaintext Blind Engine, Validator, `<skills>`, & 41-Lang SAST** | Enforce `<enforce>` across 3 repos (`<neo>`, `<advisory>`, `<skills>` zero binary bloat), build `src/plugins/*` (`toksi plugin` + `/plugin`), Zero-Plaintext `BLAKE3`+`sparse::DFA` (`toksi compile-blind`), Native Validator (`src/validator/` + 12-DB `UpstreamDeduplicator` + `toksi advisory`), `defenseclaw` + `skill-scanner`, `skilldoctor` + `agentskills` YAML healer, & 41-lang AST SAST + `osv-scanner`/`cve-lite-cli`. | Zero-plaintext security DB/PRs, externalized `<skills>`, fail-closed plugins, built-in SAST. | **NEW (Wave 18)** |
-| **Phase 18.3** | **Google Cloud ADC, Effort Optimization & Checkpoints** | First-class `AGY_ADC_AUTH=true` Vertex auth (`"gcp.project"`/`"gcp.location"`), `Low`/`Medium`/`High` `/effort` provider mapping + Headroom scaling, atomic `.toksi/projectmem/plan_checkpoints/` `/resume`. | Zero-subprocess ADC auth, effort-aware token spend, crash-proof plan resume. | **NEW (Wave 18)** |
-| **Phase 18.4** | **Legacy `.projectmem/` Repair & Final Workspace Gate** | Repair all `.projectmem/` pre-reads to `.toksi/projectmem/`, verify doc/path hygiene (`phase18_4_doc_and_checkpoint_hygiene`), run `cargo check`, `clippy -- -D warnings`, & `.toksi/test-baseline.json`. | Zero legacy leaks, 36 aligned brain specs, clean green workspace. | **NEW (Wave 18)** |
-| **Phase 18.5** | **Agent Source Unification, ADR, Sandbox (`sbx`/`sandbox-runtime`/3-OS), & Kill-Switch** | Unify `<neo>/inspect-vault/*<agent>` source commands/skills/rules/MCPs/APIs into `toksi` agent, build ADR Layer (`src/security/adr.rs`), Isolated Agent Sandbox (`src/agent_runtime/sandbox.rs` + `toksi sandbox`), and default-deny `CommandGuard` + bypass kill-switch (`src/commands/guard.rs`). | Unified `toksi` agent runtime, automatic ADR quarantine, 3-backend sandbox, & hard bypass kill-switch. | **NEW (Wave 18)** |
+| **Phase 18.3** | **Google Cloud ADC, Effort Optimization & Checkpoints** | First-class `AGY_ADC_AUTH=true` Vertex auth (`"gcp.project"`/`"gcp.location"`), `Low`/`Medium`/`High` `/effort` provider mapping + Headroom scaling, atomic `temporal`/`restate`/`langgraph`/`.toksi/projectmem/plan_checkpoints/` `/resume`. | Zero-subprocess ADC auth, effort-aware token spend, crash-proof plan resume. | **NEW (Wave 18)** |
+| **Phase 18.4** | **Legacy `.projectmem/` Repair & Final Workspace Gate** | Repair all `.projectmem/` pre-reads to `.toksi/projectmem/`, verify doc/path hygiene (`phase18_4_doc_and_checkpoint_hygiene`), run `cargo check`, `clippy -- -D warnings`, & `.toksi/test-baseline.json`. | Zero legacy leaks, **37** aligned brain specs, clean green workspace. | **NEW (Wave 18)** |
+| **Phase 18.5** | **Agent Source Unification, ADR, 5-Backend Sandbox, & Kill-Switch** | Unify `<neo>/inspect-vault/*<agent>` source commands/skills/rules/MCPs/APIs into `<toksi-siagent>`, build ADR Layer (`src/security/adr.rs`), 5-Backend Isolated Agent Sandbox (`src/agent_runtime/sandbox.rs` + `toksi sandbox`), and default-deny `CommandGuard` + bypass kill-switch (`src/commands/guard.rs`). | Unified `<toksi-siagent>` runtime, automatic ADR quarantine, 5-backend sandbox, & hard bypass kill-switch. | **NEW (Wave 18)** |
+| **Phase 18.6** | **35-Component `<toksi-siagent>` & Full Inference/Compute Stack** | Complete all 35 `<toksi-siagent>` components (`Section 0.2`) wired off-the-back (`DirectWireBus` + 7-entrypoint `HeadroomEffortCompressor`), OPA/Cedar/SPIRE IAM, Guardrails/LLM-Guard/SafeAgents/Garak/Anonymizer, Temporal/Restate/World-Model, Qdrant/Cognee/Graphiti/TEI/Reranker, all **26** local/Rust engines (`mistral.rs`, `candle`, `dynamo`, `frontend-crates`), & vLLM/DeepSeek/SGLang/HF/NeMo/CUDA (`vmon`, `cuda-rust`, `srt-slurm`) telemetry/evals. | Full 35-component Superintelligence stack across all 295 vaults. | **NEW (Wave 18)** |
 
 ---
 
 ## 10. Master-Plan-Aware Ready-to-Run Prompts
 
 > **Modular Brain Execution Policy**:  
-> To execute without context saturation, each phase prompt is isolated in `.agents/brain/*.md`. Copy and paste the prompt into a fresh chat session:
+> To execute without context saturation, each phase prompt is isolated in `.agents/brain/*.md` (**37** files total). Copy and paste the prompt into a fresh chat session:
 > - **Phase 01**: [`.agents/brain/PHASE_01_RTK_FILTER_ENGINE.md`](../../.agents/brain/PHASE_01_RTK_FILTER_ENGINE.md)
 > - **Phase 02**: [`.agents/brain/PHASE_02_PROJECTMEM_PURE_RUST.md`](../../.agents/brain/PHASE_02_PROJECTMEM_PURE_RUST.md)
 > - **Phase 03**: [`.agents/brain/PHASE_03_CONTEXTMODE_PURE_RUST.md`](../../.agents/brain/PHASE_03_CONTEXTMODE_PURE_RUST.md)
@@ -1228,6 +1263,7 @@ Continuous re-audit against all **78** mandated vaults & companion repositories 
 > - **Phase 18.3**: [`.agents/brain/PHASE_18_3_GOOGLE_ADC_EFFORT_OPTIMIZATION_AND_PLAN_CHECKPOINT.md`](../../.agents/brain/PHASE_18_3_GOOGLE_ADC_EFFORT_OPTIMIZATION_AND_PLAN_CHECKPOINT.md)
 > - **Phase 18.4**: [`.agents/brain/PHASE_18_4_LEGACY_PROJECTMEM_REPAIR_AND_MASTER_DOC_SYNC.md`](../../.agents/brain/PHASE_18_4_LEGACY_PROJECTMEM_REPAIR_AND_MASTER_DOC_SYNC.md)
 > - **Phase 18.5**: [`.agents/brain/PHASE_18_5_AGENT_SOURCE_UNIFICATION_ADR_SANDBOX_AND_KILL_SWITCH.md`](../../.agents/brain/PHASE_18_5_AGENT_SOURCE_UNIFICATION_ADR_SANDBOX_AND_KILL_SWITCH.md)
+> - **Phase 18.6**: [`.agents/brain/PHASE_18_6_35_COMPONENT_SIAGENT_AND_INFERENCE_COMPUTE_STACK.md`](../../.agents/brain/PHASE_18_6_35_COMPONENT_SIAGENT_AND_INFERENCE_COMPUTE_STACK.md)
 
 ---
 
@@ -1647,8 +1683,8 @@ Requirements:
      * Port 9098: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` / `stdio` / `SSE` / `HTTP`, Plugin endpoints under `<enforce>`, checkpoints, with shared `HeadroomEffortCompressor`)
      * Port 9099: Enterprise AI Gateway & Drop-in SDKs (`/v1/chat/completions`, `/v1/messages`, `/v1beta/models/*`, `/metrics`, enforcing full `HeadroomEffortCompressor` before cache & dispatch)
      * Port 9100: Web Telemetry & Control Dashboard Cockpit (non-blocking background service, exact 9 tabs)
-     * Port 18787: BYOK & Vertex ADC Multi-Profile Gateway (`http://127.0.0.1:18787`, OpenAI, Anthropic, Gemini, Vertex ADC, Ollama/vLLM/LM Studio/22 local engines via `<byok, model, effort>` routing through `HeadroomEffortCompressor`)
-   - Zero multi-command manual steps. One `toksi daemon start --agents` launch prepares the entire system for native `toksi` agent ("off the back") and all configured Categories 1–5 AI coding assistants with zero paid-tier restrictions and `DirectWireBus` hook fan-out.
+     * Port 18787: BYOK & Vertex ADC Multi-Profile Gateway (`http://127.0.0.1:18787`, OpenAI, Anthropic, Gemini, Vertex ADC, Ollama/vLLM/LM Studio/`mistral.rs`/`candle`/26 local & Rust engines via `<byok, model, effort>` routing through `HeadroomEffortCompressor`)
+   - Zero multi-command manual steps. One `toksi daemon start --agents` launch prepares the entire system for native 35-component `<toksi-siagent>` ("off the back") and all configured Categories 1–5 AI coding assistants with zero paid-tier restrictions and `DirectWireBus` hook fan-out.
 2. Network Port Separation for Maximum Latency Performance:
    - Port 9099 strictly dedicated to high-throughput streaming LLM inference, SSE token forwarding, and protocol translation (<10 µs latency overhead).
    - Port 9100 dedicated to Web Dashboard Cockpit, SSE metrics broadcasting, static assets, and SQLite DB backup/export.
@@ -1713,7 +1749,7 @@ Targets:
 
 Requirements:
 1. Multi-Protocol Capabilities & Shared Effort Compression Across All Tools:
-   - Expand `ToolTarget` in `tools/multi_protocol.rs` beyond the initial 6 variants (`rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`) to include `Headroom`, `Security`, `Advisory`, `Sandbox`, `Plugins`, and all **78** consolidated `inspect-vault/*` engines, routing large payloads through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`) on `:9098`:
+   - Expand `ToolTarget` in `tools/multi_protocol.rs` beyond the initial 6 variants (`rtk`, `codegraph`, `context`, `projectmem`, `icm`, `aimemory`) to include `Headroom`, `Security`, `Advisory`, `Sandbox`, `Plugins`, and all **295** unique consolidated `inspect-vault/*` engines powering `<toksi-siagent>`, routing large payloads through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`) on `:9098`:
      * MCP (Model Context Protocol)
      * A2A (Agent-to-Agent / Agent2Agent protocol)
      * ACP (Agent Communication Protocol / Agent Client Protocol)
@@ -1879,7 +1915,7 @@ Requirements:
      * Workspace repository install (`<repo>/.<agent>/` / `<repo>/.toksi/<tool>`) is NEVER automatic without explicit repo selection; never create nested subfolder crate `.toksi/` or `.<agent>/` dirs.
    - Management operations via CLI (`toksi agent ...`), TUI, and Web Dashboard: `install`, `health`, `mismatch`, `upgrade`, `fix`, `restore`, `remove`, `edit`, plus component toggles (`hooks`, `mcp`, `skills`, `rules`, `instructions`, `configs`).
 2. Comprehensive Technical README:
-   - Complete Wave 18 (v5.1) coverage: 3-repository architecture (`<neo>`, `<advisory>`, `<skills>` with zero-bloat externalized skills/rules staged outside `crates/toksi/`), 8-port topology (`:8787`, `:8788` Grok, `:8789`/`:8790` Copilot, `:9098` Protocol Bus, `:9099` Gateway, `:9100` Cockpit, `:18787` BYOK/ADC), `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`), `toksi chat|run|exec|swarm|security|advisory|skills|sandbox|compile-blind|plugin|agent resume`, **16** in-chat slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `direct wired` hook bus, `src/plugins/` Unified Plugin System, Zero-Plaintext Blind Engine + `src/validator/` + ADR (`adr.rs`) + Sandbox (`sandbox.rs` w/ `sandbox-runtime`/`sbx`/3-OS) + `CommandGuard` kill-switch (`guard.rs`), `<enforce>` security (`defenseclaw` + `skill-scanner`) & `skilldoctor`/`agentskills` YAML healer, 41-lang static analyzer, `AGY_ADC_AUTH=true`, effort scaling (`Low`/`Medium`/`High`), `.toksi/projectmem/plan_checkpoints/`, 45 Tree-sitter language IDs, all **78** mandated vaults, 65/90+ ecosystem + 22 local engines, `<repo>/.toksi/<tool>`, zero paid-tier restrictions, and full CLI `--help` parity.
+   - Complete Wave 18 (v5.2) coverage: 3-repository architecture (`<neo>`, `<advisory>`, `<skills>` with zero-bloat externalized skills/rules staged outside `crates/toksi/`), 8-port topology (`:8787`, `:8788` Grok, `:8789`/`:8790` Copilot, `:9098` Protocol Bus, `:9099` Gateway, `:9100` Cockpit, `:18787` BYOK/ADC), `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`), `toksi chat|run|exec|swarm|security|advisory|skills|sandbox|compile-blind|plugin|agent resume`, **16** in-chat slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `direct wired` hook bus, 35-component `<toksi-siagent>` runtime, `src/plugins/` Unified Plugin System, OPA/Cedar/SPIRE IAM, Guardrails/LLM-Guard, Zero-Plaintext Blind Engine + `src/validator/` + ADR (`adr.rs`) + 5-backend Sandbox (`sandbox.rs` w/ 3-OS/`sandbox-runtime`/`OpenShell`/`E2B`/`sbx`) + `CommandGuard` kill-switch (`guard.rs`), `<enforce>` security (`defenseclaw` + `skill-scanner`) & `skilldoctor`/`agentskills` YAML healer, 41-lang static analyzer, `AGY_ADC_AUTH=true`, effort scaling (`Low`/`Medium`/`High`), Temporal/Restate/LangGraph `.toksi/projectmem/plan_checkpoints/`, 45 Tree-sitter language IDs, all **295** unique mandated vaults across Sections `2.1`–`2.10`, 65/90+ ecosystem + 26 local/Rust engines, `<repo>/.toksi/<tool>`, zero paid-tier restrictions, and full CLI `--help` parity.
 3. Verification:
    - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and incremental `.toksi/test-baseline.json` `cargo test` ensuring 0 warnings and 100% pass rate.
 ```
@@ -1948,7 +1984,7 @@ Targets:
   - crates/toksi/src/{projectmem/global.rs, icm/mcp.rs, aimemory/mod.rs, contextmode/fts.rs}
 
 Requirements:
-1. Create `crates/toksi-grammars` for any legacy C-ABI Tree-sitter shims so `crates/toksi` stays `#![deny(unsafe_code)]`; expand `langs.rs` + `walker.rs` to 45 language IDs (all 41+ specified languages plus Dart/R/Luau, resolving the `"dockerfile"` grammar gap and `"vue"`/`"scss"` specialization in `src/codegraph/kernel/langs.rs`) and port the unported `codegraph-kernel` (`csharp`, `dart`, `java`, `kotlin`, `lua`, `php`, `rlang`, `ruby`, `scala`, `swift`, `cfnptr`) + Vue/Svelte extractors.
+1. Create `crates/toksi-grammars` for any legacy C-ABI Tree-sitter shims so `crates/toksi` stays `#![deny(unsafe_code)]`; expand `langs.rs` + `walker.rs` to 45 language IDs (all 41+ specified languages plus Dart/R/Luau, upgrading `"dockerfile"`, `"vue"`, and `"scss"` from fallback alias grammars at `langs.rs:99–103` to dedicated specialized grammars) and port the unported `codegraph-kernel` (`csharp`, `dart`, `java`, `kotlin`, `lua`, `php`, `rlang`, `ruby`, `scala`, `swift`, `cfnptr`) + Vue/Svelte extractors.
 2. Replace `ast_grep.rs` line heuristic with real Tree-sitter CST + `MatchStrictness`; replace `scip.rs` stub with real Protobuf SCIP encoding + descriptor AST; wire `jcodemunch.rs` O(1) byte-offset SQLite slices and `repomix.rs` secretlint/BPE directly into `codegraph/mod.rs` + CLI + MCP.
 3. Fix `commands/index.rs::find_project_dir()` so it walks to `<repo>/.git/` root (never stopping at subcrate `Cargo.toml`/`package.json`), partitions `<repo>/crates/project1..N/` via `subproject_id`, merges nested subfolder `.toksi/` / `.<agent>/` into root, refuses to index outside `.git` repos or inside `.git/`, deletes all home-dir project caches (`~/.toksi/{projectmem,icm,ai-memory,context,codegraph}`), and triggers dynamic `.gitignore`/`.ignore` vector/FTS5 purge.
 4. Verification: `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi`.
@@ -1960,7 +1996,7 @@ Requirements:
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 10 & 13.3), crates/toksi/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_and_quota_architecture.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_4_VAULT_ECOSYSTEM_CONNECTORS_AND_HOOK_CLEANUP.md first.
 
-Execute Phase 17.4: Deep Vault Parity, 65/90+ Ecosystem & 22 Local Engines, & Hook/MCP Cleanup.
+Execute Phase 17.4: Deep Vault Parity, 65/90+ Ecosystem & 26 Local/Rust Engines, & Hook/MCP Cleanup.
 Sources: neo/inspect-vault/{TokenEconomizer,agent-opt,TokenTracker,rtk,icm,projectmem,ai-memory,context-mode,caveman,ponytail,agents-structures}
 Targets:
   - crates/toksi/src/commands/{ctx.rs,runmcp.rs}
@@ -1972,7 +2008,7 @@ Targets:
 Requirements:
 1. Fix `commands/ctx.rs:417-434` (`run_ctx_hook` passthrough `0` stub -> port `core/policy/*` + `core/hooks/dispatch` + `core/journal/*` + `core/compaction/*`) and fix `commands/runmcp.rs:167-174` (`aimemory->icm` misroute -> `aimemory::mcp`).
 2. Fix `TokenEconomizer` empty-text stub (3-stage compression + `EnvFactsDistiller` + `LoopGuard`), fix `agent-opt` `DefaultHasher` bug (`SHA-256` 1-hop dedup + oscillation detector), add 47 `TokenTracker` parsers, `rtk` SQLite `Tracker`/`tee`/`discover`/`learn`, `projectmem` `precheck_file`/`list_projects`/`current_project` + `staleness`/`structure`, `icm` ~23 missing MCP tools (`temporal`, `fusion`), and externalized `caveman` v4 (`/ultracave`, `/megacave`, `shrink`, `browse`) + `ponytail` modes/statusline staged outside `crates/toksi/` synced to `<skills>` (zero binary bloat).
-3. Register complete 65/90+ Categories 1–5 ecosystem catalog + 22 local inference engines (`Ollama`, `vLLM`, `llama.cpp`, `LM Studio`, `SGLang`, `TGI`, `Exo`, `MLC`, etc.) with `config/endpoints` & PATH probes.
+3. Register complete 65/90+ Categories 1–5 ecosystem catalog + all **26** Section 2.7 local/Rust inference engines (`Ollama`, `vLLM`, `llama.cpp`, `LM Studio`, `SGLang`, `TGI`, `Exo`, `MLC`, `mistral.rs`, `candle`, `candle-vllm`, `dynamo`, `frontend-crates`, `nixl`, etc.) with `config/endpoints` & PATH probes.
 4. Enforce `<tool>-hook <agent>`, split `antigravity-cli` vs `antigravity-ide` and `copilot-cli` vs `copilot-vscode`, wire `"openagents"` + `.agents/mcp -> skills/<tool>`, reconcile `agents-structures` (`.grok/hooks/*.json`, `.copilot/hooks/`, `.gemini/commands/*.toml`, `.claude/.mcp.json`), and purge `toksi-projectmem`, `toksi-codegraph`, `toksi-codegraph-index`, `agy-hook codegraph-index`, `rtk hook cursor`, `tokless_*`, `resolve_npm_binary`, `toksi-codegraph-init.js`, and `util/projectmem.rs`.
 5. Verification: `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi`.
 ```
@@ -1993,7 +2029,7 @@ Targets:
   - crates/toksi/src/headroom/proxy.rs
 
 Requirements:
-1. Expose `toksi chat`, `toksi run "<prompt>"`, `toksi exec "<prompt>"`, `toksi swarm "<goal>"` (plus `toksi agent chat|run|swarm|exec` aliases) wired out of the box ("off the back", zero manual config) via `DirectWireBus` (in-process) and local `:8787`/`:9098`/`:9099`/`:18787` endpoints to `toksi.db` `byok_profiles`, Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`), `src/plugins/`, ADR + Sandbox (`adr.rs` + `sandbox.rs`), `CommandGuard` (`guard.rs`), and all **78** consolidated `inspect-vault/*` engines (`rtk`, `headroom`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `lance`, `agent-client-protocol`, `agent-opt`, `agent-control`, `opencode`, `sandbox-runtime`, `sage`, `defenseclaw`, `skill-scanner`, `skilldoctor`, etc.).
+1. Expose `toksi chat`, `toksi run "<prompt>"`, `toksi exec "<prompt>"`, `toksi swarm "<goal>"` (plus `toksi agent chat|run|swarm|exec` aliases) for the 35-component `<toksi-siagent>` runtime wired out of the box ("off the back", zero manual config) via `DirectWireBus` (in-process) and local `:8787`/`:8788`/`:8789`/`:8790`/`:9098`/`:9099`/`:18787` endpoints to `toksi.db` `byok_profiles`, Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`), `src/plugins/`, OPA/Cedar/SPIRE IAM, Guardrails/LLM-Guard, ADR + 5-backend Sandbox (`adr.rs` + `sandbox.rs`), `CommandGuard` (`guard.rs`), and all **295** unique consolidated `inspect-vault/*` engines (`rtk`, `headroom`, `context-mode`, `codegraph`, `projectmem`, `ai-memory`, `icm`, `ponytail`, `caveman`, `jcodemunch-mcp`, `repomix`, `ast-grep`, `scip`, `mem0`, `chroma`, `lance`, `qdrant`, `cognee`, `graphiti`, `temporal`, `restate`, `agent-client-protocol`, `agent-opt`, `agent-control`, `opencode`, `sandbox-runtime`, `OpenShell`, `E2B`, `sage`, `defenseclaw`, `skill-scanner`, `skilldoctor`, etc.).
 2. Fuse proven primitives: Hermes (`TurnFacadeMixin`, `RunawayStreamWatch`, `StopGateVerdict`, `StreamingContextScrubber`, `MoAChatCompletions`, `_BackgroundReviewRun`), OpenClaw (6-detector `ToolLoopDetector`, `PendingMessageQueue`, periodic `advisor`), OpenClaw-RS (BLAKE2b-256 `EventLog`, CRDT merge), MoFA (`SubtaskDAG` + wave `ParallelScheduler`, `SwarmHITLGate`, `ReflectionAgent`), MofaClaw (`CronService`, `HEARTBEAT.md`, `SHELL_METACHARS` RBAC), CrewAI (`ReasoningPlan`, `InterceptionPoint`/`HookAborted`, causal `EventBus`), Codex/Grok-Build/Sandbox-Runtime/OpenCode (`bwrap`/seccomp/`Landlock`/`.sbpl`/`WindowsRestrictedToken`/WFP/HTTP-SOCKS5/`sbx` 29 verbs, `codemode`, Lark `apply_patch`, `HashlineEditTool`, `PermissionPolicy` + `ssrf_guard`).
 3. Upgrade `tools/multi_protocol.rs` with real OpenClaw `A2aTaskStore` v1.0 JSON-RPC 2.0 + `SessionActorQueue` ACP v2.0, and ship `tools/direct_wire.rs` (`DirectWireBus`) for config-less `direct-wired` interception alongside explicit `config-wired` and `src/plugins/` hook mounts.
 4. Execute all **16** instant (< 5ms) non-blocking slash commands across native CLI AND hooked `headroom/proxy.rs` chat streams: `/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume` — persisting `<byok, model, effort>`, plugin hot-reloads, and plan checkpoints directly to `toksi.db` / `<repo>/.toksi/projectmem/plan_checkpoints/` without hangs or loops.
@@ -2039,34 +2075,34 @@ Requirements:
 1. Align BOTH TUI (`src/tui/views/`) and Web Cockpit (`src/dashboard/assets/index.html`) to the exact 9 tabs (`Savings`, `The War Room`, `AI Agent Fleet & Quotas`, `Memory Decision DAG`, `CodeGraph Explorer`, `Sandbox Inspector`, `System Controls`, `AI Gateway & Quotas`, `Keyring & Database`) driven by non-blocking `watch::Receiver<DashboardSnapshot>` (`< 5ms` navigation, `EnableMouseCapture`).
 2. Delete EVERY synthetic placeholder (`0.38/0.42/0.20`, `68.0%`, `1428 KB`, `:8788 BYOK` label, fake 429 rows, 6-symbol CodeGraph stub, fake heatmap vec, `init_waterfall_samples()`, `<AGENT>_API_KEY` stub, `[PAID]`/`[DISQUALIFIED-FREE]` badges).
 3. Wire all interactive features: configured-only visibility in `Savings`/`Gateway`/`Keyring`; PATH availability grey-out + `direct-wired` toggle + `hour..year` quotas in Fleet; clickable `.heatmap-cell` modal drilldown (`GET /api/memory/heatmap/:cell_id`); multi-instance `<byok, model, effort>` CRUD & per-agent routing algorithm selector; normalized Keyring editor; real `Export`/`Import`/`Backup`/`Restore` DB UI; granular component toggles (`hooks|mcp|skills|rules|instructions|configs`) for user-auto vs explicit-repo opt-in.
-4. Implement `.toksi/test-baseline.json` BLAKE3 incremental test runner (`[SKIP-UNCHANGED] <suite>` when `Cargo.lock` + `watched_paths` untouched; never relax assertions) + integration suites `phase14..phase18_5` (incl. Wave 18 `:9098` Protocol Bus, `tokview`, `plan_checkpoints`, 41-lang SAST/`sage`, Zero-Plaintext Blind Engine + Validator PRs, ADR/Sandbox/`CommandGuard` kill-switch, `skilldoctor`/`agentskills` healer, `<skills>` external sync, ADC & `/effort` controls).
+4. Implement `.toksi/test-baseline.json` BLAKE3 incremental test runner (`[SKIP-UNCHANGED] <suite>` when `Cargo.lock` + `watched_paths` untouched; never relax assertions) + integration suites `phase14..phase18_6` (incl. Wave 18 `:9098` Protocol Bus, `tokview`, `plan_checkpoints`, 41-lang SAST/`sage`, Zero-Plaintext Blind Engine + Validator PRs, ADR/5-backend Sandbox/`CommandGuard` kill-switch, OPA/Cedar/SPIRE, Guardrails/LLM-Guard, `skilldoctor`/`agentskills` healer, `<skills>` external sync, ADC & `/effort` controls, 26 local/Rust engines & `vmon`/`cuda-rust` probes).
 5. Update `main.rs` `--help` & `crates/toksi/README.md`, then verify 100% clean `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and full test suite pass.
 ```
 
 
 ---
 
-### Prompt: Phase 18.1 — 42 New & Companion Wave 18 Vaults Research Synthesis & Subsystem Bridges
+### Prompt: Phase 18.1 — 259 New & Companion Wave 18 Vaults Research Synthesis & Subsystem Bridges (295 Total)
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 0–3, 12–13), crates/toksi/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_and_quota_architecture.md, crates/toksi/research/docker_sandboxes_sbx_cli_reference.md, crates/toksi/research/open_security_standards_zero_plaintext_blind_signature_engine_native_git_pr_validator.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_18_1_29_NEW_VAULTS_RESEARCH_AND_SYNTHESIS.md first.
 
-Execute Phase 18.1: Synthesize all 42 New & Companion Wave 18 Vaults into Native Safe Rust Engines (Total: 78 Vaults).
-Sources: neo/inspect-vault/{lance,openwiki,tokview,agent-control,agent-client-protocol,python-genai,python-aiplatform,langgraph,langchain,langfuse,langflow,deepagents,bosun,Codewhale,cline,kilocode,alphacode,zeroclaw,opencode,sandbox-runtime,cve-schema,cve-validation-library,cve-services,osv-schema,cve-bin-tool,cve-lite-cli,skilldoctor,defenseclaw,skill-scanner,advisory,skills}
+Execute Phase 18.1: Synthesize all 259 New & Companion Wave 18 Vaults across Sections 2.1–2.10 into Native Safe Rust Engines (Total: 295 Unique Vaults).
+Sources: neo/inspect-vault/{lance,qdrant,milvus,cognee,graphiti,letta,openwiki,tokview,phoenix,RouteLLM,olla,tokenspeed,tokenizers,text-embeddings-inference,NeMo-Retriever,NeMo-text-processing,agent-control,agent-client-protocol,python-genai,python-aiplatform,langgraph,langchain,langfuse,langflow,deepagents,bosun,Codewhale,cline,kilocode,alphacode,zeroclaw,opencode,temporal,restate,SWE-agent,OpenHands,open-swe,EnterpriseBlueprints,sandbox-runtime,OpenShell,E2B,E2B-runtime,NemoClaw,opa,cedar,spire,Guardrails,llm-guard,safeagents,garak,Anonymizer,Safe-Synthesizer,cve-schema,cve-validation-library,cve-services,osv-schema,cve-bin-tool,cve-lite-cli,skilldoctor,SkillSpector,SkillEvaluator,defenseclaw,skill-scanner,advisory,skills,+Section2.7-2.10-166-vaults}
 Targets:
-  - crates/toksi/src/aimemory/lance_store.rs
-  - crates/toksi/src/codegraph/openwiki.rs, crates/toksi/src/projectmem/wiki_sync.rs
-  - crates/toksi/src/telemetry/{tokview.rs,traces.rs}
-  - crates/toksi/src/gateway/{gemini_wire.rs,vertex_adc.rs}
+  - crates/toksi/src/aimemory/{lance_store,qdrant_store,milvus_adapter,cognee_graph,temporal_graph,letta_memgpt,embeddings,retriever}.rs
+  - crates/toksi/src/codegraph/{openwiki.rs,bpe.rs,embeddings.rs,reranker.rs}, crates/toksi/src/projectmem/wiki_sync.rs
+  - crates/toksi/src/telemetry/{tokview.rs,traces.rs,openinference.rs,tokenspeed.rs,gpu_monitor.rs,evals.rs}
+  - crates/toksi/src/gateway/{gemini_wire.rs,vertex_adc.rs,local_engines.rs,inference_mistral.rs,inference_candle.rs,disaggregated_serving.rs,cost_quality_router.rs}
   - crates/toksi/src/plugins/{manifest.rs,loader.rs}
-  - crates/toksi/src/security/{schema.rs,osv.rs,epss.rs}, crates/toksi/src/validator/validate.rs
+  - crates/toksi/src/security/{schema.rs,osv.rs,epss.rs,policy_opa.rs,policy_cedar.rs,iam_attestation.rs,guardrails_validators.rs,llm_guard.rs}, crates/toksi/src/validator/validate.rs
   - crates/toksi/src/rules/skill_validator.rs, crates/toksi/src/agents/opencode.rs
-  - crates/toksi/src/agent_runtime/{acp.rs,codemode.rs,session.rs,sandbox.rs,guardrails.rs,graph_checkpoint.rs,deep_planning.rs,fleet.rs,modes.rs,zeroclaw_core.rs}
+  - crates/toksi/src/agent_runtime/{acp.rs,codemode.rs,session.rs,sandbox.rs,workflow_state.rs,durable_journal.rs,world_model.rs,guardrails.rs,graph_checkpoint.rs,deep_planning.rs,fleet.rs,modes.rs,zeroclaw_core.rs}
 
 Requirements:
-1. Build pure-Rust Lance-compatible columnar vector/hybrid store in `<repo>/.toksi/ai-memory/lance/` with metadata pre-filtering (`subproject_id`, `repo_hash`, `memory_type`).
-2. Build OpenWiki CodeGraph architectural synthesizer exporting deterministic Mermaid call graphs and `.toksi/projectmem/PROJECT_MAP.md` sync.
-3. Implement `tokview` + Langfuse local-first span/generation/cost/effort attribution in `memory.db`, wired into `:9098` & `:9100` Tab 1.
-4. Expose Agent Client Protocol (`agent-client-protocol`) JSON-RPC 2.0 on `:9098/acp` alongside MCP/A2A/SSE with shared `HeadroomEffortCompressor` payload compression; wire native `toksi` agent out of the box ("off the back") via `DirectWireBus` and `:8787`/`:9098`/`:9099`/`:18787` to every gateway, Protocol Bus, `src/plugins/`, and all **78** vaults; synthesize `opencode` (`codemode`, `http-recorder`, Drizzle/SQLite session state, `.opencode/hooks.json`), `sandbox-runtime` (WFP, ACLs, HTTP/SOCKS5 proxy), `cve-*` + `osv-schema` + `cve-bin-tool` + `cve-lite-cli` (CVE 5.1, OSV 1.7.4, SBOM/VEX, EPSS), `skilldoctor` (0–100/A–F grading, byte-exact `--fix`), `<advisory>` & `<skills>` companion repos (zero binary bloat outside `crates/toksi/`), `langgraph` state checkpoints, `deepagents` planner, `bosun` fleet isolation, `cline`/`kilocode` Plan/Act/Code/Ask/Debug/Orchestrator modes, `alphacode` verify loop, `Codewhale` blast radius, `zeroclaw` zero-overhead sandbox traits, `defenseclaw` + `skill-scanner` security/governance architecture, and unified `src/plugins/` manifest/discovery adapters.
+1. Build pure-Rust Lance & Qdrant HNSW/columnar vector stores + Cognee ECL & Graphiti bi-temporal knowledge graphs + Letta paging in `<repo>/.toksi/ai-memory/` with scalar pre-filtering (`subproject_id`, `repo_hash`, `memory_type`) and instant `.ignore` deletion.
+2. Build OpenWiki CodeGraph architectural synthesizer exporting deterministic Mermaid call graphs and `.toksi/projectmem/PROJECT_MAP.md` sync alongside pure-Rust BPE `tokenizers` and TEI/`NeMo-Retriever` local embed/rerank bridges.
+3. Implement `tokview` + Langfuse + Phoenix OpenInference + `tokenspeed` + `vmon`/`cuda-rust`/`srt-slurm` local-first telemetry & eval attribution in `memory.db`, wired into `:9098` & `:9100` Tab 1.
+4. Expose Agent Client Protocol (`agent-client-protocol`) JSON-RPC 2.0 on `:9098/acp` alongside MCP/A2A/SSE with shared `HeadroomEffortCompressor` payload compression; wire native 35-component `<toksi-siagent>` out of the box ("off the back") via `DirectWireBus` and `:8787`..`:8790`/`:9098`/`:9099`/`:18787` to every gateway, Protocol Bus, `src/plugins/`, and all **295** unique vaults; synthesize `opencode` (`codemode`, `http-recorder`, Drizzle/SQLite session state, `.opencode/hooks.json`), `temporal`/`restate`/`langgraph` durable replay, `sandbox-runtime` + `OpenShell` + `E2B` + `NemoClaw`, `opa` + `cedar` + `spire`, `Guardrails` + `llm-guard` + `safeagents` + `garak`, `cve-*` + `osv-schema` + `cve-bin-tool` + `cve-lite-cli`, `skilldoctor` + `SkillSpector` + `SkillEvaluator`, `<advisory>` & `<skills>` companion repos (zero binary bloat outside `crates/toksi/`), 26 local/Rust inference engines (`mistral.rs`, `candle`, `dynamo`, `frontend-crates`), 140 Section 2.8–2.10 vLLM/DeepSeek/SGLang/HF/NeMo/PyTorch/TRT/Triton/GPUStack/CUDA/Slurm catalogs, `defenseclaw` + `skill-scanner`, and unified `src/plugins/` manifest/discovery adapters.
 5. Update `.toksi/test-baseline.json` and verify `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --test phase18_1_vault_synthesis_verification`.
 ```
 
@@ -2083,7 +2119,7 @@ Targets:
   - crates/toksi/src/validator/{mod.rs,validate.rs,fp_pruner.rs,shard_builder.rs,git_pr_driver.rs}
   - crates/toksi/src/plugins/{mod.rs,manifest.rs,loader.rs,hooks.rs,slash_router.rs,cli_bridge.rs,analyzer_plugin.rs}
   - crates/toksi/src/rules/{skills_repo.rs,skill_validator.rs,skills_catalog.rs,sync.rs}, <neo>/agents/, <neo>/rules/
-  - crates/toksi/src/codegraph/kernel/langs.rs (resolve `"dockerfile"` grammar gap + `"vue"`/`"scss"` specialization)
+  - crates/toksi/src/codegraph/kernel/langs.rs (specialize `"dockerfile"`, `"vue"`, and `"scss"` dedicated grammars beyond `langs.rs:99–103` fallback aliases)
   - crates/toksi/src/commands/{security.rs,compile_blind.rs,advisory.rs,skills.rs,plugin.rs,rules.rs}
   - crates/toksi/src/db/{schema.rs,operations.rs} (`plugins_registry`, `blind_signatures`, `advisory_embargoes`)
 
@@ -2130,28 +2166,52 @@ Targets:
 
 Requirements:
 1. Ensure `toksi doctor` & `toksi projectmem migrate` auto-discover and merge any legacy root/subcrate dot-folders (`.projectmem/`, `.codegraph/`, etc.) into `<repo>/.toksi/<tool>/` cleanly without creating loose root folders outside `<repo>/.toksi/`.
-2. Add `phase18_4_doc_and_checkpoint_hygiene` integration test asserting all **36** `.agents/brain/*.md` files exist (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_18_5`), zero stale pre-read `.projectmem/` or legacy `crates/tokless/*` paths exist in docs, and 8 ports / **16** slash commands (`/byok`..`/resume`) / **78** mandated vaults (`36` + `42` Wave 18) / 3-repo zero-bloat staging / `src/plugins/` / `src/validator/` / `src/security/adr.rs` / `src/commands/guard.rs` / `plugins_registry` stay synchronized.
+2. Add `phase18_4_doc_and_checkpoint_hygiene` integration test asserting all **37** `.agents/brain/*.md` files exist (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_18_6`), zero stale pre-read `.projectmem/` or legacy `crates/tokless/*` paths exist in docs, and 8 ports / **16** slash commands (`/byok`..`/resume`) / **295** unique mandated vaults (`36` + `259` Wave 18 across Sections `2.1`–`2.10`) / **35-component `<toksi-siagent>`** / 3-repo zero-bloat staging / `src/plugins/` / `src/validator/` / `src/security/adr.rs` / `src/commands/guard.rs` / `plugins_registry` stay synchronized.
 3. Run final verification gates: `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and full `cargo test --workspace` with `.toksi/test-baseline.json` updated cleanly.
 ```
 
 ---
 
-### Prompt: Phase 18.5 — Agent Source Unification, ADR Layer, Isolated Agent Sandbox (`sbx`/`sandbox-runtime`/3-OS), & `CommandGuard` Bypass Kill-Switch
+### Prompt: Phase 18.5 — Agent Source Unification, ADR Layer, 5-Backend Isolated Agent Sandbox (`3-OS`/`sandbox-runtime`/`OpenShell`/`E2B`/`sbx`), & `CommandGuard` Bypass Kill-Switch
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 0–3, 5, 12–13), crates/toksi/research/docker_sandboxes_sbx_cli_reference.md, crates/toksi/research/open_security_standards_zero_plaintext_blind_signature_engine_native_git_pr_validator.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_18_5_AGENT_SOURCE_UNIFICATION_ADR_SANDBOX_AND_KILL_SWITCH.md first.
 
-Execute Phase 18.5: Cross-Agent Source Unification, ADR Layer, Multi-Backend Isolated Agent Sandbox, & Offensive CommandGuard + Bypass Kill-Switch.
-Sources: neo/inspect-vault/{opencode,sandbox-runtime,codex,hermes-agent,openclaw,openclaw-rs,mofa,mofa-engine,mofaclaw,crewAI,crush,crustly,goose,grok-build,gemini-cli,cline,kilocode,alphacode,zeroclaw,bosun,Codewhale,deepagents,langgraph,langchain,langflow,sage,defenseclaw,skill-scanner}
+Execute Phase 18.5: Cross-Agent Source Unification into `<toksi-siagent>`, ADR Layer, 5-Backend Isolated Agent Sandbox, & Offensive CommandGuard + Bypass Kill-Switch.
+Sources: neo/inspect-vault/{opencode,sandbox-runtime,OpenShell,E2B,E2B-runtime,NemoClaw,codex,hermes-agent,openclaw,openclaw-rs,mofa,mofa-engine,mofaclaw,crewAI,crush,crustly,goose,grok-build,gemini-cli,cline,kilocode,alphacode,zeroclaw,bosun,Codewhale,deepagents,langgraph,langchain,langflow,sage,defenseclaw,skill-scanner}
 Targets:
-  - crates/toksi/src/agent_runtime/{mod.rs,sandbox.rs,codemode.rs,session.rs,slash.rs}
+  - crates/toksi/src/agent_runtime/{mod.rs,sandbox.rs,openshell.rs,sandbox_e2b.rs,codemode.rs,session.rs,slash.rs}
   - crates/toksi/src/security/adr.rs, crates/toksi/src/agents/opencode.rs
   - crates/toksi/src/commands/{guard.rs,sandbox.rs,mod.rs}
   - crates/toksi/src/db/{schema.rs,operations.rs} (`adr_audit_events`)
 
 Requirements:
-1. Unify all `<neo>/inspect-vault/*<agent>` source commands, skills, rules, MCPs, and APIs (incl. `opencode` `codemode`, `http-recorder`, Drizzle/SQLite sessions, `.opencode/hooks.json`) cleanly into `toksi` agent (`toksi chat|run|exec|swarm|agent resume`), deduplicating overlapping commands across all **16** `< 5ms` slash commands and staging external skills/rules outside `crates/toksi/` synced to `<skills>`.
+1. Unify all `<neo>/inspect-vault/*<agent>` source commands, skills, rules, MCPs, and APIs (incl. `opencode` `codemode`, `http-recorder`, Drizzle/SQLite sessions, `.opencode/hooks.json`) cleanly into `<toksi-siagent>` (`toksi chat|run|exec|swarm|agent resume`), deduplicating overlapping commands across all **16** `< 5ms` slash commands and staging external skills/rules outside `crates/toksi/` synced to `<skills>`.
 2. Implement `src/security/adr.rs` (Agent Detection & Response): intercept commands, file mutations, web requests, and A2A channels; route verified-safe actions on `<repo>` and auto-divert untrusted/unsafe payloads into the Isolated Agent Sandbox, emitting sanitized SARIF 2.1.0, OSV 1.7.4 / CVE 5.1 / STIX 2.1, and `adr_audit_events`.
-3. Implement `src/agent_runtime/sandbox.rs` + `toksi sandbox` CLI + `/sandbox` slash command unifying 3-OS native (`Landlock`/seccomp/`bwrap`, Seatbelt `.sbpl`, Windows Restricted Token/Job Objects), `sandbox-runtime` (WFP egress, DACL/ACL, MXC probe, HTTP/SOCKS5 domain-filtering proxy), and Docker Sandboxes (`sbx` / `sandboxd` 29-verb CLI parity with `--allow-network`, `--skills readonly|readwrite|off`, and proxy-injected `secret` isolation).
+3. Implement `src/agent_runtime/sandbox.rs` + `toksi sandbox` CLI + `/sandbox` slash command unifying all **5 backends**: 3-OS native (`Landlock`/seccomp/`bwrap`, Seatbelt `.sbpl`, Windows Restricted Token/Job Objects), `sandbox-runtime` (WFP egress, DACL/ACL, MXC probe, HTTP/SOCKS5 domain-filtering proxy), `OpenShell`/`NemoClaw` (out-of-process kernel/network policy daemon), `E2B` (Firecracker microVM / sandbox protocol adapter), and Docker Sandboxes (`sbx` / `sandboxd` 29-verb CLI parity with `--allow-network`, `--skills readonly|readwrite|off`, and proxy-injected `secret` isolation).
 4. Implement `src/commands/guard.rs` (`CommandGuard`): enforce the 6-point offensive security prohibition (no network/port scans, no sniffing, no credential cracking/dumping, no reverse shells/tunnels, no DoS, no privilege/firewall tampering) and **Mandatory Bypass Kill-Switch** (`[security].kill_all_services_on_bypass = true`) that immediately shuts down all `toksi` services (`daemon`, `proxy`, `gateway`, `protocol_bus`, `agent_runtime`, `dashboard`) and logs `kill_switch_triggered` on any bypass attempt.
 5. Verify `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --test phase18_5_adr_sandbox_and_guard_verification`.
+```
+
+
+---
+
+### Prompt: Phase 18.6 — 35-Component `<toksi-siagent>` Superintelligence Architecture & Full Inference/Compute Stack Consolidation
+```text
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 0–13), crates/toksi/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_and_quota_architecture.md, crates/toksi/research/docker_sandboxes_sbx_cli_reference.md, crates/toksi/research/open_security_standards_zero_plaintext_blind_signature_engine_native_git_pr_validator.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_18_6_35_COMPONENT_SIAGENT_AND_INFERENCE_COMPUTE_STACK.md first.
+
+Execute Phase 18.6: 35-Component `<toksi-siagent>` Superintelligence Architecture, Policy-as-Code & IAM Attestation, Guardrails/Red-Team Eval, Durable Temporal/Restate Workflow State, Hybrid Graph-Vector RAG, All 26 Local/Rust Engines & Section 2.8–2.10 Serving/Compute Telemetry.
+Sources: neo/inspect-vault/{opa,cedar,spire,Guardrails,llm-guard,safeagents,garak,Anonymizer,Safe-Synthesizer,temporal,restate,cognee,graphiti,qdrant,milvus,letta,langchain-mongodb,tokenizers,text-embeddings-inference,NeMo-Retriever,NeMo-text-processing,phoenix,tokenspeed,RouteLLM,olla,mistral.rs,candle,candle-vllm,dynamo,frontend-crates,vllm,sglang,vmon,cuda-rust,srt-slurm}
+Targets:
+  - crates/toksi/src/security/{policy_opa.rs,policy_cedar.rs,iam_attestation.rs,guardrails_validators.rs,llm_guard.rs,safeagents.rs,garak_redteam.rs}
+  - crates/toksi/src/agent_runtime/{workflow_state.rs,durable_journal.rs,world_model.rs,orchestrator.rs,cluster_exec.rs,rl.rs}
+  - crates/toksi/src/aimemory/{cognee_graph.rs,temporal_graph.rs,qdrant_store.rs,milvus_adapter.rs,letta_memgpt.rs,mongo_bridge.rs,embeddings.rs,retriever.rs}
+  - crates/toksi/src/gateway/{local_engines.rs,inference_bridge.rs,inference_mistral.rs,inference_candle.rs,disaggregated_serving.rs,kv_cache_bridge.rs,cost_quality_router.rs,quant_catalog.rs}
+  - crates/toksi/src/telemetry/{gpu_monitor.rs,tokenspeed.rs,openinference.rs,evals.rs,perf_tuning.rs}
+
+Requirements:
+1. Implement Policy-as-Code (`opa` Rego + pure-Rust `cedar`), SPIFFE/SPIRE cryptographic workload SVID attestation (`spire`), and `Guardrails`/`llm-guard`/`safeagents`/authorized defensive `garak`/`Anonymizer`/`Safe-Synthesizer` evaluators inside `src/security/`.
+2. Port `temporal` deterministic workflow replay & `restate` journaled durable execution + HITL awakeables unified with `langgraph` & `.toksi/projectmem/plan_checkpoints/`, plus `world_model.rs` / `orchestrator.rs` / `cluster_exec.rs` / `rl.rs` contracts (`OSMO`, `physicsnemo`, `trl`, `srt-slurm`).
+3. Wire hybrid graph-vector memory (`cognee` ECL, `graphiti` bi-temporal edges, `qdrant` HNSW alongside `lance`/`chroma` w/ `.ignore` purge, `milvus`, `letta`, pure-Rust `tokenizers` BPE, `text-embeddings-inference`, `NeMo-Retriever`, `NeMo-text-processing`).
+4. Register and wire all **26** Section 2.7 local/Rust inference engines (`ollama`, `llama.cpp`, `candle`, `candle-vllm`, `mistral.rs`, `dynamo`, `frontend-crates`, `nixl`, `radixshmem`, etc.), disaggregated serving & `RouteLLM`/`olla`/`Switchyard`/`NeMo-Fabric`/`NeMo-Relay` routers, plus all **140** Section 2.8–2.10 vLLM/DeepSeek/SGLang/HF/NeMo/PyTorch/TRT/Triton/GPUStack/CUDA/Slurm catalogs, `vmon`/`cuda-rust`/`phoenix`/`tokenspeed` probes, and eval harnesses.
+5. Verify ALL **35** `<toksi-siagent>` components (`RESEARCHPLAN.md` Section 0.2) bind out of the box via `DirectWireBus` and all 7 entrypoints (`:8787`..`:8790`, `:9098`, `:9099`, `:18787`) through shared `HeadroomEffortCompressor` with zero paid-tier restrictions; update `.toksi/test-baseline.json` and run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --test phase18_6_siagent_and_inference_stack_verification`.
 ```
