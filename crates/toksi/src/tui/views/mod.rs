@@ -12,6 +12,8 @@ pub mod headroom;
 pub mod logs;
 pub mod memory;
 pub mod monitor;
+pub mod sandbox;
+pub mod warroom;
 
 pub use agents::*;
 pub use governance::*;
@@ -20,3 +22,5 @@ pub use headroom::*;
 pub use logs::*;
 pub use memory::*;
 pub use monitor::*;
+pub use sandbox::*;
+pub use warroom::*;

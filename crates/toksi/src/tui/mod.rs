@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/tui/mod.rs
 // created: 2026-10-30
-// lastModified: 2026-11-09
+// lastModified: 2026-11-18
+
+#![deny(unsafe_code)]
 
 pub mod app;
 pub mod views;
@@ -128,12 +130,14 @@ fn render_ui(f: &mut Frame, app: &mut App) {
 
     match app.current_tab {
         0 => render_monitor_view(f, chunks[2], app),
-        1 => render_agents_view(f, chunks[2], app),
-        2 => render_headroom_view(f, chunks[2], app),
+        1 => render_warroom_view(f, chunks[2], app),
+        2 => render_agents_view(f, chunks[2], app),
         3 => render_memory_view(f, chunks[2], app),
         4 => render_graph_view(f, chunks[2], app),
-        5 => render_governance_view(f, chunks[2], app),
+        5 => render_sandbox_view(f, chunks[2], app),
         6 => render_logs_view(f, chunks[2], app),
+        7 => render_headroom_view(f, chunks[2], app),
+        8 => render_governance_view(f, chunks[2], app),
         _ => {}
     }
 

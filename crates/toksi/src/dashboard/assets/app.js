@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/assets/app.js
 // created: 2026-10-30
-// lastModified: 2026-11-16
+// lastModified: 2026-11-18
 
 // toksi dashboard client application - pure vanilla ES6+ with zero external npm dependencies
 
@@ -321,7 +321,7 @@ found 0 vulnerabilities`,
         <div class="agent-action">
           <div style="display: flex; gap: 0.4rem; align-items: center;">
             <span class="badge ${ag.wired ? 'badge-green' : 'badge-amber'}">${ag.wired ? 'WIRED' : 'UNWIRED'}</span>
-            <span class="badge ${ag.paid_quota_status === '[PAID]' ? 'badge-green' : 'badge-amber'}">${ag.paid_quota_status || '[PAID]'}</span>
+            <span class="badge badge-cyan">${ag.paid_quota_status || '[BYOK]'}</span>
           </div>
           <button class="btn ${ag.wired ? 'btn-danger' : 'btn-success'}" onclick="app.toggleAgent('${ag.id}')">
             ${ag.wired ? 'Unwire' : 'Wire Agent'}
@@ -760,7 +760,6 @@ found 0 vulnerabilities`,
     quotas.forEach(q => {
       const reqPct = Math.round((q.remaining_requests / Math.max(q.limit_requests, 1)) * 100);
       const tokPct = Math.round((q.remaining_tokens / Math.max(q.limit_tokens, 1)) * 100);
-      const isPaid = q.tier_badge === '[PAID]';
 
       const card = document.createElement('div');
       card.style.background = '#0f172a';
@@ -770,7 +769,7 @@ found 0 vulnerabilities`,
       card.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
           <strong style="color: var(--text-primary); font-size: 1rem;">${q.provider}</strong>
-          <span class="badge ${isPaid ? 'badge-green' : 'badge-amber'}">${q.tier_badge}</span>
+          <span class="badge badge-green">${q.tier_badge || '[OPEN]'}</span>
         </div>
         <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
           Req Remaining: <strong style="color: var(--accent-cyan);">${Number(q.remaining_requests).toLocaleString()}</strong> / ${Number(q.limit_requests).toLocaleString()} (${reqPct}%)
@@ -786,7 +785,7 @@ found 0 vulnerabilities`,
         </div>
         <div style="font-size: 0.75rem; color: var(--text-muted); display: flex; justify-content: space-between;">
           <span>Window Reset: ${q.reset_tokens_secs}s</span>
-          <span style="color: ${isPaid ? 'var(--accent-green)' : 'var(--accent-amber)'};">Status: ${isPaid ? 'Operational' : 'Disqualified Free'}</span>
+          <span style="color: var(--accent-green);">Status: Operational</span>
         </div>
       `;
       container.appendChild(card);

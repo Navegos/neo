@@ -448,6 +448,17 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
 
         ("GET", "/api/quotas") => HttpResponse::ok_json(handle_quotas_get()),
         ("GET", "/api/keyring/status") => HttpResponse::ok_json(handle_keyring_status()),
+        ("GET", "/api/plugins") => HttpResponse::ok_json(handle_plugins_get()),
+        ("POST", "/api/plugins/toggle") => match handle_plugin_toggle(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
+        ("GET", "/api/security/advisory") => {
+            let q = req.query.get("q").map(|s| s.as_str());
+            HttpResponse::ok_json(handle_security_advisory(q))
+        }
+        ("GET", "/api/security/sandbox") => HttpResponse::ok_json(handle_security_sandbox()),
+        ("GET", "/api/telemetry/spans") => HttpResponse::ok_json(handle_telemetry_spans()),
 
         ("GET", "/api/db/status") => HttpResponse::ok_json(handle_db_status()),
         ("POST", "/api/db/backup") => HttpResponse::ok_json(handle_db_backup()),

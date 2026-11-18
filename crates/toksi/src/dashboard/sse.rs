@@ -4,7 +4,6 @@
 // file: crates/toksi/src/dashboard/sse.rs
 // created: 2026-11-09
 
-use std::sync::atomic::Ordering;
 use std::time::Duration;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -15,12 +14,7 @@ use super::state::global_cockpit_state;
 /// Creates a metrics snapshot broadcast payload for dashboard clients.
 pub fn create_metrics_snapshot() -> serde_json::Value {
     let collector = crate::telemetry::global_collector();
-    let tokens_saved: u64 = collector.tokens_saved_total.read().map(|m| m.values().sum()).unwrap_or(0);
-    let cost_saved = collector.cost_savings_usd_micros.load(Ordering::Relaxed) as f64 / 1_000_000.0;
-    let total_calls: u64 = collector.upstream_requests_total.read().map(|m| m.values().sum()).unwrap_or(0);
-    let input_tokens: u64 = collector.input_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
-    let output_tokens: u64 = collector.output_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
-    let cached_tokens: u64 = collector.cached_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
+    let snap = crate::telemetry::snapshot_from_collector(collector);
 
     let state = global_cockpit_state();
     let quotas: Vec<super::state::UpstreamQuotaGauge> = state.quotas.read().map(|q| q.values().cloned().collect()).unwrap_or_default();
@@ -29,12 +23,19 @@ pub fn create_metrics_snapshot() -> serde_json::Value {
         "type": "snapshot",
         "timestamp": chrono::Utc::now().to_rfc3339(),
         "payload": {
-            "tokens_saved_lifetime": tokens_saved,
-            "cost_saved_usd": (cost_saved * 100.0).round() / 100.0,
-            "total_calls": total_calls,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "cached_tokens": cached_tokens,
+            "tokens_saved_lifetime": snap.tokens_saved_lifetime,
+            "rtk_tokens_saved": snap.rtk_tokens_saved,
+            "headroom_tokens_saved": snap.headroom_tokens_saved,
+            "caveman_tokens_saved": snap.caveman_tokens_saved,
+            "cost_saved_usd": (snap.cost_saved_usd * 100.0).round() / 100.0,
+            "total_calls": snap.total_calls,
+            "input_tokens": snap.input_tokens,
+            "output_tokens": snap.output_tokens,
+            "cached_tokens": snap.cached_tokens,
+            "ttft_ms": snap.ttft_ms,
+            "tpot_ms": snap.tpot_ms,
+            "gpu_utilization_pct": snap.gpu_utilization_pct,
+            "openinference_spans_total": snap.openinference_spans_total,
             "quotas": quotas,
         }
     })

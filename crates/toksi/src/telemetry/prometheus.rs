@@ -239,6 +239,30 @@ pub fn render_metrics_from(c: &MetricsCollector) -> String {
     render_histogram(&mut out, "toksi_overhead_rule_injection_seconds", "In-tree rules injection latency overhead", &c.overhead_rule_injection_seconds);
     render_histogram(&mut out, "toksi_overhead_mcp_pruning_seconds", "Dynamic MCP tool schema pruning overhead", &c.overhead_mcp_pruning_seconds);
 
+    // -------------------------------------------------------------------------
+    // 8. Per-Layer Savings, TokenSpeed (TTFT/TPOT), GPU (vmon/cuda-rust), & Phoenix OpenInference
+    // -------------------------------------------------------------------------
+    let _ = writeln!(out, "# HELP toksi_layer_tokens_saved_total Cumulative tokens saved per compression layer");
+    let _ = writeln!(out, "# TYPE toksi_layer_tokens_saved_total counter");
+    let _ = writeln!(out, "toksi_layer_tokens_saved_total{{layer=\"rtk\"}} {}", c.rtk_tokens_saved_total.load(Ordering::Relaxed));
+    let _ = writeln!(out, "toksi_layer_tokens_saved_total{{layer=\"headroom\"}} {}", c.headroom_tokens_saved_total.load(Ordering::Relaxed));
+    let _ = writeln!(out, "toksi_layer_tokens_saved_total{{layer=\"caveman\"}} {}", c.caveman_tokens_saved_total.load(Ordering::Relaxed));
+
+    render_histogram(&mut out, "toksi_ttft_seconds", "Time to first token in seconds (tokenspeed)", &c.ttft_seconds);
+    render_histogram(&mut out, "toksi_tpot_seconds", "Time per output token in seconds (tokenspeed)", &c.tpot_seconds);
+
+    let _ = writeln!(out, "# HELP toksi_gpu_utilization_ratio GPU compute utilization ratio 0.0-1.0 (vmon/cuda-rust)");
+    let _ = writeln!(out, "# TYPE toksi_gpu_utilization_ratio gauge");
+    let _ = writeln!(out, "toksi_gpu_utilization_ratio {:.4}", c.gpu_utilization_bps.load(Ordering::Relaxed) as f64 / 10_000.0);
+
+    let _ = writeln!(out, "# HELP toksi_gpu_memory_used_bytes GPU VRAM used in bytes (vmon/cuda-rust)");
+    let _ = writeln!(out, "# TYPE toksi_gpu_memory_used_bytes gauge");
+    let _ = writeln!(out, "toksi_gpu_memory_used_bytes {}", c.gpu_memory_used_bytes.load(Ordering::Relaxed));
+
+    let _ = writeln!(out, "# HELP toksi_openinference_spans_total Total Phoenix OpenInference spans emitted");
+    let _ = writeln!(out, "# TYPE toksi_openinference_spans_total counter");
+    let _ = writeln!(out, "toksi_openinference_spans_total {}", c.openinference_spans_total.load(Ordering::Relaxed));
+
     out
 }
 

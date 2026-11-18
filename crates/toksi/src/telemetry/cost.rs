@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/telemetry/cost.rs
 // created: 2026-10-31
-// lastModified: 2026-10-31
+// lastModified: 2026-11-18
 
 use std::collections::HashMap;
 
@@ -29,16 +29,42 @@ impl ModelPricing {
 pub fn lookup_pricing(model: &str) -> ModelPricing {
     let lower = model.to_lowercase();
 
-    // Anthropic Claude
-    if lower.contains("claude-3-7") || lower.contains("claude-3.7") {
+    // Anthropic Claude (Mythos / Fable / Opus 5 / Claude 3.x)
+    if lower.contains("claude-mythos-latest") || lower.contains("claude-mythos-preview") || lower.contains("claude-fable-latest") {
+        ModelPricing::new(0.0, 0.0, 0.0)
+    } else if lower.contains("claude-mythos-5-2-fast") || lower.contains("claude-mythos-5.2-fast")
+        || lower.contains("claude-fable-5-2-fast") || lower.contains("claude-fable-5.2-fast")
+    {
+        ModelPricing::new(16.00, 80.00, 0.40)
+    } else if lower.contains("claude-mythos-5-2") || lower.contains("claude-mythos-5.2")
+        || lower.contains("claude-fable-5-2") || lower.contains("claude-fable-5.2")
+    {
+        ModelPricing::new(8.00, 40.00, 0.20)
+    } else if lower.contains("claude-mythos-5-1") || lower.contains("claude-mythos-5.1") {
+        ModelPricing::new(10.00, 50.00, 0.25)
+    } else if lower.contains("claude-mythos-5") || lower.contains("claude-fable-5") {
+        ModelPricing::new(10.00, 50.00, 1.00)
+    } else if lower.contains("claude-opus-5-fast") {
+        ModelPricing::new(10.00, 50.00, 1.00)
+    } else if lower.contains("claude-opus-5") || lower.contains("claude-opus-4-6") {
+        ModelPricing::new(5.00, 25.00, 0.50)
+    } else if lower.contains("claude-3-7") || lower.contains("claude-3.7") {
         ModelPricing::new(3.00, 15.00, 0.30)
+    } else if lower.contains("claude-3-5-haiku") || lower.contains("claude-3.5-haiku") {
+        ModelPricing::new(0.80, 4.00, 0.08)
     } else if lower.contains("claude-3-5-sonnet") || lower.contains("claude-3.5-sonnet") || lower.contains("sonnet") {
         ModelPricing::new(3.00, 15.00, 0.30)
     } else if lower.contains("opus") {
         ModelPricing::new(15.00, 75.00, 1.50)
     } else if lower.contains("haiku") {
         ModelPricing::new(0.25, 1.25, 0.025)
-    // OpenAI
+    // OpenAI (GPT-6.x / GPT-4o / o-series)
+    } else if lower.contains("gpt-6.2-astra-law") || lower.contains("gpt-6-2-astra-law") {
+        ModelPricing::new(8.00, 40.00, 0.40)
+    } else if lower.contains("gpt-6-astra") || lower.contains("gpt-6.2-astra") {
+        ModelPricing::new(10.00, 40.00, 0.50)
+    } else if lower.contains("gpt-6.1-sol") {
+        ModelPricing::new(2.00, 8.00, 0.10)
     } else if lower.contains("gpt-4o-mini") {
         ModelPricing::new(0.15, 0.60, 0.075)
     } else if lower.contains("gpt-4o") {
@@ -48,12 +74,23 @@ pub fn lookup_pricing(model: &str) -> ModelPricing {
     } else if lower.contains("o3-mini") {
         ModelPricing::new(1.10, 4.40, 0.55)
     // Google Gemini
+    } else if lower.contains("gemini-2.5-pro") {
+        ModelPricing::new(1.25, 10.00, 0.3125)
+    } else if lower.contains("gemini-2.5-flash") {
+        ModelPricing::new(0.15, 0.60, 0.0375)
     } else if lower.contains("gemini-2.0-flash") || lower.contains("gemini-2-flash") {
         ModelPricing::new(0.10, 0.40, 0.025)
     } else if lower.contains("gemini-1.5-flash") {
         ModelPricing::new(0.075, 0.30, 0.01875)
     } else if lower.contains("gemini-1.5-pro") {
         ModelPricing::new(1.25, 5.00, 0.3125)
+    // Qwen & HY
+    } else if lower == "qwen4-max" || lower.ends_with("/qwen4-max") {
+        ModelPricing::new(1.50, 4.50, 0.075)
+    } else if lower.contains("qwen3.8-max") {
+        ModelPricing::new(2.00, 6.00, 0.17)
+    } else if lower.contains("hy4-preview") {
+        ModelPricing::new(0.833, 2.50, 0.042)
     // DeepSeek
     } else if lower.contains("deepseek-reasoner") || lower.contains("deepseek-r1") || lower.contains("r1") {
         ModelPricing::new(0.55, 2.19, 0.14)

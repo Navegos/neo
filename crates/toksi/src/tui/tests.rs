@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/tests.rs
 // created: 2026-10-30
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 use super::app::*;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
@@ -22,7 +22,10 @@ fn press_key(code: KeyCode) -> KeyEvent {
 fn test_app_initialization_and_tabs() {
     let app = App::new();
     assert_eq!(app.current_tab, 0);
-    assert_eq!(app.tab_names.len(), 7);
+    assert_eq!(app.tab_names.len(), 9);
+    assert_eq!(app.tab_names[0], "Savings");
+    assert_eq!(app.tab_names[1], "The War Room");
+    assert_eq!(app.tab_names[8], "Keyring & Database");
     assert!(!app.should_quit);
     assert!(!app.monitor.waterfall.is_empty());
 }
@@ -45,15 +48,15 @@ fn test_tab_navigation_keys() {
     app.handle_key(press_key(KeyCode::Char('6')));
     assert_eq!(app.current_tab, 5);
 
-    app.handle_key(press_key(KeyCode::Char('7')));
-    assert_eq!(app.current_tab, 6);
+    app.handle_key(press_key(KeyCode::Char('9')));
+    assert_eq!(app.current_tab, 8);
 
     app.handle_key(press_key(KeyCode::Char('1')));
     assert_eq!(app.current_tab, 0);
 
-    // Tab backwards
+    // Tab backwards wraps to 9th tab (index 8)
     app.handle_key(press_key(KeyCode::BackTab));
-    assert_eq!(app.current_tab, 6);
+    assert_eq!(app.current_tab, 8);
 }
 
 #[test]
@@ -104,7 +107,7 @@ fn test_graph_symbol_filter() {
 #[test]
 fn test_governance_navigation_and_actions() {
     let mut app = App::new();
-    app.current_tab = 5; // Governance tab (Tab 6)
+    app.current_tab = 8; // Keyring & Database / Governance tab (Tab 9)
 
     assert_eq!(app.governance.keys.len(), 4);
     assert_eq!(app.governance.selected, 0);
@@ -153,7 +156,7 @@ fn test_mouse_tab_switching() {
 
     let area = Rect::new(0, 0, 140, 40);
 
-    // Tab 2 (col ~30, row 2)
+    // 140 / 9 = 15 cols per tab; col 25 -> tab 1; col 65 -> tab 4
     let mouse_tab2 = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: 25,
@@ -163,15 +166,14 @@ fn test_mouse_tab_switching() {
     app.handle_mouse(mouse_tab2, area);
     assert_eq!(app.current_tab, 1);
 
-    // Tab 4 (col ~65, row 2)
-    let mouse_tab4 = MouseEvent {
+    let mouse_tab5 = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: 65,
         row: 2,
         modifiers: KeyModifiers::NONE,
     };
-    app.handle_mouse(mouse_tab4, area);
-    assert_eq!(app.current_tab, 3);
+    app.handle_mouse(mouse_tab5, area);
+    assert_eq!(app.current_tab, 4);
 }
 
 #[test]

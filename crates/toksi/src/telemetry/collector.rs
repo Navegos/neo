@@ -3,12 +3,13 @@
 // project: neo
 // file: crates/toksi/src/telemetry/collector.rs
 // created: 2026-10-31
-// lastModified: 2026-11-06
+// lastModified: 2026-11-18
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{OnceLock, RwLock};
-use tokio::sync::mpsc;
+use serde::{Deserialize, Serialize};
+use tokio::sync::{mpsc, watch};
 
 use super::cost::{calculate_cost, calculate_savings};
 use super::tracker::LatencyRecord;
@@ -121,6 +122,49 @@ pub enum TelemetryEvent {
         compressed_bytes: usize,
         pruned_tools: usize,
     },
+    LayerSavings {
+        layer: String, // "rtk" | "headroom" | "caveman"
+        tokens_saved: u64,
+    },
+    TokenSpeed {
+        ttft_secs: f64,
+        tpot_secs: f64,
+    },
+    GpuSample {
+        utilization_pct: f64,
+        memory_used_bytes: u64,
+        memory_total_bytes: u64,
+    },
+    OpenInferenceSpan {
+        span_kind: String,
+    },
+}
+
+/// Non-blocking snapshot consumed by TUI (`watch::Receiver`) and Web Cockpit SSE.
+/// Ground-truth values: strictly 0 when idle.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DashboardSnapshot {
+    pub tokens_saved_lifetime: u64,
+    pub rtk_tokens_saved: u64,
+    pub headroom_tokens_saved: u64,
+    pub caveman_tokens_saved: u64,
+    pub cost_saved_usd: f64,
+    pub cost_spent_usd: f64,
+    pub total_calls: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub cached_tokens: u64,
+    pub active_requests: i64,
+    pub cache_hits_direct: u64,
+    pub cache_hits_semantic: u64,
+    pub cache_misses: u64,
+    pub ttft_ms: f64,
+    pub tpot_ms: f64,
+    pub gpu_utilization_pct: f64,
+    pub gpu_memory_used_bytes: u64,
+    pub gpu_memory_total_bytes: u64,
+    pub openinference_spans_total: u64,
+    pub per_agent_saved: HashMap<String, u64>,
 }
 
 /// High-performance metrics collector
@@ -149,6 +193,12 @@ pub struct MetricsCollector {
     pub headroom_compressed_bytes_total: AtomicU64,
     pub headroom_mcp_pruned_tools_total: AtomicU64,
 
+    // 3.2 Per-Layer Savings & Per-Agent Attribution (tokview)
+    pub rtk_tokens_saved_total: AtomicU64,
+    pub headroom_tokens_saved_total: AtomicU64,
+    pub caveman_tokens_saved_total: AtomicU64,
+    pub agent_tokens_saved: RwLock<HashMap<String, u64>>,
+
     // 4. Costs & ROI (stored in micro-USD for lock-free atomic arithmetic)
     pub cost_usd_micros: AtomicU64,
     pub cost_savings_usd_micros: AtomicU64,
@@ -170,6 +220,16 @@ pub struct MetricsCollector {
     pub overhead_compression_seconds: AtomicHistogram,
     pub overhead_rule_injection_seconds: AtomicHistogram,
     pub overhead_mcp_pruning_seconds: AtomicHistogram,
+
+    // 8. TokenSpeed (TTFT/TPOT), vmon/cuda-rust GPU, & Phoenix OpenInference Spans
+    pub ttft_seconds: AtomicHistogram,
+    pub tpot_seconds: AtomicHistogram,
+    pub last_ttft_micros: AtomicU64,
+    pub last_tpot_micros: AtomicU64,
+    pub gpu_utilization_bps: AtomicU64,
+    pub gpu_memory_used_bytes: AtomicU64,
+    pub gpu_memory_total_bytes: AtomicU64,
+    pub openinference_spans_total: AtomicU64,
 }
 
 impl MetricsCollector {
@@ -195,6 +255,11 @@ impl MetricsCollector {
             headroom_compressed_bytes_total: AtomicU64::new(0),
             headroom_mcp_pruned_tools_total: AtomicU64::new(0),
 
+            rtk_tokens_saved_total: AtomicU64::new(0),
+            headroom_tokens_saved_total: AtomicU64::new(0),
+            caveman_tokens_saved_total: AtomicU64::new(0),
+            agent_tokens_saved: RwLock::new(HashMap::new()),
+
             cost_usd_micros: AtomicU64::new(0),
             cost_savings_usd_micros: AtomicU64::new(0),
 
@@ -212,6 +277,15 @@ impl MetricsCollector {
             overhead_compression_seconds: AtomicHistogram::new(&[0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01]),
             overhead_rule_injection_seconds: AtomicHistogram::new(&[0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01]),
             overhead_mcp_pruning_seconds: AtomicHistogram::new(&[0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01]),
+
+            ttft_seconds: AtomicHistogram::new(&LATENCY_BUCKETS),
+            tpot_seconds: AtomicHistogram::new(&[0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5]),
+            last_ttft_micros: AtomicU64::new(0),
+            last_tpot_micros: AtomicU64::new(0),
+            gpu_utilization_bps: AtomicU64::new(0),
+            gpu_memory_used_bytes: AtomicU64::new(0),
+            gpu_memory_total_bytes: AtomicU64::new(0),
+            openinference_spans_total: AtomicU64::new(0),
         }
     }
 
@@ -325,6 +399,11 @@ impl MetricsCollector {
         if let Ok(mut map) = self.tokens_saved_total.write() {
             *map.entry(tok_key).or_insert(0) += tokens_saved;
         }
+        if tokens_saved > 0 {
+            if let Ok(mut per_agent) = self.agent_tokens_saved.write() {
+                *per_agent.entry(agent.to_string()).or_insert(0) += tokens_saved;
+            }
+        }
 
         // Costs & ROI
         let spend = calculate_cost(model, input_tokens, output_tokens, cached_tokens);
@@ -341,6 +420,51 @@ impl MetricsCollector {
         self.headroom_raw_bytes_total.fetch_add(raw_bytes as u64, Ordering::Relaxed);
         self.headroom_compressed_bytes_total.fetch_add(compressed_bytes as u64, Ordering::Relaxed);
         self.headroom_mcp_pruned_tools_total.fetch_add(pruned_tools as u64, Ordering::Relaxed);
+        let byte_diff = raw_bytes.saturating_sub(compressed_bytes) as u64 / 4;
+        let tool_tokens = (pruned_tools as u64).saturating_mul(180);
+        let saved = byte_diff.saturating_add(tool_tokens);
+        if saved > 0 {
+            self.headroom_tokens_saved_total.fetch_add(saved, Ordering::Relaxed);
+        }
+    }
+
+    /// Record ground-truth per-layer savings ("rtk", "headroom", or "caveman")
+    pub fn record_layer_savings(&self, layer: &str, tokens_saved: u64) {
+        match layer {
+            "rtk" => {
+                self.rtk_tokens_saved_total.fetch_add(tokens_saved, Ordering::Relaxed);
+            }
+            "headroom" => {
+                self.headroom_tokens_saved_total.fetch_add(tokens_saved, Ordering::Relaxed);
+            }
+            "caveman" => {
+                self.caveman_tokens_saved_total.fetch_add(tokens_saved, Ordering::Relaxed);
+            }
+            _ => {
+                self.headroom_tokens_saved_total.fetch_add(tokens_saved, Ordering::Relaxed);
+            }
+        }
+    }
+
+    /// Record TokenSpeed TTFT / TPOT measurements
+    pub fn record_tokenspeed(&self, ttft_secs: f64, tpot_secs: f64) {
+        self.ttft_seconds.observe(ttft_secs);
+        self.tpot_seconds.observe(tpot_secs);
+        self.last_ttft_micros.store((ttft_secs * 1_000_000.0) as u64, Ordering::Relaxed);
+        self.last_tpot_micros.store((tpot_secs * 1_000_000.0) as u64, Ordering::Relaxed);
+    }
+
+    /// Record vmon / cuda-rust GPU telemetry sample
+    pub fn record_gpu_sample(&self, utilization_pct: f64, memory_used_bytes: u64, memory_total_bytes: u64) {
+        let bps = (utilization_pct.clamp(0.0, 100.0) * 100.0) as u64;
+        self.gpu_utilization_bps.store(bps, Ordering::Relaxed);
+        self.gpu_memory_used_bytes.store(memory_used_bytes, Ordering::Relaxed);
+        self.gpu_memory_total_bytes.store(memory_total_bytes, Ordering::Relaxed);
+    }
+
+    /// Record Phoenix OpenInference span emission
+    pub fn record_openinference_span(&self) {
+        self.openinference_spans_total.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Record internal Toksi overhead latency breakdown
@@ -470,8 +594,80 @@ impl MetricsCollector {
             } => {
                 self.record_headroom_reduction(raw_bytes, compressed_bytes, pruned_tools);
             }
+            TelemetryEvent::LayerSavings { layer, tokens_saved } => {
+                self.record_layer_savings(&layer, tokens_saved);
+            }
+            TelemetryEvent::TokenSpeed { ttft_secs, tpot_secs } => {
+                self.record_tokenspeed(ttft_secs, tpot_secs);
+            }
+            TelemetryEvent::GpuSample {
+                utilization_pct,
+                memory_used_bytes,
+                memory_total_bytes,
+            } => {
+                self.record_gpu_sample(utilization_pct, memory_used_bytes, memory_total_bytes);
+            }
+            TelemetryEvent::OpenInferenceSpan { .. } => {
+                self.record_openinference_span();
+            }
         }
     }
+}
+
+/// Builds a ground-truth `DashboardSnapshot` from a `MetricsCollector` without blocking.
+pub fn snapshot_from_collector(c: &MetricsCollector) -> DashboardSnapshot {
+    let tokens_saved_lifetime: u64 = c.tokens_saved_total.read().map(|m| m.values().sum()).unwrap_or(0);
+    let total_calls: u64 = c.upstream_requests_total.read().map(|m| m.values().sum()).unwrap_or(0);
+    let input_tokens: u64 = c.input_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
+    let output_tokens: u64 = c.output_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
+    let cached_tokens: u64 = c.cached_tokens_total.read().map(|m| m.values().sum()).unwrap_or(0);
+    let per_agent_saved = c.agent_tokens_saved.read().map(|m| m.clone()).unwrap_or_default();
+
+    DashboardSnapshot {
+        tokens_saved_lifetime,
+        rtk_tokens_saved: c.rtk_tokens_saved_total.load(Ordering::Relaxed),
+        headroom_tokens_saved: c.headroom_tokens_saved_total.load(Ordering::Relaxed),
+        caveman_tokens_saved: c.caveman_tokens_saved_total.load(Ordering::Relaxed),
+        cost_saved_usd: c.cost_savings_usd_micros.load(Ordering::Relaxed) as f64 / 1_000_000.0,
+        cost_spent_usd: c.cost_usd_micros.load(Ordering::Relaxed) as f64 / 1_000_000.0,
+        total_calls,
+        input_tokens,
+        output_tokens,
+        cached_tokens,
+        active_requests: c.active_requests.load(Ordering::Relaxed),
+        cache_hits_direct: c.cache_hits_direct.load(Ordering::Relaxed),
+        cache_hits_semantic: c.cache_hits_semantic.load(Ordering::Relaxed),
+        cache_misses: c.cache_misses_total.load(Ordering::Relaxed),
+        ttft_ms: c.last_ttft_micros.load(Ordering::Relaxed) as f64 / 1_000.0,
+        tpot_ms: c.last_tpot_micros.load(Ordering::Relaxed) as f64 / 1_000.0,
+        gpu_utilization_pct: c.gpu_utilization_bps.load(Ordering::Relaxed) as f64 / 100.0,
+        gpu_memory_used_bytes: c.gpu_memory_used_bytes.load(Ordering::Relaxed),
+        gpu_memory_total_bytes: c.gpu_memory_total_bytes.load(Ordering::Relaxed),
+        openinference_spans_total: c.openinference_spans_total.load(Ordering::Relaxed),
+        per_agent_saved,
+    }
+}
+
+static SNAPSHOT_WATCH: OnceLock<watch::Sender<DashboardSnapshot>> = OnceLock::new();
+
+fn snapshot_sender() -> &'static watch::Sender<DashboardSnapshot> {
+    SNAPSHOT_WATCH.get_or_init(|| {
+        let (tx, _rx) = watch::channel(snapshot_from_collector(global_collector()));
+        tx
+    })
+}
+
+/// Subscribe to non-blocking `DashboardSnapshot` updates for the TUI and Web Cockpit.
+pub fn subscribe_dashboard_snapshot() -> watch::Receiver<DashboardSnapshot> {
+    let tx = snapshot_sender();
+    publish_dashboard_snapshot();
+    tx.subscribe()
+}
+
+/// Publish the latest ground-truth `DashboardSnapshot` to all active `watch::Receiver`s.
+pub fn publish_dashboard_snapshot() {
+    let snap = snapshot_from_collector(global_collector());
+    let _ = snapshot_sender().send(snap);
 }
 
 /// Global singleton metrics collector
@@ -499,6 +695,7 @@ pub fn try_send_telemetry_event(event: TelemetryEvent) -> bool {
         }
     }
     global_collector().ingest_event(event);
+    publish_dashboard_snapshot();
     true
 }
 
@@ -513,6 +710,7 @@ pub fn init_async_collector(capacity: usize) -> mpsc::Sender<TelemetryEvent> {
     tokio::spawn(async move {
         while let Some(event) = rx.recv().await {
             global_collector().ingest_event(event);
+            publish_dashboard_snapshot();
         }
     });
 

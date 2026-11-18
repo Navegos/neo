@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/tests/phase12_tui_dashboard_verification.rs
 // created: 2026-10-31
-// lastModified: 2026-11-09
+// lastModified: 2026-11-18
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -39,17 +39,25 @@ fn test_phase12_tui_initialization_and_tabs() {
 
     let app = App::new();
     assert_eq!(app.current_tab, 0);
-    assert_eq!(app.tab_names.len(), 7);
+    assert_eq!(app.tab_names.len(), 9);
+    assert_eq!(app.tab_names[0], "Savings");
+    assert_eq!(app.tab_names[1], "The War Room");
+    assert_eq!(app.tab_names[2], "AI Agent Fleet & Quotas");
+    assert_eq!(app.tab_names[3], "Memory Decision DAG");
+    assert_eq!(app.tab_names[4], "CodeGraph Explorer");
+    assert_eq!(app.tab_names[5], "Sandbox Inspector");
+    assert_eq!(app.tab_names[6], "System Controls");
+    assert_eq!(app.tab_names[7], "AI Gateway & Quotas");
+    assert_eq!(app.tab_names[8], "Keyring & Database");
     assert!(!app.should_quit);
 
-    // Tab 1: Live Monitor & Waterfall (Ground-truth session accounting)
+    // Tab 1: Savings & Waterfall (Ground-truth session accounting)
     assert!(!app.monitor.waterfall.is_empty(), "Waterfall items must be populated");
     assert!(app.monitor.tokens_saved_lifetime >= 0);
     assert!(app.monitor.cost_saved_usd >= 0.0);
     assert!(app.monitor.compression_pct >= 0.0);
 
-    // Tab 2: Agent Wire Manager (supported agents fleet)
-    assert!(app.agents.items.len() >= 17, "Must contain all supported agents");
+    // Tab 3: AI Agent Fleet & Quotas (configured-only; validate schema if populated)
     for agent in &app.agents.items {
         assert!(!agent.id.is_empty());
         assert!(!agent.label.is_empty());
@@ -64,9 +72,9 @@ fn test_phase12_tui_initialization_and_tabs() {
     assert!(!app.graph.symbols.is_empty(), "CodeGraph symbols must be populated");
     assert!(app.graph.total_symbols > 0);
 
-    // Tab 5: Headroom BYOK & Cache Inspector
+    // Tab 8: AI Gateway & Quotas (Headroom BYOK & Cache Inspector; configured-only routes)
     assert!(app.headroom.cache_alignment_pct > 0.0);
-    assert!(!app.headroom.routes.is_empty(), "BYOK routes must be populated");
+    assert_eq!(app.headroom.byok_port, toksi::config::resolved_ports().byok_gateway);
 
     // Tab 6: Diagnostic Logs
     assert!(!app.logs.entries.is_empty(), "Diagnostic logs must have initial entries");
@@ -97,19 +105,20 @@ fn test_phase12_tui_navigation_and_interactions() {
     app.handle_key(press_key(KeyCode::Char('1')));
     assert_eq!(app.current_tab, 0); // Tab 1: Monitor
 
-    // 2. Agents tab: inspect modal & toggle wire
-    app.current_tab = 1;
-    app.handle_key(press_key(KeyCode::Enter));
-    assert!(app.agents.inspect_mcp.is_some(), "Enter opens MCP modal");
-    app.handle_key(press_key(KeyCode::Esc));
-    assert!(app.agents.inspect_mcp.is_none(), "Esc closes modal");
+    // 2. Agents tab (Tab 3 = index 2): inspect modal & toggle wire (when configured agents exist)
+    app.current_tab = 2;
+    if !app.agents.items.is_empty() {
+        app.handle_key(press_key(KeyCode::Enter));
+        assert!(app.agents.inspect_mcp.is_some(), "Enter opens MCP modal");
+        app.handle_key(press_key(KeyCode::Esc));
+        assert!(app.agents.inspect_mcp.is_none(), "Esc closes modal");
 
-    let prev_wired = app.agents.items[app.agents.selected].wired;
-    app.handle_key(press_key(KeyCode::Char(' ')));
-    assert_ne!(app.agents.items[app.agents.selected].wired, prev_wired, "Space toggles wire");
-    // Toggle back
-    app.handle_key(press_key(KeyCode::Char(' ')));
-    assert_eq!(app.agents.items[app.agents.selected].wired, prev_wired);
+        let prev_wired = app.agents.items[app.agents.selected].wired;
+        app.handle_key(press_key(KeyCode::Char(' ')));
+        assert_ne!(app.agents.items[app.agents.selected].wired, prev_wired, "Space toggles wire");
+        app.handle_key(press_key(KeyCode::Char(' ')));
+        assert_eq!(app.agents.items[app.agents.selected].wired, prev_wired);
+    }
 
     // 3. Memory tab: filter cycling, search, precheck modal
     app.current_tab = 3;
@@ -139,8 +148,8 @@ fn test_phase12_tui_navigation_and_interactions() {
     app.handle_key(press_key(KeyCode::Char('b')));
     assert_ne!(app.graph.show_tree_view, prev_tree, "'b' toggles blast radius tree");
 
-    // 5. Headroom tab (Tab 2): cache alignment test
-    app.current_tab = 2;
+    // 5. AI Gateway & Quotas tab (Tab 8 = index 7): cache alignment test
+    app.current_tab = 7;
     app.handle_key(press_key(KeyCode::Char('c')));
     assert!(app.status_message.as_ref().map(|s| s.contains("aligned to 1024")).unwrap_or(false));
 
@@ -271,6 +280,7 @@ async fn test_phase12_dashboard_http_server_and_sse() {
 
         let base_url = format!("http://127.0.0.1:{}", port);
         let client = reqwest::Client::builder()
+            .no_proxy()
             .timeout(Duration::from_millis(1500))
             .build()
             .unwrap();

@@ -322,12 +322,11 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/agent-manager
 <neo>/inspect-vault/unsloth
 <neo>/inspect-vault/unsloth-studio
-
-deer-flow
-openworker
-dsh-superagent
-openai-agents-python
-
+<neo>/inspect-vault/deer-flow
+<neo>/inspect-vault/openworker
+<neo>/inspect-vault/dsh-superagent
+<neo>/inspect-vault/openai-agents-python
+<neo>/inspect-vault/ChatDev
 }
 
 Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.

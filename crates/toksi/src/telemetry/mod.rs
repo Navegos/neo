@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/telemetry/mod.rs
 // created: 2026-10-31
-// lastModified: 2026-11-09
+// lastModified: 2026-11-18
+
+#![deny(unsafe_code)]
 
 pub mod collector;
 pub mod cost;
@@ -14,8 +16,9 @@ pub mod tracker;
 pub mod tests;
 
 pub use collector::{
-    async_metrics_sender, global_collector, init_async_collector, try_send_telemetry_event,
-    MetricsCollector, TelemetryEvent, DEFAULT_TELEMETRY_CHANNEL_CAPACITY,
+    async_metrics_sender, global_collector, init_async_collector, publish_dashboard_snapshot,
+    snapshot_from_collector, subscribe_dashboard_snapshot, try_send_telemetry_event,
+    DashboardSnapshot, MetricsCollector, TelemetryEvent, DEFAULT_TELEMETRY_CHANNEL_CAPACITY,
 };
 pub use cost::{calculate_cost, calculate_savings, lookup_pricing, CostTracker, ModelPricing};
 pub use prometheus::{render_metrics, render_metrics_from, run_prometheus_server};

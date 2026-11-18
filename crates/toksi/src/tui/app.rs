@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/app.rs
 // created: 2026-10-30
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 use std::env;
 use std::fs;
@@ -249,13 +249,45 @@ pub struct GovernanceState {
     pub circuit_breaker_trips: u32,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct WarRoomState {
+    pub ttft_ms: f64,
+    pub tpot_ms: f64,
+    pub openinference_spans: u64,
+    pub gpu_utilization_pct: f64,
+    pub gpu_memory_used_bytes: u64,
+    pub gpu_memory_total_bytes: u64,
+    pub active_requests: i64,
+    pub input_tokens: u64,
+    pub pruning_tier: String,
+    pub cache_hits_direct: u64,
+    pub cache_hits_semantic: u64,
+    pub cache_misses: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct SandboxAuditEvent {
+    pub timestamp: String,
+    pub source: String,
+    pub summary: String,
+    pub verdict: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SandboxState {
+    pub fail_closed: bool,
+    pub kill_switch_armed: bool,
+    pub active_backend: String,
+    pub audit_events: Vec<SandboxAuditEvent>,
+}
+
 // -----------------------------------------------------------------------------
 // App State Container
 // -----------------------------------------------------------------------------
 
 pub struct App {
     pub current_tab: usize,
-    pub tab_names: [&'static str; 7],
+    pub tab_names: [&'static str; 9],
     pub should_quit: bool,
     pub cwd_display: String,
     pub status_message: Option<String>,
@@ -265,12 +297,15 @@ pub struct App {
     pub proxy_live_flag: Arc<AtomicBool>,
     pub shutdown_flag: Arc<AtomicBool>,
     pub log_file_offset: u64,
+    pub snapshot_rx: tokio::sync::watch::Receiver<crate::telemetry::DashboardSnapshot>,
 
     pub monitor: MonitorState,
+    pub warroom: WarRoomState,
     pub agents: AgentsState,
     pub headroom: HeadroomState,
     pub memory: MemoryState,
     pub graph: GraphState,
+    pub sandbox: SandboxState,
     pub governance: GovernanceState,
     pub logs: LogsState,
 }
@@ -322,13 +357,15 @@ impl App {
         let mut app = Self {
             current_tab: 0,
             tab_names: [
-                "1: Live Monitor & Waterfall",
-                "2: Agent Wire Manager",
-                "3: Gateway & Provider Keys",
-                "4: Memory Explorer",
-                "5: CodeGraph Visualizer",
-                "6: Governance & Quotas",
-                "7: Diagnostic Logs",
+                "Savings",
+                "The War Room",
+                "AI Agent Fleet & Quotas",
+                "Memory Decision DAG",
+                "CodeGraph Explorer",
+                "Sandbox Inspector",
+                "System Controls",
+                "AI Gateway & Quotas",
+                "Keyring & Database",
             ],
             should_quit: false,
             cwd_display: cwd,
@@ -338,6 +375,7 @@ impl App {
             proxy_live_flag,
             shutdown_flag,
             log_file_offset: 0,
+            snapshot_rx: crate::telemetry::subscribe_dashboard_snapshot(),
 
             monitor: MonitorState {
                 proxy_up: false,
@@ -351,6 +389,11 @@ impl App {
                 cache_warmth_pct,
                 sparkline_data: if live_tokens_saved > 0 { vec![live_tokens_saved / 10] } else { Vec::new() },
                 waterfall: Vec::new(),
+            },
+
+            warroom: WarRoomState {
+                pruning_tier: "Standard".to_string(),
+                ..Default::default()
             },
 
             agents: AgentsState {
@@ -387,9 +430,16 @@ impl App {
                 active_memory_tier: "L1 (Abstract)".to_string(),
                 rate_limit_429_count: 2,
                 reroute_count: 1,
-                byok_port: 8788,
+                byok_port: crate::config::resolved_ports().byok_gateway,
                 routes: Vec::new(),
                 selected_route: 0,
+            },
+
+            sandbox: SandboxState {
+                fail_closed: true,
+                kill_switch_armed: true,
+                active_backend: "3-OS Native".to_string(),
+                audit_events: Vec::new(),
             },
 
             governance: GovernanceState {
@@ -490,12 +540,56 @@ impl App {
 
         self.monitor.proxy_up = self.proxy_live_flag.load(Ordering::Relaxed);
 
+        // Non-blocking watch::Receiver snapshot update (<1 µs)
+        if self.snapshot_rx.has_changed().unwrap_or(false) {
+            let snap = self.snapshot_rx.borrow_and_update().clone();
+            self.apply_snapshot(&snap);
+        }
+
         // Periodic light refresh every ~1 sec (60 ticks)
         if self.ticks_counter % 60 == 0 {
             self.monitor.daemon_up = is_daemon_running();
             self.refresh_monitor_stats();
             self.poll_new_logs();
         }
+    }
+
+    pub fn apply_snapshot(&mut self, snap: &crate::telemetry::DashboardSnapshot) {
+        self.monitor.tokens_saved_lifetime = snap.tokens_saved_lifetime as i64;
+        self.monitor.tokens_saved_today = snap.tokens_saved_lifetime as i64;
+        self.monitor.tokens_saved_7d = snap.tokens_saved_lifetime as i64;
+        self.monitor.cost_saved_usd = (snap.cost_saved_usd * 100.0).round() / 100.0;
+        self.monitor.total_calls = snap.total_calls as i64;
+        if snap.tokens_saved_lifetime > 0 || snap.total_calls > 0 {
+            self.monitor.compression_pct =
+                (snap.tokens_saved_lifetime as f64 / (snap.input_tokens + snap.tokens_saved_lifetime).max(1) as f64) * 100.0;
+            self.monitor.cache_warmth_pct = if snap.input_tokens > 0 {
+                (snap.cached_tokens as f64 / snap.input_tokens as f64) * 100.0
+            } else {
+                0.0
+            };
+        } else {
+            self.monitor.compression_pct = 0.0;
+            self.monitor.cache_warmth_pct = 0.0;
+        }
+        self.warroom.ttft_ms = snap.ttft_ms;
+        self.warroom.tpot_ms = snap.tpot_ms;
+        self.warroom.openinference_spans = snap.openinference_spans_total;
+        self.warroom.gpu_utilization_pct = snap.gpu_utilization_pct;
+        self.warroom.gpu_memory_used_bytes = snap.gpu_memory_used_bytes;
+        self.warroom.gpu_memory_total_bytes = snap.gpu_memory_total_bytes;
+        self.warroom.active_requests = snap.active_requests;
+        self.warroom.input_tokens = snap.input_tokens;
+        self.warroom.cache_hits_direct = snap.cache_hits_direct;
+        self.warroom.cache_hits_semantic = snap.cache_hits_semantic;
+        self.warroom.cache_misses = snap.cache_misses;
+        self.warroom.pruning_tier = if snap.input_tokens > 150_000 {
+            "Aggressive (200k limit)".to_string()
+        } else if snap.input_tokens > 80_000 {
+            "Moderate".to_string()
+        } else {
+            "Standard".to_string()
+        };
     }
 
     pub fn refresh_monitor_stats(&mut self) {
@@ -536,7 +630,8 @@ impl App {
     // -------------------------------------------------------------------------
 
     fn init_waterfall_samples(&mut self) {
-        if self.monitor.total_calls == 0 {
+        let sessions = crate::telemetry::tokentracker::global_token_tracker().get_recent_sessions();
+        if sessions.is_empty() && self.monitor.total_calls == 0 {
             self.monitor.waterfall = vec![
                 WaterfallItem {
                     time: "Ready".into(),
@@ -551,58 +646,43 @@ impl App {
             ];
             return;
         }
-        self.monitor.waterfall = vec![
-            WaterfallItem {
-                time: "19:28:10".into(),
-                agent: "Claude Code".into(),
-                endpoint: "POST /v1/messages (claude-3-7)".into(),
-                raw_tokens: 62_400,
-                compressed_tokens: 19_800,
-                savings_pct: 68.2,
-                pipeline: "RTK + Headroom-Log + AST-Prune".into(),
-                saved_usd: 0.639,
-            },
-            WaterfallItem {
-                time: "19:28:22".into(),
-                agent: "Cursor".into(),
-                endpoint: "POST /v1/chat/completions (gpt-4o)".into(),
-                raw_tokens: 24_100,
-                compressed_tokens: 7_200,
-                savings_pct: 70.1,
-                pipeline: "RTK + 1024-CacheAlign (Hit 91%)".into(),
-                saved_usd: 0.169,
-            },
-            WaterfallItem {
-                time: "19:28:45".into(),
-                agent: "Antigravity".into(),
-                endpoint: "POST /v1/models/gemini-2.0-flash".into(),
-                raw_tokens: 18_500,
-                compressed_tokens: 5_100,
-                savings_pct: 72.4,
-                pipeline: "Caveman + L1 Memory Injected".into(),
-                saved_usd: 0.013,
-            },
-            WaterfallItem {
-                time: "19:29:04".into(),
-                agent: "OpenCode".into(),
-                endpoint: "POST /v1/messages (deepseek-r1)".into(),
-                raw_tokens: 35_800,
-                compressed_tokens: 11_200,
-                savings_pct: 68.7,
-                pipeline: "JSON-Minify + RTK Cargo Filter".into(),
-                saved_usd: 0.049,
-            },
-            WaterfallItem {
-                time: "19:29:19".into(),
-                agent: "Codex".into(),
-                endpoint: "POST /v1/chat/completions (o3-mini)".into(),
-                raw_tokens: 42_000,
-                compressed_tokens: 12_800,
-                savings_pct: 69.5,
-                pipeline: "AST Code Compression + RTK".into(),
-                saved_usd: 0.087,
-            },
-        ];
+        if sessions.is_empty() {
+            self.monitor.waterfall = vec![WaterfallItem {
+                time: "Live".into(),
+                agent: "Gateway".into(),
+                endpoint: format!(":{}", crate::config::resolved_ports().ai_gateway),
+                raw_tokens: self.warroom.input_tokens as i64 + self.monitor.tokens_saved_lifetime,
+                compressed_tokens: self.warroom.input_tokens as i64,
+                savings_pct: self.monitor.compression_pct,
+                pipeline: "HeadroomEffortCompressor".into(),
+                saved_usd: self.monitor.cost_saved_usd,
+            }];
+            return;
+        }
+        self.monitor.waterfall = sessions
+            .into_iter()
+            .rev()
+            .take(20)
+            .map(|s| {
+                let raw = s.input_tokens.saturating_add(s.saved_tokens) as i64;
+                let compressed = s.input_tokens as i64;
+                let pct = if raw > 0 {
+                    (s.saved_tokens as f64 / raw as f64) * 100.0
+                } else {
+                    0.0
+                };
+                WaterfallItem {
+                    time: format!("{}ms", s.duration_ms),
+                    agent: s.agent,
+                    endpoint: format!("{}:{}", s.provider, s.model),
+                    raw_tokens: raw,
+                    compressed_tokens: compressed,
+                    savings_pct: pct,
+                    pipeline: "HeadroomEffortCompressor".into(),
+                    saved_usd: s.saved_usd,
+                }
+            })
+            .collect();
     }
 
     pub fn reload_services(&mut self) {
@@ -1137,18 +1217,35 @@ impl App {
             KeyCode::Char('5') => { self.current_tab = 4; return; }
             KeyCode::Char('6') => { self.current_tab = 5; return; }
             KeyCode::Char('7') => { self.current_tab = 6; return; }
+            KeyCode::Char('8') => { self.current_tab = 7; return; }
+            KeyCode::Char('9') => { self.current_tab = 8; return; }
             _ => {}
         }
 
         // Tab-Specific Key Handlers
         match self.current_tab {
             0 => self.handle_monitor_key(key),
-            1 => self.handle_agents_key(key),
-            2 => self.handle_headroom_key(key),
+            1 => {
+                if matches!(key.code, KeyCode::Char('r')) {
+                    self.refresh_monitor_stats();
+                    self.set_status("Refreshed War Room snapshot");
+                }
+            }
+            2 => self.handle_agents_key(key),
             3 => self.handle_memory_key(key),
             4 => self.handle_graph_key(key),
-            5 => self.handle_governance_key(key),
+            5 => {
+                if matches!(key.code, KeyCode::Char('f')) {
+                    self.sandbox.fail_closed = !self.sandbox.fail_closed;
+                    self.set_status(&format!(
+                        "DefenseClaw HookGuard set to {}",
+                        if self.sandbox.fail_closed { "FAIL-CLOSED" } else { "PERMISSIVE" }
+                    ));
+                }
+            }
             6 => self.handle_logs_key(key),
+            7 => self.handle_headroom_key(key),
+            8 => self.handle_governance_key(key),
             _ => {}
         }
     }
@@ -1448,6 +1545,9 @@ impl App {
                 }
             }
             1 => {
+                // War Room tab
+            }
+            2 => {
                 // Agents tab: rows start around row 7
                 if row >= 7 {
                     let clicked_index = (row - 7) as usize;
@@ -1457,8 +1557,8 @@ impl App {
                     }
                 }
             }
-            2 => {
-                // Headroom / BYOK tab: routes table starts around row 20
+            7 => {
+                // AI Gateway & Quotas (Headroom / BYOK) tab: routes table starts around row 21
                 let table_top = 21;
                 if row >= table_top {
                     let clicked_index = (row - table_top) as usize;
@@ -1509,8 +1609,8 @@ impl App {
                     }
                 }
             }
-            5 => {
-                // Governance tab: keys table starts around row 11
+            8 => {
+                // Keyring & Database (Governance) tab: keys table starts around row 11
                 if row >= 11 && row < 11 + self.governance.keys.len() as u16 {
                     let clicked_index = (row - 11) as usize;
                     if clicked_index < self.governance.keys.len() {
@@ -1520,7 +1620,7 @@ impl App {
                 }
             }
             6 => {
-                // Logs tab: source pills on row 4
+                // System Controls / Logs tab: source pills on row 4
                 if row == 4 {
                     if col < 18 {
                         self.logs.source = LogSource::All;
@@ -1555,6 +1655,11 @@ impl App {
                 }
             }
             1 => {
+                // War Room: [Refresh Snapshot] [Reset Circuit]
+                self.refresh_monitor_stats();
+                self.set_status("Refreshed War Room telemetry snapshot");
+            }
+            2 => {
                 // Agents: [Wire/Unwire Agent] [Inspect MCP] [Rescan Fleet]
                 if col < 26 {
                     self.toggle_agent_wire();
@@ -1562,11 +1667,11 @@ impl App {
                     self.inspect_agent_mcp();
                 } else if col < 72 {
                     self.reload_agents();
-                    self.set_status("Rescanned all 17 agent harnesses");
+                    self.set_status("Rescanned configured agent harnesses");
                 }
             }
-            2 => {
-                // Headroom: [Test Cache Align] [Reload Routes]
+            7 => {
+                // AI Gateway & Quotas: [Test Cache Align] [Reload Routes]
                 if col < 24 {
                     let sample_prompt = "You are a helpful coding assistant. Implement the requested function.";
                     let aligned = crate::headroom::cache_align::align_to_1024_tokens(sample_prompt);
@@ -1575,6 +1680,18 @@ impl App {
                 } else if col < 46 {
                     self.reload_headroom();
                     self.set_status("Reloaded BYOK routes and provider statuses");
+                }
+            }
+            5 => {
+                // Sandbox Inspector
+                if col < 30 {
+                    self.set_status("ContextMode sandbox health verified");
+                } else {
+                    self.sandbox.fail_closed = !self.sandbox.fail_closed;
+                    self.set_status(&format!(
+                        "DefenseClaw HookGuard: {}",
+                        if self.sandbox.fail_closed { "FAIL-CLOSED" } else { "PERMISSIVE" }
+                    ));
                 }
             }
             3 => {
@@ -1610,8 +1727,8 @@ impl App {
                     self.set_status("Reindexed project Tree-sitter AST symbols");
                 }
             }
-            5 => {
-                // Governance: [Reset Windows] [Clear Breakers]
+            8 => {
+                // Keyring & Database / Governance: [Reset Windows] [Clear Breakers]
                 if col < 26 {
                     self.set_status("Rate-limit sliding windows reset for all virtual keys");
                 } else if col < 52 {

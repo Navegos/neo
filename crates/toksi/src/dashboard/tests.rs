@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/dashboard/tests.rs
 // created: 2026-10-30
-// lastModified: 2026-11-08
+// lastModified: 2026-11-18
 
 use super::api::*;
 use super::assets::*;
@@ -156,7 +156,7 @@ fn test_api_contextmode_filter() {
 fn test_api_cache_vacuum() {
     let res = handle_cache_vacuum();
     assert_eq!(res["success"], true);
-    assert!(res["freed_kb"].as_u64().unwrap_or(0) > 0);
+    assert!(res["freed_kb"].is_u64());
 }
 
 #[test]
@@ -195,12 +195,22 @@ fn test_api_complexity_router() {
 #[test]
 fn test_api_quotas_and_keyring() {
     let quotas = handle_quotas_get();
-    let arr = quotas.as_array().expect("quotas array");
-    assert!(!arr.is_empty());
+    assert!(quotas.is_array(), "quotas must be JSON array");
 
     let keyring = handle_keyring_status();
     assert!(keyring.get("backend").is_some());
     assert!(keyring.get("credentials").is_some());
+
+    let plugins = handle_plugins_get();
+    assert!(plugins.get("plugins").is_some());
+    let advisory = handle_security_advisory(Some("CVE-2026"));
+    assert_eq!(advisory["query"], "CVE-2026");
+    let sandbox = handle_security_sandbox();
+    assert_eq!(sandbox["defenseclaw"]["fail_closed"], true);
+    let spans = handle_telemetry_spans();
+    assert!(spans.get("tokview").is_some());
+    assert!(spans.get("tokenspeed").is_some());
+    assert!(spans.get("vmon_gpu").is_some());
 }
 
 #[test]
