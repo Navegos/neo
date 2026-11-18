@@ -3,9 +3,9 @@
 // project: neo
 // file: crates/toksi/src/contextmode/fetch.rs
 // created: 2026-10-27
-// lastModified: 2026-11-08
+// lastModified: 2026-11-18
 
-use std::net::IpAddr;
+use std::net::{IpAddr, ToSocketAddrs};
 use std::sync::Arc;
 use std::time::Duration;
 use regex::Regex;
@@ -52,7 +52,52 @@ pub fn compose_fetch_cache_key(source: Option<&str>, url: &str) -> String {
     }
 }
 
+/// Checks whether an environment proxy (`HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`) applies to `url`
+/// (and is not excluded by `NO_PROXY`/`no_proxy`).
+/// Per #1403: a proxy from env is where the socket goes, not an SSRF target.
+pub fn has_env_proxy_for_url(parsed: &Url) -> bool {
+    let scheme = parsed.scheme();
+    let proxy_val = match scheme {
+        "https" => std::env::var("HTTPS_PROXY")
+            .or_else(|_| std::env::var("https_proxy"))
+            .or_else(|_| std::env::var("ALL_PROXY"))
+            .or_else(|_| std::env::var("all_proxy")),
+        "http" => std::env::var("HTTP_PROXY")
+            .or_else(|_| std::env::var("http_proxy"))
+            .or_else(|_| std::env::var("ALL_PROXY"))
+            .or_else(|_| std::env::var("all_proxy")),
+        _ => return false,
+    };
+    let Ok(proxy) = proxy_val else {
+        return false;
+    };
+    if proxy.trim().is_empty() {
+        return false;
+    }
+
+    if let Ok(no_proxy) = std::env::var("NO_PROXY").or_else(|_| std::env::var("no_proxy")) {
+        if let Some(host) = parsed.host_str() {
+            let host_lower = host.to_ascii_lowercase();
+            for entry in no_proxy.split(',').map(|s| s.trim().to_ascii_lowercase()) {
+                if entry.is_empty() {
+                    continue;
+                }
+                if entry == "*" || host_lower == entry {
+                    return false;
+                }
+                let suffix = entry.strip_prefix('.').unwrap_or(&entry);
+                if host_lower.ends_with(&format!(".{}", suffix)) {
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
+
 /// SSRF security guard. Blocks private, link-local, loopback, and metadata endpoints.
+/// Per #1403: checks the target URL on every hop (including through an env proxy);
+/// env proxies themselves are not treated as SSRF targets.
 pub fn ssrf_guard(target_url: &str) -> Result<Url, String> {
     let parsed = Url::parse(target_url).map_err(|e| format!("Invalid URL: {}", e))?;
     let scheme = parsed.scheme();
@@ -82,6 +127,18 @@ pub fn ssrf_guard(target_url: &str) -> Result<Url, String> {
             };
             if bare.parse::<IpAddr>().is_ok_and(is_private_or_restricted_ip) {
                 return Err(format!("SSRF block: private/internal IP address '{}' is forbidden", bare));
+            }
+            let port = parsed.port_or_known_default().unwrap_or(80);
+            if let Ok(addrs) = (bare, port).to_socket_addrs() {
+                for addr in addrs {
+                    if is_private_or_restricted_ip(addr.ip()) {
+                        return Err(format!(
+                            "SSRF block: hostname '{}' resolved to private/internal IP '{}'",
+                            bare,
+                            addr.ip()
+                        ));
+                    }
+                }
             }
         }
         None => return Err("SSRF block: missing hostname".to_string()),
@@ -339,8 +396,10 @@ impl WebFetcher {
         let effective_ttl = ttl_ms.unwrap_or(DEFAULT_FETCH_TTL_MS);
 
         // Check cache unless forced or ttl is 0
-        if !force && effective_ttl > 0 {
-            if let Some(meta) = store.get_source_meta(&cache_key) {
+        if !force
+            && effective_ttl > 0
+            && let Some(meta) = store.get_source_meta(&cache_key)
+        {
                 if let Ok(parsed_time) = chrono::DateTime::parse_from_rfc3339(&format!("{}Z", meta.indexed_at.replace(' ', "T"))) {
                     let now = chrono::Utc::now();
                     let age_ms = (now - parsed_time.to_utc()).num_milliseconds();
@@ -358,13 +417,12 @@ impl WebFetcher {
                         let estimated_bytes = meta.chunk_count * 1600;
                         record_cache_hit(estimated_bytes);
 
-                        return FetchOneOutcome::Cached {
-                            label: meta.label,
-                            chunk_count: meta.chunk_count,
-                            age_str,
-                            ttl_str,
-                        };
-                    }
+                    return FetchOneOutcome::Cached {
+                        label: meta.label,
+                        chunk_count: meta.chunk_count,
+                        age_str,
+                        ttl_str,
+                    };
                 }
             }
         }
@@ -482,8 +540,10 @@ impl WebFetcher {
             let effective_ttl = ttl_ms.unwrap_or(DEFAULT_FETCH_TTL_MS);
             let mut cached_outcome = None;
 
-            if !force && effective_ttl > 0 {
-                if let Some(meta) = store.get_source_meta(&cache_key) {
+            if !force
+                && effective_ttl > 0
+                && let Some(meta) = store.get_source_meta(&cache_key)
+            {
                     if let Ok(parsed_time) = chrono::DateTime::parse_from_rfc3339(&format!("{}Z", meta.indexed_at.replace(' ', "T"))) {
                         let now = chrono::Utc::now();
                         let age_ms = (now - parsed_time.to_utc()).num_milliseconds();
@@ -499,13 +559,12 @@ impl WebFetcher {
                             };
                             let ttl_str = format!("{}h", effective_ttl / (3600 * 1000));
                             record_cache_hit(meta.chunk_count * 1600);
-                            cached_outcome = Some(FetchOneOutcome::Cached {
-                                label: meta.label,
-                                chunk_count: meta.chunk_count,
-                                age_str,
-                                ttl_str,
-                            });
-                        }
+                        cached_outcome = Some(FetchOneOutcome::Cached {
+                            label: meta.label,
+                            chunk_count: meta.chunk_count,
+                            age_str,
+                            ttl_str,
+                        });
                     }
                 }
             }
@@ -645,8 +704,10 @@ impl WebFetcher {
         let cache_key = compose_fetch_cache_key(req.source.as_deref(), target_url);
         let effective_ttl = ttl_ms.unwrap_or(DEFAULT_FETCH_TTL_MS);
 
-        if !force && effective_ttl > 0 {
-            if let Some(meta) = store.get_source_meta(&cache_key) {
+        if !force
+            && effective_ttl > 0
+            && let Some(meta) = store.get_source_meta(&cache_key)
+        {
                 if let Ok(parsed_time) = chrono::DateTime::parse_from_rfc3339(&format!("{}Z", meta.indexed_at.replace(' ', "T"))) {
                     let now = chrono::Utc::now();
                     let age_ms = (now - parsed_time.to_utc()).num_milliseconds();
@@ -664,13 +725,12 @@ impl WebFetcher {
                         let estimated_bytes = meta.chunk_count * 1600;
                         record_cache_hit(estimated_bytes);
 
-                        return FetchOneOutcome::Cached {
-                            label: meta.label,
-                            chunk_count: meta.chunk_count,
-                            age_str,
-                            ttl_str,
-                        };
-                    }
+                    return FetchOneOutcome::Cached {
+                        label: meta.label,
+                        chunk_count: meta.chunk_count,
+                        age_str,
+                        ttl_str,
+                    };
                 }
             }
         }

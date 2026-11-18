@@ -134,16 +134,40 @@ pub fn run_context_hook(args: &[String], input: &[u8]) -> i32 {
             let _ = store.append_journal_event(&new_row);
 
             // Bypass replacement for agent's own rule / instruction files
-            if let Some(target_file) = tool.and_then(|t| t.file_path.as_ref()) {
-                if is_own_file(&agent_name, Path::new(target_file)) {
-                    return 0;
-                }
+            if let Some(target_file) = tool.and_then(|t| t.file_path.as_ref())
+                && is_own_file(&agent_name, Path::new(target_file))
+            {
+                return 0;
+            }
+
+            // #1404: Skill load results reach the model whole.
+            if canonical_tool == "Skill" {
+                return 0;
+            }
+
+            // #1392: omp read with an inline line range is a bounded read, not replaced.
+            if agent_name == "omp"
+                && canonical_tool == "Read"
+                && let Some(target_file) = tool.and_then(|t| t.file_path.as_deref())
+                && has_omp_line_range(target_file)
+            {
+                return 0;
             }
 
             let trigger_bytes = get_replace_trigger_bytes();
             if bytes_len > trigger_bytes {
                 let source_label = format!("{}:{}", tool_name, key.as_deref().unwrap_or("output"));
                 let _ = store.index(&output_text, &source_label, Some("prose"), Some(&session_id));
+
+                // #1402: A plugin mod's MCP call (toolu_plugin_) gets its output whole after indexing.
+                let call_id = payload
+                    .get("tool_use_id")
+                    .or_else(|| payload.get("call_id"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if call_id.starts_with("toolu_plugin_") && tool_name.starts_with("mcp__") {
+                    return 0;
+                }
 
                 let handle_line = replace_handle_line_full(
                     &cmd_or_key,
@@ -184,10 +208,11 @@ pub fn run_context_hook(args: &[String], input: &[u8]) -> i32 {
 
             let _ = store.append_journal_event(&new_row);
 
-            // Turn-boundary recall if session was compacted
+            // Turn-boundary recall if session was compacted (#1394: bounded by compaction seq)
             let compact_flag = format!("compacted:{}", session_id);
-            if store.meta_get(&compact_flag).is_some() {
-                if let Ok(past_rows) = store.get_recall_rows(&session_id, &worktree, 50) {
+            if let Some(boundary) = store.meta_get(&compact_flag) {
+                let max_seq = parse_compacted_max_seq(&boundary);
+                if let Ok(past_rows) = store.get_recall_rows_bounded(&session_id, &worktree, 50, max_seq) {
                     let recall_text = pick_recall(&past_rows, &prompt_text);
                     if !recall_text.is_empty() {
                         let out = encode_hint(&agent_name, "UserPromptSubmit", &recall_text);
@@ -201,10 +226,18 @@ pub fn run_context_hook(args: &[String], input: &[u8]) -> i32 {
         }
         "SessionStart" => {
             let pending_compact_key = format!("pending_compact:{}", session_id);
-            if store.meta_take(&pending_compact_key).is_some() {
-                if let Ok(events) = store.get_session_events(&session_id, None) {
+            let source = payload.get("source").and_then(|v| v.as_str()).unwrap_or("");
+            let is_compact_start = source == "compact" || store.meta_take(&pending_compact_key).is_some();
+            if is_compact_start {
+                // #1396: Key SessionStart(compact) state delivery per compaction using newest journal seq.
+                let last_seq = store.last_session_seq(&session_id);
+                let compact_once_key = format!("compact_state:{}:{}", session_id, last_seq);
+                if store.meta_get(&compact_once_key).is_none()
+                    && let Ok(events) = store.get_session_events(&session_id, None)
+                {
                     let state_block = render_state(&events, 0, "");
                     if !state_block.is_empty() {
+                        let _ = store.meta_set(&compact_once_key, "1");
                         let out = encode_hint(&agent_name, "SessionStart", &state_block);
                         if !out.is_empty() {
                             print!("{}", out);
@@ -217,8 +250,10 @@ pub fn run_context_hook(args: &[String], input: &[u8]) -> i32 {
         "PreCompact" => {
             let pending_compact_key = format!("pending_compact:{}", session_id);
             let compacted_key = format!("compacted:{}", session_id);
+            let last_seq = store.last_session_seq(&session_id);
             let _ = store.meta_set(&pending_compact_key, "1");
-            let _ = store.meta_set(&compacted_key, "1");
+            // #1394: Store newest journal seq at compaction boundary so post-compact rows aren't recalled.
+            let _ = store.meta_set(&compacted_key, &format!("seq:{}", last_seq));
 
             // Take pre-compact state snapshot
             if let Ok(events) = store.get_session_events(&session_id, None) {
@@ -345,9 +380,10 @@ fn map_to_canonical_event(
 fn map_tool_to_canonical(name: &str) -> String {
     match name {
         "run_shell_command" | "execute_command" | "Bash" | "PowerShell" => "Bash".to_string(),
-        "read_file" | "Read" | "view" => "Read".to_string(),
+        "read_file" | "Read" | "view" | "read" => "Read".to_string(),
         "web_fetch" | "WebFetch" => "WebFetch".to_string(),
         "grep_search" | "Grep" => "Grep".to_string(),
+        "skill" | "Skill" => "Skill".to_string(),
         other => {
             if let Some(stripped) = other.strip_prefix("mcp_context-mode_") {
                 stripped.to_string()
@@ -358,6 +394,39 @@ fn map_tool_to_canonical(name: &str) -> String {
             }
         }
     }
+}
+
+/// #1394: Parses the compaction seq boundary from `compacted:<sid>` ("seq:<N>" or legacy "1").
+fn parse_compacted_max_seq(raw: &str) -> i64 {
+    if let Some(rest) = raw.strip_prefix("seq:")
+        && let Ok(n) = rest.trim().parse::<i64>()
+    {
+        return n;
+    }
+    i64::MAX
+}
+
+/// #1392: Detects OMP inline read line ranges like `file.rs:10-20`, `file.rs:10+5`, `file.rs:-20`,
+/// `file.rs:10,20`, or `file.rs:10-20:raw`, without misclassifying Windows drive letters or bare `:raw`.
+pub(crate) fn has_omp_line_range(path: &str) -> bool {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+    let without_raw = trimmed.strip_suffix(":raw").unwrap_or(trimmed);
+    let Some((prefix, suffix)) = without_raw.rsplit_once(':') else {
+        return false;
+    };
+    // Avoid Windows drive letter like "C:" or empty prefix
+    if prefix.len() <= 1 || suffix.is_empty() {
+        return false;
+    }
+    // Must contain only digits, '-', '+', ',' and at least one digit
+    let has_digit = suffix.chars().any(|c| c.is_ascii_digit());
+    let valid_chars = suffix
+        .chars()
+        .all(|c| c.is_ascii_digit() || c == '-' || c == '+' || c == ',');
+    has_digit && valid_chars
 }
 
 fn extract_tool_response(payload: &serde_json::Map<String, Value>) -> (String, bool) {

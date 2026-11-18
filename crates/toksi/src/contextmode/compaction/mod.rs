@@ -154,10 +154,10 @@ pub fn render_state(rows: &[JournalRow], current_turn: usize, prefix: &str) -> S
     let mut queries: Vec<String> = Vec::new();
     let mut seen_queries = HashSet::new();
     for c in &skipped {
-        if let Some(ref q) = c.query {
-            if seen_queries.insert(q.clone()) {
-                queries.push(q.clone());
-            }
+        if let Some(ref q) = c.query
+            && seen_queries.insert(q.clone())
+        {
+            queries.push(q.clone());
         }
     }
 
@@ -176,6 +176,18 @@ fn format_candidate_line(c: &Candidate, prefix: &str) -> String {
     }
 }
 
+/// #1400: Returns the first non-blank line of `body`, folding `\r` to space.
+fn first_non_empty_line(body: &str) -> String {
+    for line in body.split('\n') {
+        let cleaned = line.replace('\r', " ");
+        let trimmed = cleaned.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
+        }
+    }
+    String::new()
+}
+
 pub fn build_candidates(rows: &[JournalRow], session_id: &str) -> CandidateSet {
     if session_id.is_empty() {
         return CandidateSet::default();
@@ -188,7 +200,7 @@ pub fn build_candidates(rows: &[JournalRow], session_id: &str) -> CandidateSet {
     let prompts: Vec<&&JournalRow> = own.iter().filter(|r| r.kind == "prompt").collect();
     let last_prompt = prompts.last().copied();
     let last_request = last_prompt.map(|r| {
-        let first = r.body.lines().next().unwrap_or("").trim();
+        let first = first_non_empty_line(&r.body);
         let text = format!("now: {}", first);
         Candidate {
             section: Section::LastRequest,
@@ -203,7 +215,7 @@ pub fn build_candidates(rows: &[JournalRow], session_id: &str) -> CandidateSet {
 
     let earlier_requests = if prompts.len() > 1 {
         prompts[..prompts.len() - 1].iter().map(|r| {
-            let first = r.body.lines().next().unwrap_or("").trim();
+            let first = first_non_empty_line(&r.body);
             let text = format!("asked #{}: {}", r.seq, first);
             Candidate {
                 section: Section::EarlierRequests,
@@ -299,7 +311,7 @@ pub fn build_candidates(rows: &[JournalRow], session_id: &str) -> CandidateSet {
 
     let mut decisions = Vec::new();
     for (key, (r, count)) in decided {
-        let first = r.body.lines().next().unwrap_or("").trim();
+        let first = first_non_empty_line(&r.body);
         let text = format!("decided #{}: {}", r.seq, first);
         decisions.push(Candidate {
             section: Section::Decisions,

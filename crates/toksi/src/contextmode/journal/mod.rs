@@ -217,12 +217,14 @@ pub fn read_first_prompt(conn: &Connection, session_id: &str) -> String {
     ).unwrap_or_default()
 }
 
-/// Reads candidates for recall: this session's events plus prior session events from the same worktree.
-pub fn read_recall_rows(
+/// Reads candidates for recall: this session's events (bounded by `max_seq` per #1394)
+/// plus prior session events from the same worktree.
+pub fn read_recall_rows_bounded(
     conn: &Connection,
     session_id: &str,
     worktree: &str,
     limit: usize,
+    max_seq: i64,
 ) -> Result<Vec<JournalRow>, rusqlite::Error> {
     if session_id.is_empty() {
         return Ok(Vec::new());
@@ -230,17 +232,29 @@ pub fn read_recall_rows(
 
     let mut stmt = conn.prepare(
         "SELECT seq, session_id, worktree, agent, kind, tool, key, path, ok, exit_code, bytes, body, turn, sandbox_bytes, returned_bytes, created_at, accessed_at
-         FROM events WHERE kind <> 'cost' AND (session_id = ?1 OR worktree = ?2)
+         FROM events
+         WHERE kind <> 'cost'
+           AND ((session_id = ?1 AND seq <= ?4) OR (session_id <> ?1 AND worktree = ?2))
          ORDER BY seq DESC LIMIT ?3",
     )?;
 
-    let rows = stmt.query_map(params![session_id, worktree, limit as i64], map_journal_row)?;
+    let rows = stmt.query_map(params![session_id, worktree, limit as i64, max_seq], map_journal_row)?;
 
     let mut out = Vec::new();
     for r in rows.flatten() {
         out.push(r);
     }
     Ok(out)
+}
+
+/// Reads candidates for recall: this session's events plus prior session events from the same worktree.
+pub fn read_recall_rows(
+    conn: &Connection,
+    session_id: &str,
+    worktree: &str,
+    limit: usize,
+) -> Result<Vec<JournalRow>, rusqlite::Error> {
+    read_recall_rows_bounded(conn, session_id, worktree, limit, i64::MAX)
 }
 
 pub fn has_agent_rows(conn: &Connection, worktree: &str, agent: &str) -> bool {
@@ -257,4 +271,17 @@ pub fn has_session_rows(conn: &Connection, session_id: &str) -> bool {
         params![session_id],
         |_| Ok(()),
     ).is_ok()
+}
+
+/// #1396: Newest journal seq of one session, or 0 when it has none.
+pub fn last_session_seq(conn: &Connection, session_id: &str) -> i64 {
+    if session_id.is_empty() {
+        return 0;
+    }
+    conn.query_row(
+        "SELECT COALESCE(MAX(seq), 0) FROM events WHERE session_id = ?1",
+        params![session_id],
+        |r| r.get::<_, i64>(0),
+    )
+    .unwrap_or(0)
 }

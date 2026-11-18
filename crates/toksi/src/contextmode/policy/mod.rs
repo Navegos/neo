@@ -76,59 +76,60 @@ pub fn decide(
     }
 
     // 2. WebFetch check
-    if canonical == "WebFetch" || tool.name == "web_fetch" {
-        if let Some(ref url) = tool.url {
-            if !is_never_denied_host(url) {
-                let msg = format!(
-                    "context-mode: raw WebFetch of '{}' is blocked.\nRun ctx_index(url=\"{}\") then ctx_search(query=...) to read cleanly.",
-                    url, url
-                );
-                return Decision::Deny {
-                    reason: msg,
-                    rewritten: None,
-                };
-            }
-        }
+    if (canonical == "WebFetch" || tool.name == "web_fetch")
+        && let Some(ref url) = tool.url
+        && !is_never_denied_host(url)
+    {
+        let msg = format!(
+            "context-mode: raw WebFetch of '{}' is blocked.\nRun ctx_index(url=\"{}\") then ctx_search(query=...) to read cleanly.",
+            url, url
+        );
+        return Decision::Deny {
+            reason: msg,
+            rewritten: None,
+        };
     }
 
     // 3. Shell / Bash check
-    if canonical == "Bash" || canonical == "shell" || tool.name == "run_shell_command" || tool.name == "execute_command" {
-        if let Some(ref cmd) = tool.command {
-            // Check dangerous/destructive patterns
-            if let Some(denied) = check_command_deny(cmd) {
+    if (canonical == "Bash" || canonical == "shell" || tool.name == "run_shell_command" || tool.name == "execute_command")
+        && let Some(ref cmd) = tool.command
+    {
+        // Check dangerous/destructive patterns
+        if let Some(denied) = check_command_deny(cmd) {
+            return Decision::Deny {
+                reason: denied,
+                rewritten: None,
+            };
+        }
+
+        // Check inline HTTP fetches
+        if has_inline_http(cmd) {
+            let msg = "context-mode: direct inline curl/wget/http fetch in shell blocked.\nRun ctx_fetch_and_index(url=\"...\") and ctx_search() instead.";
+            return Decision::Deny {
+                reason: msg.to_string(),
+                rewritten: None,
+            };
+        }
+
+        // Check single-file shell dumps (e.g. cat <large_file>)
+        if let Some(target_file) = extract_cat_or_dump_target(cmd) {
+            let p = Path::new(&target_file);
+            let abs = if p.is_absolute() {
+                p.to_path_buf()
+            } else {
+                Path::new(&ev.cwd).join(p)
+            };
+            if let Ok(meta) = std::fs::metadata(&abs)
+                && meta.is_file()
+                && meta.len() as usize > OUTPUT_CAP
+                && !is_own_file(agent, &abs)
+            {
+                let inside = is_inside_root(&abs, project_root);
+                let reason = read_deny_message(&abs.to_string_lossy(), meta.len() as usize, inside, "");
                 return Decision::Deny {
-                    reason: denied,
+                    reason,
                     rewritten: None,
                 };
-            }
-
-            // Check inline HTTP fetches
-            if has_inline_http(cmd) {
-                let msg = "context-mode: direct inline curl/wget/http fetch in shell blocked.\nRun ctx_fetch_and_index(url=\"...\") and ctx_search() instead.";
-                return Decision::Deny {
-                    reason: msg.to_string(),
-                    rewritten: None,
-                };
-            }
-
-            // Check single-file shell dumps (e.g. cat <large_file>)
-            if let Some(target_file) = extract_cat_or_dump_target(cmd) {
-                let p = Path::new(&target_file);
-                let abs = if p.is_absolute() {
-                    p.to_path_buf()
-                } else {
-                    Path::new(&ev.cwd).join(p)
-                };
-                if let Ok(meta) = std::fs::metadata(&abs) {
-                    if meta.is_file() && meta.len() as usize > OUTPUT_CAP && !is_own_file(agent, &abs) {
-                        let inside = is_inside_root(&abs, project_root);
-                        let reason = read_deny_message(&abs.to_string_lossy(), meta.len() as usize, inside, "");
-                        return Decision::Deny {
-                            reason,
-                            rewritten: None,
-                        };
-                    }
-                }
             }
         }
     }

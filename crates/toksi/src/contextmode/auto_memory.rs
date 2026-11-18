@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/auto_memory.rs
 // created: 2026-11-04
-// lastModified: 2026-11-08
+// lastModified: 2026-11-18
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -46,44 +46,43 @@ pub fn read_auto_memory(worktree: &Path) -> Vec<MemoryFile> {
             rel.push(p);
         }
         let full_path = abs_worktree.join(&rel);
-        if let Ok(canon) = full_path.canonicalize() {
-            if canon.is_file() && canon.starts_with(&abs_worktree) {
-                if let Ok(content) = fs::read_to_string(&canon) {
-                    let label = parts.join("/");
-                    files.push(MemoryFile {
-                        label,
-                        path: canon,
-                        content,
-                    });
-                }
-            }
+        if let Ok(canon) = full_path.canonicalize()
+            && canon.is_file()
+            && canon.starts_with(&abs_worktree)
+            && let Ok(content) = fs::read_to_string(&canon)
+        {
+            let label = parts.join("/");
+            files.push(MemoryFile {
+                label,
+                path: canon,
+                content,
+            });
         }
     }
 
     // 2. Kiro steering files: .kiro/steering/*.md
     let steering_dir = abs_worktree.join(".kiro").join("steering");
-    if steering_dir.is_dir() {
-        if let Ok(entries) = fs::read_dir(&steering_dir) {
-            let mut steering_entries: Vec<PathBuf> = entries
-                .flatten()
-                .map(|e| e.path())
-                .filter(|p| p.is_file() && p.extension().map(|ext| ext == "md").unwrap_or(false))
-                .collect();
-            steering_entries.sort();
+    if steering_dir.is_dir()
+        && let Ok(entries) = fs::read_dir(&steering_dir)
+    {
+        let mut steering_entries: Vec<PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_file() && p.extension().is_some_and(|ext| ext == "md"))
+            .collect();
+        steering_entries.sort();
 
-            for path in steering_entries {
-                if let Ok(canon) = path.canonicalize() {
-                    if canon.starts_with(&abs_worktree) {
-                        if let (Ok(content), Some(file_name)) = (fs::read_to_string(&canon), path.file_name().and_then(|n| n.to_str())) {
-                            let label = format!(".kiro/steering/{}", file_name);
-                            files.push(MemoryFile {
-                                label,
-                                path: canon,
-                                content,
-                            });
-                        }
-                    }
-                }
+        for path in steering_entries {
+            if let Ok(canon) = path.canonicalize()
+                && canon.starts_with(&abs_worktree)
+                && let (Ok(content), Some(file_name)) = (fs::read_to_string(&canon), path.file_name().and_then(|n| n.to_str()))
+            {
+                let label = format!(".kiro/steering/{}", file_name);
+                files.push(MemoryFile {
+                    label,
+                    path: canon,
+                    content,
+                });
             }
         }
     }

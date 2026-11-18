@@ -971,4 +971,135 @@ mod tests {
         assert_eq!(msg.topic, "context");
         assert_eq!(msg.action, "ctx_upgrade");
     }
+
+    #[test]
+    fn test_text_norm_and_secret_scrub() {
+        use super::super::text_norm::normalize_and_scrub;
+        let raw = "hello\u{200B} \u{201C}world\u{201D}\r\n\r\n\r\n\r\nAuthorization: Bearer abcdef1234567890\r\nkey=sk-1234567890abcdefghij1234";
+        let out = normalize_and_scrub(raw);
+        assert!(!out.contains('\r'));
+        assert!(!out.contains('\u{200B}'));
+        assert!(out.contains("\"world\""));
+        assert!(!out.contains("\n\n\n"));
+        assert!(out.contains("Bearer [REDACTED_TOKEN]"));
+        assert!(out.contains("[REDACTED_API_KEY]"));
+        assert!(!out.contains("sk-1234567890abcdefghij1234"));
+    }
+
+    #[test]
+    fn test_effort_output_budget_scaling() {
+        use super::super::filter::{effort_output_budget, process_sandbox_output_with_effort};
+        use crate::headroom::effort::EffortLevel;
+
+        let (low_lines, low_bytes) = effort_output_budget(EffortLevel::Low);
+        let (med_lines, med_bytes) = effort_output_budget(EffortLevel::Medium);
+        let (high_lines, high_bytes) = effort_output_budget(EffortLevel::High);
+        assert!(low_lines < med_lines && med_lines < high_lines);
+        assert!(low_bytes < med_bytes && med_bytes < high_bytes);
+
+        let big = "line\n".repeat(1000);
+        let out_low = process_sandbox_output_with_effort(None, &big, EffortLevel::Low);
+        assert!(out_low.len() <= 1536);
+    }
+
+    #[test]
+    fn test_compaction_skips_leading_blank_lines() {
+        use super::super::compaction::build_candidates;
+        use super::super::journal::JournalRow;
+
+        let rows = vec![JournalRow {
+            seq: 1,
+            session_id: "s-blank".to_string(),
+            worktree: "/repo".to_string(),
+            agent: "agy".to_string(),
+            kind: "prompt".to_string(),
+            tool: None,
+            key: None,
+            path: None,
+            ok: Some(1),
+            exit_code: None,
+            bytes: 30,
+            body: "\n\r\n   \nFirst real line\nSecond line".to_string(),
+            turn: 1,
+            sandbox_bytes: 0,
+            returned_bytes: 30,
+            created_at: 0,
+            accessed_at: 0,
+        }];
+        let cands = build_candidates(&rows, "s-blank");
+        let last = cands.last_request.unwrap();
+        assert_eq!(last.text, "now: First real line");
+    }
+
+    #[test]
+    fn test_omp_line_range_detection() {
+        use super::super::hooks::has_omp_line_range;
+
+        assert!(has_omp_line_range("src/main.rs:10-20"));
+        assert!(has_omp_line_range("src/main.rs:10+5"));
+        assert!(has_omp_line_range("src/main.rs:-20"));
+        assert!(has_omp_line_range("src/main.rs:10,20:raw"));
+        assert!(!has_omp_line_range("C:\\repo\\src\\main.rs"));
+        assert!(!has_omp_line_range("src/main.rs:raw"));
+        assert!(!has_omp_line_range("src/main.rs"));
+    }
+
+    #[test]
+    fn test_recall_bounded_and_last_session_seq() {
+        use super::super::fts::ContentStore;
+        use super::super::journal::NewJournalRow;
+
+        let store = ContentStore::open_in_memory().unwrap();
+        let make_row = |body: &str| NewJournalRow {
+            session_id: "s-1394".to_string(),
+            worktree: "/repo".to_string(),
+            agent: "agy".to_string(),
+            kind: "prompt".to_string(),
+            tool: None,
+            key: None,
+            path: None,
+            ok: Some(1),
+            exit_code: None,
+            bytes: body.len(),
+            body: body.to_string(),
+            turn: 1,
+            sandbox_bytes: 0,
+            returned_bytes: body.len(),
+        };
+
+        let seq1 = store.append_journal_event(&make_row("before compact")).unwrap();
+        let seq2 = store.append_journal_event(&make_row("after compact")).unwrap();
+        assert_eq!(store.last_session_seq("s-1394"), seq2);
+
+        let bounded = store.get_recall_rows_bounded("s-1394", "/repo", 50, seq1).unwrap();
+        assert_eq!(bounded.len(), 1);
+        assert_eq!(bounded[0].body, "before compact");
+    }
+
+    #[test]
+    fn test_ctx_search_unknown_source_past_offset_and_scope_pick() {
+        use super::super::fts::ContentStore;
+        use super::super::mcp::ContextMcpServer;
+
+        let mut store = ContentStore::open_in_memory().unwrap();
+        store.index("alpha beta gamma", "docs/guide.md", Some("prose"), Some("sess-a")).unwrap();
+        let (picked, id) = store.pick_source("docs\\guide.md", Some("sess-a"), true);
+        assert_eq!(picked, "docs/guide.md");
+        assert!(id.is_some());
+
+        let (picked_suffix, id_suffix) = store.pick_source("docs/guide.md#call99", Some("sess-a"), true);
+        assert_eq!(picked_suffix, "docs/guide.md");
+        assert!(id_suffix.is_some());
+
+        let server = ContextMcpServer::new(None);
+        let res = server.execute_tool(
+            "ctx_search",
+            &json!({
+                "query": "alpha",
+                "source": "nonexistent_source_xyz",
+                "offset": 5
+            }),
+        );
+        assert!(res.contains("unknown source 'nonexistent_source_xyz'"));
+    }
 }

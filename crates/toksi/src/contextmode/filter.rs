@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/filter.rs
 // created: 2026-10-27
-// lastModified: 2026-11-05
+// lastModified: 2026-11-18
 
 use serde_json::Value;
 
@@ -110,11 +110,13 @@ pub fn slice_lines(text: &str, max_lines: usize) -> String {
 }
 
 /// Filters raw execution output:
-/// 1. Passes through RTK filter engine (or ANSI stripper).
-/// 2. Applies line slicing.
-/// 3. Clamps to max_bytes budget with byte-safe truncation marker.
+/// 1. Normalizes & scrubs secrets (`text_norm::normalize_and_scrub`).
+/// 2. Passes through RTK filter engine (or ANSI stripper).
+/// 3. Applies line slicing.
+/// 4. Clamps to max_bytes budget with byte-safe truncation marker.
 pub fn process_sandbox_output(cmd: Option<&str>, raw_output: &str, max_lines: usize, max_bytes: usize) -> String {
-    let rtk_filtered = filter_and_pipe_rtk(cmd, raw_output);
+    let scrubbed = super::text_norm::normalize_and_scrub(raw_output);
+    let rtk_filtered = filter_and_pipe_rtk(cmd, &scrubbed);
     let line_sliced = slice_lines(&rtk_filtered, max_lines);
 
     if line_sliced.len() <= max_bytes {
@@ -123,6 +125,25 @@ pub fn process_sandbox_output(cmd: Option<&str>, raw_output: &str, max_lines: us
         let prefix = byte_safe_prefix(&line_sliced, max_bytes.saturating_sub(64));
         format!("{}\n\n... [truncated at {} bytes by context-mode]", prefix, max_bytes)
     }
+}
+
+/// Output budget `(max_lines, max_bytes)` scaled by `HeadroomEffortCompressor` `EffortLevel`.
+pub fn effort_output_budget(effort: crate::headroom::effort::EffortLevel) -> (usize, usize) {
+    match effort {
+        crate::headroom::effort::EffortLevel::Low => (80, 1536),
+        crate::headroom::effort::EffortLevel::Medium => (DEFAULT_MAX_LINES, EXEC_PREVIEW_BYTES),
+        crate::headroom::effort::EffortLevel::High => (400, OUTPUT_CAP),
+    }
+}
+
+/// Filters raw execution output using `HeadroomEffortCompressor` effort-scaled budgets.
+pub fn process_sandbox_output_with_effort(
+    cmd: Option<&str>,
+    raw_output: &str,
+    effort: crate::headroom::effort::EffortLevel,
+) -> String {
+    let (max_lines, max_bytes) = effort_output_budget(effort);
+    process_sandbox_output(cmd, raw_output, max_lines, max_bytes)
 }
 
 /// Truncate JSON stringification to `max_bytes` bytes.

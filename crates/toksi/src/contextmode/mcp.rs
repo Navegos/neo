@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/mcp.rs
 // created: 2026-10-27
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 use std::fs;
 use std::io::{self, BufRead, Write};
@@ -267,6 +267,10 @@ impl ContextMcpServer {
             .and_then(|v| v.as_u64())
             .or_else(|| args.get("timeoutMs").and_then(|v| v.as_u64()).map(|ms| ms / 1000));
         let max_lines = args.get("max_lines").and_then(|v| v.as_u64()).map(|n| n as usize);
+        let effort = args
+            .get("effort")
+            .and_then(|v| v.as_str())
+            .and_then(crate::headroom::effort::EffortLevel::from_str_loose);
         let file_arg = args.get("file").and_then(|v| v.as_str()).map(PathBuf::from);
         let intent = args.get("intent").and_then(|v| v.as_str()).map(|s| s.to_string());
         let background = args.get("background").and_then(|v| v.as_bool());
@@ -327,6 +331,8 @@ impl ContextMcpServer {
                     };
                     let handle_line = replace_handle_line(intent.as_deref().unwrap_or(""), &source_label, out_body.len());
                     format!("{}\n\n{}", preview, handle_line)
+                } else if let Some(eff) = effort {
+                    super::filter::process_sandbox_output_with_effort(Some(code), &out_body, eff)
                 } else {
                     out_body
                 }
@@ -445,10 +451,10 @@ impl ContextMcpServer {
             match self.sandbox.execute(&req) {
                 Ok(res) => {
                     let out_combined = format!("{}\n{}", res.stdout, res.stderr);
-                    if let Ok(mut store) = self.store.lock() {
-                        if let Ok(ir) = store.index(&out_combined, &label, Some("prose"), None) {
-                            combined_indexed += ir.total_chunks;
-                        }
+                    if let Ok(mut store) = self.store.lock()
+                        && let Ok(ir) = store.index(&out_combined, &label, Some("prose"), None)
+                    {
+                        combined_indexed += ir.total_chunks;
                     }
                     results.push(format!(
                         "[{}] exit {}: ({} chars, {} lines)",
@@ -600,7 +606,9 @@ impl ContextMcpServer {
         }
 
         let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
-        let source_filter = args.get("source").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        let session_id = args.get("session_id").and_then(|v| v.as_str());
+        let raw_source = args.get("source").and_then(|v| v.as_str()).map(|s| s.to_string());
         let ctype_filter = args.get("content_type").and_then(|v| v.as_str()).map(|s| s.to_string());
 
         let store = match self.store.lock() {
@@ -608,25 +616,39 @@ impl ContextMcpServer {
             Err(e) => return format!("Store lock error: {}", e),
         };
 
+        // #1390: Resolve source in asked scope first (exact label, normalized slash, #id, #suffix).
+        let (source_filter, picked_id) = if let Some(ref src) = raw_source {
+            let (resolved, id) = store.pick_source(src, session_id, true);
+            (Some(resolved), id)
+        } else {
+            (None, None)
+        };
+
         let root_dir = self.project_root.clone().or_else(|| std::env::current_dir().ok());
         let mut all_results = Vec::new();
         for q in query_list {
             let opts = SearchOptions {
                 query: q.clone(),
-                limit,
+                limit: limit.saturating_add(offset),
                 source: source_filter.clone(),
                 content_type: ctype_filter.clone(),
-                session_id: None,
+                session_id: session_id.map(|s| s.to_string()),
             };
 
             match store.search(&opts) {
                 Ok(mut results) => {
+                    if offset > 0 && results.len() > offset {
+                        results = results.split_off(offset);
+                    } else if offset > 0 {
+                        results.clear();
+                    }
+
                     // D-UNIFIED-MEMORY-1 & D-MEMORY-SOURCE-1:
                     // Merge auto-memory hits from worktree
                     if let Some(ref root) = root_dir {
-                        let is_mem_source = source_filter.as_deref().map(|s| {
-                            s.starts_with(MEMORY_LABEL_PREFIX) || s.ends_with(".md")
-                        }).unwrap_or(false);
+                        let is_mem_source = source_filter
+                            .as_deref()
+                            .is_some_and(|s| s.starts_with(MEMORY_LABEL_PREFIX) || s.ends_with(".md"));
 
                         let mem_hits = query_auto_memory(
                             root,
@@ -650,7 +672,35 @@ impl ContextMcpServer {
                     }
 
                     if results.is_empty() {
-                        all_results.push(format!("No results for query '{}'", q));
+                        // #1390: Unknown explicit source check comes before offset > 0 paging message.
+                        if let Some(ref explicit_src) = raw_source
+                            && picked_id.is_none()
+                            && !explicit_src.starts_with(MEMORY_LABEL_PREFIX)
+                        {
+                            let stored: Vec<String> = store
+                                .list_sources()
+                                .unwrap_or_default()
+                                .into_iter()
+                                .take(10)
+                                .map(|m| m.label)
+                                .collect();
+                            let stored_msg = if stored.is_empty() {
+                                "No sources indexed yet.".to_string()
+                            } else {
+                                format!("Stored sources: {}", stored.join(", "))
+                            };
+                            all_results.push(format!(
+                                "No hits for query '{}': unknown source '{}'. {}",
+                                q, explicit_src, stored_msg
+                            ));
+                        } else if offset > 0 {
+                            all_results.push(format!(
+                                "No more hits past offset {} for query '{}'.",
+                                offset, q
+                            ));
+                        } else {
+                            all_results.push(format!("No results for query '{}'", q));
+                        }
                     } else {
                         let mut section = format!("Results for query '{}' ({} hits):", q, results.len());
                         for (i, r) in results.iter().enumerate() {
@@ -1026,7 +1076,7 @@ pub fn handle_slash_command(cmd: &str) -> String {
             let events = store.get_session_events(session, None).unwrap_or_default();
             super::compaction::render_state(&events, 0, "")
         }
-        "status" | _ => {
+        _ => {
             let db_path = resolve_content_store_path(None);
             let store_exists = db_path.exists();
             let source_count = if store_exists {

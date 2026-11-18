@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/contextmode/fts.rs
 // created: 2026-10-27
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -621,6 +621,106 @@ impl ContentStore {
         super::journal::read_recall_rows(&self.conn, session_id, worktree, limit)
     }
 
+    pub fn get_recall_rows_bounded(
+        &self,
+        session_id: &str,
+        worktree: &str,
+        limit: usize,
+        max_seq: i64,
+    ) -> Result<Vec<super::journal::JournalRow>, rusqlite::Error> {
+        super::journal::read_recall_rows_bounded(&self.conn, session_id, worktree, limit, max_seq)
+    }
+
+    pub fn last_session_seq(&self, session_id: &str) -> i64 {
+        super::journal::last_session_seq(&self.conn, session_id)
+    }
+
+    /// #1390: Resolve a `source` argument in scope-first order (exact label, forward-slash normalized label,
+    /// `#id` handle, or label without `#<call_id>` suffix), checking `session_id` scope first when provided,
+    /// then falling back to all stored sources.
+    pub fn pick_source(&self, source: &str, session_id: Option<&str>, suffix: bool) -> (String, Option<i64>) {
+        if let Some(sid) = session_id
+            && !sid.is_empty()
+            && let Some(found) = self.pick_source_in_scope(source, Some(sid), suffix)
+        {
+            return found;
+        }
+        if let Some(found) = self.pick_source_in_scope(source, None, suffix) {
+            return found;
+        }
+        (source.to_string(), None)
+    }
+
+    fn pick_source_in_scope(&self, source: &str, session_id: Option<&str>, suffix: bool) -> Option<(String, Option<i64>)> {
+        let canon = crate::util::paths::normalize_path(source);
+        for candidate in [source, canon.as_str()] {
+            if let Some(id) = self.newest_source_id_for_label(candidate, session_id) {
+                return Some((candidate.to_string(), Some(id)));
+            }
+        }
+        if let Some(id) = source.strip_prefix('#').and_then(|s| s.parse::<i64>().ok())
+            && let Some(label) = self.label_for_source_id(id, session_id)
+        {
+            return Some((label, Some(id)));
+        }
+        if suffix && let Some((base, _)) = source.rsplit_once('#') {
+            for candidate in [base, crate::util::paths::normalize_path(base).as_str()] {
+                if let Some(id) = self.newest_source_id_for_label(candidate, session_id) {
+                    return Some((candidate.to_string(), Some(id)));
+                }
+            }
+        }
+        None
+    }
+
+    fn newest_source_id_for_label(&self, label: &str, session_id: Option<&str>) -> Option<i64> {
+        if let Some(sid) = session_id {
+            self.conn
+                .query_row(
+                    "SELECT id FROM sources WHERE label = ?1 AND session_id = ?2 ORDER BY id DESC LIMIT 1",
+                    params![label, sid],
+                    |r| r.get(0),
+                )
+                .optional()
+                .ok()
+                .flatten()
+        } else {
+            self.conn
+                .query_row(
+                    "SELECT id FROM sources WHERE label = ?1 ORDER BY id DESC LIMIT 1",
+                    params![label],
+                    |r| r.get(0),
+                )
+                .optional()
+                .ok()
+                .flatten()
+        }
+    }
+
+    fn label_for_source_id(&self, id: i64, session_id: Option<&str>) -> Option<String> {
+        if let Some(sid) = session_id {
+            self.conn
+                .query_row(
+                    "SELECT label FROM sources WHERE id = ?1 AND session_id = ?2",
+                    params![id, sid],
+                    |r| r.get(0),
+                )
+                .optional()
+                .ok()
+                .flatten()
+        } else {
+            self.conn
+                .query_row(
+                    "SELECT label FROM sources WHERE id = ?1",
+                    params![id],
+                    |r| r.get(0),
+                )
+                .optional()
+                .ok()
+                .flatten()
+        }
+    }
+
     pub fn get_source_meta(&self, label: &str) -> Option<SourceMeta> {
         let mut stmt = self
             .conn
@@ -862,7 +962,7 @@ impl ContentStore {
             .max_depth(Some(max_depth))
             .filter_entry(|entry| {
                 let name = entry.file_name().to_string_lossy();
-                if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
+                if entry.file_type().is_some_and(|ft| ft.is_dir())
                     && (name == ".git"
                         || name == "node_modules"
                         || name == "target"

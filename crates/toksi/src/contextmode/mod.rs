@@ -20,6 +20,7 @@ pub mod sandbox;
 pub mod security;
 pub mod stats;
 pub mod store;
+pub mod text_norm;
 pub mod wire;
 
 #[cfg(test)]
@@ -41,5 +42,6 @@ pub use sandbox::{detect_runtimes, ExecRequest, ExecResult, PolyglotSandbox};
 pub use security::{check_boundary, check_command_deny, check_path_deny, is_own_file, own_dirs_of, read_deny_message};
 pub use stats::{get_stats, ContextStats};
 pub use store::{find_repo_root_and_subproject, resolve_context_db_path, resolve_context_dir};
+pub use text_norm::{normalize_and_scrub, normalize_text, scrub_secrets};
 pub use wire::DirectWireBus;
 
