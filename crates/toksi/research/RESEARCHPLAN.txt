@@ -1,9 +1,16 @@
 /plan replan, investigate. research, implementing, converting, disciplinar and coding standards, conventions, security, portability, missing features, addons, extende, enhances, updates, agents. tools, skills, bug fixes, the master plan (# Toksi Native Consolidation Master Architecture Plan) to crates/toksi/CONSOLIDATION_PLAN.md
 the term <byok providers> means all byok agent's provider and all byok cloud, local and gateway providers.
 the term <repo> means a folder with <repo>/.git/ git (folder and files structure).
-the term <etc's> means everithing else we need, for wath we talking in the text line its added, new features, enhances and addons implementatins are important also.
-the term <detail's> means a full extensive, thecnicall and better detailed, for wath we talking in the text line its added.
+the term <etc's> means everithing else we need, for waht we talking in the text line its added, new features, enhances and addons implementatins are important also.
+the term <detail's> means a full extensive, thecnicall and better detailed, for waht we talking in the text line its added.
 the term <enforce> means we must enforce security in our coding standards, all code, skills, script's, command', file's, must be in our repo distribution, security analyzed and cleanned for malicious and bad code.
+the term <ai> means Artificial Intelligence.
+the term <aiagent> or <aia>, means Artificial Intelligence Agent.
+the term <agent> means <aiagent> and any of the ai agents, like agent means any of the ai agents and can include all or any of this technical agent architecture (Orchestrator, Agent, Inference Engine, Model Gateway, LLM Router, Embedding Model, Reranker, Vector Database, Knowledge Graph, Context Store, Episodic Memory, Semantic Memory, Ingestion Pipeline, Tool Registry, MCP Server, Code Sandbox, State Machine, Checkpointer, Message Broker, Event Bus, Semantic Cache, Guardrails, Telemetry Engine, Tracing Engine, Eval Harness, HITL Gateway).
+the term <si> means Superintelligence.
+the term <asi> means Artificial Superintelligence.
+the term <siagent> or <sia>, means Superintelligence Agent, it means any of the si siagents, like siagent means any of the <si> siagents and can include all or any of this technical siagent architecture (Orchestrator, Agent, Inference Engine, Model Gateway, LLM Router, Embedding Model, Reranker, Vector Database, Knowledge Graph, Context Store, Episodic Memory, Semantic Memory, Ingestion Pipeline, Tool Registry, MCP Server, Code Sandbox, State Machine, Checkpointer, Message Broker, Event Bus, Semantic Cache, Guardrails, Telemetry Engine, Tracing Engine, Eval Harness, HITL Gateway, World Model, Hierarchical Planner, Verification Engine, Agent Runtime Daemon, IAM Attestation Layer, Policy-as-Code Engine, Circuit Breaker, Kill Switch, Immutable Audit Log).
+the term <toksi-siagent> means the toksi <siagent>, and includes all of this technical siagent architecture (Orchestrator, Agent, Inference Engine, Model Gateway, LLM Router, Embedding Model, Reranker, Vector Database, Knowledge Graph, Context Store, Episodic Memory, Semantic Memory, Ingestion Pipeline, Tool Registry, MCP Server, Code Sandbox, State Machine, Checkpointer, Message Broker, Event Bus, Semantic Cache, Guardrails, Telemetry Engine, Tracing Engine, Eval Harness, HITL Gateway, World Model, Hierarchical Planner, Verification Engine, Agent Runtime Daemon, IAM Attestation Layer, Policy-as-Code Engine, Circuit Breaker, Kill Switch, Immutable Audit Log).
 Read <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, <etc's>.
 repair in plans files for .projectmem/*.md legacy folder structure, now its in <repo>/.toksi/projectmem/ folder structure, import and merge folders and files, deleting generic folder structures after all.
 We need a disciplinar and coding standards, conventions, security, portability (windows, linux, macos), all tasks are important and must be detailed for the agent's workers get the jobs done and technically correct, and without exposing security risk's to all agent's and user's.
@@ -12,93 +19,317 @@ Descipline and organize, reorganize, the correct structured way to apply the pla
 we have 3 diferents <repo>.
 Repository 1: <neo> `Navegos/neo` (`https://github.com/Navegos/neo.git` — this Rust Workspace)
 Repository 2: <advisory> Navegos/advisory (https://github.com/Navegos/advisory.git → https://navegos.github.io/advisory/) in the folder <neo>/inspect-vault/advisory our repo to save the toksi analyser results cve's etc. installed toksi can ask user to set in config's or commands the directory for advisory.
-Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git → https://navegos.github.io/skills/) in the folder <neo>/inspect-vault/skills our repo for saving our edited, adapted, imported, skills, that we need for toksi agent and or agents. this repo servers to toksi get the skills from the online repo to the install's of toksi agent and or agents. If installed toksi edits and or adds new skills that later we can save in the skills repo, installed toksi can ask user to set in config's or commands the directory for new skills (we have our online skills repo for installing our official skills, and a directory for user skills imports edits etc), and toksi ca also import new skills from this directory.
+Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git → https://navegos.github.io/skills/) in the folder <neo>/inspect-vault/skills our repo for saving our edited, adapted, imported, skills, that we need for <toksi-siagent> and or agents. this repo servers to toksi get the skills from the online repo to the install's of <toksi-siagent> and or agents. If installed toksi edits and or adds new skills that later we can save in the skills repo, installed toksi can ask user to set in config's or commands the directory for new skills (we have our online skills repo for installing our official skills, and a directory for user skills imports edits etc), and toksi ca also import new skills from this directory.
 
+<deep-research> allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
 # research this <neo>/inspect-vault/ repos for the type and needed implementations, align with our requests.
-<neo>/inspect-vault/tokless						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/bifrost						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/headroom					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/rtk							allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/context-mode				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/codegraph					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/projectmem					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/ai-memory					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/icm							allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/ponytail					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/caveman						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/TokenTracker				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/jcodemunch-mcp				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/repomix						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/ast-grep					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/scip						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/mem0						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/chroma						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/lance						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/agent-client-protocol		allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/litellm						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/TokenEconomizer				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/tokview						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/agent-opt					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/agent-control				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/grok-build					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/codex				    	allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/codex-security				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/crush					    allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/crustly						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/goose					    allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/hermes-agent			    allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/openclaw					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/openclaw-rs					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/mofaclaw					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/mofa					    allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/mofa-engine					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/python-genai				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/python-aiplatform			allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/gemini-cli					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/crewAI				    	allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/langgraph					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/langchain					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/langfuse					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/langflow					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/deepagents					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/openwiki					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/bosun						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/Codewhale					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/cline						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/kilocode					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/alphacode					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/zeroclaw					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/opencode					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/deepsec						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/agent-skills				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/openagent-skills			allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/osv-scanner					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/cve-schema					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/cve-validation-library		allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/cve-services				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/osv-schema					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/cve-bin-tool				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/cve-lite-cli				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/semgrep						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/semgrep-rules				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/defenseclaw					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/skill-scanner				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/skilldoctor					allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/sage						allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/sandbox-runtime				allways treat this folders as new code added and we need to research, convert, import, implement. <enforce>
-<neo>/inspect-vault/andrej-karpathy-skills		skills to research and import. <enforce>
-<neo>/inspect-vault/openclaw-agent-skills		skills to research and import. <enforce>
-<neo>/inspect-vault/agentskills					skills to research and import. <enforce>
-<neo>/inspect-vault/research-securety-skills	skills to research and import. <enforce>
 
-Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified toksi agents analyser etc, 
+<deep-research> {
+<neo>/inspect-vault/tokless
+<neo>/inspect-vault/bifrost
+<neo>/inspect-vault/headroom
+<neo>/inspect-vault/rtk	
+<neo>/inspect-vault/context-mode
+<neo>/inspect-vault/codegraph
+<neo>/inspect-vault/projectmem
+<neo>/inspect-vault/ai-memory
+<neo>/inspect-vault/icm	
+<neo>/inspect-vault/ponytail
+<neo>/inspect-vault/caveman
+<neo>/inspect-vault/TokenTracker
+<neo>/inspect-vault/jcodemunch-mcp
+<neo>/inspect-vault/repomix
+<neo>/inspect-vault/ast-grep
+<neo>/inspect-vault/scip
+<neo>/inspect-vault/mem0
+<neo>/inspect-vault/chroma
+<neo>/inspect-vault/lance
+<neo>/inspect-vault/agent-client-protocol
+<neo>/inspect-vault/litellm
+<neo>/inspect-vault/TokenEconomizer
+<neo>/inspect-vault/tokview
+<neo>/inspect-vault/agent-opt
+<neo>/inspect-vault/agent-control
+<neo>/inspect-vault/grok-build
+<neo>/inspect-vault/codex
+<neo>/inspect-vault/codex-security
+<neo>/inspect-vault/crush
+<neo>/inspect-vault/crustly
+<neo>/inspect-vault/goose
+<neo>/inspect-vault/hermes-agent
+<neo>/inspect-vault/openclaw
+<neo>/inspect-vault/openclaw-rs
+<neo>/inspect-vault/mofaclaw
+<neo>/inspect-vault/mofa
+<neo>/inspect-vault/mofa-engine
+<neo>/inspect-vault/python-genai
+<neo>/inspect-vault/python-aiplatform	
+<neo>/inspect-vault/gemini-cli
+<neo>/inspect-vault/crewAI
+<neo>/inspect-vault/agent-framework
+<neo>/inspect-vault/dify
+<neo>/inspect-vault/mastra
+<neo>/inspect-vault/agno
+<neo>/inspect-vault/RouteLLM	
+<neo>/inspect-vault/SWE-agent	
+<neo>/inspect-vault/OpenHands	
+<neo>/inspect-vault/letta
+<neo>/inspect-vault/cognee
+<neo>/inspect-vault/graphiti	
+<neo>/inspect-vault/qdrant
+<neo>/inspect-vault/milvus
+<neo>/inspect-vault/text-embeddings-inference
+<neo>/inspect-vault/temporal
+<neo>/inspect-vault/restate
+<neo>/inspect-vault/E2B	
+<neo>/inspect-vault/E2B-runtime
+<neo>/inspect-vault/modelcontextprotocol-servers
+<neo>/inspect-vault/mcp-framework
+<neo>/inspect-vault/opa	
+<neo>/inspect-vault/cedar
+<neo>/inspect-vault/Guardrails
+<neo>/inspect-vault/llm-guard
+<neo>/inspect-vault/spire
+<neo>/inspect-vault/phoenix
+<neo>/inspect-vault/EnterpriseBlueprints
+<neo>/inspect-vault/langgraph
+<neo>/inspect-vault/langchain
+<neo>/inspect-vault/langfuse
+<neo>/inspect-vault/langflow
+<neo>/inspect-vault/deepagents
+<neo>/inspect-vault/openwiki
+<neo>/inspect-vault/bosun
+<neo>/inspect-vault/Codewhale
+<neo>/inspect-vault/cline
+<neo>/inspect-vault/kilocode
+<neo>/inspect-vault/alphacode
+<neo>/inspect-vault/zeroclaw
+<neo>/inspect-vault/opencode
+<neo>/inspect-vault/deepsec
+<neo>/inspect-vault/agent-skills
+<neo>/inspect-vault/openagent-skills	
+<neo>/inspect-vault/huggingface-skills	
+<neo>/inspect-vault/openai-skills
+<neo>/inspect-vault/osv-scanner
+<neo>/inspect-vault/cve-schema
+<neo>/inspect-vault/cve-validation-library
+<neo>/inspect-vault/cve-services
+<neo>/inspect-vault/osv-schema
+<neo>/inspect-vault/cve-bin-tool
+<neo>/inspect-vault/cve-lite-cli
+<neo>/inspect-vault/semgrep
+<neo>/inspect-vault/semgrep-rules
+<neo>/inspect-vault/defenseclaw
+<neo>/inspect-vault/skill-scanner
+<neo>/inspect-vault/skilldoctor
+<neo>/inspect-vault/sage
+<neo>/inspect-vault/OpenShell
+<neo>/inspect-vault/sandbox-runtime
+<neo>/inspect-vault/NemoClaw
+<neo>/inspect-vault/open-swe
+<neo>/inspect-vault/SkillSpector
+<neo>/inspect-vault/langchain-skills	
+<neo>/inspect-vault/andrej-karpathy-skills 
+<neo>/inspect-vault/openclaw-agent-skills
+<neo>/inspect-vault/agentskills
+<neo>/inspect-vault/research-securety-skills
+<neo>/inspect-vault/mofa-skills
+<neo>/inspect-vault/NeMo-Skills
+<neo>/inspect-vault/ollama
+<neo>/inspect-vault/llama.cpp
+<neo>/inspect-vault/jan
+<neo>/inspect-vault/Mysti
+<neo>/inspect-vault/koboldcpp
+<neo>/inspect-vault/llamafile
+<neo>/inspect-vault/LocalAI
+<neo>/inspect-vault/vllm
+<neo>/inspect-vault/recipes
+<neo>/inspect-vault/llm-compressor
+<neo>/inspect-vault/tpu-inference
+<neo>/inspect-vault/vllm-omni
+<neo>/inspect-vault/guidellm
+<neo>/inspect-vault/vllm-torchtpu
+<neo>/inspect-vault/vllm-dashboard
+<neo>/inspect-vault/speculators
+<neo>/inspect-vault/vllm-gaudi
+<neo>/inspect-vault/perf-eval
+<neo>/inspect-vault/vllm-ascend
+<neo>/inspect-vault/router
+<neo>/inspect-vault/agentic-api
+<neo>/inspect-vault/compressed-tensors
+<neo>/inspect-vault/humming
+<neo>/inspect-vault/vllm-neuron
+<neo>/inspect-vault/vllm-gguf-plugin
+<neo>/inspect-vault/vime
+<neo>/inspect-vault/FlashKDA
+<neo>/inspect-vault/kimi-code
+<neo>/inspect-vault/vmon
+<neo>/inspect-vault/lm-evaluation-harness
+<neo>/inspect-vault/MSA
+<neo>/inspect-vault/flash-attention
+<neo>/inspect-vault/DeepSelect
+<neo>/inspect-vault/FlashMLA
+<neo>/inspect-vault/DeepGEMM
+<neo>/inspect-vault/deepseek-harness
+<neo>/inspect-vault/3FS
+<neo>/inspect-vault/DeepJIT
+<neo>/inspect-vault/DeepInfer
+<neo>/inspect-vault/DeepEP-Ascend
+<neo>/inspect-vault/DeepEP
+<neo>/inspect-vault/deepseek-recipe
+<neo>/inspect-vault/DeepGEMM-Ascend
+<neo>/inspect-vault/TileKernels
+<neo>/inspect-vault/sglang
+<neo>/inspect-vault/sglang-omni
+<neo>/inspect-vault/sgl-nvidia-mega
+<neo>/inspect-vault/sgl-kernel-xpu
+<neo>/inspect-vault/sgl-kernel-npu
+<neo>/inspect-vault/SpecForge
+<neo>/inspect-vault/sglang-torchtpu
+<neo>/inspect-vault/sgl-eval
+<neo>/inspect-vault/genai-bench
+<neo>/inspect-vault/sglang-jax
+<neo>/inspect-vault/sglang-neuron
+<neo>/inspect-vault/sgl-flash-attn
+<neo>/inspect-vault/tokenizers
+<neo>/inspect-vault/transformers
+<neo>/inspect-vault/trl
+<neo>/inspect-vault/peft
+<neo>/inspect-vault/accelerate
+<neo>/inspect-vault/kernels
+<neo>/inspect-vault/datasets
+<neo>/inspect-vault/safeagents
+<neo>/inspect-vault/diffusers
+<neo>/inspect-vault/huggingface_hub
+<neo>/inspect-vault/hf-serve
+<neo>/inspect-vault/optimum
+<neo>/inspect-vault/optimum-intel
+<neo>/inspect-vault/optimum-quanto
+<neo>/inspect-vault/optimum-amd
+<neo>/inspect-vault/optimum-habana
+<neo>/inspect-vault/optimum-executorch
+<neo>/inspect-vault/optimum-neuron
+<neo>/inspect-vault/optimum-graphcore
+<neo>/inspect-vault/optimum-onnx
+<neo>/inspect-vault/optimum-furiosa
+<neo>/inspect-vault/optimum-nvidia
+<neo>/inspect-vault/optimum-benchmark
+<neo>/inspect-vault/Gym
+<neo>/inspect-vault/nemo-helix
+<neo>/inspect-vault/RL
+<neo>/inspect-vault/Megatron-Bridge
+<neo>/inspect-vault/Anonymizer
+<neo>/inspect-vault/Curator
+<neo>/inspect-vault/Switchyard
+<neo>/inspect-vault/Speech
+<neo>/inspect-vault/Safe-Synthesizer
+<neo>/inspect-vault/UserSim
+<neo>/inspect-vault/Nemotron
+<neo>/inspect-vault/Evaluator
+<neo>/inspect-vault/garak
+<neo>/inspect-vault/nemo-compass
+<neo>/inspect-vault/eval-author
+<neo>/inspect-vault/DataDesigner
+<neo>/inspect-vault/Export-Deploy
+<neo>/inspect-vault/DataDesignerPlugins
+<neo>/inspect-vault/neural-compressor
+<neo>/inspect-vault/pytorch
+<neo>/inspect-vault/helion
+<neo>/inspect-vault/torchtitan
+<neo>/inspect-vault/executorch
+<neo>/inspect-vault/FBGEMM
+<neo>/inspect-vault/torch-tensorrt
+<neo>/inspect-vault/ao
+<neo>/inspect-vault/torch-rl
+<neo>/inspect-vault/tensordict
+<neo>/inspect-vault/TensorRT
+<neo>/inspect-vault/triton
+<neo>/inspect-vault/triton-ascend
+<neo>/inspect-vault/triton-windows
+<neo>/inspect-vault/triton-ext
+<neo>/inspect-vault/gpustack
+<neo>/inspect-vault/loopwright
+<neo>/inspect-vault/gpustack-operator
+<neo>/inspect-vault/gpustack-runtime
+<neo>/inspect-vault/DeepSpeed
+<neo>/inspect-vault/cutlass
+<neo>/inspect-vault/lmdeploy
+<neo>/inspect-vault/tabbyAPI
+<neo>/inspect-vault/mlc-llm
+<neo>/inspect-vault/exo
+<neo>/inspect-vault/mlx
+<neo>/inspect-vault/FastChat
+<neo>/inspect-vault/TensorRT-LLM
+<neo>/inspect-vault/cuml
+<neo>/inspect-vault/langchain-litellm
+<neo>/inspect-vault/langchain-mongodb
+<neo>/inspect-vault/SkillEvaluator
+<neo>/inspect-vault/cudf
+<neo>/inspect-vault/Model-Optimizer
+<neo>/inspect-vault/Megatron-LM
+<neo>/inspect-vault/cuda-python
+<neo>/inspect-vault/kumo-engine
+<neo>/inspect-vault/cudnn-frontend
+<neo>/inspect-vault/physicsnemo
+<neo>/inspect-vault/physicsnemo-serve
+<neo>/inspect-vault/NeMo-Fabric
+<neo>/inspect-vault/aistore
+<neo>/inspect-vault/xla_staging
+<neo>/inspect-vault/Nomos
+<neo>/inspect-vault/tokenspeed
+<neo>/inspect-vault/slurm
+<neo>/inspect-vault/srt-slurm
+<neo>/inspect-vault/numba-cuda-mlir
+<neo>/inspect-vault/cudaq-pulse
+<neo>/inspect-vault/cuopt
+<neo>/inspect-vault/cuda-rust
+<neo>/inspect-vault/gpu-operator
+<neo>/inspect-vault/cuCollections
+<neo>/inspect-vault/TransformerEngine
+<neo>/inspect-vault/NeMo-Relay
+<neo>/inspect-vault/DeepStream
+<neo>/inspect-vault/TensorRT-Model-Connect
+<neo>/inspect-vault/NVIDIA-skills
+<neo>/inspect-vault/NeMo-Retriever
+<neo>/inspect-vault/DALI
+<neo>/inspect-vault/cuCascade
+<neo>/inspect-vault/NVFlare
+<neo>/inspect-vault/OSMO
+<neo>/inspect-vault/nccl
+<neo>/inspect-vault/cuEquivariance
+<neo>/inspect-vault/NeMo-text-processing
+<neo>/inspect-vault/hermes-webui
+<neo>/inspect-vault/candle
+<neo>/inspect-vault/candle-vllm
+<neo>/inspect-vault/mistral.rs
+<neo>/inspect-vault/olla
+<neo>/inspect-vault/pytorch-lightning
+<neo>/inspect-vault/lightning-thunder
+<neo>/inspect-vault/litgpt
+<neo>/inspect-vault/torchmetrics
+<neo>/inspect-vault/LitModels
+<neo>/inspect-vault/LitServe
+<neo>/inspect-vault/dynamo
+<neo>/inspect-vault/velo
+<neo>/inspect-vault/frontend-crates
+<neo>/inspect-vault/aitune
+<neo>/inspect-vault/radixshmem
+<neo>/inspect-vault/radixshmem
+<neo>/inspect-vault/modelexpress
+<neo>/inspect-vault/nixl
+<neo>/inspect-vault/exllamav2
+}
+
+Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.
+
+We need to urgently implement our <toksi-siagent> with all capabilities, features, plugins, addons, extendes, enhances, updates, agents, bug fixes, news, security's, research from <neo>/inspect-vault/* above and from your genail ideas and knowledge and (<neo>/inspect-vault/* or web research), <etc's>, <detail's>, <enforce>.
 
 if in the code from <neo>/inspect-vault/* list above as new and updated code we must inspect, convert, import, implement to the consolidated toksi, allways research for updates, new features, addons, new agents, bugfixes, <etc's>, in the code from <neo>/inspect-vault/* list above.
 Our real plan to implement a smart performant unified, (one daemon launch and its all ready to use, agent,proxy,gateway,loadbalancer,routing,memory,tools,skills,security,toking savings <etc's>), tokless -> (toksi), bifrost, context-mode, codegraph, headroom, projectmem, ai-memory, icm, rtk, caveman, ponytail, andrej-karpathy-skills, TokenTracker, jcodemunch-mcp, repomix, ast-grep, scip, mem0, chroma, litellm, TokenEconomizer, agent-opt, in rust code. Please check all implementation for broken code or features not implemented or updated code and implement.
 All 7 inference and protocol entrypoints (:8787 Headroom, :8788 Grok OAuth, :8789 Copilot VS, :8790 Copilot CLI, :9098 Protocol Bus MCP/A2A/ACP/stdio/SSE/HTTP, :9099 Enterprise AI Gateway, and :18787 BYOK & Vertex ADC Gateway) MUST pass through the shared Headroom Effort Compressor (Low/Med/High) using live_zone byte surgery, CcrStore, SmartCrusher, TokenEconomizer, agent-opt, MCP Schema Pruner, RTK, Chroma/Lance semantic cache, and <enforce> security/skill-scanner (<detail's>).
-And our real plan to implement our real full coding cli agent with all possible and full extensive features of all agents, toksi agent, unified with all tools and code, that can agent to agent, command, stream chats,messages agent to agent, multi-agent automation, <etc's>, <detail's>, <enforce>. Out of the box ("off the back"), toksi agent must wire in-process (DirectWireBus) and over :8787/:9098/:9099/:18787 to Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (MCP/A2A/ACP/SSE), Headroom Effort Compressor (Low/Med/High), Unified Plugin System (src/plugins/), and all 67 consolidated <neo>/inspect-vault/* tools/skills/memory/security engines with zero manual setup.
-Toksi its not only a toking saving, its also an agent with all tools and feature's , unified, implementation's, from <neo>/inspect-vault/* (agent's), we are unifing all agent's in one toksi agent, if duplicated code, chat command's, skills, research the functional unification consilidation. toksi agent dont use chat's command's /agent_name command, it uses the unified chat command /<command> in toksi chat, <etc's>, <detail's>, <enforce>.
-Research every implementation for every <neo>/inspect-vault/* dir that we are implementing or converting, for missing features, addons, extendes, enhances, updates, agents, bug fixes, news, security's, <etc's>, <enforce>.
+And our real plan to implement our real full coding cli agent with all possible and full extensive capabilities, features of all agents in <neo>/inspect-vault/*<agent>, <toksi-siagent>, unified with all tools and code, that can agent to agent, command, stream chats,messages agent to agent, multi-agent automation, <etc's>, <detail's>, <enforce>. Out of the box ("off the back"), <toksi-siagent> must wire in-process (DirectWireBus) and over :8787/:9098/:9099/:18787 to Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (MCP/A2A/ACP/SSE), Headroom Effort Compressor (Low/Med/High), Unified Plugin System (src/plugins/), and all 67 consolidated <neo>/inspect-vault/* tools/skills/memory/security engines with zero manual setup.
+Toksi its not only a toking saving, its also an agent with all tools and feature's , unified, implementation's, from <neo>/inspect-vault/* (agent's), we are unifing all agent's in one <toksi-siagent>, if duplicated code, chat command's, skills, research the functional unification consilidation. <toksi-siagent> dont use chat's command's /agent_name command, it uses the unified chat command /<command> in toksi chat, <etc's>, <detail's>, <enforce>.
+Research every implementation for every <neo>/inspect-vault/* dir that we are implementing or converting, for missing capabilities, features, plugins, addons, extendes, enhances, updates, agents, bug fixes, news, security's, <etc's>, <detail's>, <enforce>.
 <neo>/inspect-vault/agents-structures examples for agent's folders structures, mcp, hooks, settings configurations, .json, .toml, <etc's>.
 We must Extende Tree-sitter parsers support with: Rust, TypeScript, JavaScript, Python, Go, C, C++, Java, C#, Kotlin, Scala, PHP, Ruby, Swift, Zig, Elixir, Erlang, OCaml, Haskell, Lua, Julia, HTML, CSS, SCSS, TSX, Vue, Svelte, GraphQL, Bash, Dockerfile, HCL, Nix, Make, CMake, JSON, YAML, TOML, Protocol Buffers, SQL, Markdown, LaTeX.
 Agentic CLI & Bridge Providers: Bifrost CLI (Maxim AI agent-to-gateway bridge), Claude Code (Anthropic), Codex CLI (OpenAI), Gemini CLI / Antigravity CLI (Google), Aider, Goose (Block / Linux Foundation), Kilo CLI, OpenCode, Qwen Code (Alibaba Cloud), Grok Build (xAI), GitHub Copilot CLI, Amazon Q Developer CLI, Warp AI / Agentic Terminal, Mentat, Plandex, Crush, Devika, OpenHands CLI (OpenDevin), SWE-agent, GPT-Engineer, and Shell-Genie.
@@ -108,7 +339,7 @@ Agentic Service & Platform Providers: Cognition AI (Devin), Factory AI (Code Dro
 Agentic Proxy, Gateway & Router Providers: Bifrost (Maxim AI high-performance LLM/MCP/agent gateway), OpenRouter, Portkey, LiteLLM Proxy, Cloudflare AI Gateway, Helicone, Martian, Vercel AI Gateway, BerriAI, APIClaw, Langfuse, and Unify AI.
 Research and extende the providers and agent's with the above Agentic list.
 We gonna use forward slashes / and stop using backward slashes(\\) for all directories windows or unix, because git bash fails, lets be git friendly, for JavaScript / TypeScript / Node.js Python (hook,mcp) JSON5 / TOML requiring \\ like in config's hooks.json commands: the cmd commands its the default \\ double backward slashes C:\\Programs\\neo\\bin\\toksi.exe.
-The binaries needed (command's|process's, bash's, cmd's, toksi, tool's, agents-cli's, <etc's>'s) for settings saved in (.db .json, <etc's>) for (agents, tools, cli's, ide's), and that we needed to launch (command's|process's, bash's, cmd's, toksi, tool's, agents-cli's, <etc's>), they must be present in Env Path, we gonna test wath we need for the time, and if not found in Env Path, inform user the needed (command's|process's, bash's, cmd's, toksi, tool's, agents-cli's, <etc's>) and inform user do add to the Env Path and to retry again, we don't want to encode the full paths everywhere, we want to be portable everywhere, so using Env Path and just calling the process name (rule of test and inform user).
+The binaries needed (command's|process's, bash's, cmd's, toksi, tool's, agents-cli's, <etc's>'s) for settings saved in (.db .json, <etc's>) for (agents, tools, cli's, ide's), and that we needed to launch (command's|process's, bash's, cmd's, toksi, tool's, agents-cli's, <etc's>), they must be present in Env Path, we gonna test waht we need for the time, and if not found in Env Path, inform user the needed (command's|process's, bash's, cmd's, toksi, tool's, agents-cli's, <etc's>) and inform user do add to the Env Path and to retry again, we don't want to encode the full paths everywhere, we want to be portable everywhere, so using Env Path and just calling the process name (rule of test and inform user).
 The toksi.db we gonna store-it by default in users/.toksi and not in localdata/toksi.
 Update usage help with everithing we use.
 Update <repo>/crates/toksi/README.md with all thechnical help, uses, config's, angents preparations, cli/agents/ides/tools/protocols, config's, settings, <etc's>.
@@ -134,19 +365,19 @@ Simplify namings conventions ofr tools commands, mcp instructions, dirs, example
 In the workspace|repository dir structure, only has .toksi in the first workspace|repository dir, and if in subfolders or and crates/crate1 <etc's> the .toksi folder its imported to the first repository workspace|repository dir, and if already has contents the contents are merged (important the .db most be carefully merged), and old legacy .toksi folder deleted.
 The .codegraph, .headroom, .projectmem, .context-mode, .icm, .ai-memory, .rtk, must be inside the .toksi folder, in users/ dir and workspace/|repository/ dir, and if in subfolders or and crates/crate1 <etc's> the .codegraph .projectmem folder its imported to the first repository workspace|repository dir .toksi/*.toolname.
 In the workspace|repository dir structure its only created and used at .claude, .cursor, .vscode, .grok, .cline <etc's> in the first workspace|repository dir, if toksi creates|uses this dir, its in the first workspace|repository dir.
-The agent hooks, mcps, instructions, rules, skills, config's, are auto installed (install|health|missmatch,upgrade|fix|<etc's>) to the /user/.agents_dir/ if selected for install, the user can select wath to install (agent hooks, mcps, instructions, rules, skills, config's, <etc's>), and managed with cli, tui, web-ui dashboard, and individually (manage, edit, inspect errors, reinstall, remove, install, health, missmatch, upgrade, fix, restore, <etc's>), and to install in to the workspace|repository its not automatically installed and its only installed if the user selects to installs later on.
+The agent hooks, mcps, instructions, rules, skills, config's, are auto installed (install|health|missmatch,upgrade|fix|<etc's>) to the /user/.agents_dir/ if selected for install, the user can select waht to install (agent hooks, mcps, instructions, rules, skills, config's, <etc's>), and managed with cli, tui, web-ui dashboard, and individually (manage, edit, inspect errors, reinstall, remove, install, health, missmatch, upgrade, fix, restore, <etc's>), and to install in to the workspace|repository its not automatically installed and its only installed if the user selects to installs later on.
 All code imports, converts, must use standards and conventions, and marked in plans the standards conventions renamings <etc's>.
 toksi process as high latency and hangs, we need performance and capabilities.
 toksi bugs when network reconnects, some way to fix using reloading network connection or reloading toksi, network reconnections puts toksi in a dorment state and agent's cant read toksi network after network error or reconnection.
 we gonna research that tools agent's like mcp tools, that saves the instructions and json setings to the folder structure in example (user|repository workspace dir) in example: (.gemini/antigravity/mcp or .copilot/mcp or .claude/mcp or .agents/mcp) are saved and used in example: (.gemini/antigravity/skills or .copilot/skills or .claude/skills or .agents/skills).
 we gonna use .gitignore or .ignore, to ignore content, for the crucial optimization of code base files and folders in the vector db content memory indexing, to hide artifacts or vendor bundles from the LLM, prevents massive directories from overwhelming the codebase vector search embedding cache, makes effect in the integrated tools like ai-memory, icm, codegraph, context-mode, projectmem, the .gitignore or .ignore content added later can remove the already indexed content in the vector content memory db and purging of the ignored content in the vector db content memory embedding cache.
-adapt toksi token optimization's with thinking efforts, High, Medium, Low, across ALL 7 inference/protocol entrypoints (:8787, :8788, :8789, :8790, :9098 Protocol Bus, :9099 Enterprise AI Gateway, :18787 BYOK & Vertex ADC Gateway) and native toksi agent,
+adapt toksi token optimization's with thinking efforts, High, Medium, Low, across ALL 7 inference/protocol entrypoints (:8787, :8788, :8789, :8790, :9098 Protocol Bus, :9099 Enterprise AI Gateway, :18787 BYOK & Vertex ADC Gateway) and native <toksi-siagent>,
 adapt google cloud ADC authentication for google cloud AI Platform Enterprise Services login where env AGY_ADC_AUTH=true enables agy to use Antigravity in Gemini Enterprise mode. the user cand add as byok gateway. the user must configure right for usage like: vscode need's "gcp.project": "GCP_PROJECT", "gcp.location": "region" and gcloud auth application-default login --project GCP_PROJECT.
 we must include all needed skills in our repo for distribution and if needed to install to agents skills, the propose to have a secure and pree-ready to use skills without exposing security risk's to all agent's and user's.
 we must research if no skills are duplicated, overwrites each other, blok's each other, that skills.md are an agentskills correctly yaml formatting, if some of the skills are incorrectly formatting it heals the skills.md yaml formatting.
-Like in Tree-sitter parsers languages types, We must implement in toksi an static code security analysis helper tool for all know languages, scripts, actions, it's responsible to comunicate with toksi agent for security flaw's when agent ask's for code analysis. We can use language analysis tools also like rust-analyzer, gopls, clang-tidy. But most important implement our won analysis tool.
+Like in Tree-sitter parsers languages types, We must implement in toksi an static code security analysis helper tool for all know languages, scripts, actions, it's responsible to comunicate with <toksi-siagent> for security flaw's when agent ask's for code analysis. We can use language analysis tools also like rust-analyzer, gopls, clang-tidy. But most important implement our won analysis tool.
 we must implement a safe prompt's or plan mechanism, error's, fail's to finish, if the plans errors or agent fails to finish the plan, or because network disconnect or agent usage rate limits ends, we must save the already work done with the current chat in projectmem and plan, to later in other chat we can recontinue the unfinished plan.
-we are implementig a plugin system for toksi load and gets new features or addons right on toksi agent, commands, tools, chats commands, agents wires hooks (MCP, A2A, ACP, stdio, SSE, HTTP), agent to agent, <etc's>, <detail's>, <enforce>.
+we are implementig a plugin system for toksi load and gets new features or addons right on <toksi-siagent>, commands, tools, chats commands, agents wires hooks (MCP, A2A, ACP, stdio, SSE, HTTP), agent to agent, <etc's>, <detail's>, <enforce>.
 
 We are enabling toksi to have a toml config file, in user/.toksi/config.toml. like enabling the user to change all ports adresses and <etc's>.
 We are adding to config.toml the agent the user wants to set by for toksi proxy|daemon up|start|restart --agents
@@ -160,11 +391,11 @@ We only use and show byok gateway providers, if correctly configured, and it was
 In config.toml the <byok providers> configured, allow user to change the ai api adress's.
 all providers api key's must be set in db, and also in db we can add edit update modify all <byok providers> configured to use. This can be done from the cli, tui, dashboard, chat commands.
 In config.toml and db allow the <byok providers> configuring, allow user to set the default ai model (and thinking effort if provider and ai model its compatible for think effort), so each byok provider configured before can be configured with model and think effort. This can be done from the cli, tui, dashboard, chat commands.
-all <byok providers> configured, Vertex ADC (:18787), Enterprise AI Gateway (:9099), Protocol Bus (:9098 MCP/A2A/ACP/stdio/SSE/HTTP), and streaming proxies (:8787..:8790) must pass through the shared Headroom Effort Compressor (Low/Med/High) token optimizer and all available tools; native toksi agent uses every gateway, Protocol Bus, Effort Compressor, Unified Plugin System, and all 67 vault tools out of the box ("off the back"), we are optimizing all agents and <byok providers>.
+all <byok providers> configured, Vertex ADC (:18787), Enterprise AI Gateway (:9099), Protocol Bus (:9098 MCP/A2A/ACP/stdio/SSE/HTTP), and streaming proxies (:8787..:8790) must pass through the shared Headroom Effort Compressor (Low/Med/High) token optimizer and all available tools; native <toksi-siagent> uses every gateway, Protocol Bus, Effort Compressor, Unified Plugin System, and all 67 vault tools out of the box ("off the back"), we are optimizing all agents and <byok providers>.
 we are removing restrictions for PAID qualified agent BYOK rotation, from the code and everywhere. the user its free to add the agent's thath works and acessible, configured in the system and configured in the toksi settings config's.
 if we can hook directly to the agent (cli|ide|inprocess) for the (MCP, A2A, ACP, stdio, SSE, HTTP) without the need to wire the (MCP, A2A, ACP, stdio, SSE, HTTP) in the agent's config's, we can get better performance, and toksi can work as as agent to agent commands/messages/<etc's>, the agent (cli|ide|inprocess) can be marked as direct wired, but the user can also wire in the agent's config's () but inform user.
 toksi must provide the capability to get the ai model's available in the byok agent's (cli|ide|inprocess) providers and byok gateway providers, the toksi proxy system get agent type cabalitities as (agent to agent commands, chat, message's processing, <etc's>), and capability for the user select with chat /byok (list of byok's) /model (list of model's for the selected byok) /effort (list of efforts for the selected model) (the user must select the byok first than the model thant effort), or /byokmodel <byok> <model> <effort> (if <effort> its not compatible with the model its ignored), and sets the (agent (cli|ide|inprocess) provider) the (byok agent's providers) and or (byok providers gateway) and the toksi settings, with the model and effort the user wants to use for the byok and or agent. like toksi kooked to agy and typing this commands in agy chats runs the implemented commands dirfectly fast performante without hangs or aborts or infinity loops, chat commands used by user /byok /model /effort or /byokmodel sets the db to be used later by gatway and routing, <etc's>, <detail's>.
-capability for /projectmem /context /codegraph /icm /ai-memory /rtk <etc's> all chat commands we need for a smart unified toksi agent type cabalitities (agent to agent commands, chat, message's processing, <etc's>), like toksi kooked to agy and typing this commands in agy chats runs the implemented commands dirfectly fast performante without hangs or aborts or infinity loops.
+capability for /projectmem /context /codegraph /icm /ai-memory /rtk <etc's> all chat commands we need for a smart unified <toksi-siagent> type cabalitities (agent to agent commands, chat, message's processing, <etc's>), like toksi kooked to agy and typing this commands in agy chats runs the implemented commands dirfectly fast performante without hangs or aborts or infinity loops.
 we are changing the toksi tui and dashboard web-ui for a futuristic, modern, beautiful and performance ui. Must have all config's, must be technically naming conventions, must show the agent and <byok providers> that its correctly configured in toksi, toksi must not use other agent cli or byok that its not configured by the user.
 in the TUI dashboard web-ui, rename Waterfall & Savings to Savings were must be a detailed list for the configured agents and <byok providers>, token savings, individually token savings an overal savings, tokens used, implemented tools compressions and savings, prompt savings, prompt reductions, <etc's>, <detail's>.
 in the TUI dashboard web-ui, The War Room needs <detail's>, for agents implemented tools, <etc's>, <detail's>.
@@ -183,12 +414,12 @@ The codegraph, projectmem, context, icm, ai-memory, rtk, and all tools must be m
 read @crates/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_and_quota_architecture.md for <byok providers>, Comprehensive Reference: AI Providers, Local Inference Engines, Agent Ecosystems, Protocols, and Quota Enforcement Architecture.
 Research the implementation of toksi and tools for each agent, Agentic CLI & Bridge Providers, Agentic LSP & Protocol Providers, Agentic Editors & Native IDE Providers, Agentic Service & Cloud Platform Providers, Agentic Proxy, Gateway & Router Providers.
 
-We are unifing the agents source comands and skills that you can find in <neo>/inspect-vault/*<agent> source code, research/unify/merge/convert/import/implement its source code, chat commands, skills, rules, mcps, api, to toksi agent, you must carefull research the best options to merge for our toksi agent and other agents like .agents. <etc's>, <detail's>, <enforce>
-We are not embedding skills, rules, .md, yaml, json files in toksi, we create the folder necessary and outside of crates/toksi/ so before crates/, the toksi change the skills, rules, .md, yaml, json, and fix the files and or heals the files, for toksi use and or agents uses. we dont want to bloot the toksi binary with this files, so we have a repo for this files to be pushed to <skills>. we are implementing to toksi get the files from the <skills> and adapt for the agents or toksi agent installation.
-We are implementing in toksi agent (and agent to agent), a agent detection & response (ADR) layer for AI agents — guards commands, files, and web requests, direct where its safe, if not safe (run in sandbox, identify, inform, save all informations in its respective formats). <etc's>, <detail's>, <enforce>
+We are unifing the agents source comands and skills that you can find in <neo>/inspect-vault/*<agent> source code, research/unify/merge/convert/import/implement its source code, chat commands, skills, rules, mcps, api, to <toksi-siagent>, you must carefull research the best solution to merge for our <toksi-siagent> and other agents like .agents. <etc's>, <detail's>, <enforce>
+We are not embedding skills, rules, .md, yaml, json files in toksi, we create the folder necessary and outside of crates/toksi/ so before crates/, the toksi change the skills, rules, .md, yaml, json, and fix the files and or heals the files, for toksi use and or agents uses. we dont want to bloot the toksi binary with this files, so we have a repo for this files to be pushed to <skills>. we are implementing to toksi get the files from the <skills> and adapt for the agents or <toksi-siagent> installation.
+We are implementing in <toksi-siagent> (and agent to agent), a agent detection & response (ADR) layer for AI agents — guards commands, files, and web requests, direct where its safe, if not safe (run in sandbox, identify, inform, save all informations in its respective formats). <etc's>, <detail's>, <enforce>
 read <repo>/crates/toksi/research/docker_sandboxes_sbx_cli_reference.md for sandboxing and <neo>/inspect-vault/sandbox-runtime and <neo>/inspect-vault/* where you can find research for this matter.
-We are <enforce> SECURITY & CAPABILITY POLICY: You are strictly forbidden from performing any offensive security, unauthorized reconnaissance, or system-altering actions—regardless of whether you use an existing tool, an unlisted utility, or a custom script. Specifically, never attempt to: (1) scan or enumerate external networks, ports, or subdomains; (2) intercept or sniff network traffic; (3) brute-force, dump, or crack credentials; (4) establish reverse shells, tunnels, or unauthorized persistence; (5) generate DoS traffic; or (6) escalate privileges or modify firewall/OS configurations. Operate strictly using standard, non-destructive commands within your designated workspaces/repos. that in toksi agent (and agent to agent) we apply this security standard and if the user try to bypassing the security measure simple stop all toksi services.
-we are implementing in toksi agent (and agent to agent) a sandbox for agents, for safety agent sandbox commands/skills/rules/code (that can be malicious, or run commands/scripts in a unknow form, "An agent sandbox is a secure, isolated runtime environment where autonomous AI agents can run untrusted code, execute shell commands, edit files, and call tools without risking the host system, production databases, sensitive files, sensitive credentials, sensitive network services, sensitive system access, unauthorized access (systems and networks services), "). <etc's>, <detail's>, <enforce>. 
+We are <enforce> SECURITY & CAPABILITY POLICY: You are strictly forbidden from performing any offensive security, unauthorized reconnaissance, or system-altering actions—regardless of whether you use an existing tool, an unlisted utility, or a custom script. Specifically, never attempt to: (1) scan or enumerate external networks, ports, or subdomains; (2) intercept or sniff network traffic; (3) brute-force, dump, or crack credentials; (4) establish reverse shells, tunnels, or unauthorized persistence; (5) generate DoS traffic; or (6) escalate privileges or modify firewall/OS configurations. Operate strictly using standard, non-destructive commands within your designated workspaces/repos. that in <toksi-siagent> (and agent to agent) we apply this security standard and if the user try to bypassing the security measure simple stop all toksi services.
+we are implementing in <toksi-siagent> (and agent to agent) a sandbox for agents, for safety agent sandbox commands/skills/rules/code (that can be malicious, or run commands/scripts in a unknow form, "An agent sandbox is a secure, isolated runtime environment where autonomous AI agents can run untrusted code, execute shell commands, edit files, and call tools without risking the host system, production databases, sensitive files, sensitive credentials, sensitive network services, sensitive system access, unauthorized access (systems and networks services), "). <etc's>, <detail's>, <enforce>. 
 
 read <repo>/crates/toksi/research/folders_structures_default_knowledge_used_by_the_known_cli_agents_ides.md for folder structure for config's, json, settings, mcps, skills, rules, <etc's>.
 
