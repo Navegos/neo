@@ -93,8 +93,8 @@ mod imp {
                     // SAFETY: `blob_len` is even; `from_raw_parts_mut` is not used and we copy
                     // via unaligned reads if alignment is not guaranteed, or slice u16 when aligned.
                     let mut u16_buf = Vec::with_capacity(blob_len / 2);
-                    for chunk in slice.chunks_exact(2) {
-                        u16_buf.push(u16::from_le_bytes([chunk[0], chunk[1]]));
+                    for chunk in slice.as_chunks::<2>().0 {
+                        u16_buf.push(u16::from_le_bytes(*chunk));
                     }
                     let decoded = String::from_utf16(&u16_buf)
                         .ok()

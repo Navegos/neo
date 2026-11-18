@@ -233,6 +233,19 @@ pub struct ToksiTomlConfig {
     pub test: TestConfig,
 }
 
+impl ToksiTomlConfig {
+    pub fn has_enabled_byok_profiles(&self) -> bool {
+        self.byok_profiles.iter().any(|p| p.enabled)
+    }
+
+    pub fn enabled_profiles_for_provider(&self, provider_id: &str) -> Vec<&ByokProfileConfig> {
+        self.byok_profiles
+            .iter()
+            .filter(|p| p.enabled && p.provider_id.eq_ignore_ascii_case(provider_id))
+            .collect()
+    }
+}
+
 #[derive(Debug, Default)]
 struct RuntimeOverrides {
     headroom_proxy_port: Option<u16>,
