@@ -1,9 +1,9 @@
-# Phase 18.6 — 35-Component `<toksi-siagent>` Superintelligence Architecture & Full Inference/Compute Stack Consolidation
+# Phase 18.6 — 35-Component `<toksi-siagent>` Super Intelligence Architecture & Full Inference/Compute Stack Consolidation
 
 ## Ready-to-Run Chat Prompt
 
 ```text
-Implement Phase 18.6 of the Toksi Unified Consolidation Plan (35-Component `<toksi-siagent>` Superintelligence Architecture, Policy-as-Code & IAM Attestation, Guardrails/Red-Team Eval, Durable Temporal/Restate Workflow State & World Model, Hybrid Graph-Vector RAG, Local/Rust/Disaggregated Inference Serving, & Hardware/Cluster Compute Telemetry across all 295 Mandated Vaults).
+Implement Phase 18.6 of the Toksi Unified Consolidation Plan (35-Component `<toksi-siagent>` Super Intelligence Architecture, Policy-as-Code & IAM Attestation, Guardrails/Red-Team Eval, Durable Temporal/Restate Workflow State & World Model, Hybrid Graph-Vector RAG, Local/Rust/Disaggregated Inference Serving, & Hardware/Cluster Compute Telemetry across all 295 Mandated Vaults).
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 0–13), crates/toksi/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_and_quota_architecture.md, crates/toksi/research/docker_sandboxes_sbx_cli_reference.md, crates/toksi/research/folders_structures_default_knowledge_used_by_the_known_cli_agents_ides.md, crates/toksi/research/open_security_standards_zero_plaintext_blind_signature_engine_native_git_pr_validator.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, and .agents/brain/PHASE_18_6_35_COMPONENT_SIAGENT_AND_INFERENCE_COMPUTE_STACK.md first.
 
 Your goals in Rust (`crates/toksi`):
@@ -37,7 +37,7 @@ Your goals in Rust (`crates/toksi`):
 ## Technical Specifications & Details
 
 ### 1. 35-Component `<toksi-siagent>` Architecture Verification Matrix (`RESEARCHPLAN.md` Section 0.2)
-All 26 base `<agent>` components plus all 9 `<siagent>` Superintelligence extensions (`World Model`, `Hierarchical Planner`, `Verification Engine`, `Agent Runtime Daemon`, `IAM Attestation Layer`, `Policy-as-Code Engine`, `Circuit Breaker`, `Kill Switch`, `Immutable Audit Log`) execute natively in safe Rust (`#![deny(unsafe_code)]` on `crates/toksi`) across `DirectWireBus` and the 8-port daemon (`:8787..:8790, :9098, :9099, :9100, :18787`).
+All 26 base `<agent>` components plus all 9 `<siagent>` Super Intelligence extensions (`World Model`, `Hierarchical Planner`, `Verification Engine`, `Agent Runtime Daemon`, `IAM Attestation Layer`, `Policy-as-Code Engine`, `Circuit Breaker`, `Kill Switch`, `Immutable Audit Log`) execute natively in safe Rust (`#![deny(unsafe_code)]` on `crates/toksi`) across `DirectWireBus` and the 8-port daemon (`:8787..:8790, :9098, :9099, :9100, :18787`).
 
 ### 2. Vault Section Coverage (`295` Total Unique Mandated Vaults)
 - **Sections 2.1–2.4** (Core Proxy/Telemetry, 41-Lang CodeGraph/Embeddings, Graph/Vector Memory, Discipline/Protocols/SDKs): `45` vaults including `RouteLLM`, `phoenix`, `olla`, `tokenspeed`, `tokenizers`, `text-embeddings-inference`, `NeMo-Retriever`, `NeMo-text-processing`, `cognee`, `graphiti`, `qdrant`, `milvus`, `letta`, `langchain-mongodb`, `modelcontextprotocol-servers`, `mcp-framework`, `langchain-litellm`.

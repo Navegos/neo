@@ -1,10 +1,10 @@
-//! C# extraction — a faithful Rust port of `TreeSitterExtractor`'s C# paths
+//! C# extraction â€” a faithful Rust port of `TreeSitterExtractor`'s C# paths
 //! (src/extraction/tree-sitter.ts) plus languages/csharp.ts.
 //!
 //! Same porting contract as the other walkers: behavior parity with the wasm
 //! path, bug-for-bug, verified by scripts/kernel-parity.mjs and the full-index
 //! dump-diff gate. The authoritative quirk list is
-//! docs/design/csharp-kernel-port-checklist.md — including every deliberate
+//! docs/design/csharp-kernel-port-checklist.md â€” including every deliberate
 //! emission hole (constructor initializers, delegates/events/operators/
 //! indexers, top-level locals) and garbage ref
 //! (`(repo)` primary-ctor extends, `: byte` enum extends, `nameof` calls)
@@ -12,7 +12,7 @@
 //! parse tree contains ERRORS defer to the wasm extractor.
 //!
 //! preParse (#237 `#if` blanking) stays TS-side: the route point hoists it, so
-//! the kernel receives pre-blanked bytes — port NOTHING of it here (its regex
+//! the kernel receives pre-blanked bytes â€” port NOTHING of it here (its regex
 //! carries JS `(?m)`/CRLF semantics that must not be re-implemented).
 
 use crate::codegraph::kernel::buffers::{
@@ -29,7 +29,7 @@ use tree_sitter::{Node, Parser};
 
 const MAX_VALUE_REF_NODES: usize = 20_000;
 
-/// BUILTIN_TYPES (tree-sitter.ts) — the full shared table; membership is what
+/// BUILTIN_TYPES (tree-sitter.ts) â€” the full shared table; membership is what
 /// the TS code tests, so every row is ported even where only the Java/C# row
 /// can fire (a C# type named `String`/`error` IS suppressed via other rows).
 fn is_builtin_type(name: &str) -> bool {
@@ -61,8 +61,8 @@ fn trailing_nullable_re() -> &'static crate::codegraph::kernel::buffers::SafeReg
     static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
     RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"\?+$"))
 }
-/// extractCsharpReturnType's generics strip (`/<[^>]*>/g`) — deliberately
-/// non-nesting: `Task<List<Foo>>` → `Task>` → the ident test fails →
+/// extractCsharpReturnType's generics strip (`/<[^>]*>/g`) â€” deliberately
+/// non-nesting: `Task<List<Foo>>` â†’ `Task>` â†’ the ident test fails â†’
 /// returnType undefined (same class of quirk as rust; PRESERVE).
 fn generic_args_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
     static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
@@ -78,8 +78,17 @@ fn capitalized_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
     static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
     RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Z][A-Za-z0-9_]*$"))
 }
+/// A method group's `receiver.Member` (#2906).
+fn member_value_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
+    static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
+    RE.get_or_init(|| {
+        crate::codegraph::kernel::buffers::SafeRegex::compile(
+            r"^[A-Za-z_][0-9A-Za-z_]*(?:\.[A-Za-z_][0-9A-Za-z_]*)+$",
+        )
+    })
+}
 
-/// JS `\s` (WhiteSpace ∪ LineTerminator) — differs from Rust's `\p{White_Space}`
+/// JS `\s` (WhiteSpace âˆª LineTerminator) â€” differs from Rust's `\p{White_Space}`
 /// on U+FEFF (JS: yes) and U+0085 (JS: no). The chained-call inner-callee strip
 /// (`.replace(/\s+/g, '')`) runs on arbitrary source slices, so match JS exactly.
 fn is_js_space(c: char) -> bool {
@@ -132,7 +141,7 @@ pub struct Walker<'t> {
     node_id_allocator: ids::NodeIdAllocator,
     tables: Tables,
     stack: Vec<Scope>,
-    /// Node id string per row — ids COLLIDE for same-(kind, name, line) nodes
+    /// Node id string per row â€” ids COLLIDE for same-(kind, name, line) nodes
     /// and the TS side's fn-ref dedupe / value-ref self-checks key on the id.
     node_ids: Vec<String>,
     defined_fn_names: HashSet<String>,
@@ -150,11 +159,9 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(csharp) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -206,8 +213,8 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
 
     // extractFilePackage: a top-level file-scoped `namespace X;` mints ONE
     // `namespace` node that stays pushed for the ENTIRE file, so every import
-    // ref in the file hangs off it (checklist §namespace). A block namespace
-    // scopes only its own body — visit_node.
+    // ref in the file hangs off it (checklist Â§namespace). A block namespace
+    // scopes only its own body â€” visit_node.
     let root = tree.root_node();
     let mut pkg_pushed = false;
     for i in 0..root.named_child_count() {
@@ -362,7 +369,7 @@ impl<'t> Walker<'t> {
             id: id_ref,
             docstring: doc_ref,
             signature: sig_ref,
-            decorators: NONE_STR, // C# extraction emits no decorators (checklist §decorators)
+            decorators: NONE_STR, // C# extraction emits no decorators (checklist Â§decorators)
             type_parameters: NONE_STR,
             return_type: ret_ref,
             extra_json: NONE_STR,
@@ -412,11 +419,11 @@ impl<'t> Walker<'t> {
 
     // --- hooks (languages/csharp.ts) --------------------------------------------
     //
-    // C# modifiers are individual named `modifier` children — there is NO
+    // C# modifiers are individual named `modifier` children â€” there is NO
     // Java-style `modifiers` wrapper (probed).
 
     /// getVisibility: FIRST `modifier` child whose text is one of the four
-    /// levels wins; none → public in an interface, internal in a namespace
+    /// levels wins; none â†’ public in an interface, internal in a namespace
     /// or the file, private in a class or struct (the C# defaults).
     fn visibility_of(&self, node: Node) -> u8 {
         for i in 0..node.child_count() {
@@ -456,7 +463,7 @@ impl<'t> Walker<'t> {
             .any(|c| c.kind() == "modifier" && self.text(c) == "async")
     }
 
-    /// isConst: `const` → true; else `static` AND `readonly` both present.
+    /// isConst: `const` â†’ true; else `static` AND `readonly` both present.
     fn is_const(&self, node: Node) -> bool {
         let mut has_static = false;
         let mut has_readonly = false;
@@ -475,7 +482,7 @@ impl<'t> Walker<'t> {
         has_static && has_readonly
     }
 
-    /// extractCsharpReturnType — reads the `returns` field; feeds the
+    /// extractCsharpReturnType â€” reads the `returns` field; feeds the
     /// #645/#608 chained-call resolution. Constructors have no `returns`.
     fn return_type_of(&self, node: Node) -> Option<String> {
         let t = node.child_by_field_name("returns")?;
@@ -492,7 +499,7 @@ impl<'t> Walker<'t> {
         Some(last)
     }
 
-    /// extractName (tree-sitter.ts:90) — the C#-reachable paths: the `name`
+    /// extractName (tree-sitter.ts:90) â€” the C#-reachable paths: the `name`
     /// field (always present on named declarations), else the shared
     /// identifier scan, else `<anonymous>`.
     fn extract_name(&self, node: Node) -> String {
@@ -551,7 +558,7 @@ impl<'t> Walker<'t> {
         self.maybe_capture_fn_refs(node);
 
         if kind == "class_declaration" || kind == "record_declaration" {
-            // classifyClassNode: `record struct` → extractStruct, else class.
+            // classifyClassNode: `record struct` â†’ extractStruct, else class.
             if kind == "record_declaration" && record_is_struct(node) {
                 self.extract_struct(node);
             } else {
@@ -571,8 +578,8 @@ impl<'t> Walker<'t> {
             self.extract_enum(node);
             skip_children = true;
         } else if kind == "property_declaration" && self.inside_class_like() {
-            // The code a property runs — its accessor bodies, `=> expr` and
-            // `= initializer` — is walked with the property on the stack
+            // The code a property runs â€” its accessor bodies, `=> expr` and
+            // `= initializer` â€” is walked with the property on the stack
             // (propertyBodies). The candidates-only scan covers the rest,
             // skipping what the body walk captured.
             let walked: Vec<usize> = match self.extract_property(node) {
@@ -603,13 +610,13 @@ impl<'t> Walker<'t> {
         } else if kind == "local_declaration_statement" && !self.inside_class_like() {
             // Top-level statements: extractVariable's generic fallback finds no
             // direct identifier/variable_declarator children (C# nests them in
-            // variable_declaration) → ZERO nodes, zero refs. Candidates only.
+            // variable_declaration) â†’ ZERO nodes, zero refs. Candidates only.
             self.extract_variable(node);
             self.scan_fn_ref_subtree(node, 0, &[]);
             skip_children = true;
         } else if kind == "using_directive" {
             self.extract_import(node);
-            // no skipChildren (TS importTypes branch) — children visited below
+            // no skipChildren (TS importTypes branch) â€” children visited below
         } else if kind == "invocation_expression" {
             self.extract_call(node);
         } else if kind == "object_creation_expression" {
@@ -621,8 +628,8 @@ impl<'t> Walker<'t> {
         }
         // Everything else (namespace_declaration, global_statement, delegates,
         // events, operators, indexers, destructors, local functions, preproc_*)
-        // falls through: no node minted, children visited — their bodies' calls
-        // attribute to the enclosing scope (checklist §dispatch).
+        // falls through: no node minted, children visited â€” their bodies' calls
+        // attribute to the enclosing scope (checklist Â§dispatch).
 
         if !skip_children {
             for i in 0..node.named_child_count() {
@@ -655,12 +662,12 @@ impl<'t> Walker<'t> {
             }
         }
 
-        // Static value reads (`ReadType.ReadAsDouble`) — body walker only.
+        // Static value reads (`ReadType.ReadAsDouble`) â€” body walker only.
         self.extract_static_member_ref(node);
 
         // (variable_declarator type-annotation branch: C# has no
-        // `type_annotation` child node — structurally inert, not ported.
-        // functionTypes is empty — no nested-function branch.)
+        // `type_annotation` child node â€” structurally inert, not ported.
+        // functionTypes is empty â€” no nested-function branch.)
 
         if kind == "class_declaration" || kind == "record_declaration" {
             if kind == "record_declaration" && record_is_struct(node) {
@@ -699,18 +706,18 @@ impl<'t> Walker<'t> {
         let extra = Extra {
             docstring: preceding_docstring(node, self.src),
             visibility: Some(self.visibility_of(node)),
-            ..Extra::default() // isExported hook absent → flag not present
+            ..Extra::default() // isExported hook absent â†’ flag not present
         };
         let Some(row) = self.create_node("class", &name, node, extra) else { return };
         self.extract_inheritance(node, row);
         self.extract_primary_ctor_param_refs(node, row);
         // extractDecoratorsFor: C# attributes never match its accepted node
-        // types (attribute_list is skipped, its children never reached) —
+        // types (attribute_list is skipped, its children never reached) â€”
         // zero `decorates` refs; the call slot emits nothing.
 
         self.stack.push(Scope { row, kind: "class", name });
         // body ?? node: a bodiless record's own children are iterated
-        // "harmlessly" — visit_node on identifier/parameter_list/base_list
+        // "harmlessly" â€” visit_node on identifier/parameter_list/base_list
         // children falls through (base-arg identifiers still feed fn-ref
         // capture, mirroring the TS walk).
         let body = node.child_by_field_name("body").unwrap_or(node);
@@ -725,7 +732,7 @@ impl<'t> Walker<'t> {
 
     fn extract_struct(&mut self, node: Node<'t>) {
         stack_guard!();
-        // Body gate — EXCEPT C# positional records (`record struct M(…);`,
+        // Body gate â€” EXCEPT C# positional records (`record struct M(â€¦);`,
         // node type record_declaration), complete definitions with no body.
         // A bodiless `struct Fwd;` mints NO node. (#831)
         let body = node.child_by_field_name("body");
@@ -758,7 +765,7 @@ impl<'t> Walker<'t> {
         let name = self.extract_name(node);
         let extra = Extra {
             docstring: preceding_docstring(node, self.src),
-            ..Extra::default() // NO visibility — extractInterface never asks
+            ..Extra::default() // NO visibility â€” extractInterface never asks
         };
         let Some(row) = self.create_node("interface", &name, node, extra) else { return };
         self.extract_inheritance(node, row);
@@ -782,7 +789,7 @@ impl<'t> Walker<'t> {
             ..Extra::default()
         };
         let Some(row) = self.create_node("enum", &name, node, extra) else { return };
-        // The underlying type (`enum ReadType : byte`) sits in base_list →
+        // The underlying type (`enum ReadType : byte`) sits in base_list â†’
         // an `extends` ref named `byte` (garbage, PRESERVE).
         self.extract_inheritance(node, row);
         self.stack.push(Scope { row, kind: "enum", name });
@@ -807,13 +814,13 @@ impl<'t> Walker<'t> {
         // (identifier-children / leaf fallbacks are other grammars' shapes)
     }
 
-    /// extractProperty (1986) — property_declaration only (dispatch-gated to
+    /// extractProperty (1986) â€” property_declaration only (dispatch-gated to
     /// class-like scopes). Type refs come from the `type` field; the caller
     /// walks the bodies (property_bodies) with the returned row on the stack.
     fn extract_property(&mut self, node: Node<'t>) -> Option<(u32, String)> {
         let docstring = preceding_docstring(node, self.src);
         let visibility = Some(self.visibility_of(node));
-        let is_static = Some(self.is_static(node)); // ?? false — always concrete
+        let is_static = Some(self.is_static(node)); // ?? false â€” always concrete
 
         let name_node = node
             .child_by_field_name("name")
@@ -832,7 +839,7 @@ impl<'t> Walker<'t> {
         // Generic scan (isTsJsField=false): FIRST namedChild that isn't a
         // modifier/name/accessor/initializer. A BARE-identifier declared type
         // (`public Widget Parent {get;}`) is excluded by the `identifier`
-        // filter → the signature loses its type (QUIRK, preserve); the type
+        // filter â†’ the signature loses its type (QUIRK, preserve); the type
         // ref below still fires via the `type` FIELD.
         let type_node = (0..node.named_child_count())
             .filter_map(|i| node.named_child(i))
@@ -845,7 +852,7 @@ impl<'t> Walker<'t> {
             });
         let type_text = type_node.map(|t| {
             let raw = self.text(t);
-            // TS `.replace(/^:\s*/, '')` — inert for C# type text; mirrored.
+            // TS `.replace(/^:\s*/, '')` â€” inert for C# type text; mirrored.
             match raw.strip_prefix(':') {
                 Some(rest) => rest.trim_start_matches(is_js_space).to_string(),
                 None => raw.to_string(),
@@ -867,19 +874,19 @@ impl<'t> Walker<'t> {
         Some((row, name))
     }
 
-    /// extractField (2046) — field_declaration; each declarator becomes a
-    /// field/constant node anchored at the DECLARATOR, and the declarator —
-    /// its `= initializer` — is walked with that node on the stack. Returns
+    /// extractField (2046) â€” field_declaration; each declarator becomes a
+    /// field/constant node anchored at the DECLARATOR, and the declarator â€”
+    /// its `= initializer` â€” is walked with that node on the stack. Returns
     /// the walked declarators, for the fn-ref scan to skip.
     fn extract_field(&mut self, node: Node<'t>) -> Vec<usize> {
         let mut walked = Vec::new();
         let docstring = preceding_docstring(node, self.src);
         let visibility = Some(self.visibility_of(node));
         let is_static = Some(self.is_static(node));
-        // `const` / `static readonly` → constant (value-ref targets).
+        // `const` / `static readonly` â†’ constant (value-ref targets).
         let field_kind: &'static str = if self.is_const(node) { "constant" } else { "field" };
 
-        // Direct declarators (Java shape) — none for C#; the wrapper path:
+        // Direct declarators (Java shape) â€” none for C#; the wrapper path:
         let mut declarators: Vec<Node> = (0..node.named_child_count())
             .filter_map(|i| node.named_child(i))
             .filter(|c| c.kind() == "variable_declarator")
@@ -935,7 +942,7 @@ impl<'t> Walker<'t> {
                     },
                 );
                 if let Some(row) = row {
-                    // decorators: none; type refs from the OUTER declaration —
+                    // decorators: none; type refs from the OUTER declaration â€”
                     // multi-declarator fields emit the type refs once PER
                     // declarator, each from its own field node.
                     self.extract_csharp_type_refs(node, row);
@@ -970,10 +977,10 @@ impl<'t> Walker<'t> {
         walked
     }
 
-    /// extractTargetTypedNew (tree-sitter.ts) — a target-typed `new()`
+    /// extractTargetTypedNew (tree-sitter.ts) â€” a target-typed `new()`
     /// (implicit_object_creation_expression) names no type, so it is no
     /// instantiation kind; as a field's or property's initializer it
-    /// constructs the declared type (`List<Foo> _items = new();` → List).
+    /// constructs the declared type (`List<Foo> _items = new();` â†’ List).
     /// Emitted from the stack top (the member) at the `new()`.
     fn extract_target_typed_new(&mut self, value: Option<Node<'t>>, declared: Option<Node<'t>>) {
         let Some(value) = value else { return };
@@ -985,9 +992,9 @@ impl<'t> Walker<'t> {
         self.push_ref_at(from, &class_name, edge_kind_index("instantiates").unwrap_or(0), value);
     }
 
-    /// csharpClassTypeName (tree-sitter.ts) — the class a declared type
-    /// names, as `new T()` would name it: `List<Foo>` → List, `Ns.Foo` /
-    /// `global::Foo` → Foo, `Foo?` → Foo. Predefined, array, tuple and pointer
+    /// csharpClassTypeName (tree-sitter.ts) â€” the class a declared type
+    /// names, as `new T()` would name it: `List<Foo>` â†’ List, `Ns.Foo` /
+    /// `global::Foo` â†’ Foo, `Foo?` â†’ Foo. Predefined, array, tuple and pointer
     /// types name no class.
     fn class_type_name(&self, node: Node) -> Option<String> {
         match node.kind() {
@@ -1007,13 +1014,13 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractMethod (1737) — method_declaration + constructor_declaration.
+    /// extractMethod (1737) â€” method_declaration + constructor_declaration.
     /// Signature is ALWAYS undefined (no getSignature hook); isAsync is real.
     fn extract_method(&mut self, node: Node<'t>) {
         stack_guard!();
         if !self.inside_class_like() {
             // Unreachable on non-erroring C# (top-level `void M(){}` parses as
-            // local_function_statement; erroring files defer) — mirror the TS
+            // local_function_statement; erroring files defer) â€” mirror the TS
             // treat-as-function tail for shape.
             self.extract_function(node);
             return;
@@ -1034,7 +1041,7 @@ impl<'t> Walker<'t> {
         // decorators: none.
         self.stack.push(Scope { row, kind: "method", name });
         // The `body` FIELD only (block or arrow_expression_clause). A
-        // constructor_initializer (`: base(args)`) is NOT the body → its
+        // constructor_initializer (`: base(args)`) is NOT the body â†’ its
         // argument calls are LOST (quirk, preserve).
         if let Some(body) = node.child_by_field_name("body") {
             self.visit_function_body(body);
@@ -1042,7 +1049,7 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractFunction — only reachable for a method outside any class
+    /// extractFunction â€” only reachable for a method outside any class
     /// (unreachable on non-erroring C#; kept faithful to the generic tail).
     fn extract_function(&mut self, node: Node<'t>) {
         stack_guard!();
@@ -1072,9 +1079,9 @@ impl<'t> Walker<'t> {
 
     fn extract_variable(&mut self, node: Node<'t>) {
         // extractVariable's generic fallback: direct identifier /
-        // variable_declarator children only — C# nests declarators inside
+        // variable_declarator children only â€” C# nests declarators inside
         // variable_declaration, so this NEVER fires (`var x = F();` at top
-        // level produces no node, no calls ref, no instantiates — preserve).
+        // level produces no node, no calls ref, no instantiates â€” preserve).
         let kind: &'static str = if self.is_const(node) { "constant" } else { "variable" };
         let docstring = preceding_docstring(node, self.src);
         for i in 0..node.named_child_count() {
@@ -1097,7 +1104,7 @@ impl<'t> Walker<'t> {
     }
 
     /// extractImport via csharpExtractor.extractImport: moduleName = first
-    /// qualified_name child's text, else first identifier's — with the alias
+    /// qualified_name child's text, else first identifier's â€” with the alias
     /// quirks (alias-to-qualified keeps generic args on the TARGET text;
     /// alias-to-identifier captures the ALIAS name) preserved verbatim.
     fn extract_import(&mut self, node: Node<'t>) {
@@ -1110,7 +1117,7 @@ impl<'t> Walker<'t> {
                     .filter_map(|i| node.named_child(i))
                     .find(|c| c.kind() == "identifier")
             });
-        let Some(target) = target else { return }; // hook declined → no node, no ref
+        let Some(target) = target else { return }; // hook declined â†’ no node, no ref
         let module_name = self.text(target).to_string();
         if module_name.is_empty() {
             return;
@@ -1127,7 +1134,7 @@ impl<'t> Walker<'t> {
         self.push_ref_at(parent, &module_name.clone(), edge_kind_index("imports").unwrap_or(0), node);
     }
 
-    /// extractCall — the C# branch (tree-sitter.ts:4502) + shared tail.
+    /// extractCall â€” the C# branch (tree-sitter.ts:4502) + shared tail.
     fn extract_call(&mut self, node: Node<'t>) {
         if self.stack.is_empty() {
             return;
@@ -1147,8 +1154,8 @@ impl<'t> Walker<'t> {
                 .map(|r| r.kind() == "invocation_expression" && !method_name.is_empty())
                 .unwrap_or(false);
             if chained {
-                // Chained factory `Foo.Create(args).Bar()` → `Foo.Create().Bar`
-                // (inner whitespace stripped, EVERY call-receiver re-encodes —
+                // Chained factory `Foo.Create(args).Bar()` â†’ `Foo.Create().Bar`
+                // (inner whitespace stripped, EVERY call-receiver re-encodes â€”
                 // no capitalization gate, unlike kotlin/scala).
                 let inner_func = recv.and_then(|r| r.child_by_field_name("function"));
                 let inner_callee = inner_func.map(|f| strip_js_ws(self.text(f))).unwrap_or_default();
@@ -1160,24 +1167,24 @@ impl<'t> Walker<'t> {
             } else {
                 // RAW full member-access text: `this.Run`, `base.Method`,
                 // `"lit".ToUpper`, multi-line fluent chains with their
-                // newlines — no SKIP_RECEIVERS, no literal filter (preserve).
+                // newlines â€” no SKIP_RECEIVERS, no literal filter (preserve).
                 callee_name = self.text(func).to_string();
             }
         } else {
             // Bare `Helper()`, generic `Generic<int>` kept verbatim,
-            // `nameof(...)` → a calls ref named `nameof`, `?.` chains raw,
-            // `(myDel)(x)` → parenthesized text (normalized below).
+            // `nameof(...)` â†’ a calls ref named `nameof`, `?.` chains raw,
+            // `(myDel)(x)` â†’ parenthesized text (normalized below).
             callee_name = self.text(func).to_string();
         }
 
-        // Shared parenthesized-conversion normalization — the one shared
-        // normalization C# actually hits: `(myDel)(x)` → `myDel`.
+        // Shared parenthesized-conversion normalization â€” the one shared
+        // normalization C# actually hits: `(myDel)(x)` â†’ `myDel`.
         if !callee_name.is_empty() {
             if let Some(c) = util::paren_conversion().captures(&callee_name) {
                 callee_name = c[1].to_string();
             }
         }
-        // (template strip + fn-ptr fan-out are c/cpp-gated — not C#.)
+        // (template strip + fn-ptr fan-out are c/cpp-gated â€” not C#.)
 
         if !callee_name.is_empty() {
             self.push_ref_at(caller, &callee_name.clone(), edge_kind_index("calls").unwrap_or(0), node);
@@ -1194,9 +1201,9 @@ impl<'t> Walker<'t> {
             .or_else(|| node.child_by_field_name("name"))
             .or_else(|| node.named_child(0));
         let Some(ctor) = ctor else { return };
-        // `new List<Foo>()` → `List`; `new Ns.Foo()` → `Foo`. Target-typed
+        // `new List<Foo>()` â†’ `List`; `new Ns.Foo()` â†’ `Foo`. Target-typed
         // `new()` / anonymous `new { }` / arrays `new T[n]` never reach here
-        // (not in INSTANTIATION_KINDS) — invisible by design, except a `new()`
+        // (not in INSTANTIATION_KINDS) â€” invisible by design, except a `new()`
         // that initializes a field or property (extract_target_typed_new).
         let class_name = strip_generic_and_qualifier(self.text(ctor));
         if !class_name.is_empty() {
@@ -1205,10 +1212,10 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractAnonymousClass — `new T() { ... }`. The C# grammar never
+    /// extractAnonymousClass â€” `new T() { ... }`. The C# grammar never
     /// produces a class_body/declaration_list child on object_creation
     /// (object initializers are initializer_expression), so this is
-    /// unreachable — mirrored from the shared TS path like java.rs.
+    /// unreachable â€” mirrored from the shared TS path like java.rs.
     fn extract_anonymous_class(&mut self, node: Node<'t>, body: Node<'t>) {
         stack_guard!();
         let type_node = node
@@ -1228,7 +1235,7 @@ impl<'t> Walker<'t> {
             return;
         };
         // Bug-for-bug: the TS code uses `startPosition.row` (0-based) as the
-        // LINE here — the one place it forgets the +1.
+        // LINE here â€” the one place it forgets the +1.
         let (line, column) = match type_node {
             Some(t) => (t.start_position().row as u32, self.col_of(t)),
             None => (node.start_position().row as u32, self.col_of(node)),
@@ -1244,7 +1251,7 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractStaticMemberRef — csharp ∈ STATIC_MEMBER_LANGS; C#'s
+    /// extractStaticMemberRef â€” csharp âˆˆ STATIC_MEMBER_LANGS; C#'s
     /// member-access node with the `expression` receiver field.
     fn extract_static_member_ref(&mut self, node: Node<'t>) {
         if node.kind() != "member_access_expression" {
@@ -1254,7 +1261,7 @@ impl<'t> Walker<'t> {
             return;
         }
         let owner = self.top_row();
-        // Skip `Type.Method()` — the access is a call's callee, already linked.
+        // Skip `Type.Method()` â€” the access is a call's callee, already linked.
         if let Some(parent) = node.parent() {
             if parent.kind() == "invocation_expression" {
                 let callee = parent
@@ -1285,7 +1292,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractInheritance — the C# base_list branch (5577): EVERY namedChild
+    /// extractInheritance â€” the C# base_list branch (5577): EVERY namedChild
     /// emits one `extends` ref (interfaces conflated by design; the garbage
     /// `(repo)` argument-list / `BaseDto(Name)` / `: byte` shapes preserved).
     fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
@@ -1298,7 +1305,7 @@ impl<'t> Walker<'t> {
             for j in 0..child.named_child_count() {
                 let Some(base) = child.named_child(j) else { continue };
                 let name = if base.kind() == "generic_name" {
-                    // `ClientBase<T>` → head identifier; position = generic_name.
+                    // `ClientBase<T>` â†’ head identifier; position = generic_name.
                     let ident = (0..base.named_child_count())
                         .filter_map(|k| base.named_child(k))
                         .find(|c| c.kind() == "identifier");
@@ -1347,7 +1354,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractCsharpPrimaryCtorParamRefs (5938) — the class/struct/record
+    /// extractCsharpPrimaryCtorParamRefs (5938) â€” the class/struct/record
     /// primary constructor's parameter_list (an unnamed-field child).
     fn extract_primary_ctor_param_refs(&mut self, node: Node<'t>, owner_row: u32) {
         let param_list = (0..node.named_child_count())
@@ -1385,7 +1392,7 @@ impl<'t> Walker<'t> {
                 }
             }
             "tuple_element" => {
-                // Walk the type field only — never the element NAME.
+                // Walk the type field only â€” never the element NAME.
                 if let Some(t) = node.child_by_field_name("type") {
                     self.walk_type_position(t, from_row);
                 }
@@ -1454,8 +1461,8 @@ impl<'t> Walker<'t> {
             }
             Mode::Varinit => {
                 // No `value` field on C# variable_declarator: the initializer
-                // is the LAST named child — but an initializer-less declarator
-                // has its NAME there. Require ≥2 named children and never pick
+                // is the LAST named child â€” but an initializer-less declarator
+                // has its NAME there. Require â‰¥2 named children and never pick
                 // the name child. (Destructuring pattern gate never matches C#.)
                 let name_child = node
                     .child_by_field_name("name")
@@ -1497,7 +1504,7 @@ impl<'t> Walker<'t> {
                 self.push_fn_ref_cand(from, name, v);
             }
             "argument" => {
-                // Transparent layer (field=null) → recurse all named children.
+                // Transparent layer (field=null) â†’ recurse all named children.
                 for i in 0..v.named_child_count() {
                     if let Some(c) = v.named_child(i) {
                         self.normalize_fn_ref_value(c, from, depth + 1);
@@ -1505,7 +1512,7 @@ impl<'t> Walker<'t> {
                 }
             }
             "member_access_expression" => {
-                // `this.Run0` — receiver must be EXACTLY `this` (the vendored
+                // `this.Run0` â€” receiver must be EXACTLY `this` (the vendored
                 // grammar yields the anonymous `this` token via the field;
                 // text-prefix fallback for field-less shapes). Candidate is
                 // the BARE member name at the name node's position.
@@ -1517,6 +1524,13 @@ impl<'t> Walker<'t> {
                 if is_this {
                     let name = self.text(name_node);
                     self.push_fn_ref_cand(from, name, name_node);
+                } else {
+                    // A method group through a receiver, `worker.Run` (#2906).
+                    let stripped = strip_js_ws(self.text(v));
+                    let value = stripped.strip_prefix("this.").unwrap_or(&stripped).to_string();
+                    if member_value_re().is_match(&value) {
+                        self.push_fn_ref_cand(from, &value, name_node);
+                    }
                 }
             }
             _ => {}
@@ -1546,7 +1560,7 @@ impl<'t> Walker<'t> {
         if walked.contains(&node.id()) {
             return;
         }
-        // functionTypes is EMPTY for C#; the literal halt list applies —
+        // functionTypes is EMPTY for C#; the literal halt list applies â€”
         // lambda_expression IS C#'s lambda, so a lambda the scan reaches (a
         // top-level statement's) stops it; anonymous_method_expression is NOT
         // listed and scans through. Member initializers are walked instead.
@@ -1574,10 +1588,11 @@ impl<'t> Walker<'t> {
         let mut seen: HashSet<(String, String)> = HashSet::new();
         for c in cands {
             // C# candidates are always bare names (its this-forms normalize to
-            // the bare member), so the `this.`/`::` bypasses are inert — kept
-            // for shared-shape parity. Gate: definedHere ∪ importedNames.
+            // the bare member), so the `this.`/`::` bypasses are inert â€” kept
+            // for shared-shape parity. Gate: definedHere âˆª importedNames.
             if !c.name.starts_with("this.")
                 && !c.name.contains("::")
+                && !c.name.contains('.')
                 && !self.defined_fn_names.contains(&c.name)
                 && !self.imported_names.contains(&c.name)
             {
@@ -1615,7 +1630,7 @@ impl<'t> Walker<'t> {
 
         // Shadow prune: count every variable_declarator declaring a target
         // name (field declarators AND method-body/top-level locals); more
-        // declarations than file-scope captures → shadowed → dropped.
+        // declarations than file-scope captures â†’ shadowed â†’ dropped.
         let mut decl_counts: HashMap<&str, u32> = HashMap::new();
         let mut dstack: Vec<Node> = vec![root];
         let mut dvisited = 0usize;
@@ -1634,7 +1649,7 @@ impl<'t> Walker<'t> {
                     }
                 }
             }
-            // (property_declaration's bump is structurally null for C# — not ported.)
+            // (property_declaration's bump is structurally null for C# â€” not ported.)
             for i in 0..n.named_child_count() {
                 if let Some(c) = n.named_child(i) {
                     dstack.push(c);
@@ -1698,9 +1713,9 @@ impl<'t> Walker<'t> {
     }
 }
 
-/// propertyBodies (tree-sitter.ts) — the parts of a property that run code:
+/// propertyBodies (tree-sitter.ts) â€” the parts of a property that run code:
 /// each accessor's `body` (a block or `=> expr`), then the property's
-/// `value` — an expression body's `=> …` or an `= initializer`. Attributes
+/// `value` â€” an expression body's `=> â€¦` or an `= initializer`. Attributes
 /// are not walked.
 fn property_bodies(node: Node) -> Vec<Node> {
     let mut bodies = Vec::new();
@@ -1739,7 +1754,7 @@ fn find_anonymous_class_body(node: Node) -> Option<Node> {
 /// The `new ns.Foo<T>()` name normalization shared by instantiation /
 /// anonymous-class extraction: strip `<...` from the first `<` (index > 0),
 /// keep the segment after the last `.`/`::`, strip ONE leading `:` or `.`,
-/// trim. (The vbnet paren strip in the TS path is vbnet-gated — inert here.)
+/// trim. (The vbnet paren strip in the TS path is vbnet-gated â€” inert here.)
 fn strip_generic_and_qualifier(raw: &str) -> String {
     let mut name = raw.to_string();
     if let Some(lt) = name.find('<') {

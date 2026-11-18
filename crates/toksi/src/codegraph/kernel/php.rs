@@ -1,11 +1,11 @@
-//! PHP extraction — a faithful Rust port of `TreeSitterExtractor`'s PHP paths
+//! PHP extraction â€” a faithful Rust port of `TreeSitterExtractor`'s PHP paths
 //! (src/extraction/tree-sitter.ts) plus languages/php.ts.
 //!
 //! Same porting contract as the other walkers: behavior parity, bug-for-bug.
-//! The authoritative quirk list is docs/design/php-kernel-port-checklist.md —
+//! The authoritative quirk list is docs/design/php-kernel-port-checklist.md â€”
 //! including what this file preserves on purpose: the visitNode hook consumes
 //! const_declaration (constants at ANY scope, values never walked) and
-//! trait-`use` (implements refs WITH filePath — the v2 ref-flag wire slot,
+//! trait-`use` (implements refs WITH filePath â€” the v2 ref-flag wire slot,
 //! shipped with ruby) before the ladder; the FIRST file-level namespace scopes
 //! the whole walk (braced namespaces scope nothing); anonymous classes on the
 //! v0.24.2 grammar mint NO anon-class node (top-level methods become file-level
@@ -15,7 +15,7 @@
 //! machinery is resolution-side); nullsafe `?->` emits nothing; literal
 //! receivers are not suppressed; interface multi-extends drops all but the
 //! first base; property type-hints emit no refs from field nodes. Positions in
-//! UTF-16 code units. Files with parse errors defer to wasm (≈0–0.1%).
+//! UTF-16 code units. Files with parse errors defer to wasm (â‰ˆ0â€“0.1%).
 
 use crate::codegraph::kernel::buffers::{
     build_meta, edge_kind_index, node_kind_index, Arena, BoolFlags, EdgeRow, EmitOut, NodeRow,
@@ -160,11 +160,9 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(php) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -215,7 +213,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     // extractFilePackage: the FIRST namespace_definition among the root's
     // direct namedChildren; braced namespaces (a compound_statement /
     // declaration_list child) make NO node and scope NOTHING. The node stays
-    // pushed for the whole walk — QNs become `App\Services::Name` and import
+    // pushed for the whole walk â€” QNs become `App\Services::Name` and import
     // nodes/refs hang off it.
     let root = tree.root_node();
     let mut pkg_pushed = false;
@@ -382,7 +380,7 @@ impl<'t> Walker<'t> {
         if kind == "function" || kind == "method" {
             self.defined_fn_names.insert(name.to_string());
         }
-        // captureValueRefScope — with a namespace pushed, top-level constants
+        // captureValueRefScope â€” with a namespace pushed, top-level constants
         // have a `namespace` parent (NOT in the accepted set) and are dropped
         // as targets; class/enum consts qualify, interface/trait ones don't.
         let target_kind_ok = kind == "constant" || kind == "variable";
@@ -423,7 +421,7 @@ impl<'t> Walker<'t> {
     // --- hooks (languages/php.ts) ------------------------------------------------
 
     /// getVisibility: any `visibility_modifier` child with one of the three
-    /// texts; none → public (the php default).
+    /// texts; none â†’ public (the php default).
     fn visibility_of(&self, node: Node) -> u8 {
         for i in 0..node.child_count() {
             let Some(child) = node.child(i) else { continue };
@@ -445,8 +443,8 @@ impl<'t> Walker<'t> {
             .any(|c| c.kind() == "static_modifier")
     }
 
-    /// extractPhpReturnType — `self`/`static` collapse to the `'self'` marker
-    /// (#608 chained-call fuel); primitives/unions → None.
+    /// extractPhpReturnType â€” `self`/`static` collapse to the `'self'` marker
+    /// (#608 chained-call fuel); primitives/unions â†’ None.
     fn return_type_of(&self, node: Node) -> Option<String> {
         let mut rt = node.child_by_field_name("return_type")?;
         if rt.kind() == "optional_type" {
@@ -498,7 +496,7 @@ impl<'t> Walker<'t> {
             }
             // Trait use inside a class-like body: one `implements` ref per
             // used name (full qualified text), all at the use_declaration's
-            // position — WITH filePath (the hook sets ctx.filePath; v2 flag).
+            // position â€” WITH filePath (the hook sets ctx.filePath; v2 flag).
             "use_declaration" => {
                 let names: Vec<Node> = (0..node.named_child_count())
                     .filter_map(|i| node.named_child(i))
@@ -552,12 +550,12 @@ impl<'t> Walker<'t> {
             self.extract_class(node, "class");
             skip_children = true;
         } else if kind == "trait_declaration" {
-            // classifyClassNode → 'trait'.
+            // classifyClassNode â†’ 'trait'.
             self.extract_class(node, "trait");
             skip_children = true;
         } else if kind == "method_declaration" {
-            // Inside a class-like → method; outside (an anonymous class's
-            // members at TOP level — grammar-bump delta #1) the 1747 gate
+            // Inside a class-like â†’ method; outside (an anonymous class's
+            // members at TOP level â€” grammar-bump delta #1) the 1747 gate
             // bounces to extractFunction: a file-level `function` node.
             if self.inside_class_like() {
                 self.extract_method(node);
@@ -591,14 +589,14 @@ impl<'t> Walker<'t> {
             self.extract_instantiation(node);
             if let Some(anon_body) = find_anonymous_class_body(node) {
                 // v0.24.2 nests the declaration_list in `anonymous_class`, so
-                // this never fires — mirrored for shape.
+                // this never fires â€” mirrored for shape.
                 self.extract_anonymous_class(node, anon_body);
                 skip_children = true;
             }
         }
         // text / php_tag / text_interpolation / namespace_definition /
         // nullsafe_member_call_expression / expression_statement / closures /
-        // match / attributes: no branch — children visited.
+        // match / attributes: no branch â€” children visited.
 
         if !skip_children {
             for i in 0..node.named_child_count() {
@@ -621,6 +619,17 @@ impl<'t> Walker<'t> {
         let kind = node.kind();
         self.maybe_capture_fn_refs(node);
 
+        // A `require`/`include` in a body includes its file there (#3296).
+        if matches!(
+            kind,
+            "include_expression"
+                | "include_once_expression"
+                | "require_expression"
+                | "require_once_expression"
+        ) {
+            self.extract_import(node);
+        }
+
         if matches!(
             kind,
             "function_call_expression" | "member_call_expression" | "scoped_call_expression"
@@ -639,7 +648,7 @@ impl<'t> Walker<'t> {
 
         // Nested NAMED functions; body-level class/trait/enum/interface
         // declarations (the polyfill idiom). NOTE: no method_declaration
-        // branch — in-body anonymous-class methods vanish (delta #1), and the
+        // branch â€” in-body anonymous-class methods vanish (delta #1), and the
         // visitNode hook does NOT run here (a const_declaration in a body-level
         // class still extracts via extractClass's own visitNode body walk).
         if kind == "function_definition" {
@@ -748,7 +757,7 @@ impl<'t> Walker<'t> {
         let name = self.extract_name(node);
         let extra = Extra {
             docstring: preceding_docstring(node, self.src),
-            ..Extra::default() // NO visibility — extractInterface never asks
+            ..Extra::default() // NO visibility â€” extractInterface never asks
         };
         let Some(row) = self.create_node("interface", &name, node, extra) else { return };
         self.extract_inheritance(node, row);
@@ -772,7 +781,7 @@ impl<'t> Walker<'t> {
             ..Extra::default()
         };
         let Some(row) = self.create_node("enum", &name, node, extra) else { return };
-        // class_interface_clause → implements refs; the backing type is never
+        // class_interface_clause â†’ implements refs; the backing type is never
         // read (it's not in a base_clause).
         self.extract_inheritance(node, row);
         self.stack.push(Scope { row, kind: "enum", name });
@@ -796,8 +805,8 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractField — the php property_element branch (2077-2104): one `field`
-    /// node per element, `$` re-added in the signature only, then RETURN — no
+    /// extractField â€” the php property_element branch (2077-2104): one `field`
+    /// node per element, `$` re-added in the signature only, then RETURN â€” no
     /// decorators, no type-annotation refs from fields.
     fn extract_field(&mut self, node: Node<'t>) {
         let docstring = preceding_docstring(node, self.src);
@@ -813,7 +822,7 @@ impl<'t> Walker<'t> {
             return;
         }
         // The type node: first namedChild that isn't a modifier or element.
-        // QUIRK: final_modifier/abstract_modifier are NOT excluded — a
+        // QUIRK: final_modifier/abstract_modifier are NOT excluded â€” a
         // `final public Foo $x` takes `final` as the type text. PRESERVE.
         let type_node = (0..node.named_child_count())
             .filter_map(|i| node.named_child(i))
@@ -857,7 +866,7 @@ impl<'t> Walker<'t> {
 
     // --- imports -------------------------------------------------------------------
 
-    /// pushPhpUseRef (3563): `Foo\Bar\Baz` → an `imports` ref named
+    /// pushPhpUseRef (3563): `Foo\Bar\Baz` â†’ an `imports` ref named
     /// `Foo\Bar::Baz`; a global-namespace name (no `\` after stripping one
     /// leading `\`) emits nothing here.
     fn push_php_use_ref(&mut self, fqn: &str, from_row: u32, node: Node) {
@@ -893,7 +902,7 @@ impl<'t> Walker<'t> {
             for i in 0..arg.named_child_count() {
                 let Some(c) = arg.named_child(i) else { continue };
                 if c.kind() != "string_content" {
-                    return; // interpolation/escape → not a static path
+                    return; // interpolation/escape â†’ not a static path
                 }
                 if content.is_none() {
                     content = Some(c);
@@ -923,10 +932,10 @@ impl<'t> Walker<'t> {
             .filter_map(|i| node.named_child(i))
             .find(|c| c.kind() == "namespace_use_group");
         if let (Some(ns_prefix), Some(use_group)) = (ns_prefix, use_group) {
-            // Grouped `use A\{B, C as D, Sub\E}` — hook declines, the inline
+            // Grouped `use A\{B, C as D, Sub\E}` â€” hook declines, the inline
             // branch emits per-member nodes named `A\B` (first `name` child =
             // the SOURCE name; a nested `Sub\E` clause has a qualified_name,
-            // no direct `name` → SKIPPED, grammar-bump delta #2). All nodes
+            // no direct `name` â†’ SKIPPED, grammar-bump delta #2). All nodes
             // and refs sit at the whole declaration's position.
             let prefix = self.text(ns_prefix).to_string();
             let clauses: Vec<Node> = (0..use_group.named_child_count())
@@ -976,7 +985,7 @@ impl<'t> Walker<'t> {
                     .filter_map(|i| use_clause.named_child(i))
                     .find(|c| c.kind() == "name")
             });
-        let Some(target) = target else { return }; // hook null → nothing
+        let Some(target) = target else { return }; // hook null â†’ nothing
         let module_name = self.text(target).to_string();
         if module_name.is_empty() {
             return;
@@ -989,8 +998,8 @@ impl<'t> Walker<'t> {
         );
         let parent = self.top_row();
         self.push_ref_at(parent, &module_name.clone(), imports_kind, node);
-        // emitPhpUseRefs → the `Foo\Bar::Baz` ref (bare single-segment `use
-        // Countable;` has no `\` → no `::` ref).
+        // emitPhpUseRefs â†’ the `Foo\Bar::Baz` ref (bare single-segment `use
+        // Countable;` has no `\` â†’ no `::` ref).
         self.push_php_use_ref(&module_name, parent, node);
     }
 
@@ -1012,7 +1021,7 @@ impl<'t> Walker<'t> {
             // member_call_expression / scoped_call_expression.
             let method_name = self.text(name_field);
 
-            // Fluent static-factory `Cls::factory($x)->method()` — encode
+            // Fluent static-factory `Cls::factory($x)->method()` â€” encode
             // `Cls::factory().method` (inner args dropped) and return; the
             // inner scoped call is also visited by recursion (`Cls.factory`).
             if !method_name.is_empty() && object_field.kind() == "scoped_call_expression" {
@@ -1031,7 +1040,7 @@ impl<'t> Walker<'t> {
             }
 
             // receiverName = raw receiver text with ONE leading `$` stripped:
-            // `$this->prop->m()` → `this->prop.m` (#1251 encoding — the whole
+            // `$this->prop->m()` â†’ `this->prop.m` (#1251 encoding â€” the whole
             // resolution machinery is TS-side); chains keep args
             // (`this->factory($cfg).m`); literals are NOT suppressed
             // (`"chain".upper`); scoped calls are DOT-joined (`UserModel.query`).
@@ -1045,9 +1054,9 @@ impl<'t> Walker<'t> {
                 }
             }
         } else {
-            // function_call_expression: raw func text — bare `helper`,
+            // function_call_expression: raw func text â€” bare `helper`,
             // qualified `\App\Helpers\format_id` verbatim, `$fn` for
-            // variable callees, FCC `f(...)` → `f`.
+            // variable callees, FCC `f(...)` â†’ `f`.
             let func = node
                 .child_by_field_name("function")
                 .or_else(|| node.named_child(0));
@@ -1068,11 +1077,11 @@ impl<'t> Walker<'t> {
         if self.stack.is_empty() {
             return;
         }
-        // php has no constructor/type/name FIELDS → namedChild(0). Backslashes
-        // are NOT split by the suffix logic → `new \App\Models\User()` keeps
+        // php has no constructor/type/name FIELDS â†’ namedChild(0). Backslashes
+        // are NOT split by the suffix logic â†’ `new \App\Models\User()` keeps
         // the full qualified text; `new $cls()` keeps the `$`; an
         // anonymous_class yields its whole source text through the shared
-        // normalization (garbage, deterministic — preserve).
+        // normalization (garbage, deterministic â€” preserve).
         let ctor = node
             .child_by_field_name("constructor")
             .or_else(|| node.child_by_field_name("type"))
@@ -1086,9 +1095,9 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractAnonymousClass — unreachable on v0.24.2 (the declaration_list
+    /// extractAnonymousClass â€” unreachable on v0.24.2 (the declaration_list
     /// nests inside `anonymous_class`, so findAnonymousClassBody finds no
-    /// DIRECT child) — mirrored from the shared TS path for shape.
+    /// DIRECT child) â€” mirrored from the shared TS path for shape.
     fn extract_anonymous_class(&mut self, node: Node<'t>, body: Node<'t>) {
         stack_guard!();
         let type_node = node
@@ -1120,7 +1129,7 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractStaticMemberRef — php's class_constant_access_expression +
+    /// extractStaticMemberRef â€” php's class_constant_access_expression +
     /// scoped_property_access_expression (member_access_expression is
     /// evaluated but its variable_name receiver never passes).
     fn extract_static_member_ref(&mut self, node: Node<'t>) {
@@ -1168,7 +1177,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractInheritance — base_clause takes ONLY the first base (interface
+    /// extractInheritance â€” base_clause takes ONLY the first base (interface
     /// multi-extends drops the rest); class_interface_clause takes ALL
     /// children unfiltered (full text, incl. leading `\`).
     fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
@@ -1273,7 +1282,7 @@ impl<'t> Walker<'t> {
                     }
                 }
             }
-            // String callable — trustworthy ONLY as an argument to a known
+            // String callable â€” trustworthy ONLY as an argument to a known
             // callable-taking core function; skipGate (resolution's
             // unique-or-drop rule takes over). Namespaced strings drop.
             "string" | "encapsed_string" => {
@@ -1289,8 +1298,8 @@ impl<'t> Walker<'t> {
                     self.push_fn_ref_cand(from, &content, v, true);
                 }
             }
-            // Array callables in ANY call's arguments: `[$this, 'm']` →
-            // this.m; `[Foo::class, 'm']` → Foo::m; `['Cls', 'm']` → nothing.
+            // Array callables in ANY call's arguments: `[$this, 'm']` â†’
+            // this.m; `[Foo::class, 'm']` â†’ Foo::m; `['Cls', 'm']` â†’ nothing.
             "array_creation_expression" => {
                 if v.named_child_count() != 2 {
                     return;
@@ -1355,7 +1364,7 @@ impl<'t> Walker<'t> {
             return;
         }
         // Halts at functionTypes (function_definition) + arrow_function (in
-        // the fixed list); anonymous_function is NOT halted — scans descend
+        // the fixed list); anonymous_function is NOT halted â€” scans descend
         // into closures.
         if depth > 0
             && matches!(
@@ -1383,7 +1392,7 @@ impl<'t> Walker<'t> {
         for c in cands {
             // `this.<m>` and `Cls::m` shapes always flush; HOF-position string
             // callables skip the gate (unique-or-drop at resolution); the rest
-            // gate on defined-in-file ∪ bare single-segment `use` imports
+            // gate on defined-in-file âˆª bare single-segment `use` imports
             // (path-shaped and `::`-shaped import refs match neither regex).
             if !c.name.starts_with("this.") && !c.name.contains("::") {
                 let skip = c.skip_gate;
@@ -1426,7 +1435,7 @@ impl<'t> Walker<'t> {
 
         // Shadow prune: the per-grammar declarator switch has NO resolving php
         // cases (`assignment` is python's node; property_declaration's
-        // Kotlin/Swift path yields null) → declCounts stays empty → no php
+        // Kotlin/Swift path yields null) â†’ declCounts stays empty â†’ no php
         // target is ever pruned. Skipping the scan is byte-identical.
 
         let refs_kind = edge_kind_index("references").unwrap_or(0);
@@ -1439,7 +1448,7 @@ impl<'t> Walker<'t> {
                     break;
                 }
                 visited += 1;
-                // `name` is the php-live reader kind — ANY textual occurrence
+                // `name` is the php-live reader kind â€” ANY textual occurrence
                 // of a target name in a reader's subtree emits (const reads,
                 // `self::MAX`, `$MAX` variable names, interpolated `$MAX`).
                 if matches!(n.kind(), "identifier" | "constant" | "name" | "simple_identifier") {
@@ -1476,8 +1485,8 @@ impl<'t> Walker<'t> {
     }
 }
 
-/// The function name node of the php call whose arguments contain `node` —
-/// ≤4 parent hops to a function_call_expression; member/scoped calls abort
+/// The function name node of the php call whose arguments contain `node` â€”
+/// â‰¤4 parent hops to a function_call_expression; member/scoped calls abort
 /// (method-call HOFs never qualify). (function-ref.ts:822)
 fn php_enclosing_call_name(node: Node) -> Option<Node> {
     let mut cur = node.parent();
@@ -1507,7 +1516,7 @@ fn find_anonymous_class_body(node: Node) -> Option<Node> {
 
 /// The shared `new ns.Foo<T>()` normalization: strip `<...` from the first
 /// `<` (index > 0), keep the segment after the last `.`/`::`, strip ONE
-/// leading `:` or `.`, trim. Backslashes are NOT handled — php qualified
+/// leading `:` or `.`, trim. Backslashes are NOT handled â€” php qualified
 /// names pass through whole.
 fn strip_generic_and_qualifier(raw: &str) -> String {
     let mut name = raw.to_string();

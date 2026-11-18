@@ -3,7 +3,7 @@
 ## Ready-to-Run Chat Prompt
 
 ```text
-Implement Phase 18.1 of the Toksi Unified Consolidation Plan (Wave 18 / v5.2: 259 New & Companion Vaults Research & Subsystem Synthesis across Sections 2.1–2.10, Total 295 Unique Mandated Vaults across 3 Repositories: <neo>, <advisory>, <skills>, powering the 35-Component <toksi-siagent> Superintelligence Architecture).
+Implement Phase 18.1 of the Toksi Unified Consolidation Plan (Wave 18 / v5.2: 259 New & Companion Vaults Research & Subsystem Synthesis across Sections 2.1–2.10, Total 295 Unique Mandated Vaults across 3 Repositories: <neo>, <advisory>, <skills>, powering the 35-Component <toksi-siagent> Super Intelligence Architecture).
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 0–3, 5.3, 12–13), crates/toksi/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_and_quota_architecture.md, crates/toksi/research/docker_sandboxes_sbx_cli_reference.md, crates/toksi/research/folders_structures_default_knowledge_used_by_the_known_cli_agents_ides.md, crates/toksi/research/open_security_standards_zero_plaintext_blind_signature_engine_native_git_pr_validator.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, and .agents/brain/PHASE_18_1_29_NEW_VAULTS_RESEARCH_AND_SYNTHESIS.md first.
 
 Your goals in Rust (`crates/toksi`):

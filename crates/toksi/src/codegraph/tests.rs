@@ -1244,3 +1244,68 @@ int caller(int v) { return g_ops.run(v); }
         }
     }
 
+    #[test]
+    fn test_vault_kernel_updates_macro_builtin_include_and_method_group() {
+        // 1. Rust expression macro calls (#3251) & scoped fn_ref (#3254)
+        let rs_src = r#"
+pub fn helper() -> i32 { 1 }
+pub fn run() {
+    let s = format!("{}", helper());
+    let _ = [1].map(Graph::counts);
+    let _ = s;
+}
+"#;
+        let rs_ext = extract_file("src/lib.rs", rs_src, "rust").unwrap();
+        assert!(
+            rs_ext.refs.iter().any(|r| r.kind == "calls" && r.name == "helper"),
+            "expected helper call inside format! macro: {:?}",
+            rs_ext.refs
+        );
+        assert!(
+            rs_ext.refs.iter().any(|r| r.name == "Graph::counts"),
+            "expected Graph::counts fn_ref: {:?}",
+            rs_ext.refs
+        );
+
+        // 2. Go new(Route).Host() (#3237)
+        let go_src = r#"
+package main
+type Route struct{}
+func (r *Route) Host() {}
+func main() {
+    new(Route).Host()
+}
+"#;
+        let go_ext = extract_file("main.go", go_src, "go").unwrap();
+        assert!(
+            go_ext.refs.iter().any(|r| r.kind == "calls" && r.name == "new(Route).Host"),
+            "expected new(Route).Host call: {:?}",
+            go_ext.refs
+        );
+
+        // 3. PHP require_once inside function body (#3296)
+        let php_src = "<?php\nfunction boot() {\n    require_once 'init.php';\n}\n";
+        let php_ext = extract_file("boot.php", php_src, "php").unwrap();
+        assert!(
+            php_ext.refs.iter().any(|r| r.kind == "imports" && r.name.contains("init.php")),
+            "expected import ref from require_once inside boot(): {:?}",
+            php_ext.refs
+        );
+
+        // 4. C# method group through receiver (#2906)
+        let cs_src = r#"
+class Worker { public void Run() {} }
+class App {
+    void Start(Worker worker) {
+        var fn = worker.Run;
+    }
+}
+"#;
+        let cs_ext = extract_file("App.cs", cs_src, "csharp").unwrap();
+        assert!(
+            cs_ext.refs.iter().any(|r| r.name == "worker.Run"),
+            "expected worker.Run method group ref: {:?}",
+            cs_ext.refs
+        );
+    }
+

@@ -3,16 +3,16 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/go.rs
 // created: 2026-10-28
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
-//! Go extraction — a faithful Rust port of `TreeSitterExtractor`'s Go paths
+//! Go extraction â€” a faithful Rust port of `TreeSitterExtractor`'s Go paths
 //! (src/extraction/tree-sitter.ts) plus languages/go.ts.
 //!
 //! Go's shape quirks, mirrored exactly: methods are top-level with a receiver
 //! (qualifiedName override `Recv::name` + a contains edge to the FIRST
 //! earlier-in-file struct of that name), structs/interfaces arrive as
 //! `type_spec` and classify via the inner type node (struct and interface
-//! embedding → extends; interface method_elems become method nodes), composite literals
+//! embedding â†’ extends; interface method_elems become method nodes), composite literals
 //! (`pkga.Widget{}`) keep their package qualifier as `instantiates` refs,
 //! top-level var/const specs walk their initializers ATTRIBUTED to the
 //! declared symbol (#693), 2-hop field chains (`t.conn.Exec`) keep the chain
@@ -86,7 +86,7 @@ struct Cand<'t> {
 }
 
 /// Per-node metadata for the receiver-method owner lookup (mirrors the TS
-/// side's scan over `this.nodes` — FIRST match wins, earlier-in-file only).
+/// side's scan over `this.nodes` â€” FIRST match wins, earlier-in-file only).
 struct NodeMeta {
     kind: &'static str,
     name: String,
@@ -117,11 +117,9 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(go) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -390,9 +388,9 @@ impl<'t> Walker<'t> {
     }
 
     /// goExtractor.getDeclarationWrapper: a type declared on its own, `type
-    /// Foo struct{…}`, is a `type_declaration` holding one spec, and its doc
+    /// Foo struct{â€¦}`, is a `type_declaration` holding one spec, and its doc
     /// comment comes before the declaration, outside the spec. A member of a
-    /// `type ( … )` group has its comment beside it, and the comment above the
+    /// `type ( â€¦ )` group has its comment beside it, and the comment above the
     /// group is the group's. A group of one is that type's declaration, as go
     /// doc reads it, unless its member has a comment of its own.
     fn declaration_wrapper(&self, node: Node<'t>) -> Option<Node<'t>> {
@@ -407,7 +405,7 @@ impl<'t> Walker<'t> {
         (specs == 1).then_some(parent)
     }
 
-    /// docstringFor (tree-sitter.ts) — the preceding comment run, looked up
+    /// docstringFor (tree-sitter.ts) â€” the preceding comment run, looked up
     /// from the declaration wrapper when there is one, without the comments
     /// that trail the code above it (docstringSkipsTrailingComments) or that
     /// don't end on the line right above it, past a blank line
@@ -494,7 +492,7 @@ impl<'t> Walker<'t> {
 
     fn extract_function(&mut self, node: Node<'t>) {
         stack_guard!();
-        // (getReceiverType only matches method_declaration's receiver field —
+        // (getReceiverType only matches method_declaration's receiver field â€”
         // function_declaration has none, so no reroute happens here)
         let name = self.extract_name(node);
         if name == "<anonymous>" {
@@ -572,7 +570,7 @@ impl<'t> Walker<'t> {
     }
 
     /// extractTypeAlias for Go: type_spec (`type A B`) and type_alias
-    /// (`type A = B`) → struct / interface / plain alias.
+    /// (`type A = B`) â†’ struct / interface / plain alias.
     fn extract_type_alias(&mut self, node: Node<'t>) -> bool {
         stack_guard!();
         let name = self.extract_name(node);
@@ -595,7 +593,7 @@ impl<'t> Walker<'t> {
             };
             self.stack.push(Scope { row, kind: "struct", name });
             if let Some(type_child) = type_child {
-                // Struct embedding → extends (field_declaration without a
+                // Struct embedding â†’ extends (field_declaration without a
                 // field_identifier), reached via the inheritance recursion.
                 self.extract_inheritance(type_child, row);
                 // The types its fields are declared with are the struct's
@@ -638,7 +636,7 @@ impl<'t> Walker<'t> {
             node,
             Extra { docstring, is_exported, ..Extra::default() },
         );
-        // (go has no `value` field — no TS-style type-ref walk or member
+        // (go has no `value` field â€” no TS-style type-ref walk or member
         // extraction.) An alias and a defined type (`type_spec`) alike
         // reference what their `type` field names.
         if let Some(row) = row {
@@ -651,7 +649,7 @@ impl<'t> Walker<'t> {
         false
     }
 
-    /// extractGoInterfaceMethods: method_elem/method_spec → method nodes, each
+    /// extractGoInterfaceMethods: method_elem/method_spec â†’ method nodes, each
     /// referencing the types its signature names (`decl` declares the
     /// interface).
     fn extract_go_interface_methods(&mut self, interface_type: Node<'t>, iface_row: u32, iface_name: &str, decl: Node<'t>) {
@@ -699,8 +697,8 @@ impl<'t> Walker<'t> {
         let docstring = self.docstring_of(node);
         let is_const_decl = node.kind() == "const_declaration";
 
-        // A `var ( … )` group wraps its specs in a `var_spec_list`; a
-        // `const ( … )` group holds them directly.
+        // A `var ( â€¦ )` group wraps its specs in a `var_spec_list`; a
+        // `const ( â€¦ )` group holds them directly.
         let mut specs: Vec<Node<'t>> = Vec::new();
         for i in 0..node.named_child_count() {
             let Some(child) = node.named_child(i) else { continue };
@@ -724,7 +722,7 @@ impl<'t> Walker<'t> {
                         None
                     };
                     let signature = value_node.map(|v| util::init_signature(self.text(v)));
-                    // A member of a `const ( … )` or `var ( … )` group has its
+                    // A member of a `const ( â€¦ )` or `var ( â€¦ )` group has its
                     // own doc comment beside it in the parentheses; one without
                     // keeps the group's.
                     let doc = self.docstring_of(spec).or_else(|| docstring.clone());
@@ -828,7 +826,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractCall — Go's generic-tail paths (selector_expression callees).
+    /// extractCall â€” Go's generic-tail paths (selector_expression callees).
     fn extract_call(&mut self, node: Node<'t>) {
         if self.stack.is_empty() {
             return;
@@ -869,9 +867,38 @@ impl<'t> Walker<'t> {
                                 // Bare package-level factory chain `New().Method()`
                                 // re-encodes; instance chains keep the bare name.
                                 let inner_fn = r.child_by_field_name("function");
-                                let reencode =
-                                    inner_fn.map(|f| f.kind() == "identifier").unwrap_or(false);
-                                if let (true, Some(inner_fn_node)) = (reencode, inner_fn) {
+                                let builtin = inner_fn
+                                    .filter(|f| f.kind() == "identifier")
+                                    .map(|f| self.text(f))
+                                    .filter(|t| matches!(*t, "new" | "make" | "append"));
+                                if let Some(builtin) = builtin {
+                                    // A call on what a builtin hands back (#3237):
+                                    // `new` and `make` keep the named type they write (`new(Route).Host`).
+                                    let written = if builtin == "append" {
+                                        None
+                                    } else {
+                                        r.child_by_field_name("arguments")
+                                            .and_then(|a| a.named_child(0))
+                                            .filter(|t| {
+                                                matches!(
+                                                    t.kind(),
+                                                    "type_identifier" | "qualified_type" | "generic_type"
+                                                )
+                                            })
+                                            .map(|t| {
+                                                self.text(t)
+                                                    .chars()
+                                                    .filter(|c| !c.is_whitespace())
+                                                    .collect::<String>()
+                                            })
+                                    };
+                                    callee_name = match written {
+                                        Some(t) => format!("{builtin}({t}).{method_name}"),
+                                        None => method_name.to_string(),
+                                    };
+                                } else if let Some(inner_fn_node) =
+                                    inner_fn.filter(|f| f.kind() == "identifier")
+                                {
                                     let inner: String = self
                                         .text(inner_fn_node)
                                         .replace("->", ".")
@@ -948,7 +975,7 @@ impl<'t> Walker<'t> {
     }
 
     /// goEmbeddedTypeName (languages/go.ts): the name node of the type an
-    /// embedding names — `T`, `*T` (the `*` is a sibling token), `pkg.T` and
+    /// embedding names â€” `T`, `*T` (the `*` is a sibling token), `pkg.T` and
     /// `T[X]` all embed `T`. A qualified type yields its name; resolution reads
     /// the package back from the source at that position. None for any other
     /// type and for a predeclared one but `error`, an interface with a method.
@@ -968,7 +995,7 @@ impl<'t> Walker<'t> {
     }
 
     /// goDeclaredNames (languages/go.ts): what a type name written bare
-    /// inside a type declaration can mean without naming another type — the
+    /// inside a type declaration can mean without naming another type â€” the
     /// declaration's own type parameters, and its own name, which in a
     /// recursive type is the declaration itself.
     fn declared_names(&self, decl: Node<'t>) -> HashSet<&'t str> {
@@ -1063,7 +1090,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractInheritance — the Go branches: interface embedding (a type_elem
+    /// extractInheritance â€” the Go branches: interface embedding (a type_elem
     /// holding one named type; a union, `~T` or basic type is a constraint)
     /// and struct embedding (field_declaration without a field_identifier),
     /// plus the field_declaration_list recursion.
@@ -1105,7 +1132,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractTypeAnnotations — Go's returnField is `result`.
+    /// extractTypeAnnotations â€” Go's returnField is `result`.
     fn extract_type_annotations(&mut self, node: Node<'t>, from_row: u32) {
         if let Some(params) = node.child_by_field_name("parameters") {
             self.extract_type_refs_from_subtree(params, from_row);
@@ -1193,7 +1220,7 @@ impl<'t> Walker<'t> {
                 }
             }
             _ => {
-                // varinit — Go var_spec names are plain identifiers (no
+                // varinit â€” Go var_spec names are plain identifiers (no
                 // destructuring patterns to skip).
                 if let Some(v) = node.child_by_field_name(field) {
                     values.push(v);
@@ -1207,7 +1234,7 @@ impl<'t> Walker<'t> {
     }
 
     /// normalizeValue with GO_SPEC's transparent layers (literal_element,
-    /// expression_list — both fan out to named children).
+    /// expression_list â€” both fan out to named children).
     fn normalize_fn_ref_value(&mut self, v: Node<'t>, from: u32, depth: u32, container: Node<'t>) {
         stack_guard!();
         if depth > 4 {
@@ -1346,7 +1373,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        // Shadow prune — Go declarator shapes: const_spec/var_spec (name =
+        // Shadow prune â€” Go declarator shapes: const_spec/var_spec (name =
         // first child) and short_var_declaration (left / expression_list).
         let mut decl_counts: HashMap<&str, u32> = HashMap::new();
         let bump = |decl_counts: &mut HashMap<&'t str, u32>, name_node: Option<Node<'t>>, src: &'t str, targets: &HashMap<String, u32>| {

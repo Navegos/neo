@@ -7,9 +7,9 @@ the term <enforce> means we must enforce security in our coding standards, all c
 the term <ai> means Artificial Intelligence.
 the term <aiagent> or <aia>, means Artificial Intelligence Agent.
 the term <agent> means <aiagent> and any of the ai agents, like agent means any of the ai agents and can include all or any of this technical agent architecture (Orchestrator, Agent, Inference Engine, Model Gateway, LLM Router, Embedding Model, Reranker, Vector Database, Knowledge Graph, Context Store, Episodic Memory, Semantic Memory, Ingestion Pipeline, Tool Registry, MCP Server, Code Sandbox, State Machine, Checkpointer, Message Broker, Event Bus, Semantic Cache, Guardrails, Telemetry Engine, Tracing Engine, Eval Harness, HITL Gateway).
-the term <si> means Superintelligence.
-the term <asi> means Artificial Superintelligence.
-the term <siagent> or <sia>, means Superintelligence Agent, it means any of the si siagents, like siagent means any of the <si> siagents and can include all or any of this technical siagent architecture (Orchestrator, Agent, Inference Engine, Model Gateway, LLM Router, Embedding Model, Reranker, Vector Database, Knowledge Graph, Context Store, Episodic Memory, Semantic Memory, Ingestion Pipeline, Tool Registry, MCP Server, Code Sandbox, State Machine, Checkpointer, Message Broker, Event Bus, Semantic Cache, Guardrails, Telemetry Engine, Tracing Engine, Eval Harness, HITL Gateway, World Model, Hierarchical Planner, Verification Engine, Agent Runtime Daemon, IAM Attestation Layer, Policy-as-Code Engine, Circuit Breaker, Kill Switch, Immutable Audit Log).
+the term <si> means Super Intelligence.
+the term <asi> means Artificial Super Intelligence.
+the term <siagent> or <sia>, means Super Intelligence Agent, it means any of the si siagents, like siagent means any of the <si> siagents and can include all or any of this technical siagent architecture (Orchestrator, Agent, Inference Engine, Model Gateway, LLM Router, Embedding Model, Reranker, Vector Database, Knowledge Graph, Context Store, Episodic Memory, Semantic Memory, Ingestion Pipeline, Tool Registry, MCP Server, Code Sandbox, State Machine, Checkpointer, Message Broker, Event Bus, Semantic Cache, Guardrails, Telemetry Engine, Tracing Engine, Eval Harness, HITL Gateway, World Model, Hierarchical Planner, Verification Engine, Agent Runtime Daemon, IAM Attestation Layer, Policy-as-Code Engine, Circuit Breaker, Kill Switch, Immutable Audit Log).
 the term <toksi-siagent> means the toksi <siagent>, and includes all of this technical siagent architecture (Orchestrator, Agent, Inference Engine, Model Gateway, LLM Router, Embedding Model, Reranker, Vector Database, Knowledge Graph, Context Store, Episodic Memory, Semantic Memory, Ingestion Pipeline, Tool Registry, MCP Server, Code Sandbox, State Machine, Checkpointer, Message Broker, Event Bus, Semantic Cache, Guardrails, Telemetry Engine, Tracing Engine, Eval Harness, HITL Gateway, World Model, Hierarchical Planner, Verification Engine, Agent Runtime Daemon, IAM Attestation Layer, Policy-as-Code Engine, Circuit Breaker, Kill Switch, Immutable Audit Log).
 Read <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, first to understand the global master architecture, cross-tool coupling, directory topology, features, <etc's>.
 repair in plans files for .projectmem/*.md legacy folder structure, now its in <repo>/.toksi/projectmem/ folder structure, import and merge folders and files, deleting generic folder structures after all.
@@ -28,12 +28,12 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/tokless
 <neo>/inspect-vault/bifrost
 <neo>/inspect-vault/headroom
-<neo>/inspect-vault/rtk	
+<neo>/inspect-vault/rtk
 <neo>/inspect-vault/context-mode
 <neo>/inspect-vault/codegraph
 <neo>/inspect-vault/projectmem
 <neo>/inspect-vault/ai-memory
-<neo>/inspect-vault/icm	
+<neo>/inspect-vault/icm
 <neo>/inspect-vault/ponytail
 <neo>/inspect-vault/caveman
 <neo>/inspect-vault/TokenTracker
@@ -63,29 +63,29 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/mofa
 <neo>/inspect-vault/mofa-engine
 <neo>/inspect-vault/python-genai
-<neo>/inspect-vault/python-aiplatform	
+<neo>/inspect-vault/python-aiplatform
 <neo>/inspect-vault/gemini-cli
 <neo>/inspect-vault/crewAI
 <neo>/inspect-vault/agent-framework
 <neo>/inspect-vault/dify
 <neo>/inspect-vault/mastra
 <neo>/inspect-vault/agno
-<neo>/inspect-vault/RouteLLM	
-<neo>/inspect-vault/SWE-agent	
-<neo>/inspect-vault/OpenHands	
+<neo>/inspect-vault/RouteLLM
+<neo>/inspect-vault/SWE-agent
+<neo>/inspect-vault/OpenHands
 <neo>/inspect-vault/letta
 <neo>/inspect-vault/cognee
-<neo>/inspect-vault/graphiti	
+<neo>/inspect-vault/graphiti
 <neo>/inspect-vault/qdrant
 <neo>/inspect-vault/milvus
 <neo>/inspect-vault/text-embeddings-inference
 <neo>/inspect-vault/temporal
 <neo>/inspect-vault/restate
-<neo>/inspect-vault/E2B	
+<neo>/inspect-vault/E2B
 <neo>/inspect-vault/E2B-runtime
 <neo>/inspect-vault/modelcontextprotocol-servers
 <neo>/inspect-vault/mcp-framework
-<neo>/inspect-vault/opa	
+<neo>/inspect-vault/opa
 <neo>/inspect-vault/cedar
 <neo>/inspect-vault/Guardrails
 <neo>/inspect-vault/llm-guard
@@ -107,8 +107,8 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/opencode
 <neo>/inspect-vault/deepsec
 <neo>/inspect-vault/agent-skills
-<neo>/inspect-vault/openagent-skills	
-<neo>/inspect-vault/huggingface-skills	
+<neo>/inspect-vault/openagent-skills
+<neo>/inspect-vault/huggingface-skills
 <neo>/inspect-vault/openai-skills
 <neo>/inspect-vault/osv-scanner
 <neo>/inspect-vault/cve-schema
@@ -128,8 +128,8 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/NemoClaw
 <neo>/inspect-vault/open-swe
 <neo>/inspect-vault/SkillSpector
-<neo>/inspect-vault/langchain-skills	
-<neo>/inspect-vault/andrej-karpathy-skills 
+<neo>/inspect-vault/langchain-skills
+<neo>/inspect-vault/andrej-karpathy-skills
 <neo>/inspect-vault/openclaw-agent-skills
 <neo>/inspect-vault/agentskills
 <neo>/inspect-vault/research-securety-skills
@@ -423,7 +423,7 @@ We are not embedding skills, rules, .md, yaml, json files in toksi, we create th
 We are implementing in <toksi-siagent> (and agent to agent), a agent detection & response (ADR) layer for AI agents — guards commands, files, and web requests, direct where its safe, if not safe (run in sandbox, identify, inform, save all informations in its respective formats). <etc's>, <detail's>, <enforce>
 read <repo>/crates/toksi/research/docker_sandboxes_sbx_cli_reference.md for sandboxing and <neo>/inspect-vault/sandbox-runtime and <neo>/inspect-vault/* where you can find research for this matter.
 We are <enforce> SECURITY & CAPABILITY POLICY: You are strictly forbidden from performing any offensive security, unauthorized reconnaissance, or system-altering actions—regardless of whether you use an existing tool, an unlisted utility, or a custom script. Specifically, never attempt to: (1) scan or enumerate external networks, ports, or subdomains; (2) intercept or sniff network traffic; (3) brute-force, dump, or crack credentials; (4) establish reverse shells, tunnels, or unauthorized persistence; (5) generate DoS traffic; or (6) escalate privileges or modify firewall/OS configurations. Operate strictly using standard, non-destructive commands within your designated workspaces/repos. that in <toksi-siagent> (and agent to agent) we apply this security standard and if the user try to bypassing the security measure simple stop all toksi services.
-we are implementing in <toksi-siagent> (and agent to agent) a sandbox for agents, for safety agent sandbox commands/skills/rules/code (that can be malicious, or run commands/scripts in a unknow form, "An agent sandbox is a secure, isolated runtime environment where autonomous AI agents can run untrusted code, execute shell commands, edit files, and call tools without risking the host system, production databases, sensitive files, sensitive credentials, sensitive network services, sensitive system access, unauthorized access (systems and networks services), "). <etc's>, <detail's>, <enforce>. 
+we are implementing in <toksi-siagent> (and agent to agent) a sandbox for agents, for safety agent sandbox commands/skills/rules/code (that can be malicious, or run commands/scripts in a unknow form, "An agent sandbox is a secure, isolated runtime environment where autonomous AI agents can run untrusted code, execute shell commands, edit files, and call tools without risking the host system, production databases, sensitive files, sensitive credentials, sensitive network services, sensitive system access, unauthorized access (systems and networks services), "). <etc's>, <detail's>, <enforce>.
 
 read <repo>/crates/toksi/research/folders_structures_default_knowledge_used_by_the_known_cli_agents_ides.md for folder structure for config's, json, settings, mcps, skills, rules, <etc's>.
 

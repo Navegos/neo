@@ -30,7 +30,7 @@ Your goals in Rust (`crates/toksi`) & Repo Verification:
 - **Legacy Path Cleanup**: Eliminate stale `crates/tokless/*` documentation references in favor of `crates/toksi/*`.
 - **Master Architecture Alignment**:
   - Audited Vaults: **295** unique mandated vaults (`292` `<deep-research>` vaults across Sections `2.1`–`2.10` + companion `<advisory>` & `<skills>` + `agents-structures` = `36` prior + `259` Wave 18 vaults).
-  - `<toksi-siagent>` Superintelligence Architecture: All **35** technical components (`Section 0.2`) wired out of the box via `DirectWireBus` and the shared 7-entrypoint `HeadroomEffortCompressor`.
+  - `<toksi-siagent>` Super Intelligence Architecture: All **35** technical components (`Section 0.2`) wired out of the box via `DirectWireBus` and the shared 7-entrypoint `HeadroomEffortCompressor`.
   - Three-Repository Ecosystem: `<neo>` (`Navegos/neo`), `<advisory>` (`Navegos/advisory`), `<skills>` (`Navegos/skills`) with externalized skills/rules staged outside `crates/toksi/` (zero binary bloat).
   - Daemon Topology: **8 Ports** (`:8787` Headroom, `:8788` Grok OAuth, `:8789` Copilot VS Code, `:8790` Copilot CLI, `:9098` Protocol Bus, `:9099` Gateway, `:9100` Web Cockpit, `:18787` BYOK Gateway).
   - Universal Slash Commands: **16** (`/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`).

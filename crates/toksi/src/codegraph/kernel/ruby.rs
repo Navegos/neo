@@ -1,8 +1,8 @@
-//! Ruby extraction — a faithful Rust port of `TreeSitterExtractor`'s Ruby
+//! Ruby extraction â€” a faithful Rust port of `TreeSitterExtractor`'s Ruby
 //! paths (src/extraction/tree-sitter.ts) plus languages/ruby.ts.
 //!
 //! Same porting contract as the other walkers: behavior parity, bug-for-bug.
-//! The authoritative quirk list is docs/design/ruby-kernel-port-checklist.md —
+//! The authoritative quirk list is docs/design/ruby-kernel-port-checklist.md â€”
 //! including the load-bearing oddities this file preserves on purpose:
 //! `importTypes: ['call']` funnels EVERY non-body call into extractImport (so
 //! class-body DSL like `attr_accessor`, `has_many`, `define_method` and its
@@ -11,7 +11,7 @@
 //! sibling-scan visibility trio (bare `private` is invisible; `private :sym` /
 //! `private def x` poison every later sibling def; the def inside
 //! `private def` stays public), brace-block bodies (`block_body`) are
-//! invisible to bare-call extraction while `do…end` bodies emit, and the
+//! invisible to bare-call extraction while `doâ€¦end` bodies emit, and the
 //! value-ref DFS visits statements in REVERSE source order. Positions in
 //! UTF-16 code units. Files with parse errors defer to wasm (~0% incidence).
 
@@ -139,11 +139,9 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(ruby) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -212,7 +210,7 @@ impl<'t> Walker<'t> {
         &self.src[node.byte_range()]
     }
     /// rubyConstructedClass (tree-sitter.ts): the class a call receiver
-    /// constructs, as written — `Foo` for `Foo.new(key)`, `Billing::Card` for
+    /// constructs, as written â€” `Foo` for `Foo.new(key)`, `Billing::Card` for
     /// `Billing::Card.new`, `::Foo` for `::Foo.new`; None for any other
     /// receiver, a `new` on a value (`klass.new`) among them.
     fn constructed_class(&self, receiver: Node) -> Option<&'t str> {
@@ -318,7 +316,7 @@ impl<'t> Walker<'t> {
             id: id_ref,
             docstring: doc_ref,
             signature: sig_ref,
-            decorators: NONE_STR, // ruby has no decorator node kinds — always a no-op
+            decorators: NONE_STR, // ruby has no decorator node kinds â€” always a no-op
             type_parameters: NONE_STR,
             return_type: NONE_STR,
             extra_json: NONE_STR,
@@ -377,7 +375,7 @@ impl<'t> Walker<'t> {
         "<anonymous>".to_string()
     }
 
-    /// rubyExtractor.getVisibility — walk the previousNamedSibling chain
+    /// rubyExtractor.getVisibility â€” walk the previousNamedSibling chain
     /// (unbounded, through non-matching siblings); the first `call` sibling
     /// whose `method` text is private/protected/public decides; else public.
     /// Bug-for-bug: a BARE `private` line parses as identifier (invisible),
@@ -404,7 +402,7 @@ impl<'t> Walker<'t> {
     // --- the visitNode hook (languages/ruby.ts:19-76) ---------------------------
 
     /// Returns true when the hook handled the node (mixin call or module).
-    /// The DISPATCHER then runs scan_fn_ref_subtree on the handled subtree —
+    /// The DISPATCHER then runs scan_fn_ref_subtree on the handled subtree â€”
     /// the source of the module multiply-capture quirk (scan runs with the
     /// module already POPPED, so candidates re-attribute to the outer scope).
     fn try_visit_hook(&mut self, node: Node<'t>) -> bool {
@@ -418,7 +416,7 @@ impl<'t> Walker<'t> {
                             .filter_map(|i| node.named_child(i))
                             .find(|c| c.kind() == "argument_list")
                     });
-                    // (nodeStack is never empty — the file node is pushed.)
+                    // (nodeStack is never empty â€” the file node is pushed.)
                     if let Some(args) = args {
                         let parent = self.top_row();
                         let implements = edge_kind_index("implements").unwrap_or(0);
@@ -429,7 +427,7 @@ impl<'t> Walker<'t> {
                             // `Mod` is constant, `Foo::Bar` is scope_resolution;
                             // `extend self` / dynamic args are skipped. Unlike
                             // every other extraction ref, the hook sets
-                            // `filePath: ctx.filePath` — flagged on the wire.
+                            // `filePath: ctx.filePath` â€” flagged on the wire.
                             if matches!(arg.kind(), "constant" | "scope_resolution") {
                                 let name_ref = self.arena.put(self.text(arg));
                                 self.tables.push_ref_flagged(
@@ -448,7 +446,7 @@ impl<'t> Walker<'t> {
                         }
                         return true;
                     }
-                    // no args node → hook declines (falls to extractImport → nothing)
+                    // no args node â†’ hook declines (falls to extractImport â†’ nothing)
                 }
             }
         }
@@ -478,7 +476,7 @@ impl<'t> Walker<'t> {
 
     fn visit_node(&mut self, node: Node<'t>) {
         stack_guard!();
-        // Language hook FIRST (tree-sitter.ts:943) — a handled subtree is
+        // Language hook FIRST (tree-sitter.ts:943) â€” a handled subtree is
         // scanned for fn-ref candidates and never reaches the ladder (or the
         // maybeCaptureFnRefs call below).
         if self.try_visit_hook(node) {
@@ -492,8 +490,8 @@ impl<'t> Walker<'t> {
         self.maybe_capture_fn_refs(node);
 
         if kind == "method" {
-            // functionTypes ∩ methodTypes: inside class-like (module counts!)
-            // ⇒ method, else function.
+            // functionTypes âˆ© methodTypes: inside class-like (module counts!)
+            // â‡’ method, else function.
             if self.inside_class_like() {
                 self.extract_method(node);
             } else {
@@ -505,7 +503,7 @@ impl<'t> Walker<'t> {
             skip_children = true;
         } else if kind == "singleton_method" {
             // methodTypes-only: extractMethod's 1747 gate bounces a top-level
-            // `def self.x` to extractFunction — a plain function named x (the
+            // `def self.x` to extractFunction â€” a plain function named x (the
             // receiver object is ignored everywhere).
             if self.inside_class_like() {
                 self.extract_method(node);
@@ -523,13 +521,13 @@ impl<'t> Walker<'t> {
             self.scan_fn_ref_subtree(node, 0);
             skip_children = true;
         } else if kind == "call" {
-            // importTypes:['call'] — EVERY non-body call funnels here. Only
+            // importTypes:['call'] â€” EVERY non-body call funnels here. Only
             // require/require_relative-with-string emit; everything else is
             // invisible (children still visited: no skipChildren).
             self.extract_import(node);
         }
         // `singleton_class` (`class << self`), `alias`, top-level `if`/`begin`,
-        // `uninterpreted`, operator_assignment: no branch — recursed.
+        // `uninterpreted`, operator_assignment: no branch â€” recursed.
 
         if !skip_children {
             for i in 0..node.named_child_count() {
@@ -562,19 +560,19 @@ impl<'t> Walker<'t> {
             self.extract_call(node);
         } else if let Some(bare) = self.bare_call_name(node) {
             // extractBareCall: statement-level identifiers in BLOCK_PARENTS
-            // bodies (`do…end` = body_statement; brace blocks are block_body —
+            // bodies (`doâ€¦end` = body_statement; brace blocks are block_body â€”
             // NOT in the set, so `5.times { beep }` emits nothing for beep).
             let name = bare.to_string();
             let from = self.top_row();
             self.push_ref_at(from, &name, edge_kind_index("calls").unwrap_or(0), node);
         }
 
-        // (No INSTANTIATION_KINDS for ruby — `.new` is handled in extract_call;
+        // (No INSTANTIATION_KINDS for ruby â€” `.new` is handled in extract_call;
         // extractStaticMemberRef is gated off; no type annotations.)
 
         // Nested NAMED defs become their own function nodes; classes extract.
         // A `module` inside a body mints NOTHING (the visitNode hook does not
-        // run here) — its children just recurse. Same for singleton_method
+        // run here) â€” its children just recurse. Same for singleton_method
         // (functionTypes-only check): unmatched, recursed.
         if kind == "method" {
             let name = self.extract_name(node);
@@ -614,7 +612,7 @@ impl<'t> Walker<'t> {
         ) {
             return None;
         }
-        // charCodeAt(0) in [65,90] — ASCII uppercase only (constants).
+        // charCodeAt(0) in [65,90] â€” ASCII uppercase only (constants).
         let first = name.as_bytes().first().copied().unwrap_or(0);
         if (65..=90).contains(&first) {
             return None;
@@ -640,13 +638,13 @@ impl<'t> Walker<'t> {
             is_static: Some(is_class_method(node)),
         };
         let Some(row) = self.create_node("function", &name, node, extra) else { return };
-        // (ruby ∉ TYPE_ANNOTATION_LANGUAGES; decorators are a structural no-op)
+        // (ruby âˆ‰ TYPE_ANNOTATION_LANGUAGES; decorators are a structural no-op)
         self.stack.push(Scope { row, kind: "function", name });
         if let Some(body) = node.child_by_field_name("body") {
             self.visit_function_body(body);
         }
         self.stack.pop();
-        // `parameters` are NEVER walked — a call in a default value emits nothing.
+        // `parameters` are NEVER walked â€” a call in a default value emits nothing.
     }
 
     fn extract_method(&mut self, node: Node<'t>) {
@@ -677,7 +675,7 @@ impl<'t> Walker<'t> {
         };
         let Some(row) = self.create_node("class", &name, node, extra) else { return };
 
-        // extractInheritance: the `superclass` clause — ONE extends ref, FULL
+        // extractInheritance: the `superclass` clause â€” ONE extends ref, FULL
         // text (scope_resolution / even `Struct.new(:a)` expressions verbatim),
         // positioned at the type child.
         let extends_kind = edge_kind_index("extends").unwrap_or(0);
@@ -692,7 +690,7 @@ impl<'t> Walker<'t> {
         }
 
         self.stack.push(Scope { row, kind: "class", name });
-        // Bodiless `class X; end` has no body field → the class node itself
+        // Bodiless `class X; end` has no body field â†’ the class node itself
         // is walked (name/superclass children revisit harmlessly).
         let body = node.child_by_field_name("body").unwrap_or(node);
         for i in 0..body.named_child_count() {
@@ -703,8 +701,8 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractVariable — the python/ruby assignment branch (2709-2727):
-    /// identifier or constant LHS mints a `variable` node (no isConst hook —
+    /// extractVariable â€” the python/ruby assignment branch (2709-2727):
+    /// identifier or constant LHS mints a `variable` node (no isConst hook â€”
     /// `MAX = 3` is kind variable) at the ASSIGNMENT node's position, with the
     /// `= <first 100 utf16 units>` initializer signature.
     fn extract_variable(&mut self, node: Node<'t>) {
@@ -720,12 +718,12 @@ impl<'t> Walker<'t> {
         self.create_node("variable", &name, node, Extra { docstring, signature, ..Extra::default() });
     }
 
-    /// extractImport — every non-body `call` lands here (importTypes:['call']).
+    /// extractImport â€” every non-body `call` lands here (importTypes:['call']).
     /// Hook (languages/ruby.ts:123): FIRST identifier named child must read
     /// require/require_relative (a lowercase receiver is found first and
-    /// declines; a constant receiver — `Kernel.require "x"` — reaches the
-    /// method identifier and IS a require); argument_list → string →
-    /// string_content → moduleName. Then the generic imports ref and
+    /// declines; a constant receiver â€” `Kernel.require "x"` â€” reaches the
+    /// method identifier and IS a require); argument_list â†’ string â†’
+    /// string_content â†’ moduleName. Then the generic imports ref and
     /// emitRubyRequireRefs' path ref.
     fn extract_import(&mut self, node: Node<'t>) {
         let ident = (0..node.named_child_count())
@@ -749,8 +747,8 @@ impl<'t> Walker<'t> {
             .find(|c| c.kind() == "string_content");
         let Some(content) = content else { return };
 
-        // Interpolated paths take the FIRST string_content only — moduleName
-        // `interp/` (+ a garbage `interp/.rb` path ref) — deterministic quirk.
+        // Interpolated paths take the FIRST string_content only â€” moduleName
+        // `interp/` (+ a garbage `interp/.rb` path ref) â€” deterministic quirk.
         let module_name = self.text(content).to_string();
         let import_text = self.text(node).trim().to_string();
         if module_name.is_empty() {
@@ -790,7 +788,7 @@ impl<'t> Walker<'t> {
         self.push_ref_at(parent, &ref_path, imports_kind, node);
     }
 
-    /// extractCall — the bespoke ruby branch (tree-sitter.ts:3905-3960),
+    /// extractCall â€” the bespoke ruby branch (tree-sitter.ts:3905-3960),
     /// reached only from the body walker.
     fn extract_call(&mut self, node: Node<'t>) {
         if self.stack.is_empty() {
@@ -809,13 +807,13 @@ impl<'t> Walker<'t> {
         let calls_kind = edge_kind_index("calls").unwrap_or(0);
 
         let Some(receiver) = node.child_by_field_name("receiver") else {
-            // Bare `foo(...)` — just the method name.
+            // Bare `foo(...)` â€” just the method name.
             self.push_ref(caller, &method_name.to_string(), calls_kind, line, col);
             return;
         };
         let receiver_name = self.text(receiver);
 
-        // `Foo.new` / `NS::Widget.new` → instantiates ref to the LAST `::`
+        // `Foo.new` / `NS::Widget.new` â†’ instantiates ref to the LAST `::`
         // segment; a non-capitalized receiver falls through to a calls ref
         // (`lower.new`).
         if method_name == "new" {
@@ -835,13 +833,13 @@ impl<'t> Walker<'t> {
             }
         }
 
-        // SKIP_RECEIVERS by TEXT — ruby's set is {self, super} only. `&.`
+        // SKIP_RECEIVERS by TEXT â€” ruby's set is {self, super} only. `&.`
         // joins with a plain `.`; chains/literals keep raw receiver text.
         let skip = matches!(receiver_name, "self" | "super");
         let callee = if skip {
             method_name.to_string()
         } else if let Some(class_name) = self.constructed_class(receiver) {
-            // A call on what `Foo.new(…)` made: `new Foo().m`, not the
+            // A call on what `Foo.new(â€¦)` made: `new Foo().m`, not the
             // receiver's text with its arguments in it (#684).
             format!("new {class_name}().{method_name}")
         } else {
@@ -851,7 +849,7 @@ impl<'t> Walker<'t> {
 
         // Capitalized constant receiver (`Klass.static_call`, `RETRY_MAX.times`),
         // or one written with its namespace (`Billing::ChargeCard.call`,
-        // `::Foo.call` — #2503) → an ADDITIONAL references ref at the
+        // `::Foo.call` â€” #2503) â†’ an ADDITIONAL references ref at the
         // RECEIVER's position, under the receiver as written. A path through
         // a value (`obj::Thing`, `self.class::LIMIT`) names no constant.
         if !skip && is_constant_path(receiver) {
@@ -926,9 +924,9 @@ impl<'t> Walker<'t> {
                 }
             }
             "call" => {
-                // `method(:target_cb)` — method field literally `method`, one
+                // `method(:target_cb)` â€” method field literally `method`, one
                 // simple_symbol argument. Candidate = bare symbol name at the
-                // SYMBOL node (gated at flush on defined-in-file ∪ imports).
+                // SYMBOL node (gated at flush on defined-in-file âˆª imports).
                 let Some(method) = v.child_by_field_name("method") else { return };
                 if self.text(method) != "method" {
                     return;
@@ -947,7 +945,7 @@ impl<'t> Walker<'t> {
                 }
             }
             "simple_symbol" => {
-                // Hook-DSL symbols (`before_action :authenticate`) → class-
+                // Hook-DSL symbols (`before_action :authenticate`) â†’ class-
                 // scoped `this.<sym>` candidates (always flushed).
                 let Some(call) = ruby_enclosing_call(v) else { return };
                 let Some(method) = call.child_by_field_name("method") else { return };
@@ -985,7 +983,7 @@ impl<'t> Walker<'t> {
             return;
         }
         // Halts at functionTypes (`method`) + the fixed arrow/lambda list;
-        // NOT at class/module nodes — the module multiply-capture rides this.
+        // NOT at class/module nodes â€” the module multiply-capture rides this.
         if depth > 0
             && matches!(
                 node.kind(),
@@ -1011,7 +1009,7 @@ impl<'t> Walker<'t> {
         let mut seen: HashSet<(String, String)> = HashSet::new();
         for c in cands {
             // `this.`-prefixed candidates always flush (class-scoped resolver);
-            // bare `method(:x)` names gate on defined-in-file ∪ imports (ruby's
+            // bare `method(:x)` names gate on defined-in-file âˆª imports (ruby's
             // path-shaped imports match neither name regex, so effectively
             // defined-in-file).
             if !c.name.starts_with("this.")
@@ -1038,7 +1036,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    // --- value references (crib of python.rs — same traversal, same cases) ------
+    // --- value references (crib of python.rs â€” same traversal, same cases) ------
 
     fn flush_value_refs(&mut self, root: Node<'t>) {
         let scopes = std::mem::take(&mut self.value_scopes);
@@ -1051,8 +1049,8 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        // Shadow prune — ruby's declarator shape is `assignment`. A
-        // constant-typed LHS has no named children → constants are never
+        // Shadow prune â€” ruby's declarator shape is `assignment`. A
+        // constant-typed LHS has no named children â†’ constants are never
         // counted (never pruned); identifier LHSes (and each identifier of a
         // multiple-assign left) bump.
         let mut decl_counts: HashMap<&str, u32> = HashMap::new();
@@ -1182,7 +1180,7 @@ fn is_class_method(node: Node) -> bool {
 }
 
 /// The Ruby `call` node whose argument_list (or keyword pair) contains `node`
-/// — nearest `call` ancestor within 4 parent hops (function-ref.ts:837).
+/// â€” nearest `call` ancestor within 4 parent hops (function-ref.ts:837).
 fn ruby_enclosing_call(node: Node) -> Option<Node> {
     let mut cur = node.parent();
     for _ in 0..4 {

@@ -1,13 +1,13 @@
-//! Kotlin extraction — a faithful Rust port of `TreeSitterExtractor`'s Kotlin
+//! Kotlin extraction â€” a faithful Rust port of `TreeSitterExtractor`'s Kotlin
 //! paths (src/extraction/tree-sitter.ts) plus languages/kotlin.ts.
 //!
 //! Same porting contract as the other walkers: behavior parity, bug-for-bug.
 //! The authoritative quirk list is docs/design/kotlin-kernel-port-checklist.md.
 //! Two surfaces are FIRSTS for the kernel: extension-function receivers
-//! (getReceiverType → `Type::method` qualified-name OVERRIDE with no package
+//! (getReceiverType â†’ `Type::method` qualified-name OVERRIDE with no package
 //! prefix + the owner-contains fallback that excludes `interface` kinds and
 //! is source-order dependent) and extractModifiers (expect/actual platform
-//! modifiers → the node DECORATORS wire field, on every created node — the
+//! modifiers â†’ the node DECORATORS wire field, on every created node â€” the
 //! KMP synthesizer's input). Preserved on purpose: the FIELD_COUNT-0 dead
 //! cluster (no signatures, ZERO type-annotation refs), the bodiless-class
 //! header re-walk asymmetry, enum-entry bodies being invisible, KDoc
@@ -18,9 +18,9 @@
 //! receiver `com::qext` bug, the paren-then-lambda `trailing()` garbage
 //! callee, and the packaged-file value-ref target drop (namespace parents are
 //! not accepted). The fun-interface misparse-recovery hook branches are
-//! DEFER-SHIELDED (every such file has_error → wasm) and are not ported.
-//! Positions in UTF-16 code units. Expected deferral 4.7–8.5% (both-arm,
-//! grammar-inherent — incl. phantom errors: trust the has_error FLAG).
+//! DEFER-SHIELDED (every such file has_error â†’ wasm) and are not ported.
+//! Positions in UTF-16 code units. Expected deferral 4.7â€“8.5% (both-arm,
+//! grammar-inherent â€” incl. phantom errors: trust the has_error FLAG).
 
 use crate::codegraph::kernel::buffers::{
     build_meta, edge_kind_index, node_kind_index, Arena, BoolFlags, EdgeRow, EmitOut, NodeRow,
@@ -45,7 +45,7 @@ fn is_stoplisted(name: &str) -> bool {
     )
 }
 
-/// LITERAL_RECEIVER_TYPES (tree-sitter.ts:373) — full shared set.
+/// LITERAL_RECEIVER_TYPES (tree-sitter.ts:373) â€” full shared set.
 fn is_literal_receiver(kind: &str) -> bool {
     matches!(
         kind,
@@ -109,10 +109,10 @@ fn kotlin_receiver_chain(text: &str) -> Option<String> {
 }
 
 /// A property's CODE children: the named child right after the `=` token, a
-/// `property_delegate` (`by lazy { … }`), and an accessor the grammar nested
-/// under the declaration (`val x: Int get() = compute()` — written on ONE line;
+/// `property_delegate` (`by lazy { â€¦ }`), and an accessor the grammar nested
+/// under the declaration (`val x: Int get() = compute()` â€” written on ONE line;
 /// an accessor on its own line parses as a SIBLING of the property and is not
-/// reachable from here). What stays unwalked is the declaration itself —
+/// reachable from here). What stays unwalked is the declaration itself â€”
 /// modifiers, the `val`/`var` keyword, the name+type, and an extension
 /// receiver's type and type parameters. (Go's #693 fix walks the `value` field
 /// for the same reason; this grammar exposes no fields at all, hence the `=`
@@ -139,7 +139,7 @@ fn property_initializers<'t>(node: Node<'t>) -> Vec<Node<'t>> {
 }
 
 /// Accessors written on their OWN line parse as SIBLINGS of the property, not
-/// as children of it (same-line ones nest — see property_initializers). Walking
+/// as children of it (same-line ones nest â€” see property_initializers). Walking
 /// back over any accessors between us and the declaration finds the property an
 /// accessor belongs to; None when this accessor stands alone.
 fn accessor_owner<'t>(node: Node<'t>) -> Option<Node<'t>> {
@@ -188,7 +188,7 @@ struct Extra {
     is_static: Option<bool>,
     is_async: Option<bool>,
     return_type: Option<String>,
-    /// composeReceiverQualifiedName override (extension methods) — the id
+    /// composeReceiverQualifiedName override (extension methods) â€” the id
     /// still hashes the bare NAME; only the qualifiedName column changes.
     qualified_override: Option<String>,
 }
@@ -232,13 +232,11 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(kotlin) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
         // Includes the PHANTOM errors (complete CSTs with hasError set) and
-        // every fun-interface misparse — trust the flag, wasm is canonical.
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        // every fun-interface misparse â€” trust the flag, wasm is canonical.
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -289,7 +287,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     w.stack.push(Scope { row: 0, kind: "file", name: base_name.to_string() });
 
     // extractFilePackage: the FIRST package_header among root's direct named
-    // children → namespace node (comment-glued extents included), pushed for
+    // children â†’ namespace node (comment-glued extents included), pushed for
     // the whole walk.
     let root = tree.root_node();
     let mut pkg_pushed = false;
@@ -380,7 +378,7 @@ impl<'t> Walker<'t> {
     }
 
     /// resolveBody (kotlin.ts:219): first ERROR child whose child(0) is `{`
-    /// (fun-interface parent body — unreachable post-defer, kept for
+    /// (fun-interface parent body â€” unreachable post-defer, kept for
     /// contract), else first function_body | class_body | enum_class_body.
     fn resolve_body(&self, node: Node<'t>) -> Option<Node<'t>> {
         for i in 0..node.named_child_count() {
@@ -408,8 +406,8 @@ impl<'t> Walker<'t> {
         let start_line = self.line_of(node);
         let column = self.col_of(node);
         let id = self.node_id_allocator.generate(self.file_path, kind, name, start_line, column);
-        // endLine extension via resolveBody — LIVE for kotlin function/method
-        // kinds (in-range for this grammar, so practically a no-op — but the
+        // endLine extension via resolveBody â€” LIVE for kotlin function/method
+        // kinds (in-range for this grammar, so practically a no-op â€” but the
         // hook is part of the contract).
         let mut end_line = node.end_position().row as u32 + 1;
         if kind == "function" || kind == "method" {
@@ -446,8 +444,8 @@ impl<'t> Walker<'t> {
         if let Some(v) = extra.is_static {
             flags.set(FLAG_IS_STATIC, v);
         }
-        // extractModifiers merge (tree-sitter.ts:1355) — runs for EVERY
-        // created node: expect/actual platform modifiers → decorators.
+        // extractModifiers merge (tree-sitter.ts:1355) â€” runs for EVERY
+        // created node: expect/actual platform modifiers â†’ decorators.
         let mods = self.extract_modifiers(node);
         let dec_ref: StrRef = match &mods {
             Some(list) if !list.is_empty() => self.arena.put_list(list),
@@ -496,7 +494,7 @@ impl<'t> Walker<'t> {
         if kind == "function" || kind == "method" {
             self.defined_fn_names.insert(name.to_string());
         }
-        // captureValueRefScope — namespace parents are NOT accepted, so
+        // captureValueRefScope â€” namespace parents are NOT accepted, so
         // packaged files' top-level constants are never targets (quirk).
         let target_kind_ok = kind == "constant" || kind == "variable";
         if target_kind_ok
@@ -521,12 +519,12 @@ impl<'t> Walker<'t> {
 
     // --- hooks (languages/kotlin.ts) ----------------------------------------------
 
-    /// extractName — the zero-field grammar means the nameField lookup always
+    /// extractName â€” the zero-field grammar means the nameField lookup always
     /// misses; names come from the shared fallback scan (first direct
     /// identifier-family child; backtick names keep their backticks).
     fn extract_name(&self, node: Node) -> String {
         if let Some(name_node) = node.child_by_field_name("simple_identifier") {
-            // nameField is a TYPE name used as a FIELD name — never resolves
+            // nameField is a TYPE name used as a FIELD name â€” never resolves
             // (mirrored for shape; the grammar has zero fields).
             return self.text(name_node).to_string();
         }
@@ -541,7 +539,7 @@ impl<'t> Walker<'t> {
     }
 
     /// getVisibility: modifiers text includes public/private/protected/
-    /// internal in that order; default PUBLIC. Text-includes semantics —
+    /// internal in that order; default PUBLIC. Text-includes semantics â€”
     /// annotation text inside modifiers can flip it (bug-for-bug).
     fn visibility_of(&self, node: Node) -> u8 {
         for i in 0..node.child_count() {
@@ -566,14 +564,14 @@ impl<'t> Walker<'t> {
     }
 
     /// isAsync: modifiers text includes 'suspend' (text-includes false
-    /// positive on `@suspendMarker` annotations — preserve).
+    /// positive on `@suspendMarker` annotations â€” preserve).
     fn is_async(&self, node: Node) -> bool {
         (0..node.child_count())
             .filter_map(|i| node.child(i))
             .any(|c| c.kind() == "modifiers" && self.text(c).contains("suspend"))
     }
 
-    /// `(params): ReturnType` — the positional read TreeSitterExtractor's
+    /// `(params): ReturnType` â€” the positional read TreeSitterExtractor's
     /// kotlin getSignature does (#1495): the `function_value_parameters` child,
     /// then the type node that follows it before the body. Verbatim source text,
     /// so it round-trips through parity byte-for-byte.
@@ -606,9 +604,9 @@ impl<'t> Walker<'t> {
         Some(sig)
     }
 
-    /// extractKotlinReturnType — positional: the first user_type/nullable_type
-    /// AFTER function_value_parameters; function_body/type_constraints first →
-    /// None; Unit/Nothing → None; `: T` generic params leak (preserve).
+    /// extractKotlinReturnType â€” positional: the first user_type/nullable_type
+    /// AFTER function_value_parameters; function_body/type_constraints first â†’
+    /// None; Unit/Nothing â†’ None; `: T` generic params leak (preserve).
     fn return_type_of(&self, node: Node) -> Option<String> {
         let mut seen_params = false;
         for i in 0..node.named_child_count() {
@@ -648,9 +646,9 @@ impl<'t> Walker<'t> {
         None
     }
 
-    /// getReceiverType — extension functions: the last user_type BEFORE a `.`
+    /// getReceiverType â€” extension functions: the last user_type BEFORE a `.`
     /// child; its FIRST type_identifier's text (qualified receivers take the
-    /// FIRST segment — the `com::qext` bug, preserve).
+    /// FIRST segment â€” the `com::qext` bug, preserve).
     fn receiver_type_of(&self, node: Node<'t>) -> Option<String> {
         let mut found_user_type: Option<Node> = None;
         for i in 0..node.child_count() {
@@ -672,7 +670,7 @@ impl<'t> Walker<'t> {
         None
     }
 
-    /// extractModifiers — expect/actual platform modifiers, matched by NODE
+    /// extractModifiers â€” expect/actual platform modifiers, matched by NODE
     /// TYPE (never text), in order. Runs inside create_node for every node.
     fn extract_modifiers(&self, node: Node) -> Option<Vec<String>> {
         let mut mods: Vec<String> = Vec::new();
@@ -697,16 +695,16 @@ impl<'t> Walker<'t> {
         if mods.is_empty() { None } else { Some(mods) }
     }
 
-    // --- the visitNode hook (property branch ONLY — fun-interface recovery is
+    // --- the visitNode hook (property branch ONLY â€” fun-interface recovery is
     // defer-shielded and not ported) ------------------------------------------------
 
     /// A property's node kind, or None when the declaration mints no node at
     /// all: destructuring, an unreadable name, or a local (inside a function
-    /// body / `init` block / lambda / accessor). Kind by enclosing scope — a
+    /// body / `init` block / lambda / accessor). Kind by enclosing scope â€” a
     /// singleton `object` / `companion object` (and a top-level property) holds
-    /// SHARED values (`val`→constant, `var`→variable, the Scala-object rule; a
+    /// SHARED values (`val`â†’constant, `var`â†’variable, the Scala-object rule; a
     /// `const val` is just a val); a class/interface/enum instance `val`/`var`
-    /// is per-instance state → `field`.
+    /// is per-instance state â†’ `field`.
     fn property_kind(&self, node: Node<'t>) -> Option<&'static str> {
         let var_decl = (0..node.named_child_count())
             .filter_map(|i| node.named_child(i))
@@ -779,7 +777,7 @@ impl<'t> Walker<'t> {
                 .find(|c| c.kind() == "simple_identifier")
         });
         // Destructuring (`val (a, b) = makePair()`): NEITHER arm mints a symbol
-        // for the destructured names — declining just routes the node to
+        // for the destructured names â€” declining just routes the node to
         // extractField/extractVariable, which both find nothing for kotlin and
         // end in the same fn-ref scan. But the RHS is CODE, and it was vanishing
         // whole. Consume the node here and walk it at the ENCLOSING scope (no
@@ -795,7 +793,7 @@ impl<'t> Walker<'t> {
             return None;
         }
         let Some(kind) = self.property_kind(node) else {
-            // A local — no node is minted, but the initializer is still code.
+            // A local â€” no node is minted, but the initializer is still code.
             // Walk it at the ENCLOSING scope: an `init { }` block's
             // `val q = load()` is the CLASS calling load, and it used to
             // disappear entirely (only the block's bare statements survived).
@@ -804,15 +802,15 @@ impl<'t> Walker<'t> {
             }
             return Some(Vec::new());
         };
-        // The `type`-field signature read is dead (zero fields) → signature
-        // undefined; NO docstring/isStatic — the modifiers merge in
+        // The `type`-field signature read is dead (zero fields) â†’ signature
+        // undefined; NO docstring/isStatic â€” the modifiers merge in
         // create_node still decorates expect/actual properties. Visibility IS
         // read: a `private val` is file-local to the resolver (#1731).
         let extra = Extra { visibility: Some(self.visibility_of(node)), ..Extra::default() };
         let row = self.create_node(kind, &name, node, extra);
         // Walk the initializer ATTRIBUTED to the declared symbol (#693, the Go
         // fix, ported): without this the subtree is only fn-ref-scanned, so a
-        // lambda / SAM / object initializer (`val cb = Runnable { target() }` —
+        // lambda / SAM / object initializer (`val cb = Runnable { target() }` â€”
         // the idiomatic Android callback field) contributed NO call edge at all.
         // The property also OWNS any accessor written on its own line, which the
         // grammar makes a following SIBLING rather than a child; those bodies
@@ -877,14 +875,14 @@ impl<'t> Walker<'t> {
             }
             skip_children = true;
         } else if kind == "object_declaration" {
-            // extraClassNodeTypes → extractClass → kind `class`.
+            // extraClassNodeTypes â†’ extractClass â†’ kind `class`.
             self.extract_class(node);
             skip_children = true;
         } else if kind == "type_alias" {
             skip_children = self.extract_type_alias(node);
         } else if kind == "property_declaration" {
             // Hook-declined destructuring: extractField/extractVariable both
-            // find no matching children for kotlin — NOTHING minted, RHS
+            // find no matching children for kotlin â€” NOTHING minted, RHS
             // invisible; candidates-only scan.
             self.scan_fn_ref_subtree(node, 0, &[]);
             skip_children = true;
@@ -895,14 +893,14 @@ impl<'t> Walker<'t> {
         } else if kind == "infix_expression" {
             self.extract_infix_call(node);
         } else if kind == "object_literal" {
-            // `object : Api.Listener { … }` — an anonymous class.
+            // `object : Api.Listener { â€¦ }` â€” an anonymous class.
             if self.extract_object_literal(node, false) {
                 skip_children = true;
             }
         }
         // companion_object, anonymous_initializer, secondary_constructor,
         // getter/setter siblings, file_annotation, if/when at top level: no
-        // branch — recursed (calls attribute to the stack top).
+        // branch â€” recursed (calls attribute to the stack top).
 
         if !skip_children {
             for i in 0..node.named_child_count() {
@@ -934,7 +932,7 @@ impl<'t> Walker<'t> {
 
         self.extract_static_member_ref(node);
 
-        // `object : Api.Listener { … }` in a body or an initializer — an
+        // `object : Api.Listener { â€¦ }` in a body or an initializer â€” an
         // anonymous class; its header is this body's code.
         if kind == "object_literal" && self.extract_object_literal(node, true) {
             return;
@@ -970,7 +968,7 @@ impl<'t> Walker<'t> {
             }
             return;
         }
-        // object_declaration is NOT dispatched here — a body-local object's
+        // object_declaration is NOT dispatched here â€” a body-local object's
         // `fun`s hit the function branch above and leak out as FUNCTIONS
         // under the enclosing fn; its properties mint nothing (quirk).
 
@@ -985,7 +983,7 @@ impl<'t> Walker<'t> {
 
     fn extract_function(&mut self, node: Node<'t>) {
         stack_guard!();
-        // getReceiverType short-circuit (1522) — extension fns at any scope.
+        // getReceiverType short-circuit (1522) â€” extension fns at any scope.
         if self.receiver_type_of(node).is_some() {
             self.extract_method(node);
             return;
@@ -1008,7 +1006,7 @@ impl<'t> Walker<'t> {
         };
         let Some(row) = self.create_node("function", &name, node, extra) else { return };
         // extractTypeAnnotations: the generic path's field lookups all miss
-        // (zero fields) — kotlin emits ZERO type-annotation refs.
+        // (zero fields) â€” kotlin emits ZERO type-annotation refs.
         self.extract_decorators_for(node, row);
         self.stack.push(Scope { row, kind: "function", name });
         if let Some(body) = self.resolve_body(node) {
@@ -1032,10 +1030,10 @@ impl<'t> Walker<'t> {
             qualified_override,
         };
         let Some(row) = self.create_node("method", &name, node, extra) else { return };
-        // Owner-contains fallback (1799): receiver present, not class-like →
-        // the FIRST same-file node named like the receiver with kind ∈
+        // Owner-contains fallback (1799): receiver present, not class-like â†’
+        // the FIRST same-file node named like the receiver with kind âˆˆ
         // {struct, class, enum, trait} (interface EXCLUDED; source-order
-        // dependent — both quirks preserved). Additive to the normal edge.
+        // dependent â€” both quirks preserved). Additive to the normal edge.
         if let Some(recv) = &receiver {
             if !self.inside_class_like() {
                 let owner = self
@@ -1084,8 +1082,8 @@ impl<'t> Walker<'t> {
         self.extract_decorators_for(node, row);
         self.stack.push(Scope { row, kind: "class", name });
         // Bodied: ONLY class_body children (primary-ctor properties/defaults
-        // invisible). Bodiless: the class node itself → header children
-        // visited → ctor default-value + super-arg calls attribute to the
+        // invisible). Bodiless: the class node itself â†’ header children
+        // visited â†’ ctor default-value + super-arg calls attribute to the
         // CLASS (the asymmetry, pinned).
         let body = resolved_body.unwrap_or(node);
         for i in 0..body.named_child_count() {
@@ -1140,7 +1138,7 @@ impl<'t> Walker<'t> {
     }
 
     fn extract_enum_members(&mut self, node: Node<'t>) -> Option<(u32, String)> {
-        // name field → null (zero fields) → the identifier-children scan: one
+        // name field â†’ null (zero fields) â†’ the identifier-children scan: one
         // enum_member per direct simple_identifier, positioned AT the
         // identifier. Entry value_arguments are never visited.
         let mut first: Option<(u32, String)> = None;
@@ -1157,7 +1155,7 @@ impl<'t> Walker<'t> {
         first
     }
 
-    /// `NewBuffer { override fun pipe() … }`: an entry's own class_body
+    /// `NewBuffer { override fun pipe() â€¦ }`: an entry's own class_body
     /// declares members of its own, scoped under the entry.
     fn visit_enum_entry_body(&mut self, node: Node<'t>, member: Option<(u32, String)>) {
         let Some((row, name)) = member else { return };
@@ -1171,8 +1169,8 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractTypeAlias — plain node; the alias-value ref walk reads the
-    /// `value` FIELD → null (zero fields) → NO refs. Returns false →
+    /// extractTypeAlias â€” plain node; the alias-value ref walk reads the
+    /// `value` FIELD â†’ null (zero fields) â†’ NO refs. Returns false â†’
     /// children re-visited (harmless).
     fn extract_type_alias(&mut self, node: Node<'t>) -> bool {
         let name = self.extract_name(node);
@@ -1189,7 +1187,7 @@ impl<'t> Walker<'t> {
 
     fn extract_import(&mut self, node: Node<'t>) {
         // Comment-gluing: the header's extent (and thus the signature) can
-        // include trailing comment lines — the trimmed FULL text is the
+        // include trailing comment lines â€” the trimmed FULL text is the
         // signature; the ref stays at the header start.
         let import_text = self.text(node).trim().to_string();
         let identifier = (0..node.named_child_count())
@@ -1210,10 +1208,10 @@ impl<'t> Walker<'t> {
         self.push_ref_at(parent, &module_name.clone(), edge_kind_index("imports").unwrap_or(0), node);
     }
 
-    /// extractCall — the kotlin paths: navigation member branch (+ the #750
+    /// extractCall â€” the kotlin paths: navigation member branch (+ the #750
     /// re-encode) and the raw-text else (paren-then-lambda / glued-invoke
     /// garbage preserved).
-    /// extractKotlinInfixCall — `Users.id eq id1` / `a to b`: a call of the
+    /// extractKotlinInfixCall â€” `Users.id eq id1` / `a to b`: a call of the
     /// middle simple_identifier, `lhs.fn` when the left operand is a plain
     /// name, else the bare name; literal left operands emit nothing.
     fn extract_infix_call(&mut self, node: Node<'t>) {
@@ -1307,7 +1305,7 @@ impl<'t> Walker<'t> {
                     callee_name = format!("{chain}.{method_name}");
                 } else {
                     // this_expression / super_expression / a longer or
-                    // non-identifier chain / postfix `!!` / parenthesized →
+                    // non-identifier chain / postfix `!!` / parenthesized â†’
                     // bare method name.
                     callee_name = method_name.to_string();
                 }
@@ -1328,9 +1326,9 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractStaticMemberRef — navigation_expression value reads, body
+    /// extractStaticMemberRef â€” navigation_expression value reads, body
     /// walker only (assignment WRITES parse as directly_assignable_expression
-    /// — not a member-access kind — and emit nothing).
+    /// â€” not a member-access kind â€” and emit nothing).
     fn extract_static_member_ref(&mut self, node: Node<'t>) {
         if node.kind() != "navigation_expression" {
             return;
@@ -1369,8 +1367,8 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractInheritance — delegation_specifier: user_type ?? its
-    /// constructor_invocation's user_type → ONE `extends` ref named by the
+    /// extractInheritance â€” delegation_specifier: user_type ?? its
+    /// constructor_invocation's user_type â†’ ONE `extends` ref named by the
     /// user_type's type_identifiers joined with `.` (`Outer.Inner`, type
     /// arguments left out), at the first one (interfaces ride extends too;
     /// `by`-delegation emits NOTHING).
@@ -1413,7 +1411,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractKotlinObjectLiteral — `object : Api.Listener { … }`: an anonymous
+    /// extractKotlinObjectLiteral â€” `object : Api.Listener { â€¦ }`: an anonymous
     /// class. Headers (each delegation_specifier) walked first by the CURRENT
     /// walker in the enclosing scope; an `instantiates` ref from the stack top
     /// to the first supertype's last segment; a class `<Short$anon@line>`;
@@ -1508,9 +1506,9 @@ impl<'t> Walker<'t> {
         true
     }
 
-    /// extractDecoratorsFor — kotlin annotations inside `modifiers`:
-    /// `@Marker` (user_type child) → decorates ref; `@Anno(args)`
-    /// (constructor_invocation) → NOTHING. Runs for functions/methods/classes
+    /// extractDecoratorsFor â€” kotlin annotations inside `modifiers`:
+    /// `@Marker` (user_type child) â†’ decorates ref; `@Anno(args)`
+    /// (constructor_invocation) â†’ NOTHING. Runs for functions/methods/classes
     /// only (hook properties never call it).
     fn extract_decorators_for(&mut self, decl: Node<'t>, decorated_row: u32) {
         for i in 0..decl.named_child_count() {
@@ -1590,7 +1588,7 @@ impl<'t> Walker<'t> {
         }
         let mode = match node.kind() {
             "value_arguments" => Mode::Args,
-            "assignment" => Mode::Rhs, // NO field — RHS = LAST named child
+            "assignment" => Mode::Rhs, // NO field â€” RHS = LAST named child
             _ => return,
         };
         if self.stack.is_empty() {
@@ -1645,7 +1643,7 @@ impl<'t> Walker<'t> {
             return;
         }
         match v.kind() {
-            // value_argument layer with NO field resolution (zero fields) —
+            // value_argument layer with NO field resolution (zero fields) â€”
             // the label-forward skip is DEAD for kotlin; fan out namedChildren.
             "value_argument" => {
                 for i in 0..v.named_child_count() {
@@ -1654,9 +1652,9 @@ impl<'t> Walker<'t> {
                     }
                 }
             }
-            // `::topLevel` / `OtherClass::handle` — receiver = LAST
+            // `::topLevel` / `OtherClass::handle` â€” receiver = LAST
             // type_identifier child, member = LAST simple_identifier child;
-            // `String::class` has no member (anon keyword) → nothing;
+            // `String::class` has no member (anon keyword) â†’ nothing;
             // lowercase receivers dropped by the CASE regex, not node type.
             "callable_reference" => {
                 let mut receiver: Option<Node> = None;
@@ -1683,7 +1681,7 @@ impl<'t> Walker<'t> {
                     }
                 }
             }
-            // `this::caller` → this.<member> (class-scoped, always flushes).
+            // `this::caller` â†’ this.<member> (class-scoped, always flushes).
             "navigation_expression" => {
                 if !self.text(v).starts_with("this::") {
                     return;
@@ -1728,7 +1726,7 @@ impl<'t> Walker<'t> {
         if walked.contains(&node.id()) {
             return;
         }
-        // Halts at functionTypes (function_declaration) + the fixed list —
+        // Halts at functionTypes (function_declaration) + the fixed list â€”
         // lambda_literal halts (no captures inside `by lazy { }` under a
         // hook-consumed property).
         if depth > 0
@@ -1792,9 +1790,9 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        // Shadow prune — kotlin cases: property_declaration (its
+        // Shadow prune â€” kotlin cases: property_declaration (its
         // variable_declaration's first simple_identifier; destructuring bumps
-        // nothing) AND the shared `assignment` case (the swift-sweep lesson —
+        // nothing) AND the shared `assignment` case (the swift-sweep lesson â€”
         // directly_assignable_expression children bump).
         let mut decl_counts: HashMap<&str, u32> = HashMap::new();
         let mut dstack: Vec<Node> = vec![root];
@@ -1844,7 +1842,7 @@ impl<'t> Walker<'t> {
                     }
                 }
                 // (the Swift name-field half of the shared case is a null
-                // path for kotlin — variable_declaration always present)
+                // path for kotlin â€” variable_declaration always present)
             }
             for i in 0..n.named_child_count() {
                 if let Some(c) = n.named_child(i) {
@@ -1874,7 +1872,7 @@ impl<'t> Walker<'t> {
                     break;
                 }
                 visited += 1;
-                // simple_identifier is kotlin's live reader kind —
+                // simple_identifier is kotlin's live reader kind â€”
                 // `${TARGET}` interpolations read, `$TARGET`
                 // (interpolated_identifier) doesn't.
                 if matches!(n.kind(), "identifier" | "constant" | "name" | "simple_identifier") {

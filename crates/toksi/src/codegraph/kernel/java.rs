@@ -1,11 +1,11 @@
-//! Java extraction — a faithful Rust port of `TreeSitterExtractor`'s Java
+//! Java extraction â€” a faithful Rust port of `TreeSitterExtractor`'s Java
 //! paths (src/extraction/tree-sitter.ts) plus languages/java.ts, including
 //! the Lombok member synthesizer (#912).
 //!
 //! Same porting contract as tsjs/: behavior parity with the wasm path,
 //! bug-for-bug, verified by scripts/kernel-parity.mjs and the full-index
 //! dump-diff gate. Positions in UTF-16 code units. Files whose parse tree
-//! contains ERRORS defer to the wasm extractor (encoding-dependent recovery —
+//! contains ERRORS defer to the wasm extractor (encoding-dependent recovery â€”
 //! see tsjs/mod.rs).
 
 use crate::codegraph::kernel::buffers::{
@@ -37,7 +37,7 @@ fn is_non_class_return(kind: &str) -> bool {
     matches!(kind, "void_type" | "integral_type" | "floating_point_type" | "boolean_type")
 }
 
-/// BUILTIN_TYPES (tree-sitter.ts) — shared table; only the Java-relevant names
+/// BUILTIN_TYPES (tree-sitter.ts) â€” shared table; only the Java-relevant names
 /// fire here but membership is what the TS code tests.
 fn is_builtin_type(name: &str) -> bool {
     matches!(
@@ -131,7 +131,7 @@ pub struct Walker<'t> {
     tables: Tables,
     stack: Vec<Scope>,
     nodes_meta: Vec<NodeMeta>,
-    /// Node id string per row — ids COLLIDE for same-(kind, name, line) nodes
+    /// Node id string per row â€” ids COLLIDE for same-(kind, name, line) nodes
     /// and the TS side's fn-ref dedupe / value-ref self-checks key on the id.
     node_ids: Vec<String>,
     defined_fn_names: HashSet<String>,
@@ -149,11 +149,9 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(java) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -442,7 +440,7 @@ impl<'t> Walker<'t> {
         false
     }
 
-    /// javaExtractor.isConst: `static final` field → constant.
+    /// javaExtractor.isConst: `static final` field â†’ constant.
     fn is_const(&self, node: Node) -> bool {
         if node.kind() == "constant_declaration" {
             return true;
@@ -569,7 +567,7 @@ impl<'t> Walker<'t> {
             }
         }
 
-        // Static-member / value-read (`Type.CONST`) — self-gates on field_access.
+        // Static-member / value-read (`Type.CONST`) â€” self-gates on field_access.
         self.extract_static_member_ref(node);
 
         if is_class_type(kind) {
@@ -613,7 +611,7 @@ impl<'t> Walker<'t> {
                 self.visit_node(c);
             }
         }
-        // synthesizeJavaMembers — class still on the stack: record
+        // synthesizeJavaMembers â€” class still on the stack: record
         // components first, then Lombok (#912).
         if node.kind() == "record_declaration" {
             self.synthesize_record_components(node, row);
@@ -649,7 +647,7 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractFunction — only reachable for a method outside any class.
+    /// extractFunction â€” only reachable for a method outside any class.
     fn extract_function(&mut self, node: Node<'t>) {
         stack_guard!();
         let name = self.extract_name(node);
@@ -728,7 +726,7 @@ impl<'t> Walker<'t> {
         Some((row, name))
     }
 
-    /// `PLUS { int apply(…) { … } }`: a constant's own class_body declares
+    /// `PLUS { int apply(â€¦) { â€¦ } }`: a constant's own class_body declares
     /// members of its own, scoped under the constant.
     fn visit_enum_constant_body(&mut self, node: Node<'t>, member: Option<(u32, String)>) {
         let Some((row, name)) = member else { return };
@@ -742,7 +740,7 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractField — each declarator becomes a field/constant node. Returns
+    /// extractField â€” each declarator becomes a field/constant node. Returns
     /// the initializers walked under their fields, for the declaration scan to
     /// skip.
     fn extract_field(&mut self, node: Node<'t>) -> Vec<usize> {
@@ -828,7 +826,7 @@ impl<'t> Walker<'t> {
         walked
     }
 
-    /// extractVariable's generic fallback (top-level locals — rare in Java).
+    /// extractVariable's generic fallback (top-level locals â€” rare in Java).
     fn extract_variable(&mut self, node: Node<'t>) {
         let kind: &'static str = if self.is_const(node) { "constant" } else { "variable" };
         let docstring = preceding_docstring(node, self.src);
@@ -871,7 +869,7 @@ impl<'t> Walker<'t> {
         self.push_ref_at(parent, &module_name.clone(), edge_kind_index("imports").unwrap_or(0), node);
     }
 
-    /// extractCall — the Java method_invocation paths.
+    /// extractCall â€” the Java method_invocation paths.
     fn extract_call(&mut self, node: Node<'t>) {
         if self.stack.is_empty() {
             return;
@@ -886,7 +884,7 @@ impl<'t> Walker<'t> {
         if let (Some(name_field), Some(object_field)) = (name_field, object_field) {
             let method_name = self.text(name_field);
 
-            // Static-factory / fluent chain: `Foo.getInstance().bar()` →
+            // Static-factory / fluent chain: `Foo.getInstance().bar()` â†’
             // `<inner-receiver>.<inner-method>().<method>` (#645/#608).
             if !method_name.is_empty() && object_field.kind() == "method_invocation" {
                 let inner_obj = object_field.child_by_field_name("object");
@@ -898,7 +896,7 @@ impl<'t> Walker<'t> {
                 }
             }
 
-            // `this.userbo.toLogin2()` — unwrap the field after `this.`.
+            // `this.userbo.toLogin2()` â€” unwrap the field after `this.`.
             let receiver_name = if object_field.kind() == "field_access" {
                 let inner = object_field.child_by_field_name("object");
                 let fld = object_field.child_by_field_name("field");
@@ -923,7 +921,7 @@ impl<'t> Walker<'t> {
                 }
             }
         } else {
-            // Bare call `foo()` — the generic tail: function field ?? first child.
+            // Bare call `foo()` â€” the generic tail: function field ?? first child.
             let func = node
                 .child_by_field_name("function")
                 .or_else(|| node.named_child(0));
@@ -957,7 +955,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractAnonymousClass — `new T() { ... }`.
+    /// extractAnonymousClass â€” `new T() { ... }`.
     fn extract_anonymous_class(&mut self, node: Node<'t>, body: Node<'t>) {
         stack_guard!();
         let type_node = node
@@ -966,8 +964,8 @@ impl<'t> Walker<'t> {
             .or_else(|| node.child_by_field_name("name"))
             .or_else(|| node.named_child(0));
         let raw = type_node.map(|t| self.text(t).to_string()).unwrap_or_else(|| "Object".to_string());
-        // The supertype as written (`Api.Listener` for `new Api.Listener() {…}`),
-        // type arguments cut from the first `<` past index 0, trimmed — the
+        // The supertype as written (`Api.Listener` for `new Api.Listener() {â€¦}`),
+        // type arguments cut from the first `<` past index 0, trimmed â€” the
         // `extends` ref's name. The anon class's own name keeps the last segment.
         let mut written = raw.clone();
         if let Some(lt) = written.find('<') {
@@ -989,7 +987,7 @@ impl<'t> Walker<'t> {
             return;
         };
         // Bug-for-bug: the TS code uses `startPosition.row` (0-based) as the
-        // LINE here — the one place it forgets the +1.
+        // LINE here â€” the one place it forgets the +1.
         let (line, column) = match type_node {
             Some(t) => (t.start_position().row as u32, self.col_of(t)),
             None => (node.start_position().row as u32, self.col_of(node)),
@@ -1005,7 +1003,7 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractStaticMemberRef — `Type.CONST` value reads (java: field_access).
+    /// extractStaticMemberRef â€” `Type.CONST` value reads (java: field_access).
     fn extract_static_member_ref(&mut self, node: Node<'t>) {
         if node.kind() != "field_access" {
             return;
@@ -1014,7 +1012,7 @@ impl<'t> Walker<'t> {
             return;
         }
         let owner = self.top_row();
-        // Skip `Type.method()` — the access is a call's callee, already linked.
+        // Skip `Type.method()` â€” the access is a call's callee, already linked.
         if let Some(parent) = node.parent() {
             if parent.kind() == "method_invocation" {
                 let callee = parent
@@ -1045,7 +1043,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractInheritance — the Java clauses (type_list-aware).
+    /// extractInheritance â€” the Java clauses (type_list-aware).
     fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
         let extends_kind = edge_kind_index("extends").unwrap_or(0);
         let implements_kind = edge_kind_index("implements").unwrap_or(0);
@@ -1083,7 +1081,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// supertypeName — a parameterized supertype (`generic_type`) by the name
+    /// supertypeName â€” a parameterized supertype (`generic_type`) by the name
     /// before its type arguments: `Store` for `implements Store<String>`.
     fn supertype_name(&self, node: Node<'t>) -> String {
         if node.kind() == "generic_type" {
@@ -1097,7 +1095,7 @@ impl<'t> Walker<'t> {
         self.text(node).to_string()
     }
 
-    /// extractDecoratorsFor — Java annotations live inside `modifiers`.
+    /// extractDecoratorsFor â€” Java annotations live inside `modifiers`.
     fn extract_decorators_for(&mut self, decl: Node<'t>, decorated_row: u32) {
         for i in 0..decl.named_child_count() {
             let Some(child) = decl.named_child(i) else { continue };
@@ -1110,7 +1108,7 @@ impl<'t> Walker<'t> {
                 }
             }
         }
-        // Preceding-sibling scan (TS-style class decorators) — Java annotations
+        // Preceding-sibling scan (TS-style class decorators) â€” Java annotations
         // are inside modifiers, so this is inert here; kept for parity of shape.
         let Some(parent) = decl.parent() else { return };
         let decl_start = decl.start_byte();
@@ -1169,7 +1167,7 @@ impl<'t> Walker<'t> {
         self.push_ref_at(decorated_row, &name, edge_kind_index("decorates").unwrap_or(0), n);
     }
 
-    /// extractTypeAnnotations — Java's returnField is `type`.
+    /// extractTypeAnnotations â€” Java's returnField is `type`.
     fn extract_type_annotations(&mut self, node: Node<'t>, from_row: u32) {
         if let Some(params) = node.child_by_field_name("parameters") {
             self.extract_type_refs_from_subtree(params, from_row);
@@ -1238,13 +1236,13 @@ impl<'t> Walker<'t> {
                 }
             }
         } else if let Some(v) = node.child_by_field_name("value") {
-            // varinit — destructuring patterns don't exist in Java.
+            // varinit â€” destructuring patterns don't exist in Java.
             values.push(v);
         }
 
         for v in values {
             if v.kind() != "method_reference" {
-                continue; // idTypes is EMPTY for Java — only method references
+                continue; // idTypes is EMPTY for Java â€” only method references
             }
             let mut last_ident: Option<Node> = None;
             for i in 0..v.named_child_count() {

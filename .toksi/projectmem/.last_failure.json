@@ -1,6 +1,6 @@
 {
-  "command": "cargo test -p toksi -- contextmode",
-  "root_cause": "error[E0433]: cannot find module or crate `once_cell` in this scope",
-  "raw_output": "   Compiling toksi v3.0.13 (D:\\AI\\neo\\crates\\toksi)\nerror[E0433]: cannot find module or crate `once_cell` in this scope\n  --> crates\\toksi\\src\\contextmode\\text_norm.rs:10:5\n   |\n10 | use once_cell::sync::Lazy;\n   |     ^^^^^^^^^ use of unresolved module or unlinked crate `once_cell`\n   |\n   = help: if you wanted to use a crate named `once_cell`, use `cargo add once_cell` to add it to your `Cargo.toml`\n\nFor more information about this error, try `rustc --explain E0433`.\nerror: could not compile `toksi` (lib) due to 1 previous error\nwarning: build failed, waiting for other jobs to finish...\nerror: could not compile `toksi` (lib test) due to 1 previous error\n",
-  "timestamp": "2026-11-18T17:41:02Z"
+  "command": "cargo test -p toksi -- test_vault_kernel_updates_macro_builtin_include_and_method_group --nocapture",
+  "root_cause": "error: unexpected closing delimiter: `}`",
+  "raw_output": "   Compiling toksi v3.0.13 (D:\\AI\\neo\\crates\\toksi)\nerror: unexpected closing delimiter: `}`\n    --> crates\\toksi\\src\\codegraph\\tests.rs:1311:1\n     |\n1248 |     fn test_vault_kernel_updates_macro_builtin_include_and_method_group() {\n     |                                                                           - this opening brace...\n...\n1310 |     }\n     |     - ...matches this closing brace\n1311 | }\n     | ^ unexpected closing delimiter\n\nerror: could not compile `toksi` (lib test) due to 1 previous error\n",
+  "timestamp": "2026-11-18T18:33:40Z"
 }

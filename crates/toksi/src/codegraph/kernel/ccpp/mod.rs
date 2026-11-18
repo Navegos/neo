@@ -5,15 +5,15 @@
 // created: 2026-10-28
 // lastModified: 2026-11-13
 
-//! C / C++ extraction — a faithful Rust port of `TreeSitterExtractor`'s c/cpp
+//! C / C++ extraction â€” a faithful Rust port of `TreeSitterExtractor`'s c/cpp
 //! paths (src/extraction/tree-sitter.ts) plus languages/c-cpp.ts, one dual-
 //! language module flagged like tsjs/ (checklist:
-//! docs/design/ccpp-kernel-port-checklist.md — read it before editing).
+//! docs/design/ccpp-kernel-port-checklist.md â€” read it before editing).
 //!
 //! The seven preParse blanking passes are NOT here: the TS route point
 //! (src/extraction/kernel/index.ts) applies `extractor.preParse` before the
 //! kernel call, so this walker receives the SAME blanked bytes the wasm
-//! extractor parses (all blanks are equal-length-space replacements — every
+//! extractor parses (all blanks are equal-length-space replacements â€” every
 //! offset survives). `.metal`/`.cu`/`.cuh` arrive as language 'cpp' with their
 //! dialect blanks already applied.
 //!
@@ -33,22 +33,22 @@
 //!    struct/class/enum/trait of the receiver's bare name.
 //!  - macro-name salvage: recoverCppMacroDefinedName (ALL-CAPS macro def whose
 //!    real name is the lone first argument) at resolveName, and
-//!    recoverMangledCppName (glued "Ret name" → last token) as the universal
+//!    recoverMangledCppName (glued "Ret name" â†’ last token) as the universal
 //!    post-hoc net for BOTH c and cpp.
 //!  - `class MACRO Name` misparse residue: isMisparsedFunction drops the
 //!    phantom function (name starts `namespace`, C++ keywords, or the bodyless
 //!    class/struct `type` + non-function_declarator shape, #946/#1061) but
 //!    still walks the body.
-//!  - C file-scope variables: init/pointer/array declarators only — a BARE
+//!  - C file-scope variables: init/pointer/array declarators only â€” a BARE
 //!    identifier declarator is the macro-prototype misparse and is skipped
 //!    (loses uninit scalars by design); cpp declarations instead take the TS
-//!    GENERIC fallback (direct identifier children only → `int x;` extracts,
-//!    `int x = 5;` does not — bug-for-bug).
+//!    GENERIC fallback (direct identifier children only â†’ `int x;` extracts,
+//!    `int x = 5;` does not â€” bug-for-bug).
 //!  - a class/struct/union/enum defined in a declaration's `type`
-//!    (`struct Foo { … } foo;`) is walked before the variables — in C, and in
+//!    (`struct Foo { â€¦ } foo;`) is walked before the variables â€” in C, and in
 //!    C++ unless the tree has errors and no brace scopes (walkDeclaredTypes);
 //!    an unnamed one takes the name of the first declarator identifier
-//!    (`static struct { … } SPT;` → `SPT`, in function bodies too), and the
+//!    (`static struct { â€¦ } SPT;` â†’ `SPT`, in function bodies too), and the
 //!    comment above the declaration is its docstring (c/cpp
 //!    getDeclarationWrapper).
 //!  - the types a class's members are declared with (cMemberTypeNames) and an
@@ -59,13 +59,13 @@
 //!    MEMBER_ACCESS_TYPES (listed for Scala, same node kind in cpp), so
 //!    `Capitalized.member` / `Capitalized->member` VALUE reads emit
 //!    `references` refs; qualified_identifier is checked too but its scope
-//!    child is namespace_identifier/template_type/…, never a plain
+//!    child is namespace_identifier/template_type/â€¦, never a plain
 //!    identifier, so it can't emit.
-//!  - explicit operator calls (#1247) ride an ERROR child — but has_error()
+//!  - explicit operator calls (#1247) ride an ERROR child â€” but has_error()
 //!    defers the whole file to wasm, so the ported branch is a faithful no-op
 //!    here; kept so an error-free shape (if a grammar bump ever produces one)
 //!    stays parity-true.
-//!  - local fn-pointer fan-out (#932-adjacent): `auto k = &fn<…>;` records
+//!  - local fn-pointer fan-out (#932-adjacent): `auto k = &fn<â€¦>;` records
 //!    per-caller targets (insertion-ordered, branch reassignments accumulate);
 //!    a later bare `k(args)` emits one `calls` ref PER target and suppresses
 //!    the local name. Template args stripped like base-class refs (#1043).
@@ -75,14 +75,14 @@
 //!    TS `methodTypes` + `classifyMethodNode` / `isAbstract`.
 //!  - stack construction (#1035): cpp `declaration` with class-like named
 //!    `type` and an init_declarator whose value is argument_list /
-//!    initializer_list → `instantiates` (most-vexing-parse excluded).
-//!  - value-reference edges: C only (VALUE_REF_LANGS has 'c', not 'cpp') —
+//!    initializer_list â†’ `instantiates` (most-vexing-parse excluded).
+//!  - value-reference edges: C only (VALUE_REF_LANGS has 'c', not 'cpp') â€”
 //!    shadow prune via init_declarator counts, MAX_VALUE_REF_NODES cap,
 //!    CODEGRAPH_VALUE_REFS=0 kill switch.
 //!  - fn-ref capture (#756): cFamilySpec for both; cpp adds addressOfOnly
 //!    (bare identifiers only qualify in file-scope value/list positions).
 //!
-//! Files with parse errors defer to wasm (`defer:`) — error recovery is
+//! Files with parse errors defer to wasm (`defer:`) â€” error recovery is
 //! encoding-dependent and the wasm recovery is canonical.
 
 use crate::codegraph::kernel::buffers::{
@@ -189,7 +189,7 @@ fn is_non_class_return(name: &str) -> bool {
     )
 }
 
-/// CPP_PRIMITIVE_NAMES (languages/c-cpp.ts) — recoverMangledCppName's guard.
+/// CPP_PRIMITIVE_NAMES (languages/c-cpp.ts) â€” recoverMangledCppName's guard.
 fn is_cpp_primitive_name(name: &str) -> bool {
     matches!(
         name,
@@ -208,7 +208,7 @@ fn is_stoplisted(name: &str) -> bool {
     )
 }
 
-/// LITERAL_RECEIVER_TYPES (tree-sitter.ts) — full set; membership is what the
+/// LITERAL_RECEIVER_TYPES (tree-sitter.ts) â€” full set; membership is what the
 /// TS code tests even though only a few kinds occur in the c/cpp grammars.
 fn is_literal_receiver(kind: &str) -> bool {
     matches!(
@@ -227,7 +227,7 @@ fn is_literal_receiver(kind: &str) -> bool {
 }
 
 /// stripCppTemplateArgs (languages/c-cpp.ts): depth-counted removal of every
-/// balanced `<…>` group; `<` and `>` never reach the output.
+/// balanced `<â€¦>` group; `<` and `>` never reach the output.
 fn strip_cpp_template_args(name: &str) -> String {
     if !name.contains('<') {
         return name.to_string();
@@ -246,8 +246,8 @@ fn strip_cpp_template_args(name: &str) -> String {
     out.trim().to_string()
 }
 
-/// recoverMangledCppName (languages/c-cpp.ts) — universal post-hoc salvage for
-/// a name still mangled by an unblanked macro ("Ret name" → "name").
+/// recoverMangledCppName (languages/c-cpp.ts) â€” universal post-hoc salvage for
+/// a name still mangled by an unblanked macro ("Ret name" â†’ "name").
 fn recover_mangled_cpp_name(name: String) -> String {
     if !name.chars().any(|c| c.is_whitespace())
         || name.starts_with("operator")
@@ -256,13 +256,13 @@ fn recover_mangled_cpp_name(name: String) -> String {
         return name;
     }
     if ret_paren_name_re().is_match(&name) {
-        return name; // `Ret (name)` idiom — leave alone
+        return name; // `Ret (name)` idiom â€” leave alone
     }
     let before_params = match name.find('(') {
         Some(i) => &name[..i],
         None => &name[..],
     };
-    // (JS: `beforeParams.trim().split(/\s+/)` — split_whitespace already
+    // (JS: `beforeParams.trim().split(/\s+/)` â€” split_whitespace already
     // ignores leading/trailing whitespace, so no explicit trim.)
     let candidate = before_params.split_whitespace().last().unwrap_or("");
     if candidate.is_empty()
@@ -363,7 +363,7 @@ struct Cand {
 }
 
 /// Per-node metadata for the receiver-method owner lookup (mirrors the TS
-/// side's scan over `this.nodes` — FIRST match wins, earlier-in-file only).
+/// side's scan over `this.nodes` â€” FIRST match wins, earlier-in-file only).
 struct NodeMeta {
     kind: &'static str,
     name: String,
@@ -380,9 +380,9 @@ pub struct Walker<'t> {
     stack: Vec<Scope>,
     nodes_meta: Vec<NodeMeta>,
     node_ids: Vec<String>,
-    /// C/C++ enclosing `namespace ns { … }` names (cpp only ever non-empty).
+    /// C/C++ enclosing `namespace ns { â€¦ }` names (cpp only ever non-empty).
     namespace_prefix: Vec<String>,
-    /// cppLocalFnPtrs: caller row → local name → insertion-ordered targets.
+    /// cppLocalFnPtrs: caller row â†’ local name â†’ insertion-ordered targets.
     local_fn_ptrs: HashMap<u32, HashMap<String, Vec<String>>>,
     defined_fn_names: HashSet<String>,
     imported_names: HashSet<String>,
@@ -414,15 +414,13 @@ pub fn extract(file_path: &str, source: &str, language: &str) -> Result<EmitOut,
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language({language}) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
-    // Measurement hatch (parity sweeps only — never set in production): skip
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
+    // Measurement hatch (parity sweeps only â€” never set in production): skip
     // the defer so the sweep can QUANTIFY how often UTF-8 vs UTF-16 error
     // recovery actually diverges on this language's erroring files.
     let no_defer = std::env::var("CODEGRAPH_KERNEL_CCPP_ERROR_EXTRACT").as_deref() == Ok("1");
     if tree.root_node().has_error() && !no_defer {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let brace_scopes = if variant == Variant::Cpp && tree.root_node().has_error() {
@@ -553,7 +551,7 @@ impl<'t> Walker<'t> {
         let column = self.col_of(node);
         let id = self.node_id_allocator.generate(self.file_path, kind, name, start_line, column);
         // (c/cpp define no resolveBody hook, so createNode's endLine extension
-        // for sibling-body grammars never fires — endLine is the node's own,
+        // for sibling-body grammars never fires â€” endLine is the node's own,
         // or the `}` of its body in brace scopes.)
         let (end_line, end_column) =
             extra.end.unwrap_or_else(|| (node.end_position().row as u32 + 1, self.end_col_of(node)));
@@ -627,7 +625,7 @@ impl<'t> Walker<'t> {
             self.defined_fn_names.insert(name.to_string());
         }
         // captureValueRefScope (capture is variant-agnostic like the TS side;
-        // flushValueRefs gates on the language — C only).
+        // flushValueRefs gates on the language â€” C only).
         let target_kind_ok = kind == "constant" || kind == "variable";
         if target_kind_ok
             && util::utf16_len(name) >= 3
@@ -770,7 +768,7 @@ impl<'t> Walker<'t> {
 
     /// unnamedTypeVariableName (languages/c-cpp.ts): an unnamed class, struct,
     /// union or enum defined in a declaration takes the name of the first
-    /// variable the declaration declares (`static struct { … } SPT;` → `SPT`).
+    /// variable the declaration declares (`static struct { â€¦ } SPT;` â†’ `SPT`).
     fn unnamed_type_variable_name(&self, node: Node) -> Option<String> {
         if node.child_by_field_name("name").is_some() {
             return None;
@@ -961,7 +959,7 @@ impl<'t> Walker<'t> {
             Some(name) => {
                 let written = self.src[qid.start_byte()..name.start_byte()].trim_end();
                 // A `::` the parser supplied in recovery writes nothing: Metal's
-                // `vertex VertexOut vertexShader(…)` reads as `VertexOut::vertexShader`.
+                // `vertex VertexOut vertexShader(â€¦)` reads as `VertexOut::vertexShader`.
                 if !written.ends_with("::") {
                     return None;
                 }
@@ -991,7 +989,7 @@ impl<'t> Walker<'t> {
     }
 
     /// cppExtractor.getVisibility: the FIRST access_specifier among the
-    /// parent's children decides (document order, not nearest-preceding —
+    /// parent's children decides (document order, not nearest-preceding â€”
     /// bug-for-bug with the TS loop).
     fn visibility_of(&self, node: Node) -> Option<u8> {
         let parent = node.parent()?;
@@ -1123,8 +1121,8 @@ impl<'t> Walker<'t> {
         self.namespace_prefix = saved;
     }
 
-    /// cppBodyEnd: where a class-like node ends in brace scopes — the `}`
-    /// that closes its body — or None to keep the tree's.
+    /// cppBodyEnd: where a class-like node ends in brace scopes â€” the `}`
+    /// that closes its body â€” or None to keep the tree's.
     fn brace_body_end(&self, body: Node<'t>) -> Option<(u32, u32)> {
         let close = self.brace_scopes.as_ref()?.close_of(body.start_byte())?;
         Some(BraceScopes::position_of(self.src, &self.line_starts, close + 1))
@@ -1144,7 +1142,7 @@ impl<'t> Walker<'t> {
         let mut skip_children = false;
 
         // C/C++ function-like macros become `constant` nodes carrying the
-        // directive as their signature — a value, never a callee (#1838).
+        // directive as their signature â€” a value, never a callee (#1838).
         // Mirrors tree-sitter.ts visitNode.
         if kind == "preproc_function_def" {
             if let Some(name_node) = node.child_by_field_name("name") {
@@ -1206,8 +1204,8 @@ impl<'t> Walker<'t> {
             skip_children = self.extract_type_alias(node);
         } else if kind == "declaration" && !self.inside_class_like() {
             // A class, struct, union or enum defined in the declaration's type
-            // (`struct Foo { … } foo;`) is a definition like one written on its
-            // own, and the variables keep their nodes beside it — so is, in
+            // (`struct Foo { â€¦ } foo;`) is a definition like one written on its
+            // own, and the variables keep their nodes beside it â€” so is, in
             // brace scopes, a class the tree reads as a declaration's type
             // (glued to the tokens after it by error recovery). The fn-ref
             // scan skips the walked type, which captured its own (the TS
@@ -1238,7 +1236,7 @@ impl<'t> Walker<'t> {
             && self.inside_class_like()
             && self.is_cpp_pure_virtual_method_decl(node)
         {
-            // Pure-virtual methods have no `function_definition` body — mint the
+            // Pure-virtual methods have no `function_definition` body â€” mint the
             // method node so calls through the abstract base and cpp-override
             // synthesis have a target (#1727). Non-pure field_declarations fall
             // through to the children walk (data members / prototypes).
@@ -1268,7 +1266,7 @@ impl<'t> Walker<'t> {
 
     fn extract_function(&mut self, node: Node<'t>) {
         stack_guard!();
-        // Receiver present (out-of-line `Cls::method` def) → method instead.
+        // Receiver present (out-of-line `Cls::method` def) â†’ method instead.
         if self.variant == Variant::Cpp && self.receiver_type_of(node).is_some() {
             self.extract_method(node);
             return;
@@ -1300,7 +1298,7 @@ impl<'t> Walker<'t> {
         // (extractTypeAnnotations + extractDecoratorsFor are structural no-ops
         // for c/cpp: not in TYPE_ANNOTATION_LANGUAGES, and the decorator node
         // kinds never appear as direct children/preceding siblings in these
-        // grammars — `attribute` only occurs under attribute_declaration.)
+        // grammars â€” `attribute` only occurs under attribute_declaration.)
         self.stack.push(Scope { row, kind: "function", name, qualified: None });
         if let Some(body) = node.child_by_field_name("body") {
             self.visit_function_body(body);
@@ -1313,7 +1311,7 @@ impl<'t> Walker<'t> {
         let receiver_type = if self.variant == Variant::Cpp { self.receiver_type_of(node) } else { None };
 
         if !self.inside_class_like() && receiver_type.is_none() {
-            // (object-literal parents don't occur in c/cpp) — treat as function.
+            // (object-literal parents don't occur in c/cpp) â€” treat as function.
             self.extract_function(node);
             return;
         }
@@ -1577,7 +1575,7 @@ impl<'t> Walker<'t> {
         let is_const = self.variant == Variant::C && self.is_const_declaration(node);
         let kind: &'static str = if is_const { "constant" } else { "variable" };
         let docstring = preceding_docstring(node, self.src);
-        // isExported?.() ?? false — EXPLICIT false (tri-state flag set).
+        // isExported?.() ?? false â€” EXPLICIT false (tri-state flag set).
         let is_exported = Some(false);
 
         if self.variant == Variant::C {
@@ -1720,7 +1718,7 @@ impl<'t> Walker<'t> {
         let mut callee_name = String::new();
         if let Some(func) = func {
             if func.kind() == "field_expression" {
-                // `obj.method()` / `ptr->method()` — the `field` field.
+                // `obj.method()` / `ptr->method()` â€” the `field` field.
                 let property = func
                     .child_by_field_name("property")
                     .or_else(|| func.child_by_field_name("field"))
@@ -1748,7 +1746,7 @@ impl<'t> Walker<'t> {
                         }
                         Some(r) if r.kind() == "call_expression" => {
                             // Call-result receiver (#645/#608): re-encode as
-                            // `<innerCallee>().<method>` — C/C++ re-encode any inner.
+                            // `<innerCallee>().<method>` â€” C/C++ re-encode any inner.
                             let inner_fn = r.child_by_field_name("function");
                             let inner_callee =
                                 inner_fn.map(|f| arrow_dot_no_ws(self.text(f))).unwrap_or_default();
@@ -1770,7 +1768,7 @@ impl<'t> Walker<'t> {
         }
 
         if !callee_name.is_empty() {
-            // `(*fp)(x)` → `fp` (parenthesized-conversion normalization).
+            // `(*fp)(x)` â†’ `fp` (parenthesized-conversion normalization).
             if let Some(c) = util::paren_conversion().captures(&callee_name) {
                 callee_name = c[1].to_string();
             }
@@ -1872,8 +1870,8 @@ impl<'t> Walker<'t> {
     }
 
     /// cppStackConstructions (tree-sitter.ts, #1035 / #1839): whether the
-    /// declaration constructs with arguments (→ `instantiates`), and one
-    /// arity per constructed object (→ `calls T::T/arity`). `extern`,
+    /// declaration constructs with arguments (â†’ `instantiates`), and one
+    /// arity per constructed object (â†’ `calls T::T/arity`). `extern`,
     /// pointer / reference / function declarators construct nothing; an
     /// array's braces hold elements, not constructor arguments.
     fn cpp_stack_constructions(&self, node: Node<'t>) -> (bool, Vec<usize>) {
@@ -1992,9 +1990,9 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractStaticMemberRef — cpp only (c is not in STATIC_MEMBER_LANGS).
+    /// extractStaticMemberRef â€” cpp only (c is not in STATIC_MEMBER_LANGS).
     /// In this grammar the firing shape is `field_expression` (listed in
-    /// MEMBER_ACCESS_TYPES for Scala — same node kind here): a capitalized
+    /// MEMBER_ACCESS_TYPES for Scala â€” same node kind here): a capitalized
     /// simple receiver's value read.
     fn extract_static_member_ref(&mut self, node: Node<'t>) {
         if self.variant != Variant::Cpp {
@@ -2006,7 +2004,7 @@ impl<'t> Walker<'t> {
         if !matches!(node.kind(), "field_expression" | "qualified_identifier") {
             return;
         }
-        // Skip `Type.method()` — the access is a call's callee, already linked.
+        // Skip `Type.method()` â€” the access is a call's callee, already linked.
         if let Some(parent) = node.parent() {
             if parent.kind() == "call_expression" {
                 let callee = parent
@@ -2148,7 +2146,7 @@ impl<'t> Walker<'t> {
 
     // --- inheritance ---------------------------------------------------------
 
-    /// extractInheritance — the branches whose node kinds occur in the c/cpp
+    /// extractInheritance â€” the branches whose node kinds occur in the c/cpp
     /// grammars: base_class_clause (#1043) and the field_declaration_list
     /// recursion. A member `field_declaration` is never a supertype: the TS
     /// Go-embedding check is gated to Go, since c/cpp members nest their
@@ -2373,7 +2371,7 @@ impl<'t> Walker<'t> {
                 }
             }
             Mode::Varinit => {
-                // (init_declarator has no name/pattern field — no destructure skip)
+                // (init_declarator has no name/pattern field â€” no destructure skip)
                 if let Some(v) = node.child_by_field_name("value") {
                     values.push(v);
                 }
@@ -2517,7 +2515,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        // Shadow prune — the C declarator shape is init_declarator (a
+        // Shadow prune â€” the C declarator shape is init_declarator (a
         // file-scope const AND the local that shadows it both count).
         let mut decl_counts: HashMap<&str, u32> = HashMap::new();
         let mut dstack: Vec<Node> = vec![root];
@@ -2616,7 +2614,7 @@ fn cpp_qualified_id_name(qid: Node) -> Option<Node> {
 /// `qualified_identifier`, skipping the parts that hold types or expressions
 /// (DECLARATOR_NON_NAME_PARTS: parameter_list, trailing_return_type, noexcept,
 /// throw_specifier, requires_clause) so a qualified PARAMETER type, or a call
-/// in `noexcept(…)`, can't be mistaken for the method name.
+/// in `noexcept(â€¦)`, can't be mistaken for the method name.
 fn find_declarator_qualified_id(declarator: Node) -> Option<Node> {
     let mut queue: VecDeque<Node> = VecDeque::new();
     queue.push_back(declarator);
@@ -2640,9 +2638,9 @@ fn find_declarator_qualified_id(declarator: Node) -> Option<Node> {
 
 /// cDeclaratorIdentifier (languages/c-cpp.ts): resolve the declared identifier
 /// through init/pointer/array/parenthesized declarator wrappers; a
-/// function_declarator means prototype/fn-ptr — null. (The C grammar's
+/// function_declarator means prototype/fn-ptr â€” null. (The C grammar's
 /// parenthesized_declarator exposes no `declarator` field, so that arm always
-/// terminates — bug-for-bug with getChildByField returning null there.)
+/// terminates â€” bug-for-bug with getChildByField returning null there.)
 fn c_declarator_identifier(node: Node) -> Option<Node> {
     let mut cur = Some(node);
     let mut guard = 0;
@@ -2704,7 +2702,7 @@ fn declares_member_function(declarator: Node) -> bool {
 }
 
 /// definingDeclaration (languages/c-cpp.ts): the `declaration` a class-like
-/// definition is the type of (`struct Foo { … } foo;`). Its comment documents
+/// definition is the type of (`struct Foo { â€¦ } foo;`). Its comment documents
 /// the type, and an unnamed type takes the name of its first variable.
 fn defining_declaration(node: Node) -> Option<Node> {
     if !is_class_like_definition(node) {
@@ -2715,8 +2713,8 @@ fn defining_declaration(node: Node) -> Option<Node> {
     (parent.kind() == "declaration" && is_type).then_some(parent)
 }
 
-/// isMacroMisparsedTypeDecl (languages/c-cpp.ts:261): `class MACRO Name {…}`
-/// misparse residue — bodyless class/struct specifier in `type` + a
+/// isMacroMisparsedTypeDecl (languages/c-cpp.ts:261): `class MACRO Name {â€¦}`
+/// misparse residue â€” bodyless class/struct specifier in `type` + a
 /// non-function_declarator declarator.
 fn is_macro_misparsed_type_decl(node: Node) -> bool {
     let Some(type_node) = node.child_by_field_name("type") else { return false };

@@ -1,24 +1,24 @@
-//! Swift extraction — a faithful Rust port of `TreeSitterExtractor`'s Swift
+//! Swift extraction â€” a faithful Rust port of `TreeSitterExtractor`'s Swift
 //! paths (src/extraction/tree-sitter.ts) plus languages/swift.ts.
 //!
 //! Same porting contract as the other walkers: behavior parity, bug-for-bug.
 //! The authoritative quirk list is docs/design/swift-kernel-port-checklist.md.
 //! The port's center of gravity is the DEDICATED in-class property branch
-//! (#1020 — Alamofire's 348 `property` nodes): computed properties become
+//! (#1020 â€” Alamofire's 348 `property` nodes): computed properties become
 //! `property` nodes whose getter walks with the property pushed; stored
-//! `static let/var` → constant/variable, instance stored → field; decorator/
+//! `static let/var` â†’ constant/variable, instance stored â†’ field; decorator/
 //! type-annotation/attr-arg refs all attach to the ENCLOSING TYPE; stored
 //! declarations descend so initializer calls attribute to the class. Also
 //! preserved on purpose: `parameter` field never resolves (zero param type
-//! refs, zero signatures), isAsync is present-false (dead hook), `open` →
+//! refs, zero signatures), isAsync is present-false (dead hook), `open` â†’
 //! internal visibility, everything-is-`extends` inheritance (first
 //! type_identifier of each specifier), no instantiates refs ever (`Foo()` is
 //! a plain call), subscript reads as `calls arr`, `defer` as `calls defer`,
 //! multi-case enum entries minting only the first case, `/** */` block docs
 //! ignored AND chain-breaking, init/deinit/subscript minting no nodes with
-//! their bodies routed through visitNode (calls → class, static reads →
+//! their bodies routed through visitNode (calls â†’ class, static reads â†’
 //! nothing). Positions in UTF-16 code units. Files with parse errors defer
-//! to wasm (structurally high incidence, 9–27% — the sweep runs
+//! to wasm (structurally high incidence, 9â€“27% â€” the sweep runs
 //! --max-deferral 0.3 by measured both-arm reality).
 
 use crate::codegraph::kernel::buffers::{
@@ -35,8 +35,8 @@ use tree_sitter::{Node, Parser};
 
 const MAX_VALUE_REF_NODES: usize = 20_000;
 
-/// BUILTIN_TYPES (tree-sitter.ts) — full shared table (`Bool` is NOT in it;
-/// `Int`/`String`/`Double` are, via the Scala rows — checklist nuances).
+/// BUILTIN_TYPES (tree-sitter.ts) â€” full shared table (`Bool` is NOT in it;
+/// `Int`/`String`/`Double` are, via the Scala rows â€” checklist nuances).
 fn is_builtin_type(name: &str) -> bool {
     matches!(
         name,
@@ -61,7 +61,7 @@ fn is_stoplisted(name: &str) -> bool {
     )
 }
 
-/// LITERAL_RECEIVER_TYPES (tree-sitter.ts:373) — full shared set. Note the
+/// LITERAL_RECEIVER_TYPES (tree-sitter.ts:373) â€” full shared set. Note the
 /// swift-relevant membership quirks: `line_string_literal` IS in it,
 /// `multi_line_string_literal` and `dictionary_literal` are NOT.
 fn is_literal_receiver(kind: &str) -> bool {
@@ -85,7 +85,7 @@ fn ascii_ident_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
     static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
     RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_][0-9A-Za-z_]*$"))
 }
-/// getReturnType's generics strip (`/<[^>]*>/g`) — non-nesting (rust-class quirk).
+/// getReturnType's generics strip (`/<[^>]*>/g`) â€” non-nesting (rust-class quirk).
 fn generic_args_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
     static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
     RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"<[^>]*>"))
@@ -109,7 +109,7 @@ fn strip_js_ws(s: &str) -> String {
     s.chars().filter(|c| !is_js_space(*c)).collect()
 }
 
-/// SWIFT_TYPE_PATH_RECEIVER (tree-sitter.ts): `API.PackageController.GetRoute` —
+/// SWIFT_TYPE_PATH_RECEIVER (tree-sitter.ts): `API.PackageController.GetRoute` â€”
 /// two segments or more, each an ASCII capital then `[A-Za-z0-9_]*` (JS `\w`),
 /// not led by `Self.`.
 fn is_type_path(s: &str) -> bool {
@@ -128,7 +128,7 @@ fn is_type_path(s: &str) -> bool {
 }
 
 /// isSwiftCallWrapper (tree-sitter.ts): a wrapper that leaves a call's target
-/// the same — `try`/`await`, which before a chain bind to the part before its
+/// the same â€” `try`/`await`, which before a chain bind to the part before its
 /// last call (`try! A().b()` is `(try! A()).b()`), or a prefix operator, which
 /// binds to the leftmost operand (`!isReady()` is `(!isReady)()`). An implicit
 /// member's leading `.` (`.success(x)`) is part of the name.
@@ -158,7 +158,7 @@ fn peel_call_wrappers<'t>(node: Node<'t>, src: &str) -> Node<'t> {
 }
 
 /// swiftUnwrappedText: a receiver's text from its innermost wrapped operand
-/// on — the wrappers sit on the chain's left edge, so `!Settings.Defaults`
+/// on â€” the wrappers sit on the chain's left edge, so `!Settings.Defaults`
 /// reads `Settings.Defaults` and `try! Foo.make().bar` reads `Foo.make().bar`.
 fn unwrapped_text<'s>(node: Node, src: &'s str) -> &'s str {
     let mut start = node.start_byte();
@@ -239,11 +239,9 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(swift) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -291,7 +289,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     w.node_ids.push(ids::file_node_id(file_path));
     w.stack.push(Scope { row: 0, kind: "file", name: base_name.to_string() });
 
-    // No packageTypes — swift has no namespace node; top-level QNs are bare.
+    // No packageTypes â€” swift has no namespace node; top-level QNs are bare.
     w.visit_node(tree.root_node());
     w.flush_fn_ref_candidates();
     w.flush_value_refs(tree.root_node());
@@ -450,7 +448,7 @@ impl<'t> Walker<'t> {
             id: id_ref,
             docstring: doc_ref,
             signature: sig_ref,
-            decorators: NONE_STR, // extractModifiers absent — never set from modifiers
+            decorators: NONE_STR, // extractModifiers absent â€” never set from modifiers
             type_parameters: NONE_STR,
             return_type: ret_ref,
             extra_json: NONE_STR,
@@ -473,7 +471,7 @@ impl<'t> Walker<'t> {
         if kind == "function" || kind == "method" {
             self.defined_fn_names.insert(name.to_string());
         }
-        // captureValueRefScope — struct:/enum: parents accepted (the swift
+        // captureValueRefScope â€” struct:/enum: parents accepted (the swift
         // static-let-namespacing idiom).
         let target_kind_ok = kind == "constant" || kind == "variable";
         if target_kind_ok
@@ -528,8 +526,8 @@ impl<'t> Walker<'t> {
     }
 
     /// getVisibility: whole-text substring matching over `modifiers` children;
-    /// default INTERNAL. `open` → internal, `fileprivate` → private (via the
-    /// 'private' substring), `public private(set)` → public (first match).
+    /// default INTERNAL. `open` â†’ internal, `fileprivate` â†’ private (via the
+    /// 'private' substring), `public private(set)` â†’ public (first match).
     fn visibility_of(&self, node: Node) -> u8 {
         for i in 0..node.child_count() {
             let Some(child) = node.child(i) else { continue };
@@ -544,14 +542,14 @@ impl<'t> Walker<'t> {
                 if text.contains("internal") {
                     return 4;
                 }
-                // 'fileprivate' arm is dead — 'private' already matched.
+                // 'fileprivate' arm is dead â€” 'private' already matched.
             }
         }
         4 // Swift defaults to internal
     }
 
     /// isStatic: modifiers text contains 'static' OR 'class' (class members
-    /// count — deliberate; substring semantics preserved).
+    /// count â€” deliberate; substring semantics preserved).
     fn is_static(&self, node: Node) -> bool {
         (0..node.child_count())
             .filter_map(|i| node.child(i))
@@ -563,17 +561,17 @@ impl<'t> Walker<'t> {
             })
     }
 
-    /// isAsync: dead hook — `async` never sits inside `modifiers` (it's an
-    /// anon child after the params) → effectively always false, but PRESENT.
+    /// isAsync: dead hook â€” `async` never sits inside `modifiers` (it's an
+    /// anon child after the params) â†’ effectively always false, but PRESENT.
     fn is_async(&self, node: Node) -> bool {
         (0..node.child_count())
             .filter_map(|i| node.child(i))
             .any(|c| c.kind() == "modifiers" && self.text(c).contains("async"))
     }
 
-    /// extractSwiftReturnType — POSITIONAL: first user_type/optional_type after
+    /// extractSwiftReturnType â€” POSITIONAL: first user_type/optional_type after
     /// the name simple_identifier, before function_body; last dotted segment;
-    /// generics stripped non-nesting; Void → None.
+    /// generics stripped non-nesting; Void â†’ None.
     fn return_type_of(&self, node: Node) -> Option<String> {
         let mut seen_name = false;
         for i in 0..node.named_child_count() {
@@ -674,7 +672,7 @@ impl<'t> Walker<'t> {
             skip_children = self.extract_type_alias(node);
         } else if kind == "property_declaration" && !self.inside_class_like() {
             // Top-level let/var (extractVariable's swift branch). Initializers
-            // are NEVER walked — candidates-only scan.
+            // are NEVER walked â€” candidates-only scan.
             self.extract_variable(node);
             self.scan_fn_ref_subtree(node, 0);
             skip_children = true;
@@ -689,7 +687,7 @@ impl<'t> Walker<'t> {
         }
         // init/deinit/subscript declarations, macro_invocation, directive,
         // diagnostic, operator/precedence declarations, protocol function
-        // requirements, associatedtype: no branch — recursed. Their calls
+        // requirements, associatedtype: no branch â€” recursed. Their calls
         // attribute to the enclosing scope; static-member reads inside them
         // emit NOTHING (the pass is body-walker-only).
 
@@ -773,9 +771,9 @@ impl<'t> Walker<'t> {
                 self.visit_function_body(getter);
                 self.stack.pop();
             }
-            return true; // skipChildren — computed only
+            return true; // skipChildren â€” computed only
         }
-        // Stored: descend generically — initializer calls attribute to the
+        // Stored: descend generically â€” initializer calls attribute to the
         // CLASS; observers' bodies likewise; modifiers re-walk is harmless.
         false
     }
@@ -926,7 +924,7 @@ impl<'t> Walker<'t> {
 
     fn extract_struct(&mut self, node: Node<'t>) {
         stack_guard!();
-        // Body gate (:1876) — bodiless mints nothing (record exemption is C#).
+        // Body gate (:1876) â€” bodiless mints nothing (record exemption is C#).
         let Some(body) = node.child_by_field_name("body") else { return };
         let name = self.extract_name(node);
         let extra = Extra {
@@ -956,8 +954,8 @@ impl<'t> Walker<'t> {
             ..Extra::default()
         };
         let Some(row) = self.create_node("enum", &name, node, extra) else { return };
-        // Raw-value types ride inheritance (`enum Suit: String` → extends
-        // String — extends refs have NO builtin filter). NO decorates.
+        // Raw-value types ride inheritance (`enum Suit: String` â†’ extends
+        // String â€” extends refs have NO builtin filter). NO decorates.
         self.extract_inheritance(node, row);
         self.stack.push(Scope { row, kind: "enum", name });
         for i in 0..body.named_child_count() {
@@ -972,7 +970,7 @@ impl<'t> Walker<'t> {
     }
 
     fn extract_enum_members(&mut self, node: Node<'t>) {
-        // `name` field = the FIRST case name only — `case put, delete` mints
+        // `name` field = the FIRST case name only â€” `case put, delete` mints
         // ONLY `put` (the identifier-scan fallback is dead, the field always
         // resolves). Associated/raw values never walked.
         if let Some(name_node) = node.child_by_field_name("name") {
@@ -1000,9 +998,9 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractTypeAlias (:2890) — plain type_alias node + value-subtree type
-    /// refs (`typealias Handler = (Data) -> Void` → refs Data + Void…Void is
-    /// builtin-suppressed; `= KF.Builder` → refs KF AND Builder). Returns
+    /// extractTypeAlias (:2890) â€” plain type_alias node + value-subtree type
+    /// refs (`typealias Handler = (Data) -> Void` â†’ refs Data + Voidâ€¦Void is
+    /// builtin-suppressed; `= KF.Builder` â†’ refs KF AND Builder). Returns
     /// skipChildren=false (children also recursed, harmlessly).
     fn extract_type_alias(&mut self, node: Node<'t>) -> bool {
         let name = self.extract_name(node);
@@ -1022,8 +1020,8 @@ impl<'t> Walker<'t> {
         false
     }
 
-    /// extractVariable — the swift top-level branch (:2851): let → constant /
-    /// var → variable via swiftPropertyInfo; computed skipped; position = the
+    /// extractVariable â€” the swift top-level branch (:2851): let â†’ constant /
+    /// var â†’ variable via swiftPropertyInfo; computed skipped; position = the
     /// whole declaration; extras = docstring + isExported literal FALSE.
     fn extract_variable(&mut self, node: Node<'t>) {
         let docstring = preceding_docstring(node, self.src);
@@ -1047,7 +1045,7 @@ impl<'t> Walker<'t> {
         let identifier = (0..node.named_child_count())
             .filter_map(|i| node.named_child(i))
             .find(|c| c.kind() == "identifier");
-        let Some(identifier) = identifier else { return }; // hook null → nothing
+        let Some(identifier) = identifier else { return }; // hook null â†’ nothing
         let module_name = self.text(identifier).to_string();
         if module_name.is_empty() {
             return;
@@ -1062,7 +1060,7 @@ impl<'t> Walker<'t> {
         self.push_ref_at(parent, &module_name.clone(), edge_kind_index("imports").unwrap_or(0), node);
     }
 
-    /// extractCall — swift rides the generic member branch (navigation) and
+    /// extractCall â€” swift rides the generic member branch (navigation) and
     /// the raw-text else; the full matrix is in the checklist.
     fn extract_call(&mut self, node: Node<'t>) {
         if self.stack.is_empty() {
@@ -1083,7 +1081,7 @@ impl<'t> Walker<'t> {
         let mut callee_name = String::new();
 
         if func.kind() == "navigation_expression" {
-            // property = property/field fields (null) → namedChild(1), with
+            // property = property/field fields (null) â†’ namedChild(1), with
             // the navigation_suffix simple_identifier unwrap.
             let property = func
                 .child_by_field_name("property")
@@ -1110,7 +1108,7 @@ impl<'t> Walker<'t> {
                     .map(|r| peel_call_wrappers(r, self.src));
                 if let Some(r) = receiver {
                     if is_literal_receiver(r.kind()) {
-                        return; // `"lit".upper()` / `5.times()` — nothing
+                        return; // `"lit".upper()` / `5.times()` â€” nothing
                     }
                 }
                 let recv_ident = receiver.filter(|r| {
@@ -1152,7 +1150,7 @@ impl<'t> Walker<'t> {
                     callee_name = format!("{path}.{method_name}");
                 } else {
                     // self_expression / super_expression / instance nav /
-                    // postfix / multi_line_string_literal → bare method name.
+                    // postfix / multi_line_string_literal â†’ bare method name.
                     callee_name = method_name.to_string();
                 }
             }
@@ -1171,7 +1169,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractStaticMemberRef — swift's navigation_expression value reads,
+    /// extractStaticMemberRef â€” swift's navigation_expression value reads,
     /// body walker + walkAttrArgs only.
     fn extract_static_member_ref(&mut self, node: Node<'t>) {
         if node.kind() != "navigation_expression" {
@@ -1215,7 +1213,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractInheritance — the swift inheritance_specifier case: FIRST
+    /// extractInheritance â€” the swift inheritance_specifier case: FIRST
     /// type_identifier of each specifier's user_type, everything as `extends`
     /// (conformances included; `: Module.Base` takes `Module`).
     fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
@@ -1238,12 +1236,12 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractTypeAnnotations — generic path: the 'parameter' field NEVER
+    /// extractTypeAnnotations â€” generic path: the 'parameter' field NEVER
     /// resolves (zero param refs), 'return_type' DOES; the direct
     /// type_annotation find is null for functions.
     fn extract_type_annotations(&mut self, node: Node<'t>, from_row: u32) {
         if let Some(params) = node.child_by_field_name("parameter") {
-            // Unreachable (field never resolves) — mirrored for shape.
+            // Unreachable (field never resolves) â€” mirrored for shape.
             self.extract_type_refs_from_subtree(params, from_row);
         }
         if let Some(ret) = node.child_by_field_name("return_type") {
@@ -1273,7 +1271,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractDecoratorsFor — swift `attribute` nodes inside `modifiers`.
+    /// extractDecoratorsFor â€” swift `attribute` nodes inside `modifiers`.
     /// Coverage: functions/methods/classes/dedicated-branch properties only.
     fn extract_decorators_for(&mut self, decl: Node<'t>, decorated_row: u32) {
         for i in 0..decl.named_child_count() {
@@ -1287,7 +1285,7 @@ impl<'t> Walker<'t> {
                 }
             }
         }
-        // Preceding-sibling scan — swift attributes are never siblings; the
+        // Preceding-sibling scan â€” swift attributes are never siblings; the
         // scan stops at the first non-decorator sibling immediately.
         let Some(parent) = decl.parent() else { return };
         let decl_start = decl.start_byte();
@@ -1378,7 +1376,7 @@ impl<'t> Walker<'t> {
             }
             Mode::Rhs => {
                 if let Some(rhs) = node.child_by_field_name("result") {
-                    // Param-storage skip — swift's LHS field is `target`.
+                    // Param-storage skip â€” swift's LHS field is `target`.
                     let lhs = node
                         .child_by_field_name("left")
                         .or_else(|| node.child_by_field_name("lhs"))
@@ -1398,8 +1396,8 @@ impl<'t> Walker<'t> {
                 }
             }
             Mode::Varinit => {
-                // Destructuring gate: swift's name field is a `pattern` node —
-                // never in the pattern-kind set → never skipped.
+                // Destructuring gate: swift's name field is a `pattern` node â€”
+                // never in the pattern-kind set â†’ never skipped.
                 let name_child = node
                     .child_by_field_name("name")
                     .or_else(|| node.child_by_field_name("pattern"));
@@ -1436,7 +1434,7 @@ impl<'t> Walker<'t> {
             }
             "value_argument" => {
                 // Layer with field 'value' + the label-forward skip (the
-                // Alamofire A/B finding): label text == value text → dropped.
+                // Alamofire A/B finding): label text == value text â†’ dropped.
                 let label = v.child_by_field_name("name");
                 let value = v.child_by_field_name("value").or_else(|| {
                     if v.named_child_count() > 0 {
@@ -1455,7 +1453,7 @@ impl<'t> Walker<'t> {
                 }
             }
             "selector_expression" => {
-                // `#selector(fire)` → fire; dotted → rightmost
+                // `#selector(fire)` â†’ fire; dotted â†’ rightmost
                 // simple_identifier (incl. the `_` quirk); else trimmed text.
                 let Some(inner) = v.named_child(0) else { return };
                 if matches!(inner.kind(), "identifier" | "simple_identifier") {
@@ -1494,7 +1492,7 @@ impl<'t> Walker<'t> {
         if depth > 12 {
             return;
         }
-        // Halts at functionTypes (function_declaration) + the fixed list —
+        // Halts at functionTypes (function_declaration) + the fixed list â€”
         // lambda_literal IS in it (closures halt the scan).
         if depth > 0
             && matches!(
@@ -1557,11 +1555,11 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        // Shadow prune — TWO cases resolve for swift: property_declaration
+        // Shadow prune â€” TWO cases resolve for swift: property_declaration
         // (firstSimpleIdentifier over the name/binding pattern; guard-let/
-        // if-let bindings have no property_declaration → never prune) AND the
-        // shared `assignment` case — a declared-then-assigned `let X: T`
-        // followed by `X = …` branches counts one bump per assignment (the
+        // if-let bindings have no property_declaration â†’ never prune) AND the
+        // shared `assignment` case â€” a declared-then-assigned `let X: T`
+        // followed by `X = â€¦` branches counts one bump per assignment (the
         // directly_assignable_expression's simple_identifier child), pruning
         // X exactly as the wasm arm does (caught by the swift-nio sweep).
         let mut decl_counts: HashMap<&str, u32> = HashMap::new();
@@ -1599,7 +1597,7 @@ impl<'t> Walker<'t> {
             if n.kind() == "property_declaration" {
                 let vd = (0..n.named_child_count())
                     .filter_map(|i| n.named_child(i))
-                    .find(|c| c.kind() == "variable_declaration"); // kotlin shape — None for swift
+                    .find(|c| c.kind() == "variable_declaration"); // kotlin shape â€” None for swift
                 let id = match vd {
                     Some(vd) => (0..vd.named_child_count())
                         .filter_map(|i| vd.named_child(i))

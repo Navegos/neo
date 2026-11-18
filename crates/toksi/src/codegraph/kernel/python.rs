@@ -5,16 +5,16 @@
 // created: 2026-10-28
 // lastModified: 2026-11-04
 
-//! Python extraction — a faithful Rust port of `TreeSitterExtractor`'s Python
+//! Python extraction â€” a faithful Rust port of `TreeSitterExtractor`'s Python
 //! paths (src/extraction/tree-sitter.ts) plus languages/python.ts.
 //!
-//! Same porting contract as tsjs/java: behavior parity, bug-for-bug —
+//! Same porting contract as tsjs/java: behavior parity, bug-for-bug â€”
 //! including the quirks: decorates refs only fire for bare-identifier
-//! decorators (`@staticmethod` yes, `@app.route(...)` no — python's `call`
+//! decorators (`@staticmethod` yes, `@app.route(...)` no â€” python's `call`
 //! kind isn't `call_expression`), module-level assignments always extract as
 //! `variable` (no isConst hook), and `self.method` fn-ref candidates carry the
 //! full receiver path (#1820).
-//! Python is not a TYPE_ANNOTATION language — no type
+//! Python is not a TYPE_ANNOTATION language â€” no type
 //! refs anywhere. Files with parse errors defer to wasm.
 
 use crate::codegraph::kernel::buffers::{
@@ -168,11 +168,9 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(python) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -427,7 +425,7 @@ impl<'t> Walker<'t> {
         self.maybe_capture_fn_refs(node);
 
         if kind == "function_definition" {
-            // functionTypes ∩ methodTypes: inside a class-like ⇒ method.
+            // functionTypes âˆ© methodTypes: inside a class-like â‡’ method.
             if self.inside_class_like() {
                 self.extract_method(node);
             } else {
@@ -510,7 +508,7 @@ impl<'t> Walker<'t> {
             is_static: Some(self.is_static(node)),
         };
         let Some(row) = self.create_node("function", &name, node, extra) else { return };
-        // (python is not a TYPE_ANNOTATION language — no type refs)
+        // (python is not a TYPE_ANNOTATION language â€” no type refs)
         self.extract_decorators_for(node, row);
         self.stack.push(Scope { row, kind: "function", name });
         if let Some(body) = node.child_by_field_name("body") {
@@ -546,7 +544,7 @@ impl<'t> Walker<'t> {
         };
         let Some(row) = self.create_node("class", &name, node, extra) else { return };
 
-        // Inheritance: `class Flask(Scaffold, Mixin):` — argument_list children.
+        // Inheritance: `class Flask(Scaffold, Mixin):` â€” argument_list children.
         // A parameterized base, `class Leaf(Base[str])`, is a `subscript`
         // whose value names the class.
         let extends_kind = edge_kind_index("extends").unwrap_or(0);
@@ -592,7 +590,7 @@ impl<'t> Walker<'t> {
             if matches!(left.kind(), "identifier" | "constant") {
                 let name = self.text(left).to_string();
                 let signature = right.map(|r| util::init_signature(self.text(r)));
-                // No isConst hook ⇒ always `variable` (UPPER_CASE constants included).
+                // No isConst hook â‡’ always `variable` (UPPER_CASE constants included).
                 let row = self.create_node(
                     "variable",
                     &name,
@@ -628,7 +626,7 @@ impl<'t> Walker<'t> {
         let imports_kind = edge_kind_index("imports").unwrap_or(0);
 
         if node.kind() == "import_from_statement" {
-            // Hook path: module_name field → import node + module ref, then
+            // Hook path: module_name field â†’ import node + module ref, then
             // per-name binding refs (emitPyFromImportRefs).
             let Some(module_node) = node.child_by_field_name("module_name") else { return };
             let module_name = self.text(module_node).to_string();
@@ -674,7 +672,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        // import_statement: `import a.b, x as y` — one import node + module ref
+        // import_statement: `import a.b, x as y` â€” one import node + module ref
         // per dotted name (the python multi-import branch).
         let parent = self.top_row();
         for i in 0..node.named_child_count() {
@@ -706,7 +704,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractCall — python `call` through the generic tail (attribute callees).
+    /// extractCall â€” python `call` through the generic tail (attribute callees).
     fn extract_call(&mut self, node: Node<'t>) {
         if self.stack.is_empty() {
             return;
@@ -718,7 +716,7 @@ impl<'t> Walker<'t> {
 
         if let Some(func) = func {
             if func.kind() == "attribute" {
-                // `property` and `field` fields don't exist on attribute —
+                // `property` and `field` fields don't exist on attribute â€”
                 // the generic path falls back to namedChild(1) (the attr name).
                 let property = func
                     .child_by_field_name("property")
@@ -747,14 +745,14 @@ impl<'t> Walker<'t> {
                             callee_name = method_name.to_string();
                         }
                     } else if let Some(r) = receiver.filter(|r| r.kind() == "call") {
-                        // Call receiver — `d.setdefault(k, []).append(v)` (#1683):
+                        // Call receiver â€” `d.setdefault(k, []).append(v)` (#1683):
                         // `<inner>().<method>`, or nothing when the inner callee
                         // is not a plain name / attribute chain. Mirrors
                         // TreeSitterExtractor.extractCall.
                         let Some(inner) = self.plain_inner_callee(r) else { return };
                         callee_name = format!("{inner}().{method_name}");
                     } else if let Some(r) = receiver {
-                        // Any receiver shape the arms above do not claim — attribute
+                        // Any receiver shape the arms above do not claim â€” attribute
                         // chain (`self.data.append`) and subscript (`d[k].append`).
                         // The call-chain shape (`rows.setdefault(k, []).append(x)`)
                         // is taken by the `<inner>().<method>` arm above (#1748),
@@ -768,7 +766,7 @@ impl<'t> Walker<'t> {
                         // import/module-member resolution, never the bare-name
                         // fallback; an unresolvable qualifier is a silent miss, never
                         // a wrong edge. Mirrors TreeSitterExtractor.extractCall's
-                        // python branch — the whitespace collapse is JS `\s`
+                        // python branch â€” the whitespace collapse is JS `\s`
                         // semantics, not `char::is_whitespace`, so both arms emit the
                         // same bytes for the parity sweep.
                         let receiver_text = collapse_js_whitespace(self.text(r));
@@ -811,10 +809,10 @@ impl<'t> Walker<'t> {
         if ok { Some(text) } else { None }
     }
 
-    /// extractDecoratorsFor — python decorators are PRECEDING SIBLINGS inside
+    /// extractDecoratorsFor â€” python decorators are PRECEDING SIBLINGS inside
     /// decorated_definition. Only bare-identifier decorators yield a target
     /// (python's `call` kind isn't `call_expression`, and `attribute` isn't in
-    /// the target-kind list — mirrored exactly).
+    /// the target-kind list â€” mirrored exactly).
     fn extract_decorators_for(&mut self, decl: Node<'t>, decorated_row: u32) {
         for i in 0..decl.named_child_count() {
             if let Some(child) = decl.named_child(i) {
@@ -904,7 +902,7 @@ impl<'t> Walker<'t> {
             "keyword_argument" => ("value", "value"),
             "pair" => ("value", "value"),
             "list" => ("list", ""),
-            // `return SomeClass` / `return handler` (#1478) — a single
+            // `return SomeClass` / `return handler` (#1478) â€” a single
             // returned expression is a direct named child ('list' shape);
             // tuple returns sit under expression_list and are not descended
             // (mirrors PYTHON_SPEC).
@@ -986,7 +984,7 @@ impl<'t> Walker<'t> {
         if walked.contains(&node.id()) {
             return;
         }
-        // Halts at functionTypes ∪ the fixed arrow/lambda list — python's
+        // Halts at functionTypes âˆª the fixed arrow/lambda list â€” python's
         // `lambda` kind is NOT in that list (mirrored).
         if depth > 0
             && matches!(
@@ -1050,7 +1048,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        // Shadow prune — python's declarator shape is `assignment`.
+        // Shadow prune â€” python's declarator shape is `assignment`.
         let mut decl_counts: HashMap<&str, u32> = HashMap::new();
         let mut dstack: Vec<Node> = vec![root];
         let mut dvisited = 0usize;

@@ -5,7 +5,7 @@
 // created: 2026-10-28
 // lastModified: 2026-11-13
 
-//! Rust-language extraction — a faithful port of `TreeSitterExtractor`'s rust
+//! Rust-language extraction â€” a faithful port of `TreeSitterExtractor`'s rust
 //! paths (src/extraction/tree-sitter.ts) plus languages/rust.ts. ("rustlang"
 //! because `rust` alone collides with the kernel's own implementation
 //! language.) Survey artifact: docs/design/rust-lang-kernel-port-checklist.md.
@@ -13,32 +13,32 @@
 //! Rust's shape quirks, mirrored exactly (bug-for-bug, all verified against
 //! the TS reference):
 //! - `isAsync` is dead code upstream: it scans DIRECT children for an `async`
-//!   token, but the grammar nests it inside `function_modifiers` — every rust
+//!   token, but the grammar nests it inside `function_modifiers` â€” every rust
 //!   fn/method carries isAsync **false** (present-false, never absent).
 //! - impl blocks push NO scope: members re-dispatch at file scope, so an impl
-//!   associated `const` becomes a FILE-level `variable`, and the method↔owner
+//!   associated `const` becomes a FILE-level `variable`, and the methodâ†”owner
 //!   `contains` edge is a source-order name scan (an impl ABOVE its struct
 //!   gets no edge). The receiver (method QN prefix, `contains` owner,
 //!   `implements` source) is the impl_item's `type` field via
-//!   impl_type_name — both sides moved to the grammar's trait:/type: fields
+//!   impl_type_name â€” both sides moved to the grammar's trait:/type: fields
 //!   together in #1588 (the earlier positional scan qualified every
 //!   parameterized impl's methods by the TRAIT).
 //! - `const_item`/`static_item` ride the generic extractVariable fallback:
 //!   kind is always `variable`, no signature, and EVERY direct `identifier`
-//!   child mints a node (`const MAX: u32 = OTHER;` → two nodes, `MAX` + the
+//!   child mints a node (`const MAX: u32 = OTHER;` â†’ two nodes, `MAX` + the
 //!   phantom `OTHER`). Top-level initializer values are never body-walked.
 //! - `mod_item` mints no module node and adds no QN prefix.
-//! - Chained-call re-encode is scoped_identifier-gated (`Foo::new().bar()` →
+//! - Chained-call re-encode is scoped_identifier-gated (`Foo::new().bar()` â†’
 //!   `Foo::new().bar`); a call through a field of the enclosing type keeps
-//!   the owner-field shape (`self.inner.run()` → `self.inner.run`, #1585);
+//!   the owner-field shape (`self.inner.run()` â†’ `self.inner.run`, #1585);
 //!   a longer chain of fields and method calls on `self` or a name keeps
-//!   that chain, calls as `name()` (`self.services.store.put()` →
-//!   `self.services.store.put`, `self.store().put()` → `self.store().put`,
+//!   that chain, calls as `name()` (`self.services.store.put()` â†’
+//!   `self.services.store.put`, `self.store().put()` â†’ `self.store().put`,
 //!   #2836); other instance chains, parens, `?`, `.await`, and longer
 //!   path-rooted chains collapse to the bare method name. A bare `self`
 //!   receiver keeps `self.` (#1861). Turbofish callees drop their type
-//!   arguments (`helper::<T>` → `helper`).
-//! - `use` emits an import node named by the ROOT module (`crate`/`self`/…),
+//!   arguments (`helper::<T>` â†’ `helper`).
+//! - `use` emits an import node named by the ROOT module (`crate`/`self`/â€¦),
 //!   one root `imports` ref, then one FULL-path `imports` ref per binding;
 //!   `use x::*` (use_wildcard) emits nothing at all.
 //! - Trait supertraits come only from `trait_bounds`; a scoped supertrait
@@ -64,13 +64,13 @@ use tree_sitter::{Node, Parser};
 
 const MAX_VALUE_REF_NODES: usize = 20_000;
 
-/// JS `/<[^>]*>/g` — the non-nested generic strip (breaks on nested generics
-/// by design: `Result<Vec<Foo>, E>` → `Result, E>` → returnType undefined).
+/// JS `/<[^>]*>/g` â€” the non-nested generic strip (breaks on nested generics
+/// by design: `Result<Vec<Foo>, E>` â†’ `Result, E>` â†’ returnType undefined).
 fn generic_angle_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
     static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
     RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"<[^>]*>"))
 }
-/// JS `/^[A-Za-z_]\w*$/` (ASCII \w — the regex crate's \w is Unicode).
+/// JS `/^[A-Za-z_]\w*$/` (ASCII \w â€” the regex crate's \w is Unicode).
 fn simple_ident_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
     static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
     RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Za-z_][0-9A-Za-z_]*$"))
@@ -114,7 +114,7 @@ struct Cand {
 }
 
 /// Per-node metadata for the receiver-method owner lookup and
-/// findNodeByName (mirrors the TS scans over `this.nodes` — FIRST match
+/// findNodeByName (mirrors the TS scans over `this.nodes` â€” FIRST match
 /// wins, earlier-in-file only).
 struct NodeMeta {
     kind: &'static str,
@@ -146,11 +146,9 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(rust) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -232,7 +230,7 @@ impl<'t> Walker<'t> {
     fn top_row(&self) -> u32 {
         self.stack.last().map(|s| s.row).unwrap_or(0)
     }
-    /// isInsideClassLikeNode — stack TOP only, file doesn't count.
+    /// isInsideClassLikeNode â€” stack TOP only, file doesn't count.
     fn inside_class_like(&self) -> bool {
         self.stack
             .last()
@@ -257,7 +255,7 @@ impl<'t> Walker<'t> {
             } else if let Some(c) = util::qualified_import().captures(name) {
                 // `::`-separated rust paths match NEITHER regex (separators are
                 // `.`/`\`), so multi-segment use-imports contribute nothing to
-                // the fn-ref gate — the rust gate is effectively same-file-only.
+                // the fn-ref gate â€” the rust gate is effectively same-file-only.
                 self.imported_names.insert(c[1].to_string());
             }
         }
@@ -338,7 +336,7 @@ impl<'t> Walker<'t> {
         if kind == "function" || kind == "method" {
             self.defined_fn_names.insert(name.to_string());
         }
-        // captureValueRefScope: rust consts are kind `variable` — still targets.
+        // captureValueRefScope: rust consts are kind `variable` â€” still targets.
         let target_kind_ok = kind == "constant" || kind == "variable";
         if target_kind_ok
             && util::utf16_len(name) >= 3
@@ -360,7 +358,7 @@ impl<'t> Walker<'t> {
         Some(row)
     }
 
-    /// extractName — nameField `name`, else the identifier-like child scan.
+    /// extractName â€” nameField `name`, else the identifier-like child scan.
     fn extract_name(&self, node: Node) -> String {
         if let Some(name_node) = node.child_by_field_name("name") {
             return self.text(name_node).to_string();
@@ -387,7 +385,7 @@ impl<'t> Walker<'t> {
     }
 
     /// rustExtractor.getVisibility: direct `visibility_modifier` child whose
-    /// text contains `pub` → public, else private; none → private.
+    /// text contains `pub` â†’ public, else private; none â†’ private.
     fn visibility_of(&self, node: Node) -> u8 {
         for i in 0..node.child_count() {
             if let Some(c) = node.child(i) {
@@ -396,7 +394,7 @@ impl<'t> Walker<'t> {
                 }
             }
         }
-        2 // private — Rust defaults to private
+        2 // private â€” Rust defaults to private
     }
 
     /// extractRustReturnType (languages/rust.ts:14).
@@ -420,12 +418,12 @@ impl<'t> Walker<'t> {
         Some(if last == "Self" { "self".to_string() } else { last.to_string() })
     }
 
-    /// rustImplTypeName (languages/rust.ts) — the implementing type's simple
+    /// rustImplTypeName (languages/rust.ts) â€” the implementing type's simple
     /// name for an impl block, from the grammar's `type` field (#1588):
     /// `impl<T> Tr for G<T>` / `impl<'a> Iterator for Parents<'a>` /
-    /// `impl Tr for &Foo` / `impl Tr for m::Foo` → `G` / `Parents` / `Foo` /
+    /// `impl Tr for &Foo` / `impl Tr for m::Foo` â†’ `G` / `Parents` / `Foo` /
     /// `Foo`. Shapes naming no single type (tuple, `dyn Tr`, pointer,
-    /// primitive, fn type…) → None. Mirrored byte-for-byte — change both.
+    /// primitive, fn typeâ€¦) â†’ None. Mirrored byte-for-byte â€” change both.
     fn impl_type_name(&self, ty: Option<Node>) -> Option<String> {
         let ty = ty?;
         match ty.kind() {
@@ -442,7 +440,7 @@ impl<'t> Walker<'t> {
     /// rustExtractor.getReceiverType: parent-walk to the nearest impl_item and
     /// read its `type` field (impl_type_name). The pre-#1588 rule took the
     /// LAST direct type_identifier child, which for `impl Trait for Generic<T>`
-    /// was the TRAIT — so every parameterized impl's methods were qualified by
+    /// was the TRAIT â€” so every parameterized impl's methods were qualified by
     /// the trait.
     fn receiver_type_of(&self, node: Node) -> Option<String> {
         let mut parent = node.parent();
@@ -455,11 +453,11 @@ impl<'t> Walker<'t> {
         None
     }
 
-    /// rustImplItemOwner (languages/rust.ts) — the type an item written
+    /// rustImplItemOwner (languages/rust.ts) â€” the type an item written
     /// directly in an impl block belongs to: `ValueHint` for the `type Err`
     /// of `impl FromStr for ValueHint`, then `ValueHint::Err`, as the impl's
     /// methods are. A type no single name stands for (`()`, `(A, B)`, `[u8]`,
-    /// `u32`) is written as the impl writes it. Mirrored byte-for-byte —
+    /// `u32`) is written as the impl writes it. Mirrored byte-for-byte â€”
     /// change both.
     fn impl_item_owner(&self, node: Node) -> Option<String> {
         let list = node.parent().filter(|p| p.kind() == "declaration_list")?;
@@ -501,13 +499,13 @@ impl<'t> Walker<'t> {
             skip_children = true;
         } else if kind == "type_item" {
             self.extract_type_alias(node);
-            // extractTypeAlias returns false for rust (plain alias) — children
+            // extractTypeAlias returns false for rust (plain alias) â€” children
             // are visited (nothing in them has a branch).
         } else if matches!(kind, "let_declaration" | "const_item" | "static_item")
             && !self.inside_class_like()
         {
             // Inside a class-like scope the gate fails and the else-ladder
-            // falls through with children VISITED — a trait const's value
+            // falls through with children VISITED â€” a trait const's value
             // expression emits calls refs from the trait node.
             // The initializer extract_variable walked under the declared
             // symbol took its own candidates; the scan covers the rest.
@@ -540,7 +538,7 @@ impl<'t> Walker<'t> {
     // --- extractors --------------------------------------------------------------
 
     /// extractFunction/extractMethod, decision resolved once: method iff a
-    /// receiver is found (fn inside an impl — including a NESTED fn inside an
+    /// receiver is found (fn inside an impl â€” including a NESTED fn inside an
     /// impl method's body, whose parent walk passes through the outer fn) or
     /// the stack top is class-like (trait members).
     fn extract_fn_or_method(&mut self, node: Node<'t>) {
@@ -585,16 +583,16 @@ impl<'t> Walker<'t> {
             signature: self.signature_of(node),
             visibility: Some(self.visibility_of(node)),
             // isAsync hook exists but never finds a direct `async` child (it
-            // nests in function_modifiers) — present-false on every node.
+            // nests in function_modifiers) â€” present-false on every node.
             is_async: Some(false),
             return_type: self.return_type_of(node),
             qualified_name: receiver.as_ref().map(|r| format!("{r}::{name}")),
-            ..Extra::default() // isExported hook absent → flag not set
+            ..Extra::default() // isExported hook absent â†’ flag not set
         };
         let kind: &'static str = if as_method { "method" } else { "function" };
         let Some(row) = self.create_node(kind, &name, node, extra) else { return };
 
-        // Contains edge from the owner: receiver present AND not class-like —
+        // Contains edge from the owner: receiver present AND not class-like â€”
         // FIRST earlier-in-file struct/class/enum/trait of the receiver's name.
         if as_method && !self.inside_class_like() {
             if let Some(receiver) = &receiver {
@@ -630,7 +628,7 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractInterface — kind `trait` (interfaceKind), inheritance from
+    /// extractInterface â€” kind `trait` (interfaceKind), inheritance from
     /// trait_bounds, body children visited with the trait pushed.
     fn extract_interface(&mut self, node: Node<'t>) {
         stack_guard!();
@@ -652,7 +650,7 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// Extract a Rust struct or union — the body field is OPTIONAL. A unit
+    /// Extract a Rust struct or union â€” the body field is OPTIONAL. A unit
     /// struct (`struct U;`) has no body and is still a complete definition,
     /// so it mints a node with no members; tuple structs' ordered_field_declaration_list
     /// is a body. Mirrors the TS reference's `allowBodilessStruct`.
@@ -667,7 +665,7 @@ impl<'t> Walker<'t> {
         let Some(row) = self.create_node(kind, &name, node, extra) else { return };
         self.extract_inheritance(node, row);
 
-        // Unit structs have no body to walk — the node itself is the whole
+        // Unit structs have no body to walk â€” the node itself is the whole
         // definition.
         let Some(body) = node.child_by_field_name("body") else { return };
 
@@ -680,7 +678,7 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractEnum — body required; enum_variant children → enum_member nodes
+    /// extractEnum â€” body required; enum_variant children â†’ enum_member nodes
     /// (name field only, payloads never walked); other children re-dispatched.
     fn extract_enum(&mut self, node: Node<'t>) {
         stack_guard!();
@@ -709,8 +707,8 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractTypeAlias — plain `type_alias` node. QUIRK: the alias-value ref
-    /// walk reads a `value` field; rust type_item's field is `type` → no ref
+    /// extractTypeAlias â€” plain `type_alias` node. QUIRK: the alias-value ref
+    /// walk reads a `value` field; rust type_item's field is `type` â†’ no ref
     /// to the aliased type. Returns children-visited (false) like the TS.
     fn extract_type_alias(&mut self, node: Node<'t>) {
         let name = self.extract_name(node);
@@ -788,7 +786,7 @@ impl<'t> Walker<'t> {
 
     /// extractImport via the rust hook: import node named by the ROOT module +
     /// one generic root `imports` ref + per-binding FULL-path refs.
-    /// `use x::*;` (use_wildcard) → hook returns null → nothing at all.
+    /// `use x::*;` (use_wildcard) â†’ hook returns null â†’ nothing at all.
     fn extract_import(&mut self, node: Node<'t>) {
         let use_arg = (0..node.named_child_count())
             .filter_map(|i| node.named_child(i))
@@ -824,7 +822,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// emitRustUseBindingRefs (tree-sitter.ts:3451) — one FULL-path `imports`
+    /// emitRustUseBindingRefs (tree-sitter.ts:3451) â€” one FULL-path `imports`
     /// ref per binding; `Path as Alias` links the source path; leaves that are
     /// only `self`/`super`/`crate`/`*` are skipped.
     fn emit_use_binding_refs(&mut self, node: Node<'t>, from_row: u32) {
@@ -889,7 +887,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractCall — the rust paths of the generic else-branch (4312+).
+    /// extractCall â€” the rust paths of the generic else-branch (4312+).
     fn extract_call(&mut self, node: Node<'t>) {
         if self.stack.is_empty() {
             return;
@@ -897,8 +895,8 @@ impl<'t> Walker<'t> {
         let func = node
             .child_by_field_name("function")
             .or_else(|| node.named_child(0));
-        // A turbofish — `s.get::<u32>()`, `helper::<u8>()`,
-        // `Store::with_capacity::<u8>(1)` — calls the function it wraps: its
+        // A turbofish â€” `s.get::<u32>()`, `helper::<u8>()`,
+        // `Store::with_capacity::<u8>(1)` â€” calls the function it wraps: its
         // type arguments are no part of the callee's name. Mirrors
         // TreeSitterExtractor.extractCall.
         let func = func.map(unwrap_generic_function);
@@ -924,7 +922,7 @@ impl<'t> Walker<'t> {
                     }
                     if let Some(r) = receiver {
                         match r.kind() {
-                            // rust `self` is node kind `self`, NOT `identifier` —
+                            // rust `self` is node kind `self`, NOT `identifier` â€”
                             // it dodges this branch and falls to the bare-name
                             // fallthrough (same net effect as SKIP_RECEIVERS).
                             "identifier" | "simple_identifier" | "field_identifier" => {
@@ -960,7 +958,7 @@ impl<'t> Walker<'t> {
                                 }
                             }
                             "field_expression" => {
-                                // `self.<field>.<method>()` — a call through a
+                                // `self.<field>.<method>()` â€” a call through a
                                 // field of the enclosing type (#1585): keep the
                                 // `self.` prefix so the resolver can type the
                                 // field from the owner struct's declaration
@@ -986,7 +984,7 @@ impl<'t> Walker<'t> {
                                     }
                                 }
                             }
-                            // `self.method()` — keep the `self.` prefix so the
+                            // `self.method()` â€” keep the `self.` prefix so the
                             // resolver can read the owner off the calling
                             // method's qualified name and resolve the method on
                             // THAT type, instead of matching a bare name by file
@@ -995,7 +993,7 @@ impl<'t> Walker<'t> {
                                 callee_name = format!("self.{method_name}");
                             }
                             _ => {
-                                // parenthesized, await_expression — bare method
+                                // parenthesized, await_expression â€” bare method
                                 // name.
                                 callee_name = method_name.to_string();
                             }
@@ -1006,7 +1004,7 @@ impl<'t> Walker<'t> {
                 }
             } else if matches!(func.kind(), "scoped_identifier" | "scoped_call_expression") {
                 // A path's turbofish is no part of the name either
-                // (`Vec::<u8>::with_capacity` → `Vec::with_capacity`).
+                // (`Vec::<u8>::with_capacity` â†’ `Vec::with_capacity`).
                 callee_name = strip_turbofish(self.text(func));
             } else {
                 // identifier (a turbofish was unwrapped above).
@@ -1015,7 +1013,7 @@ impl<'t> Walker<'t> {
         }
 
         if !callee_name.is_empty() {
-            // Parenthesized-callee normalization — `(f)(x)` → `f`.
+            // Parenthesized-callee normalization â€” `(f)(x)` â†’ `f`.
             if let Some(c) = util::paren_conversion().captures(&callee_name) {
                 callee_name = c[1].to_string();
             }
@@ -1024,7 +1022,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractInstantiation — struct_expression via the GENERIC path: strip
+    /// extractInstantiation â€” struct_expression via the GENERIC path: strip
     /// from the first `<`, keep the trailing `::`/`.` segment (JS slice
     /// semantics: slice(lastDot+1) after a `::` leaves one `:`, then ONE
     /// leading `[:.]` is stripped).
@@ -1062,8 +1060,27 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractRustRouteMacro — body-walker-only; bare `routes`/`catchers`
-    /// identifiers only (`rocket::routes![…]` is skipped); identifier runs in
+    /// extractRustMacroCalls (#3251): the calls and variant paths in the
+    /// arguments of an expression macro (`format!`, `assert_eq!`, `vec!`,
+    /// `write!`, `matches!`, `json!`), read from its token tree as the call
+    /// extractor names them (rust_macro_arg_refs).
+    fn extract_rust_macro_refs(&mut self, node: Node<'t>) {
+        if self.stack.is_empty() {
+            return;
+        }
+        let refs = rust_macro_arg_refs(node, self.src);
+        if refs.is_empty() {
+            return;
+        }
+        let from = self.top_row();
+        for r in refs {
+            let kind = edge_kind_index(r.kind).unwrap_or(0);
+            self.push_ref_at(from, &r.name, kind, r.at);
+        }
+    }
+
+    /// extractRustRouteMacro â€” body-walker-only; bare `routes`/`catchers`
+    /// identifiers only (`rocket::routes![â€¦]` is skipped); identifier runs in
     /// the token tree join with `::`, flushed on `,` and at end.
     fn extract_rust_route_macro(&mut self, node: Node<'t>) {
         let Some(macro_name) = node.named_child(0) else { return };
@@ -1120,10 +1137,10 @@ impl<'t> Walker<'t> {
         flush!();
     }
 
-    /// extractInheritance — the rust-reachable cases: trait_bounds
+    /// extractInheritance â€” the rust-reachable cases: trait_bounds
     /// (supertraits; a scoped `fmt::Debug` bound matches NO case and is
     /// dropped) and the field_declaration_list recursion. The TS Go-embedding
-    /// check on field_declaration is gated to Go (and was inert here anyway —
+    /// check on field_declaration is gated to Go (and was inert here anyway â€”
     /// every rust field has a field_identifier).
     fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
         stack_guard!();
@@ -1171,7 +1188,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractRustImplItem — `impl Trait for Type` back-reference from the
+    /// extractRustImplItem â€” `impl Trait for Type` back-reference from the
     /// grammar's `trait` / `type` fields (#1588; an inherent impl has no
     /// `trait` field and emits nothing). Target = FIRST earlier node of kind
     /// struct/union/enum/class (never trait) named by impl_type_name; ref FROM
@@ -1196,10 +1213,10 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractTypeAnnotations — parameters + return_type subtrees, one
+    /// extractTypeAnnotations â€” parameters + return_type subtrees, one
     /// `references` ref per type_identifier leaf not in BUILTIN_TYPES. The
     /// trailing `type_annotation` child lookup is included for fidelity (the
-    /// rust grammar has no such node — always a no-op).
+    /// rust grammar has no such node â€” always a no-op).
     fn extract_type_annotations(&mut self, node: Node<'t>, from_row: u32) {
         if let Some(params) = node.child_by_field_name("parameters") {
             self.extract_type_refs_from_subtree(params, from_row);
@@ -1248,6 +1265,7 @@ impl<'t> Walker<'t> {
         // Rocket route macros: handler paths live in a raw token tree.
         if kind == "macro_invocation" {
             self.extract_rust_route_macro(node);
+            self.extract_rust_macro_refs(node);
         }
 
         if kind == "call_expression" {
@@ -1292,14 +1310,14 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractStaticMemberRef — the rust branch (#2328): an enum variant
+    /// extractStaticMemberRef â€” the rust branch (#2328): an enum variant
     /// written as a path (`Mode::A`, `mode::Mode::B`, a `Mode::C(x)` /
     /// `Mode::D { .. }` pattern, `Self::A` in an impl) references the receiver
-    /// — the segment before the member, at the place it is written; the
+    /// â€” the segment before the member, at the place it is written; the
     /// resolver keeps it only on an enum that declares the member. A lowercase
     /// receiver (module) or member (fn), a call's callee or a struct literal's
     /// name (both already linked to their member), a path's prefix and a `use`
-    /// tree emit nothing. Mirrored byte-for-byte — change both.
+    /// tree emit nothing. Mirrored byte-for-byte â€” change both.
     fn extract_static_member_ref(&mut self, node: Node<'t>, parent: Option<Node<'t>>) {
         let kind = node.kind();
         if (kind != "scoped_identifier" && kind != "scoped_type_identifier") || self.stack.is_empty() {
@@ -1352,10 +1370,10 @@ impl<'t> Walker<'t> {
 
     // --- fn refs (RUST_SPEC) ----------------------------------------------------
 
-    /// maybeCaptureFnRefs with RUST_SPEC's dispatch: arguments→args,
-    /// assignment_expression→rhs(right), field_initializer→value(value),
-    /// array_expression→list, static_item/let_declaration→varinit(value).
-    /// No layers/unwrap/special — only bare identifiers qualify (`&handler`
+    /// maybeCaptureFnRefs with RUST_SPEC's dispatch: argumentsâ†’args,
+    /// assignment_expressionâ†’rhs(right), field_initializerâ†’value(value),
+    /// array_expressionâ†’list, static_item/let_declarationâ†’varinit(value).
+    /// No layers/unwrap/special â€” only bare identifiers qualify (`&handler`
     /// captures nothing). QUIRK: const_item is NOT in the dispatch.
     fn maybe_capture_fn_refs(&mut self, node: Node<'t>) {
         enum Mode {
@@ -1451,6 +1469,30 @@ impl<'t> Walker<'t> {
                     column_byte: v.start_byte(),
                     row: p.row,
                 });
+            } else if v.kind() == "scoped_identifier" {
+                // normalizeSpecial's scoped_identifier (#3254): a function passed
+                // through its path (`g.map(Graph::counts)`, `Self::helper`, `fs::default_sep`).
+                let Some(name_node) = v.child_by_field_name("name") else { continue };
+                if name_node.kind() != "identifier" {
+                    continue;
+                }
+                let last = self.text(name_node);
+                let bare = last.strip_prefix("r#").unwrap_or(last);
+                if !bare.starts_with(|c: char| c.is_ascii_lowercase() || c == '_') {
+                    continue;
+                }
+                let name: String = self.text(v).chars().filter(|c| !is_js_space(*c)).collect();
+                if !is_path_value_text(&name) || is_stoplisted(&name) {
+                    continue;
+                }
+                let p = name_node.start_position();
+                self.fn_ref_cands.push(Cand {
+                    from,
+                    name,
+                    line: p.row as u32 + 1,
+                    column_byte: name_node.start_byte(),
+                    row: p.row,
+                });
             }
         }
     }
@@ -1525,7 +1567,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        // Shadow prune — rust declarator shapes: const_item/static_item (name
+        // Shadow prune â€” rust declarator shapes: const_item/static_item (name
         // field) and let_declaration (the shadow source: `pattern` field; a
         // tuple pattern bumps every named child).
         let mut decl_counts: HashMap<&str, u32> = HashMap::new();
@@ -1637,8 +1679,8 @@ fn is_stoplisted(name: &str) -> bool {
     )
 }
 
-/// The function a turbofish wraps: `s.get::<u32>` → `s.get`,
-/// `helper::<u8>` → `helper`; any other callee as is.
+/// The function a turbofish wraps: `s.get::<u32>` â†’ `s.get`,
+/// `helper::<u8>` â†’ `helper`; any other callee as is.
 fn unwrap_generic_function(func: Node<'_>) -> Node<'_> {
     if func.kind() == "generic_function" {
         func.child_by_field_name("function").unwrap_or(func)
@@ -1658,7 +1700,7 @@ fn is_rust_ident(s: &str) -> bool {
 
 /// The receiver chain a method call is written on, when it is fields and
 /// method calls on `self` or on a name: `self.services.store`,
-/// `self.store()`, `vis.map`, `self.0`, `x.get::<u8>(1)` — each field by its
+/// `self.store()`, `vis.map`, `self.0`, `x.get::<u8>(1)` â€” each field by its
 /// name or index, each call as `name()`, its arguments and turbofish
 /// dropped. None for any other receiver (a path's call, a literal,
 /// parentheses, `?`, `.await`, an index, a macro), and past
@@ -1705,7 +1747,7 @@ fn receiver_chain(node: Node<'_>, src: &str) -> Option<String> {
     None
 }
 
-/// A callee path without its turbofish type arguments: `Vec::<u8>::new` →
+/// A callee path without its turbofish type arguments: `Vec::<u8>::new` â†’
 /// `Vec::new`. The brackets nest (`::<Vec<u8>>`), and the `>` of a `->` is
 /// no closing one (`::<fn() -> u8>`). Mirrors stripRustTurbofish in
 /// TreeSitterExtractor: both emit the same bytes.
@@ -1758,7 +1800,7 @@ fn is_literal_receiver(kind: &str) -> bool {
     )
 }
 
-/// BUILTIN_TYPES (shared table — port the WHOLE set: a rust `String`
+/// BUILTIN_TYPES (shared table â€” port the WHOLE set: a rust `String`
 /// type_identifier IS suppressed via the Scala row).
 fn is_builtin_type(name: &str) -> bool {
     matches!(
@@ -1780,4 +1822,397 @@ fn opt_str(arena: &mut Arena, s: Option<&str>) -> StrRef {
         Some(s) => arena.put(s),
         None => NONE_STR,
     }
+}
+
+/// A path value's text as normalizeSpecial accepts it: `/^[A-Za-z_][\w:#]*$/`.
+fn is_path_value_text(s: &str) -> bool {
+    let mut chars = s.chars();
+    matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == ':' || c == '#')
+}
+
+/// JS `\s` (WhiteSpace ∪ LineTerminator), which `.replace(/\s+/g, '')` strips.
+fn is_js_space(c: char) -> bool {
+    matches!(
+        c,
+        '\t' | '\n' | '\x0B' | '\x0C' | '\r' | ' ' | '\u{00A0}' | '\u{1680}'
+            | '\u{2000}'..='\u{200A}' | '\u{2028}' | '\u{2029}' | '\u{202F}' | '\u{205F}'
+            | '\u{3000}' | '\u{FEFF}'
+    )
+}
+
+// --- expression macros (#3251) ----------------------------------------------
+
+const RUST_EXPRESSION_MACROS: &[&str] = &[
+    "format", "format_args", "print", "println", "eprint", "eprintln", "write", "writeln", "panic",
+    "assert", "assert_eq", "assert_ne", "debug_assert", "debug_assert_eq", "debug_assert_ne",
+    "vec", "matches", "dbg", "todo", "unimplemented", "unreachable", "json",
+];
+
+const MACRO_ARG_KEYWORDS: &[&str] = &[
+    "as", "async", "await", "box", "break", "const", "continue", "dyn", "else", "enum", "extern", "false", "fn",
+    "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return", "static",
+    "struct", "trait", "true", "type", "unsafe", "use", "where", "while", "yield",
+];
+
+const MACRO_ARG_CONTEXTUAL: &[&str] = &["default", "union", "gen"];
+
+fn macro_is_name(t: Option<&Node>, src: &str) -> bool {
+    match t {
+        None => false,
+        Some(t) => {
+            if t.kind() == "identifier" {
+                !MACRO_ARG_KEYWORDS.contains(&macro_tok_text(*t, src))
+            } else {
+                MACRO_ARG_CONTEXTUAL.contains(&t.kind())
+            }
+        }
+    }
+}
+
+const MACRO_ARG_LITERALS: &[&str] =
+    &["string_literal", "raw_string_literal", "char_literal", "integer_literal", "float_literal", "boolean_literal"];
+
+struct MacroRef<'t> {
+    name: String,
+    kind: &'static str,
+    at: Node<'t>,
+}
+
+enum MExpr {
+    Lit,
+    Name(String),
+    SelfE,
+    Path(String),
+    Call(Box<MExpr>),
+    Field(Box<MExpr>, String),
+    Method(Box<MExpr>, String),
+    Other,
+}
+
+fn macro_tok_text<'s>(t: Node, src: &'s str) -> &'s str {
+    &src[t.byte_range()]
+}
+
+fn is_field_text(s: &str) -> bool {
+    is_rust_ident(s) || (!s.is_empty() && s.chars().all(|c| c.is_ascii_digit()))
+}
+
+fn is_type_name_text(s: &str) -> bool {
+    let mut chars = s.chars();
+    matches!(chars.next(), Some(c) if c.is_ascii_uppercase()) && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+fn macro_receiver_chain(e: &MExpr) -> Option<String> {
+    let mut links: Vec<String> = Vec::new();
+    let mut cur = e;
+    while links.len() <= RECEIVER_CHAIN_MAX_LINKS {
+        match cur {
+            MExpr::SelfE | MExpr::Name(_) => {
+                let root = match cur {
+                    MExpr::Name(n) => n.as_str(),
+                    _ => "self",
+                };
+                if links.is_empty() || !is_rust_ident(root) {
+                    return None;
+                }
+                links.reverse();
+                let mut s = root.to_string();
+                for l in links {
+                    s.push('.');
+                    s.push_str(&l);
+                }
+                return Some(s);
+            }
+            MExpr::Method(b, n) => {
+                if !is_rust_ident(n) {
+                    return None;
+                }
+                links.push(format!("{n}()"));
+                cur = &**b;
+            }
+            MExpr::Field(b, n) => {
+                if !is_field_text(n) {
+                    return None;
+                }
+                links.push(n.clone());
+                cur = &**b;
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+fn macro_method_call_name(base: &MExpr, method: &str) -> Option<String> {
+    match base {
+        MExpr::Lit => return None,
+        MExpr::Name(n) => {
+            return Some(if n == "this" || n == "cls" || n == "super" { method.to_string() } else { format!("{n}.{method}") });
+        }
+        MExpr::SelfE => return Some(format!("self.{method}")),
+        MExpr::Field(b, n) => {
+            if matches!(**b, MExpr::SelfE) && is_rust_ident(n) {
+                return Some(format!("self.{n}.{method}"));
+            }
+        }
+        MExpr::Call(c) => {
+            if let MExpr::Path(t) = &**c {
+                return Some(format!("{t}().{method}"));
+            }
+        }
+        MExpr::Method(..) => {}
+        _ => return Some(method.to_string()),
+    }
+    Some(match macro_receiver_chain(base) {
+        Some(chain) => format!("{chain}.{method}"),
+        None => method.to_string(),
+    })
+}
+
+fn rust_macro_arg_refs<'t>(mac: Node<'t>, src: &'t str) -> Vec<MacroRef<'t>> {
+    let mut out = Vec::new();
+    let name_node = mac.named_child(0);
+    let tree = (0..mac.named_child_count()).filter_map(|i| mac.named_child(i)).find(|c| c.kind() == "token_tree");
+    let (Some(name_node), Some(tree)) = (name_node, tree) else { return out };
+    let full = macro_tok_text(name_node, src);
+    let name = full.rsplit("::").next().unwrap_or(full).trim();
+    if RUST_EXPRESSION_MACROS.contains(&name) {
+        macro_scan_group(tree, name == "matches", false, src, &mut out);
+    }
+    out
+}
+
+fn macro_group_tokens<'t>(group: Node<'t>) -> Vec<Node<'t>> {
+    let n = group.child_count();
+    let mut tokens = Vec::new();
+    let mut i = 1;
+    while i + 1 < n {
+        if let Some(t) = group.child(i) {
+            tokens.push(t);
+        }
+        i += 1;
+    }
+    tokens
+}
+
+fn macro_group_delim(group: Node) -> &'static str {
+    group.child(0).map(|c| c.kind()).unwrap_or("")
+}
+
+fn macro_scan_group<'t>(group: Node<'t>, matches_args: bool, pattern: bool, src: &'t str, out: &mut Vec<MacroRef<'t>>) {
+    stack_guard!();
+    let tokens = macro_group_tokens(group);
+    let mut in_pattern = pattern;
+    let mut comma_seen = false;
+    let mut i = 0usize;
+    while i < tokens.len() {
+        let t = tokens[i];
+        if matches_args && t.kind() == "," && !comma_seen {
+            comma_seen = true;
+            in_pattern = true;
+            i += 1;
+            continue;
+        }
+        if in_pattern && t.kind() == "if" {
+            in_pattern = false;
+            i += 1;
+            continue;
+        }
+        let next = macro_parse_chain(&tokens, i, in_pattern, src, out);
+        i = if next > i { next } else { i + 1 };
+    }
+}
+
+fn macro_starts_expr(tokens: &[Node], i: usize, src: &str) -> bool {
+    let t = tokens[i];
+    match t.kind() {
+        "self" | "crate" | "super" | "::" | "token_tree" => true,
+        "primitive_type" => tokens.get(i + 1).map(|n| n.kind() == "::").unwrap_or(false),
+        k => macro_is_name(Some(&t), src) || MACRO_ARG_LITERALS.contains(&k),
+    }
+}
+
+fn macro_skip_angles(tokens: &[Node], i: usize) -> Option<usize> {
+    let mut depth: i32 = 0;
+    for (j, t) in tokens.iter().enumerate().skip(i) {
+        let ty = t.kind();
+        if ty == "<" {
+            depth += 1;
+        } else if ty == "<<" {
+            depth += 2;
+        } else if ty == ">" {
+            depth -= 1;
+        } else if ty == ">>" {
+            depth -= 2;
+        } else if ty == ";" || (ty == "token_tree" && macro_group_delim(*t) == "{") {
+            return None;
+        }
+        if depth <= 0 {
+            return if depth == 0 { Some(j + 1) } else { None };
+        }
+    }
+    None
+}
+
+fn macro_is_segment(t: Option<&Node>, src: &str) -> bool {
+    match t {
+        None => false,
+        Some(n) => macro_is_name(t, src) || matches!(n.kind(), "self" | "super" | "crate" | "primitive_type"),
+    }
+}
+
+fn macro_parse_chain<'t>(tokens: &[Node<'t>], mut i: usize, in_pattern: bool, src: &'t str, out: &mut Vec<MacroRef<'t>>) -> usize {
+    stack_guard!();
+    if !macro_starts_expr(tokens, i, src) {
+        return i;
+    }
+    let start = tokens[i];
+    let mut expr: MExpr;
+    let mut segs: Vec<(&'t str, Node<'t>)> = Vec::new();
+    if MACRO_ARG_LITERALS.contains(&start.kind()) {
+        expr = MExpr::Lit;
+        i += 1;
+    } else if start.kind() == "token_tree" {
+        macro_scan_group(start, false, in_pattern, src, out);
+        expr = MExpr::Other;
+        i += 1;
+    } else {
+        let leading = start.kind() == "::";
+        if leading {
+            i += 1;
+        }
+        if !macro_is_segment(tokens.get(i), src) {
+            return i;
+        }
+        loop {
+            segs.push((macro_tok_text(tokens[i], src), tokens[i]));
+            i += 1;
+            if tokens.get(i).map(|t| t.kind()) != Some("::") {
+                break;
+            }
+            if tokens.get(i + 1).map(|t| t.kind()) == Some("<") {
+                let Some(past) = macro_skip_angles(tokens, i + 1) else { break };
+                i = past;
+                if tokens.get(i).map(|t| t.kind()) == Some("::") && macro_is_segment(tokens.get(i + 1), src) {
+                    i += 1;
+                    continue;
+                }
+                break;
+            }
+            if !macro_is_segment(tokens.get(i + 1), src) {
+                break;
+            }
+            i += 1;
+        }
+        if tokens.get(i).map(|t| t.kind()) == Some("!") && tokens.get(i + 1).map(|t| t.kind()) == Some("token_tree") {
+            let name = segs[segs.len() - 1].0;
+            if RUST_EXPRESSION_MACROS.contains(&name) {
+                macro_scan_group(tokens[i + 1], name == "matches", false, src, out);
+            }
+            expr = MExpr::Other;
+            i += 2;
+        } else if segs.len() == 1 && !leading {
+            let only = segs[0].0;
+            expr = if only == "self" {
+                MExpr::SelfE
+            } else if macro_is_name(Some(&start), src) {
+                MExpr::Name(only.to_string())
+            } else {
+                MExpr::Other
+            };
+        } else {
+            let joined: Vec<&str> = segs.iter().map(|s| s.0).collect();
+            expr = MExpr::Path(format!("{}{}", if leading { "::" } else { "" }, joined.join("::")));
+        }
+    }
+    if matches!(expr, MExpr::Path(_)) {
+        let following = tokens.get(i);
+        let is_struct = following.map(|f| f.kind() == "token_tree" && macro_group_delim(*f) == "{").unwrap_or(false);
+        let called = following.map(|f| f.kind() == "token_tree" && macro_group_delim(*f) == "(").unwrap_or(false);
+        if (in_pattern || (!called && !is_struct)) && segs.len() >= 2 {
+            let member = segs[segs.len() - 1].0;
+            let (recv_text, recv_node) = segs[segs.len() - 2];
+            if member.starts_with(|c: char| c.is_ascii_uppercase())
+                && recv_text != "Self"
+                && is_type_name_text(recv_text)
+                && recv_node.kind() == "identifier"
+            {
+                out.push(MacroRef { name: recv_text.to_string(), kind: "references", at: recv_node });
+            }
+        }
+    }
+    loop {
+        let Some(&t) = tokens.get(i) else { break };
+        if t.kind() == "token_tree" && macro_group_delim(t) == "(" {
+            if !in_pattern {
+                match &expr {
+                    MExpr::Name(n) => out.push(MacroRef { name: n.clone(), kind: "calls", at: start }),
+                    MExpr::Path(p) => out.push(MacroRef { name: p.clone(), kind: "calls", at: start }),
+                    _ => {}
+                }
+            }
+            macro_scan_group(t, false, in_pattern, src, out);
+            expr = MExpr::Call(Box::new(std::mem::replace(&mut expr, MExpr::Other)));
+            i += 1;
+            continue;
+        }
+        if t.kind() == "token_tree" && macro_group_delim(t) == "[" {
+            macro_scan_group(t, false, false, src, out);
+            expr = MExpr::Other;
+            i += 1;
+            continue;
+        }
+        if t.kind() == "token_tree" && macro_group_delim(t) == "{" {
+            macro_scan_group(t, false, in_pattern, src, out);
+            expr = MExpr::Other;
+            i += 1;
+            continue;
+        }
+        if t.kind() == "?" {
+            expr = MExpr::Other;
+            i += 1;
+            continue;
+        }
+        if t.kind() != "." {
+            break;
+        }
+        let Some(&n) = tokens.get(i + 1) else { break };
+        if n.kind() == "await" {
+            expr = MExpr::Other;
+            i += 2;
+            continue;
+        }
+        if n.kind() == "integer_literal" {
+            let name = macro_tok_text(n, src).to_string();
+            expr = MExpr::Field(Box::new(std::mem::replace(&mut expr, MExpr::Other)), name);
+            i += 2;
+            continue;
+        }
+        if n.kind() != "identifier" && !MACRO_ARG_CONTEXTUAL.contains(&n.kind()) {
+            break;
+        }
+        let member = macro_tok_text(n, src);
+        let mut j = i + 2;
+        if tokens.get(j).map(|t| t.kind()) == Some("::") && tokens.get(j + 1).map(|t| t.kind()) == Some("<") {
+            let Some(past) = macro_skip_angles(tokens, j + 1) else { break };
+            j = past;
+        }
+        if let Some(&args) = tokens.get(j) {
+            if args.kind() == "token_tree" && macro_group_delim(args) == "(" {
+                if !in_pattern {
+                    if let Some(name) = macro_method_call_name(&expr, member) {
+                        out.push(MacroRef { name, kind: "calls", at: start });
+                    }
+                }
+                macro_scan_group(args, false, false, src, out);
+                expr = MExpr::Method(Box::new(std::mem::replace(&mut expr, MExpr::Other)), member.to_string());
+                i = j + 1;
+                continue;
+            }
+        }
+        expr = MExpr::Field(Box::new(std::mem::replace(&mut expr, MExpr::Other)), member.to_string());
+        i = j;
+    }
+    i
 }

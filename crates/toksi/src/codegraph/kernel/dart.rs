@@ -1,4 +1,4 @@
-//! Dart extraction — a faithful Rust port of the dart paths of
+//! Dart extraction â€” a faithful Rust port of the dart paths of
 //! `TreeSitterExtractor` (src/extraction/tree-sitter.ts) plus
 //! languages/dart.ts.
 //!
@@ -6,30 +6,30 @@
 //! The authoritative quirk list is docs/design/dart-kernel-port-checklist.md.
 //! The center of gravity is THE SIBLING-BODY DOUBLE-WALK: dart attaches every
 //! function/method body as a NEXT SIBLING of its signature node, and the TS
-//! walkers consume the body TWICE — once via resolveBody (attributed to the
+//! walkers consume the body TWICE â€” once via resolveBody (attributed to the
 //! function/method) and once via the enclosing generic walk (attributed to
-//! the file/class). The deterministic result — duplicate local-function
+//! the file/class). The deterministic result â€” duplicate local-function
 //! nodes with the SAME id under different parents, duplicated
-//! calls/instantiates refs, file/class-attributed fn-ref twins — must be
+//! calls/instantiates refs, file/class-attributed fn-ref twins â€” must be
 //! reproduced byte-for-byte in the observed interleave; a "helpful" dedupe
 //! breaks parity. Other load-bearing oddities preserved on purpose:
 //! callTypes is EMPTY (all call refs ride extractBareCall's selector
-//! walking in the body walker — cascades are invisible, `?.` encodes like
+//! walking in the body walker â€” cascades are invisible, `?.` encodes like
 //! `.`); `ConfigT.load()` double-emits (calls + a static-member references
-//! ref — no callee-of-call skip in the dart branch); operator methods mint
+//! ref â€” no callee-of-call skip in the dart branch); operator methods mint
 //! `method "<anonymous>"`; the unnamed constructor is skipped
-//! (isMisparsedFunction) while named ctors/factories — `const` ones and
-//! redirecting factories included — are named by the CTOR name with the
+//! (isMisparsedFunction) while named ctors/factories â€” `const` ones and
+//! redirecting factories included â€” are named by the CTOR name with the
 //! class as returnType; instance fields mint NO nodes (only
-//! static_final_declaration → constant, via the hook); every initializer is
-//! body-walked once — a constant's from the constant, a field's or a
+//! static_final_declaration â†’ constant, via the hook); every initializer is
+//! body-walked once â€” a constant's from the constant, a field's or a
 //! top-level variable's from the class or the file; prefixed return
-//! types keep the PREFIX (`other.OtherClass f()` → returnType `other` —
+//! types keep the PREFIX (`other.OtherClass f()` â†’ returnType `other` â€”
 //! bug, preserved); enum `with` mixins emit nothing while enum `implements`
 //! works; deferred imports are invisible; named-argument callbacks are NOT
 //! fn-ref-captured; `async*`/`sync*` are NOT async. Positions in UTF-16
-//! code units. Files with parse errors defer to wasm (3.4–20.7% both-arm
-//! incidence — empty object patterns and unnamed `library;` dominate).
+//! code units. Files with parse errors defer to wasm (3.4â€“20.7% both-arm
+//! incidence â€” empty object patterns and unnamed `library;` dominate).
 
 use crate::codegraph::kernel::buffers::{
     build_meta, edge_kind_index, node_kind_index, Arena, BoolFlags, EdgeRow, EmitOut, NodeRow,
@@ -45,12 +45,12 @@ use tree_sitter::{Node, Parser};
 
 const MAX_VALUE_REF_NODES: usize = 20_000;
 
-/// docstringStepOverTypes (dart.ts) — a member's annotations stand between it
+/// docstringStepOverTypes (dart.ts) â€” a member's annotations stand between it
 /// and the dartdoc written above them (`/// Builds the widget.` `@override`
-/// `Widget build(…)`), so the docstring walk steps over them.
+/// `Widget build(â€¦)`), so the docstring walk steps over them.
 const DOCSTRING_STEP_OVER: &[&str] = &["annotation"];
 
-/// decoratorStepOverTypes (dart.ts) — an annotation belongs to the next
+/// decoratorStepOverTypes (dart.ts) â€” an annotation belongs to the next
 /// declaration, whatever comments come between them (`@override`
 /// `// ignore: must_call_super` `void f()`), so the decorator scan steps over
 /// them.
@@ -101,7 +101,7 @@ fn angle_args_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
     RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"<[^>]*>"))
 }
 
-/// The UpperCamel test of isDartTypeName (`/^[_$]*[A-Z]/`) — how Dart writes
+/// The UpperCamel test of isDartTypeName (`/^[_$]*[A-Z]/`) â€” how Dart writes
 /// a type, `_Private` and `$Generated` ones included.
 fn is_upper_camel(text: &str) -> bool {
     text.trim_start_matches(&['_', '$'][..])
@@ -111,32 +111,32 @@ fn is_upper_camel(text: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// DART_BODILESS_CTORS (dart.ts) — `const Foo.bar();` and a redirecting
+/// DART_BODILESS_CTORS (dart.ts) â€” `const Foo.bar();` and a redirecting
 /// factory `const factory Foo.bar() = _Bar;`, each a signature kind of its
 /// own inside a `declaration`.
 fn is_bodiless_ctor(kind: &str) -> bool {
     matches!(kind, "constant_constructor_signature" | "redirecting_factory_constructor_signature")
 }
 
-/// DART_LOWERCASE_TYPES (dart.ts) — Dart's lowercase built-in types, which a
+/// DART_LOWERCASE_TYPES (dart.ts) â€” Dart's lowercase built-in types, which a
 /// type argument can name: `<int>`, `<void>`.
 fn is_lowercase_type(name: &str) -> bool {
     matches!(name, "int" | "double" | "num" | "bool" | "dynamic" | "void")
 }
 
-/// DART_PREFIXED (dart.ts) — what a callee can sit under in front of a
+/// DART_PREFIXED (dart.ts) â€” what a callee can sit under in front of a
 /// generic call: `await`, `-`, `!`.
 fn is_prefixed(kind: &str) -> bool {
     matches!(kind, "unary_expression" | "await_expression")
 }
 
-/// DART_COMMENTS (dart.ts) — line and block comments, and dartdoc.
+/// DART_COMMENTS (dart.ts) â€” line and block comments, and dartdoc.
 fn is_comment(node: Node) -> bool {
     matches!(node.kind(), "comment" | "documentation_comment")
 }
 
-/// dartPrevNamed (dart.ts) — the named sibling before `node`, past comments:
-/// `tester //` + newline + `.state(…)` puts the comment, not `tester`, right
+/// dartPrevNamed (dart.ts) â€” the named sibling before `node`, past comments:
+/// `tester //` + newline + `.state(â€¦)` puts the comment, not `tester`, right
 /// before the `.state` selector.
 fn prev_named<'t>(node: Node<'t>) -> Option<Node<'t>> {
     let mut prev = node.prev_named_sibling();
@@ -146,7 +146,7 @@ fn prev_named<'t>(node: Node<'t>) -> Option<Node<'t>> {
     prev
 }
 
-/// dartNextNamed (dart.ts) — the named sibling after `node`, past comments.
+/// dartNextNamed (dart.ts) â€” the named sibling after `node`, past comments.
 fn next_named<'t>(node: Node<'t>) -> Option<Node<'t>> {
     let mut next = node.next_named_sibling();
     while let Some(n) = next.filter(|n| is_comment(*n)) {
@@ -155,7 +155,7 @@ fn next_named<'t>(node: Node<'t>) -> Option<Node<'t>> {
     next
 }
 
-/// dartTypeAliasName (dart.ts) — the name a typedef declares: the last type
+/// dartTypeAliasName (dart.ts) â€” the name a typedef declares: the last type
 /// name before the `=`, the type parameters or the parameter list. The
 /// legacy form writes its return type first (`typedef Report LegacyMaker(int
 /// n);`), so the first type name is not always it.
@@ -229,11 +229,9 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(dart) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -332,7 +330,7 @@ impl<'t> Walker<'t> {
             candidates: NONE_STR,
             from_id_str: NONE_STR,
         });
-        // Dart import names are URIs (`package:x/y.dart`) — they match neither
+        // Dart import names are URIs (`package:x/y.dart`) â€” they match neither
         // SIMPLE_NAME nor QUALIFIED_IMPORT, so importedNames stays empty in
         // practice; ported for fidelity.
         if kind == "imports" {
@@ -369,7 +367,7 @@ impl<'t> Walker<'t> {
             qn
         };
 
-        // endLine extension (:1322-1334) — LIVE for dart: a function/method
+        // endLine extension (:1322-1334) â€” LIVE for dart: a function/method
         // node's endLine extends to its sibling function_body's end.
         let mut end_line = node.end_position().row as u32 + 1;
         if let Some(ext) = extra.end_line_override {
@@ -535,7 +533,7 @@ impl<'t> Walker<'t> {
         Some(last.to_string())
     }
 
-    /// isMisparsedFunction (dart.ts:177-188) — skip the UNNAMED constructor,
+    /// isMisparsedFunction (dart.ts:177-188) â€” skip the UNNAMED constructor,
     /// and a `const` ctor / redirecting factory that names no enclosing type
     /// (error recovery's).
     fn is_misparsed_function(&self, node: Node<'t>) -> bool {
@@ -580,7 +578,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// getVisibility (dart.ts:209-222) — `_` prefix = private; every
+    /// getVisibility (dart.ts:209-222) â€” `_` prefix = private; every
     /// constructor is public (the unwrap misses ctor signatures / the name
     /// FIELD is the class identifier).
     fn visibility_of(&self, node: Node<'t>) -> u8 {
@@ -603,8 +601,8 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// isAsync (dart.ts:223-233) — the `async` anon child of the SIBLING
-    /// function_body; `async*`/`sync*` are different token types → false.
+    /// isAsync (dart.ts:223-233) â€” the `async` anon child of the SIBLING
+    /// function_body; `async*`/`sync*` are different token types â†’ false.
     fn is_async_of(&self, node: Node<'t>) -> bool {
         if let Some(next) = node.next_named_sibling() {
             if next.kind() == "function_body" {
@@ -634,7 +632,7 @@ impl<'t> Walker<'t> {
         false
     }
 
-    /// getDeclarationWrapper (dart.ts) — a member with no body (`Foo._();`,
+    /// getDeclarationWrapper (dart.ts) â€” a member with no body (`Foo._();`,
     /// `const Foo.c();`, an abstract `void m();`) is a `declaration` wrapping
     /// its signature, and the member's `///` dartdoc and `@annotation`s come
     /// before the wrapper. A signature that opens the declaration takes both
@@ -651,7 +649,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// docstringFor (tree-sitter.ts) — the preceding comment run, looked up
+    /// docstringFor (tree-sitter.ts) â€” the preceding comment run, looked up
     /// from the declaration wrapper when there is one, past annotations.
     fn docstring_of(&self, node: Node<'t>) -> Option<String> {
         preceding_docstring_stepping_over(
@@ -680,9 +678,9 @@ impl<'t> Walker<'t> {
         found
     }
 
-    /// extractName (tree-sitter.ts:90-192) — resolveName (ctor names) →
-    /// name field → the method_signature inner unwrap → identifier-ish
-    /// child → `<anonymous>` (operators land here).
+    /// extractName (tree-sitter.ts:90-192) â€” resolveName (ctor names) â†’
+    /// name field â†’ the method_signature inner unwrap â†’ identifier-ish
+    /// child â†’ `<anonymous>` (operators land here).
     fn extract_name(&self, node: Node<'t>) -> String {
         // resolveName hook (dart.ts): a typedef has no `name` field, and a
         // legacy one writes its return type before its name (`typedef Report
@@ -692,13 +690,13 @@ impl<'t> Walker<'t> {
                 return self.text(name).to_string();
             }
         }
-        // resolveName hook (dart.ts:244-260): named ctor/factory → ctor name.
+        // resolveName hook (dart.ts:244-260): named ctor/factory â†’ ctor name.
         if let Some((class_name, ctor_name)) = self.ctor_info(node) {
             if ctor_name != class_name {
                 return ctor_name;
             }
         }
-        // `class A = B with C;` — the mixin application's own identifier.
+        // `class A = B with C;` â€” the mixin application's own identifier.
         if node.kind() == "class_definition" {
             let mut cursor = node.walk();
             let application = node.named_children(&mut cursor).find(|c| c.kind() == "mixin_application_class");
@@ -743,7 +741,7 @@ impl<'t> Walker<'t> {
 
     fn visit(&mut self, node: Node<'t>) {
         stack_guard!();
-        // The visitNode hook (dart.ts:144-157) — the constants branch.
+        // The visitNode hook (dart.ts:144-157) â€” the constants branch.
         if node.kind() == "static_final_declaration" {
             let mut cursor = node.walk();
             let name_node = node.named_children(&mut cursor).find(|c| c.kind() == "identifier");
@@ -760,7 +758,7 @@ impl<'t> Walker<'t> {
                 });
                 let name = self.text(name_node).to_string();
                 let constant = self.create_node("constant", &name, node, Extra { signature, ..Default::default() });
-                // The initializer is code the constant runs — its calls,
+                // The initializer is code the constant runs â€” its calls,
                 // instantiations, reads and the types it names (#2327) are
                 // the constant's. walkInitializer: the body walk, and the
                 // dispatcher's fn-ref scan skips what it walked.
@@ -776,7 +774,7 @@ impl<'t> Walker<'t> {
         }
 
         // A field's or top-level variable's initializer is code its class or
-        // the file runs (neither mints a node) — the hook's
+        // the file runs (neither mints a node) â€” the hook's
         // `initialized_identifier` row, walked like a body (walkInitializer).
         if node.kind() == "initialized_identifier" && self.is_field_or_top_level_entry(node) {
             self.visit_body(node);
@@ -814,12 +812,12 @@ impl<'t> Walker<'t> {
             self.type_refs_dart(node, owner);
         }
 
-        // maybeCaptureFnRefs (:990) — the double-walk fn-ref twin source.
+        // maybeCaptureFnRefs (:990) â€” the double-walk fn-ref twin source.
         self.maybe_capture_fn_refs(node);
 
         match node.kind() {
             "function_signature" => {
-                // functionTypes row — method_signature does NOT include it →
+                // functionTypes row â€” method_signature does NOT include it â†’
                 // always extractFunction, even inside a class (abstract
                 // members become kind `function` contained by the class).
                 self.extract_function(node);
@@ -827,7 +825,7 @@ impl<'t> Walker<'t> {
             }
             // `extension_type_declaration` is Dart 3.3's extension type. It is a
             // different node from `extension_declaration` above, which is the
-            // older `extension` — the names are near neighbours and only one of
+            // older `extension` â€” the names are near neighbours and only one of
             // them was listed.
             "class_definition" | "mixin_declaration" | "extension_declaration" | "extension_type_declaration" => {
                 self.extract_class(node);
@@ -859,7 +857,7 @@ impl<'t> Walker<'t> {
                 self.extract_import(node);
             }
             "new_expression" => {
-                // INSTANTIATION_KINDS row — from the FILE/CLASS on the
+                // INSTANTIATION_KINDS row â€” from the FILE/CLASS on the
                 // sibling revisit (the double-walk's pass 2a).
                 self.extract_instantiation(node);
             }
@@ -880,14 +878,14 @@ impl<'t> Walker<'t> {
         // No receiver hook. Name first (resolveName inside extract_name).
         let name = self.extract_name(node);
         if name == "<anonymous>" {
-            // :1549 — body-only walk (nothing pushed). Dart signatures always
+            // :1549 â€” body-only walk (nothing pushed). Dart signatures always
             // name; preserved for fidelity.
             if let Some(body) = self.resolve_body(node) {
                 self.visit_body(body);
             }
             return;
         }
-        // isMisparsedFunction: the unnamed constructor is skipped — node
+        // isMisparsedFunction: the unnamed constructor is skipped â€” node
         // suppressed, body still walked (attributed to the current stack top).
         if self.is_misparsed_function(node) {
             if let Some(body) = self.resolve_body(node) {
@@ -929,13 +927,13 @@ impl<'t> Walker<'t> {
 
     fn extract_method(&mut self, node: Node<'t>) {
         // Gate (:1747): not inside class-like (no methodsAreTopLevel, no
-        // receiver, parent never object/object_expression) → extractFunction.
+        // receiver, parent never object/object_expression) â†’ extractFunction.
         if !self.inside_class_like() {
             self.extract_function(node);
             return;
         }
         let name = self.extract_name(node);
-        // isMisparsedFunction — the unnamed ctor: body-only walk.
+        // isMisparsedFunction â€” the unnamed ctor: body-only walk.
         if self.is_misparsed_function(node) {
             if let Some(body) = self.resolve_body(node) {
                 self.visit_body(body);
@@ -950,7 +948,7 @@ impl<'t> Walker<'t> {
         let return_type = self.return_type_of(node);
         let body = self.resolve_body(node);
         let end_line_override = body.map(|b| b.end_position().row as u32 + 1);
-        // Operators mint method "<anonymous>" — extractMethod has NO skip.
+        // Operators mint method "<anonymous>" â€” extractMethod has NO skip.
         let row = self.create_node(
             "method",
             &name,
@@ -975,13 +973,13 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    // --- extractClass (:1679) — classes, mixins, extensions ---------------
+    // --- extractClass (:1679) â€” classes, mixins, extensions ---------------
 
     fn extract_class(&mut self, node: Node<'t>) {
         stack_guard!();
         let resolved_body = self.resolve_body(node);
-        // No skipBodilessClass. Anonymous `extension on String` → the name
-        // fallback finds the ON type's type_identifier — a class named after
+        // No skipBodilessClass. Anonymous `extension on String` â†’ the name
+        // fallback finds the ON type's type_identifier â€” a class named after
         // the extended type (preserved).
         let name = self.extract_name(node);
         let docstring = self.docstring_of(node);
@@ -994,7 +992,7 @@ impl<'t> Walker<'t> {
         );
         let Some(row) = row else { return };
         self.extract_inheritance(node, row);
-        // extractCsharpPrimaryCtorParamRefs — csharp-gated no-op.
+        // extractCsharpPrimaryCtorParamRefs â€” csharp-gated no-op.
         self.extract_decorators_for(node, row);
         self.stack.push(Scope { row, kind: "class", name });
         let body = resolved_body.unwrap_or(node);
@@ -1024,8 +1022,8 @@ impl<'t> Walker<'t> {
             Extra { docstring, visibility, ..Default::default() },
         );
         let Some(row) = row else { return };
-        // Enum `with` mixins are a DIRECT child (no superclass wrapper) →
-        // no clause matches; `interfaces` DOES → implements only.
+        // Enum `with` mixins are a DIRECT child (no superclass wrapper) â†’
+        // no clause matches; `interfaces` DOES â†’ implements only.
         self.extract_inheritance(node, row);
         // No extractDecoratorsFor on the enum path.
         self.stack.push(Scope { row, kind: "enum", name });
@@ -1041,7 +1039,7 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    /// extractEnumMembers (:1958) — one enum_member per constant, positioned
+    /// extractEnumMembers (:1958) â€” one enum_member per constant, positioned
     /// at the enum_constant node; ctor arguments never walked.
     fn extract_enum_members(&mut self, node: Node<'t>) {
         if let Some(name_node) = node.child_by_field_name("name") {
@@ -1060,7 +1058,7 @@ impl<'t> Walker<'t> {
         let docstring = self.docstring_of(node);
         // type_alias has no fields (no `value`): the dart branch reads the
         // aliased type from the rest of the declaration (#2327). Returns
-        // false → children re-visited (they match nothing type-related).
+        // false â†’ children re-visited (they match nothing type-related).
         let row = self.create_node("type_alias", &name, node, Extra { docstring, ..Default::default() });
         if let Some(row) = row {
             self.type_alias_refs(node, row);
@@ -1068,7 +1066,7 @@ impl<'t> Walker<'t> {
         false
     }
 
-    /// pushDartTypeAliasRefs (dart.ts) — a `references` ref from the typedef
+    /// pushDartTypeAliasRefs (dart.ts) â€” a `references` ref from the typedef
     /// for every type its aliased type names; its annotations are not its
     /// type, and a type parameter is no type of the project's.
     fn type_alias_refs(&mut self, node: Node<'t>, from_row: u32) {
@@ -1084,7 +1082,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// dartTypeParameterScope (dart.ts) — `scope` and the type parameters
+    /// dartTypeParameterScope (dart.ts) â€” `scope` and the type parameters
     /// `node` declares (`Mapper<T>`, `T Function<T>(T a)`), or None when it
     /// declares none.
     fn type_parameter_scope(&self, node: Node<'t>, scope: &[&'t str]) -> Option<Vec<&'t str>> {
@@ -1105,7 +1103,7 @@ impl<'t> Walker<'t> {
         Some(inner)
     }
 
-    /// pushDartAliasedTypeRefs (dart.ts) — type_refs_dart for a typedef's
+    /// pushDartAliasedTypeRefs (dart.ts) â€” type_refs_dart for a typedef's
     /// aliased type, where a type parameter in `scope` is no type of its own
     /// (but `p.T` is the type an import names).
     fn aliased_type_refs(&mut self, node: Node<'t>, from_row: u32, scope: &[&'t str]) {
@@ -1162,7 +1160,7 @@ impl<'t> Walker<'t> {
                 }
             }
         }
-        // Deferred imports (bare `uri`, no configurable_uri) → hook null →
+        // Deferred imports (bare `uri`, no configurable_uri) â†’ hook null â†’
         // nothing at all (invisible).
         let Some(module) = module.filter(|m| !m.is_empty()) else { return };
         let signature = self.text(node).trim().to_string();
@@ -1233,7 +1231,7 @@ impl<'t> Walker<'t> {
             return self.callee_name(callee);
         }
 
-        // new_expression arm — DEAD in practice (the INSTANTIATION branch
+        // new_expression arm â€” DEAD in practice (the INSTANTIATION branch
         // fires first in the body walker); ported for fidelity.
         if node.kind() == "new_expression" {
             let mut cursor = node.walk();
@@ -1244,7 +1242,7 @@ impl<'t> Walker<'t> {
             return found;
         }
 
-        // const EdgeInsets.all(8.0) — const constructor call.
+        // const EdgeInsets.all(8.0) â€” const constructor call.
         if node.kind() == "const_object_expression" {
             let mut c1 = node.walk();
             let type_id = node.named_children(&mut c1).find(|c| c.kind() == "type_identifier");
@@ -1257,7 +1255,7 @@ impl<'t> Walker<'t> {
             };
         }
 
-        // `=> BlocProvider<CounterCubit>.value(…)` — a constructor called
+        // `=> BlocProvider<CounterCubit>.value(â€¦)` â€” a constructor called
         // with type arguments, as most expressions parse it. The type is the
         // LAST type_identifier: an import prefix (`p.X<T>.named`) is one too.
         if node.kind() == "constructor_invocation" {
@@ -1275,10 +1273,10 @@ impl<'t> Walker<'t> {
         None
     }
 
-    /// dartReceiverOf (dart.ts) — the receiver of the member access
+    /// dartReceiverOf (dart.ts) â€” the receiver of the member access
     /// `selector`: the node in front of it, past comments, or the end of an
     /// arrow function's body when the grammar ended the arrow in front of a
-    /// generic call (`(ref) => ref.watch<int>(p)` → `((ref) => ref).watch<int>(p)`).
+    /// generic call (`(ref) => ref.watch<int>(p)` â†’ `((ref) => ref).watch<int>(p)`).
     fn receiver_of(&self, selector: Node<'t>) -> Option<Node<'t>> {
         let prev = prev_named(selector);
         let body = prev
@@ -1292,7 +1290,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// dartCallee (dart.ts) — the callee name of the call whose argument part
+    /// dartCallee (dart.ts) â€” the callee name of the call whose argument part
     /// follows `prev`.
     fn callee_name(&self, prev: Node<'t>) -> Option<String> {
         if prev.kind() == "identifier" {
@@ -1321,7 +1319,7 @@ impl<'t> Walker<'t> {
                             return Some(format!("{}.{}", type_name, self.text(method_id)));
                         }
                         // Chained static-factory: the receiver is itself
-                        // a call — re-encode `<inner>().<method>` when
+                        // a call â€” re-encode `<inner>().<method>` when
                         // the chain starts capitalized (#750).
                         if ap.kind() == "selector" {
                             let mut apc = ap.walk();
@@ -1352,11 +1350,11 @@ impl<'t> Walker<'t> {
         None
     }
 
-    /// dartMisparsedGenericCall (dart.ts) — a generic call tree-sitter-dart
+    /// dartMisparsedGenericCall (dart.ts) â€” a generic call tree-sitter-dart
     /// parsed as two comparisons, `(ref.read < Repo) > (p)`, found from its
     /// `<`: the node its callee ends with (under any `await` or prefix
     /// operator) and the identifier naming its type argument. Recovered when
-    /// the type argument names a type and the code is laid out as a call —
+    /// the type argument names a type and the code is laid out as a call â€”
     /// `<` against the callee, `(` against the `>`. A call chained on it keeps
     /// its bare name, which the resolver types from the chain written before
     /// it, as it types a parsed chain's `X().m` (#750).
@@ -1387,7 +1385,7 @@ impl<'t> Walker<'t> {
         if is_comment(before) || before.end_byte() != lt.start_byte() {
             return None;
         }
-        // The type argument: `T`, `p.T`, `T<…>` or `p.T<…>`, and nothing else.
+        // The type argument: `T`, `p.T`, `T<â€¦>` or `p.T<â€¦>`, and nothing else.
         let head = lt.next_named_sibling()?;
         if head.kind() != "identifier" {
             return None;
@@ -1429,7 +1427,7 @@ impl<'t> Walker<'t> {
         Some((callee, type_name))
     }
 
-    /// dartInMisparsedGenericCall (dart.ts) — whether a member access
+    /// dartInMisparsedGenericCall (dart.ts) â€” whether a member access
     /// (`.member` on `receiver`, followed by `next` under `parent`) belongs to
     /// a misparsed generic call: its callee is called, and a prefixed type
     /// argument (`p.Repo`) names a type.
@@ -1495,8 +1493,8 @@ impl<'t> Walker<'t> {
         None
     }
 
-    /// dartTypeArgumentsReceiver (dart.ts) — `BlocProvider` in
-    /// `BlocProvider<CounterCubit>.value(…)`, when `selector` is the `<…>`
+    /// dartTypeArgumentsReceiver (dart.ts) â€” `BlocProvider` in
+    /// `BlocProvider<CounterCubit>.value(â€¦)`, when `selector` is the `<â€¦>`
     /// between the type and `.value`. Only a constructor is called that way.
     fn type_arguments_receiver(&self, selector: Node<'t>) -> Option<&'t str> {
         if selector.kind() != "selector" || selector.named_child_count() != 1 {
@@ -1512,7 +1510,7 @@ impl<'t> Walker<'t> {
         Some(self.text(type_node))
     }
 
-    // --- extractStaticMemberRef — the dart branch (:4759-4767) ------------
+    // --- extractStaticMemberRef â€” the dart branch (:4759-4767) ------------
 
     fn extract_static_member_ref(&mut self, node: Node<'t>) {
         if self.stack.is_empty() {
@@ -1536,16 +1534,16 @@ impl<'t> Walker<'t> {
                 }
             }
             let name = self.text(prev).to_string();
-            // NO callee-of-call skip — `ConfigT.load()` double-emits
+            // NO callee-of-call skip â€” `ConfigT.load()` double-emits
             // (references + calls). Position = the IDENTIFIER (receiver).
             self.push_ref_at(owner_row, &name, "references", prev);
         }
     }
 
-    // --- extractDecoratorsFor (:4897-5024) — the sibling scan -------------
+    // --- extractDecoratorsFor (:4897-5024) â€” the sibling scan -------------
 
     fn extract_decorators_for(&mut self, decl: Node<'t>, decorated_row: u32) {
-        // Scan 1: direct children (+ modifiers descent) — inert for dart
+        // Scan 1: direct children (+ modifiers descent) â€” inert for dart
         // (annotations are preceding siblings), ported for fidelity.
         let mut cursor = decl.walk();
         let kids: Vec<Node<'t>> = decl.named_children(&mut cursor).collect();
@@ -1560,7 +1558,7 @@ impl<'t> Walker<'t> {
             }
         }
         // Scan 2: preceding siblings, backward, stop at the first
-        // non-annotation — stacked annotations emit in REVERSE source order.
+        // non-annotation â€” stacked annotations emit in REVERSE source order.
         // A `declaration`-wrapped member's annotations precede the wrapper,
         // and the comments between annotations and declaration are stepped over.
         let anchor = self.declaration_wrapper(decl).unwrap_or(decl);
@@ -1637,10 +1635,10 @@ impl<'t> Walker<'t> {
         self.push_ref_at(decorated_row, &name, "decorates", n);
     }
 
-    // --- extractInheritance — the dart rows (:5368-5393, :5437-5459) ------
+    // --- extractInheritance â€” the dart rows (:5368-5393, :5437-5459) ------
 
     fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
-        // The type an extension is `on` — a `references` edge (#2327).
+        // The type an extension is `on` â€” a `references` edge (#2327).
         if node.kind() == "extension_declaration" {
             let mut oc = node.walk();
             let on_types: Vec<Node<'t>> = node.children_by_field_name("class", &mut oc).collect();
@@ -1652,7 +1650,7 @@ impl<'t> Walker<'t> {
         let kids: Vec<Node<'t>> = node.named_children(&mut cursor).collect();
         for child in kids {
             if child.kind() == "mixin_application_class" {
-                // `class A = B with M implements I;` — extends B, implements
+                // `class A = B with M implements I;` â€” extends B, implements
                 // each mixin and interface, in source order.
                 let mut cc = child.walk();
                 let application = child.named_children(&mut cc).find(|c| c.kind() == "mixin_application");
@@ -1679,7 +1677,7 @@ impl<'t> Walker<'t> {
                     }
                 }
             } else if child.kind() == "superclass" {
-                // extends type + `with` mixins (implements) — dart branch.
+                // extends type + `with` mixins (implements) â€” dart branch.
                 let mut cc = child.walk();
                 let targets: Vec<Node<'t>> = child.named_children(&mut cc).collect();
                 for t in targets {
@@ -1698,7 +1696,7 @@ impl<'t> Walker<'t> {
                     }
                 }
             } else if child.kind() == "interfaces" {
-                // implements — one per named child, FULL child text.
+                // implements â€” one per named child, FULL child text.
                 let mut cc = child.walk();
                 let targets: Vec<Node<'t>> = child.named_children(&mut cc).collect();
                 for iface in targets {
@@ -1709,7 +1707,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    // --- extractTypeAnnotations — the dart path (:5819-5833) --------------
+    // --- extractTypeAnnotations â€” the dart path (:5819-5833) --------------
 
     fn extract_type_annotations(&mut self, node: Node<'t>, row: u32) {
         let sig = if node.kind() == "method_signature" {
@@ -1761,7 +1759,7 @@ impl<'t> Walker<'t> {
 
     // --- type positions outside signatures (#2327; dart.ts pushDartTypeRefs) ---
 
-    /// isDartTypeName (dart.ts) — UpperCamelCase (`/^[_$]*[A-Z]/`: lowercase
+    /// isDartTypeName (dart.ts) â€” UpperCamelCase (`/^[_$]*[A-Z]/`: lowercase
     /// is a built-in or an error-recovery artifact), not a built-in, not an
     /// import prefix (`p` in `p.Foo`), not the class a `new`/`const`
     /// constructor call names.
@@ -1779,7 +1777,7 @@ impl<'t> Walker<'t> {
             .unwrap_or(false)
     }
 
-    /// pushDartTypeRefs (dart.ts) — every type named inside `node`.
+    /// pushDartTypeRefs (dart.ts) â€” every type named inside `node`.
     fn type_refs_dart(&mut self, node: Node<'t>, from_row: u32) {
         stack_guard!();
         if node.kind() == "type_identifier" {
@@ -1796,9 +1794,9 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// isDartFieldOrTopLevelEntry (dart.ts) — an `initialized_identifier`
+    /// isDartFieldOrTopLevelEntry (dart.ts) â€” an `initialized_identifier`
     /// declaring a field or a top-level variable, not the second variable of
-    /// a local declaration (`for (var i = 0, j = n(); …)`).
+    /// a local declaration (`for (var i = 0, j = n(); â€¦)`).
     fn is_field_or_top_level_entry(&self, node: Node<'t>) -> bool {
         let Some(list) = node.parent() else { return false };
         if list.kind() != "initialized_identifier_list" {
@@ -1815,7 +1813,7 @@ impl<'t> Walker<'t> {
                 .unwrap_or(false)
     }
 
-    /// dartMemberRead (dart.ts) — `x.area` / `x?.area` not followed by a call's
+    /// dartMemberRead (dart.ts) â€” `x.area` / `x?.area` not followed by a call's
     /// argument part, receiver a plain name: a `references` ref `x.area` on
     /// `area`, which the resolver links to a getter only (#2338).
     fn extract_member_read(&mut self, node: Node<'t>) {
@@ -1855,7 +1853,7 @@ impl<'t> Walker<'t> {
         self.push_ref_at(reader, &name, "references", member);
     }
 
-    // --- visitFunctionBody (:5129-5286) — dart rows -----------------------
+    // --- visitFunctionBody (:5129-5286) â€” dart rows -----------------------
 
     fn visit_body(&mut self, node: Node<'t>) {
         stack_guard!();
@@ -1863,11 +1861,11 @@ impl<'t> Walker<'t> {
 
         let kind = node.kind();
         if kind == "new_expression" {
-            // INSTANTIATION branch fires first — extractBareCall's
+            // INSTANTIATION branch fires first â€” extractBareCall's
             // new_expression arm is dead. Children still recursed.
             self.extract_instantiation(node);
         } else if let Some(callee) = self.bare_call_name(node) {
-            // extractBareCall (:5159-5173) — ref at the MATCHED node.
+            // extractBareCall (:5159-5173) â€” ref at the MATCHED node.
             if !self.stack.is_empty() {
                 let caller_row = self.top_row();
                 self.push_ref_at(caller_row, &callee, "calls", node);
@@ -1876,7 +1874,7 @@ impl<'t> Walker<'t> {
 
         self.extract_static_member_ref(node);
 
-        // A getter read `x.area` (#2338); a type the body names (#2327) — the
+        // A getter read `x.area` (#2338); a type the body names (#2327) â€” the
         // type argument of a generic call parsed as comparisons included.
         self.extract_member_read(node);
         let type_node = match kind {
@@ -1891,7 +1889,7 @@ impl<'t> Walker<'t> {
         }
 
         if kind == "function_signature" {
-            // Nested named functions (:5245) — extractFunction walks the
+            // Nested named functions (:5245) â€” extractFunction walks the
             // nested body itself; the enclosing walker ALSO revisits the
             // sibling function_body (double-walk pass 2b) via recursion.
             self.extract_function(node);
@@ -1905,7 +1903,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    // --- function-as-value capture (#756) — DART_SPEC ---------------------
+    // --- function-as-value capture (#756) â€” DART_SPEC ---------------------
 
     fn maybe_capture_fn_refs(&mut self, node: Node<'t>) {
         let (mode, field): (&str, &str) = match node.kind() {
@@ -1963,7 +1961,7 @@ impl<'t> Walker<'t> {
             }
             _ => {
                 // varinit, NO field (function-ref.ts:471-487): the last named
-                // child, requiring ≥2 named children; the name-field guard is
+                // child, requiring â‰¥2 named children; the name-field guard is
                 // inert (static_final_declaration has no name/pattern field).
                 let count = node.named_child_count();
                 if count >= 2 {
@@ -1979,7 +1977,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// normalizeValue with DART_SPEC's one layer (`argument` → fan out).
+    /// normalizeValue with DART_SPEC's one layer (`argument` â†’ fan out).
     /// Named arguments are NOT captured (named_argument is not a layer).
     fn normalize_fn_ref_value(&mut self, v: Node<'t>, from: u32, depth: u32) {
         stack_guard!();
@@ -2017,7 +2015,7 @@ impl<'t> Walker<'t> {
         if depth > 12 {
             return;
         }
-        // Halt list: functionTypes (function_signature) + the lambda kinds —
+        // Halt list: functionTypes (function_signature) + the lambda kinds â€”
         // function_expression IS dart's lambda, so constant-initializer
         // lambdas don't leak candidates.
         if depth > 0
@@ -2081,7 +2079,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        // Shadow prune — the dart declarator shapes (:844-850): each bumps
+        // Shadow prune â€” the dart declarator shapes (:844-850): each bumps
         // its first identifier-typed named child. Uninitialized locals bump;
         // assignment_expression is NOT a prune case.
         let mut decl_counts: HashMap<&str, u32> = HashMap::new();

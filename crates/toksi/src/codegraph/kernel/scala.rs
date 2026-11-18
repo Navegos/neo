@@ -1,29 +1,29 @@
-//! Scala extraction — a faithful Rust port of the scala paths of
+//! Scala extraction â€” a faithful Rust port of the scala paths of
 //! `TreeSitterExtractor` (src/extraction/tree-sitter.ts) plus
 //! languages/scala.ts.
 //!
 //! Same porting contract as the other walkers: behavior parity, bug-for-bug.
-//! The authoritative quirk list is docs/design/scala-kernel-port-checklist.md —
+//! The authoritative quirk list is docs/design/scala-kernel-port-checklist.md â€”
 //! including the load-bearing oddities this file preserves on purpose:
 //! functionTypes is EMPTY so every def routes through extractMethod (top level
 //! falls back to a `function` node); NO namespace node ever (package headers
 //! ignored, QNs bare); imports are named the FIRST path segment (`import
-//! com.example.C` → `com`); the val/var hook keys on the enclosing-definition
-//! NODE TYPE (object vals → constants, class/trait/enum/given vals → fields)
+//! com.example.C` â†’ `com`); the val/var hook keys on the enclosing-definition
+//! NODE TYPE (object vals â†’ constants, class/trait/enum/given vals â†’ fields)
 //! and consumes the initializer (no calls/instantiates from hook-consumed
 //! initializers); extension methods mint NO nodes (the first def's body calls
 //! leak to the enclosing scope, every later def is invisible, and the braced
-//! form resolves its `body` field to the `{` TOKEN — whole extension
-//! invisible); anonymous `new T { … }` bodies leak their defs to the
+//! form resolves its `body` field to the `{` TOKEN â€” whole extension
+//! invisible); anonymous `new T { â€¦ }` bodies leak their defs to the
 //! enclosing scope (findAnonymousClassBody misses template_body); nested
 //! defs in bodies mint NOTHING (inverse of kotlin); the bodied-vs-bodiless
-//! class asymmetry (bodiless headers walk class_parameters → default-value
+//! class asymmetry (bodiless headers walk class_parameters â†’ default-value
 //! calls emit from the class; bodied ones never see them); curried signatures
 //! keep only the FIRST parameter list and type params win the `parameters`
 //! field; static-member WRITES emit (unlike kotlin); infix calls are
 //! invisible; `derives` emits nothing; value-ref same-name targets take the
 //! LAST registration. Positions in UTF-16 code units. Files with parse errors
-//! defer to wasm — including scala-3 PHANTOM hasError files (flag-true, zero
+//! defer to wasm â€” including scala-3 PHANTOM hasError files (flag-true, zero
 //! ERROR nodes): trust the flag.
 
 use crate::codegraph::kernel::buffers::{
@@ -66,7 +66,7 @@ fn is_literal_receiver(kind: &str) -> bool {
     )
 }
 
-/// BUILTIN_TYPES (tree-sitter.ts:5768-5782) — the shared cross-language table.
+/// BUILTIN_TYPES (tree-sitter.ts:5768-5782) â€” the shared cross-language table.
 fn is_builtin_type(name: &str) -> bool {
     matches!(
         name,
@@ -82,7 +82,7 @@ fn is_builtin_type(name: &str) -> bool {
     )
 }
 
-/// SCALA_BUILTIN_TYPES (languages/scala.ts:14-17) — the hook's OWN smaller set.
+/// SCALA_BUILTIN_TYPES (languages/scala.ts:14-17) â€” the hook's OWN smaller set.
 fn is_scala_builtin(name: &str) -> bool {
     matches!(
         name,
@@ -143,7 +143,7 @@ struct Extra {
     signature: Option<String>,
     /// 0 = absent; 1 public, 2 private, 3 protected.
     visibility: u8,
-    /// (present, value) — isAsync/isStatic are literal-false hooks for scala.
+    /// (present, value) â€” isAsync/isStatic are literal-false hooks for scala.
     is_async: Option<bool>,
     is_static: Option<bool>,
     return_type: Option<String>,
@@ -173,13 +173,11 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(scala) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        // Includes scala-3 PHANTOMS (flag-true, zero ERROR nodes) — the flag
+        // Includes scala-3 PHANTOMS (flag-true, zero ERROR nodes) â€” the flag
         // is the policy, never node-scanning.
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -228,7 +226,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     w.node_ids.push(ids::file_node_id(file_path));
     w.stack.push(Scope { row: 0, kind: "file", name: base_name.to_string() });
 
-    // No packageTypes → no namespace node, ever.
+    // No packageTypes â†’ no namespace node, ever.
     w.visit(tree.root_node());
     w.flush_fn_ref_candidates();
     w.flush_value_refs(tree.root_node());
@@ -261,7 +259,7 @@ impl<'t> Walker<'t> {
     fn top_row(&self) -> u32 {
         self.stack.last().map(|s| s.row).unwrap_or(0)
     }
-    /// isInsideClassLikeNode (:1486) — stack-top kind only.
+    /// isInsideClassLikeNode (:1486) â€” stack-top kind only.
     fn inside_class_like(&self) -> bool {
         self.stack
             .last()
@@ -281,7 +279,7 @@ impl<'t> Walker<'t> {
             from_id_str: NONE_STR,
         });
         // flushFnRefCandidates' importedNames (tree-sitter.ts:661-675). Scala
-        // import refs are named the FIRST path segment — always SIMPLE_NAME.
+        // import refs are named the FIRST path segment â€” always SIMPLE_NAME.
         if kind == "imports" {
             if util::simple_name().is_match(name) {
                 self.imported_names.insert(name.to_string());
@@ -301,7 +299,7 @@ impl<'t> Walker<'t> {
         let column = self.col_of(node);
         let id = self.node_id_allocator.generate(self.file_path, kind, name, start_line, column);
 
-        // buildQualifiedName (:1447-1460) — non-file stack names, `::`-joined;
+        // buildQualifiedName (:1447-1460) â€” non-file stack names, `::`-joined;
         // namespacePrefix always empty (no C++ namespaces, no scala namespace).
         let qualified = {
             let mut parts: Vec<&str> = Vec::new();
@@ -406,7 +404,7 @@ impl<'t> Walker<'t> {
         None
     }
 
-    /// extractVisibility (scala.ts:69-80) → wire byte (1 public default).
+    /// extractVisibility (scala.ts:69-80) â†’ wire byte (1 public default).
     fn visibility_of(&self, node: Node<'t>) -> u8 {
         let mut cursor = node.walk();
         for c in node.named_children(&mut cursor) {
@@ -423,7 +421,7 @@ impl<'t> Walker<'t> {
         1
     }
 
-    /// isStatic (scala.ts:123-129) — text scan, effectively always false.
+    /// isStatic (scala.ts:123-129) â€” text scan, effectively always false.
     fn is_static_of(&self, node: Node<'t>) -> bool {
         let mut cursor = node.walk();
         for c in node.named_children(&mut cursor) {
@@ -434,7 +432,7 @@ impl<'t> Walker<'t> {
         false
     }
 
-    /// getSignature (scala.ts:110-117) — first-match-wins fields: curried
+    /// getSignature (scala.ts:110-117) â€” first-match-wins fields: curried
     /// defs keep only the first list; a type_parameters node carrying field
     /// `parameters` wins over the value list.
     fn signature_of(&self, node: Node<'t>) -> Option<String> {
@@ -496,7 +494,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// emitScalaTypeRefs (scala.ts:27-45) — the hook's own builtin set.
+    /// emitScalaTypeRefs (scala.ts:27-45) â€” the hook's own builtin set.
     fn emit_scala_type_refs(&mut self, type_node: Node<'t>, from_row: u32) {
         stack_guard!();
         if type_node.kind() == "type_identifier" {
@@ -514,7 +512,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// extractName (tree-sitter.ts:98-192) — scala-reachable branches: the
+    /// extractName (tree-sitter.ts:98-192) â€” scala-reachable branches: the
     /// `name` field's raw text (operator glyphs and backticks kept), else the
     /// first identifier-ish child, else `<anonymous>`.
     fn extract_name(&self, node: Node<'t>) -> String {
@@ -545,7 +543,7 @@ impl<'t> Walker<'t> {
 
         let kind = node.kind();
         match kind {
-            // methodTypes (functionTypes is EMPTY — :994 never fires).
+            // methodTypes (functionTypes is EMPTY â€” :994 never fires).
             "function_definition" | "function_declaration" => {
                 self.extract_method_or_function(node);
                 return; // skipChildren
@@ -571,7 +569,7 @@ impl<'t> Walker<'t> {
                 if skip {
                     return;
                 }
-                // plain path → false → children re-visited (nothing matches).
+                // plain path â†’ false â†’ children re-visited (nothing matches).
             }
             "import_declaration" => {
                 self.extract_import(node);
@@ -579,12 +577,12 @@ impl<'t> Walker<'t> {
             }
             "call_expression" => {
                 self.extract_call(node);
-                // no skipChildren — chains/args re-visited
+                // no skipChildren â€” chains/args re-visited
             }
             "instance_expression" => {
                 // INSTANTIATION_KINDS (:1255). findAnonymousClassBody looks
-                // for class_body/declaration_list — scala's template_body is
-                // neither → extractAnonymousClass never runs → children
+                // for class_body/declaration_list â€” scala's template_body is
+                // neither â†’ extractAnonymousClass never runs â†’ children
                 // recursed: anon-body defs LEAK to the enclosing scope.
                 self.extract_instantiation(node);
             }
@@ -665,7 +663,7 @@ impl<'t> Walker<'t> {
                 // Walk the initializer ATTRIBUTED to the declared symbol
                 // (#693, the Go fix): the hook consumes this subtree and the
                 // dispatcher only fn-ref-scans it, so `val cb = () => target()`
-                // — and even a plain `val x = compute()` — emitted no call edge
+                // â€” and even a plain `val x = compute()` â€” emitted no call edge
                 // at all.
                 if let Some(row) = created {
                     if let Some(value) = node.child_by_field_name("value") {
@@ -683,7 +681,7 @@ impl<'t> Walker<'t> {
                     if case.kind() == "simple_enum_case" || case.kind() == "full_enum_case" {
                         if let Some(name_node) = case.child_by_field_name("name") {
                             let name = self.text(name_node).to_string();
-                            // ctx.createNode('enum_member', name, child) — no
+                            // ctx.createNode('enum_member', name, child) â€” no
                             // extras: no docstring/visibility/flags.
                             self.create_node("enum_member", &name, case, Extra::default());
                         }
@@ -693,10 +691,10 @@ impl<'t> Walker<'t> {
             }
             "extension_definition" => {
                 // childForFieldName('body') is FIRST-MATCH-WINS over the full
-                // (named + anonymous) child list: paren/indent form → the
-                // first function_definition (its children visited — no node
-                // minted, later defs invisible); braced form → the `{` TOKEN
-                // (namedChildCount 0 — whole extension invisible).
+                // (named + anonymous) child list: paren/indent form â†’ the
+                // first function_definition (its children visited â€” no node
+                // minted, later defs invisible); braced form â†’ the `{` TOKEN
+                // (namedChildCount 0 â€” whole extension invisible).
                 if let Some(body) = node.child_by_field_name("body") {
                     let mut cursor = body.walk();
                     let kids: Vec<Node<'t>> = body.named_children(&mut cursor).collect();
@@ -710,17 +708,17 @@ impl<'t> Walker<'t> {
         }
     }
 
-    // --- extractMethod → extractFunction routing (:1737 / :1517) ----------
+    // --- extractMethod â†’ extractFunction routing (:1737 / :1517) ----------
 
     fn extract_method_or_function(&mut self, node: Node<'t>) {
         stack_guard!();
-        // No receiver hook, no methodsAreTopLevel: inside class-like → method,
-        // else → function (the object/object_expression parent check never
+        // No receiver hook, no methodsAreTopLevel: inside class-like â†’ method,
+        // else â†’ function (the object/object_expression parent check never
         // matches scala node kinds).
         let is_method = self.inside_class_like();
         let name = self.extract_name(node);
         if name == "<anonymous>" {
-            // Unreachable for scala defs (name field required) — preserved:
+            // Unreachable for scala defs (name field required) â€” preserved:
             // walk the body with nothing pushed.
             if let Some(body) = node.child_by_field_name("body") {
                 self.visit_body(body);
@@ -755,12 +753,12 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    // --- extractClass (:1679) — classes, objects, traits ------------------
+    // --- extractClass (:1679) â€” classes, objects, traits ------------------
 
     fn extract_class(&mut self, node: Node<'t>, kind: &'static str) {
         stack_guard!();
         let resolved_body = node.child_by_field_name("body"); // template_body
-        // No skipBodilessClass — bodiless mints (scala-complete).
+        // No skipBodilessClass â€” bodiless mints (scala-complete).
         let name = self.extract_name(node);
         let docstring = preceding_docstring(node, self.src);
         let visibility = self.visibility_of(node);
@@ -774,7 +772,7 @@ impl<'t> Walker<'t> {
         self.extract_inheritance(node, row);
         self.extract_decorators_for(node, row);
         self.stack.push(Scope { row, kind, name });
-        // THE ASYMMETRY: bodiless classes walk the node ITSELF — header
+        // THE ASYMMETRY: bodiless classes walk the node ITSELF â€” header
         // children (class_parameters defaults, extends args) reach the
         // ladder; bodied classes walk only template_body children.
         let body = resolved_body.unwrap_or(node);
@@ -806,9 +804,9 @@ impl<'t> Walker<'t> {
         let Some(row) = row else { return };
         self.extract_inheritance(node, row);
         // No extractDecoratorsFor on the enum path (annotated enums emit no
-        // decorates — shared-pipeline behavior).
+        // decorates â€” shared-pipeline behavior).
         self.stack.push(Scope { row, kind: "enum", name });
-        // enumMemberTypes is EMPTY → every body child goes through visitNode
+        // enumMemberTypes is EMPTY â†’ every body child goes through visitNode
         // (enum_case_definitions hits the hook; defs become methods).
         let mut cursor = body.walk();
         let children: Vec<Node<'t>> = body.named_children(&mut cursor).collect();
@@ -820,7 +818,7 @@ impl<'t> Walker<'t> {
 
     // --- extractTypeAlias (:2890, plain path :2967-2991) ------------------
 
-    /// Returns skipChildren — always false on the scala plain path.
+    /// Returns skipChildren â€” always false on the scala plain path.
     fn extract_type_alias(&mut self, node: Node<'t>) -> bool {
         let name = self.extract_name(node);
         if name == "<anonymous>" {
@@ -828,8 +826,8 @@ impl<'t> Walker<'t> {
         }
         let docstring = preceding_docstring(node, self.src);
         // isExported hook absent; visibility not read on this path. The
-        // alias-value ref walk reads field 'value' — scala's field is 'type'
-        // → no reference to the aliased type, ever.
+        // alias-value ref walk reads field 'value' â€” scala's field is 'type'
+        // â†’ no reference to the aliased type, ever.
         self.create_node("type_alias", &name, node, Extra { docstring, ..Default::default() });
         false
     }
@@ -840,7 +838,7 @@ impl<'t> Walker<'t> {
         stack_guard!();
         let import_text = self.text(node).trim();
         // extractImport hook (scala.ts:200-211): `path` field is FIRST-MATCH-
-        // WINS → the FIRST dotted segment names the import.
+        // WINS â†’ the FIRST dotted segment names the import.
         let module = if let Some(path) = node.child_by_field_name("path") {
             Some(self.text(path))
         } else {
@@ -863,7 +861,7 @@ impl<'t> Walker<'t> {
             node,
             Extra { signature: Some(signature), ..Default::default() },
         );
-        // Generic imports ref (:3183-3194) — hook sets no handledRefs.
+        // Generic imports ref (:3183-3194) â€” hook sets no handledRefs.
         if created.is_some() && !module.is_empty() && !self.stack.is_empty() {
             let parent_row = self.top_row();
             self.push_ref_at(parent_row, &module, "imports", node);
@@ -975,7 +973,7 @@ impl<'t> Walker<'t> {
             return;
         }
         let owner_row = self.top_row();
-        // MEMBER_ACCESS_TYPES — only field_expression occurs in scala trees.
+        // MEMBER_ACCESS_TYPES â€” only field_expression occurs in scala trees.
         if !matches!(
             node.kind(),
             "field_access" | "member_access_expression" | "navigation_expression"
@@ -1023,7 +1021,7 @@ impl<'t> Walker<'t> {
         // consider(): scala annotations are `annotation` nodes; the name is
         // the first identifier-ish child (type_identifier for scala), with
         // call_expression unwrap for invoked decorators.
-        // Scan 1: direct children (+ modifiers descent — inert for scala,
+        // Scan 1: direct children (+ modifiers descent â€” inert for scala,
         // annotations aren't inside modifiers in this grammar, but ported).
         let mut cursor = decl.walk();
         let kids: Vec<Node<'t>> = decl.named_children(&mut cursor).collect();
@@ -1037,7 +1035,7 @@ impl<'t> Walker<'t> {
                 }
             }
         }
-        // Scan 2: preceding siblings (TS class style — inert for scala where
+        // Scan 2: preceding siblings (TS class style â€” inert for scala where
         // annotations are children, ported for fidelity).
         if let Some(parent) = decl.parent() {
             let decl_start = decl.start_byte();
@@ -1109,7 +1107,7 @@ impl<'t> Walker<'t> {
         self.push_ref_at(decorated_row, &name, "decorates", n);
     }
 
-    // --- extractInheritance — the scala branch (:5339-5360) ---------------
+    // --- extractInheritance â€” the scala branch (:5339-5360) ---------------
 
     fn extract_inheritance(&mut self, node: Node<'t>, class_row: u32) {
         let mut cursor = node.walk();
@@ -1120,8 +1118,8 @@ impl<'t> Walker<'t> {
                 "extends_clause" | "superclass" | "base_clause" | "extends_interfaces"
             ) {
                 // Iterate ALL supertypes (with-chains, comma form); unwrap
-                // each via scalaBaseTypeName; `arguments` children → None →
-                // skipped. `derives_clause` is a different kind — silent.
+                // each via scalaBaseTypeName; `arguments` children â†’ None â†’
+                // skipped. `derives_clause` is a different kind â€” silent.
                 let mut cc = child.walk();
                 let targets: Vec<Node<'t>> = child.named_children(&mut cc).collect();
                 for target in targets {
@@ -1152,7 +1150,7 @@ impl<'t> Walker<'t> {
         if let Some(tp) = kids.iter().find(|c| c.kind() == "type_parameters") {
             self.type_refs_from_subtree(*tp, row);
         }
-        // Direct type_annotation child — no such scala kind; ported cheaply.
+        // Direct type_annotation child â€” no such scala kind; ported cheaply.
         if let Some(ta) = kids.iter().find(|c| c.kind() == "type_annotation") {
             self.type_refs_from_subtree(*ta, row);
         }
@@ -1175,7 +1173,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    // --- visitFunctionBody (:5129-5286) — scala rows ----------------------
+    // --- visitFunctionBody (:5129-5286) â€” scala rows ----------------------
 
     fn visit_body(&mut self, node: Node<'t>) {
         stack_guard!();
@@ -1188,14 +1186,14 @@ impl<'t> Walker<'t> {
         } else if kind == "instance_expression" {
             // instantiates + recursion (findAnonymousClassBody null): anon
             // template_body defs are NOT dispatched here (functionTypes
-            // empty; methodTypes not checked in this walker) — their calls
+            // empty; methodTypes not checked in this walker) â€” their calls
             // attribute to the enclosing method.
             self.extract_instantiation(node);
         }
 
         self.extract_static_member_ref(node);
 
-        // Nested named defs mint NOTHING (:5245 checks functionTypes — EMPTY;
+        // Nested named defs mint NOTHING (:5245 checks functionTypes â€” EMPTY;
         // the inverse of kotlin). Body-local classes/objects/traits/enums DO
         // extract fully.
         match kind {
@@ -1225,7 +1223,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    // --- function-as-value capture (#756) — SCALA_SPEC --------------------
+    // --- function-as-value capture (#756) â€” SCALA_SPEC --------------------
 
     fn maybe_capture_fn_refs(&mut self, node: Node<'t>) {
         let (mode, field): (&str, &str) = match node.kind() {
@@ -1272,7 +1270,7 @@ impl<'t> Walker<'t> {
                 }
             }
             _ => {
-                // varinit — destructuring patterns capture nothing.
+                // varinit â€” destructuring patterns capture nothing.
                 let name_node = node
                     .child_by_field_name("name")
                     .or_else(|| node.child_by_field_name("pattern"));
@@ -1295,8 +1293,8 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// normalizeValue with SCALA_SPEC's unwrap (postfix_expression → first
-    /// named child — eta-expansion `handler _`). No layers.
+    /// normalizeValue with SCALA_SPEC's unwrap (postfix_expression â†’ first
+    /// named child â€” eta-expansion `handler _`). No layers.
     fn normalize_fn_ref_value(&mut self, v: Node<'t>, from: u32, depth: u32) {
         stack_guard!();
         if depth > 4 {
@@ -1332,7 +1330,7 @@ impl<'t> Walker<'t> {
             return;
         }
         // Halt list: functionTypes is EMPTY for scala, so only the literal
-        // lambda kinds halt — the scan descends into nested
+        // lambda kinds halt â€” the scan descends into nested
         // function_definitions inside hook-consumed vals.
         if depth > 0
             && matches!(
@@ -1394,7 +1392,7 @@ impl<'t> Walker<'t> {
             return;
         }
 
-        // Shadow prune — the scala declarator shape: val_definition /
+        // Shadow prune â€” the scala declarator shape: val_definition /
         // var_definition with an `identifier` pattern (tuple/case-class
         // patterns bump nothing).
         let mut decl_counts: HashMap<&str, u32> = HashMap::new();
@@ -1437,7 +1435,7 @@ impl<'t> Walker<'t> {
         for scope in &scopes {
             let mut seen: HashSet<&str> = HashSet::new();
             let mut stack: Vec<Node> = vec![scope.node];
-            // The Dart/Pascal sibling-body pull (:891) — a next sibling of
+            // The Dart/Pascal sibling-body pull (:891) â€” a next sibling of
             // kind function_body/block joins the scan. Effectively inert for
             // scala (bodies nest) but ported for fidelity.
             if let Some(sib) = scope.node.next_named_sibling() {

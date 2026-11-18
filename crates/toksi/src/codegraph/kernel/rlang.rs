@@ -1,4 +1,4 @@
-//! R extraction — a faithful Rust port of the R paths of `TreeSitterExtractor`
+//! R extraction â€” a faithful Rust port of the R paths of `TreeSitterExtractor`
 //! (src/extraction/tree-sitter.ts) plus languages/r.ts.
 //!
 //! Same porting contract as the other walkers: behavior parity, bug-for-bug.
@@ -7,7 +7,7 @@
 //! every type list empty except `callTypes: ['call']`, so the whole shared
 //! extraction machine (extractFunction/Class/Import/Variable, docstrings,
 //! decorators, inheritance, visitFunctionBody, value-refs, fn-refs,
-//! static-member reads, type annotations) never runs — the walker is a file
+//! static-member reads, type annotations) never runs â€” the walker is a file
 //! node + the visitNode hook + the generic extractCall + pre-order recursion.
 //! Load-bearing oddities preserved on purpose: `calls "return"` on every
 //! `return(x)` (return/next/break are named nodes in v1.2.0), silent
@@ -30,7 +30,7 @@ use crate::codegraph::kernel::textutil as util;
 use std::sync::OnceLock;
 use tree_sitter::{Node, Parser};
 
-/// CONSTANT_NAME (r.ts:43) — ALL_CAPS or DOTTED.CAPS top-level assignment.
+/// CONSTANT_NAME (r.ts:43) â€” ALL_CAPS or DOTTED.CAPS top-level assignment.
 fn constant_name_re() -> &'static crate::codegraph::kernel::buffers::SafeRegex {
     static RE: OnceLock<crate::codegraph::kernel::buffers::SafeRegex> = OnceLock::new();
     RE.get_or_init(|| crate::codegraph::kernel::buffers::SafeRegex::compile(r"^[A-Z][A-Z0-9._]*$"))
@@ -44,7 +44,7 @@ fn is_assign_right(op: &str) -> bool {
     matches!(op, "->" | "->>")
 }
 
-/// IMPORT_FNS (r.ts:39) — `source` is checked alongside (r.ts:189).
+/// IMPORT_FNS (r.ts:39) â€” `source` is checked alongside (r.ts:189).
 fn is_import_fn(name: &str) -> bool {
     matches!(name, "library" | "require" | "requireNamespace" | "loadNamespace")
 }
@@ -80,11 +80,9 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language(r) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -97,7 +95,7 @@ pub fn extract(file_path: &str, source: &str) -> Result<EmitOut, String> {
         stack: Vec::new(),
     };
 
-    // File node (tree-sitter.ts:508-521) — the only node with isExported set.
+    // File node (tree-sitter.ts:508-521) â€” the only node with isExported set.
     let line_count = source.bytes().filter(|b| *b == b'\n').count() as u32 + 1;
     let base_name = file_path.rsplit(['/', '\\']).next().unwrap_or(file_path);
     let mut flags = BoolFlags::default();
@@ -173,7 +171,7 @@ impl<'t> Walker<'t> {
 
     // --- createNode (tree-sitter.ts:1308) ---------------------------------
     // R extras carry only `signature` (or nothing): no docstring, visibility,
-    // isStatic/isAsync/isExported, returnType, decorators — ever. The endLine
+    // isStatic/isAsync/isExported, returnType, decorators â€” ever. The endLine
     // body-extension is dead (no resolveBody hook).
 
     fn create_node(&mut self, kind: &'static str, name: &str, node: Node<'t>, signature: Option<&str>) -> Option<u32> {
@@ -227,7 +225,7 @@ impl<'t> Walker<'t> {
             extra_json: NONE_STR,
         });
 
-        // Containment edge from the stack top (always non-empty — file node).
+        // Containment edge from the stack top (always non-empty â€” file node).
         let parent_row = self.top_row();
         self.tables.push_edge(&EdgeRow {
             source_idx: parent_row,
@@ -247,9 +245,9 @@ impl<'t> Walker<'t> {
     // --- r.ts helper transcriptions ---------------------------------------
 
     /// calleeName (r.ts:46-55): bare identifier text, or a
-    /// namespace_operator's `rhs` field text (`pkg::fn` → `fn`) — so
+    /// namespace_operator's `rhs` field text (`pkg::fn` â†’ `fn`) â€” so
     /// `methods::setClass` etc. trigger the special branches. Everything else
-    /// (extract_operator, subset2, string, call, return…) → None.
+    /// (extract_operator, subset2, string, call, returnâ€¦) â†’ None.
     fn callee_name(&self, call: Node<'t>) -> Option<&'t str> {
         let f = call.child_by_field_name("function")?;
         match f.kind() {
@@ -260,8 +258,8 @@ impl<'t> Walker<'t> {
     }
 
     /// firstArgValue (r.ts:58-67): the FIRST `argument`-typed named child of
-    /// the `arguments` field → its `value` field (named arguments are NOT
-    /// skipped — `library(help = docpkg)` imports "docpkg", preserved bug).
+    /// the `arguments` field â†’ its `value` field (named arguments are NOT
+    /// skipped â€” `library(help = docpkg)` imports "docpkg", preserved bug).
     fn first_arg_value(&self, call: Node<'t>) -> Option<Node<'t>> {
         let args = call.child_by_field_name("arguments")?;
         let mut cursor = args.walk();
@@ -295,8 +293,8 @@ impl<'t> Walker<'t> {
     }
 
     // --- the visitNode walk (tree-sitter.ts:936-953, 1248, 1295-1301) -----
-    // Hook first (consumed → return; scanFnRefSubtree is a no-op for R), then
-    // the ladder — only callTypes can match, with children still recursed —
+    // Hook first (consumed â†’ return; scanFnRefSubtree is a no-op for R), then
+    // the ladder â€” only callTypes can match, with children still recursed â€”
     // else plain recursion over namedChildren in order.
 
     fn visit(&mut self, node: Node<'t>) {
@@ -333,13 +331,13 @@ impl<'t> Walker<'t> {
 
         // library(dplyr) / require(stats) / requireNamespace("jsonlite") /
         // source("helpers.R") (r.ts:189-208). A dynamic/missing/empty first
-        // arg is consumed SILENTLY — nothing recorded, subtree never visited.
+        // arg is consumed SILENTLY â€” nothing recorded, subtree never visited.
         if is_import_fn(fname) || fname == "source" {
             let module = match self.literal_or_identifier(self.first_arg_value(node)) {
                 Some(m) if !m.is_empty() => m,
                 _ => return true,
             };
-            // signature: whole call text .trim().slice(0, 100) — UTF-16 slice.
+            // signature: whole call text .trim().slice(0, 100) â€” UTF-16 slice.
             // (A call node's text starts at the callee and ends at `)`, so
             // trim() never has anything to strip on reachable inputs.)
             let (sig, _) = util::slice_utf16(self.text(node).trim(), 100);
@@ -352,9 +350,9 @@ impl<'t> Walker<'t> {
             return true;
         }
 
-        // setClass("Patient", …) / setRefClass / R6Class / ggproto
-        // (r.ts:211-221). A falsy name FALLS THROUGH to the generic call —
-        // `ggproto(NULL, Geom, …)` emits `calls ggproto` + file-scope body
+        // setClass("Patient", â€¦) / setRefClass / R6Class / ggproto
+        // (r.ts:211-221). A falsy name FALLS THROUGH to the generic call â€”
+        // `ggproto(NULL, Geom, â€¦)` emits `calls ggproto` + file-scope body
         // leak (asymmetric with imports, preserved).
         if is_class_fn(fname) {
             let name = match self.literal_or_identifier(self.first_arg_value(node)) {
@@ -369,7 +367,7 @@ impl<'t> Walker<'t> {
             return true;
         }
 
-        // setGeneric("describe", …) / setMethod("describe", "Patient", fn)
+        // setGeneric("describe", â€¦) / setMethod("describe", "Patient", fn)
         // (r.ts:224-249): function node named by the first arg; signature and
         // body from the FIRST argument (any position) whose value is a
         // function_definition.
@@ -406,7 +404,7 @@ impl<'t> Walker<'t> {
             return true;
         }
 
-        false // ordinary call — generic extraction records the edge
+        false // ordinary call â€” generic extraction records the edge
     }
 
     fn hook_binary_operator(&mut self, node: Node<'t>) -> bool {
@@ -418,7 +416,7 @@ impl<'t> Walker<'t> {
         let lhs = node.child_by_field_name("lhs");
         let rhs = node.child_by_field_name("rhs");
 
-        // name <- function(…) — ANY scope (r.ts:267-279). Body walked through
+        // name <- function(â€¦) â€” ANY scope (r.ts:267-279). Body walked through
         // the hook-aware visit (visitFunctionBody never runs for R).
         if is_assign_left(op) {
             if let (Some(lhs), Some(rhs)) = (lhs, rhs) {
@@ -439,7 +437,7 @@ impl<'t> Walker<'t> {
 
         let top_level = node.parent().map(|p| p.kind() == "program").unwrap_or(false);
 
-        // Top-level value assignments → variable/constant (r.ts:284-296);
+        // Top-level value assignments â†’ variable/constant (r.ts:284-296);
         // the class-definition idiom suppresses the twin variable node but the
         // rhs is ALWAYS visited.
         if top_level && is_assign_left(op) {
@@ -477,11 +475,11 @@ impl<'t> Walker<'t> {
     }
 
     /// extractClassMembers (r.ts:110-163): arguments in source order with a
-    /// positional counter — ggproto's 2nd positional identifier and
+    /// positional counter â€” ggproto's 2nd positional identifier and
     /// `inherit`/`contains` named args become `extends` refs (from the CLASS
     /// row, positioned at the VALUE node); named function_definition args and
-    /// `list(…)` entries become methods. Non-method argument subtrees are
-    /// NEVER visited (`representation(…)`, `signature(…)` invisible).
+    /// `list(â€¦)` entries become methods. Non-method argument subtrees are
+    /// NEVER visited (`representation(â€¦)`, `signature(â€¦)` invisible).
     fn extract_class_members(&mut self, class_call: Node<'t>, class_row: u32) {
         stack_guard!();
         let args = match class_call.child_by_field_name("arguments") {
@@ -513,7 +511,7 @@ impl<'t> Walker<'t> {
                 Some(n) => n,
             };
             let arg_name_text = self.text(arg_name);
-            // R6 `inherit = Parent` / S4 `contains = "Parent"` — a falsy
+            // R6 `inherit = Parent` / S4 `contains = "Parent"` â€” a falsy
             // resolution (`inherit = pkg::Parent`, empty string) emits nothing.
             if (arg_name_text == "inherit" || arg_name_text == "contains")
                 && let Some(val_node) = value
@@ -532,7 +530,7 @@ impl<'t> Walker<'t> {
                     self.emit_method_arg(arg);
                     continue;
                 }
-                // list(…) of named function arguments (R5/R6 methods).
+                // list(â€¦) of named function arguments (R5/R6 methods).
                 if v.kind() == "call" && self.callee_name(v) == Some("list") {
                     if let Some(list_args) = v.child_by_field_name("arguments") {
                         let mut lc = list_args.walk();
@@ -548,7 +546,7 @@ impl<'t> Walker<'t> {
         }
     }
 
-    /// emitMethodArg (r.ts:84-98): `name = function(…)` argument entry → a
+    /// emitMethodArg (r.ts:84-98): `name = function(â€¦)` argument entry â†’ a
     /// `method` node positioned at the ARGUMENT node, signature from the raw
     /// parameters text, body walked hook-aware inside the method scope.
     fn emit_method_arg(&mut self, entry: Node<'t>) {
@@ -575,7 +573,7 @@ impl<'t> Walker<'t> {
     // --- extractCall (tree-sitter.ts:3684, 4313, 4518-4532, 4572-4580) ----
     // R call nodes reach the generic tail: callee = RAW `function`-field text
     // verbatim (member branch unreachable, cpp recoveries language-gated),
-    // then the parenthesized-conversion regex. No skipChildren — inner calls
+    // then the parenthesized-conversion regex. No skipChildren â€” inner calls
     // are visited by the ladder's recursion afterward.
 
     fn extract_call(&mut self, node: Node<'t>) {

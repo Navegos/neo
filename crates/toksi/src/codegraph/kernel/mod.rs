@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/codegraph/kernel/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-16
+// lastModified: 2026-11-18
 
 #![allow(
     clippy::collapsible_if,
@@ -42,6 +42,7 @@ pub mod java;
 pub mod kotlin;
 pub mod langs;
 pub mod lua;
+pub mod parse_budget;
 pub mod php;
 pub mod polyglot;
 pub mod python;
@@ -118,23 +119,25 @@ pub fn extract_file(file_path: &str, content: &str, language: &str) -> Result<Fi
         return Ok(polyglot::extract_svelte_full(&norm_path, content));
     }
 
-    let out = stack::run_guarded(|| match canon {
-        "rust" => rustlang::extract(&norm_path, content),
-        "python" => python::extract(&norm_path, content),
-        "go" => go::extract(&norm_path, content),
-        "c" | "cpp" => ccpp::extract(&norm_path, content, canon),
-        "typescript" | "tsx" | "javascript" | "jsx" => tsjs::extract(&norm_path, content, canon),
-        "lua" | "luau" => lua::extract(&norm_path, content, canon),
-        "dart" => dart::extract(&norm_path, content),
-        "kotlin" => kotlin::extract(&norm_path, content),
-        "scala" => scala::extract(&norm_path, content),
-        "swift" => swift::extract(&norm_path, content),
-        "csharp" => csharp::extract(&norm_path, content),
-        "java" => java::extract(&norm_path, content),
-        "php" => php::extract(&norm_path, content),
-        "ruby" => ruby::extract(&norm_path, content),
-        "r" => rlang::extract(&norm_path, content),
-        _ => Err(format!("polyglot CST extraction: {}", canon)),
+    let out = parse_budget::with_budget(Some(5_000), || {
+        stack::run_guarded(|| match canon {
+            "rust" => rustlang::extract(&norm_path, content),
+            "python" => python::extract(&norm_path, content),
+            "go" => go::extract(&norm_path, content),
+            "c" | "cpp" => ccpp::extract(&norm_path, content, canon),
+            "typescript" | "tsx" | "javascript" | "jsx" => tsjs::extract(&norm_path, content, canon),
+            "lua" | "luau" => lua::extract(&norm_path, content, canon),
+            "dart" => dart::extract(&norm_path, content),
+            "kotlin" => kotlin::extract(&norm_path, content),
+            "scala" => scala::extract(&norm_path, content),
+            "swift" => swift::extract(&norm_path, content),
+            "csharp" => csharp::extract(&norm_path, content),
+            "java" => java::extract(&norm_path, content),
+            "php" => php::extract(&norm_path, content),
+            "ruby" => ruby::extract(&norm_path, content),
+            "r" => rlang::extract(&norm_path, content),
+            _ => Err(format!("polyglot CST extraction: {}", canon)),
+        })
     });
 
     match out {

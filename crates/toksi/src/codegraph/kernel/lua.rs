@@ -1,28 +1,28 @@
-//! Lua + Luau extraction — a faithful Rust port of the lua/luau paths of
+//! Lua + Luau extraction â€” a faithful Rust port of the lua/luau paths of
 //! `TreeSitterExtractor` (src/extraction/tree-sitter.ts) plus
 //! languages/lua.ts and languages/luau.ts (36 lines extending lua).
 //!
 //! One walker, two dialects (ccpp precedent): the differences are exactly
-//! four — luau's typeAliasTypes=['type_definition'], the `export `-slice
+//! four â€” luau's typeAliasTypes=['type_definition'], the `export `-slice
 //! isExported hook, the return-type signature suffix, and the grammar handle.
 //! The authoritative quirk list is docs/design/lua-luau-kernel-port-checklist.md.
 //! Load-bearing oddities preserved on purpose: the require/visitNode-hook
-//! ASYMMETRIES (top-level requires — including inside top-level if/for/while
-//! blocks — mint import nodes, while the identical statement in a function
+//! ASYMMETRIES (top-level requires â€” including inside top-level if/for/while
+//! blocks â€” mint import nodes, while the identical statement in a function
 //! body emits `calls "require"`; a top-level `local x = foo()` initializer
 //! emits NO calls ref while a top-level global `x = foo()` does), the BFS
-//! string-win inside require args (`require(script:WaitForChild("Kid"))` →
-//! import "Kid"; `require("a".."b")` → import "a"), raw-text callees verbatim
+//! string-win inside require args (`require(script:WaitForChild("Kid"))` â†’
+//! import "Kid"; `require("a".."b")` â†’ import "a"), raw-text callees verbatim
 //! (colon forms `M:render` with `self` never stripped, brackets `t2[k2]`,
 //! newline-glued chains byte-verbatim, the `(handler)` paren-conversion),
 //! receiver-QN methods (`M.sub.deep::chained`, stack-QN nested globals like
 //! `render::leakedGlobal`), variable nodes positioned at the IDENTIFIER with
 //! positional value pairing, LuaDoc `---` keeping a leading `- ` and
-//! `--!strict` joining docstring chains, the lua↔luau isExported wire
+//! `--!strict` joining docstring chains, the luaâ†”luau isExported wire
 //! divergence (lua functions: flag ABSENT; luau functions: present-false;
 //! methods: absent in both; variables: present-false in both), and duplicate
 //! same-(kind,name,line) ids emitted twice. Positions in UTF-16 code units.
-//! Files with parse errors defer to wasm (lua ~0%; luau 1.4–7.1% both-arm).
+//! Files with parse errors defer to wasm (lua ~0%; luau 1.4â€“7.1% both-arm).
 
 use crate::codegraph::kernel::buffers::{
     build_meta, edge_kind_index, node_kind_index, Arena, BoolFlags, EdgeRow, EmitOut, NodeRow,
@@ -91,11 +91,9 @@ pub fn extract(file_path: &str, source: &str, language: &str) -> Result<EmitOut,
     parser
         .set_language(&grammar)
         .map_err(|e| format!("set_language({language}) failed: {e}"))?;
-    let tree = parser
-        .parse(source, None)
-        .ok_or_else(|| "parser returned null tree".to_string())?;
+    let tree = crate::codegraph::kernel::parse_budget::parse(&mut parser, source)?;
     if tree.root_node().has_error() {
-        return Err("defer: parse tree contains errors — wasm recovery is canonical".to_string());
+        return Err("defer: parse tree contains errors â€” wasm recovery is canonical".to_string());
     }
 
     let mut w = Walker {
@@ -142,7 +140,7 @@ pub fn extract(file_path: &str, source: &str, language: &str) -> Result<EmitOut,
     w.node_ids.push(ids::file_node_id(file_path));
     w.stack.push(Scope { row: 0, kind: "file", name: base_name.to_string() });
 
-    // No packageTypes → no namespace node. Value-refs are language-gated off.
+    // No packageTypes â†’ no namespace node. Value-refs are language-gated off.
     w.visit(tree.root_node());
     w.flush_fn_ref_candidates();
     w.stack.pop();
@@ -208,7 +206,7 @@ impl<'t> Walker<'t> {
         let column = self.col_of(node);
         let id = self.node_id_allocator.generate(self.file_path, kind, name, start_line, column);
 
-        // buildQualifiedName (1447-1460) — non-file stack NAMES joined `::`;
+        // buildQualifiedName (1447-1460) â€” non-file stack NAMES joined `::`;
         // the receiver override (extractMethod:1790-1792) replaces it whole.
         let qualified = match &extra.qualified_name_override {
             Some(qn) => qn.clone(),
@@ -278,7 +276,7 @@ impl<'t> Walker<'t> {
 
     // --- lua.ts helper transcriptions -------------------------------------
 
-    /// findDescendant (lua.ts:9-17) — breadth-first over namedChildren.
+    /// findDescendant (lua.ts:9-17) â€” breadth-first over namedChildren.
     fn find_descendant(&self, node: Node<'t>, kind: &str) -> Option<Node<'t>> {
         let mut queue: VecDeque<Node<'t>> = VecDeque::new();
         let mut cursor = node.walk();
@@ -310,7 +308,7 @@ impl<'t> Walker<'t> {
             let t = self.text(content).trim();
             return if t.is_empty() { None } else { Some(t.to_string()) };
         }
-        // Fallback: a string node with no content child — strip [[ ]] / quotes.
+        // Fallback: a string node with no content child â€” strip [[ ]] / quotes.
         if let Some(s) = self.find_descendant(args, "string") {
             let mut t = self.text(s).trim();
             t = t.strip_prefix("[[").unwrap_or(t);
@@ -362,10 +360,10 @@ impl<'t> Walker<'t> {
         None
     }
 
-    /// extractName (tree-sitter.ts:98-192) — the lua-reachable branches.
+    /// extractName (tree-sitter.ts:98-192) â€” the lua-reachable branches.
     fn extract_name(&self, node: Node<'t>) -> String {
         if let Some(name_node) = node.child_by_field_name("name") {
-            // Lua: dot/method index → the trailing field/method segment.
+            // Lua: dot/method index â†’ the trailing field/method segment.
             if name_node.kind() == "dot_index_expression" {
                 if let Some(f) = name_node.child_by_field_name("field") {
                     return self.text(f).to_string();
@@ -388,7 +386,7 @@ impl<'t> Walker<'t> {
         "<anonymous>".to_string()
     }
 
-    /// getSignature — lua (lua.ts:83-86) / luau (luau.ts:26-35).
+    /// getSignature â€” lua (lua.ts:83-86) / luau (luau.ts:26-35).
     fn signature_of(&self, node: Node<'t>) -> Option<String> {
         let params = node.child_by_field_name("parameters")?;
         let mut sig = self.text(params).to_string();
@@ -409,7 +407,7 @@ impl<'t> Walker<'t> {
         Some(sig)
     }
 
-    /// isExported (luau.ts:23) — the raw 7-unit slice is an ASCII prefix test.
+    /// isExported (luau.ts:23) â€” the raw 7-unit slice is an ASCII prefix test.
     fn is_exported_of(&self, node: Node<'t>) -> Option<bool> {
         if self.is_luau {
             Some(self.text(node).starts_with("export "))
@@ -428,13 +426,13 @@ impl<'t> Walker<'t> {
         if kind == "function_call" {
             if let Some(module) = self.require_module(node) {
                 self.emit_require(node, &module);
-                // Consumed → scanFnRefSubtree (tree-sitter.ts:951).
+                // Consumed â†’ scanFnRefSubtree (tree-sitter.ts:951).
                 self.scan_fn_ref_subtree(node, 0);
                 return;
             }
-            // falls through — extractCall claims it below
+            // falls through â€” extractCall claims it below
         } else if kind == "variable_declaration" {
-            // `local x = require(...)` — dig requires out of the initializer
+            // `local x = require(...)` â€” dig requires out of the initializer
             // the variable branch will skip. Always falls through.
             let mut cursor = node.walk();
             let assign = node.named_children(&mut cursor).find(|c| c.kind() == "assignment_statement");
@@ -458,27 +456,27 @@ impl<'t> Walker<'t> {
         // maybeCaptureFnRefs (tree-sitter.ts:990).
         self.maybe_capture_fn_refs(node);
 
-        // The dispatch ladder — lua/luau rows only.
+        // The dispatch ladder â€” lua/luau rows only.
         if kind == "function_declaration" {
             // isInsideClassLikeNode is always false (no class-like kinds).
             self.extract_function(node);
-            return; // skipChildren — the body walk handles children
+            return; // skipChildren â€” the body walk handles children
         }
         if self.is_luau && kind == "type_definition" {
             let skip = self.extract_type_alias(node);
             if skip {
                 return;
             }
-            // plain path returns false → children re-visited (the
+            // plain path returns false â†’ children re-visited (the
             // typeof(require(...)) alias+import pair rides this).
         } else if matches!(kind, "variable_declaration" | "assignment_statement") {
             self.extract_variable(node);
-            // Initializer subtrees are never walked — candidates only.
+            // Initializer subtrees are never walked â€” candidates only.
             self.scan_fn_ref_subtree(node, 0);
             return; // skipChildren
         } else if kind == "function_call" {
             self.extract_call(node);
-            // no skipChildren — nested/inner calls each get their own ref
+            // no skipChildren â€” nested/inner calls each get their own ref
         }
 
         let mut cursor = node.walk();
@@ -531,7 +529,7 @@ impl<'t> Walker<'t> {
         let name = self.extract_name(node);
         let docstring = preceding_docstring(node, self.src);
         let signature = self.signature_of(node);
-        // extractMethod passes NO isExported — absent for BOTH dialects.
+        // extractMethod passes NO isExported â€” absent for BOTH dialects.
         // QN override (:1790-1792): `receiver::name` verbatim (namespacePrefix
         // is empty outside C++).
         let qn = format!("{receiver}::{name}");
@@ -556,12 +554,12 @@ impl<'t> Walker<'t> {
         self.stack.pop();
     }
 
-    // --- extractVariable — the lua/luau branch (2538-2549, 2789-2805) -----
+    // --- extractVariable â€” the lua/luau branch (2538-2549, 2789-2805) -----
 
     fn extract_variable(&mut self, node: Node<'t>) {
-        // isConst absent → kind is ALWAYS `variable`; docstring from the
-        // DECLARATION node; isExported = hook ?? false → false for BOTH
-        // dialects (luau's slice sees `local …`).
+        // isConst absent â†’ kind is ALWAYS `variable`; docstring from the
+        // DECLARATION node; isExported = hook ?? false â†’ false for BOTH
+        // dialects (luau's slice sees `local â€¦`).
         let docstring = preceding_docstring(node, self.src);
         let is_exported = self.is_exported_of(node).unwrap_or(false);
 
@@ -611,7 +609,7 @@ impl<'t> Walker<'t> {
             if receiver.is_some() || node.kind() == "assignment_statement" {
                 continue;
             }
-            // Positional value pairing; a missing value → NO signature key.
+            // Positional value pairing; a missing value â†’ NO signature key.
             let signature = value.map(|v| util::init_signature(self.text(v)));
             self.create_node(
                 "variable",
@@ -731,11 +729,11 @@ impl<'t> Walker<'t> {
         }
     }
 
-    // --- extractTypeAlias (2890; plain path 2967-2991) — luau only --------
+    // --- extractTypeAlias (2890; plain path 2967-2991) â€” luau only --------
 
     /// Returns skipChildren (always false on the plain path).
     fn extract_type_alias(&mut self, node: Node<'t>) -> bool {
-        let name = self.extract_name(node); // generic_type name → verbatim text
+        let name = self.extract_name(node); // generic_type name â†’ verbatim text
         if name == "<anonymous>" {
             return false;
         }
@@ -747,7 +745,7 @@ impl<'t> Walker<'t> {
             node,
             Extra { docstring, is_exported, ..Default::default() },
         );
-        // TYPE_ANNOTATION_LANGUAGES excludes luau → no alias-value refs.
+        // TYPE_ANNOTATION_LANGUAGES excludes luau â†’ no alias-value refs.
         false // children re-visited by the ladder
     }
 
@@ -758,9 +756,9 @@ impl<'t> Walker<'t> {
             return;
         }
         let caller_row = self.top_row();
-        // The `function` field is NULL in this grammar → namedChild(0) (the
+        // The `function` field is NULL in this grammar â†’ namedChild(0) (the
         // `name:` child). Member branch never fires (dot/method_index aren't
-        // in its type list) → raw source text, then the paren-conversion.
+        // in its type list) â†’ raw source text, then the paren-conversion.
         let func = node
             .child_by_field_name("function")
             .or_else(|| node.named_child(0));
@@ -778,7 +776,7 @@ impl<'t> Walker<'t> {
         self.push_ref_at(caller_row, &callee, "calls", node);
     }
 
-    // --- visitFunctionBody (5129-5286) — the hook-free body walk ----------
+    // --- visitFunctionBody (5129-5286) â€” the hook-free body walk ----------
 
     fn visit_body(&mut self, node: Node<'t>) {
         stack_guard!();
@@ -787,10 +785,10 @@ impl<'t> Walker<'t> {
 
         let kind = node.kind();
         if kind == "function_call" {
-            // The hook NEVER runs here — a body-level require emits
+            // The hook NEVER runs here â€” a body-level require emits
             // `calls "require"` (the neovim lazy-loading idiom).
             self.extract_call(node);
-            // falls through to recursion — chains emit every link
+            // falls through to recursion â€” chains emit every link
         } else if kind == "function_declaration" {
             // Nested NAMED functions (5245-5250): extractFunction walks the
             // nested body itself, so return. extractName is never
@@ -798,7 +796,7 @@ impl<'t> Walker<'t> {
             self.extract_function(node);
             return;
         }
-        // variable_declaration / type_definition have NO branch here → plain
+        // variable_declaration / type_definition have NO branch here â†’ plain
         // recursion: body-local initializers ARE walked (calls emit), no
         // variable/type_alias nodes minted.
 
@@ -809,12 +807,12 @@ impl<'t> Walker<'t> {
         }
     }
 
-    // --- function-as-value capture (#756) — LUA_SPEC ----------------------
+    // --- function-as-value capture (#756) â€” LUA_SPEC ----------------------
 
     fn maybe_capture_fn_refs(&mut self, node: Node<'t>) {
-        // LUA_SPEC dispatch: arguments → args; assignment_statement → rhs
-        // (no field — last named child; param-storage skip via namedChild(0));
-        // field → value (field 'value', last-named-child fallback).
+        // LUA_SPEC dispatch: arguments â†’ args; assignment_statement â†’ rhs
+        // (no field â€” last named child; param-storage skip via namedChild(0));
+        // field â†’ value (field 'value', last-named-child fallback).
         let mode: &str = match node.kind() {
             "arguments" => "args",
             "assignment_statement" => "rhs",
@@ -835,9 +833,9 @@ impl<'t> Walker<'t> {
                 }
             }
             "rhs" => {
-                // No `field` in the rule → RHS = LAST named child (the
+                // No `field` in the rule â†’ RHS = LAST named child (the
                 // expression_list). Param-storage skip: lhs =
-                // left/lhs/target field ?? namedChild(0) when ≥2 children;
+                // left/lhs/target field ?? namedChild(0) when â‰¥2 children;
                 // its trailing identifier vs the whole RHS text.
                 let count = node.named_child_count();
                 let rhs = if count > 0 { node.named_child(count - 1) } else { None };
@@ -858,7 +856,7 @@ impl<'t> Walker<'t> {
                 }
             }
             _ => {
-                // value — the `value` field (keyed AND positional table
+                // value â€” the `value` field (keyed AND positional table
                 // fields carry it), falling back to the last named child.
                 let v = node.child_by_field_name("value").or_else(|| {
                     let count = node.named_child_count();
@@ -913,8 +911,8 @@ impl<'t> Walker<'t> {
         if depth > 12 {
             return;
         }
-        // Halt at nested function definitions (their bodies are walked — and
-        // attributed — by extractFunction). Lua function_definition values are
+        // Halt at nested function definitions (their bodies are walked â€” and
+        // attributed â€” by extractFunction). Lua function_definition values are
         // now extracted from their assignment target and must stop this scan too.
         if depth > 0
             && matches!(
@@ -940,8 +938,8 @@ impl<'t> Walker<'t> {
         }
         let mut seen: HashSet<(String, String)> = HashSet::new();
         for c in cands {
-            // Gate: same-file function/method names ∪ imported names (lua
-            // candidates are always bare identifiers — no `this.`/`::`).
+            // Gate: same-file function/method names âˆª imported names (lua
+            // candidates are always bare identifiers â€” no `this.`/`::`).
             if !c.name.starts_with("this.")
                 && !c.name.contains("::")
                 && !self.defined_fn_names.contains(&c.name)
