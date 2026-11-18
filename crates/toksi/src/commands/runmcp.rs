@@ -157,14 +157,19 @@ pub fn run_mcp(argv: &[String]) -> i32 {
         return crate::contextmode::mcp::run_mcp_server_with_root(Some(&root));
     }
 
-    let is_aimemory = actual_cmd_args.iter().any(|a| a.contains("aimemory") || a.contains("ai-memory") || a.contains("handoff"))
-        || tool == "aimemory" || tool == "ai-memory" || tool == "handoff";
+    let tool_lower = tool.to_ascii_lowercase();
+    let is_aimemory = actual_cmd_args.iter().any(|a| {
+        let low = a.to_ascii_lowercase();
+        low.contains("aimemory") || low.contains("ai-memory") || low.contains("ai_memory") || low.contains("handoff")
+    }) || matches!(tool_lower.as_str(), "aimemory" | "ai-memory" | "ai_memory" | "handoff");
     if is_aimemory {
         return crate::aimemory::mcp::run_mcp_server();
     }
 
-    let is_icm = actual_cmd_args.iter().any(|a| a.contains("icm") || a.contains("icm-mcp"))
-        || tool == "icm" || tool == "icm-mcp";
+    let is_icm = actual_cmd_args.iter().any(|a| {
+        let low = a.to_ascii_lowercase();
+        !low.contains("aimemory") && (low == "icm" || low.contains("icm-mcp") || low.ends_with("/icm") || low.ends_with("\\icm"))
+    }) || matches!(tool_lower.as_str(), "icm" | "icm-mcp");
     if is_icm {
         return crate::icm::mcp::run_mcp_server();
     }

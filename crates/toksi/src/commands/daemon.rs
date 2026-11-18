@@ -684,6 +684,9 @@ async fn run_supervised_daemon_async(
 
                         let wiki_store = crate::aimemory::wiki::WikiStore::open_default();
                         let _ = wiki_store.purge_ignored_pages(&curr_dir);
+
+                        let _ = crate::gateway::semantic_cache::global_semantic_cache()
+                            .purge_ignored_entries(&curr_dir);
                     })
                     .await;
                 }

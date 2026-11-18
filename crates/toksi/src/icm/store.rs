@@ -1307,22 +1307,43 @@ impl IcmStore {
         let mut purged = 0;
         for (id, topic, source_data) in items {
             let mut matches_ignore = false;
-            if ignore.matched(topic.as_str(), false).is_ignore() {
+            let norm_topic = normalize_path(&topic);
+            let topic_full = if Path::new(&norm_topic).is_absolute() {
+                PathBuf::from(&norm_topic)
+            } else {
+                root.join(&norm_topic)
+            };
+            if ignore
+                .matched_path_or_any_parents(&topic_full, topic_full.is_dir())
+                .is_ignore()
+                || norm_topic
+                    .split('/')
+                    .any(crate::codegraph::walker::is_build_or_vendor_artifact)
+            {
                 matches_ignore = true;
-            } else if let Some(ref data) = source_data {
-                if let Ok(val) = serde_json::from_str::<Value>(data) {
-                    if let Some(file_path) = val.get("file").or_else(|| val.get("path")).and_then(|v| v.as_str()) {
-                        if ignore.matched(file_path, false).is_ignore() {
-                            matches_ignore = true;
-                        }
-                    }
+            } else if let Some(ref data) = source_data
+                && let Ok(val) = serde_json::from_str::<Value>(data)
+                && let Some(file_path) = val.get("file").or_else(|| val.get("path")).and_then(|v| v.as_str())
+            {
+                let norm_file = normalize_path(file_path);
+                let file_full = if Path::new(&norm_file).is_absolute() {
+                    PathBuf::from(&norm_file)
+                } else {
+                    root.join(&norm_file)
+                };
+                if ignore
+                    .matched_path_or_any_parents(&file_full, file_full.is_dir())
+                    .is_ignore()
+                    || norm_file
+                        .split('/')
+                        .any(crate::codegraph::walker::is_build_or_vendor_artifact)
+                {
+                    matches_ignore = true;
                 }
             }
 
-            if matches_ignore {
-                if let Ok(true) = self.delete_memory(&id) {
-                    purged += 1;
-                }
+            if matches_ignore && let Ok(true) = self.delete_memory(&id) {
+                purged += 1;
             }
         }
 

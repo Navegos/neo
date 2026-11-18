@@ -460,6 +460,12 @@ impl DualTierSemanticCache {
     }
 }
 
+static GLOBAL_SEMANTIC_CACHE: std::sync::OnceLock<DualTierSemanticCache> = std::sync::OnceLock::new();
+
+pub fn global_semantic_cache() -> &'static DualTierSemanticCache {
+    GLOBAL_SEMANTIC_CACHE.get_or_init(|| DualTierSemanticCache::new(0.92))
+}
+
 pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() || a.is_empty() {
         return 0.0;

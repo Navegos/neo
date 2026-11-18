@@ -950,7 +950,27 @@ impl ContentStore {
         label_prefix: Option<&str>,
     ) -> Result<DirectoryIndexResult, rusqlite::Error> {
         let abs_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
-        let root_str = abs_root.to_string_lossy().to_string();
+        if crate::codegraph::walker::is_inside_git_dir(&abs_root) {
+            return Ok(DirectoryIndexResult {
+                root: crate::util::paths::normalize_path(&abs_root.to_string_lossy()),
+                files_indexed: 0,
+                total_chunks: 0,
+                total_bytes: 0,
+                capped: false,
+                errors: vec!["Refusing to index inside .git directory".to_string()],
+            });
+        }
+        if let Err(e) = super::store::find_repo_root_and_subproject(Some(&abs_root)) {
+            return Ok(DirectoryIndexResult {
+                root: crate::util::paths::normalize_path(&abs_root.to_string_lossy()),
+                files_indexed: 0,
+                total_chunks: 0,
+                total_bytes: 0,
+                capped: false,
+                errors: vec![e.to_string()],
+            });
+        }
+        let root_str = crate::util::paths::normalize_path(&abs_root.to_string_lossy());
 
         let walker = WalkBuilder::new(&abs_root)
             .standard_filters(true)
@@ -959,6 +979,7 @@ impl ContentStore {
             .git_ignore(true)
             .git_global(true)
             .git_exclude(true)
+            .add_custom_ignore_filename(".ignore")
             .max_depth(Some(max_depth))
             .filter_entry(|entry| {
                 let name = entry.file_name().to_string_lossy();
@@ -976,6 +997,9 @@ impl ContentStore {
                         || name == ".venv"
                         || name == "venv")
                 {
+                    return false;
+                }
+                if entry.file_type().is_some_and(|ft| ft.is_file()) && name.ends_with(".lock") {
                     return false;
                 }
                 true
@@ -1032,8 +1056,8 @@ impl ContentStore {
 
             let rel_path = path
                 .strip_prefix(&abs_root)
-                .map(|p| p.to_string_lossy().to_string().replace('\\', "/"))
-                .unwrap_or_else(|_| path.to_string_lossy().to_string().replace('\\', "/"));
+                .map(|p| crate::util::paths::normalize_path(&p.to_string_lossy()))
+                .unwrap_or_else(|_| crate::util::paths::normalize_path(&path.to_string_lossy()));
 
             let label = if let Some(prefix) = label_prefix {
                 format!("{}/{}", prefix.trim_end_matches('/'), rel_path)

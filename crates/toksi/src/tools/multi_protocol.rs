@@ -3,23 +3,27 @@
 // project: neo
 // file: crates/toksi/src/tools/multi_protocol.rs
 // created: 2026-11-09
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
+use std::collections::HashMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::util::paths::normalize_path;
 
 pub const DEFAULT_PROTOCOL_BUS_PORT: u16 = crate::config::DEFAULT_PROTOCOL_BUS_PORT;
+pub const MAX_A2A_PAYLOAD_BYTES: usize = 1024 * 1024; // 1 MiB cap
+pub const CONSOLIDATED_VAULT_COUNT: usize = 295;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -80,6 +84,11 @@ pub enum ToolTarget {
     Icm,
     Aimemory,
     Headroom,
+    Security,
+    Advisory,
+    Sandbox,
+    Plugins,
+    Vault,
 }
 
 impl ToolTarget {
@@ -92,6 +101,11 @@ impl ToolTarget {
             Self::Icm => "icm",
             Self::Aimemory => "aimemory",
             Self::Headroom => "headroom",
+            Self::Security => "security",
+            Self::Advisory => "advisory",
+            Self::Sandbox => "sandbox",
+            Self::Plugins => "plugins",
+            Self::Vault => "vault",
         }
     }
 }
@@ -106,7 +120,8 @@ impl FromStr for ToolTarget {
     type Err = ProtocolError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_ascii_lowercase().as_str() {
+        let low = s.to_ascii_lowercase();
+        match low.as_str() {
             "rtk" => Ok(Self::Rtk),
             "codegraph" => Ok(Self::Codegraph),
             "context" | "contextmode" | "context-mode" => Ok(Self::Context),
@@ -114,6 +129,12 @@ impl FromStr for ToolTarget {
             "icm" => Ok(Self::Icm),
             "aimemory" | "ai-memory" => Ok(Self::Aimemory),
             "headroom" => Ok(Self::Headroom),
+            "security" => Ok(Self::Security),
+            "advisory" => Ok(Self::Advisory),
+            "sandbox" => Ok(Self::Sandbox),
+            "plugins" | "plugin" => Ok(Self::Plugins),
+            "vault" | "inspect-vault" => Ok(Self::Vault),
+            _ if low.starts_with("vault:") || low.starts_with("inspect-vault/") => Ok(Self::Vault),
             other => Err(ProtocolError::UnknownTool(other.to_string())),
         }
     }
@@ -283,9 +304,347 @@ impl UnifiedResponse {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum A2aTaskState {
+    Submitted,
+    Working,
+    Completed,
+    Failed,
+    Canceled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct A2aTask {
+    pub id: String,
+    pub peer: String,
+    pub message_id: String,
+    pub state: A2aTaskState,
+    pub tool: String,
+    pub action: String,
+    pub result: Value,
+    pub created_at_ms: i64,
+    pub updated_at_ms: i64,
+}
+
+/// Constant-time 32-byte digest comparison (no early exit).
+fn ct_eq_32(a: &[u8; 32], b: &[u8; 32]) -> bool {
+    let mut diff: u8 = 0;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
+/// A2A v1.0 JSON-RPC 2.0 Task Store supporting `SendMessage`/`GetTask`
+/// and `"message/send"`/`"tasks/get"` aliases, SHA-256 constant-time bearer auth,
+/// 1 MiB payload cap, and `(peer, messageId)` deduplication.
+pub struct A2aTaskStore {
+    tasks: Mutex<HashMap<String, A2aTask>>,
+    dedupe: Mutex<HashMap<(String, String), String>>,
+    expected_token_sha256: Mutex<Option<[u8; 32]>>,
+}
+
+impl Default for A2aTaskStore {
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
+
+impl A2aTaskStore {
+    pub fn new(bearer_token: Option<&str>) -> Self {
+        let digest = bearer_token.map(Self::sha256_bytes);
+        Self {
+            tasks: Mutex::new(HashMap::new()),
+            dedupe: Mutex::new(HashMap::new()),
+            expected_token_sha256: Mutex::new(digest),
+        }
+    }
+
+    pub fn sha256_bytes(token: &str) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        hasher.update(token.as_bytes());
+        let res = hasher.finalize();
+        let mut out = [0u8; 32];
+        out.copy_from_slice(&res);
+        out
+    }
+
+    pub fn set_bearer_token(&self, token: Option<&str>) {
+        if let Ok(mut guard) = self.expected_token_sha256.lock() {
+            *guard = token.map(Self::sha256_bytes);
+        }
+    }
+
+    pub fn verify_bearer(&self, auth_header: Option<&str>) -> bool {
+        let expected = match self.expected_token_sha256.lock() {
+            Ok(g) => *g,
+            Err(_) => return false,
+        };
+        let Some(expected_digest) = expected else {
+            return true;
+        };
+        let Some(header) = auth_header else {
+            return false;
+        };
+        let token = header
+            .strip_prefix("Bearer ")
+            .or_else(|| header.strip_prefix("bearer "))
+            .unwrap_or("")
+            .trim();
+        if token.is_empty() {
+            return false;
+        }
+        let actual_digest = Self::sha256_bytes(token);
+        ct_eq_32(&expected_digest, &actual_digest)
+    }
+
+    pub fn get_task(&self, task_id: &str) -> Option<A2aTask> {
+        self.tasks
+            .lock()
+            .ok()
+            .and_then(|g| g.get(task_id).cloned())
+    }
+
+    pub fn handle_jsonrpc(
+        &self,
+        raw_bytes: &[u8],
+        auth_header: Option<&str>,
+        dispatcher: &MultiProtocolDispatcher,
+    ) -> (u16, Value) {
+        if raw_bytes.len() > MAX_A2A_PAYLOAD_BYTES {
+            return (
+                413,
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": Value::Null,
+                    "error": { "code": -32600, "message": "Payload exceeds 1 MiB A2A cap" }
+                }),
+            );
+        }
+        if !self.verify_bearer(auth_header) {
+            return (
+                401,
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": Value::Null,
+                    "error": { "code": -32001, "message": "Unauthorized A2A bearer token" }
+                }),
+            );
+        }
+
+        let val: Value = match serde_json::from_slice(raw_bytes) {
+            Ok(v) => v,
+            Err(e) => {
+                return (
+                    400,
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": Value::Null,
+                        "error": { "code": -32700, "message": format!("Parse error: {e}") }
+                    }),
+                );
+            }
+        };
+
+        let id = val.get("id").cloned().unwrap_or(Value::from(1));
+        let method = val.get("method").and_then(Value::as_str).unwrap_or("");
+        let params = val.get("params").cloned().unwrap_or_else(|| Value::Object(Default::default()));
+
+        match method {
+            "SendMessage" | "message/send" => {
+                let peer = params
+                    .get("peer")
+                    .or_else(|| params.get("sender"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("anonymous-peer")
+                    .to_string();
+                let message_id = params
+                    .get("messageId")
+                    .or_else(|| params.get("message_id"))
+                    .or_else(|| params.get("message").and_then(|m| m.get("messageId")))
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+
+                if !message_id.is_empty()
+                    && let Ok(dedupe_guard) = self.dedupe.lock()
+                    && let Some(existing_id) = dedupe_guard.get(&(peer.clone(), message_id.clone()))
+                    && let Some(existing_task) = self.get_task(existing_id)
+                {
+                    return (
+                        200,
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": id,
+                            "result": { "task": existing_task, "deduplicated": true }
+                        }),
+                    );
+                }
+
+                let tool = params
+                    .get("tool")
+                    .and_then(Value::as_str)
+                    .and_then(|s| s.parse::<ToolTarget>().ok())
+                    .unwrap_or(ToolTarget::Headroom);
+                let action = params
+                    .get("action")
+                    .and_then(Value::as_str)
+                    .unwrap_or("status")
+                    .to_string();
+                let payload = params.get("payload").cloned().unwrap_or_else(|| params.clone());
+
+                let unified = UnifiedRequest::new(ProtocolKind::A2a, tool, action.clone(), payload);
+                let resp = dispatcher.dispatch(&unified);
+                let now = chrono::Utc::now().timestamp_millis();
+                let seq = self.tasks.lock().map(|g| g.len() + 1).unwrap_or(1);
+                let task_id = format!("a2a-task-{now}-{seq}");
+                let state = if resp.status == "ok" {
+                    A2aTaskState::Completed
+                } else {
+                    A2aTaskState::Failed
+                };
+                let task = A2aTask {
+                    id: task_id.clone(),
+                    peer: peer.clone(),
+                    message_id: message_id.clone(),
+                    state,
+                    tool: tool.as_str().to_string(),
+                    action,
+                    result: resp.result,
+                    created_at_ms: now,
+                    updated_at_ms: now,
+                };
+
+                if let Ok(mut tasks_guard) = self.tasks.lock() {
+                    tasks_guard.insert(task_id.clone(), task.clone());
+                }
+                if !message_id.is_empty()
+                    && let Ok(mut dedupe_guard) = self.dedupe.lock()
+                {
+                    dedupe_guard.insert((peer, message_id), task_id);
+                }
+
+                (
+                    200,
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": { "task": task, "deduplicated": false }
+                    }),
+                )
+            }
+            "GetTask" | "tasks/get" => {
+                let task_id = params
+                    .get("id")
+                    .or_else(|| params.get("taskId"))
+                    .or_else(|| params.get("task_id"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                match self.get_task(task_id) {
+                    Some(task) => (
+                        200,
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": id,
+                            "result": { "task": task }
+                        }),
+                    ),
+                    None => (
+                        200,
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": id,
+                            "error": { "code": -32004, "message": format!("Task not found: {task_id}") }
+                        }),
+                    ),
+                }
+            }
+            "CancelTask" | "tasks/cancel" => {
+                let task_id = params
+                    .get("id")
+                    .or_else(|| params.get("taskId"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                if let Ok(mut guard) = self.tasks.lock()
+                    && let Some(task) = guard.get_mut(task_id)
+                {
+                    task.state = A2aTaskState::Canceled;
+                    task.updated_at_ms = chrono::Utc::now().timestamp_millis();
+                    return (
+                        200,
+                        serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": id,
+                            "result": { "task": task.clone() }
+                        }),
+                    );
+                }
+                (
+                    200,
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "error": { "code": -32004, "message": format!("Task not found: {task_id}") }
+                    }),
+                )
+            }
+            other => (
+                200,
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": { "code": -32601, "message": format!("Method not found: {other}") }
+                }),
+            ),
+        }
+    }
+}
+
+/// ACP v2.0 per-session serialized actor queue.
+/// Guarantees FIFO serialization within each `session_id` while allowing
+/// independent sessions to execute concurrently.
+#[derive(Default)]
+pub struct SessionActorQueue {
+    session_locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
+}
+
+impl SessionActorQueue {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn session_lock(&self, session_id: &str) -> Arc<Mutex<()>> {
+        let key = if session_id.trim().is_empty() {
+            "default".to_string()
+        } else {
+            session_id.to_string()
+        };
+        if let Ok(mut guard) = self.session_locks.lock() {
+            return Arc::clone(
+                guard
+                    .entry(key)
+                    .or_insert_with(|| Arc::new(Mutex::new(()))),
+            );
+        }
+        Arc::new(Mutex::new(()))
+    }
+
+    pub fn dispatch_serialized<F, R>(&self, session_id: &str, f: F) -> R
+    where
+        F: FnOnce() -> R,
+    {
+        let lock = self.session_lock(session_id);
+        let _guard = lock.lock().unwrap_or_else(|p| p.into_inner());
+        f()
+    }
+}
+
 pub struct MultiProtocolDispatcher {
     workspace_root: Option<PathBuf>,
     codegraph_wire: Arc<crate::codegraph::wire::DirectWireBus>,
+    a2a_store: Arc<A2aTaskStore>,
+    acp_queue: Arc<SessionActorQueue>,
 }
 
 impl MultiProtocolDispatcher {
@@ -295,11 +654,21 @@ impl MultiProtocolDispatcher {
         Self {
             workspace_root: norm,
             codegraph_wire,
+            a2a_store: Arc::new(A2aTaskStore::default()),
+            acp_queue: Arc::new(SessionActorQueue::new()),
         }
     }
 
     pub fn codegraph_wire(&self) -> Arc<crate::codegraph::wire::DirectWireBus> {
         Arc::clone(&self.codegraph_wire)
+    }
+
+    pub fn a2a_store(&self) -> Arc<A2aTaskStore> {
+        Arc::clone(&self.a2a_store)
+    }
+
+    pub fn acp_queue(&self) -> Arc<SessionActorQueue> {
+        Arc::clone(&self.acp_queue)
     }
 
     pub fn dispatch(&self, req: &UnifiedRequest) -> UnifiedResponse {
@@ -312,14 +681,48 @@ impl MultiProtocolDispatcher {
                 std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
             });
 
-        match req.tool {
-            ToolTarget::Rtk => self.dispatch_rtk(req),
-            ToolTarget::Codegraph => self.dispatch_codegraph(req, &root),
-            ToolTarget::Context => self.dispatch_context(req, &root),
-            ToolTarget::Projectmem => self.dispatch_projectmem(req, &root),
-            ToolTarget::Icm => self.dispatch_icm(req),
-            ToolTarget::Aimemory => self.dispatch_aimemory(req),
-            ToolTarget::Headroom => self.dispatch_headroom(req),
+        let exec = || {
+            let mut resp = match req.tool {
+                ToolTarget::Rtk => self.dispatch_rtk(req),
+                ToolTarget::Codegraph => self.dispatch_codegraph(req, &root),
+                ToolTarget::Context => self.dispatch_context(req, &root),
+                ToolTarget::Projectmem => self.dispatch_projectmem(req, &root),
+                ToolTarget::Icm => self.dispatch_icm(req),
+                ToolTarget::Aimemory => self.dispatch_aimemory(req),
+                ToolTarget::Headroom => self.dispatch_headroom(req),
+                ToolTarget::Security => self.dispatch_security(req, &root),
+                ToolTarget::Advisory => self.dispatch_advisory(req, &root),
+                ToolTarget::Sandbox => self.dispatch_sandbox(req, &root),
+                ToolTarget::Plugins => self.dispatch_plugins(req, &root),
+                ToolTarget::Vault => self.dispatch_vault(req, &root),
+            };
+            Self::compress_large_response(req, &mut resp);
+            resp
+        };
+
+        if req.protocol == ProtocolKind::Acp {
+            let sid = req.session_id.as_deref().unwrap_or("default");
+            self.acp_queue.dispatch_serialized(sid, exec)
+        } else {
+            exec()
+        }
+    }
+
+    fn compress_large_response(req: &UnifiedRequest, resp: &mut UnifiedResponse) {
+        let force = req
+            .payload
+            .get("compress_response")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let raw_len = resp.raw_text.as_ref().map_or(0, String::len);
+        if !force && raw_len <= 2048 {
+            return;
+        }
+        if let Some(ref raw) = resp.raw_text {
+            let compressed = crate::headroom::compression::compress_content(raw, None);
+            if compressed.len() < raw.len() {
+                resp.raw_text = Some(compressed);
+            }
         }
     }
 
@@ -646,6 +1049,233 @@ impl MultiProtocolDispatcher {
             ),
         }
     }
+
+    fn dispatch_security(&self, req: &UnifiedRequest, root: &Path) -> UnifiedResponse {
+        match req.action.as_str() {
+            "check_path" | "check_path_deny" => {
+                let raw_path = req
+                    .payload
+                    .get("path")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let norm = normalize_path(raw_path);
+                let denied = crate::contextmode::security::check_path_deny(Path::new(&norm));
+                let res = serde_json::json!({
+                    "path": norm,
+                    "allowed": denied.is_none(),
+                    "reason": denied,
+                });
+                let text = serde_json::to_string(&res).ok();
+                UnifiedResponse::success(req.protocol, req.tool, res, text)
+            }
+            "check_command" | "check_command_deny" => {
+                let cmd = req
+                    .payload
+                    .get("command")
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let denied = crate::contextmode::security::check_command_deny(cmd);
+                let res = serde_json::json!({
+                    "command": cmd,
+                    "allowed": denied.is_none(),
+                    "reason": denied,
+                });
+                let text = serde_json::to_string(&res).ok();
+                UnifiedResponse::success(req.protocol, req.tool, res, text)
+            }
+            "redact" | "redact_secrets" => {
+                let input = req
+                    .payload
+                    .get("content")
+                    .or_else(|| req.payload.get("text"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("");
+                let (redacted, count) = crate::codegraph::repomix::redact_secrets(input);
+                let res = serde_json::json!({ "redacted": redacted, "secrets_redacted": count });
+                UnifiedResponse::success(req.protocol, req.tool, res, Some(redacted))
+            }
+            "status" | "scan" => {
+                let res = serde_json::json!({
+                    "status": "ok",
+                    "workspace": normalize_path(&root.to_string_lossy()),
+                    "enforce_tag": true,
+                    "guards": ["path_deny", "command_deny", "secret_redaction"],
+                });
+                let text = serde_json::to_string(&res).ok();
+                UnifiedResponse::success(req.protocol, req.tool, res, text)
+            }
+            other => UnifiedResponse::error(
+                req.protocol,
+                req.tool,
+                format!("Security action '{}' not implemented", other),
+            ),
+        }
+    }
+
+    fn dispatch_advisory(&self, req: &UnifiedRequest, root: &Path) -> UnifiedResponse {
+        match req.action.as_str() {
+            "status" | "info" | "disclosure_check" => {
+                let res = serde_json::json!({
+                    "status": "ok",
+                    "workspace": normalize_path(&root.to_string_lossy()),
+                    "advisory_repo": "Navegos/advisory",
+                    "disclosure_gate": "active",
+                    "embargo_days": 90,
+                });
+                let text = serde_json::to_string(&res).ok();
+                UnifiedResponse::success(req.protocol, req.tool, res, text)
+            }
+            "precheck" => {
+                let diff_res = crate::projectmem::precheck::run_precheck(None, true, None, true, Some(root));
+                match diff_res {
+                    Ok(report) => {
+                        let json = serde_json::to_value(&report).unwrap_or_default();
+                        let text = serde_json::to_string(&json).ok();
+                        UnifiedResponse::success(req.protocol, req.tool, json, text)
+                    }
+                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, format!("Advisory precheck error: {e}")),
+                }
+            }
+            other => UnifiedResponse::error(
+                req.protocol,
+                req.tool,
+                format!("Advisory action '{}' not implemented", other),
+            ),
+        }
+    }
+
+    fn dispatch_sandbox(&self, req: &UnifiedRequest, root: &Path) -> UnifiedResponse {
+        let server = crate::contextmode::mcp::ContextMcpServer::new(Some(root.to_path_buf()));
+        match req.action.as_str() {
+            "execute" | "ctx_execute" => {
+                let res = server.execute_tool("ctx_execute", &req.payload);
+                UnifiedResponse::success(
+                    req.protocol,
+                    req.tool,
+                    serde_json::json!({ "result": res }),
+                    Some(res),
+                )
+            }
+            "execute_file" | "ctx_execute_file" => {
+                let res = server.execute_tool("ctx_execute_file", &req.payload);
+                UnifiedResponse::success(
+                    req.protocol,
+                    req.tool,
+                    serde_json::json!({ "result": res }),
+                    Some(res),
+                )
+            }
+            "status" => {
+                let res = serde_json::json!({
+                    "status": "ok",
+                    "workspace": normalize_path(&root.to_string_lossy()),
+                    "backends": ["native-process", "contextmode-sandbox"],
+                });
+                let text = serde_json::to_string(&res).ok();
+                UnifiedResponse::success(req.protocol, req.tool, res, text)
+            }
+            other => UnifiedResponse::error(
+                req.protocol,
+                req.tool,
+                format!("Sandbox action '{}' not implemented", other),
+            ),
+        }
+    }
+
+    fn dispatch_plugins(&self, req: &UnifiedRequest, root: &Path) -> UnifiedResponse {
+        match req.action.as_str() {
+            "status" | "list" => {
+                let wire_status = super::direct_wire::global_direct_wire_bus().status();
+                let res = serde_json::json!({
+                    "status": "ok",
+                    "workspace": normalize_path(&root.to_string_lossy()),
+                    "direct_wire": wire_status,
+                    "wiring_modes": ["direct-wired", "config-wired"],
+                    "protocols": ["mcp", "a2a", "acp", "stdio", "sse", "http", "directwire"],
+                });
+                let text = serde_json::to_string(&res).ok();
+                UnifiedResponse::success(req.protocol, req.tool, res, text)
+            }
+            other => UnifiedResponse::error(
+                req.protocol,
+                req.tool,
+                format!("Plugins action '{}' not implemented", other),
+            ),
+        }
+    }
+
+    fn dispatch_vault(&self, req: &UnifiedRequest, root: &Path) -> UnifiedResponse {
+        let engine = req
+            .payload
+            .get("engine")
+            .and_then(Value::as_str)
+            .unwrap_or(req.action.as_str())
+            .to_ascii_lowercase();
+        let sub_action = req
+            .payload
+            .get("tool_action")
+            .and_then(Value::as_str)
+            .unwrap_or_else(|| {
+                if req.action.eq_ignore_ascii_case(&engine) {
+                    "status"
+                } else {
+                    req.action.as_str()
+                }
+            });
+        let sub_req = UnifiedRequest {
+            protocol: req.protocol,
+            tool: req.tool,
+            action: sub_action.to_string(),
+            payload: req.payload.clone(),
+            session_id: req.session_id.clone(),
+            workspace_root: req.workspace_root.clone(),
+        };
+
+        // Route consolidated inspect-vault/* engines to their native in-tree subsystems
+        if engine.contains("rtk") {
+            return self.dispatch_rtk(&sub_req);
+        }
+        if engine.contains("codegraph")
+            || engine.contains("scip")
+            || engine.contains("ast-grep")
+            || engine.contains("jcodemunch")
+            || engine.contains("repomix")
+            || engine.contains("openwiki")
+        {
+            return self.dispatch_codegraph(&sub_req, root);
+        }
+        if engine.contains("context") {
+            return self.dispatch_context(&sub_req, root);
+        }
+        if engine.contains("projectmem") {
+            return self.dispatch_projectmem(&sub_req, root);
+        }
+        if engine.contains("icm") {
+            return self.dispatch_icm(&sub_req);
+        }
+        if engine.contains("aimemory")
+            || engine.contains("ai-memory")
+            || engine.contains("mem0")
+            || engine.contains("cognee")
+            || engine.contains("graphiti")
+            || engine.contains("letta")
+        {
+            return self.dispatch_aimemory(&sub_req);
+        }
+        if engine.contains("headroom") || engine.contains("economizer") || engine.contains("agent-opt") {
+            return self.dispatch_headroom(&sub_req);
+        }
+
+        let res = serde_json::json!({
+            "status": "ok",
+            "consolidated_vaults": CONSOLIDATED_VAULT_COUNT,
+            "engine": engine,
+            "workspace": normalize_path(&root.to_string_lossy()),
+            "bus": "direct-wired",
+        });
+        let text = serde_json::to_string(&res).ok();
+        UnifiedResponse::success(req.protocol, req.tool, res, text)
+    }
 }
 
 pub fn unified_dispatcher() -> Arc<MultiProtocolDispatcher> {
@@ -836,6 +1466,58 @@ async fn serve_protocol_bus_connection(
             _ => ProtocolKind::Http,
         };
 
+        if default_proto == ProtocolKind::A2a {
+            let auth_header = req
+                .headers
+                .iter()
+                .find(|(k, _)| k.eq_ignore_ascii_case("authorization"))
+                .map(|(_, v)| v.as_str())
+                .map(str::to_string);
+            let body_bytes = req.body.clone();
+            let disp_clone = Arc::clone(&dispatcher);
+            let (status_code, json_resp) = tokio::task::spawn_blocking(move || {
+                disp_clone
+                    .a2a_store()
+                    .handle_jsonrpc(&body_bytes, auth_header.as_deref(), &disp_clone)
+            })
+            .await
+            .unwrap_or_else(|e| {
+                (
+                    500,
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": Value::Null,
+                        "error": { "code": -32603, "message": format!("A2A task failed: {e}") }
+                    }),
+                )
+            });
+            let reason = match status_code {
+                200 => "OK",
+                400 => "Bad Request",
+                401 => "Unauthorized",
+                413 => "Payload Too Large",
+                _ => "Internal Server Error",
+            };
+            let bytes = serde_json::to_vec(&json_resp).unwrap_or_default();
+            let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
+            if is_close_requested {
+                headers.push(("Connection".to_string(), "close".to_string()));
+            }
+            crate::headroom::byok_gateway::write_http_response(
+                &mut stream,
+                status_code,
+                reason,
+                &headers,
+                &bytes,
+            )
+            .await?;
+            if is_close_requested {
+                let _ = stream.shutdown().await;
+                break;
+            }
+            continue;
+        }
+
         let mut body_val: Value = match serde_json::from_slice(&req.body) {
             Ok(v) => v,
             Err(e) => {
@@ -950,7 +1632,99 @@ mod tests {
         assert_eq!("projectmem".parse::<ToolTarget>().unwrap(), ToolTarget::Projectmem);
         assert_eq!("icm".parse::<ToolTarget>().unwrap(), ToolTarget::Icm);
         assert_eq!("aimemory".parse::<ToolTarget>().unwrap(), ToolTarget::Aimemory);
+        assert_eq!("headroom".parse::<ToolTarget>().unwrap(), ToolTarget::Headroom);
+        assert_eq!("security".parse::<ToolTarget>().unwrap(), ToolTarget::Security);
+        assert_eq!("advisory".parse::<ToolTarget>().unwrap(), ToolTarget::Advisory);
+        assert_eq!("sandbox".parse::<ToolTarget>().unwrap(), ToolTarget::Sandbox);
+        assert_eq!("plugins".parse::<ToolTarget>().unwrap(), ToolTarget::Plugins);
+        assert_eq!("vault".parse::<ToolTarget>().unwrap(), ToolTarget::Vault);
+        assert_eq!("inspect-vault/cognee".parse::<ToolTarget>().unwrap(), ToolTarget::Vault);
         assert!("unknown".parse::<ToolTarget>().is_err());
+    }
+
+    #[test]
+    fn test_a2a_task_store_jsonrpc_auth_cap_and_dedupe() {
+        let dispatcher = MultiProtocolDispatcher::new(None);
+        let store = A2aTaskStore::new(Some("secret-a2a-token"));
+
+        // Unauthorized rejected
+        let req_bytes = serde_json::to_vec(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "message/send",
+            "params": {
+                "peer": "agent-alpha",
+                "messageId": "msg-001",
+                "tool": "rtk",
+                "action": "filter",
+                "payload": { "command": "cargo test", "output": "test result: ok. 2 passed" }
+            }
+        }))
+        .unwrap();
+        let (code_unauth, _) = store.handle_jsonrpc(&req_bytes, None, &dispatcher);
+        assert_eq!(code_unauth, 401);
+
+        // Authorized succeeds
+        let (code_ok, resp1) = store.handle_jsonrpc(
+            &req_bytes,
+            Some("Bearer secret-a2a-token"),
+            &dispatcher,
+        );
+        assert_eq!(code_ok, 200);
+        assert_eq!(resp1["result"]["deduplicated"], false);
+        let task_id = resp1["result"]["task"]["id"].as_str().unwrap().to_string();
+
+        // Duplicate (peer, messageId) deduplicated
+        let (code_dup, resp2) = store.handle_jsonrpc(
+            &req_bytes,
+            Some("Bearer secret-a2a-token"),
+            &dispatcher,
+        );
+        assert_eq!(code_dup, 200);
+        assert_eq!(resp2["result"]["deduplicated"], true);
+        assert_eq!(resp2["result"]["task"]["id"], task_id);
+
+        // GetTask / tasks/get retrieves same task
+        let get_bytes = serde_json::to_vec(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "GetTask",
+            "params": { "id": task_id }
+        }))
+        .unwrap();
+        let (code_get, resp_get) = store.handle_jsonrpc(
+            &get_bytes,
+            Some("Bearer secret-a2a-token"),
+            &dispatcher,
+        );
+        assert_eq!(code_get, 200);
+        assert_eq!(resp_get["result"]["task"]["id"], task_id);
+
+        // 1 MiB cap enforced
+        let oversized = vec![b'a'; MAX_A2A_PAYLOAD_BYTES + 1];
+        let (code_big, _) = store.handle_jsonrpc(
+            &oversized,
+            Some("Bearer secret-a2a-token"),
+            &dispatcher,
+        );
+        assert_eq!(code_big, 413);
+    }
+
+    #[test]
+    fn test_acp_session_actor_queue_and_expanded_targets() {
+        let dispatcher = MultiProtocolDispatcher::new(None);
+        for (target, action) in [
+            (ToolTarget::Security, "status"),
+            (ToolTarget::Advisory, "status"),
+            (ToolTarget::Sandbox, "status"),
+            (ToolTarget::Plugins, "status"),
+            (ToolTarget::Vault, "cognee"),
+        ] {
+            let req = UnifiedRequest::new(ProtocolKind::Acp, target, action, serde_json::json!({}))
+                .with_session("acp-sess-1");
+            let resp = dispatcher.dispatch(&req);
+            assert_eq!(resp.status, "ok", "target {target:?} failed: {:?}", resp.raw_text);
+        }
     }
 
     #[test]

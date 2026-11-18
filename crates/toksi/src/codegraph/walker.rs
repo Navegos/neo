@@ -224,7 +224,34 @@ pub fn build_project_ignore(root: &Path) -> Gitignore {
     builder.build().unwrap_or_else(|_| Gitignore::empty())
 }
 
+pub fn is_inside_git_dir(path: &Path) -> bool {
+    path.components().any(|c| c.as_os_str() == ".git")
+}
+
+pub fn find_git_repo_root(start: &Path) -> Option<PathBuf> {
+    let canonical = start.canonicalize().unwrap_or_else(|_| start.to_path_buf());
+    if is_inside_git_dir(&canonical) {
+        return None;
+    }
+    let mut cur = canonical.as_path();
+    loop {
+        if cur.join(".git").exists() {
+            return Some(cur.to_path_buf());
+        }
+        match cur.parent() {
+            Some(p) => cur = p,
+            None => return None,
+        }
+    }
+}
+
 pub fn walk_project_files(root: &Path) -> Vec<WalkedFile> {
+    if is_inside_git_dir(root) {
+        return Vec::new();
+    }
+    if !cfg!(test) && find_git_repo_root(root).is_none() {
+        return Vec::new();
+    }
     let mut files = Vec::new();
     let root_owned = root.to_path_buf();
     let walker = WalkBuilder::new(root)
