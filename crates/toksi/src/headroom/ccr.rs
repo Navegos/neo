@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/headroom/ccr.rs
 // created: 2026-11-13
-// lastModified: 2026-11-16
+// lastModified: 2026-11-18
 
 //! Compress-Cache-Retrieve (CCR) reversible storage (`<<ccr:HASH>>`) with SQLite WAL +
 //! in-memory backends and MCP retrieval (`headroom_retrieve` / `headroom_search`).
@@ -223,6 +223,7 @@ pub struct SqliteCcrStore {
     default_ttl_seconds: i64,
     max_lifetime_seconds: i64,
     path: PathBuf,
+    read_only: bool,
 }
 
 impl SqliteCcrStore {
@@ -255,7 +256,32 @@ impl SqliteCcrStore {
             default_ttl_seconds: ttl,
             max_lifetime_seconds: max_life,
             path: path_buf,
+            read_only: false,
         })
+    }
+
+    pub fn open_read_only(path: impl AsRef<Path>, default_ttl_seconds: u64) -> HeadroomResult<Self> {
+        let path_buf = path.as_ref().to_path_buf();
+        let conn = Connection::open_with_flags(
+            &path_buf,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )?;
+        let _ = conn.pragma_update(None, "busy_timeout", 5000);
+        let ttl = clamp_ttl_secs(default_ttl_seconds);
+        let max_life = ttl
+            .saturating_mul(i64::from(DEFAULT_MAX_LIFETIME_MULTIPLIER))
+            .min(MAX_SQLITE_TTL_SECS);
+        Ok(Self {
+            conn: Mutex::new(conn),
+            default_ttl_seconds: ttl,
+            max_lifetime_seconds: max_life,
+            path: path_buf,
+            read_only: true,
+        })
+    }
+
+    pub fn is_read_only(&self) -> bool {
+        self.read_only
     }
 
     pub fn path(&self) -> &Path {
@@ -263,6 +289,9 @@ impl SqliteCcrStore {
     }
 
     fn purge_expired(&self, conn: &Connection, now: i64) {
+        if self.read_only {
+            return;
+        }
         let _ = conn.execute(
             "DELETE FROM ccr_entries WHERE last_accessed + ttl_seconds < ?1 OR created_at + ?2 < ?1",
             params![now, self.max_lifetime_seconds],
@@ -272,6 +301,9 @@ impl SqliteCcrStore {
 
 impl CcrStore for SqliteCcrStore {
     fn put(&self, hash: &str, payload: &str) {
+        if self.read_only {
+            return;
+        }
         let now = now_unix_secs();
         let conn = self.conn.lock().unwrap_or_else(|e| e.into_inner());
         let _ = conn.execute(
@@ -301,10 +333,12 @@ impl CcrStore for SqliteCcrStore {
             .ok()
             .flatten();
         if let Some(bytes) = row {
-            let _ = conn.execute(
-                "UPDATE ccr_entries SET last_accessed = ?1 WHERE hash = ?2",
-                params![now, hash],
-            );
+            if !self.read_only {
+                let _ = conn.execute(
+                    "UPDATE ccr_entries SET last_accessed = ?1 WHERE hash = ?2",
+                    params![now, hash],
+                );
+            }
             return String::from_utf8(bytes).ok();
         }
         None
@@ -462,5 +496,25 @@ mod tests {
         // Capacity 2 keeps at most 2 entries and preserves the updated "a" or newest "c"
         assert!(store.len() <= 2);
         assert_eq!(store.get("c").as_deref(), Some("v3"));
+    }
+
+    #[test]
+    fn test_sqlite_ccr_read_only_mode() {
+        let dir = std::env::temp_dir().join(format!("toksi_ccr_ro_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let db_file = dir.join("ccr_ro.db");
+        let _ = std::fs::remove_file(&db_file);
+
+        if let Ok(rw) = SqliteCcrStore::open(&db_file, 60) {
+            assert!(!rw.is_read_only());
+            rw.put("k1", "orig-value");
+        }
+        if let Ok(ro) = SqliteCcrStore::open_read_only(&db_file, 60) {
+            assert!(ro.is_read_only());
+            assert_eq!(ro.get("k1").as_deref(), Some("orig-value"));
+            ro.put("k2", "ignored");
+            assert_eq!(ro.get("k2"), None);
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

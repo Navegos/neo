@@ -464,6 +464,19 @@ pub fn transform_sse_bytes(raw: &[u8], ns_map: NamespaceMap) -> Vec<u8> {
     out
 }
 
+/// Formats an OpenAI Responses API SSE error frame with the required top-level
+/// `"type": "error"` discriminator alongside the nested `"error"` object.
+pub fn format_responses_sse_error_frame(error_type: &str, message: &str) -> String {
+    let payload = serde_json::json!({
+        "type": "error",
+        "error": {
+            "type": error_type,
+            "message": message,
+        }
+    });
+    format!("event: error\ndata: {}\n\n", payload)
+}
+
 fn string_field(data: &Map<String, Value>, key: &str) -> String {
     data.get(key)
         .and_then(|v| v.as_str())

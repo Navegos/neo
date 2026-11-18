@@ -259,6 +259,22 @@ impl ProviderClient for GeminiProvider {
     }
 }
 
+/// Builds the Vertex AI model discovery endpoint for either `"global"` or a regional location.
+pub fn vertex_models_discovery_url(location: &str, project: &str) -> String {
+    let loc = location.trim();
+    let base = if loc.is_empty() || loc.eq_ignore_ascii_case("global") {
+        "https://aiplatform.googleapis.com".to_string()
+    } else {
+        format!("https://{}-aiplatform.googleapis.com", loc)
+    };
+    format!(
+        "{}/v1/projects/{}/locations/{}/publishers/google/models",
+        base,
+        project.trim(),
+        if loc.is_empty() { "global" } else { loc }
+    )
+}
+
 /// Generic Frontier client for Azure, Bedrock, Vertex, Databricks
 pub struct GenericFrontierProvider {
     pub provider_id: ProviderId,

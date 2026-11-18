@@ -1,6 +1,6 @@
 {
-  "command": "cargo test -p toksi -- test_vault_kernel_updates_macro_builtin_include_and_method_group --nocapture",
-  "root_cause": "error: unexpected closing delimiter: `}`",
-  "raw_output": "   Compiling toksi v3.0.13 (D:\\AI\\neo\\crates\\toksi)\nerror: unexpected closing delimiter: `}`\n    --> crates\\toksi\\src\\codegraph\\tests.rs:1311:1\n     |\n1248 |     fn test_vault_kernel_updates_macro_builtin_include_and_method_group() {\n     |                                                                           - this opening brace...\n...\n1310 |     }\n     |     - ...matches this closing brace\n1311 | }\n     | ^ unexpected closing delimiter\n\nerror: could not compile `toksi` (lib test) due to 1 previous error\n",
-  "timestamp": "2026-11-18T18:33:40Z"
+  "command": "cargo test -p toksi --test phase7_headroom_verification --test phase7_system_verification",
+  "root_cause": "error: failed to remove file `D:\\AI\\neo\\target\\debug\\build\\toksi/99584772dbce7742\\out\\phase7_system_verification-99584772dbce7742.exe`",
+  "raw_output": "   Compiling toksi v3.0.13 (D:\\AI\\neo\\crates\\toksi)\nerror: failed to remove file `D:\\AI\\neo\\target\\debug\\build\\toksi/99584772dbce7742\\out\\phase7_system_verification-99584772dbce7742.exe`\n\nCaused by:\n    Access is denied. (os error 5)\n\nError: failed to remove directory `D:\\AI\\neo\\target\\debug\\build\\toksi/99584772dbce7742\\out`\n\nCaused by:\n  Access is denied. (os error 5)\nwarning: build failed, waiting for other jobs to finish...\n",
+  "timestamp": "2026-11-18T19:15:19Z"
 }

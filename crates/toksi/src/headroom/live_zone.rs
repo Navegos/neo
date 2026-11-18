@@ -345,12 +345,14 @@ fn compress_single_turn_raw(
 }
 
 fn compress_block_object(blk: &mut Value, query: &str, store: Option<&dyn CcrStore>) -> bool {
+    // Protect blocks with top-level OR nested `cache_control` / `cachePoint` (e.g. inside `tool_result.content`).
+    if message_has_cache_control(blk) {
+        return false;
+    }
     let Some(obj) = blk.as_object_mut() else {
         return false;
     };
-    if obj.contains_key("cache_control")
-        || obj.contains_key("cachePoint")
-        || obj.contains_key("reasoningContent")
+    if obj.contains_key("reasoningContent")
         || obj.contains_key("toolUse")
         || obj.contains_key("thoughtSignature")
         || obj.get("thought").and_then(Value::as_bool) == Some(true)
@@ -362,6 +364,14 @@ fn compress_block_object(blk: &mut Value, query: &str, store: Option<&dyn CcrSto
         if let Some(Value::String(s)) = obj.get_mut(field) {
             if let Some(c) = compress_text_block_with_query(s, query, store) {
                 *s = c;
+                changed = true;
+            }
+        }
+    }
+    // Anthropic `tool_result` with array `content` sub-blocks
+    if let Some(Value::Array(inner_blocks)) = obj.get_mut("content") {
+        for inner in inner_blocks {
+            if compress_block_object(inner, query, store) {
                 changed = true;
             }
         }
@@ -527,5 +537,35 @@ mod tests {
         assert!(conv_comp.len() < conv_raw.len());
         let conv_str = String::from_utf8_lossy(&conv_comp);
         assert!(!conv_str.contains("<<ccr:"));
+    }
+
+    #[test]
+    fn test_live_zone_protects_nested_cache_control_in_tool_result() {
+        let repeated_logs = "2026-11-18T10:00:00Z [INFO] worker pool healthy\n".repeat(40);
+        let payload = serde_json::json!({
+            "model": "claude-sonnet-4-5",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "tu_1",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": repeated_logs,
+                                    "cache_control": {"type": "ephemeral"}
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        });
+        let raw_bytes = serde_json::to_vec(&payload).unwrap_or_default();
+        let store = InMemoryCcrStore::default();
+        let out = compress_request_body_with_store("/v1/messages", &raw_bytes, &store);
+        assert_eq!(out, raw_bytes);
     }
 }
