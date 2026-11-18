@@ -176,6 +176,70 @@ impl WikiStore {
         }
         Ok(purged)
     }
+
+    pub fn write_pages_batch(&self, pages: &[WikiPage]) -> Result<usize, String> {
+        let mut written = 0;
+        for page in pages {
+            self.write_page(page)?;
+            written += 1;
+        }
+        Ok(written)
+    }
+
+    pub fn lint_pages(&self) -> Result<Vec<WikiLintIssue>, String> {
+        let pages = self.list_pages()?;
+        let mut issues = Vec::new();
+        for p in pages {
+            if p.title.trim().is_empty() {
+                issues.push(WikiLintIssue {
+                    slug: p.slug.clone(),
+                    severity: "warn".to_string(),
+                    message: "Missing title in OKF v0.2 frontmatter".to_string(),
+                });
+            }
+            if p.abstract_text.as_deref().unwrap_or("").trim().is_empty()
+                && p.summary_text.as_deref().unwrap_or("").trim().is_empty()
+            {
+                issues.push(WikiLintIssue {
+                    slug: p.slug.clone(),
+                    severity: "warn".to_string(),
+                    message: "Missing abstract and summary for L0/L1 progressive disclosure".to_string(),
+                });
+            }
+            if p.body.trim().is_empty() {
+                issues.push(WikiLintIssue {
+                    slug: p.slug.clone(),
+                    severity: "error".to_string(),
+                    message: "Empty markdown body".to_string(),
+                });
+            }
+        }
+        Ok(issues)
+    }
+
+    pub fn consolidate_pages(&self) -> Result<usize, String> {
+        let pages = self.list_pages()?;
+        let mut seen_titles: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+        let mut removed = 0;
+        for p in pages {
+            let norm_title = p.title.trim().to_lowercase();
+            if p.body.trim().is_empty() && seen_titles.contains_key(&norm_title) {
+                if self.delete_page(&p.slug)? {
+                    removed += 1;
+                }
+            } else {
+                seen_titles.entry(norm_title).or_insert(p.slug);
+            }
+        }
+        Ok(removed)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WikiLintIssue {
+    pub slug: String,
+    pub severity: String,
+    pub message: String,
 }
 
 fn parse_markdown_page(slug: &str, content: &str) -> WikiPage {

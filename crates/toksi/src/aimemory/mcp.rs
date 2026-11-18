@@ -263,6 +263,47 @@ pub fn tool_definitions() -> Value {
             "name": "memory_explore",
             "description": "Explore knowledge topics, concept structures, and active handoffs.",
             "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "memory_write_pages_batch",
+            "description": "Write multiple OKF v0.2 wiki pages in a single batch.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "pages": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "slug": { "type": "string" },
+                                "title": { "type": "string" },
+                                "doc_type": { "type": "string" },
+                                "body": { "type": "string" },
+                                "abstract_text": { "type": "string" },
+                                "summary_text": { "type": "string" },
+                                "tags": { "type": "array", "items": { "type": "string" } }
+                            },
+                            "required": ["slug", "title", "body"]
+                        }
+                    }
+                },
+                "required": ["pages"]
+            }
+        },
+        {
+            "name": "memory_lint",
+            "description": "Lint OKF v0.2 wiki pages for missing frontmatter fields or empty bodies.",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "memory_consolidate",
+            "description": "Consolidate wiki store by pruning empty duplicate stub pages.",
+            "inputSchema": { "type": "object", "properties": {} }
+        },
+        {
+            "name": "memory_forget_sweep",
+            "description": "Purge wiki pages matching .gitignore/.ignore rules from the workspace.",
+            "inputSchema": { "type": "object", "properties": {} }
         }
     ])
 }
@@ -629,6 +670,57 @@ pub fn handle_aimemory_tool_call(name: &str, args: &Value) -> (String, bool) {
                 "handoffs": handoffs.iter().map(|h| &h.title).collect::<Vec<_>>()
             });
             (serde_json::to_string_pretty(&res).unwrap_or_default(), false)
+        }
+        "memory_write_pages_batch" => {
+            let mut pages = Vec::new();
+            if let Some(arr) = args.get("pages").and_then(|v| v.as_array()) {
+                for item in arr {
+                    let slug = item.get("slug").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    let title = item.get("title").and_then(|v| v.as_str()).unwrap_or(&slug).to_string();
+                    let body = item.get("body").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                    if slug.is_empty() {
+                        continue;
+                    }
+                    pages.push(WikiPage {
+                        slug,
+                        title,
+                        doc_type: item.get("doc_type").and_then(|v| v.as_str()).map(String::from),
+                        abstract_text: item.get("abstract_text").and_then(|v| v.as_str()).map(String::from),
+                        summary_text: item.get("summary_text").and_then(|v| v.as_str()).map(String::from),
+                        tags: item
+                            .get("tags")
+                            .and_then(|v| v.as_array())
+                            .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+                            .unwrap_or_default(),
+                        body,
+                    });
+                }
+            }
+            match wiki.write_pages_batch(&pages) {
+                Ok(n) => (format!("Wrote {} wiki page(s)", n), false),
+                Err(e) => (format!("Error writing batch pages: {e}"), true),
+            }
+        }
+        "memory_lint" => {
+            match wiki.lint_pages() {
+                Ok(issues) => (serde_json::to_string_pretty(&issues).unwrap_or_default(), false),
+                Err(e) => (format!("Error linting wiki: {e}"), true),
+            }
+        }
+        "memory_consolidate" => {
+            match wiki.consolidate_pages() {
+                Ok(n) => (format!("Consolidated wiki: pruned {} duplicate stub page(s)", n), false),
+                Err(e) => (format!("Error consolidating wiki: {e}"), true),
+            }
+        }
+        "memory_forget_sweep" => {
+            let root = crate::aimemory::resolve_aimemory_root_and_subproject(None)
+                .map(|(r, _)| r)
+                .unwrap_or_else(|_| std::path::PathBuf::from("."));
+            match wiki.purge_ignored_pages(&root) {
+                Ok(n) => (format!("Forget sweep purged {} ignored page(s)", n), false),
+                Err(e) => (format!("Error running forget sweep: {e}"), true),
+            }
         }
         _ => (format!("Unknown tool: {name}"), true),
     }

@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/aimemory/mod.rs
 // created: 2026-10-28
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
+
+#![deny(unsafe_code)]
 
 pub mod cli;
 pub mod handoff;
@@ -239,6 +241,55 @@ mod tests {
         let tiered = store.to_tiered_entries().expect("to tiered");
         assert_eq!(tiered.len(), 1);
         assert_eq!(tiered[0].key, "architecture-principles");
+    }
+
+    #[test]
+    fn test_wiki_batch_lint_consolidate_and_normalized_handoff() {
+        let dir = tempdir().expect("tempdir");
+        let wiki = WikiStore::new(dir.path().join("wiki"));
+
+        let pages = vec![
+            WikiPage {
+                slug: "p1".into(),
+                title: "Same Title".into(),
+                doc_type: Some("Concept".into()),
+                abstract_text: Some("Valid abstract".into()),
+                summary_text: None,
+                tags: vec!["tag".into()],
+                body: "Non-empty body".into(),
+            },
+            WikiPage {
+                slug: "p2".into(),
+                title: "Same Title".into(),
+                doc_type: Some("Concept".into()),
+                abstract_text: None,
+                summary_text: None,
+                tags: vec![],
+                body: "".into(),
+            },
+        ];
+
+        assert_eq!(wiki.write_pages_batch(&pages).expect("batch"), 2);
+        let issues = wiki.lint_pages().expect("lint");
+        assert!(issues.iter().any(|i| i.slug == "p2" && i.severity == "error"));
+
+        assert_eq!(wiki.consolidate_pages().expect("consolidate"), 1);
+        assert_eq!(wiki.list_pages().expect("list").len(), 1);
+
+        let handoff = HandoffStore::new(dir.path().join("handoffs"));
+        let h = handoff
+            .offer(NewHandoff {
+                title: "Path norm".into(),
+                task: "Check forward slashes".into(),
+                from_agent: "claude".into(),
+                to_agent: Some("cursor".into()),
+                active_files: vec![r"crates\toksi\src\aimemory\mod.rs".into()],
+                unresolved_issues: vec![],
+                next_steps: vec![],
+                context_notes: None,
+            })
+            .expect("offer");
+        assert_eq!(h.active_files, vec!["crates/toksi/src/aimemory/mod.rs"]);
     }
 }
 

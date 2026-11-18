@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/icm/mcp.rs
 // created: 2026-10-28
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
@@ -278,6 +278,29 @@ pub fn tool_definitions() -> Value {
                 "properties": {
                     "topic": { "type": "string", "description": "Optional topic filter" }
                 }
+            }
+        },
+        {
+            "name": "icm_memory_recent",
+            "description": "List most recently updated memories in ICM.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "limit": { "type": "integer", "description": "Max results (default: 10)" }
+                }
+            }
+        },
+        {
+            "name": "icm_memory_extract_patterns",
+            "description": "Detect recurring keyword patterns in a topic and optionally create memoir concepts.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "topic": { "type": "string", "description": "Topic to analyze for patterns" },
+                    "memoir": { "type": "string", "description": "Optional memoir ID or name to create concepts in" },
+                    "min_cluster_size": { "type": "integer", "description": "Minimum cluster size (default: 3)" }
+                },
+                "required": ["topic"]
             }
         },
         {
@@ -632,7 +655,7 @@ pub fn handle_tool_call(store: &mut IcmStore, name: &str, args: &Value) -> (Stri
                 Err(e) => (format!("Error storing memory: {e}"), true),
             }
         }
-        "icm_memory_recall" => {
+        "icm_memory_recall" | "icm_memory_search" => {
             let query = args.get("query").and_then(|v| v.as_str()).unwrap_or("");
             let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(5) as usize;
             let topic = args.get("topic").and_then(|v| v.as_str()).map(String::from);
@@ -711,7 +734,7 @@ pub fn handle_tool_call(store: &mut IcmStore, name: &str, args: &Value) -> (Stri
                 Err(e) => (format!("Error consolidating: {e}"), true),
             }
         }
-        "icm_memory_list_topics" | "icm_list_topics" => {
+        "icm_memory_list_topics" | "icm_list_topics" | "icm_topic_list" => {
             match store.list_topics() {
                 Ok(topics) => {
                     let out = serde_json::to_string_pretty(&topics).unwrap_or_default();
@@ -737,6 +760,53 @@ pub fn handle_tool_call(store: &mut IcmStore, name: &str, args: &Value) -> (Stri
                     (out, false)
                 }
                 Err(e) => (format!("Error getting health: {e}"), true),
+            }
+        }
+        "icm_memory_recent" => {
+            let limit = args.get("limit").and_then(|v| v.as_u64()).unwrap_or(10) as usize;
+            match store.recent_memories(limit) {
+                Ok(mems) => {
+                    let out = serde_json::to_string_pretty(&mems).unwrap_or_default();
+                    (out, false)
+                }
+                Err(e) => (format!("Error listing recent memories: {e}"), true),
+            }
+        }
+        "icm_memory_extract_patterns" => {
+            let topic = args.get("topic").and_then(|v| v.as_str()).unwrap_or("");
+            if topic.is_empty() {
+                return ("missing required field: topic".to_string(), true);
+            }
+            let min_cluster_size = args
+                .get("min_cluster_size")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(3)
+                .clamp(2, 50) as usize;
+            let memoir_arg = args.get("memoir").and_then(|v| v.as_str());
+
+            match store.detect_patterns(topic, min_cluster_size) {
+                Ok(clusters) => {
+                    let mut created_concepts = Vec::new();
+                    if let Some(m_name) = memoir_arg {
+                        if let Ok(memoirs) = store.list_memoirs() {
+                            if let Some(m) = memoirs.into_iter().find(|m| m.id == m_name || m.name == m_name) {
+                                for c in &clusters {
+                                    if let Ok(concept) = store.extract_pattern_as_concept(c, &m.id) {
+                                        created_concepts.push(concept.id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    let out = serde_json::to_string_pretty(&json!({
+                        "topic": topic,
+                        "patterns": clusters,
+                        "created_concepts": created_concepts,
+                    }))
+                    .unwrap_or_default();
+                    (out, false)
+                }
+                Err(e) => (format!("Error extracting patterns: {e}"), true),
             }
         }
         "icm_pin" => {

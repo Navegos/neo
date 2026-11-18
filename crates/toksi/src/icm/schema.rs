@@ -235,3 +235,11 @@ pub struct IcmStats {
     pub total_transcripts: usize,
     pub avg_weight: f32,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PatternCluster {
+    pub representative_summary: String,
+    pub memory_ids: Vec<String>,
+    pub keywords: Vec<String>,
+    pub count: usize,
+}

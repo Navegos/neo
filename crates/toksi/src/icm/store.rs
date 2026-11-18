@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/icm/store.rs
 // created: 2026-10-28
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
@@ -17,7 +17,7 @@ use serde_json::{json, Value};
 use crate::icm::fusion::{rrf_fuse, RankedList, RRF_K};
 use crate::icm::schema::{
     Concept, ConceptLink, Fact, Feedback, IcmError, IcmResult, IcmStats, Importance,
-    Memoir, Memory, Message, RankedHit, SearchHit, Session, Topic, TopicHealth,
+    Memoir, Memory, Message, PatternCluster, RankedHit, SearchHit, Session, Topic, TopicHealth,
 };
 use crate::icm::temporal::parse_query_window;
 use crate::util::paths::normalize_path;
@@ -1327,6 +1327,169 @@ impl IcmStore {
         }
 
         Ok(purged)
+    }
+
+    pub fn recent_memories(&self, limit: usize) -> IcmResult<Vec<Memory>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, created_at, updated_at, last_accessed, access_count, weight,
+                    topic, summary, raw_excerpt, keywords, importance, source_type,
+                    source_data, related_ids, summary_hash, subproject_id
+             FROM memories
+             ORDER BY updated_at DESC, last_accessed DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit as i64], Self::row_to_memory)?;
+        let mut results = Vec::new();
+        for r in rows {
+            results.push(r?);
+        }
+        Ok(results)
+    }
+
+    pub fn get_by_topic(&self, topic: &str) -> IcmResult<Vec<Memory>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, created_at, updated_at, last_accessed, access_count, weight,
+                    topic, summary, raw_excerpt, keywords, importance, source_type,
+                    source_data, related_ids, summary_hash, subproject_id
+             FROM memories
+             WHERE topic = ?1
+             ORDER BY weight DESC, updated_at DESC
+             LIMIT 500",
+        )?;
+        let rows = stmt.query_map(params![topic], Self::row_to_memory)?;
+        let mut results = Vec::new();
+        for r in rows {
+            results.push(r?);
+        }
+        Ok(results)
+    }
+
+    /// Detects recurring patterns in a topic by keyword Jaccard similarity (> 0.5).
+    pub fn detect_patterns(
+        &self,
+        topic: &str,
+        min_cluster_size: usize,
+    ) -> IcmResult<Vec<PatternCluster>> {
+        let memories = self.get_by_topic(topic)?;
+        if memories.len() < min_cluster_size {
+            return Ok(Vec::new());
+        }
+
+        let keyword_sets: Vec<std::collections::HashSet<String>> = memories
+            .iter()
+            .map(|m| m.keywords.iter().map(|k| k.to_lowercase()).collect())
+            .collect();
+
+        let n = memories.len();
+        let mut parent: Vec<usize> = (0..n).collect();
+
+        fn find(parent: &mut [usize], mut i: usize) -> usize {
+            while parent[i] != i {
+                parent[i] = parent[parent[i]];
+                i = parent[i];
+            }
+            i
+        }
+
+        fn union(parent: &mut [usize], a: usize, b: usize) {
+            let ra = find(parent, a);
+            let rb = find(parent, b);
+            if ra != rb {
+                parent[ra] = rb;
+            }
+        }
+
+        for i in 0..n {
+            for j in (i + 1)..n {
+                if keyword_sets[i].is_empty() && keyword_sets[j].is_empty() {
+                    continue;
+                }
+                let intersection = keyword_sets[i].intersection(&keyword_sets[j]).count();
+                let union_size = keyword_sets[i].union(&keyword_sets[j]).count();
+                if union_size > 0 && (intersection as f32 / union_size as f32) > 0.5 {
+                    union(&mut parent, i, j);
+                }
+            }
+        }
+
+        let mut clusters: std::collections::HashMap<usize, Vec<usize>> = std::collections::HashMap::new();
+        for i in 0..n {
+            let root = find(&mut parent, i);
+            clusters.entry(root).or_default().push(i);
+        }
+
+        let mut result = Vec::new();
+        for indices in clusters.values() {
+            if indices.len() < min_cluster_size {
+                continue;
+            }
+            let Some(&best_idx) = indices.iter().max_by(|&&a, &&b| {
+                memories[a]
+                    .weight
+                    .partial_cmp(&memories[b].weight)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            }) else {
+                continue;
+            };
+
+            let mut all_kw = Vec::new();
+            let mut seen = std::collections::HashSet::new();
+            for &idx in indices {
+                for kw in &memories[idx].keywords {
+                    if seen.insert(kw.to_lowercase()) {
+                        all_kw.push(kw.clone());
+                    }
+                }
+            }
+
+            result.push(PatternCluster {
+                representative_summary: memories[best_idx].summary.clone(),
+                memory_ids: indices.iter().map(|&i| memories[i].id.clone()).collect(),
+                keywords: all_kw,
+                count: indices.len(),
+            });
+        }
+
+        result.sort_by_key(|b| std::cmp::Reverse(b.count));
+        Ok(result)
+    }
+
+    pub fn extract_pattern_as_concept(
+        &mut self,
+        cluster: &PatternCluster,
+        memoir_id: &str,
+    ) -> IcmResult<Concept> {
+        let concept_name = if cluster.keywords.is_empty() {
+            let prefix: String = cluster
+                .memory_ids
+                .first()
+                .map(|id| id.chars().take(8).collect())
+                .unwrap_or_else(|| "cluster".to_string());
+            format!("pattern-{prefix}")
+        } else {
+            cluster
+                .keywords
+                .iter()
+                .take(3)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("-")
+        };
+
+        let definition = format!(
+            "{} (pattern detected across {} memories)",
+            cluster.representative_summary, cluster.count
+        );
+        let labels: Vec<String> = cluster.keywords.iter().take(5).cloned().collect();
+        let confidence = (0.5 + cluster.count as f32 * 0.05).min(0.9);
+        self.add_concept(
+            memoir_id,
+            &concept_name,
+            &definition,
+            &labels,
+            confidence,
+            &cluster.memory_ids,
+        )
     }
 
     pub fn stats(&self) -> IcmResult<IcmStats> {

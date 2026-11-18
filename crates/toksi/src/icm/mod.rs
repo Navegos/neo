@@ -281,4 +281,66 @@ mod tests {
         assert!(!res.hits.is_empty());
         assert!(res.latency_ms < 10.0, "latency was {}ms, expected < 10ms", res.latency_ms);
     }
+
+    #[test]
+    fn test_icm_pattern_extraction_and_mcp_aliases() {
+        let mut store = IcmStore::open_in_memory().expect("in memory store open");
+        let now = Utc::now().to_rfc3339();
+        let memoir = store.create_memoir("patterns", "Detected patterns", 5).expect("memoir");
+
+        for i in 0..3 {
+            let mem = Memory {
+                id: format!("pat_{}", i),
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                last_accessed: now.clone(),
+                access_count: 0,
+                weight: 1.0,
+                topic: "errors".into(),
+                summary: format!("Connection pool timeout under load {}", i),
+                raw_excerpt: None,
+                keywords: vec!["connection".into(), "pool".into(), "timeout".into()],
+                importance: Importance::High,
+                source_type: "test".into(),
+                source_data: None,
+                related_ids: vec![],
+                summary_hash: None,
+                subproject_id: None,
+            };
+            store.insert_or_update_memory(&mem).expect("insert");
+        }
+
+        let (out, is_err) = crate::icm::mcp::handle_tool_call(
+            &mut store,
+            "icm_memory_extract_patterns",
+            &serde_json::json!({
+                "topic": "errors",
+                "memoir": memoir.id,
+                "min_cluster_size": 3
+            }),
+        );
+        assert!(!is_err, "extract patterns failed: {}", out);
+        assert!(out.contains("Connection pool timeout"));
+
+        let (_search_out, search_err) = crate::icm::mcp::handle_tool_call(
+            &mut store,
+            "icm_memory_search",
+            &serde_json::json!({ "query": "timeout" }),
+        );
+        assert!(!search_err);
+
+        let (_recent_out, recent_err) = crate::icm::mcp::handle_tool_call(
+            &mut store,
+            "icm_memory_recent",
+            &serde_json::json!({ "limit": 2 }),
+        );
+        assert!(!recent_err);
+
+        let (_topics_out, topics_err) = crate::icm::mcp::handle_tool_call(
+            &mut store,
+            "icm_topic_list",
+            &serde_json::json!({}),
+        );
+        assert!(!topics_err);
+    }
 }

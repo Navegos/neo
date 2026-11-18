@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/aimemory/handoff.rs
 // created: 2026-10-28
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
@@ -148,6 +148,11 @@ impl HandoffStore {
 
         let from_norm = normalize_agent_id(&input.from_agent);
         let to_norm = input.to_agent.map(|t| normalize_agent_id(&t));
+        let active_files: Vec<String> = input
+            .active_files
+            .into_iter()
+            .map(|f| crate::util::paths::normalize_path(&f))
+            .collect();
 
         let handoff = Handoff {
             id: id.clone(),
@@ -157,7 +162,7 @@ impl HandoffStore {
             to_agent: to_norm,
             claimed_by: None,
             state: HandoffState::Offered,
-            active_files: input.active_files,
+            active_files,
             unresolved_issues: input.unresolved_issues,
             next_steps: input.next_steps,
             context_notes: input.context_notes,
