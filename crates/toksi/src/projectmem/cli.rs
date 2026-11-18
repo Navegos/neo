@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/projectmem/cli.rs
 // created: 2026-10-27
-// lastModified: 2026-11-12
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
@@ -29,7 +29,7 @@ pub fn print_mem_help() {
         "toksi mem — Project memory and failure prevention for humans and AI tools\n\n\
         Usage:\n\
           toksi mem init [--purpose <text>]\n\
-          toksi mem log <text> [--at <file:line>]\n\
+          toksi mem log | log-issue <text> [--at <file:line>]\n\
           toksi mem attempt <text> [--worked|--failed|--partial] [--at <file:line>] [--issue <id>] [--auto-issue]\n\
           toksi mem fix <text> [--at <file:line>] [--issue <id>]\n\
           toksi mem decision <text> [--at <file:line>] [--supersedes <id>]\n\
@@ -46,6 +46,9 @@ pub fn print_mem_help() {
           toksi mem structure [--json]\n\
           toksi mem slash <command>\n\
           toksi mem search <query> [--limit <n>]\n\
+          toksi mem checkpoint <save|load|list|delete> [plan_id]\n\
+          toksi mem resume [plan_id]\n\
+          toksi mem wiki-sync\n\
           toksi mem sync\n\
           toksi mem global <status|list|add|add-gotcha|remove|detect|prune>\n\
           toksi mem mcp\n"
@@ -116,7 +119,7 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
                 }
             }
         }
-        "log" => {
+        "log" | "log-issue" => {
             if rest.is_empty() {
                 eprintln!("Error: 'toksi mem log' requires issue summary");
                 return 1;
@@ -939,6 +942,144 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
                 }
                 _ => {
                     eprintln!("Unknown global action: {}", sub);
+                    1
+                }
+            }
+        }
+        "wiki-sync" => {
+            match super::wiki_sync::sync_project_map_from_structure(None) {
+                Ok(_) => {
+                    println!("Synchronized PROJECT_MAP.md from workspace structure.");
+                    0
+                }
+                Err(e) => {
+                    eprintln!("Error syncing PROJECT_MAP.md: {}", e);
+                    1
+                }
+            }
+        }
+        "checkpoint" => {
+            let sub = rest.first().map(|s| s.as_str()).unwrap_or("list");
+            match sub {
+                "list" => match super::plan_checkpoint::list_plan_checkpoints(None) {
+                    Ok(list) => {
+                        if list.is_empty() {
+                            println!("No plan checkpoints found.");
+                        } else {
+                            for cp in list {
+                                println!(
+                                    "{} [{:?}] step {}/{} — {}",
+                                    cp.plan_id, cp.status, cp.current_step, cp.total_steps, cp.title
+                                );
+                            }
+                        }
+                        0
+                    }
+                    Err(e) => {
+                        eprintln!("Error listing checkpoints: {}", e);
+                        1
+                    }
+                },
+                "save" => {
+                    let plan_id = match rest.get(1) {
+                        Some(id) => id.as_str(),
+                        None => {
+                            eprintln!("Error: 'toksi mem checkpoint save <plan_id>' requires plan_id");
+                            return 1;
+                        }
+                    };
+                    let mut title = String::new();
+                    let mut i = 2;
+                    while i < rest.len() {
+                        if rest[i] == "--title" && i + 1 < rest.len() {
+                            title = rest[i + 1].clone();
+                            i += 2;
+                        } else {
+                            i += 1;
+                        }
+                    }
+                    let mut cp = super::plan_checkpoint::PlanCheckpoint::new(plan_id, &title);
+                    match super::plan_checkpoint::save_plan_checkpoint(None, &mut cp) {
+                        Ok(p) => {
+                            println!("Saved checkpoint '{}' at {}", cp.plan_id, p.display());
+                            0
+                        }
+                        Err(e) => {
+                            eprintln!("Error saving checkpoint: {}", e);
+                            1
+                        }
+                    }
+                }
+                "load" => {
+                    let plan_id = match rest.get(1) {
+                        Some(id) => id.as_str(),
+                        None => {
+                            eprintln!("Error: 'toksi mem checkpoint load <plan_id>' requires plan_id");
+                            return 1;
+                        }
+                    };
+                    match super::plan_checkpoint::load_plan_checkpoint(None, plan_id) {
+                        Ok(cp) => {
+                            if let Ok(json) = serde_json::to_string_pretty(&cp) {
+                                println!("{}", json);
+                            }
+                            0
+                        }
+                        Err(e) => {
+                            eprintln!("Error loading checkpoint: {}", e);
+                            1
+                        }
+                    }
+                }
+                "delete" => {
+                    let plan_id = match rest.get(1) {
+                        Some(id) => id.as_str(),
+                        None => {
+                            eprintln!("Error: 'toksi mem checkpoint delete <plan_id>' requires plan_id");
+                            return 1;
+                        }
+                    };
+                    match super::plan_checkpoint::delete_plan_checkpoint(None, plan_id) {
+                        Ok(true) => {
+                            println!("Deleted checkpoint '{}'", plan_id);
+                            0
+                        }
+                        Ok(false) => {
+                            eprintln!("Checkpoint '{}' not found", plan_id);
+                            1
+                        }
+                        Err(e) => {
+                            eprintln!("Error deleting checkpoint: {}", e);
+                            1
+                        }
+                    }
+                }
+                _ => {
+                    eprintln!("Unknown checkpoint action: {}", sub);
+                    1
+                }
+            }
+        }
+        "resume" => {
+            let plan_id = rest.first().map(|s| s.as_str());
+            let res = if let Some(id) = plan_id {
+                super::plan_checkpoint::load_plan_checkpoint(None, id).map(Some)
+            } else {
+                super::plan_checkpoint::latest_resumable_checkpoint(None)
+            };
+            match res {
+                Ok(Some(cp)) => {
+                    if let Ok(json) = serde_json::to_string_pretty(&cp) {
+                        println!("{}", json);
+                    }
+                    0
+                }
+                Ok(None) => {
+                    println!("No resumable plan checkpoints found.");
+                    0
+                }
+                Err(e) => {
+                    eprintln!("Error resuming checkpoint: {}", e);
                     1
                 }
             }

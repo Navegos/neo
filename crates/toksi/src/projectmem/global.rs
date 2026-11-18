@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/projectmem/global.rs
 // created: 2026-10-30
-// lastModified: 2026-11-12
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
@@ -181,10 +181,16 @@ pub fn registry_path() -> PathBuf {
             return PathBuf::from(home.trim()).join(PROJECTS_FILE);
         }
     }
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".projectmem")
-        .join(PROJECTS_FILE)
+    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    let toksi_reg = home.join(".toksi").join(PROJECTS_FILE);
+    let legacy_reg = home.join(".projectmem").join(PROJECTS_FILE);
+    if !toksi_reg.exists() && legacy_reg.exists() {
+        if let Some(parent) = toksi_reg.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let _ = fs::copy(&legacy_reg, &toksi_reg);
+    }
+    toksi_reg
 }
 
 pub fn read_registry() -> Registry {
@@ -886,7 +892,7 @@ pub fn build_inherited_instructions(patterns: &[GlobalPattern], gotchas: &[Globa
     let mut lines = vec![
         "## Global Memory — Inherited Knowledge\n".to_string(),
         "The following patterns and gotchas were inherited from your global memory".to_string(),
-        "(~/.projectmem/global/). They represent lessons learned from other projects.\n".to_string(),
+        "(<repo>/.toksi/projectmem/global/). They represent lessons learned from other projects.\n".to_string(),
     ];
 
     if !gotchas.is_empty() {

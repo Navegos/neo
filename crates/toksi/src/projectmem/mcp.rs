@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/projectmem/mcp.rs
 // created: 2026-10-27
-// lastModified: 2026-11-13
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
@@ -841,7 +841,7 @@ pub fn handle_mcp_message(req: &Value) -> Option<Value> {
                 "protocolVersion": "2024-11-05",
                 "serverInfo": {
                     "name": "projectmem",
-                    "version": "0.3.4"
+                    "version": "0.3.5"
                 },
                 "capabilities": {
                     "tools": {}

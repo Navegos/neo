@@ -11,6 +11,7 @@ use tempfile::tempdir;
 use super::cli::run_mem_cli;
 use super::heatmap::*;
 use super::mcp::*;
+use super::plan_checkpoint::*;
 use super::precheck::{
     active_snooze, analyze_files, clear_snooze, parse_snooze_duration, set_snooze,
 };
@@ -21,6 +22,8 @@ use super::staleness::*;
 use super::store::*;
 use super::structure::*;
 use super::summary::*;
+use super::wiki_sync::*;
+use super::wire::*;
 
 #[test]
 fn test_schema_models_and_resolution() {
@@ -890,5 +893,103 @@ fn test_cli_staleness_structure_slash() {
     assert_eq!(run_mem_cli(&["slash".to_string(), "status".to_string()]), 0);
 
     let _ = std::env::set_current_dir(prev_dir);
+}
+
+#[test]
+fn test_plan_checkpoints_and_redaction() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), Some("Checkpoint Test")).unwrap();
+
+    let mut cp = PlanCheckpoint::new("wave-18/phase-02", "Phase 02 sk-1234567890abcdef1234567890abcdef1234567890");
+    cp.total_steps = 4;
+    cp.current_step = 2;
+    cp.completed_steps = vec!["schema".into(), "store".into()];
+    cp.pending_steps = vec!["wire".into(), "tests".into()];
+    cp.active_plugins = vec!["projectmem".into()];
+    cp.sandbox_backend = Some("native".into());
+    cp.durable_journal_seq = 7;
+
+    let saved_path = save_plan_checkpoint(Some(root), &mut cp).unwrap();
+    assert!(saved_path.exists());
+    assert!(saved_path.to_string_lossy().contains("plan_checkpoints"));
+
+    let loaded = load_plan_checkpoint(Some(root), "wave-18/phase-02").unwrap();
+    assert_eq!(loaded.current_step, 2);
+    assert_eq!(loaded.durable_journal_seq, 7);
+    assert!(loaded.title.contains("[REDACTED:openai_key]"));
+    assert!(!loaded.title.contains("sk-1234567890"));
+
+    let latest = latest_resumable_checkpoint(Some(root)).unwrap();
+    assert!(latest.is_some());
+    assert_eq!(list_plan_checkpoints(Some(root)).unwrap().len(), 1);
+    assert!(delete_plan_checkpoint(Some(root), "wave-18/phase-02").unwrap());
+    assert!(list_plan_checkpoints(Some(root)).unwrap().is_empty());
+}
+
+#[test]
+fn test_direct_wire_bus_and_wiki_sync() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    initialize(Some(root), Some("Wire & Wiki Test")).unwrap();
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::write(root.join("src/lib.rs"), "pub mod app;\n").unwrap();
+    std::fs::write(root.join("src/app.rs"), "pub fn run() {}\n").unwrap();
+
+    let synced = sync_project_map_from_structure(Some(root)).unwrap();
+    assert!(synced.contains("Status: synced"));
+    assert!(synced.contains("`src/lib.rs` -> `src/app.rs` (mod)"));
+
+    let bus = DirectWireBus::new();
+    let mut rx = bus.subscribe();
+    let res = bus.dispatch("slash", &serde_json::json!({ "command": "/projectmem help" }));
+    assert_eq!(res["status"], "ok");
+    let msg = rx.try_recv().unwrap();
+    assert_eq!(msg.topic, "projectmem");
+    assert_eq!(msg.action, "slash");
+}
+
+#[test]
+fn test_monorepo_consolidation_and_git_guard() {
+    let tmp = tempdir().unwrap();
+    let root = tmp.path();
+    std::fs::create_dir_all(root.join(".git/objects")).unwrap();
+
+    // Never resolve `.git/` or `.git/objects` as the repo root
+    assert_eq!(
+        crate::projectmem::store::find_repo_root(Some(&root.join(".git/objects"))),
+        root.canonicalize().unwrap_or_else(|_| root.to_path_buf())
+    );
+
+    // Create nested subfolder `.projectmem/` and `.toksi/projectmem/`
+    let nested_legacy = root.join("crates/alpha/.projectmem");
+    std::fs::create_dir_all(&nested_legacy).unwrap();
+    let mut ev1 = Event::new("note", "gotcha: alpha crate needs feature X");
+    ev1.id = "evt_alpha_1".into();
+    std::fs::write(
+        nested_legacy.join("events.jsonl"),
+        format!("{}\n", serde_json::to_string(&ev1).unwrap()),
+    )
+    .unwrap();
+
+    let nested_toksi = root.join("crates/beta/.toksi/projectmem");
+    std::fs::create_dir_all(&nested_toksi).unwrap();
+    let mut ev2 = Event::new("decision", "Use async trait for beta");
+    ev2.id = "evt_beta_1".into();
+    std::fs::write(
+        nested_toksi.join("events.jsonl"),
+        format!("{}\n", serde_json::to_string(&ev2).unwrap()),
+    )
+    .unwrap();
+
+    initialize(Some(root), Some("Monorepo Test")).unwrap();
+    assert!(!nested_legacy.exists());
+    assert!(!nested_toksi.exists());
+
+    let events = read_events(Some(root)).unwrap();
+    let alpha = events.iter().find(|e| e.id == "evt_alpha_1").unwrap();
+    let beta = events.iter().find(|e| e.id == "evt_beta_1").unwrap();
+    assert_eq!(alpha.subproject_id.as_deref(), Some("crates/alpha"));
+    assert_eq!(beta.subproject_id.as_deref(), Some("crates/beta"));
 }
 

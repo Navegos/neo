@@ -34,6 +34,7 @@ pub fn handle_slash_command(input: &str, root: Option<&Path>) -> String {
              - `/projectmem precheck [file]` - Check file or working tree for known failure history\n\
              - `/projectmem summary` - Show current distilled project summary\n\
              - `/projectmem gotchas` - List known gotchas and constraint notes\n\
+             - `/projectmem resume [plan_id]` - Show latest or named durable plan checkpoint\n\
              - `/projectmem help` - Show this help message"
                 .to_string()
         }
@@ -139,6 +140,28 @@ pub fn handle_slash_command(input: &str, root: Option<&Path>) -> String {
                 lines.push(format!("- {}{}", n.summary, loc));
             }
             lines.join("\n")
+        }
+        "resume" => {
+            let plan_id = parts.get(2).copied();
+            let cp_res = if let Some(id) = plan_id {
+                super::plan_checkpoint::load_plan_checkpoint(root, id).map(Some)
+            } else {
+                super::plan_checkpoint::latest_resumable_checkpoint(root)
+            };
+            match cp_res {
+                Ok(Some(cp)) => format!(
+                    "**Resumable Plan Checkpoint:**\n\
+                     - Plan ID: `{}`\n\
+                     - Title: {}\n\
+                     - Status: {:?}\n\
+                     - Step: {}/{}\n\
+                     - Journal Seq: {}\n\
+                     - Updated: {}",
+                    cp.plan_id, cp.title, cp.status, cp.current_step, cp.total_steps, cp.durable_journal_seq, cp.updated_at
+                ),
+                Ok(None) => "No resumable plan checkpoints found in `.toksi/projectmem/plan_checkpoints/`.".to_string(),
+                Err(e) => format!("Checkpoint error: {}", e),
+            }
         }
         _ => format!("Unknown ProjectMem slash command `{}`. Type `/projectmem help` for usage.", sub),
     }

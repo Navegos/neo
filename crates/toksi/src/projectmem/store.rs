@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/projectmem/store.rs
 // created: 2026-10-27
-// lastModified: 2026-11-12
+// lastModified: 2026-11-18
 
 #![deny(unsafe_code)]
 
@@ -99,13 +99,26 @@ pub fn set_mem_root_override(p: Option<PathBuf>) {
 
 pub fn find_repo_root(start: Option<&Path>) -> PathBuf {
     if let Some(s) = start {
+        let canonical = s.canonicalize().unwrap_or_else(|_| s.to_path_buf());
+        // Never treat `<repo>/.git` or anything inside `.git/` as the repo root
+        if canonical
+            .components()
+            .any(|c| c.as_os_str() == ".git")
+        {
+            let mut cur = canonical.as_path();
+            while let Some(parent) = cur.parent() {
+                if cur.file_name().and_then(|n| n.to_str()) == Some(".git") {
+                    return parent.to_path_buf();
+                }
+                cur = parent;
+            }
+        }
         if is_project_mem_dir(s) {
             return s.parent().unwrap_or(s).to_path_buf();
         }
         if is_project_mem_dir(&s.join(TOKSI_MEM_SUBDIR)) || is_project_mem_dir(&s.join(LEGACY_MEM_DIR)) {
             return s.to_path_buf();
         }
-        let canonical = s.canonicalize().unwrap_or_else(|_| s.to_path_buf());
         let mut current = canonical.as_path();
         loop {
             if current.join(".git").exists() {
@@ -386,6 +399,11 @@ pub fn initialize(root: Option<&Path>, project_purpose: Option<&str>) -> Result<
         File::create(&events_file)?;
     }
 
+    // Consolidate any nested subfolder .projectmem/ or .toksi/projectmem/ into root
+    if repo_root.join(".git").exists() {
+        let _ = consolidate_nested_mem_dirs(&repo_root);
+    }
+
     let config_file = project_dir.join(CONFIG_FILE);
     if !config_file.exists() {
         let purpose = project_purpose.unwrap_or("").trim();
@@ -601,6 +619,9 @@ pub fn append_event(event: &mut Event, root: Option<&Path>) -> Result<()> {
     if let Some(ref loc) = event.location {
         event.location = Some(auto_resolve_location(&repo_root, loc));
     }
+    if event.subproject_id.is_none() {
+        event.subproject_id = derive_subproject_id(&repo_root, root, event.location.as_deref());
+    }
 
     let p = events_path(root)?;
     if let Some(parent) = p.parent() {
@@ -795,6 +816,140 @@ pub fn latest_open_issue_within(events: &[Event], minutes: i64) -> Option<String
         }
     }
     None
+}
+
+pub fn derive_subproject_id(
+    repo_root: &Path,
+    target: Option<&Path>,
+    location: Option<&str>,
+) -> Option<String> {
+    if let Some(loc) = location {
+        if let Some(file) = super::schema::location_to_file(Some(loc)) {
+            let norm = crate::util::paths::normalize_path(&file);
+            let parts: Vec<&str> = norm.split('/').filter(|p| !p.is_empty()).collect();
+            if parts.len() >= 2 && (parts[0] == "crates" || parts[0] == "packages" || parts[0] == "apps") {
+                return Some(format!("{}/{}", parts[0], parts[1]));
+            }
+        }
+    }
+    if let Some(t) = target {
+        let root_canon = repo_root.canonicalize().unwrap_or_else(|_| repo_root.to_path_buf());
+        let target_canon = t.canonicalize().unwrap_or_else(|_| t.to_path_buf());
+        if let Ok(rel) = target_canon.strip_prefix(&root_canon) {
+            let norm = crate::util::paths::normalize_path(&rel.to_string_lossy());
+            let trimmed = norm.trim_matches('/');
+            if !trimmed.is_empty() {
+                let parts: Vec<&str> = trimmed.split('/').filter(|p| !p.is_empty()).collect();
+                if parts.len() >= 2 && (parts[0] == "crates" || parts[0] == "packages" || parts[0] == "apps") {
+                    return Some(format!("{}/{}", parts[0], parts[1]));
+                }
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Discover any nested `.projectmem/` or subfolder `.toksi/projectmem/` directories
+/// inside monorepo subprojects (e.g. `crates/*`), merge their events into root
+/// `<repo>/.toksi/projectmem/events.jsonl` tagged with `subproject_id`, and remove
+/// the nested directories.
+pub fn consolidate_nested_mem_dirs(repo_root: &Path) -> Result<usize> {
+    let root_mem = repo_root.join(TOKSI_MEM_SUBDIR);
+    fs::create_dir_all(&root_mem)?;
+    let root_events_path = root_mem.join(EVENTS_FILE);
+
+    let mut existing_ids: std::collections::HashSet<String> = read_events(Some(repo_root))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|e| e.id)
+        .collect();
+
+    let mut nested_dirs: Vec<(PathBuf, String)> = Vec::new();
+    let mut stack = vec![repo_root.to_path_buf()];
+
+    while let Some(dir) = stack.pop() {
+        let entries = match fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if !p.is_dir() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name == ".git" || name == "target" || name == "node_modules" {
+                continue;
+            }
+            if dir == repo_root && (name == ".toksi" || name == ".projectmem") {
+                continue;
+            }
+            if name == ".projectmem" {
+                if let Ok(rel) = dir.strip_prefix(repo_root) {
+                    let sub_id = crate::util::paths::normalize_path(&rel.to_string_lossy());
+                    nested_dirs.push((p, sub_id));
+                }
+                continue;
+            }
+            if name == ".toksi" {
+                let sub_pm = p.join("projectmem");
+                if sub_pm.is_dir() {
+                    if let Ok(rel) = dir.strip_prefix(repo_root) {
+                        let sub_id = crate::util::paths::normalize_path(&rel.to_string_lossy());
+                        nested_dirs.push((sub_pm, sub_id));
+                    }
+                }
+                continue;
+            }
+            stack.push(p);
+        }
+    }
+
+    if nested_dirs.is_empty() {
+        return Ok(0);
+    }
+
+    let mut merged_count = 0usize;
+    let file = OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .append(true)
+        .open(&root_events_path)?;
+    let mut lock = FileLock::acquire_exclusive(file)?;
+
+    for (nested, sub_id) in nested_dirs {
+        let ev_file = nested.join(EVENTS_FILE);
+        if ev_file.is_file() {
+            if let Ok(f) = File::open(&ev_file) {
+                let reader = BufReader::new(f);
+                for line in reader.lines().map_while(|l| l.ok()) {
+                    let trimmed = line.trim();
+                    if trimmed.is_empty() {
+                        continue;
+                    }
+                    if let Ok(mut ev) = serde_json::from_str::<Event>(trimmed) {
+                        if existing_ids.contains(&ev.id) {
+                            continue;
+                        }
+                        if ev.subproject_id.is_none() && !sub_id.is_empty() {
+                            ev.subproject_id = Some(sub_id.clone());
+                        }
+                        if let Ok(json) = serde_json::to_string(&ev) {
+                            let _ = writeln!(lock.file_mut(), "{}", json);
+                            existing_ids.insert(ev.id);
+                            merged_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        let _ = fs::remove_dir_all(&nested);
+    }
+
+    let _ = lock.file_mut().flush();
+    Ok(merged_count)
 }
 
 pub fn get_git_commit(root: Option<&Path>) -> Option<String> {
