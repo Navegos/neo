@@ -91,6 +91,34 @@ pub struct RepomixBundle {
     pub rendered_output: String,
 }
 
+impl RepomixBundle {
+    /// Exports this packed bundle as an A2A v1.0 artifact envelope for agent-to-agent handoff.
+    pub fn to_a2a_pack_envelope(&self, task_id: &str) -> serde_json::Value {
+        serde_json::json!({
+            "jsonrpc": "2.0",
+            "method": "a2a/artifact",
+            "params": {
+                "taskId": task_id,
+                "artifact": {
+                    "name": "repomix-context-pack",
+                    "mimeType": "text/plain",
+                    "metadata": {
+                        "total_files": self.total_files,
+                        "total_lines": self.total_lines,
+                        "total_chars": self.total_chars,
+                        "estimated_bpe_tokens": self.total_estimated_tokens,
+                        "redacted_secrets": self.total_redacted_secrets
+                    },
+                    "parts": [{
+                        "type": "text",
+                        "text": self.rendered_output
+                    }]
+                }
+            }
+        })
+    }
+}
+
 /// Built-in secretlint engine: redacts API keys, private keys, JWTs, and URL credentials.
 pub fn redact_secrets(content: &str) -> (String, usize) {
     const RULES: &[(&str, &str)] = &[

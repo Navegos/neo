@@ -216,6 +216,30 @@ pub fn handle_mcp_message_with_root(req: &Value, default_root: Option<&str>) -> 
                                     "projectPath": { "type": "string", "description": "Optional project root path." }
                                 }
                             }
+                        },
+                        {
+                            "name": "codegraph_outline",
+                            "description": "Generates a condensed jcodemunch AST outline or O(1) SQLite byte-offset symbol slice.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "target": { "type": "string", "description": "Relative file path or symbol name/id." },
+                                    "projectPath": { "type": "string", "description": "Optional project root path." }
+                                },
+                                "required": ["target"]
+                            }
+                        },
+                        {
+                            "name": "codegraph_repomix",
+                            "description": "Packs repository context with secretlint redaction, BPE token counts, .gitignore/.repomixignore, and optional A2A envelope.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "format": { "type": "string", "description": "Output format: 'xml' (default), 'markdown', 'json', or 'a2a'." },
+                                    "maxTokens": { "type": "number", "description": "Optional BPE token budget cap." },
+                                    "projectPath": { "type": "string", "description": "Optional project root path." }
+                                }
+                            }
                         }
                     ]
                 }
@@ -307,7 +331,51 @@ pub fn handle_tool_call(cg: &CodeGraph, tool_name: &str, args: &Value) -> (Strin
         "cycles" | "codegraph_cycles" => (handle_cycles(cg), false),
         "status" | "codegraph_status" => (handle_status(cg), false),
         "files" | "codegraph_files" => (handle_files(cg, args), false),
+        "outline" | "codegraph_outline" => (handle_outline(cg, args), false),
+        "repomix" | "codegraph_repomix" => (handle_repomix(cg, args), false),
         _ => (format!("Unknown tool: {}", tool_name), true),
+    }
+}
+
+fn handle_outline(cg: &CodeGraph, args: &Value) -> String {
+    let target = match args.get("target").and_then(|t| t.as_str()) {
+        Some(t) if !t.trim().is_empty() => t.trim(),
+        _ => return "Missing required 'target' argument.".into(),
+    };
+    if let Some((file, slice)) = super::jcodemunch::extract_symbol_slice_o1(cg, target) {
+        return format!("// {} (O(1) byte-offset slice)\n{}", file, slice);
+    }
+    super::jcodemunch::summarize_from_cache_o1(cg, target)
+}
+
+fn handle_repomix(cg: &CodeGraph, args: &Value) -> String {
+    let fmt_str = args
+        .get("format")
+        .and_then(|f| f.as_str())
+        .unwrap_or("xml")
+        .to_ascii_lowercase();
+    let is_a2a = fmt_str == "a2a";
+    let format = match fmt_str.as_str() {
+        "markdown" | "md" => super::repomix::RepomixFormat::Markdown,
+        "json" => super::repomix::RepomixFormat::Json,
+        _ => super::repomix::RepomixFormat::Xml,
+    };
+    let max_tokens = args
+        .get("maxTokens")
+        .and_then(|m| m.as_u64())
+        .map(|m| m as usize);
+    let opts = super::repomix::RepomixOptions {
+        format,
+        max_tokens,
+        ..super::repomix::RepomixOptions::default()
+    };
+    match super::repomix::pack_workspace(&cg.root, &opts) {
+        Ok(bundle) if is_a2a => {
+            serde_json::to_string_pretty(&bundle.to_a2a_pack_envelope("mcp-repomix"))
+                .unwrap_or_else(|e| format!("Failed to serialize A2A pack: {}", e))
+        }
+        Ok(bundle) => bundle.rendered_output,
+        Err(e) => format!("Repomix failed: {}", e),
     }
 }
 
@@ -909,4 +977,35 @@ fn read_package_manifest_name(dir: &Path) -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod phase15_6_mcp_tests {
+    use super::*;
+
+    #[test]
+    fn test_mcp_lists_outline_and_repomix_tools() {
+        let req = json!({ "jsonrpc": "2.0", "id": 1, "method": "tools/list" });
+        let resp = handle_mcp_message(&req).expect("tools/list response");
+        let tools = resp["result"]["tools"].as_array().expect("tools array");
+        let names: Vec<&str> = tools
+            .iter()
+            .filter_map(|t| t["name"].as_str())
+            .collect();
+        assert!(names.contains(&"codegraph_outline"));
+        assert!(names.contains(&"codegraph_repomix"));
+    }
+
+    #[test]
+    fn test_mcp_repomix_a2a_export() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        fs::write(dir.path().join("lib.rs"), "pub fn hello() -> &'static str { \"ok\" }\n")
+            .expect("write");
+        let cg = CodeGraph::open(dir.path()).expect("open codegraph");
+        let (out, is_err) = handle_tool_call(&cg, "codegraph_repomix", &json!({ "format": "a2a" }));
+        assert!(!is_err);
+        let parsed: Value = serde_json::from_str(&out).expect("valid a2a json");
+        assert_eq!(parsed["method"], "a2a/artifact");
+        assert_eq!(parsed["params"]["artifact"]["name"], "repomix-context-pack");
+    }
 }

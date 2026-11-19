@@ -119,9 +119,14 @@ pub fn summarize_code_for_prompt(file_path: &str, content: &str, budget_lines: u
                 lines_written += 1;
             }
         }
+        let sig_display = if sym.signature.contains(&sym.name) {
+            sym.signature.clone()
+        } else {
+            format!("{} {}", sym.name, sym.signature)
+        };
         out.push_str(&format!(
             "[L{}-{}] {} {}\n",
-            sym.start_line, sym.end_line, sym.kind, sym.signature
+            sym.start_line, sym.end_line, sym.kind, sig_display
         ));
         lines_written += 1;
     }

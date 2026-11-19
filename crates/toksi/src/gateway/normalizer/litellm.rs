@@ -27,6 +27,39 @@ pub struct ModelPricing {
     pub cache_read_input_cost_per_million: f64,
 }
 
+/// Canonical gateway endpoint surfaces mapped by LiteLLM normalizer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum EndpointSurface {
+    ChatCompletions,
+    Messages,
+    Responses,
+    Embeddings,
+}
+
+impl EndpointSurface {
+    pub fn canonical_path(&self) -> &'static str {
+        match self {
+            Self::ChatCompletions => "/v1/chat/completions",
+            Self::Messages => "/v1/messages",
+            Self::Responses => "/v1/responses",
+            Self::Embeddings => "/v1/embeddings",
+        }
+    }
+}
+
+/// Maps a provider identifier and canonical endpoint surface to the upstream path.
+pub fn map_endpoint_for_provider(provider: &str, surface: EndpointSurface) -> &'static str {
+    match (provider.trim().to_ascii_lowercase().as_str(), surface) {
+        ("anthropic", EndpointSurface::ChatCompletions) => "/v1/messages",
+        ("anthropic", EndpointSurface::Messages) => "/v1/messages",
+        ("gemini", EndpointSurface::ChatCompletions) => "/v1beta/openai/chat/completions",
+        ("gemini", EndpointSurface::Embeddings) => "/v1beta/openai/embeddings",
+        ("ollama", EndpointSurface::ChatCompletions) => "/v1/chat/completions",
+        ("ollama", EndpointSurface::Embeddings) => "/api/embeddings",
+        (_, s) => s.canonical_path(),
+    }
+}
+
 /// Metadata description for an LLM catalog model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelInfo {
@@ -302,6 +335,111 @@ impl LiteLLMMatrix {
         }
         self.register_alias("qwen-2.5-coder", "qwen-2.5-coder-32b-instruct");
         self.register_alias("qwen-2.5-72b", "qwen-2.5-72b-instruct");
+
+        // --- Extended 100+ Frontier, Ecosystem & 22 Local Engines ---
+        let extra_models = [
+            ("gpt-4.1", "openai", 1047576, 32768, 2.00, 8.00, 0.50),
+            ("gpt-4.1-mini", "openai", 1047576, 32768, 0.40, 1.60, 0.10),
+            ("gpt-4.1-nano", "openai", 1047576, 32768, 0.10, 0.40, 0.025),
+            ("o3", "openai", 200000, 100000, 10.00, 40.00, 2.50),
+            ("o4-mini", "openai", 200000, 100000, 1.10, 4.40, 0.275),
+            ("text-embedding-3-large", "openai", 8191, 0, 0.13, 0.0, 0.0),
+            ("text-embedding-3-small", "openai", 8191, 0, 0.02, 0.0, 0.0),
+            ("claude-sonnet-4-20250514", "anthropic", 200000, 64000, 3.00, 15.00, 0.30),
+            ("claude-opus-4-20250514", "anthropic", 200000, 32000, 15.00, 75.00, 1.50),
+            ("gemini-2.5-pro-preview", "gemini", 1048576, 65536, 1.25, 10.00, 0.31),
+            ("gemini-2.5-flash", "gemini", 1048576, 65536, 0.15, 0.60, 0.0375),
+            ("command-r-plus", "cohere", 128000, 4096, 2.50, 10.00, 0.0),
+            ("sonar-pro", "perplexity", 200000, 8192, 3.00, 15.00, 0.0),
+        ];
+        for (name, prov, ctx, max_out, in_cost, out_cost, cache_cost) in extra_models {
+            self.register_model(ModelInfo {
+                canonical_name: name.to_string(),
+                provider: prov.to_string(),
+                context_window: ctx,
+                max_output_tokens: max_out,
+                pricing: ModelPricing {
+                    input_cost_per_million: in_cost,
+                    output_cost_per_million: out_cost,
+                    cache_read_input_cost_per_million: cache_cost,
+                },
+                supports_vision: true,
+                supports_function_calling: max_out > 0,
+            });
+        }
+
+        // 22 Local Inference Engines (zero-cost local billing)
+        let local_engines = [
+            "ollama", "vllm", "lmstudio", "llamacpp", "mistralrs", "candle",
+            "sglang", "tgi", "tabby", "exo", "localai", "jan", "gpt4all",
+            "koboldcpp", "mlx", "tensorrt_llm", "triton", "xinference",
+            "gpustack", "aphrodite", "llamafile", "ramalama",
+        ];
+        for engine in local_engines {
+            let canonical = format!("{}/local-default", engine);
+            self.register_model(ModelInfo {
+                canonical_name: canonical.clone(),
+                provider: engine.to_string(),
+                context_window: 131072,
+                max_output_tokens: 16384,
+                pricing: ModelPricing {
+                    input_cost_per_million: 0.0,
+                    output_cost_per_million: 0.0,
+                    cache_read_input_cost_per_million: 0.0,
+                },
+                supports_vision: false,
+                supports_function_calling: true,
+            });
+            self.register_alias(engine, &canonical);
+            self.register_alias(&format!("{}/qwen2.5-coder", engine), &canonical);
+            self.register_alias(&format!("{}/llama3.3", engine), &canonical);
+        }
+
+        // Bulk 100+ provider/model aliases
+        let alias_pairs = [
+            ("gpt-4o-2024-11-20", "gpt-4o"),
+            ("gpt-4o-2024-08-06", "gpt-4o"),
+            ("gpt-4o-mini-2024-07-18", "gpt-4o-mini"),
+            ("azure/gpt-4o", "gpt-4o"),
+            ("azure/gpt-4o-mini", "gpt-4o-mini"),
+            ("azure/gpt-4.1", "gpt-4.1"),
+            ("openai/gpt-4.1", "gpt-4.1"),
+            ("openai/gpt-4.1-mini", "gpt-4.1-mini"),
+            ("openai/gpt-4.1-nano", "gpt-4.1-nano"),
+            ("openai/o3", "o3"),
+            ("openai/o4-mini", "o4-mini"),
+            ("openai/text-embedding-3-large", "text-embedding-3-large"),
+            ("openai/text-embedding-3-small", "text-embedding-3-small"),
+            ("claude-sonnet-4", "claude-sonnet-4-20250514"),
+            ("claude-opus-4", "claude-opus-4-20250514"),
+            ("anthropic/claude-sonnet-4", "claude-sonnet-4-20250514"),
+            ("anthropic/claude-opus-4", "claude-opus-4-20250514"),
+            ("bedrock/anthropic.claude-3-7-sonnet", "claude-3-7-sonnet-20250219"),
+            ("bedrock/anthropic.claude-3-5-sonnet", "claude-3-5-sonnet-20241022"),
+            ("vertex_ai/claude-3-7-sonnet", "claude-3-7-sonnet-20250219"),
+            ("vertex_ai/gemini-2.5-pro", "gemini-2.5-pro-preview"),
+            ("vertex_ai/gemini-2.5-flash", "gemini-2.5-flash"),
+            ("google/gemini-2.5-pro", "gemini-2.5-pro-preview"),
+            ("google/gemini-2.5-flash", "gemini-2.5-flash"),
+            ("openrouter/anthropic/claude-3.7-sonnet", "claude-3-7-sonnet-20250219"),
+            ("openrouter/openai/gpt-4o", "gpt-4o"),
+            ("openrouter/deepseek/deepseek-r1", "deepseek-reasoner"),
+            ("fireworks_ai/deepseek-v3", "deepseek-chat"),
+            ("together_ai/deepseek-r1", "deepseek-reasoner"),
+            ("groq/llama-3.3-70b-versatile", "meta-llama/llama-3.3-70b-instruct"),
+            ("cerebras/llama-3.3-70b", "meta-llama/llama-3.3-70b-instruct"),
+            ("xai/grok-2-vision", "grok-2-vision-1212"),
+            ("cohere/command-r-plus", "command-r-plus"),
+            ("perplexity/sonar-pro", "sonar-pro"),
+        ];
+        for (alias, canonical) in alias_pairs {
+            self.register_alias(alias, canonical);
+        }
+    }
+
+    /// Returns total registered aliases (including canonical names).
+    pub fn alias_count(&self) -> usize {
+        self.aliases.len()
     }
 }
 
@@ -351,5 +489,31 @@ mod tests {
             assert_eq!(m.pricing.input_cost_per_million, 2.50);
             assert_eq!(m.pricing.output_cost_per_million, 10.00);
         }
+    }
+
+    #[test]
+    fn test_100_plus_aliases_local_engines_and_endpoints() {
+        let matrix = LiteLLMMatrix::new();
+        assert!(matrix.alias_count() >= 100);
+        assert_eq!(
+            matrix.resolve_model("ollama/qwen2.5-coder").map(|m| m.provider.as_str()),
+            Some("ollama")
+        );
+        assert_eq!(
+            matrix.resolve_model("mistralrs").map(|m| m.pricing.input_cost_per_million),
+            Some(0.0)
+        );
+        assert_eq!(
+            map_endpoint_for_provider("anthropic", EndpointSurface::ChatCompletions),
+            "/v1/messages"
+        );
+        assert_eq!(
+            map_endpoint_for_provider("openai", EndpointSurface::Responses),
+            "/v1/responses"
+        );
+        assert_eq!(
+            map_endpoint_for_provider("openai", EndpointSurface::Embeddings),
+            "/v1/embeddings"
+        );
     }
 }

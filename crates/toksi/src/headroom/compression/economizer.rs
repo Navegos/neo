@@ -148,6 +148,20 @@ impl TokenEconomizer {
 
     /// 3-stage pipeline: (1) EnvFactsDistiller, (2) LoopGuard, (3) prompt minification + dedupe.
     pub fn economize_prompt(&mut self, prompt: &str) -> (String, EconomizerReport) {
+        if prompt.trim().is_empty() {
+            return (
+                String::new(),
+                EconomizerReport {
+                    original_chars: prompt.len(),
+                    economized_chars: 0,
+                    original_estimated_tokens: 0,
+                    economized_estimated_tokens: 0,
+                    tokens_saved: 0,
+                    duplicate_instructions_removed: 0,
+                    loop_detected: false,
+                },
+            );
+        }
         let distilled = self.env_distiller.distill(prompt);
         let guard = LoopGuard::new(self.options.loop_guard_threshold);
         let (guarded, guard_hit) = guard.guard_lines(&distilled);
@@ -263,11 +277,12 @@ fn collapse_line_whitespace(s: &str) -> String {
 
 fn prune_schema_recursive(val: &mut serde_json::Value) {
     if let serde_json::Value::Object(map) = val {
-        // Strip or truncate verbose description fields in tool parameters
+        // Strip or truncate verbose description fields in tool parameters (UTF-8 char-boundary safe)
         if let Some(desc) = map.get_mut("description") {
             if let Some(s) = desc.as_str() {
-                if s.len() > 120 {
-                    let truncated = format!("{}...", &s[..100]);
+                if s.chars().count() > 120 {
+                    let prefix: String = s.chars().take(100).collect();
+                    let truncated = format!("{}...", prefix);
                     *desc = serde_json::Value::String(truncated);
                 }
             }
@@ -278,6 +293,121 @@ fn prune_schema_recursive(val: &mut serde_json::Value) {
     } else if let serde_json::Value::Array(arr) = val {
         for v in arr {
             prune_schema_recursive(v);
+        }
+    }
+}
+
+/// 11 supported tool-output compaction formats for `ToolCompact`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ToolCompactFormat {
+    Json,
+    Yaml,
+    Toml,
+    Xml,
+    Csv,
+    Tsv,
+    MarkdownTable,
+    Diff,
+    Log,
+    StackTrace,
+    ShellOutput,
+}
+
+impl ToolCompactFormat {
+    pub const ALL: [ToolCompactFormat; 11] = [
+        Self::Json,
+        Self::Yaml,
+        Self::Toml,
+        Self::Xml,
+        Self::Csv,
+        Self::Tsv,
+        Self::MarkdownTable,
+        Self::Diff,
+        Self::Log,
+        Self::StackTrace,
+        Self::ShellOutput,
+    ];
+}
+
+/// Compacts verbose tool outputs across 11 structured and semi-structured formats.
+pub struct ToolCompact;
+
+impl ToolCompact {
+    pub fn compact(format: ToolCompactFormat, input: &str) -> String {
+        if input.trim().is_empty() {
+            return String::new();
+        }
+        match format {
+            ToolCompactFormat::Json => {
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(input) {
+                    serde_json::to_string(&val).unwrap_or_else(|_| input.trim().to_string())
+                } else {
+                    collapse_line_whitespace(input.trim())
+                }
+            }
+            ToolCompactFormat::Xml => input
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .collect::<Vec<_>>()
+                .join(""),
+            ToolCompactFormat::Yaml | ToolCompactFormat::Toml => input
+                .lines()
+                .map(str::trim_end)
+                .filter(|l| {
+                    let t = l.trim();
+                    !t.is_empty() && !t.starts_with('#')
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+            ToolCompactFormat::Csv | ToolCompactFormat::Tsv => input
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n"),
+            ToolCompactFormat::MarkdownTable => input
+                .lines()
+                .map(|l| {
+                    l.split('|')
+                        .map(str::trim)
+                        .collect::<Vec<_>>()
+                        .join("|")
+                })
+                .filter(|l| !l.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n"),
+            ToolCompactFormat::Diff => input
+                .lines()
+                .filter(|l| {
+                    l.starts_with("+++")
+                        || l.starts_with("---")
+                        || l.starts_with("@@")
+                        || l.starts_with('+')
+                        || l.starts_with('-')
+                })
+                .collect::<Vec<_>>()
+                .join("\n"),
+            ToolCompactFormat::Log | ToolCompactFormat::ShellOutput => {
+                let (_, guarded) = {
+                    let g = LoopGuard::default();
+                    let (out, _) = g.guard_lines(input);
+                    ((), out)
+                };
+                guarded
+                    .lines()
+                    .map(str::trim_end)
+                    .filter(|l| !l.trim().is_empty())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
+            ToolCompactFormat::StackTrace => input
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .take(24)
+                .collect::<Vec<_>>()
+                .join("\n"),
         }
     }
 }
@@ -326,5 +456,25 @@ End of prompt.
         let desc = pruned["properties"]["code"]["description"].as_str().unwrap_or("");
         assert!(desc.ends_with("..."));
         assert!(desc.len() <= 105);
+    }
+
+    #[test]
+    fn test_empty_prompt_utf8_schema_and_tool_compact_11_formats() {
+        let mut econ = TokenEconomizer::default();
+        let (out, rep) = econ.economize_prompt("   ");
+        assert!(out.is_empty());
+        assert_eq!(rep.tokens_saved, 0);
+
+        // Multi-byte UTF-8 truncation safety
+        let long_utf8 = "🚀".repeat(130);
+        let schema = serde_json::json!({ "description": long_utf8 });
+        let pruned = econ.prune_json_schema(&schema);
+        assert!(pruned["description"].as_str().unwrap_or("").ends_with("..."));
+
+        assert_eq!(ToolCompactFormat::ALL.len(), 11);
+        let compacted_json = ToolCompact::compact(ToolCompactFormat::Json, "{\n  \"a\": 1,\n  \"b\": 2\n}");
+        assert_eq!(compacted_json, "{\"a\":1,\"b\":2}");
+        let compacted_diff = ToolCompact::compact(ToolCompactFormat::Diff, "context\n+added\n-removed\ncontext");
+        assert_eq!(compacted_diff, "+added\n-removed");
     }
 }

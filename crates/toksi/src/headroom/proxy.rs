@@ -751,7 +751,6 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
                         || json_val.get("contents").is_some()
                         || json_val.get("input").is_some();
                     if has_prompt_body {
-                        let orch = gateway_orchestrator();
                         let prov_label = if path.contains("messages") {
                             "anthropic"
                         } else if path.contains("gemini") || path.contains("Content") {
@@ -760,7 +759,9 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
                             "openai"
                         };
                         let prompt_str = json_val.to_string();
-                        if let Some(cached) = orch.lookup_cache(prov_label, &prompt_str) {
+                        if let Some(cached) = crate::gateway::semantic_cache::global_semantic_cache()
+                            .lookup_or_semantic(prov_label, &prompt_str)
+                        {
                             let ctype = if path.contains("stream") {
                                 "text/event-stream".to_string()
                             } else {

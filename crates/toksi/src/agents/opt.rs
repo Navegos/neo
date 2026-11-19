@@ -7,6 +7,7 @@
 
 use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -119,7 +120,7 @@ impl AgentOptimizer {
             }
         }
 
-        let arg_hash = format!("{:x}", simple_hash(arguments_repr));
+        let arg_hash = sha256_hex(arguments_repr);
         let call_key = (tool_name.to_string(), arg_hash);
 
         // Read-only tools like file reads or searches are pruned if identical arguments already executed
@@ -141,7 +142,7 @@ impl AgentOptimizer {
         tokens_used: u64,
         duration_ms: u64,
     ) {
-        let arg_hash = format!("{:x}", simple_hash(arguments_repr));
+        let arg_hash = sha256_hex(arguments_repr);
         self.total_tokens = self.total_tokens.saturating_add(tokens_used);
         self.total_duration_ms = self.total_duration_ms.saturating_add(duration_ms);
 
@@ -156,12 +157,62 @@ impl AgentOptimizer {
         });
     }
 
+    /// Deduplicates 1-hop context payloads deterministically using SHA-256 hashes.
+    pub fn dedup_one_hop_context(&self, items: &[(&str, &str)]) -> Vec<(String, String)> {
+        let mut seen = HashSet::new();
+        let mut out = Vec::with_capacity(items.len());
+        for &(label, content) in items {
+            let digest = sha256_hex(content);
+            if seen.insert(digest) {
+                out.push((label.to_string(), content.to_string()));
+            }
+        }
+        out
+    }
+
+    /// Slices source files to condensed AST outlines via `codegraph::jcodemunch` within `budget_lines`.
+    pub fn slice_ast_outline(&self, file_path: &str, content: &str, budget_lines: usize) -> String {
+        crate::codegraph::jcodemunch::summarize_code_for_prompt(file_path, content, budget_lines)
+    }
+
+    /// Detects semantic oscillation (consecutive repeats >= `max_repetitions` or 2-step A<->B cycles).
+    pub fn detect_semantic_oscillation(&self, max_repetitions: usize) -> bool {
+        let threshold = max_repetitions.max(2);
+        let mut consec = 1usize;
+        for w in self.executed_steps.windows(2) {
+            if w[0].tool_name == w[1].tool_name && w[0].arguments_hash == w[1].arguments_hash {
+                consec += 1;
+                if consec >= threshold {
+                    return true;
+                }
+            } else {
+                consec = 1;
+            }
+        }
+        // Detect alternating A->B->A->B->A->B oscillation (2 * threshold steps)
+        let cycle_len = threshold * 2;
+        if self.executed_steps.len() >= cycle_len {
+            let tail = &self.executed_steps[self.executed_steps.len() - cycle_len..];
+            let a = (&tail[0].tool_name, &tail[0].arguments_hash);
+            let b = (&tail[1].tool_name, &tail[1].arguments_hash);
+            if a != b
+                && tail.iter().enumerate().all(|(i, s)| {
+                    let key = (&s.tool_name, &s.arguments_hash);
+                    if i % 2 == 0 { key == a } else { key == b }
+                })
+            {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Prunes and compresses intermediate trajectories for prompt injection.
     pub fn generate_optimized_trajectory(&self) -> (Vec<AgentStep>, OptimizationReport) {
         let mut pruned = Vec::new();
         let mut pruned_count = 0usize;
         let mut saved_tokens = 0u64;
-        let mut loop_detected = false;
+        let mut loop_detected = self.detect_semantic_oscillation(3);
 
         let mut prev_tool = "";
         let mut repeat_count = 0usize;
@@ -196,11 +247,14 @@ impl AgentOptimizer {
     }
 }
 
-fn simple_hash(s: &str) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    s.hash(&mut hasher);
-    hasher.finish()
+fn sha256_hex(s: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(s.as_bytes());
+    hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect()
 }
 
 #[cfg(test)]
@@ -233,5 +287,35 @@ mod tests {
 
         let res = opt.evaluate_candidate_step("cmd", "cargo test");
         assert!(matches!(res, Err(AgentOptError::TokenBudgetExceeded { .. })));
+    }
+
+    #[test]
+    fn test_sha256_one_hop_dedup_ast_slice_and_oscillation() {
+        let mut opt = AgentOptimizer::default();
+        let deduped = opt.dedup_one_hop_context(&[
+            ("a.rs", "fn a() {}"),
+            ("b.rs", "fn a() {}"),
+            ("c.rs", "fn c() {}"),
+        ]);
+        assert_eq!(deduped.len(), 2);
+
+        let outline = opt.slice_ast_outline(
+            "src/lib.rs",
+            "/// Ping helper\npub fn ping() -> u8 {\n    1\n}\n",
+            10,
+        );
+        assert!(outline.contains("src/lib.rs"), "outline was: {}", outline);
+        assert!(outline.contains("ping"), "outline was: {}", outline);
+
+        for i in 0..6 {
+            if i % 2 == 0 {
+                opt.record_completed_step("search", "q1", "ok", 10, 5);
+            } else {
+                opt.record_completed_step("read", "f1", "ok", 10, 5);
+            }
+        }
+        assert!(opt.detect_semantic_oscillation(3));
+        let (_, report) = opt.generate_optimized_trajectory();
+        assert!(report.loop_detected);
     }
 }

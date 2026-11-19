@@ -6,8 +6,11 @@
 // lastModified: 2026-11-09
 
 use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::util::paths::normalize_path;
@@ -16,6 +19,10 @@ use crate::util::paths::normalize_path;
 pub enum Mem0Error {
     #[error("Serialization error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("ICM sync error: {0}")]
+    Icm(String),
     #[error("Lock poisoned")]
     LockPoisoned,
     #[error("Fact not found: '{0}'")]
@@ -98,7 +105,7 @@ impl Mem0BridgeEngine {
             .map(|d| d.as_millis() as u64)
             .unwrap_or(0);
 
-        let id = format!("fact_{:x}", md5_hash(&format!("{}:{}", entity, fact_text)));
+        let id = format!("fact_{}", sha256_prefix(&format!("{}:{}", entity, fact_text)));
 
         let fact = EntityFact {
             id: id.clone(),
@@ -157,7 +164,7 @@ impl Mem0BridgeEngine {
         if lower.contains("prefer ") || lower.contains("always use ") || lower.contains("must use ") {
             let fact_str = text.trim().to_string();
             let fact = EntityFact {
-                id: format!("cand_{:x}", md5_hash(&fact_str)),
+                id: format!("cand_{}", sha256_prefix(&fact_str)),
                 entity: user_or_agent.to_string(),
                 fact: fact_str,
                 category: FactCategory::UserPreference,
@@ -170,7 +177,7 @@ impl Mem0BridgeEngine {
         } else if lower.contains("decision:") || lower.contains("decided to ") || lower.contains("architecture mandate") {
             let fact_str = text.trim().to_string();
             let fact = EntityFact {
-                id: format!("cand_{:x}", md5_hash(&fact_str)),
+                id: format!("cand_{}", sha256_prefix(&fact_str)),
                 entity: "architecture".to_string(),
                 fact: fact_str,
                 category: FactCategory::ProjectDecision,
@@ -184,13 +191,92 @@ impl Mem0BridgeEngine {
 
         actions
     }
+
+    /// Canonical `<repo>/.toksi/ai-memory/mem0_facts.json` path (forward-slash normalized).
+    pub fn repo_facts_path(repo_root: &Path) -> PathBuf {
+        let joined = repo_root
+            .join(".toksi")
+            .join("ai-memory")
+            .join("mem0_facts.json");
+        PathBuf::from(normalize_path(&joined.to_string_lossy()))
+    }
+
+    /// Persists all entity facts into `<repo>/.toksi/ai-memory/mem0_facts.json`.
+    pub fn save_to_repo(&self, repo_root: &Path) -> Result<usize, Mem0Error> {
+        let path = Self::repo_facts_path(repo_root);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let lock = self.facts.read().map_err(|_| Mem0Error::LockPoisoned)?;
+        let mut facts: Vec<&EntityFact> = lock.values().collect();
+        facts.sort_by(|a, b| a.id.cmp(&b.id));
+        let json = serde_json::to_string_pretty(&facts)?;
+        fs::write(&path, json)?;
+        Ok(facts.len())
+    }
+
+    /// Loads entity facts from `<repo>/.toksi/ai-memory/mem0_facts.json`.
+    pub fn load_from_repo(&self, repo_root: &Path) -> Result<usize, Mem0Error> {
+        let path = Self::repo_facts_path(repo_root);
+        if !path.exists() {
+            return Ok(0);
+        }
+        let raw = fs::read_to_string(&path)?;
+        let loaded: Vec<EntityFact> = serde_json::from_str(&raw)?;
+        let mut lock = self.facts.write().map_err(|_| Mem0Error::LockPoisoned)?;
+        let count = loaded.len();
+        for f in loaded {
+            lock.insert(f.id.clone(), f);
+        }
+        Ok(count)
+    }
+
+    /// Syncs stored entity facts with `<repo>/.toksi/ai-memory/` and `<repo>/.toksi/icm/icm.db`.
+    pub fn sync_with_icm_and_aimemory(&self, repo_root: &Path) -> Result<usize, Mem0Error> {
+        let count = self.save_to_repo(repo_root)?;
+        let icm_dir = repo_root.join(".toksi").join("icm");
+        fs::create_dir_all(&icm_dir)?;
+        let icm_db = PathBuf::from(normalize_path(&icm_dir.join("icm.db").to_string_lossy()));
+        let mut store = crate::icm::store::IcmStore::open(&icm_db)
+            .map_err(|e| Mem0Error::Icm(e.to_string()))?;
+        let memoir = match store
+            .get_memoir("mem0-facts")
+            .map_err(|e| Mem0Error::Icm(e.to_string()))?
+        {
+            Some(m) => m,
+            None => store
+                .create_memoir(
+                    "mem0-facts",
+                    "Personalized entity-fact memory synced from Mem0Bridge",
+                    5,
+                )
+                .map_err(|e| Mem0Error::Icm(e.to_string()))?,
+        };
+        let lock = self.facts.read().map_err(|_| Mem0Error::LockPoisoned)?;
+        for fact in lock.values() {
+            let labels = vec![
+                fact.category.as_str().to_string(),
+                fact.entity.clone(),
+            ];
+            let sources = fact.source_ref.iter().cloned().collect::<Vec<_>>();
+            let _ = store.add_concept(
+                &memoir.id,
+                &fact.id,
+                &fact.fact,
+                &labels,
+                fact.confidence,
+                &sources,
+            );
+        }
+        Ok(count)
+    }
 }
 
-fn md5_hash(s: &str) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    s.hash(&mut hasher);
-    hasher.finish()
+fn sha256_prefix(s: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(s.as_bytes());
+    let digest = hasher.finalize();
+    digest[..8].iter().map(|b| format!("{:02x}", b)).collect()
 }
 
 #[cfg(test)]
@@ -230,5 +316,33 @@ mod tests {
         } else {
             panic!("Expected MemoryAction::Add");
         }
+    }
+
+    #[test]
+    fn test_mem0_repo_persistence_and_icm_sync() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let bridge = Mem0BridgeEngine::new();
+        let f1 = bridge
+            .add_fact(
+                "repo",
+                "Use forward-slash paths everywhere",
+                FactCategory::TechnicalConstraint,
+                0.98,
+                Some("crates/toksi/src/util/paths.rs"),
+            )
+            .expect("add_fact");
+        assert!(f1.id.starts_with("fact_"));
+
+        let synced = bridge
+            .sync_with_icm_and_aimemory(dir.path())
+            .expect("sync");
+        assert_eq!(synced, 1);
+        assert!(Mem0BridgeEngine::repo_facts_path(dir.path()).exists());
+        assert!(dir.path().join(".toksi").join("icm").join("icm.db").exists());
+
+        let reloaded = Mem0BridgeEngine::new();
+        let loaded = reloaded.load_from_repo(dir.path()).expect("load");
+        assert_eq!(loaded, 1);
+        assert_eq!(reloaded.search("forward-slash", None).expect("search").len(), 1);
     }
 }

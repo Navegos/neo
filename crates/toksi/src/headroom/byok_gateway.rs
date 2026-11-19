@@ -2117,6 +2117,22 @@ pub async fn forward_streaming_to_byok_target(
             }
         } else {
             let _ = parser.feed_line(&text);
+            if !outgoing_body.is_empty() && !text.trim().is_empty() {
+                if let Ok(prompt_val) = serde_json::from_slice::<serde_json::Value>(&outgoing_body) {
+                    let prov_label = if incoming_path.contains("messages") {
+                        "anthropic"
+                    } else if incoming_path.contains("gemini") || incoming_path.contains("Content") {
+                        "gemini"
+                    } else {
+                        "openai"
+                    };
+                    crate::gateway::semantic_cache::global_semantic_cache().store_auto(
+                        prov_label,
+                        &prompt_val.to_string(),
+                        &text,
+                    );
+                }
+            }
         }
         record_byok_upstream_telemetry(
             target_base,
