@@ -314,7 +314,6 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/frontend-crates
 <neo>/inspect-vault/aitune
 <neo>/inspect-vault/radixshmem
-<neo>/inspect-vault/radixshmem
 <neo>/inspect-vault/modelexpress
 <neo>/inspect-vault/nixl
 <neo>/inspect-vault/exllamav2
@@ -322,6 +321,19 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/agent-manager
 <neo>/inspect-vault/unsloth
 <neo>/inspect-vault/unsloth-studio
+<neo>/inspect-vault/deer-flow
+<neo>/inspect-vault/openworker
+<neo>/inspect-vault/dsh-superagent
+<neo>/inspect-vault/openai-agents-python
+<neo>/inspect-vault/ChatDev
+<neo>/inspect-vault/multica
+<neo>/inspect-vault/maki
+<neo>/inspect-vault/steer
+<neo>/inspect-vault/chevalier
+<neo>/inspect-vault/upskill
+<neo>/inspect-vault/funes
+<neo>/inspect-vault/agentrix-os
+<neo>/inspect-vault/anp
 }
 
 Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.
@@ -444,3 +456,5 @@ we add, edit, reedit, modify, import, convert, update, extend, fix, all things c
 Please reorganize, all PLANS's, fort the best solution for unified of all tools and analyser in one toksi with Super Intelligence agent.
 
 If we are missing some implementations, features, addons, plugins to acomplish our unified, tools, agent, analyser, please research and add-it in our PLAN's.
+
+We are running in toksi environment and we need to make sure that all test that needs toksi tests to run, to not interfere with the running tooksi, so the best options for necessary toksi tests that interfere with running toksi, its running in a sandbox or docker environment with the required packages for a sucess running tests.

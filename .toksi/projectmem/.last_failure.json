@@ -1,6 +1,6 @@
 {
-  "command": "cargo test -p toksi --lib tui::tests::test_mouse_tab_switching",
-  "root_cause": "error: test failed, to rerun pass `-p toksi --lib`",
-  "raw_output": "\nrunning 1 test\n\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.72s\n     Running unittests src\\lib.rs (target\\debug\\build\\toksi/d7e5629501c91ed6\\out\\toksi-d7e5629501c91ed6.exe)\nerror: test failed, to rerun pass `-p toksi --lib`\n\nCaused by:\n  process didn't exit successfully: `D:\\AI\\neo\\target\\debug\\build\\toksi/d7e5629501c91ed6\\out\\toksi-d7e5629501c91ed6.exe tui::tests::test_mouse_tab_switching` (exit code: 1)\nnote: test exited abnormally; to see the full output pass --no-capture to the harness.\n",
-  "timestamp": "2026-11-19T20:14:59Z"
+  "command": "cargo test -p toksi -- dashboard",
+  "root_cause": "error: failed to remove file `D:\\AI\\neo\\target\\debug\\build\\toksi/ed9e0861ae654ea2\\out\\phase15_1_topology_and_standards_verification-ed9e0861ae654ea2.exe`",
+  "raw_output": "   Compiling toksi v3.0.13 (D:\\AI\\neo\\crates\\toksi)\nerror: failed to remove file `D:\\AI\\neo\\target\\debug\\build\\toksi/ed9e0861ae654ea2\\out\\phase15_1_topology_and_standards_verification-ed9e0861ae654ea2.exe`\n\nCaused by:\n    Access is denied. (os error 5)\n\nError: failed to remove directory `D:\\AI\\neo\\target\\debug\\build\\toksi/ed9e0861ae654ea2\\out`\n\nCaused by:\n  Access is denied. (os error 5)\nwarning: build failed, waiting for other jobs to finish...\n",
+  "timestamp": "2026-11-19T22:25:49Z"
 }

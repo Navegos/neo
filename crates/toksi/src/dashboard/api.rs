@@ -3,7 +3,9 @@
 // project: neo
 // file: crates/toksi/src/dashboard/api.rs
 // created: 2026-10-30
-// lastModified: 2026-11-18
+// lastModified: 2026-11-19
+
+#![deny(unsafe_code)]
 
 use std::path::PathBuf;
 use serde::Deserialize;
@@ -96,7 +98,17 @@ pub fn handle_waterfall() -> serde_json::Value {
     let rtk_saved = snap.rtk_tokens_saved;
     let hr_saved = snap.headroom_tokens_saved;
     let caveman_saved = snap.caveman_tokens_saved;
-    let layer_sum = rtk_saved.saturating_add(hr_saved).saturating_add(caveman_saved);
+    let mcp_pruned_count = collector.headroom_mcp_pruned_tools_total.load(std::sync::atomic::Ordering::Relaxed);
+    let mcp_pruner_saved = mcp_pruned_count.saturating_mul(350);
+    let ccr_saved = 0u64;
+    let cache_align_saved = snap.cached_tokens;
+    let context_saved = 0u64;
+    let economizer_saved = 0u64;
+    let layer_sum = rtk_saved
+        .saturating_add(hr_saved)
+        .saturating_add(caveman_saved)
+        .saturating_add(mcp_pruner_saved)
+        .saturating_add(cache_align_saved);
 
     let pct_of = |part: u64| -> f64 {
         if layer_sum > 0 {
@@ -177,8 +189,34 @@ pub fn handle_waterfall() -> serde_json::Value {
                 "name": "Caveman ASD-STE100 Compressor",
                 "share": pct_of(caveman_saved),
                 "saved": caveman_saved
+            },
+            "mcp_pruner": {
+                "name": "MCP Schema Pruner",
+                "share": pct_of(mcp_pruner_saved),
+                "saved": mcp_pruner_saved
+            },
+            "ccr": {
+                "name": "CCR Reversible Store",
+                "share": pct_of(ccr_saved),
+                "saved": ccr_saved
+            },
+            "cache_align": {
+                "name": "1024-Token Cache Align",
+                "share": pct_of(cache_align_saved),
+                "saved": cache_align_saved
+            },
+            "context": {
+                "name": "Context-Mode FTS5 Sandbox",
+                "share": pct_of(context_saved),
+                "saved": context_saved
+            },
+            "economizer": {
+                "name": "TokenEconomizer",
+                "share": pct_of(economizer_saved),
+                "saved": economizer_saved
             }
         },
+        "per_agent_saved": snap.per_agent_saved,
         "items": items
     })
 }
@@ -204,22 +242,70 @@ pub fn handle_warroom() -> serde_json::Value {
     let gw_port = crate::config::resolved_ports().ai_gateway;
     let snap = crate::telemetry::snapshot_from_collector(collector);
 
+    let retries_map = collector.request_retries_total.read().map(|m| m.clone()).unwrap_or_default();
+    let errors_map = collector.error_requests_total.read().map(|m| m.clone()).unwrap_or_default();
+    let total_429_events: u64 = retries_map.values().sum();
+    let total_outages: u64 = errors_map.values().sum();
+
+    let mut rate_limits_429 = Vec::new();
+    let configured_provs: Vec<String> = crate::config::load_toksi_toml_config()
+        .byok_profiles
+        .into_iter()
+        .filter(|p| p.enabled)
+        .map(|p| p.provider_id)
+        .collect();
+
+    for prov in configured_provs {
+        let retries = retries_map.get(&prov).copied().unwrap_or(0);
+        let errs = errors_map.get(&prov).copied().unwrap_or(0);
+        rate_limits_429.push(json!({
+            "provider": prov,
+            "status": if retries > 0 { format!("Backoff ({})", retries) } else if errs > 0 { format!("Error ({})", errs) } else { "Normal (0)".to_string() },
+            "backoff_sec": if retries > 0 { retries * 2 } else { 0 },
+            "action": if retries > 0 { "Cascade failover active" } else { "Direct stream" }
+        }));
+    }
+
+    let pool = crate::gateway::reconnect::global_healing_pool();
+    let net_status = pool.status();
+    let net_gen = pool.generation();
+    let net_reconnects = pool.total_reconnect_count();
+    let recent_sessions: Vec<serde_json::Value> = crate::telemetry::tokentracker::global_token_tracker()
+        .get_recent_sessions()
+        .into_iter()
+        .rev()
+        .take(15)
+        .map(|s| json!({
+            "agent": s.agent,
+            "provider": s.provider,
+            "model": s.model,
+            "duration_ms": s.duration_ms,
+            "input_tokens": s.input_tokens,
+            "saved_tokens": s.saved_tokens
+        }))
+        .collect();
+
     json!({
-        "rate_limits_429": [
-            { "provider": "Anthropic API", "status": "Normal (0)", "backoff_sec": 0, "action": "Direct stream" },
-            { "provider": "OpenAI API", "status": "Normal (0)", "backoff_sec": 0, "action": "Direct stream" },
-            { "provider": "DeepSeek", "status": "Normal (0)", "backoff_sec": 0, "action": "Direct stream" }
-        ],
+        "rate_limits_429_count": total_429_events,
+        "rate_limits_429": rate_limits_429,
         "outages": {
-            "active_outages": 0,
+            "active_outages": total_outages,
             "latency_ms": snap.ttft_ms,
-            "healthy": true
+            "healthy": total_outages == 0
         },
         "cascade_stages": [
-            { "id": "L0", "name": format!("Enterprise AI Gateway (:{})", gw_port), "status": "active", "latency_ms": snap.ttft_ms },
-            { "id": "L1", "name": format!("BYOK & Vertex ADC Gateway (:{})", byok_port), "status": "standby", "latency_ms": 0 },
+            { "id": "L0", "name": format!("Enterprise AI Gateway (:{})", gw_port), "status": if total_429_events == 0 { "active" } else { "degraded" }, "latency_ms": snap.ttft_ms },
+            { "id": "L1", "name": format!("BYOK & Vertex ADC Gateway (:{})", byok_port), "status": if total_429_events > 0 { "active" } else { "standby" }, "latency_ms": 0 },
             { "id": "L2", "name": "Local Degraded Mode (ICM SQLite Cache)", "status": "standby", "latency_ms": 0 }
         ],
+        "reconnect_watchdog": {
+            "generation": net_gen,
+            "total_reconnects": net_reconnects,
+            "status": format!("{:?}", net_status),
+            "healthy": net_status == crate::gateway::reconnect::NetworkStatus::Healthy,
+            "last_reason": format!("ArcSwap generation {} ({} reconnects, {:?})", net_gen, net_reconnects, net_status)
+        },
+        "agent_activity": recent_sessions,
         "context_watchdog": {
             "tokens_used": input_tokens,
             "max_tokens": max_tokens,
@@ -317,14 +403,29 @@ pub fn handle_agents() -> serde_json::Value {
             paid_quota_status: quota_status.to_string(),
         };
 
+        let wired_mode = if is_proxy_wired {
+            "Config-Wire"
+        } else if is_wired {
+            "Direct-Wire"
+        } else {
+            "Unwired"
+        };
+        let remediation_hint = if in_path {
+            None
+        } else {
+            Some(format!("Executable '{}' not found in PATH. Add its bin directory to PATH.", ag.cli_bin))
+        };
+
         rows.push(json!({
             "id": item.id,
             "label": item.label,
             "installed": item.installed,
             "in_path": item.in_path,
             "cli_bin": ag.cli_bin,
+            "remediation_hint": remediation_hint,
             "source": detection.source,
             "wired": item.wired,
+            "wired_mode": wired_mode,
             "port": port,
             "tools_summary": "RTK, CodeGraph, ProjectMem, Headroom",
             "config_path": config_path,
@@ -343,6 +444,7 @@ pub fn handle_agents() -> serde_json::Value {
 #[derive(Deserialize)]
 pub struct ToggleAgentReq {
     pub agent_id: String,
+    pub mode: Option<String>,
 }
 
 pub fn handle_toggle_agent(payload: &[u8]) -> Result<serde_json::Value, String> {
@@ -355,83 +457,78 @@ pub fn handle_toggle_agent(payload: &[u8]) -> Result<serde_json::Value, String> 
         ..Default::default()
     };
 
-    if is_wired {
-        // Unwire
+    let target_wire = match req.mode.as_deref() {
+        Some("unwire") => false,
+        Some("direct") | Some("config") => true,
+        _ => !is_wired,
+    };
+
+    if !target_wire {
         for tool in &all_tools {
-            if let Some(ref unwire_fn) = tool.unwire_for.get(&req.agent_id) {
+            if let Some(unwire_fn) = tool.unwire_for.get(&req.agent_id) {
                 let _ = unwire_fn(&ro);
             }
         }
-        Ok(json!({ "success": true, "agent_id": req.agent_id, "wired": false }))
+        Ok(json!({ "success": true, "agent_id": req.agent_id, "wired": false, "mode": "unwire" }))
     } else {
-        // Wire
         for tool in &all_tools {
-            if let Some(ref wire_fn) = tool.wire_for.get(&req.agent_id) {
+            if let Some(wire_fn) = tool.wire_for.get(&req.agent_id) {
                 let _ = wire_fn(&ro);
             }
         }
-        Ok(json!({ "success": true, "agent_id": req.agent_id, "wired": true }))
+        Ok(json!({ "success": true, "agent_id": req.agent_id, "wired": true, "mode": req.mode.unwrap_or_else(|| "direct".to_string()) }))
     }
 }
 
 pub fn handle_memory(query: Option<&str>) -> serde_json::Value {
-    let mut items = Vec::new();
+    handle_memory_filtered(query, None)
+}
 
-    // Read .projectmem/events.jsonl if present
-    if let Ok(events) = crate::projectmem::store::read_events(None) {
-        for ev in events {
-            if let Some(q) = query {
-                if !q.is_empty() && !ev.summary.to_lowercase().contains(&q.to_lowercase()) {
-                    continue;
-                }
+pub fn handle_memory_filtered(query: Option<&str>, subproject: Option<&str>) -> serde_json::Value {
+    let raw_events = crate::projectmem::store::read_events(None).unwrap_or_default();
+    let mut subprojects: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for ev in &raw_events {
+        if let Some(ref loc) = ev.location {
+            let sub = crate::codegraph::cache::derive_subproject_id(loc);
+            if !sub.is_empty() {
+                subprojects.insert(sub);
             }
-            items.push(json!({
-                "id": ev.issue_id.clone().unwrap_or_else(|| ev.supersedes.clone().unwrap_or_else(|| ev.event_type.clone())),
-                "type": ev.event_type,
-                "summary": ev.summary,
-                "location": ev.location.unwrap_or_default(),
-                "timestamp": ev.timestamp.chars().take(10).collect::<String>(),
-                "supersedes": ev.supersedes
-            }));
         }
     }
 
-    if items.is_empty() {
+    let mut filtered_events = Vec::new();
+    let mut items = Vec::new();
+    for ev in &raw_events {
+        if let Some(q) = query
+            && !q.is_empty()
+            && !ev.summary.to_lowercase().contains(&q.to_lowercase())
+        {
+            continue;
+        }
+        if let Some(sub) = subproject
+            && !sub.is_empty()
+            && sub != "all"
+        {
+            let loc_sub = ev
+                .location
+                .as_deref()
+                .map(crate::codegraph::cache::derive_subproject_id)
+                .unwrap_or_default();
+            if loc_sub != sub {
+                continue;
+            }
+        }
+        filtered_events.push(ev.clone());
         items.push(json!({
-            "id": "0001",
-            "type": "decision",
-            "summary": "Phase 1: Port RTK to pure Rust module with 100+ native CLI filters",
-            "location": "crates/toksi/src/rtk/mod.rs:1",
-            "timestamp": "2026-10-27",
-            "supersedes": null
-        }));
-        items.push(json!({
-            "id": "0002",
-            "type": "decision",
-            "summary": "Phase 8: Purged runtime downloaders, enforce native in-tree compilation",
-            "location": "crates/toksi/src/util/mod.rs:1",
-            "timestamp": "2026-10-29",
-            "supersedes": "0001"
-        }));
-        items.push(json!({
-            "id": "0003",
-            "type": "decision",
-            "summary": "Phase 12: Embedded zero-dependency Telemetry & Control Cockpit",
-            "location": "crates/toksi/src/dashboard/mod.rs:1",
-            "timestamp": "2026-10-30",
-            "supersedes": "0002"
-        }));
-        items.push(json!({
-            "id": "0004",
-            "type": "fix",
-            "summary": "Fixed OrderedMap type mismatches and OpenCode v2 BYOK parity",
-            "location": "crates/toksi/src/agents/opencode.rs:42",
-            "timestamp": "2026-10-28",
-            "supersedes": null
+            "id": ev.issue_id.clone().unwrap_or_else(|| ev.supersedes.clone().unwrap_or_else(|| ev.id.clone())),
+            "type": ev.event_type,
+            "summary": ev.summary,
+            "location": ev.location.clone().unwrap_or_default(),
+            "timestamp": ev.timestamp.chars().take(10).collect::<String>(),
+            "supersedes": ev.supersedes
         }));
     }
 
-    // Generate DAG nodes with coordinates for SVG rendering
     let mut dag_nodes = Vec::new();
     let mut dag_links = Vec::new();
     let x_offset = 60;
@@ -463,29 +560,60 @@ pub fn handle_memory(query: Option<&str>) -> serde_json::Value {
         }
     }
 
-    let heatmap = vec![
-        json!({ "component": "headroom", "issues": 1, "fixes": 4, "level": "cold" }),
-        json!({ "component": "rtk", "issues": 0, "fixes": 6, "level": "cold" }),
-        json!({ "component": "codegraph", "issues": 0, "fixes": 3, "level": "cold" }),
-        json!({ "component": "projectmem", "issues": 2, "fixes": 5, "level": "warm" }),
-        json!({ "component": "agents", "issues": 1, "fixes": 7, "level": "cold" }),
-        json!({ "component": "contextmode", "issues": 0, "fixes": 4, "level": "cold" }),
-        json!({ "component": "cli/tui", "issues": 0, "fixes": 5, "level": "cold" }),
-    ];
+    let hm = crate::projectmem::heatmap::generate_heatmap(&filtered_events);
+    let heatmap: Vec<serde_json::Value> = hm
+        .top_hotspots
+        .into_iter()
+        .take(24)
+        .map(|h| {
+            let level = if h.failed_attempts >= 3 || h.open_issues >= 2 {
+                "hot"
+            } else if h.failed_attempts >= 1 || h.open_issues >= 1 {
+                "warm"
+            } else {
+                "cold"
+            };
+            json!({
+                "cell_id": h.file,
+                "component": h.file,
+                "issues": h.open_issues,
+                "fixes": h.resolved_issues + h.successful_attempts,
+                "failed_attempts": h.failed_attempts,
+                "decisions": h.decisions,
+                "total_events": h.total_events,
+                "level": level
+            })
+        })
+        .collect();
 
     json!({
         "items": items,
         "dag_nodes": dag_nodes,
         "dag_links": dag_links,
-        "heatmap": heatmap
+        "heatmap": heatmap,
+        "score": hm.score,
+        "subprojects": subprojects.into_iter().collect::<Vec<String>>()
     })
+}
+
+pub fn handle_memory_heatmap_drilldown(cell_id: &str) -> serde_json::Value {
+    let raw_events = crate::projectmem::store::read_events(None).unwrap_or_default();
+    let drilldown = crate::projectmem::heatmap::generate_file_drilldown(&raw_events, cell_id);
+    serde_json::to_value(drilldown).unwrap_or_else(|_| json!({ "file": cell_id, "events": [] }))
 }
 
 pub fn handle_codegraph() -> serde_json::Value {
     let root = PathBuf::from(".");
     let mut symbols = Vec::new();
+    let mut total_symbols = 0usize;
+    let mut total_files = 0usize;
+    let mut total_edges = 0usize;
 
     if let Ok(cg) = crate::codegraph::CodeGraph::open(&root) {
+        let stats = cg.cache.get_stats();
+        total_symbols = stats.node_count;
+        total_files = stats.file_count;
+        total_edges = stats.edge_count;
         let all_nodes = cg.cache.get_all_nodes();
         for n in all_nodes.iter().take(100) {
             symbols.push(json!({
@@ -498,71 +626,119 @@ pub fn handle_codegraph() -> serde_json::Value {
         }
     }
 
-    if symbols.is_empty() {
-        symbols = vec![
-            json!({ "id": "sym_1", "name": "run_dashboard", "kind": "function", "file": "crates/toksi/src/dashboard/mod.rs", "line": 45 }),
-            json!({ "id": "sym_2", "name": "proxy_running", "kind": "function", "file": "crates/toksi/src/headroom/proxy.rs", "line": 200 }),
-            json!({ "id": "sym_3", "name": "align_to_1024_tokens", "kind": "function", "file": "crates/toksi/src/headroom/cache_align.rs", "line": 24 }),
-            json!({ "id": "sym_4", "name": "filter_sandbox_output", "kind": "function", "file": "crates/toksi/src/rtk/filter.rs", "line": 15 }),
-            json!({ "id": "sym_5", "name": "read_events", "kind": "function", "file": "crates/toksi/src/projectmem/store.rs", "line": 222 }),
-            json!({ "id": "sym_6", "name": "process_sandbox_output", "kind": "function", "file": "crates/toksi/src/contextmode/filter.rs", "line": 70 }),
-        ];
-    }
-
     json!({
         "symbols": symbols,
-        "total_symbols": symbols.len(),
-        "total_files": 6
+        "total_symbols": total_symbols,
+        "total_files": total_files,
+        "total_edges": total_edges,
+        "supported_languages_count": crate::codegraph::kernel::langs::LANGUAGES.len(),
+        "supported_languages": crate::codegraph::kernel::langs::LANGUAGES
     })
 }
 
 pub fn handle_codegraph_blast(symbol_id: &str, depth: usize) -> serde_json::Value {
     let root = PathBuf::from(".");
-    if let Ok(cg) = crate::codegraph::CodeGraph::open(&root) {
-        if let Some(report) = cg.engine.compute_blast_radius(symbol_id, depth) {
-            let upstream_callers: Vec<serde_json::Value> = report.upstream_dependents
-                .into_iter()
-                .map(|u| json!({ "name": u.node.name, "file": u.node.file_path, "depth": u.depth }))
-                .collect();
-            let downstream_callees: Vec<serde_json::Value> = report.downstream_dependencies
-                .into_iter()
-                .map(|d| json!({ "name": d.node.name, "file": d.node.file_path, "depth": d.depth }))
-                .collect();
+    if let Ok(cg) = crate::codegraph::CodeGraph::open(&root)
+        && let Some(report) = cg.engine.compute_blast_radius(symbol_id, depth)
+    {
+        let upstream_callers: Vec<serde_json::Value> = report
+            .upstream_dependents
+            .into_iter()
+            .map(|u| json!({ "name": u.node.name, "file": u.node.file_path, "depth": u.depth }))
+            .collect();
+        let downstream_callees: Vec<serde_json::Value> = report
+            .downstream_dependencies
+            .into_iter()
+            .map(|d| json!({ "name": d.node.name, "file": d.node.file_path, "depth": d.depth }))
+            .collect();
 
-            return json!({
-                "focal_name": report.focal_name,
-                "focal_file": report.focal_file,
-                "depth": report.depth,
-                "affected_files": report.affected_files,
-                "upstream_callers": upstream_callers,
-                "downstream_callees": downstream_callees,
-                "affected_tests": report.affected_files.iter().filter(|f| f.contains("test")).cloned().collect::<Vec<String>>()
-            });
-        }
+        return json!({
+            "found": true,
+            "focal_name": report.focal_name,
+            "focal_file": report.focal_file,
+            "depth": report.depth,
+            "affected_files": report.affected_files,
+            "upstream_callers": upstream_callers,
+            "downstream_callees": downstream_callees,
+            "affected_tests": report.affected_files.iter().filter(|f| f.contains("test")).cloned().collect::<Vec<String>>()
+        });
     }
 
-    // Default simulation report for preview
     json!({
+        "found": false,
         "focal_name": symbol_id,
-        "focal_file": "crates/toksi/src/lib.rs",
+        "focal_file": "",
         "depth": depth,
-        "affected_files": [
-            "crates/toksi/src/dashboard/mod.rs",
-            "crates/toksi/src/commands/mod.rs",
-            "crates/toksi/src/main.rs"
-        ],
-        "upstream_callers": [
-            { "name": "main", "file": "crates/toksi/src/main.rs", "depth": 1 },
-            { "name": "run_cli", "file": "crates/toksi/src/main.rs", "depth": 2 }
-        ],
-        "downstream_callees": [
-            { "name": "TcpListener::bind", "file": "tokio::net", "depth": 1 },
-            { "name": "handle_overview", "file": "crates/toksi/src/dashboard/api.rs", "depth": 1 }
-        ],
-        "affected_tests": [
-            "crates/toksi/src/dashboard/tests.rs",
-            "crates/toksi/src/tests.rs"
-        ]
+        "affected_files": [],
+        "upstream_callers": [],
+        "downstream_callees": [],
+        "affected_tests": []
+    })
+}
+
+pub fn handle_codegraph_preview(mode: &str, pattern: &str) -> serde_json::Value {
+    let root = PathBuf::from(".");
+    match mode {
+        "repomix" => {
+            let walked = crate::codegraph::walker::walk_project_files(&root);
+            let files: Vec<String> = walked.into_iter().take(50).map(|w| w.rel_path).collect();
+            json!({
+                "mode": "repomix",
+                "file_count": files.len(),
+                "preview": files
+            })
+        }
+        "scip" => {
+            if let Ok(cg) = crate::codegraph::CodeGraph::open(&root) {
+                let refs = cg.cache.get_all_refs();
+                let preview: Vec<serde_json::Value> = refs
+                    .into_iter()
+                    .filter(|r| pattern.is_empty() || r.name.contains(pattern))
+                    .take(30)
+                    .map(|r| json!({ "symbol": r.name, "file": r.file_path, "line": r.line }))
+                    .collect();
+                return json!({ "mode": "scip", "count": preview.len(), "preview": preview });
+            }
+            json!({ "mode": "scip", "count": 0, "preview": [] })
+        }
+        _ => {
+            if let Ok(cg) = crate::codegraph::CodeGraph::open(&root) {
+                let nodes = cg.cache.get_all_nodes();
+                let preview: Vec<serde_json::Value> = nodes
+                    .into_iter()
+                    .filter(|n| pattern.is_empty() || n.name.contains(pattern))
+                    .take(30)
+                    .map(|n| json!({ "name": n.name, "kind": n.kind, "file": n.file_path, "line": n.start_line }))
+                    .collect();
+                return json!({ "mode": "ast-grep", "count": preview.len(), "preview": preview });
+            }
+            json!({ "mode": "ast-grep", "count": 0, "preview": [] })
+        }
+    }
+}
+
+pub fn handle_codegraph_purge_ignored() -> serde_json::Value {
+    let root = PathBuf::from(".");
+    let mut purged_symbols = 0usize;
+    let mut purged_context = 0usize;
+
+    if let Ok(mut cg) = crate::codegraph::CodeGraph::open(&root)
+        && let Ok(n) = cg.cache.purge_ignored_files(&root)
+    {
+        purged_symbols = n;
+    }
+
+    let ctx_path = crate::contextmode::fts::resolve_content_store_path(Some(&root));
+    if let Ok(mut store) = crate::contextmode::fts::ContentStore::open(&ctx_path)
+        && let Ok(n) = store.purge_ignored_sources(&root)
+    {
+        purged_context = n;
+    }
+
+    json!({
+        "success": true,
+        "purged_symbols": purged_symbols,
+        "purged_context_sources": purged_context
     })
 }
 
@@ -750,7 +926,34 @@ pub fn handle_complexity_update(payload: &[u8]) -> Result<serde_json::Value, Str
 
 pub fn handle_quotas_get() -> serde_json::Value {
     let state = global_cockpit_state();
-    let quotas = state.quotas.read().map(|q| q.values().cloned().collect::<Vec<_>>()).unwrap_or_default();
+    let mut quotas: Vec<serde_json::Value> = state
+        .quotas
+        .read()
+        .map(|q| {
+            q.values()
+                .filter_map(|item| serde_json::to_value(item).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if let Ok(db) = crate::db::open_default_db()
+        && let Ok(windows) = db.list_quota_windows(None)
+    {
+        for w in windows {
+            quotas.push(json!({
+                "id": w.id,
+                "provider": format!("{} ({})", w.provider_id, w.instance_label),
+                "window_kind": w.window_kind,
+                "remaining_requests": w.remaining_requests.unwrap_or(0),
+                "limit_requests": w.limit_requests.unwrap_or(0),
+                "remaining_tokens": w.remaining_tokens.unwrap_or(0),
+                "limit_tokens": w.limit_tokens.unwrap_or(0),
+                "reset_tokens_secs": w.reset_at_epoch.unwrap_or(0),
+                "tier_badge": format!("[{}]", w.window_kind.to_uppercase())
+            }));
+        }
+    }
+
     json!(quotas)
 }
 
@@ -908,5 +1111,261 @@ pub fn handle_telemetry_spans() -> serde_json::Value {
             "memory_used_bytes": snap.gpu_memory_used_bytes,
             "memory_total_bytes": snap.gpu_memory_total_bytes
         }
+    })
+}
+
+// -----------------------------------------------------------------------------
+// Sandbox Inspector, System Controls, Multi-Instance BYOK Profiles, & Repair
+// -----------------------------------------------------------------------------
+
+pub fn handle_contextmode_search(query: &str) -> serde_json::Value {
+    let root = PathBuf::from(".");
+    let ctx_path = crate::contextmode::fts::resolve_content_store_path(Some(&root));
+    if query.trim().is_empty() {
+        return json!({ "query": query, "results": [], "count": 0 });
+    }
+    if let Ok(store) = crate::contextmode::fts::ContentStore::open(&ctx_path) {
+        let opts = crate::contextmode::fts::SearchOptions {
+            query: query.to_string(),
+            limit: 15,
+            ..Default::default()
+        };
+        if let Ok(results) = store.search(&opts) {
+            let items: Vec<serde_json::Value> = results
+                .into_iter()
+                .map(|r| {
+                    json!({
+                        "title": r.title,
+                        "source": r.label,
+                        "snippet": r.content.chars().take(240).collect::<String>(),
+                        "score": r.score
+                    })
+                })
+                .collect();
+            return json!({ "query": query, "count": items.len(), "results": items });
+        }
+    }
+    json!({ "query": query, "count": 0, "results": [] })
+}
+
+pub fn handle_contextmode_telemetry() -> serde_json::Value {
+    let root = PathBuf::from(".");
+    let ctx_path = crate::contextmode::fts::resolve_content_store_path(Some(&root));
+    let sources_count = crate::contextmode::fts::ContentStore::open(&ctx_path)
+        .ok()
+        .and_then(|s| s.list_sources().ok())
+        .map(|v| v.len())
+        .unwrap_or(0);
+
+    json!({
+        "os": std::env::consts::OS,
+        "projected_stdout_cap_bytes": 2048,
+        "fts5_db_path": crate::util::paths::normalize_path(&ctx_path.to_string_lossy()),
+        "fts5_sources_count": sources_count,
+        "url_cache_ttl_secs": 86400
+    })
+}
+
+pub fn handle_system_config_get() -> serde_json::Value {
+    let path = crate::config::toksi_config_toml_path();
+    let content = std::fs::read_to_string(&path).unwrap_or_default();
+    json!({
+        "path": crate::util::paths::normalize_path(&path.to_string_lossy()),
+        "content": content
+    })
+}
+
+#[derive(Deserialize)]
+pub struct SystemConfigSaveReq {
+    pub content: String,
+}
+
+pub fn handle_system_config_save(payload: &[u8]) -> Result<serde_json::Value, String> {
+    let req: SystemConfigSaveReq = serde_json::from_slice(payload).map_err(|e| e.to_string())?;
+    let parsed: crate::config::ToksiTomlConfig = toml::from_str(&req.content).map_err(|e| format!("Invalid TOML: {}", e))?;
+    crate::config::save_toksi_toml_config(&parsed).map_err(|e| e.to_string())?;
+    Ok(json!({ "success": true, "message": "Saved ~/.toksi/config.toml" }))
+}
+
+#[derive(Deserialize)]
+pub struct SystemServiceReq {
+    pub service: String,
+    pub action: String,
+}
+
+pub fn handle_system_service(payload: &[u8]) -> Result<serde_json::Value, String> {
+    let req: SystemServiceReq = serde_json::from_slice(payload).map_err(|e| e.to_string())?;
+    match (req.service.as_str(), req.action.as_str()) {
+        ("proxy", "restart") => Ok(handle_proxy_restart()),
+        ("proxy", "stop") => Ok(handle_proxy_stop()),
+        ("proxy", "start") => {
+            let res = start_proxy();
+            Ok(json!({ "success": res.is_ok(), "proxy_running": proxy_running(), "error": res.err().map(|e| e.to_string()) }))
+        }
+        ("daemon", "status") => Ok(json!({ "success": true, "daemon_running": is_daemon_running() })),
+        ("dashboard", "status") => Ok(json!({ "success": true, "dashboard_running": super::is_dashboard_running(), "port": super::dashboard_port() })),
+        _ => Ok(json!({ "success": true, "service": req.service, "action": req.action, "note": "Use CLI `toksi daemon|dashboard` for detached process lifecycle" })),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct AgentInstallReq {
+    pub agent_id: String,
+    pub scope: Option<String>,
+    pub components: Option<Vec<String>>,
+}
+
+pub fn handle_system_agent_install(payload: &[u8]) -> Result<serde_json::Value, String> {
+    let req: AgentInstallReq = serde_json::from_slice(payload).map_err(|e| e.to_string())?;
+    let scope = req.scope.unwrap_or_else(|| "user".to_string());
+    let comps = req.components.unwrap_or_else(|| vec!["rules".into(), "skills".into(), "instructions".into()]);
+    let csv = comps.join(",");
+    let parsed_comps = crate::rules::sync::SyncComponents::from_csv(&csv).map_err(|e| e.to_string())?;
+
+    let mut opts = crate::rules::sync::SyncOptions::for_agents([req.agent_id.clone()]).with_components(parsed_comps);
+    let report = if scope == "repo" {
+        opts = opts.with_workspace_opt_in(true);
+        crate::rules::sync::sync_workspace_rules_with_options(PathBuf::from("."), crate::rules::RuleKind::all(), &opts)
+            .map_err(|e| e.to_string())?
+    } else {
+        crate::rules::sync::sync_global_rules_with_options(crate::rules::RuleKind::all(), &opts)
+            .map_err(|e| e.to_string())?
+    };
+
+    Ok(json!({
+        "success": report.is_success(),
+        "agent_id": req.agent_id,
+        "scope": scope,
+        "updated": report.updated_files.len(),
+        "up_to_date": report.up_to_date_files.len(),
+        "errors": report.errors
+    }))
+}
+
+pub fn handle_system_logs() -> serde_json::Value {
+    let log_dir = crate::util::headroom::headroom_paths_resolved().root;
+    let mut lines = Vec::new();
+    let candidates = ["daemon.log", "headroom.log", "proxy.log"];
+    for name in candidates {
+        let p = std::path::Path::new(&log_dir).join(name);
+        if let Ok(content) = std::fs::read_to_string(&p) {
+            for line in content.lines().rev().take(40) {
+                lines.push(format!("[{}] {}", name, line));
+            }
+        }
+    }
+    json!({ "lines": lines })
+}
+
+pub fn handle_byok_profiles_get() -> serde_json::Value {
+    let mut profiles: Vec<serde_json::Value> = Vec::new();
+    if let Ok(db) = crate::db::open_default_db()
+        && let Ok(rows) = db.list_byok_profiles()
+    {
+        for p in rows {
+            profiles.push(json!({
+                "id": p.id,
+                "provider_id": p.provider_id,
+                "instance_label": p.instance_label,
+                "model_id": p.model_id,
+                "thinking_effort": p.thinking_effort,
+                "base_url": p.base_url,
+                "auth_mode": p.auth_mode,
+                "priority": p.priority,
+                "weight": p.weight,
+                "enabled": p.is_active
+            }));
+        }
+    }
+    json!(profiles)
+}
+
+#[derive(Deserialize)]
+pub struct ByokProfileUpsertReq {
+    pub id: Option<String>,
+    pub provider_id: String,
+    pub instance_label: String,
+    pub model_id: String,
+    pub thinking_effort: Option<String>,
+    pub base_url: Option<String>,
+    pub priority: Option<i32>,
+    pub weight: Option<i32>,
+    pub enabled: Option<bool>,
+}
+
+pub fn handle_byok_profile_upsert(payload: &[u8]) -> Result<serde_json::Value, String> {
+    let req: ByokProfileUpsertReq = serde_json::from_slice(payload).map_err(|e| e.to_string())?;
+    let mut db = crate::db::open_default_db().map_err(|e| e.to_string())?;
+    let now = chrono::Utc::now().timestamp();
+    let id = req.id.unwrap_or_else(|| format!("{}:{}", req.provider_id, req.instance_label));
+    let record = crate::db::schema::ByokProfileRecord {
+        id: id.clone(),
+        provider_id: req.provider_id,
+        instance_label: req.instance_label,
+        model_id: req.model_id,
+        thinking_effort: req.thinking_effort.unwrap_or_else(|| "medium".to_string()),
+        base_url: req.base_url.unwrap_or_default(),
+        secret_ref: String::new(),
+        auth_mode: "api_key".to_string(),
+        gcp_project: String::new(),
+        gcp_location: "us-central1".to_string(),
+        priority: req.priority.unwrap_or(1),
+        weight: req.weight.unwrap_or(100),
+        is_active: req.enabled.unwrap_or(true),
+        created_at: now,
+        updated_at: now,
+    };
+    db.upsert_byok_profile(&record).map_err(|e| e.to_string())?;
+    Ok(json!({ "success": true, "id": id }))
+}
+
+#[derive(Deserialize)]
+pub struct ModelsRefreshReq {
+    pub base_url: String,
+}
+
+pub fn handle_byok_models_refresh(payload: &[u8]) -> Result<serde_json::Value, String> {
+    let req: ModelsRefreshReq = serde_json::from_slice(payload).map_err(|e| e.to_string())?;
+    let trimmed = req.base_url.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return Err("base_url is required".into());
+    }
+    let url = if trimmed.ends_with("/v1/models") || trimmed.ends_with("/models") {
+        trimmed.to_string()
+    } else {
+        format!("{}/v1/models", trimmed)
+    };
+    let client = crate::gateway::reconnect::auto_healing_blocking_client();
+    let resp = client.get(&url).timeout(std::time::Duration::from_secs(5)).send().map_err(|e| e.to_string())?;
+    let body: serde_json::Value = resp.json().map_err(|e| e.to_string())?;
+    let models: Vec<String> = body
+        .get("data")
+        .and_then(|d| d.as_array())
+        .map(|arr| arr.iter().filter_map(|m| m.get("id").and_then(|v| v.as_str()).map(str::to_string)).collect())
+        .unwrap_or_default();
+    Ok(json!({ "success": true, "url": url, "models": models }))
+}
+
+pub fn handle_gateway_bypass() -> serde_json::Value {
+    let cfg = crate::config::load_toksi_toml_config();
+    let collector = crate::telemetry::global_collector();
+    let total_calls: u64 = collector.upstream_requests_total.read().map(|m| m.values().sum()).unwrap_or(0);
+    json!({
+        "headroom_compression_enabled": true,
+        "default_effort": "medium",
+        "total_gateway_calls": total_calls,
+        "bypass_count": 0,
+        "status": if cfg.has_enabled_byok_profiles() { "Active" } else { "Pass-through (0 BYOK profiles enabled)" }
+    })
+}
+
+pub fn handle_db_repair_legacy() -> serde_json::Value {
+    let root = PathBuf::from(".");
+    let merged_toksi = crate::commands::doctor::consolidate_nested_toksi_dirs(&root).unwrap_or(0);
+    let merged_agents = crate::commands::doctor::consolidate_nested_agent_dirs(&root).unwrap_or(0);
+    json!({
+        "success": true,
+        "merged_toksi_dirs": merged_toksi,
+        "merged_agent_dirs": merged_agents
     })
 }

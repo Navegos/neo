@@ -5,6 +5,8 @@
 // created: 2026-10-30
 // lastModified: 2026-10-31
 
+#![deny(unsafe_code)]
+
 use crate::dashboard::run_dashboard_cli;
 
 pub fn run_dashboard(argv: &[String]) -> i32 {

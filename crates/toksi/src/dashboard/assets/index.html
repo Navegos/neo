@@ -18,7 +18,7 @@
         <path d="M20 9h3" /><path d="M20 14h3" /><path d="M1 9h3" /><path d="M1 14h3" />
       </svg>
       <div class="brand-title">
-        toksi <span class="badge">Phase 12 Cockpit</span>
+        toksi <span class="badge">Wave 18 Cockpit</span>
       </div>
     </div>
 
@@ -118,41 +118,48 @@
           <div style="background: #0f172a; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
               <strong style="color: var(--accent-cyan);">1. RTK Layer</strong>
-              <span class="badge badge-cyan" id="layer-rtk-share">38% Share</span>
+              <span class="badge badge-cyan" id="layer-rtk-share">0% Share</span>
             </div>
             <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
               Command output reduction, zero-alloc ANSI stripper, 100+ native CLI filters (cargo, git, npm, pytest).
             </div>
             <div style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-muted);" id="layer-rtk-saved">
-              Saved: 5,658,990 tokens
+              Saved: 0 tokens
             </div>
           </div>
 
           <div style="background: #0f172a; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
               <strong style="color: var(--accent-green);">2. Headroom Layer</strong>
-              <span class="badge badge-green" id="layer-headroom-share">42% Share</span>
+              <span class="badge badge-green" id="layer-headroom-share">0% Share</span>
             </div>
             <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
               AST-aware code compression, lossless log deduplication, JSON pruner, 1024 prompt cache boundary alignment.
             </div>
             <div style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-muted);" id="layer-headroom-saved">
-              Saved: 6,254,680 tokens
+              Saved: 0 tokens
             </div>
           </div>
 
           <div style="background: #0f172a; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
               <strong style="color: var(--accent-purple);">3. Caveman Layer</strong>
-              <span class="badge badge-purple" id="layer-caveman-share">20% Share</span>
+              <span class="badge badge-purple" id="layer-caveman-share">0% Share</span>
             </div>
             <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
               ASD-STE100 Simplified Technical English prompt compression, redundant conversational filler stripper.
             </div>
             <div style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-muted);" id="layer-caveman-saved">
-              Saved: 2,978,434 tokens
+              Saved: 0 tokens
             </div>
           </div>
+        </div>
+        <div id="layer-attribution-pills" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-secondary);">
+          <span>mcp_pruner: <strong id="attr-mcp-pruner">0</strong></span>
+          <span>ccr: <strong id="attr-ccr">0</strong></span>
+          <span>cache_align: <strong id="attr-cache-align">0</strong></span>
+          <span>context: <strong id="attr-context">0</strong></span>
+          <span>economizer: <strong id="attr-economizer">0</strong></span>
         </div>
       </div>
 
@@ -189,17 +196,17 @@
       <div class="grid-stats">
         <div class="stat-card">
           <div class="stat-title">429 Rate-Limit Events</div>
-          <div class="stat-val" style="color: var(--accent-amber);" id="warroom-429-count">2</div>
+          <div class="stat-val" style="color: var(--accent-amber);" id="warroom-429-count">0</div>
           <div class="stat-sub">Auto-throttled & backoff queued</div>
         </div>
         <div class="stat-card">
           <div class="stat-title">Upstream Outages Detected</div>
           <div class="stat-val" style="color: var(--accent-green);" id="warroom-outage-count">0 Active</div>
-          <div class="stat-sub">All upstream APIs responding &lt; 300ms</div>
+          <div class="stat-sub">Live gateway health monitor</div>
         </div>
         <div class="stat-card">
           <div class="stat-title">Cascade Failovers</div>
-          <div class="stat-val" style="color: var(--accent-cyan);" id="warroom-failover-count">1 Route Active</div>
+          <div class="stat-val" style="color: var(--accent-cyan);" id="warroom-failover-count">Standby</div>
           <div class="stat-sub">Zero dropped user requests</div>
         </div>
         <div class="stat-card">
@@ -213,21 +220,21 @@
       <div class="card">
         <div class="card-header">
           <div class="card-title">Upstream Outage Fallback Cascade Visualizer</div>
-          <span class="badge badge-green">Self-Healing Cascade</span>
+          <span class="badge badge-green" id="warroom-watchdog-badge">ArcSwap Watchdog: Healthy</span>
         </div>
         <div class="cascade-container" id="cascade-container">
           <div class="cascade-step active">
             <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent-cyan); font-weight: 600;">L0: Primary</div>
-            <div style="font-weight: 700; margin: 0.25rem 0;">Direct Model Stream</div>
-            <div style="font-size: 0.75rem; color: var(--text-secondary);">Claude 3.7 / GPT-4o</div>
-            <div style="margin-top: 0.5rem;"><span class="badge badge-green">HEALTHY (210ms)</span></div>
+            <div style="font-weight: 700; margin: 0.25rem 0;">Enterprise AI Gateway</div>
+            <div style="font-size: 0.75rem; color: var(--text-secondary);">Port 9099</div>
+            <div style="margin-top: 0.5rem;"><span class="badge badge-green" id="cascade-l0-status">IDLE (0ms)</span></div>
           </div>
           <div class="cascade-arrow">➔</div>
           <div class="cascade-step standby">
             <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent-amber); font-weight: 600;">L1: On 429 / Outage</div>
-            <div style="font-weight: 700; margin: 0.25rem 0;">BYOK Gateway Route</div>
+            <div style="font-weight: 700; margin: 0.25rem 0;">BYOK &amp; Vertex ADC Gateway</div>
             <div style="font-size: 0.75rem; color: var(--text-secondary);">Local Port 18787 Upstream</div>
-            <div style="margin-top: 0.5rem;"><span class="badge badge-cyan">STANDBY READY</span></div>
+            <div style="margin-top: 0.5rem;"><span class="badge badge-cyan" id="cascade-l1-status">STANDBY</span></div>
           </div>
           <div class="cascade-arrow">➔</div>
           <div class="cascade-step standby">
@@ -237,6 +244,7 @@
             <div style="margin-top: 0.5rem;"><span class="badge badge-purple">ONLINE</span></div>
           </div>
         </div>
+        <div id="warroom-watchdog-log" style="font-size: 0.78rem; font-family: var(--font-mono); color: var(--text-secondary); margin-top: 0.5rem;"></div>
       </div>
 
       <!-- Context Overflow Telemetry & Rate-Limit Monitor -->
@@ -256,24 +264,7 @@
                 </tr>
               </thead>
               <tbody id="warroom-ratelimit-tbody">
-                <tr>
-                  <td>Anthropic API</td>
-                  <td><span class="badge badge-green">Normal (0)</span></td>
-                  <td>0s</td>
-                  <td>Direct stream</td>
-                </tr>
-                <tr>
-                  <td>OpenAI API</td>
-                  <td><span class="badge badge-green">Normal (0)</span></td>
-                  <td>0s</td>
-                  <td>Direct stream</td>
-                </tr>
-                <tr>
-                  <td>DeepSeek</td>
-                  <td><span class="badge badge-amber">1 Throttle</span></td>
-                  <td>1.8s</td>
-                  <td>Rerouted to BYOK lane</td>
-                </tr>
+                <tr><td colspan="4" style="color: var(--text-muted);">No configured BYOK rate-limit events at rest.</td></tr>
               </tbody>
             </table>
           </div>
@@ -286,13 +277,13 @@
           <div style="padding: 0.5rem 0;">
             <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.35rem;">
               <span>Active Context Utilization</span>
-              <strong style="color: var(--accent-cyan);" id="context-used-pct">33.2% (42,500 / 128,000 tokens)</strong>
+              <strong style="color: var(--accent-cyan);" id="context-used-pct">0.0% (0 / 128,000 tokens)</strong>
             </div>
             <div style="width: 100%; height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden; margin-bottom: 1rem;">
-              <div id="context-bar" style="width: 33.2%; height: 100%; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));"></div>
+              <div id="context-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));"></div>
             </div>
             <div style="font-size: 0.8rem; color: var(--text-secondary);">
-              Dynamic Memory Governor is set to trigger <strong>L1 Abstract Pruning</strong> if prompt length reaches 85% of model threshold.
+              Dynamic Memory Governor triggers <strong>L1 Abstract Pruning</strong> when prompt length reaches 85% of model threshold.
             </div>
           </div>
         </div>
@@ -322,7 +313,10 @@
         <div class="card-header">
           <div class="card-title">Memory Decision DAG & Instant FTS5 Search</div>
           <div style="display: flex; gap: 0.5rem; align-items: center;">
-            <input type="text" id="memory-search-input" class="input-text" placeholder="Instant FTS5 search (e.g. proxy, tree-sitter)..." style="width: 280px;" oninput="app.searchMemory(this.value)">
+            <select id="memory-subproject-filter" class="input-text" onchange="app.loadMemory(document.getElementById('memory-search-input').value)">
+              <option value="all">All Subprojects</option>
+            </select>
+            <input type="text" id="memory-search-input" class="input-text" placeholder="Instant FTS5 search (e.g. proxy, tree-sitter)..." style="width: 260px;" oninput="app.searchMemory(this.value)">
             <button class="btn btn-primary" onclick="app.loadMemory()">Reload Memory</button>
           </div>
         </div>
@@ -353,13 +347,17 @@
     <section id="tab-codegraph" class="tab-pane">
       <div class="card">
         <div class="card-header">
-          <div class="card-title">CodeGraph AST Topology & Blast-Radius Simulator</div>
+          <div class="card-title">CodeGraph AST Topology &amp; Blast-Radius Explorer <span class="badge badge-cyan" id="cg-langs-badge">45+ Languages</span></div>
           <div style="display: flex; gap: 0.75rem; align-items: center;">
             <label style="font-size: 0.8rem; color: var(--text-secondary);">Blast Radius Depth:</label>
             <input type="range" id="blast-depth-slider" min="1" max="5" value="3" oninput="app.updateBlastDepth(this.value)">
             <span id="blast-depth-val" class="badge badge-cyan">3</span>
-            <button class="btn btn-primary" onclick="app.loadCodeGraph()">Re-Index & Refresh</button>
+            <button class="btn btn-danger" onclick="app.purgeIgnoredCodeGraph()">Purge .ignore</button>
+            <button class="btn btn-primary" onclick="app.loadCodeGraph()">Refresh</button>
           </div>
+        </div>
+        <div id="cg-stats-bar" style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-secondary); margin-bottom: 0.75rem;">
+          Symbols: 0 | Files: 0 | Edges: 0
         </div>
 
         <div class="split-view">
@@ -425,9 +423,17 @@
             <textarea id="raw-output-input" class="code-box" style="width: 100%; resize: vertical;" spellcheck="false"></textarea>
           </div>
           <div>
-            <div style="font-size: 0.8rem; font-weight: 600; color: var(--accent-cyan); margin-bottom: 0.25rem;">FILTERED STDOUT (CONTEXT READY)</div>
+            <div style="font-size: 0.8rem; font-weight: 600; color: var(--accent-cyan); margin-bottom: 0.25rem;">FILTERED STDOUT (&lt; 2KB PROJECTED)</div>
             <div id="filtered-output-display" class="code-box"></div>
           </div>
+        </div>
+
+        <div style="margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+          <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+            <input type="text" id="sandbox-fts-query" class="input-text" placeholder="FTS5 Search Test Bar..." style="flex: 1;">
+            <button class="btn btn-primary" onclick="app.searchSandboxFts()">Search FTS5</button>
+          </div>
+          <div id="sandbox-fts-results" style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-secondary);"></div>
         </div>
       </div>
     </section>
@@ -501,6 +507,40 @@
           </div>
         </div>
 
+        <!-- Live ~/.toksi/config.toml Editor -->
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="card-header">
+            <div class="card-title">Live ~/.toksi/config.toml Editor</div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-neutral" onclick="app.loadSystemConfig()">Reload</button>
+              <button class="btn btn-success" onclick="app.saveSystemConfig()">Save config.toml</button>
+            </div>
+          </div>
+          <textarea id="system-config-editor" class="code-box" style="width: 100%; min-height: 180px; resize: vertical;" spellcheck="false"></textarea>
+        </div>
+
+        <!-- Granular Per-Agent Component Installer -->
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="card-header">
+            <div class="card-title">Granular Agent Component Installer</div>
+            <span class="badge badge-cyan">USER-AUTO VS EXPLICIT-REPO</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
+            <input type="text" id="install-agent-id" class="input-text" placeholder="Agent ID (e.g. claude, antigravity, cursor)">
+            <select id="install-agent-scope" class="input-text">
+              <option value="user">User-Level Auto (~/.agent)</option>
+              <option value="repo">Explicit Repo Opt-In (&lt;root&gt;/)</option>
+            </select>
+            <label><input type="checkbox" class="comp-chk" value="hooks" checked> hooks</label>
+            <label><input type="checkbox" class="comp-chk" value="mcp" checked> mcp</label>
+            <label><input type="checkbox" class="comp-chk" value="skills" checked> skills</label>
+            <label><input type="checkbox" class="comp-chk" value="rules" checked> rules</label>
+            <label><input type="checkbox" class="comp-chk" value="instructions" checked> instructions</label>
+            <label><input type="checkbox" class="comp-chk" value="configs" checked> configs</label>
+            <button class="btn btn-primary" onclick="app.installAgentComponents()">Install Selected</button>
+          </div>
+        </div>
+
       </div>
     </section>
 
@@ -549,6 +589,43 @@
               <input type="text" id="tier-complex-model" class="input-text" style="width: 100%; margin-top: 0.25rem;" value="claude-3-7-sonnet">
             </div>
             <button class="btn btn-primary" onclick="app.updateComplexityTiers()">Apply Router Settings</button>
+          </div>
+        </div>
+
+        <!-- Multi-Instance <byok, model, effort> Profiles CRUD -->
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="card-header">
+            <div class="card-title">Multi-Instance &lt;byok, model, effort&gt; Profiles</div>
+            <span class="badge badge-cyan" id="gateway-bypass-badge">Headroom Active</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
+            <input type="text" id="prof-provider" class="input-text" placeholder="Provider (openai, anthropic, gemini)">
+            <input type="text" id="prof-label" class="input-text" placeholder="Instance Label (work, personal)">
+            <input type="text" id="prof-model" class="input-text" placeholder="Model ID">
+            <select id="prof-effort" class="input-text">
+              <option value="low">low</option>
+              <option value="medium" selected>medium</option>
+              <option value="high">high</option>
+            </select>
+            <input type="text" id="prof-base-url" class="input-text" placeholder="Custom base_url (optional)" style="flex: 1;">
+            <button class="btn btn-neutral" onclick="app.refreshModelsFromBaseUrl()">/v1/models</button>
+            <button class="btn btn-success" onclick="app.saveByokProfile()">Save Profile</button>
+          </div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Provider</th>
+                  <th>Model</th>
+                  <th>Effort</th>
+                  <th>Base URL</th>
+                  <th>Priority</th>
+                  <th>Weight</th>
+                </tr>
+              </thead>
+              <tbody id="byok-profiles-tbody"></tbody>
+            </table>
           </div>
         </div>
 
@@ -629,6 +706,7 @@
             <button class="btn btn-primary" onclick="app.dbBackup()">Backup Database</button>
             <button class="btn btn-success" onclick="app.dbExport()">Export JSON</button>
             <button class="btn btn-neutral" onclick="app.dbImportPrompt()">Import JSON</button>
+            <button class="btn btn-danger" onclick="app.dbRepairLegacy()">Repair Legacy Nested &lt;repo&gt;</button>
           </div>
           <div id="db-action-result" style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--accent-green); font-family: var(--font-mono);"></div>
         </div>
@@ -637,6 +715,17 @@
     </section>
 
   </main>
+
+  <!-- Heatmap Drilldown Modal -->
+  <div id="heatmap-drilldown-modal" class="modal-backdrop" onclick="if(event.target===this) app.closeHeatmapModal()">
+    <div class="modal-dialog">
+      <div class="card-header">
+        <div class="card-title" id="heatmap-modal-title">Heatmap Drilldown</div>
+        <button class="btn btn-neutral" onclick="app.closeHeatmapModal()">Close</button>
+      </div>
+      <div id="heatmap-modal-body" style="font-size: 0.85rem; color: var(--text-secondary);"></div>
+    </div>
+  </div>
 
   <!-- Toast Alerts Container -->
   <div id="toast-container"></div>

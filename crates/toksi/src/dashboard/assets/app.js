@@ -94,6 +94,8 @@ found 0 vulnerabilities`,
     this.loadMemory();
     this.loadCodeGraph();
     this.loadByokRoutes();
+    this.loadSystemConfig();
+    this.loadWarRoom();
     this.loadGatewayControls();
     this.loadKeyringAndDb();
     this.applySandboxPreset('cargo');
@@ -241,6 +243,15 @@ found 0 vulnerabilities`,
       document.getElementById('layer-caveman-share').textContent = `${layers.caveman.share}% Share`;
       document.getElementById('layer-caveman-saved').textContent = `Saved: ${Number(layers.caveman.saved).toLocaleString()} tokens`;
     }
+    const setAttr = (id, key) => {
+      const el = document.getElementById(id);
+      if (el && layers[key]) el.textContent = Number(layers[key].saved || 0).toLocaleString();
+    };
+    setAttr('attr-mcp-pruner', 'mcp_pruner');
+    setAttr('attr-ccr', 'ccr');
+    setAttr('attr-cache-align', 'cache_align');
+    setAttr('attr-context', 'context');
+    setAttr('attr-economizer', 'economizer');
   }
 
   renderWaterfall() {
@@ -297,7 +308,7 @@ found 0 vulnerabilities`,
       const inPath = ag.in_path !== false;
       const card = document.createElement('div');
       card.className = `agent-card ${ag.wired ? 'wired' : 'unwired'}${inPath ? '' : ' missing-in-path'}`;
-      const pathHint = inPath ? '' : `<div style="font-size: 0.7rem; color: var(--text-muted);" title="Add '${ag.cli_bin || ag.id}' to your system PATH">PATH: missing (${ag.cli_bin || ag.id})</div>`;
+      const pathHint = inPath ? '' : `<div style="font-size: 0.7rem; color: var(--accent-amber);" title="${ag.remediation_hint || ''}">PATH: missing (${ag.cli_bin || ag.id})</div>`;
       card.innerHTML = `
         <div class="agent-head">
           <div>
@@ -372,10 +383,21 @@ found 0 vulnerabilities`,
   // --- Memory Decision DAG ---
   async loadMemory(query = '') {
     try {
-      const url = query ? `/api/memory?q=${encodeURIComponent(query)}` : '/api/memory';
+      const subSel = document.getElementById('memory-subproject-filter');
+      const sub = subSel ? subSel.value : 'all';
+      const params = new URLSearchParams();
+      if (query) params.set('q', query);
+      if (sub && sub !== 'all') params.set('subproject', sub);
+      const url = params.toString() ? `/api/memory?${params.toString()}` : '/api/memory';
       const res = await fetch(url);
       if (res.ok) {
         this.state.memory = await res.json();
+        if (subSel && Array.isArray(this.state.memory.subprojects)) {
+          const cur = subSel.value;
+          subSel.innerHTML = '<option value="all">All Subprojects</option>' +
+            this.state.memory.subprojects.map(s => `<option value="${s}">${s}</option>`).join('');
+          if (cur) subSel.value = cur;
+        }
         this.renderMemoryDAG();
         this.renderHeatmap();
       }
@@ -469,17 +491,59 @@ found 0 vulnerabilities`,
     grid.innerHTML = '';
 
     const items = this.state.memory.heatmap || [];
+    if (items.length === 0) {
+      grid.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem;">No projectmem heatmap events recorded yet.</div>';
+      return;
+    }
     items.forEach(h => {
       const cell = document.createElement('div');
       cell.className = `heatmap-cell ${h.level}`;
+      const cellId = h.cell_id || h.component;
+      cell.onclick = () => this.openHeatmapDrilldown(cellId);
       cell.innerHTML = `
-        <div style="font-weight: 700; font-size: 0.85rem;">${h.component}</div>
+        <div style="font-weight: 700; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis;">${h.component}</div>
         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
-          ${h.issues} bugs / ${h.fixes} fixes
+          ${h.issues} open / ${h.fixes} fixes
         </div>
       `;
       grid.appendChild(cell);
     });
+  }
+
+  async openHeatmapDrilldown(cellId) {
+    const modal = document.getElementById('heatmap-drilldown-modal');
+    const title = document.getElementById('heatmap-modal-title');
+    const body = document.getElementById('heatmap-modal-body');
+    if (!modal || !title || !body) return;
+    title.textContent = `Heatmap Drilldown: ${cellId}`;
+    body.textContent = 'Loading lineage...';
+    modal.classList.add('open');
+    try {
+      const res = await fetch(`/api/memory/heatmap/${encodeURIComponent(cellId)}`);
+      if (res.ok) {
+        const d = await res.json();
+        const evs = (d.events || []).map(ev => `
+          <div style="padding: 0.5rem; border-bottom: 1px solid var(--border-color);">
+            <span class="badge badge-cyan">${ev.type}</span>
+            <strong style="margin-left: 0.4rem;">${ev.summary}</strong>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 0.2rem;">${ev.timestamp || ''} ${ev.location || ''}</div>
+          </div>
+        `).join('') || '<div style="color: var(--text-muted);">No events recorded for this file.</div>';
+        body.innerHTML = `
+          <div style="margin-bottom: 0.75rem; font-family: var(--font-mono);">
+            Failed Attempts: ${d.failed_attempts || 0} | Open Issues: ${d.open_issues || 0} | Resolved: ${d.resolved_issues || 0} | Decisions: ${d.decisions || 0}
+          </div>
+          ${evs}
+        `;
+      }
+    } catch (e) {
+      body.textContent = `Error loading drilldown: ${e.message}`;
+    }
+  }
+
+  closeHeatmapModal() {
+    const modal = document.getElementById('heatmap-drilldown-modal');
+    if (modal) modal.classList.remove('open');
   }
 
   // --- CodeGraph Explorer ---
@@ -488,10 +552,31 @@ found 0 vulnerabilities`,
       const res = await fetch('/api/codegraph');
       if (res.ok) {
         this.state.codegraph = await res.json();
+        const badge = document.getElementById('cg-langs-badge');
+        if (badge && this.state.codegraph.supported_languages_count) {
+          badge.textContent = `${this.state.codegraph.supported_languages_count} Languages`;
+        }
+        const bar = document.getElementById('cg-stats-bar');
+        if (bar) {
+          bar.textContent = `Symbols: ${this.state.codegraph.total_symbols || 0} | Files: ${this.state.codegraph.total_files || 0} | Edges: ${this.state.codegraph.total_edges || 0}`;
+        }
         this.renderCodeGraphSymbols();
       }
     } catch (e) {
       console.error('loadCodeGraph error:', e);
+    }
+  }
+
+  async purgeIgnoredCodeGraph() {
+    try {
+      const res = await fetch('/api/codegraph/purge-ignored', { method: 'POST' });
+      if (res.ok) {
+        const d = await res.json();
+        this.showToast(`Purged ${d.purged_symbols} symbols & ${d.purged_context_sources} context sources`, 'success');
+        this.loadCodeGraph();
+      }
+    } catch (e) {
+      this.showToast(`Purge error: ${e.message}`, 'error');
     }
   }
 
@@ -736,7 +821,9 @@ found 0 vulnerabilities`,
     await Promise.all([
       this.loadQuotaGauges(),
       this.loadComplexityTiers(),
-      this.loadProviderControls()
+      this.loadProviderControls(),
+      this.loadByokProfiles(),
+      this.loadGatewayBypass()
     ]);
   }
 
@@ -1031,6 +1118,189 @@ found 0 vulnerabilities`,
       reader.readAsText(file);
     };
     input.click();
+  }
+
+  async loadWarRoom() {
+    try {
+      const res = await fetch('/api/warroom');
+      if (!res.ok) return;
+      const w = await res.json();
+      const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      setText('warroom-429-count', w.rate_limits_429_count ?? 0);
+      setText('warroom-outage-count', `${w.outages?.active_outages ?? 0} Active`);
+      setText('warroom-failover-count', (w.rate_limits_429_count || 0) > 0 ? 'Cascade Active' : 'Standby');
+      if (w.reconnect_watchdog) {
+        setText('warroom-watchdog-badge', `ArcSwap Watchdog: ${w.reconnect_watchdog.status || 'Healthy'}`);
+        setText('warroom-watchdog-log', w.reconnect_watchdog.last_reason || '');
+      }
+      if (w.context_watchdog) {
+        setText('context-used-pct', `${w.context_watchdog.utilization_pct}% (${Number(w.context_watchdog.tokens_used).toLocaleString()} / ${Number(w.context_watchdog.max_tokens).toLocaleString()} tokens)`);
+        const bar = document.getElementById('context-bar');
+        if (bar) bar.style.width = `${w.context_watchdog.utilization_pct}%`;
+      }
+      const tbody = document.getElementById('warroom-ratelimit-tbody');
+      if (tbody) {
+        const rows = w.rate_limits_429 || [];
+        tbody.innerHTML = rows.length === 0
+          ? '<tr><td colspan="4" style="color: var(--text-muted);">No configured BYOK rate-limit events at rest.</td></tr>'
+          : rows.map(r => `<tr><td>${r.provider}</td><td><span class="badge badge-cyan">${r.status}</span></td><td>${r.backoff_sec}s</td><td>${r.action}</td></tr>`).join('');
+      }
+    } catch (e) {
+      console.error('loadWarRoom error:', e);
+    }
+  }
+
+  async searchSandboxFts() {
+    const q = (document.getElementById('sandbox-fts-query')?.value || '').trim();
+    const out = document.getElementById('sandbox-fts-results');
+    if (!out) return;
+    if (!q) { out.textContent = 'Enter a query to test FTS5 search.'; return; }
+    try {
+      const res = await fetch(`/api/contextmode/search?q=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const d = await res.json();
+        out.innerHTML = (d.results || []).map(r => `<div><strong>${r.title}</strong> (${r.source}): ${r.snippet}</div>`).join('') || 'No FTS5 matches.';
+      }
+    } catch (e) {
+      out.textContent = `Search error: ${e.message}`;
+    }
+  }
+
+  async loadSystemConfig() {
+    try {
+      const res = await fetch('/api/system/config');
+      if (res.ok) {
+        const d = await res.json();
+        const ed = document.getElementById('system-config-editor');
+        if (ed) ed.value = d.content || '';
+      }
+    } catch (e) {
+      console.error('loadSystemConfig error:', e);
+    }
+  }
+
+  async saveSystemConfig() {
+    const ed = document.getElementById('system-config-editor');
+    if (!ed) return;
+    try {
+      const res = await fetch('/api/system/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: ed.value })
+      });
+      const d = await res.json();
+      if (res.ok && d.success) this.showToast('Saved ~/.toksi/config.toml', 'success');
+      else this.showToast(d.error || 'Failed saving config.toml', 'error');
+    } catch (e) {
+      this.showToast(`Save error: ${e.message}`, 'error');
+    }
+  }
+
+  async installAgentComponents() {
+    const agentId = (document.getElementById('install-agent-id')?.value || '').trim();
+    const scope = document.getElementById('install-agent-scope')?.value || 'user';
+    const comps = Array.from(document.querySelectorAll('.comp-chk:checked')).map(c => c.value);
+    if (!agentId) { this.showToast('Enter an Agent ID', 'error'); return; }
+    try {
+      const res = await fetch('/api/system/agent-install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agentId, scope, components: comps })
+      });
+      const d = await res.json();
+      if (res.ok && d.success) this.showToast(`Installed ${comps.join(',')} for ${agentId} (${scope})`, 'success');
+      else this.showToast(d.error || 'Install failed', 'error');
+    } catch (e) {
+      this.showToast(`Install error: ${e.message}`, 'error');
+    }
+  }
+
+  async loadByokProfiles() {
+    try {
+      const res = await fetch('/api/byok/profiles');
+      if (!res.ok) return;
+      const list = await res.json();
+      const tbody = document.getElementById('byok-profiles-tbody');
+      if (!tbody) return;
+      tbody.innerHTML = list.map(p => `
+        <tr>
+          <td style="font-family: var(--font-mono);">${p.id}</td>
+          <td>${p.provider_id}</td>
+          <td>${p.model_id}</td>
+          <td><span class="badge badge-cyan">${p.thinking_effort}</span></td>
+          <td style="font-family: var(--font-mono); font-size: 0.75rem;">${p.base_url || 'default'}</td>
+          <td>${p.priority}</td>
+          <td>${p.weight}</td>
+        </tr>
+      `).join('') || '<tr><td colspan="7" style="color: var(--text-muted);">No &lt;byok, model, effort&gt; profiles configured yet.</td></tr>';
+    } catch (e) {
+      console.error('loadByokProfiles error:', e);
+    }
+  }
+
+  async saveByokProfile() {
+    const provider_id = (document.getElementById('prof-provider')?.value || '').trim();
+    const instance_label = (document.getElementById('prof-label')?.value || 'default').trim();
+    const model_id = (document.getElementById('prof-model')?.value || '').trim();
+    const thinking_effort = document.getElementById('prof-effort')?.value || 'medium';
+    const base_url = (document.getElementById('prof-base-url')?.value || '').trim();
+    if (!provider_id || !model_id) { this.showToast('Provider and Model are required', 'error'); return; }
+    try {
+      const res = await fetch('/api/byok/profiles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider_id, instance_label, model_id, thinking_effort, base_url })
+      });
+      if (res.ok) {
+        this.showToast(`Saved profile ${provider_id}:${instance_label}`, 'success');
+        this.loadByokProfiles();
+      }
+    } catch (e) {
+      this.showToast(`Profile save error: ${e.message}`, 'error');
+    }
+  }
+
+  async refreshModelsFromBaseUrl() {
+    const base_url = (document.getElementById('prof-base-url')?.value || '').trim();
+    if (!base_url) { this.showToast('Enter a custom base_url first', 'error'); return; }
+    try {
+      const res = await fetch('/api/byok/models-refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base_url })
+      });
+      const d = await res.json();
+      if (res.ok && d.success) this.showToast(`Fetched ${(d.models || []).length} models from ${d.url}`, 'success');
+      else this.showToast(d.error || 'Model refresh failed', 'error');
+    } catch (e) {
+      this.showToast(`Refresh error: ${e.message}`, 'error');
+    }
+  }
+
+  async loadGatewayBypass() {
+    try {
+      const res = await fetch('/api/gateway/bypass');
+      if (res.ok) {
+        const d = await res.json();
+        const b = document.getElementById('gateway-bypass-badge');
+        if (b) b.textContent = `Headroom: ${d.status} (Bypass: ${d.bypass_count || 0})`;
+      }
+    } catch (e) {
+      console.error('loadGatewayBypass error:', e);
+    }
+  }
+
+  async dbRepairLegacy() {
+    try {
+      const res = await fetch('/api/db/repair-legacy', { method: 'POST' });
+      if (res.ok) {
+        const d = await res.json();
+        this.showToast(`Repaired ${d.merged_toksi_dirs} nested .toksi & ${d.merged_agent_dirs} agent dirs`, 'success');
+        this.loadDbStatus();
+      }
+    } catch (e) {
+      this.showToast(`Repair error: ${e.message}`, 'error');
+    }
   }
 
   // --- Toast Notifications ---

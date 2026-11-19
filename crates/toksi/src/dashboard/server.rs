@@ -411,7 +411,13 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
 
         ("GET", "/api/memory") => {
             let q = req.query.get("q").map(|s| s.as_str());
-            HttpResponse::ok_json(handle_memory(q))
+            let sub = req.query.get("subproject").map(|s| s.as_str());
+            HttpResponse::ok_json(handle_memory_filtered(q, sub))
+        }
+        ("GET", p) if p.starts_with("/api/memory/heatmap/") => {
+            let cell_id = p.trim_start_matches("/api/memory/heatmap/");
+            let decoded = cell_id.replace("%2F", "/").replace("%2f", "/");
+            HttpResponse::ok_json(handle_memory_heatmap_drilldown(&decoded))
         }
 
         ("GET", "/api/codegraph") => HttpResponse::ok_json(handle_codegraph()),
@@ -424,15 +430,40 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
                 .unwrap_or(3);
             HttpResponse::ok_json(handle_codegraph_blast(&sym, depth))
         }
+        ("GET", "/api/codegraph/preview") => {
+            let mode = req.query.get("mode").map(|s| s.as_str()).unwrap_or("ast-grep");
+            let pattern = req.query.get("pattern").map(|s| s.as_str()).unwrap_or("");
+            HttpResponse::ok_json(handle_codegraph_preview(mode, pattern))
+        }
+        ("POST", "/api/codegraph/purge-ignored") => HttpResponse::ok_json(handle_codegraph_purge_ignored()),
 
         ("POST", "/api/contextmode/filter") => match handle_contextmode_filter(&req.body) {
             Ok(val) => HttpResponse::ok_json(val),
             Err(e) => HttpResponse::bad_request(&e),
         },
+        ("GET", "/api/contextmode/search") => {
+            let q = req.query.get("q").map(|s| s.as_str()).unwrap_or("");
+            HttpResponse::ok_json(handle_contextmode_search(q))
+        }
+        ("GET", "/api/contextmode/telemetry") => HttpResponse::ok_json(handle_contextmode_telemetry()),
 
         ("POST", "/api/system/proxy-restart") => HttpResponse::ok_json(handle_proxy_restart()),
         ("POST", "/api/system/proxy-stop") => HttpResponse::ok_json(handle_proxy_stop()),
         ("POST", "/api/system/cache-vacuum") => HttpResponse::ok_json(handle_cache_vacuum()),
+        ("GET", "/api/system/config") => HttpResponse::ok_json(handle_system_config_get()),
+        ("POST", "/api/system/config") => match handle_system_config_save(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
+        ("POST", "/api/system/service") => match handle_system_service(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
+        ("POST", "/api/system/agent-install") => match handle_system_agent_install(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
+        ("GET", "/api/system/logs") => HttpResponse::ok_json(handle_system_logs()),
 
         ("GET", "/api/providers") => HttpResponse::ok_json(handle_providers_get()),
         ("POST", "/api/providers/update") => match handle_provider_update(&req.body) {
@@ -462,11 +493,23 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
 
         ("GET", "/api/db/status") => HttpResponse::ok_json(handle_db_status()),
         ("POST", "/api/db/backup") => HttpResponse::ok_json(handle_db_backup()),
-        ("GET", "/api/db/export") => HttpResponse::ok_json(handle_db_export()),
+        ("GET", "/api/db/export") | ("POST", "/api/db/export") => HttpResponse::ok_json(handle_db_export()),
         ("POST", "/api/db/import") => match handle_db_import(&req.body) {
             Ok(val) => HttpResponse::ok_json(val),
             Err(e) => HttpResponse::bad_request(&e),
         },
+        ("POST", "/api/db/repair-legacy") => HttpResponse::ok_json(handle_db_repair_legacy()),
+
+        ("GET", "/api/byok/profiles") => HttpResponse::ok_json(handle_byok_profiles_get()),
+        ("POST", "/api/byok/profiles") => match handle_byok_profile_upsert(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
+        ("POST", "/api/byok/models-refresh") => match handle_byok_models_refresh(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
+        ("GET", "/api/gateway/bypass") => HttpResponse::ok_json(handle_gateway_bypass()),
 
         ("GET", "/api/system/byok") => HttpResponse::ok_json(handle_byok_get()),
         ("POST", "/api/system/byok-switch") => match handle_byok_switch(&req.body) {

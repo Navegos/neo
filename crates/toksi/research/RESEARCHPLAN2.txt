@@ -314,7 +314,6 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/frontend-crates
 <neo>/inspect-vault/aitune
 <neo>/inspect-vault/radixshmem
-<neo>/inspect-vault/radixshmem
 <neo>/inspect-vault/modelexpress
 <neo>/inspect-vault/nixl
 <neo>/inspect-vault/exllamav2
@@ -327,6 +326,17 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/dsh-superagent
 <neo>/inspect-vault/openai-agents-python
 <neo>/inspect-vault/ChatDev
+<neo>/inspect-vault/multica
+<neo>/inspect-vault/maki
+<neo>/inspect-vault/steer
+<neo>/inspect-vault/chevalier
+<neo>/inspect-vault/upskill
+<neo>/inspect-vault/funes
+<neo>/inspect-vault/agentrix-os
+<neo>/inspect-vault/anp
+<neo>/inspect-vault/clearml-agent
+<neo>/inspect-vault/open-multi-agent
+<neo>/inspect-vault/orca
 }
 
 Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.

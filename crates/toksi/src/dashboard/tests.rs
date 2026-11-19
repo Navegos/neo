@@ -28,6 +28,13 @@ fn test_embedded_assets_presence() {
     assert!(APP_JS.contains("ToksiApp"), "app.js must define ToksiApp class");
     assert!(APP_JS.contains("loadGatewayControls"), "app.js must load gateway controls");
     assert!(APP_JS.contains("loadKeyringAndDb"), "app.js must load keyring and db");
+    assert!(APP_JS.contains("openHeatmapDrilldown"), "app.js must support clickable heatmap drilldown");
+
+    assert!(!INDEX_HTML.contains("5,658,990"), "index.html must not contain fake waterfall numbers");
+    assert!(!INDEX_HTML.contains("42,500 / 128,000"), "index.html must not contain fake context utilization");
+    assert!(!INDEX_HTML.contains("1.8s"), "index.html must not contain fake DeepSeek throttle");
+    assert!(!INDEX_HTML.contains("[PAID]"), "must not contain [PAID] badge");
+    assert!(!INDEX_HTML.contains("[DISQUALIFIED-FREE]"), "must not contain [DISQUALIFIED-FREE] badge");
 }
 
 #[test]
@@ -122,9 +129,11 @@ fn test_api_memory_and_dag() {
     assert!(mem.get("dag_nodes").is_some());
     assert!(mem.get("dag_links").is_some());
     assert!(mem.get("heatmap").is_some());
+    assert!(mem.get("subprojects").is_some());
 
-    let nodes = mem["dag_nodes"].as_array().expect("dag_nodes array");
-    assert!(!nodes.is_empty());
+    assert!(mem["dag_nodes"].is_array(), "dag_nodes must be an array");
+    let dd = handle_memory_heatmap_drilldown("crates/toksi/src/dashboard/mod.rs");
+    assert!(dd.get("events").is_some());
 }
 
 #[test]
@@ -221,4 +230,15 @@ fn test_api_db_status_and_export() {
 
     let export = handle_db_export();
     assert_eq!(export["success"], true);
+
+    let cg_prev = handle_codegraph_preview("ast-grep", "");
+    assert_eq!(cg_prev["mode"], "ast-grep");
+    let ctx_tel = handle_contextmode_telemetry();
+    assert_eq!(ctx_tel["projected_stdout_cap_bytes"], 2048);
+    let bypass = handle_gateway_bypass();
+    assert_eq!(bypass["headroom_compression_enabled"], true);
+    let cfg = handle_system_config_get();
+    assert!(cfg.get("path").is_some());
+    let profiles = handle_byok_profiles_get();
+    assert!(profiles.is_array());
 }

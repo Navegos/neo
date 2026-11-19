@@ -4,6 +4,8 @@
 // file: crates/toksi/src/dashboard/state.rs
 // created: 2026-11-09
 
+#![deny(unsafe_code)]
+
 use std::collections::HashMap;
 use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
@@ -73,31 +75,39 @@ pub struct CockpitState {
 impl Default for CockpitState {
     fn default() -> Self {
         let mut providers = HashMap::new();
-        let default_provs = [
-            ("anthropic", "Anthropic Claude", "Frontier", 100, 1, 1.25, 4.5),
-            ("openai", "OpenAI GPT-4o", "Frontier", 100, 2, 0.95, 3.8),
-            ("gemini", "Google Gemini 2.0", "Frontier", 80, 3, 0.65, 1.5),
-            ("deepseek", "DeepSeek-R1 / V3", "Accelerator", 120, 1, 0.28, 0.55),
-            ("groq", "Groq LPU Accelerator", "Accelerator", 90, 2, 0.18, 0.40),
-            ("cerebras", "Cerebras Wafer", "Accelerator", 60, 3, 0.15, 0.35),
-            ("openrouter", "OpenRouter Meta-Proxy", "Aggregator", 70, 4, 1.10, 2.0),
-            ("bifrost", "Bifrost Gateway", "Aggregator", 100, 1, 0.85, 1.8),
-            ("ollama", "Ollama Local Engine", "Local", 50, 5, 0.0, 0.0),
+        let configured_ids: std::collections::HashSet<String> = crate::config::load_toksi_toml_config()
+            .byok_profiles
+            .into_iter()
+            .filter(|p| p.enabled)
+            .map(|p| p.provider_id.to_lowercase())
+            .collect();
+
+        let catalog_provs = [
+            ("anthropic", "Anthropic Claude", "Frontier", 100, 1),
+            ("openai", "OpenAI", "Frontier", 100, 2),
+            ("gemini", "Google Gemini", "Frontier", 80, 3),
+            ("deepseek", "DeepSeek", "Accelerator", 120, 1),
+            ("groq", "Groq LPU", "Accelerator", 90, 2),
+            ("cerebras", "Cerebras Wafer", "Accelerator", 60, 3),
+            ("openrouter", "OpenRouter", "Aggregator", 70, 4),
+            ("bifrost", "Bifrost Gateway", "Aggregator", 100, 1),
+            ("ollama", "Ollama Local Engine", "Local", 50, 5),
         ];
 
-        for (id, name, cat, weight, prio, lat, cost) in default_provs {
+        for (id, name, cat, weight, prio) in catalog_provs {
+            let is_configured = configured_ids.contains(id);
             providers.insert(
                 id.to_string(),
                 ProviderControlItem {
                     id: id.to_string(),
                     name: name.to_string(),
                     category: cat.to_string(),
-                    enabled: true,
+                    enabled: is_configured,
                     weight,
                     priority: prio,
                     active_in_flight: 0,
-                    avg_latency_ms: lat * 100.0,
-                    cost_per_mtoken: cost,
+                    avg_latency_ms: 0.0,
+                    cost_per_mtoken: 0.0,
                 },
             );
         }
