@@ -235,6 +235,8 @@ fn test_tokentracker_ground_truth_zero_idle() {
         prompt_tokens: 10_000,
         completion_tokens: 2_000,
         cached_tokens: 4_000,
+        reasoning_tokens: 0,
+        cache_creation_tokens: 0,
         saved_tokens: 8_000,
     };
     let rec = engine.record_usage("sess-1", "claude", "anthropic", "claude-3-7-sonnet", usage, 450)

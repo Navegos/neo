@@ -10,10 +10,46 @@ use std::hash::{Hash, Hasher};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::util::logger::L;
+
+/// Safe atomic-swap container for lock-free-style client pool replacement (`#![deny(unsafe_code)]`).
+pub struct ArcSwap<T> {
+    inner: RwLock<Arc<T>>,
+}
+
+impl<T> ArcSwap<T> {
+    pub fn new(val: Arc<T>) -> Self {
+        Self {
+            inner: RwLock::new(val),
+        }
+    }
+
+    pub fn load(&self) -> Arc<T> {
+        self.inner
+            .read()
+            .map(|g| Arc::clone(&g))
+            .unwrap_or_else(|poisoned| Arc::clone(&poisoned.into_inner()))
+    }
+
+    pub fn store(&self, val: Arc<T>) {
+        if let Ok(mut g) = self.inner.write() {
+            *g = val;
+        }
+    }
+
+    pub fn swap(&self, val: Arc<T>) -> Arc<T> {
+        match self.inner.write() {
+            Ok(mut g) => std::mem::replace(&mut *g, val),
+            Err(poisoned) => {
+                let mut g = poisoned.into_inner();
+                std::mem::replace(&mut *g, val)
+            }
+        }
+    }
+}
 
 /// Domain errors for network healing and reconnection watchdog.
 #[derive(Debug, thiserror::Error)]
@@ -40,16 +76,19 @@ pub enum NetworkStatus {
 /// Auto-healing client pool and network reconnection watchdog.
 ///
 /// Automatically monitors upstream TCP transport, detects connection drops,
-/// VPN disconnects, DNS invalidation, or network interface toggles, and invalidates
-/// stale socket connection pools to prevent dormant lockout states.
+/// VPN disconnects, DNS invalidation, OS sleep/wake transitions, or network interface toggles,
+/// and atomically swaps `ArcSwap<reqwest::Client>` pools to prevent dormant lockout states.
 pub struct AutoHealingClientPool {
     generation: AtomicU64,
     consecutive_transport_failures: AtomicU32,
     total_reconnect_count: AtomicU64,
     last_reconnect_epoch_secs: AtomicU64,
+    last_wall_epoch_secs: AtomicU64,
+    start_instant: Instant,
+    last_monotonic_secs: AtomicU64,
     status: RwLock<NetworkStatus>,
-    async_client: RwLock<reqwest::Client>,
-    loopback_async_client: RwLock<reqwest::Client>,
+    async_client: ArcSwap<reqwest::Client>,
+    loopback_async_client: ArcSwap<reqwest::Client>,
     blocking_client: RwLock<Option<reqwest::blocking::Client>>,
     last_known_interface_hash: AtomicU64,
 }
@@ -62,8 +101,8 @@ impl AutoHealingClientPool {
         let loopback_async_client = Self::build_loopback_async_client()?;
         let initial_hash = Self::compute_network_interface_signature();
 
-        let now_secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
 
@@ -72,9 +111,12 @@ impl AutoHealingClientPool {
             consecutive_transport_failures: AtomicU32::new(0),
             total_reconnect_count: AtomicU64::new(0),
             last_reconnect_epoch_secs: AtomicU64::new(now_secs),
+            last_wall_epoch_secs: AtomicU64::new(now_secs),
+            start_instant: Instant::now(),
+            last_monotonic_secs: AtomicU64::new(0),
             status: RwLock::new(NetworkStatus::Healthy),
-            async_client: RwLock::new(async_client),
-            loopback_async_client: RwLock::new(loopback_async_client),
+            async_client: ArcSwap::new(Arc::new(async_client)),
+            loopback_async_client: ArcSwap::new(Arc::new(loopback_async_client)),
             blocking_client: RwLock::new(None),
             last_known_interface_hash: AtomicU64::new(initial_hash),
         })
@@ -158,17 +200,12 @@ impl AutoHealingClientPool {
 
     /// Returns a cloned handle to the active `reqwest::Client`.
     pub fn get_async_client(&self) -> Result<reqwest::Client, NetworkHealingError> {
-        let lock = self.async_client.read().map_err(|_| NetworkHealingError::LockPoisoned)?;
-        Ok(lock.clone())
+        Ok((*self.async_client.load()).clone())
     }
 
     /// Returns a cloned handle to the active loopback `reqwest::Client` (bypasses HTTP_PROXY).
     pub fn get_loopback_async_client(&self) -> Result<reqwest::Client, NetworkHealingError> {
-        let lock = self
-            .loopback_async_client
-            .read()
-            .map_err(|_| NetworkHealingError::LockPoisoned)?;
-        Ok(lock.clone())
+        Ok((*self.loopback_async_client.load()).clone())
     }
 
     /// Returns a cloned handle to the active `reqwest::blocking::Client`.
@@ -213,18 +250,8 @@ impl AutoHealingClientPool {
         let new_async = Self::build_async_client()?;
         let new_loopback = Self::build_loopback_async_client()?;
 
-        {
-            let mut async_lock = self.async_client.write().map_err(|_| NetworkHealingError::LockPoisoned)?;
-            *async_lock = new_async;
-        }
-
-        {
-            let mut loopback_lock = self
-                .loopback_async_client
-                .write()
-                .map_err(|_| NetworkHealingError::LockPoisoned)?;
-            *loopback_lock = new_loopback;
-        }
+        let _old_async = self.async_client.swap(Arc::new(new_async));
+        let _old_loopback = self.loopback_async_client.swap(Arc::new(new_loopback));
 
         {
             let mut blocking_lock = self.blocking_client.write().map_err(|_| NetworkHealingError::LockPoisoned)?;
@@ -335,18 +362,56 @@ impl AutoHealingClientPool {
         false
     }
 
+    /// Detects OS sleep/wake transitions by comparing wall-clock jump against monotonic elapsed time.
+    pub fn check_and_heal_sleep_wake(&self) -> bool {
+        let now_wall = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let prev_wall = self.last_wall_epoch_secs.swap(now_wall, Ordering::Relaxed);
+        let now_mono = self.start_instant.elapsed().as_secs();
+        let prev_mono = self.last_monotonic_secs.swap(now_mono, Ordering::Relaxed);
+
+        let wall_delta = now_wall.saturating_sub(prev_wall);
+        let mono_delta = now_mono.saturating_sub(prev_mono);
+        if wall_delta > mono_delta.saturating_add(5) {
+            let _ = self.invalidate_and_reconnect("OS sleep/wake clock jump detected");
+            return true;
+        }
+        false
+    }
+
+    /// Preserves HTTP/2 ConnectRPC framing & streaming headers cleanly (`#0033`/`#0034`)
+    /// while stripping HTTP/1.1 hop-by-hop headers that corrupt multiplexed streams.
+    pub fn build_connectrpc_safe_headers(headers: &[(String, String)]) -> Vec<(String, String)> {
+        headers
+            .iter()
+            .filter(|(k, _)| {
+                let lower = k.to_ascii_lowercase();
+                !matches!(
+                    lower.as_str(),
+                    "connection" | "keep-alive" | "transfer-encoding" | "upgrade" | "http2-settings" | "proxy-connection"
+                )
+            })
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }
+
     /// Spawns a background asynchronous watchdog loop that periodically inspects
-    /// interface changes and connection health.
+    /// sleep/wake transitions, interface changes, and connection health.
     pub fn start_watchdog_loop(self: Arc<Self>, probe_interval: Duration) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(probe_interval);
             loop {
                 interval.tick().await;
 
-                // 1. Check network interface toggles
+                // 1. Check OS sleep/wake transitions
+                self.check_and_heal_sleep_wake();
+
+                // 2. Check network interface toggles
                 self.check_and_heal_interface_change();
 
-                // 2. If status was degraded, probe and restore if healthy
+                // 3. If status was degraded, probe and restore if healthy
                 if self.status() == NetworkStatus::Degraded
                     && (self.probe_network_connectivity("1.1.1.1:53", Duration::from_secs(1))
                         || self.probe_network_connectivity("8.8.8.8:53", Duration::from_secs(1)))
@@ -380,9 +445,12 @@ pub fn global_healing_pool() -> &'static AutoHealingClientPool {
                 consecutive_transport_failures: AtomicU32::new(0),
                 total_reconnect_count: AtomicU64::new(0),
                 last_reconnect_epoch_secs: AtomicU64::new(0),
+                last_wall_epoch_secs: AtomicU64::new(0),
+                start_instant: Instant::now(),
+                last_monotonic_secs: AtomicU64::new(0),
                 status: RwLock::new(NetworkStatus::Healthy),
-                async_client: RwLock::new(async_client),
-                loopback_async_client: RwLock::new(loopback_async_client),
+                async_client: ArcSwap::new(Arc::new(async_client)),
+                loopback_async_client: ArcSwap::new(Arc::new(loopback_async_client)),
                 blocking_client: RwLock::new(None),
                 last_known_interface_hash: AtomicU64::new(0),
             }
@@ -508,5 +576,27 @@ mod tests {
 
         let generation_num = global_healing_pool().generation();
         assert!(generation_num >= 1);
+    }
+
+    #[test]
+    fn test_arc_swap_and_connectrpc_header_preservation() {
+        let headers = vec![
+            ("content-type".to_string(), "application/connect+proto".to_string()),
+            ("connect-protocol-version".to_string(), "1".to_string()),
+            ("te".to_string(), "trailers".to_string()),
+            ("Connection".to_string(), "keep-alive".to_string()),
+            ("Transfer-Encoding".to_string(), "chunked".to_string()),
+        ];
+        let safe = AutoHealingClientPool::build_connectrpc_safe_headers(&headers);
+        assert_eq!(safe.len(), 3);
+        assert!(safe.iter().any(|(k, _)| k == "content-type"));
+        assert!(safe.iter().any(|(k, _)| k == "connect-protocol-version"));
+        assert!(safe.iter().any(|(k, _)| k == "te"));
+
+        let swap = ArcSwap::new(Arc::new(10u64));
+        assert_eq!(*swap.load(), 10);
+        let prev = swap.swap(Arc::new(20));
+        assert_eq!(*prev, 10);
+        assert_eq!(*swap.load(), 20);
     }
 }

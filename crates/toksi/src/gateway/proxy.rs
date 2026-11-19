@@ -153,6 +153,8 @@ impl GatewayProxyOrchestrator {
                 prompt_tokens: parsed.input_tokens as u64,
                 completion_tokens: parsed.output_tokens as u64,
                 cached_tokens: cached_read,
+                reasoning_tokens: 0,
+                cache_creation_tokens: 0,
                 saved_tokens: 0,
             },
             latency_ms as u64,

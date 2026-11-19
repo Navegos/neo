@@ -415,14 +415,32 @@ impl MetricsCollector {
         self.cost_savings_usd_micros.fetch_add(savings_micros, Ordering::Relaxed);
     }
 
-    /// Record headroom token and byte reductions
+    /// Record headroom token and byte reductions (strictly 0 when idle)
     pub fn record_headroom_reduction(&self, raw_bytes: usize, compressed_bytes: usize, pruned_tools: usize) {
+        if raw_bytes == 0 && compressed_bytes == 0 && pruned_tools == 0 {
+            return;
+        }
         self.headroom_raw_bytes_total.fetch_add(raw_bytes as u64, Ordering::Relaxed);
         self.headroom_compressed_bytes_total.fetch_add(compressed_bytes as u64, Ordering::Relaxed);
         self.headroom_mcp_pruned_tools_total.fetch_add(pruned_tools as u64, Ordering::Relaxed);
         let byte_diff = raw_bytes.saturating_sub(compressed_bytes) as u64 / 4;
         let tool_tokens = (pruned_tools as u64).saturating_mul(180);
         let saved = byte_diff.saturating_add(tool_tokens);
+        if saved > 0 {
+            self.headroom_tokens_saved_total.fetch_add(saved, Ordering::Relaxed);
+        }
+    }
+
+    /// Record exact headroom token delta (`raw_tokens - compressed_tokens`) and exact pruned MCP schema tokens.
+    pub fn record_exact_headroom_token_delta(
+        &self,
+        raw_tokens: u64,
+        compressed_tokens: u64,
+        pruned_mcp_schema_tokens: u64,
+    ) {
+        let saved = raw_tokens
+            .saturating_sub(compressed_tokens)
+            .saturating_add(pruned_mcp_schema_tokens);
         if saved > 0 {
             self.headroom_tokens_saved_total.fetch_add(saved, Ordering::Relaxed);
         }

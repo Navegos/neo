@@ -55,6 +55,8 @@ pub struct ParsedTokenUsage {
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub cached_tokens: u64,
+    pub reasoning_tokens: u64,
+    pub cache_creation_tokens: u64,
     pub saved_tokens: u64,
 }
 
@@ -68,6 +70,8 @@ pub struct SessionUsageRecord {
     pub input_tokens: u64,
     pub output_tokens: u64,
     pub cached_tokens: u64,
+    pub reasoning_tokens: u64,
+    pub cache_creation_tokens: u64,
     pub saved_tokens: u64,
     pub cost_usd: f64,
     pub saved_usd: f64,
@@ -153,6 +157,8 @@ impl TokenTrackerEngine {
             input_tokens: tokens.prompt_tokens,
             output_tokens: tokens.completion_tokens,
             cached_tokens: tokens.cached_tokens,
+            reasoning_tokens: tokens.reasoning_tokens,
+            cache_creation_tokens: tokens.cache_creation_tokens,
             saved_tokens: tokens.saved_tokens,
             cost_usd,
             saved_usd,
@@ -560,6 +566,13 @@ pub fn parse_openai_sse_chunk(line: &str) -> Option<ParsedTokenUsage> {
         prompt_tokens,
         completion_tokens,
         cached_tokens,
+        reasoning_tokens: usage
+            .get("completion_tokens_details")
+            .or_else(|| usage.get("output_tokens_details"))
+            .and_then(|d| d.get("reasoning_tokens"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0),
+        cache_creation_tokens: 0,
         saved_tokens: 0,
     })
 }
@@ -588,10 +601,16 @@ pub fn parse_anthropic_sse_chunk(line: &str) -> Option<ParsedTokenUsage> {
                 .get("cache_read_input_tokens")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0);
+            let cache_creation_tokens = usage
+                .get("cache_creation_input_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             Some(ParsedTokenUsage {
                 prompt_tokens,
                 completion_tokens: 0,
                 cached_tokens,
+                reasoning_tokens: 0,
+                cache_creation_tokens,
                 saved_tokens: 0,
             })
         }
@@ -602,6 +621,8 @@ pub fn parse_anthropic_sse_chunk(line: &str) -> Option<ParsedTokenUsage> {
                 prompt_tokens: 0,
                 completion_tokens,
                 cached_tokens: 0,
+                reasoning_tokens: 0,
+                cache_creation_tokens: 0,
                 saved_tokens: 0,
             })
         }
@@ -613,10 +634,16 @@ pub fn parse_anthropic_sse_chunk(line: &str) -> Option<ParsedTokenUsage> {
                 .get("cache_read_input_tokens")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0);
+            let cache_creation_tokens = usage
+                .get("cache_creation_input_tokens")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
             Some(ParsedTokenUsage {
                 prompt_tokens,
                 completion_tokens,
                 cached_tokens,
+                reasoning_tokens: 0,
+                cache_creation_tokens,
                 saved_tokens: 0,
             })
         }
@@ -642,8 +669,9 @@ pub fn parse_gemini_chunk(json_str: &str) -> Option<ParsedTokenUsage> {
     let prompt_tokens = meta.get("promptTokenCount").and_then(|v| v.as_u64()).unwrap_or(0);
     let completion_tokens = meta.get("candidatesTokenCount").and_then(|v| v.as_u64()).unwrap_or(0);
     let cached_tokens = meta.get("cachedContentTokenCount").and_then(|v| v.as_u64()).unwrap_or(0);
+    let reasoning_tokens = meta.get("thoughtsTokenCount").and_then(|v| v.as_u64()).unwrap_or(0);
 
-    if prompt_tokens == 0 && completion_tokens == 0 && cached_tokens == 0 {
+    if prompt_tokens == 0 && completion_tokens == 0 && cached_tokens == 0 && reasoning_tokens == 0 {
         return None;
     }
 
@@ -651,6 +679,8 @@ pub fn parse_gemini_chunk(json_str: &str) -> Option<ParsedTokenUsage> {
         prompt_tokens,
         completion_tokens,
         cached_tokens,
+        reasoning_tokens,
+        cache_creation_tokens: 0,
         saved_tokens: 0,
     })
 }
@@ -662,6 +692,7 @@ pub struct SseStreamTokenParser {
     pub prompt_tokens: u64,
     pub completion_tokens: u64,
     pub cached_tokens: u64,
+    pub reasoning_tokens: u64,
     pub cache_creation_tokens: u64,
     pub saved_tokens: u64,
 }
@@ -700,7 +731,7 @@ impl SseStreamTokenParser {
             return None;
         }
 
-        // Try OpenAI format first
+        // Try OpenAI format first (Chat Completions + Responses API)
         if let Some(usage) = parse_openai_sse_chunk(trimmed) {
             if usage.prompt_tokens > 0 {
                 self.prompt_tokens = usage.prompt_tokens;
@@ -710,6 +741,9 @@ impl SseStreamTokenParser {
             }
             if usage.cached_tokens > 0 {
                 self.cached_tokens = usage.cached_tokens;
+            }
+            if usage.reasoning_tokens > 0 {
+                self.reasoning_tokens = usage.reasoning_tokens;
             }
             return Some(usage);
         }
@@ -729,6 +763,9 @@ impl SseStreamTokenParser {
             if usage.cached_tokens > 0 {
                 self.cached_tokens = self.cached_tokens.max(usage.cached_tokens);
             }
+            if usage.cache_creation_tokens > 0 {
+                self.cache_creation_tokens = self.cache_creation_tokens.max(usage.cache_creation_tokens);
+            }
             return Some(usage);
         }
 
@@ -743,6 +780,9 @@ impl SseStreamTokenParser {
             if usage.cached_tokens > 0 {
                 self.cached_tokens = usage.cached_tokens;
             }
+            if usage.reasoning_tokens > 0 {
+                self.reasoning_tokens = usage.reasoning_tokens;
+            }
             return Some(usage);
         }
 
@@ -755,9 +795,216 @@ impl SseStreamTokenParser {
             prompt_tokens: self.prompt_tokens,
             completion_tokens: self.completion_tokens,
             cached_tokens: self.cached_tokens,
+            reasoning_tokens: self.reasoning_tokens,
+            cache_creation_tokens: self.cache_creation_tokens,
             saved_tokens: self.saved_tokens,
         }
     }
+}
+
+/// Calculates exact headroom token delta (`raw_tokens - compressed_tokens`) plus exact pruned MCP schema tokens.
+/// Returns `0` when idle or when no reduction occurred.
+pub fn calculate_exact_headroom_token_delta(
+    raw_tokens: u64,
+    compressed_tokens: u64,
+    pruned_mcp_schema_tokens: u64,
+) -> u64 {
+    raw_tokens
+        .saturating_sub(compressed_tokens)
+        .saturating_add(pruned_mcp_schema_tokens)
+}
+
+/// Maps extracted HTTP rate-limit headers into `quota_windows` (`hour|day|week|month|year`) records.
+pub fn extract_quota_windows(
+    provider_id: &str,
+    instance_label: &str,
+    headers: &[(String, String)],
+    now_epoch: i64,
+) -> Vec<crate::db::schema::QuotaWindowRecord> {
+    let limits = extract_provider_rate_limits(headers);
+    if limits.limit_requests.is_none()
+        && limits.remaining_requests.is_none()
+        && limits.limit_tokens.is_none()
+        && limits.remaining_tokens.is_none()
+    {
+        return Vec::new();
+    }
+
+    let mut windows = Vec::new();
+    let mut detected_kinds: Vec<&'static str> = Vec::new();
+    for (k, _) in headers {
+        let lower = k.to_ascii_lowercase();
+        if lower.contains("hour") && !detected_kinds.contains(&"hour") {
+            detected_kinds.push("hour");
+        } else if lower.contains("day") || lower.contains("daily") {
+            if !detected_kinds.contains(&"day") {
+                detected_kinds.push("day");
+            }
+        } else if lower.contains("week") && !detected_kinds.contains(&"week") {
+            detected_kinds.push("week");
+        } else if lower.contains("month") && !detected_kinds.contains(&"month") {
+            detected_kinds.push("month");
+        } else if lower.contains("year") && !detected_kinds.contains(&"year") {
+            detected_kinds.push("year");
+        }
+    }
+    if detected_kinds.is_empty() {
+        detected_kinds.push("hour");
+    }
+
+    let reset_at_epoch = limits
+        .retry_after_secs
+        .map(|s| now_epoch.saturating_add(s as i64));
+
+    for kind in detected_kinds {
+        windows.push(crate::db::schema::QuotaWindowRecord {
+            id: format!("{}:{}:{}", provider_id, instance_label, kind),
+            provider_id: provider_id.to_string(),
+            instance_label: instance_label.to_string(),
+            window_kind: kind.to_string(),
+            limit_requests: limits.limit_requests.map(|v| v as i64),
+            remaining_requests: limits.remaining_requests.map(|v| v as i64),
+            limit_tokens: limits.limit_tokens.map(|v| v as i64),
+            remaining_tokens: limits.remaining_tokens.map(|v| v as i64),
+            reset_at_epoch,
+            updated_at: now_epoch,
+        });
+    }
+    windows
+}
+
+/// 47 TokenTracker AI tool, gateway, and inference engine usage parser identifiers.
+pub const SUPPORTED_TOKEN_TRACKER_PARSERS: [&str; 47] = [
+    "openai-chat",
+    "openai-responses",
+    "anthropic-messages",
+    "gemini",
+    "vertex-ai",
+    "grok-xai",
+    "deepseek",
+    "copilot-vscode",
+    "copilot-cli",
+    "antigravity",
+    "cloudcode",
+    "claude-code",
+    "codex-cli",
+    "cursor",
+    "opencode",
+    "cline",
+    "kilo-code",
+    "droid",
+    "amp",
+    "kimi",
+    "pi",
+    "omp",
+    "zcode",
+    "dsh",
+    "openrouter",
+    "together",
+    "fireworks",
+    "groq",
+    "mistral",
+    "cohere",
+    "bedrock",
+    "azure-openai",
+    "perplexity",
+    "cerebras",
+    "sambanova",
+    "huggingface-tgi",
+    "vllm",
+    "sglang",
+    "ollama",
+    "llama-cpp",
+    "lm-studio",
+    "candle-vllm",
+    "mistral-rs",
+    "bifrost",
+    "litellm",
+    "switchyard",
+    "routellm",
+];
+
+/// Parses ground-truth token usage across all 47 supported `TokenTracker` provider/tool formats.
+/// Returns `None` when no real usage block is present (zero synthetic placeholders).
+pub fn parse_tool_usage_payload(tool_or_provider: &str, payload: &str) -> Option<ParsedTokenUsage> {
+    let trimmed = payload.trim();
+    if trimmed.is_empty() || trimmed == "data: [DONE]" {
+        return None;
+    }
+
+    let id = tool_or_provider.trim().to_ascii_lowercase();
+    match id.as_str() {
+        "anthropic" | "anthropic-messages" | "claude" | "claude-code" | "bedrock" => {
+            if let Some(u) = parse_anthropic_sse_chunk(trimmed) {
+                return Some(u);
+            }
+        }
+        "gemini" | "google" | "vertex" | "vertex-ai" | "antigravity" | "cloudcode" => {
+            if let Some(u) = parse_gemini_chunk(trimmed) {
+                return Some(u);
+            }
+        }
+        _ => {}
+    }
+
+    if let Some(u) = parse_openai_sse_chunk(trimmed) {
+        return Some(u);
+    }
+    if let Some(u) = parse_anthropic_sse_chunk(trimmed) {
+        return Some(u);
+    }
+    if let Some(u) = parse_gemini_chunk(trimmed) {
+        return Some(u);
+    }
+
+    // Ollama / llama.cpp / Cohere / Bedrock non-OpenAI usage shapes
+    let raw = trimmed.strip_prefix("data:").map(str::trim).unwrap_or(trimmed);
+    let val: serde_json::Value = serde_json::from_str(raw).ok()?;
+
+    // Ollama `/api/generate` or `/api/chat`: `prompt_eval_count` & `eval_count`
+    if val.get("prompt_eval_count").is_some() || val.get("eval_count").is_some() {
+        let prompt_tokens = val.get("prompt_eval_count").and_then(|v| v.as_u64()).unwrap_or(0);
+        let completion_tokens = val.get("eval_count").and_then(|v| v.as_u64()).unwrap_or(0);
+        if prompt_tokens > 0 || completion_tokens > 0 {
+            return Some(ParsedTokenUsage {
+                prompt_tokens,
+                completion_tokens,
+                ..Default::default()
+            });
+        }
+    }
+
+    // Cohere v2 `meta.tokens` or `meta.billed_units`
+    if let Some(tokens) = val.get("meta").and_then(|m| m.get("tokens").or_else(|| m.get("billed_units"))) {
+        let prompt_tokens = tokens.get("input_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+        let completion_tokens = tokens.get("output_tokens").and_then(|v| v.as_u64()).unwrap_or(0);
+        if prompt_tokens > 0 || completion_tokens > 0 {
+            return Some(ParsedTokenUsage {
+                prompt_tokens,
+                completion_tokens,
+                ..Default::default()
+            });
+        }
+    }
+
+    // Bedrock Converse `metrics` / `usage` (`inputTokens`, `outputTokens`, `cacheReadInputTokens`, `cacheWriteInputTokens`)
+    if let Some(u) = val.get("usage").or_else(|| val.get("amazon-bedrock-invocationMetrics")) {
+        let prompt_tokens = u.get("inputTokens").or_else(|| u.get("inputTokenCount")).and_then(|v| v.as_u64()).unwrap_or(0);
+        let completion_tokens = u.get("outputTokens").or_else(|| u.get("outputTokenCount")).and_then(|v| v.as_u64()).unwrap_or(0);
+        let cached_tokens = u.get("cacheReadInputTokens").and_then(|v| v.as_u64()).unwrap_or(0);
+        let cache_creation_tokens = u.get("cacheWriteInputTokens").and_then(|v| v.as_u64()).unwrap_or(0);
+        if prompt_tokens > 0 || completion_tokens > 0 || cached_tokens > 0 || cache_creation_tokens > 0 {
+            return Some(ParsedTokenUsage {
+                prompt_tokens,
+                completion_tokens,
+                cached_tokens,
+                cache_creation_tokens,
+                ..Default::default()
+            });
+        }
+    }
+
+    None
 }
 
 // ---------------------------------------------------------------------------
@@ -1051,5 +1298,52 @@ mod tests {
         tracker.prune(past);
         assert_eq!(tracker.current_window_requests(past), 0);
         assert_eq!(tracker.current_window_tokens(past), 0);
+    }
+
+    #[test]
+    fn test_reasoning_cache_creation_and_responses_api_usage() {
+        let mut parser = SseStreamTokenParser::new();
+        let responses_sse = r#"data: {"type":"response.completed","response":{"usage":{"input_tokens":500,"output_tokens":120,"input_tokens_details":{"cached_tokens":100},"output_tokens_details":{"reasoning_tokens":45}}}}"#;
+        let parsed = parser.feed_line(responses_sse);
+        assert!(parsed.is_some());
+        let total = parser.total_usage();
+        assert_eq!(total.prompt_tokens, 500);
+        assert_eq!(total.completion_tokens, 120);
+        assert_eq!(total.cached_tokens, 100);
+        assert_eq!(total.reasoning_tokens, 45);
+
+        let anthropic_cc = r#"data: {"type":"message_start","message":{"usage":{"input_tokens":200,"cache_read_input_tokens":50,"cache_creation_input_tokens":75}}}"#;
+        let mut p2 = SseStreamTokenParser::new();
+        let _ = p2.feed_line(anthropic_cc);
+        assert_eq!(p2.total_usage().cache_creation_tokens, 75);
+
+        let gemini_thoughts = r#"{"usageMetadata":{"promptTokenCount":100,"candidatesTokenCount":40,"thoughtsTokenCount":25}}"#;
+        let g = parse_gemini_chunk(gemini_thoughts);
+        assert_eq!(g.as_ref().map(|u| u.reasoning_tokens), Some(25));
+    }
+
+    #[test]
+    fn test_quota_windows_and_47_parsers_and_exact_delta() {
+        assert_eq!(SUPPORTED_TOKEN_TRACKER_PARSERS.len(), 47);
+        assert_eq!(calculate_exact_headroom_token_delta(0, 0, 0), 0);
+        assert_eq!(calculate_exact_headroom_token_delta(1000, 350, 120), 770);
+
+        let ollama = r#"{"prompt_eval_count":42,"eval_count":18}"#;
+        let u_ollama = parse_tool_usage_payload("ollama", ollama);
+        assert_eq!(u_ollama.as_ref().map(|u| u.prompt_tokens), Some(42));
+        assert_eq!(u_ollama.as_ref().map(|u| u.completion_tokens), Some(18));
+
+        let headers = vec![
+            ("x-ratelimit-limit-requests-day".to_string(), "1000".to_string()),
+            ("x-ratelimit-remaining-requests".to_string(), "950".to_string()),
+            ("x-ratelimit-limit-tokens".to_string(), "100000".to_string()),
+            ("x-ratelimit-remaining-tokens".to_string(), "90000".to_string()),
+            ("retry-after".to_string(), "60".to_string()),
+        ];
+        let windows = extract_quota_windows("openai", "default", &headers, 1_700_000_000);
+        assert_eq!(windows.len(), 1);
+        assert_eq!(windows[0].window_kind, "day");
+        assert_eq!(windows[0].remaining_requests, Some(950));
+        assert_eq!(windows[0].reset_at_epoch, Some(1_700_000_060));
     }
 }

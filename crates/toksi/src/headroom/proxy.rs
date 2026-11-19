@@ -775,6 +775,15 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
                         } else {
                             let (compressed, stats) = super::effort::HeadroomEffortCompressor::default()
                                 .compress_http_request(&path, &req.headers, &req.body);
+                            if compressed.len() < req.body.len() || stats.mcp_tools_pruned > 0 {
+                                crate::telemetry::collector::try_send_telemetry_event(
+                                    crate::telemetry::collector::TelemetryEvent::HeadroomOptimization {
+                                        raw_bytes: stats.original_bytes,
+                                        compressed_bytes: stats.compressed_bytes,
+                                        pruned_tools: stats.mcp_tools_pruned,
+                                    },
+                                );
+                            }
                             if compressed.len() < req.body.len() {
                                 crate::util::logger::L.debug(&format!(
                                     "[HEADROOM] effort={} compressed {} bytes -> {} bytes",
