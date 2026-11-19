@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/tests.rs
 // created: 2026-10-30
-// lastModified: 2026-11-18
+// lastModified: 2026-11-19
 
 use super::app::*;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
@@ -27,7 +27,8 @@ fn test_app_initialization_and_tabs() {
     assert_eq!(app.tab_names[1], "The War Room");
     assert_eq!(app.tab_names[8], "Keyring & Database");
     assert!(!app.should_quit);
-    assert!(!app.monitor.waterfall.is_empty());
+    assert_eq!(app.monitor.tokens_saved_lifetime, 0);
+    assert!(app.monitor.waterfall.is_empty());
 }
 
 #[test]
@@ -107,20 +108,12 @@ fn test_graph_symbol_filter() {
 #[test]
 fn test_governance_navigation_and_actions() {
     let mut app = App::new();
-    app.current_tab = 8; // Keyring & Database / Governance tab (Tab 9)
+    app.current_tab = 8; // Keyring & Database tab (Tab 9)
 
-    assert_eq!(app.governance.keys.len(), 4);
     assert_eq!(app.governance.selected, 0);
+    assert!(app.governance.keys.is_empty());
 
-    // Down navigation
-    app.handle_key(press_key(KeyCode::Char('j')));
-    assert_eq!(app.governance.selected, 1);
-
-    // Up navigation
-    app.handle_key(press_key(KeyCode::Char('k')));
-    assert_eq!(app.governance.selected, 0);
-
-    // Reset window
+    // Refresh Keyring & DB
     app.handle_key(press_key(KeyCode::Char('r')));
     assert!(app.status_message.is_some());
 
@@ -137,7 +130,7 @@ fn test_agent_selection_and_modal() {
 
     if !app.agents.items.is_empty() {
         app.handle_key(press_key(KeyCode::Char('j'))); // Move down
-        assert!(app.agents.selected <= app.agents.items.len() - 1);
+        assert!(app.agents.selected < app.agents.items.len());
 
         // Open MCP config modal
         app.handle_key(press_key(KeyCode::Enter));
@@ -193,6 +186,16 @@ fn test_mouse_action_buttons() {
     app.handle_mouse(btn_click, area);
     assert!(app.monitor.proxy_up);
 
+    // Tab 0 Monitor: Proxy Down button at col 30
+    let btn_down_click = MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Left),
+        column: 30,
+        row: 36,
+        modifiers: KeyModifiers::NONE,
+    };
+    app.handle_mouse(btn_down_click, area);
+    assert!(!app.monitor.proxy_up);
+
     // Tab 3 Memory: Precheck button
     app.current_tab = 3;
     let precheck_click = MouseEvent {
@@ -218,7 +221,7 @@ fn test_mouse_action_buttons() {
 #[test]
 fn test_mouse_wheel_scroll() {
     let mut app = App::new();
-    app.current_tab = 6; // Logs
+    app.current_tab = 6; // System Controls / Logs
     app.logs.follow = true;
     app.logs.scroll_offset = 0;
 
@@ -256,5 +259,23 @@ fn test_byok_tier_badges() {
             "unexpected tier badge: {}",
             r.tier_badge
         );
+        assert_ne!(r.tier_badge, "[PAID]");
+        assert_ne!(r.tier_badge, "[DISQUALIFIED-FREE]");
     }
+}
+
+#[test]
+fn test_memory_heatmap_popup_and_gateway_refresh() {
+    let mut app = App::new();
+    app.current_tab = 3; // Memory Decision DAG
+    if !app.memory.heatmap.is_empty() {
+        app.handle_key(press_key(KeyCode::Char('h')));
+        assert!(app.memory.heatmap_popup.is_some());
+        app.handle_key(press_key(KeyCode::Esc));
+        assert!(app.memory.heatmap_popup.is_none());
+    }
+
+    app.current_tab = 7; // AI Gateway & Quotas
+    app.handle_key(press_key(KeyCode::Char('m')));
+    assert!(app.status_message.is_some());
 }

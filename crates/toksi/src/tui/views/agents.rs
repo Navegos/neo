@@ -40,11 +40,12 @@ pub fn render_agents_view(f: &mut Frame, area: Rect, app: &App) {
     f.render_widget(Paragraph::new(info_text).block(Block::default().borders(Borders::BOTTOM)), chunks[0]);
 
     let header_row = Row::new(vec![
-        Cell::from("Wiring Status").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Cell::from("Wiring Mode").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Cell::from("ID").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Cell::from("Agent Name").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("System Detection").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Cell::from("PATH / Detection").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Cell::from("Active Port").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Cell::from("Tokens Saved").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Cell::from("Integrated Tool Stack").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
     ])
     .bottom_margin(1);
@@ -57,10 +58,10 @@ pub fn render_agents_view(f: &mut Frame, area: Rect, app: &App) {
         .map(|(idx, agent)| {
             let is_selected = idx == app.agents.selected;
 
-            let (wire_badge, wire_style) = if agent.wired {
-                (" [● WIRED] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
-            } else {
-                (" [○ unwired] ", Style::default().fg(Color::DarkGray))
+            let (wire_badge, wire_style) = match agent.wire_mode.as_str() {
+                "direct-wired" => (" [● direct-wired] ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+                "config-wired" => (" [◐ config-wired] ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                _ => (" [○ unwired] ", Style::default().fg(Color::DarkGray)),
             };
 
             let row_style = if is_selected {
@@ -74,7 +75,7 @@ pub fn render_agents_view(f: &mut Frame, area: Rect, app: &App) {
             } else if agent.installed {
                 Span::styled(format!("✓ {}", agent.detect_source), Style::default().fg(Color::Cyan))
             } else {
-                Span::styled("not found", Style::default().fg(Color::DarkGray))
+                Span::styled("in PATH", Style::default().fg(Color::Gray))
             };
 
             let label_style = if !agent.in_path {
@@ -91,6 +92,7 @@ pub fn render_agents_view(f: &mut Frame, area: Rect, app: &App) {
                 Cell::from(Span::styled(&agent.label, label_style)),
                 Cell::from(detect_badge),
                 Cell::from(Span::styled(&agent.port, Style::default().fg(Color::Gray))),
+                Cell::from(Span::styled(agent.tokens_saved.to_string(), Style::default().fg(Color::Green))),
                 Cell::from(Span::styled(&agent.tools_summary, Style::default().fg(Color::DarkGray))),
             ])
             .style(row_style)
@@ -98,19 +100,20 @@ pub fn render_agents_view(f: &mut Frame, area: Rect, app: &App) {
         .collect();
 
     let widths = [
-        Constraint::Length(14),
-        Constraint::Length(14),
-        Constraint::Length(22),
-        Constraint::Length(22),
-        Constraint::Length(14),
-        Constraint::Min(30),
+        Constraint::Length(18),
+        Constraint::Length(13),
+        Constraint::Length(20),
+        Constraint::Length(20),
+        Constraint::Length(15),
+        Constraint::Length(13),
+        Constraint::Min(20),
     ];
 
     let table = Table::new(rows, widths)
         .header(header_row)
         .block(
             Block::default()
-                .title(" [Tab 2] 17 AI Coding Agents Fleet Matrix ")
+                .title(" [Tab 3] AI Agent Fleet & Quotas ")
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(Color::Cyan)),
         );
@@ -125,29 +128,39 @@ pub fn render_agents_view(f: &mut Frame, area: Rect, app: &App) {
     let btn_sub = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(24),
-            Constraint::Length(24),
             Constraint::Length(18),
-            Constraint::Min(10),
+            Constraint::Length(18),
+            Constraint::Length(14),
+            Constraint::Length(12),
+            Constraint::Length(20),
+            Constraint::Length(14),
+            Constraint::Min(4),
         ])
         .split(btn_block.inner(btn_area));
 
-    let selected_agent_wired = app.agents.items.get(app.agents.selected).map(|a| a.wired).unwrap_or(false);
-    crate::tui::widgets::Button::new(if selected_agent_wired { "Unwire Agent (Space)" } else { "Wire Agent (Space)" })
-        .style(if selected_agent_wired {
-            crate::tui::widgets::ButtonStyle::Warning
-        } else {
-            crate::tui::widgets::ButtonStyle::Success
-        })
+    crate::tui::widgets::Button::new("Direct-Wire")
+        .style(crate::tui::widgets::ButtonStyle::Success)
         .render(btn_sub[0], f.buffer_mut());
 
-    crate::tui::widgets::Button::new("Inspect MCP (Enter)")
+    crate::tui::widgets::Button::new("Config-Wire")
         .style(crate::tui::widgets::ButtonStyle::Primary)
         .render(btn_sub[1], f.buffer_mut());
 
-    crate::tui::widgets::Button::new("Rescan Fleet (r)")
-        .style(crate::tui::widgets::ButtonStyle::Neutral)
+    crate::tui::widgets::Button::new("Unwire")
+        .style(crate::tui::widgets::ButtonStyle::Warning)
         .render(btn_sub[2], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Fix")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[3], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Inspect MCP")
+        .style(crate::tui::widgets::ButtonStyle::Primary)
+        .render(btn_sub[4], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Rescan")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[5], f.buffer_mut());
 
     f.render_widget(btn_block, btn_area);
 

@@ -59,6 +59,13 @@ pub fn run_tui_with_tab(initial_tab: usize) -> i32 {
     }
 
     let _guard = TerminalGuard;
+    let prev_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(stdout(), Show, LeaveAlternateScreen, DisableMouseCapture);
+        prev_hook(info);
+    }));
+
     let mut stdout = stdout();
     if execute!(stdout, EnterAlternateScreen, Hide, EnableMouseCapture).is_err() {
         return 1;
@@ -76,7 +83,7 @@ pub fn run_tui_with_tab(initial_tab: usize) -> i32 {
     let mut app = App::new();
     app.current_tab = initial_tab.min(app.tab_names.len().saturating_sub(1));
 
-    let poll_timeout = Duration::from_millis(50);
+    let poll_timeout = Duration::from_millis(16);
 
     while !app.should_quit {
         if let Err(e) = terminal.draw(|f| render_ui(f, &mut app)) {
@@ -84,9 +91,10 @@ pub fn run_tui_with_tab(initial_tab: usize) -> i32 {
             break;
         }
 
-        // Non-blocking event polling (50ms responsive timeout)
-        if event::poll(poll_timeout).unwrap_or(false) {
-            if let Ok(ev) = event::read() {
+        // Non-blocking 60 FPS event polling (16ms timeout)
+        if let Ok(true) = event::poll(poll_timeout)
+            && let Ok(ev) = event::read()
+        {
                 match ev {
                     Event::Key(key) => {
                         // On Windows, handle both Press and Repeat events
@@ -95,7 +103,10 @@ pub fn run_tui_with_tab(initial_tab: usize) -> i32 {
                         }
                     }
                     Event::Mouse(mouse) => {
-                        let area = terminal.size().map(|s| ratatui::layout::Rect::new(0, 0, s.width, s.height)).unwrap_or_default();
+                        let area = terminal
+                            .size()
+                            .map(|s| ratatui::layout::Rect::new(0, 0, s.width, s.height))
+                            .unwrap_or_default();
                         app.handle_mouse(mouse, area);
                     }
                     Event::Resize(_, _) => {
@@ -103,7 +114,6 @@ pub fn run_tui_with_tab(initial_tab: usize) -> i32 {
                     }
                     _ => {}
                 }
-            }
         }
 
         app.tick();

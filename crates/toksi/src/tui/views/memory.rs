@@ -21,6 +21,7 @@ pub fn render_memory_view(f: &mut Frame, area: Rect, app: &App) {
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3), // Search bar & filter pills
+            Constraint::Length(2), // Clickable Failure & ROI Heatmap strip
             Constraint::Min(10),   // Split between Table and Detail
             Constraint::Length(3), // Action Buttons Bar
         ])
@@ -67,11 +68,47 @@ pub fn render_memory_view(f: &mut Frame, area: Rect, app: &App) {
     let search_block = Block::default().borders(Borders::BOTTOM);
     f.render_widget(Paragraph::new(Line::from(search_spans)).block(search_block), chunks[0]);
 
+    // Clickable Failure & ROI Heatmap strip
+    let mut hm_spans = vec![Span::styled(
+        "Heatmap [click/h]: ",
+        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+    )];
+    if app.memory.heatmap.is_empty() {
+        hm_spans.push(Span::styled(
+            "No hotspots recorded",
+            Style::default().fg(Color::DarkGray),
+        ));
+    } else {
+        for (idx, stat) in app.memory.heatmap.iter().take(6).enumerate() {
+            let short_file = stat.file.rsplit('/').next().unwrap_or(&stat.file);
+            let badge_color = if stat.failed_attempts > 0 || stat.open_issues > 0 {
+                Color::Red
+            } else if stat.notes > 0 {
+                Color::Yellow
+            } else {
+                Color::Cyan
+            };
+            let bg = if idx == app.memory.selected_heatmap {
+                Color::Rgb(40, 55, 70)
+            } else {
+                Color::Reset
+            };
+            hm_spans.push(Span::styled(
+                format!(" [{} ({})] ", short_file, stat.total_events),
+                Style::default().fg(badge_color).bg(bg).add_modifier(Modifier::BOLD),
+            ));
+        }
+    }
+    f.render_widget(
+        Paragraph::new(Line::from(hm_spans)).block(Block::default().borders(Borders::BOTTOM)),
+        chunks[1],
+    );
+
     // Body: Split horizontal: Event Table (65%) and Selected Detail (35%)
     let body_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(65), Constraint::Percentage(35)])
-        .split(chunks[1]);
+        .split(chunks[2]);
 
     let filtered_events = app.memory.filtered_events();
 
@@ -203,14 +240,15 @@ pub fn render_memory_view(f: &mut Frame, area: Rect, app: &App) {
     let btn_block = Block::default()
         .borders(Borders::TOP)
         .border_style(Style::default().fg(Color::DarkGray));
-    let btn_area = chunks[2];
+    let btn_area = chunks[3];
     let btn_sub = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(22),
+            Constraint::Length(20),
+            Constraint::Length(20),
             Constraint::Length(18),
             Constraint::Length(18),
-            Constraint::Min(10),
+            Constraint::Min(4),
         ])
         .split(btn_block.inner(btn_area));
 
@@ -218,15 +256,45 @@ pub fn render_memory_view(f: &mut Frame, area: Rect, app: &App) {
         .style(crate::tui::widgets::ButtonStyle::Primary)
         .render(btn_sub[0], f.buffer_mut());
 
-    crate::tui::widgets::Button::new("Cycle Filter (f)")
-        .style(crate::tui::widgets::ButtonStyle::Neutral)
+    crate::tui::widgets::Button::new("Heatmap (h)")
+        .style(crate::tui::widgets::ButtonStyle::Warning)
         .render(btn_sub[1], f.buffer_mut());
 
-    crate::tui::widgets::Button::new("Search (/)")
+    crate::tui::widgets::Button::new("Cycle Filter (f)")
         .style(crate::tui::widgets::ButtonStyle::Neutral)
         .render(btn_sub[2], f.buffer_mut());
 
+    crate::tui::widgets::Button::new("Search (/)")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[3], f.buffer_mut());
+
     f.render_widget(btn_block, btn_area);
+
+    // Heatmap Detail Modal if open
+    if let Some(ref hm) = app.memory.heatmap_popup {
+        let mut lines = vec![
+            Line::from(vec![
+                Span::styled("Hotspot File: ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(&hm.file, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            ]),
+            Line::from(vec![
+                Span::styled(format!("Failed Attempts: {}  ", hm.failed_attempts), Style::default().fg(Color::Red)),
+                Span::styled(format!("Open Issues: {}  ", hm.open_issues), Style::default().fg(Color::Yellow)),
+                Span::styled(format!("Resolved: {}  ", hm.resolved_issues), Style::default().fg(Color::Green)),
+                Span::styled(format!("Decisions: {}  Notes: {}", hm.decisions, hm.notes), Style::default().fg(Color::Cyan)),
+            ]),
+            Line::raw(""),
+            Line::from(Span::styled("Recorded Events:", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))),
+        ];
+        if hm.events.is_empty() {
+            lines.push(Line::from(Span::styled("No events found for this file.", Style::default().fg(Color::DarkGray))));
+        } else {
+            for ev in &hm.events {
+                lines.push(Line::from(Span::styled(ev, Style::default().fg(Color::White))));
+            }
+        }
+        render_modal(f, "Heatmap File Drilldown", lines, hm.scroll, 85, 75);
+    }
 
     // Precheck Result Modal if open
     if let Some(ref precheck) = app.memory.precheck_result {

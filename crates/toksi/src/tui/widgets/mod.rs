@@ -55,7 +55,7 @@ pub fn render_header(f: &mut Frame, area: Rect, app: &App) {
     f.render_widget(paragraph, area);
 }
 
-/// Renders the 6 navigation tabs.
+/// Renders the 9 navigation tabs.
 pub fn render_tab_bar(f: &mut Frame, area: Rect, app: &App) {
     let titles: Vec<Line> = app
         .tab_names
@@ -89,7 +89,7 @@ pub fn render_tab_bar(f: &mut Frame, area: Rect, app: &App) {
 /// Renders bottom keybinding helper line.
 pub fn render_footer(f: &mut Frame, area: Rect, app: &App) {
     let mut keys = vec![
-        Span::styled("Tab/1-7", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled("Tab/1-9", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Span::raw(":Tab  "),
     ];
 
@@ -103,30 +103,30 @@ pub fn render_footer(f: &mut Frame, area: Rect, app: &App) {
             keys.push(Span::raw(":Proxy Down  "));
         }
         1 => {
-            keys.push(Span::styled("Space", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Wire/Unwire  "));
-            keys.push(Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Inspect MCP  "));
             keys.push(Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Scan  "));
+            keys.push(Span::raw(":Refresh Snapshot  "));
         }
         2 => {
-            keys.push(Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Reload Routes  "));
+            keys.push(Span::styled("Space", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Direct/Unwire  "));
             keys.push(Span::styled("c", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Cache Align Test  "));
-            keys.push(Span::styled("↑/↓", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Select  "));
+            keys.push(Span::raw(":Config-Wire  "));
+            keys.push(Span::styled("x", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Fix  "));
+            keys.push(Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":MCP  "));
+            keys.push(Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Scan  "));
         }
         3 => {
             keys.push(Span::styled("/", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Search  "));
             keys.push(Span::styled("p", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Run Precheck  "));
+            keys.push(Span::raw(":Precheck  "));
+            keys.push(Span::styled("h", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Heatmap  "));
             keys.push(Span::styled("f", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Filter  "));
-            keys.push(Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Detail  "));
         }
         4 => {
             keys.push(Span::styled("/", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
@@ -134,25 +134,41 @@ pub fn render_footer(f: &mut Frame, area: Rect, app: &App) {
             keys.push(Span::styled("Enter", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Blast Radius  "));
             keys.push(Span::styled("b", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Toggle Tree  "));
+            keys.push(Span::raw(":Tree  "));
             keys.push(Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Reindex  "));
         }
         5 => {
-            keys.push(Span::styled("↑/↓", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Select Key  "));
-            keys.push(Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Reset Window  "));
-            keys.push(Span::styled("c", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
-            keys.push(Span::raw(":Clear Trips  "));
+            keys.push(Span::styled("f", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Toggle Fail-Closed  "));
         }
         6 => {
             keys.push(Span::styled("1-4", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Source  "));
+            keys.push(Span::styled("s", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Daemon Start/Stop  "));
             keys.push(Span::styled("f", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Follow  "));
             keys.push(Span::styled("c", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
             keys.push(Span::raw(":Clear  "));
+        }
+        7 => {
+            keys.push(Span::styled("m", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Refresh Models  "));
+            keys.push(Span::styled("e", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Effort  "));
+            keys.push(Span::styled("c", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Align  "));
+            keys.push(Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Reload  "));
+        }
+        8 => {
+            keys.push(Span::styled("e", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Export DB  "));
+            keys.push(Span::styled("i", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Import DB  "));
+            keys.push(Span::styled("r", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+            keys.push(Span::raw(":Refresh  "));
         }
         _ => {}
     }

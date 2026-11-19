@@ -67,9 +67,11 @@ pub struct AgentRow {
     pub in_path: bool,
     pub detect_source: String,
     pub wired: bool,
+    pub wire_mode: String,
     pub port: String,
     pub tools_summary: String,
     pub config_path: String,
+    pub tokens_saved: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -122,6 +124,18 @@ pub struct PrecheckModal {
 }
 
 #[derive(Debug, Clone)]
+pub struct HeatmapDetailModal {
+    pub file: String,
+    pub failed_attempts: usize,
+    pub open_issues: usize,
+    pub resolved_issues: usize,
+    pub decisions: usize,
+    pub notes: usize,
+    pub events: Vec<String>,
+    pub scroll: u16,
+}
+
+#[derive(Debug, Clone)]
 pub struct MemoryState {
     pub filter: MemoryFilter,
     pub search_query: String,
@@ -129,6 +143,9 @@ pub struct MemoryState {
     pub items: Vec<MemoryItem>,
     pub selected: usize,
     pub precheck_result: Option<PrecheckModal>,
+    pub heatmap: Vec<crate::projectmem::heatmap::FileFailureStats>,
+    pub selected_heatmap: usize,
+    pub heatmap_popup: Option<HeatmapDetailModal>,
 }
 
 #[derive(Debug, Clone)]
@@ -189,6 +206,30 @@ pub struct ByokRouteItem {
 }
 
 #[derive(Debug, Clone)]
+pub struct ByokProfileRow {
+    pub id: String,
+    pub provider_id: String,
+    pub instance_label: String,
+    pub model_id: String,
+    pub thinking_effort: String,
+    pub enabled: bool,
+    pub priority: i64,
+    pub weight: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct QuotaWindowRow {
+    pub profile_id: String,
+    pub provider_id: String,
+    pub window_kind: String,
+    pub requests_remaining: Option<i64>,
+    pub requests_limit: Option<i64>,
+    pub tokens_remaining: Option<i64>,
+    pub tokens_limit: Option<i64>,
+    pub plan_label: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct HeadroomState {
     pub cache_alignment_pct: f64,
     pub context_tokens_used: usize,
@@ -198,6 +239,10 @@ pub struct HeadroomState {
     pub byok_port: u16,
     pub routes: Vec<ByokRouteItem>,
     pub selected_route: usize,
+    pub profiles: Vec<ByokProfileRow>,
+    pub selected_profile: usize,
+    pub quota_windows: Vec<QuotaWindowRow>,
+    pub models_count: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -240,6 +285,27 @@ pub struct VirtualKeyRow {
 }
 
 #[derive(Debug, Clone)]
+pub struct KeyringEntryRow {
+    pub agent: String,
+    pub service: String,
+    pub account: String,
+    pub present: bool,
+    pub configured: bool,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct DbStatsSummary {
+    pub providers: usize,
+    pub byok_profiles: usize,
+    pub plugins: usize,
+    pub blind_signatures: usize,
+    pub advisory_embargoes: usize,
+    pub adr_events: usize,
+    pub quota_windows: usize,
+}
+
+#[derive(Debug, Clone)]
 pub struct GovernanceState {
     pub keys: Vec<VirtualKeyRow>,
     pub selected: usize,
@@ -247,6 +313,12 @@ pub struct GovernanceState {
     pub total_spent_usd: f64,
     pub active_rate_limits: u32,
     pub circuit_breaker_trips: u32,
+    pub keyring_entries: Vec<KeyringEntryRow>,
+    pub db_stats: DbStatsSummary,
+    pub db_path: String,
+    pub gcp_adc_active: bool,
+    pub gcp_project: String,
+    pub gcp_location: String,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -295,6 +367,7 @@ pub struct App {
     pub ticks_counter: usize,
 
     pub proxy_live_flag: Arc<AtomicBool>,
+    pub daemon_live_flag: Arc<AtomicBool>,
     pub shutdown_flag: Arc<AtomicBool>,
     pub log_file_offset: u64,
     pub snapshot_rx: tokio::sync::watch::Receiver<crate::telemetry::DashboardSnapshot>,
@@ -323,14 +396,18 @@ impl App {
             .unwrap_or_else(|_| ".".into());
 
         let proxy_live_flag = Arc::new(AtomicBool::new(false));
+        let daemon_live_flag = Arc::new(AtomicBool::new(false));
         let shutdown_flag = Arc::new(AtomicBool::new(false));
 
         let flag_clone = proxy_live_flag.clone();
+        let daemon_clone = daemon_live_flag.clone();
         let shutdown_clone = shutdown_flag.clone();
         std::thread::spawn(move || {
             while !shutdown_clone.load(Ordering::Relaxed) {
                 let is_up = crate::headroom::proxy::proxy_live_z_timeout(Duration::from_millis(100));
                 flag_clone.store(is_up, Ordering::Relaxed);
+                let daemon_up = is_daemon_running();
+                daemon_clone.store(daemon_up, Ordering::Relaxed);
                 std::thread::sleep(Duration::from_millis(600));
             }
         });
@@ -373,6 +450,7 @@ impl App {
             status_ticks: 0,
             ticks_counter: 0,
             proxy_live_flag,
+            daemon_live_flag,
             shutdown_flag,
             log_file_offset: 0,
             snapshot_rx: crate::telemetry::subscribe_dashboard_snapshot(),
@@ -409,6 +487,9 @@ impl App {
                 items: Vec::new(),
                 selected: 0,
                 precheck_result: None,
+                heatmap: Vec::new(),
+                selected_heatmap: 0,
+                heatmap_popup: None,
             },
 
             graph: GraphState {
@@ -425,14 +506,18 @@ impl App {
             },
 
             headroom: HeadroomState {
-                cache_alignment_pct: 92.5,
-                context_tokens_used: 42_500,
-                active_memory_tier: "L1 (Abstract)".to_string(),
-                rate_limit_429_count: 2,
-                reroute_count: 1,
+                cache_alignment_pct: 0.0,
+                context_tokens_used: 0,
+                active_memory_tier: "L0 (Idle)".to_string(),
+                rate_limit_429_count: 0,
+                reroute_count: 0,
                 byok_port: crate::config::resolved_ports().byok_gateway,
                 routes: Vec::new(),
                 selected_route: 0,
+                profiles: Vec::new(),
+                selected_profile: 0,
+                quota_windows: Vec::new(),
+                models_count: 0,
             },
 
             sandbox: SandboxState {
@@ -443,65 +528,20 @@ impl App {
             },
 
             governance: GovernanceState {
-                keys: vec![
-                    VirtualKeyRow {
-                        vk: "default".to_string(),
-                        name: "Global Default".to_string(),
-                        max_budget_usd: 100.0,
-                        current_spend_usd: 18.42,
-                        max_rpm: 120,
-                        current_rpm: 8,
-                        max_tpm: 200_000,
-                        current_tpm: 14_500,
-                        max_concurrency: 10,
-                        current_concurrency: 1,
-                        allowed_models: "All Models (*)".to_string(),
-                    },
-                    VirtualKeyRow {
-                        vk: "ci-bot".to_string(),
-                        name: "Automated CI Pipeline".to_string(),
-                        max_budget_usd: 50.0,
-                        current_spend_usd: 6.15,
-                        max_rpm: 60,
-                        current_rpm: 0,
-                        max_tpm: 100_000,
-                        current_tpm: 0,
-                        max_concurrency: 4,
-                        current_concurrency: 0,
-                        allowed_models: "Fast Tier (flash, haiku, 4o-mini)".to_string(),
-                    },
-                    VirtualKeyRow {
-                        vk: "dev-team".to_string(),
-                        name: "Engineering Team".to_string(),
-                        max_budget_usd: 250.0,
-                        current_spend_usd: 42.80,
-                        max_rpm: 200,
-                        current_rpm: 24,
-                        max_tpm: 400_000,
-                        current_tpm: 56_000,
-                        max_concurrency: 20,
-                        current_concurrency: 3,
-                        allowed_models: "Frontier (claude-3-7, gpt-4o, gemini-2.0)".to_string(),
-                    },
-                    VirtualKeyRow {
-                        vk: "vip-agent".to_string(),
-                        name: "Autonomous Agent Swarm".to_string(),
-                        max_budget_usd: 500.0,
-                        current_spend_usd: 98.10,
-                        max_rpm: 500,
-                        current_rpm: 48,
-                        max_tpm: 1_000_000,
-                        current_tpm: 120_000,
-                        max_concurrency: 50,
-                        current_concurrency: 5,
-                        allowed_models: "All Models (*)".to_string(),
-                    },
-                ],
+                keys: Vec::new(),
                 selected: 0,
-                total_budget_usd: 900.0,
-                total_spent_usd: 165.47,
-                active_rate_limits: 4,
+                total_budget_usd: 0.0,
+                total_spent_usd: 0.0,
+                active_rate_limits: 0,
                 circuit_breaker_trips: 0,
+                keyring_entries: Vec::new(),
+                db_stats: DbStatsSummary::default(),
+                db_path: crate::util::paths::normalize_path(
+                    &crate::db::default_db_path().to_string_lossy(),
+                ),
+                gcp_adc_active: false,
+                gcp_project: String::new(),
+                gcp_location: "us-central1".to_string(),
             },
 
             logs: LogsState {
@@ -512,12 +552,13 @@ impl App {
             },
         };
 
-        app.init_waterfall_samples();
+        app.reload_waterfall();
         app.reload_services();
         app.reload_agents();
         app.reload_memory();
         app.reload_graph();
         app.reload_headroom();
+        app.reload_governance();
         app.reload_logs();
 
         app
@@ -539,6 +580,7 @@ impl App {
         }
 
         self.monitor.proxy_up = self.proxy_live_flag.load(Ordering::Relaxed);
+        self.monitor.daemon_up = self.daemon_live_flag.load(Ordering::Relaxed);
 
         // Non-blocking watch::Receiver snapshot update (<1 µs)
         if self.snapshot_rx.has_changed().unwrap_or(false) {
@@ -546,10 +588,10 @@ impl App {
             self.apply_snapshot(&snap);
         }
 
-        // Periodic light refresh every ~1 sec (60 ticks)
+        // Periodic light refresh every ~1 sec (60 ticks at 60 FPS)
         if self.ticks_counter % 60 == 0 {
-            self.monitor.daemon_up = is_daemon_running();
             self.refresh_monitor_stats();
+            self.reload_waterfall();
             self.poll_new_logs();
         }
     }
@@ -590,6 +632,21 @@ impl App {
         } else {
             "Standard".to_string()
         };
+        self.headroom.context_tokens_used = snap.input_tokens as usize;
+        self.headroom.active_memory_tier = if snap.input_tokens == 0 {
+            "L0 (Idle)".to_string()
+        } else if snap.input_tokens < 20_000 {
+            "L0 (TOC)".to_string()
+        } else if snap.input_tokens < 100_000 {
+            "L1 (Abstract)".to_string()
+        } else {
+            "L2 (Full)".to_string()
+        };
+        for agent in &mut self.agents.items {
+            if let Some(saved) = snap.per_agent_saved.get(&agent.id) {
+                agent.tokens_saved = *saved;
+            }
+        }
     }
 
     pub fn refresh_monitor_stats(&mut self) {
@@ -629,21 +686,10 @@ impl App {
     // Subsystem Loaders
     // -------------------------------------------------------------------------
 
-    fn init_waterfall_samples(&mut self) {
+    fn reload_waterfall(&mut self) {
         let sessions = crate::telemetry::tokentracker::global_token_tracker().get_recent_sessions();
         if sessions.is_empty() && self.monitor.total_calls == 0 {
-            self.monitor.waterfall = vec![
-                WaterfallItem {
-                    time: "Ready".into(),
-                    agent: "Interceptor".into(),
-                    endpoint: "Live Stream Standing By (:9099 / :8787)".into(),
-                    raw_tokens: 0,
-                    compressed_tokens: 0,
-                    savings_pct: 0.0,
-                    pipeline: "Ground-Truth Token Accounting (Idle)".into(),
-                    saved_usd: 0.0,
-                }
-            ];
+            self.monitor.waterfall.clear();
             return;
         }
         if sessions.is_empty() {
@@ -693,25 +739,36 @@ impl App {
     pub fn reload_agents(&mut self) {
         let agent_manifests = list_agents();
         let tools = list_tools();
+        let per_agent = self.snapshot_rx.borrow().per_agent_saved.clone();
 
         let mut rows = Vec::new();
         for ag in agent_manifests {
             let detection = ag.detect();
             let in_path = crate::util::env_path::is_executable_in_path(&ag.cli_bin);
             let is_proxy_wired = proxy_agent_wired(&ag.id);
-            let is_wired = init_agent_fully_wired(&ag.id, &tools) || is_proxy_wired;
+            let is_config_wired = init_agent_fully_wired(&ag.id, &tools);
+            let is_wired = is_config_wired || is_proxy_wired;
+
+            let wire_mode = if is_proxy_wired {
+                "direct-wired".to_string()
+            } else if is_config_wired {
+                "config-wired".to_string()
+            } else {
+                "unwired".to_string()
+            };
 
             let port = if is_proxy_wired && proxy_running() {
-                format!("{} -> Routed", proxy_port())
+                format!("{} -> Direct", proxy_port())
             } else if is_proxy_wired {
                 format!("{} (stopped)", proxy_port())
-            } else if is_wired {
-                "wired (direct)".into()
+            } else if is_config_wired {
+                "config (MCP)".into()
             } else {
                 "none (unwired)".into()
             };
 
             let config_path = resolve_agent_mcp_config_path(&ag.id);
+            let tokens_saved = per_agent.get(&ag.id).copied().unwrap_or(0);
 
             rows.push(AgentRow {
                 id: ag.id.clone(),
@@ -720,9 +777,11 @@ impl App {
                 in_path,
                 detect_source: detection.source,
                 wired: is_wired,
+                wire_mode,
                 port,
                 tools_summary: "RTK, CodeGraph, ProjectMem, Headroom".into(),
                 config_path,
+                tokens_saved,
             });
         }
 
@@ -731,41 +790,101 @@ impl App {
         self.agents.items = rows;
     }
 
-    pub fn toggle_agent_wire(&mut self) {
+    pub fn direct_wire_selected_agent(&mut self) {
         if self.agents.items.is_empty() {
             return;
         }
         let sel = self.agents.selected;
         let agent_id = self.agents.items[sel].id.clone();
         let agent_label = self.agents.items[sel].label.clone();
-        let currently_wired = self.agents.items[sel].wired;
-
         let all_tools = list_tools();
         let ro = RunOpts {
             agent: agent_id.clone(),
             ..Default::default()
         };
+        for tool in &all_tools {
+            if let Some(wire_fn) = tool.wire_for.get(&agent_id) {
+                let _ = wire_fn(&ro);
+            }
+        }
+        let _ = crate::agents::configure_proxy_agent(&agent_id);
+        self.agents.items[sel].wired = true;
+        self.agents.items[sel].wire_mode = "direct-wired".into();
+        self.agents.items[sel].port = format!("{} -> Direct", proxy_port());
+        self.set_status(&format!("Direct-wired {}", agent_label));
+    }
 
-        if currently_wired {
-            // Unwire
-            for tool in &all_tools {
-                if let Some(ref unwire_fn) = tool.unwire_for.get(&agent_id) {
-                    let _ = unwire_fn(&ro);
-                }
+    pub fn config_wire_selected_agent(&mut self) {
+        if self.agents.items.is_empty() {
+            return;
+        }
+        let sel = self.agents.selected;
+        let agent_id = self.agents.items[sel].id.clone();
+        let agent_label = self.agents.items[sel].label.clone();
+        let all_tools = list_tools();
+        let ro = RunOpts {
+            agent: agent_id.clone(),
+            ..Default::default()
+        };
+        for tool in &all_tools {
+            if let Some(wire_fn) = tool.wire_for.get(&agent_id) {
+                let _ = wire_fn(&ro);
             }
-            self.agents.items[sel].wired = false;
-            self.agents.items[sel].port = "none (unwired)".into();
-            self.set_status(&format!("Unwired {}", agent_label));
+        }
+        self.agents.items[sel].wired = true;
+        self.agents.items[sel].wire_mode = "config-wired".into();
+        self.agents.items[sel].port = "config (MCP)".into();
+        self.set_status(&format!("Config-wired {}", agent_label));
+    }
+
+    pub fn unwire_selected_agent(&mut self) {
+        if self.agents.items.is_empty() {
+            return;
+        }
+        let sel = self.agents.selected;
+        let agent_id = self.agents.items[sel].id.clone();
+        let agent_label = self.agents.items[sel].label.clone();
+        let all_tools = list_tools();
+        let ro = RunOpts {
+            agent: agent_id.clone(),
+            ..Default::default()
+        };
+        for tool in &all_tools {
+            if let Some(unwire_fn) = tool.unwire_for.get(&agent_id) {
+                let _ = unwire_fn(&ro);
+            }
+        }
+        let _ = crate::agents::remove_proxy_agent(&agent_id);
+        self.agents.items[sel].wired = false;
+        self.agents.items[sel].wire_mode = "unwired".into();
+        self.agents.items[sel].port = "none (unwired)".into();
+        self.set_status(&format!("Unwired {}", agent_label));
+    }
+
+    pub fn fix_selected_agent(&mut self) {
+        if self.agents.items.is_empty() {
+            return;
+        }
+        let sel = self.agents.selected;
+        let in_path = self.agents.items[sel].in_path;
+        let label = self.agents.items[sel].label.clone();
+        if !in_path {
+            self.set_status(&format!("Fix: '{}' missing from PATH — add binary to PATH", label));
+            return;
+        }
+        self.config_wire_selected_agent();
+        self.set_status(&format!("Fixed & re-synced hooks/MCP for {}", label));
+    }
+
+    pub fn toggle_agent_wire(&mut self) {
+        if self.agents.items.is_empty() {
+            return;
+        }
+        let sel = self.agents.selected;
+        if self.agents.items[sel].wired {
+            self.unwire_selected_agent();
         } else {
-            // Wire
-            for tool in &all_tools {
-                if let Some(ref wire_fn) = tool.wire_for.get(&agent_id) {
-                    let _ = wire_fn(&ro);
-                }
-            }
-            self.agents.items[sel].wired = true;
-            self.agents.items[sel].port = "8787 -> Direct".into();
-            self.set_status(&format!("Wired {}", agent_label));
+            self.direct_wire_selected_agent();
         }
     }
 
@@ -795,9 +914,12 @@ impl App {
 
     pub fn reload_memory(&mut self) {
         let mut items = Vec::new();
+        self.memory.heatmap.clear();
 
-        // 1. Read .projectmem/events.jsonl
+        // 1. Read <repo>/.toksi/projectmem/events.jsonl
         if let Ok(events) = crate::projectmem::store::read_events(None) {
+            let hm = crate::projectmem::heatmap::generate_heatmap(&events);
+            self.memory.heatmap = hm.top_hotspots;
             for ev in events {
                 items.push(MemoryItem {
                     id: ev.issue_id.clone().unwrap_or_else(|| ev.supersedes.clone().unwrap_or_else(|| ev.event_type.clone())),
@@ -826,35 +948,36 @@ impl App {
             }
         }
 
-        // If repo has no memory recorded yet, supply realistic baseline
-        if items.is_empty() {
-            items.push(MemoryItem {
-                id: "0001".into(),
-                event_type: "decision".into(),
-                summary: "Port CodeGraph to pure safe Rust engine with embedded Tree-sitter parsers".into(),
-                location: "crates/toksi/src/codegraph/mod.rs:1".into(),
-                timestamp: "2026-10-28".into(),
-                details: "Eliminates external Node.js and npm downloads.".into(),
-            });
-            items.push(MemoryItem {
-                id: "0002".into(),
-                event_type: "decision".into(),
-                summary: "Integrate pure Rust Headroom engine into crates/toksi/src/headroom".into(),
-                location: "crates/toksi/src/headroom/mod.rs:1".into(),
-                timestamp: "2026-10-29".into(),
-                details: "Dropped Python headroom-py. 1024 prompt cache alignment and adaptive L0/L1/L2.".into(),
-            });
-            items.push(MemoryItem {
-                id: "0003".into(),
-                event_type: "note".into(),
-                summary: "gotcha: on Windows, raw console input can fire on key release".into(),
-                location: "crates/toksi/src/tui/mod.rs:50".into(),
-                timestamp: "2026-10-30".into(),
-                details: "Check KeyEventKind::Press explicitly to avoid double action.".into(),
-            });
-        }
-
         self.memory.items = items;
+    }
+
+    pub fn open_heatmap_popup(&mut self, idx: usize) {
+        let Some(stat) = self.memory.heatmap.get(idx).cloned() else {
+            return;
+        };
+        let mut events_lines = Vec::new();
+        if let Ok(events) = crate::projectmem::store::read_events(None) {
+            let drill = crate::projectmem::heatmap::generate_file_drilldown(&events, &stat.file);
+            for ev in drill.events.iter().take(40) {
+                events_lines.push(format!(
+                    "[{}] {} — {}",
+                    ev.event_type,
+                    ev.timestamp.chars().take(10).collect::<String>(),
+                    ev.summary
+                ));
+            }
+        }
+        self.memory.selected_heatmap = idx;
+        self.memory.heatmap_popup = Some(HeatmapDetailModal {
+            file: stat.file,
+            failed_attempts: stat.failed_attempts,
+            open_issues: stat.open_issues,
+            resolved_issues: stat.resolved_issues,
+            decisions: stat.decisions,
+            notes: stat.notes,
+            events: events_lines,
+            scroll: 0,
+        });
     }
 
     pub fn trigger_precheck(&mut self) {
@@ -1033,6 +1156,164 @@ impl App {
                 }
             })
             .collect();
+
+        self.headroom.profiles.clear();
+        self.headroom.quota_windows.clear();
+        self.headroom.models_count = 0;
+
+        if let Ok(arc) = crate::db::shared_db()
+            && let Ok(db) = arc.lock()
+        {
+            if let Ok(profs) = db.list_byok_profiles() {
+                self.headroom.profiles = profs
+                    .into_iter()
+                    .map(|p| ByokProfileRow {
+                        id: p.id,
+                        provider_id: p.provider_id,
+                        instance_label: p.instance_label,
+                        model_id: p.model_id,
+                        thinking_effort: p.thinking_effort,
+                        enabled: p.is_active,
+                        priority: i64::from(p.priority),
+                        weight: i64::from(p.weight),
+                    })
+                    .collect();
+            }
+            if let Ok(windows) = db.list_quota_windows(None) {
+                self.headroom.quota_windows = windows
+                    .into_iter()
+                    .map(|w| QuotaWindowRow {
+                        profile_id: w.instance_label.clone(),
+                        provider_id: w.provider_id,
+                        window_kind: w.window_kind,
+                        requests_remaining: w.remaining_requests,
+                        requests_limit: w.limit_requests,
+                        tokens_remaining: w.remaining_tokens,
+                        tokens_limit: w.limit_tokens,
+                        plan_label: w.instance_label,
+                    })
+                    .collect();
+            }
+            if let Ok(models) = db.list_provider_models(None) {
+                self.headroom.models_count = models.len();
+            }
+        }
+    }
+
+    pub fn cycle_selected_profile_effort(&mut self) {
+        let Some(prof) = self.headroom.profiles.get_mut(self.headroom.selected_profile) else {
+            self.set_status("No configured <byok, model, effort> profile selected");
+            return;
+        };
+        let next_effort = match prof.thinking_effort.to_lowercase().as_str() {
+            "low" => "medium",
+            "medium" => "high",
+            _ => "low",
+        };
+        prof.thinking_effort = next_effort.to_string();
+        let pid = prof.id.clone();
+        let label = prof.instance_label.clone();
+        if let Ok(arc) = crate::db::shared_db()
+            && let Ok(mut db) = arc.lock()
+            && let Ok(mut list) = db.list_byok_profiles()
+            && let Some(rec) = list.iter_mut().find(|r| r.id == pid)
+        {
+            rec.thinking_effort = next_effort.to_string();
+            let _ = db.upsert_byok_profile(rec);
+        }
+        self.set_status(&format!("Profile '{}' thinking effort -> {}", label, next_effort));
+    }
+
+    pub fn refresh_gateway_models(&mut self) {
+        self.reload_headroom();
+        self.set_status(&format!(
+            "Refreshed {} configured models & {} <byok, model, effort> profiles",
+            self.headroom.models_count,
+            self.headroom.profiles.len()
+        ));
+    }
+
+    pub fn reload_governance(&mut self) {
+        let statuses = crate::keyring::audit_keyring_statuses();
+        self.governance.keyring_entries = statuses
+            .into_iter()
+            .map(|s| KeyringEntryRow {
+                agent: s.agent,
+                service: s.service,
+                account: s.account,
+                present: s.has_credential,
+                configured: true,
+                source: s.backend,
+            })
+            .collect();
+
+        let adc = crate::keyring::adc::inspect_adc_status();
+        self.governance.gcp_adc_active = adc.enabled;
+        self.governance.gcp_project = adc.gcp_project.unwrap_or_default();
+        self.governance.gcp_location = adc.gcp_location;
+
+        if let Ok(arc) = crate::db::shared_db()
+            && let Ok(db) = arc.lock()
+            && let Ok(st) = db.stats()
+        {
+            self.governance.db_stats = DbStatsSummary {
+                    providers: st.providers_count,
+                    byok_profiles: st.byok_profiles_count,
+                    plugins: st.plugins_count,
+                    blind_signatures: st.blind_signatures_count,
+                    advisory_embargoes: st.advisory_embargoes_count,
+                    adr_events: st.adr_audit_events_count,
+                    quota_windows: st.quota_windows_count,
+                };
+        }
+    }
+
+    pub fn export_db(&mut self) {
+        let backup_path = crate::db::default_db_path()
+            .parent()
+            .map(|p| p.join("toksi-backup.json"))
+            .unwrap_or_else(|| PathBuf::from("toksi-backup.json"));
+        match crate::db::open_default_db() {
+            Ok(db) => match db.export_json() {
+                Ok(json) => {
+                    if let Err(e) = fs::write(&backup_path, json) {
+                        self.set_status(&format!("DB export write failed: {}", e));
+                    } else {
+                        self.set_status(&format!(
+                            "Exported DB to {}",
+                            crate::util::paths::normalize_path(&backup_path.to_string_lossy())
+                        ));
+                    }
+                }
+                Err(e) => self.set_status(&format!("DB export error: {}", e)),
+            },
+            Err(e) => self.set_status(&format!("DB open error: {}", e)),
+        }
+    }
+
+    pub fn import_db(&mut self) {
+        let backup_path = crate::db::default_db_path()
+            .parent()
+            .map(|p| p.join("toksi-backup.json"))
+            .unwrap_or_else(|| PathBuf::from("toksi-backup.json"));
+        if !backup_path.exists() {
+            self.set_status("No toksi-backup.json found to import");
+            return;
+        }
+        match fs::read_to_string(&backup_path) {
+            Ok(json) => match crate::db::open_default_db() {
+                Ok(mut db) => match db.import_json(&json, false) {
+                    Ok(_) => {
+                        self.reload_governance();
+                        self.reload_headroom();
+                        self.set_status("Imported DB from toksi-backup.json");
+                    }
+                    Err(e) => self.set_status(&format!("DB import error: {}", e)),
+                },
+                Err(e) => self.set_status(&format!("DB open error: {}", e)),
+            },
+            Err(e) => self.set_status(&format!("Read backup failed: {}", e)),
+        }
     }
 
     pub fn reload_logs(&mut self) {
@@ -1128,6 +1409,26 @@ impl App {
             return;
         }
 
+        if self.memory.heatmap_popup.is_some() {
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Enter => {
+                    self.memory.heatmap_popup = None;
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if let Some(ref mut h) = self.memory.heatmap_popup {
+                        h.scroll = h.scroll.saturating_sub(1);
+                    }
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if let Some(ref mut h) = self.memory.heatmap_popup {
+                        h.scroll = h.scroll.saturating_add(1);
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+
         if self.memory.precheck_result.is_some() {
             match key.code {
                 KeyCode::Esc | KeyCode::Char('q') | KeyCode::Enter => {
@@ -1141,6 +1442,26 @@ impl App {
                 KeyCode::Down | KeyCode::Char('j') => {
                     if let Some(ref mut p) = self.memory.precheck_result {
                         p.scroll = p.scroll.saturating_add(1);
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        if self.memory.heatmap_popup.is_some() {
+            match key.code {
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::Enter => {
+                    self.memory.heatmap_popup = None;
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    if let Some(ref mut h) = self.memory.heatmap_popup {
+                        h.scroll = h.scroll.saturating_sub(1);
+                    }
+                }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    if let Some(ref mut h) = self.memory.heatmap_popup {
+                        h.scroll = h.scroll.saturating_add(1);
                     }
                 }
                 _ => {}
@@ -1285,12 +1606,21 @@ impl App {
             KeyCode::Char(' ') => {
                 self.toggle_agent_wire();
             }
+            KeyCode::Char('c') => {
+                self.config_wire_selected_agent();
+            }
+            KeyCode::Char('u') => {
+                self.unwire_selected_agent();
+            }
+            KeyCode::Char('x') => {
+                self.fix_selected_agent();
+            }
             KeyCode::Enter => {
                 self.inspect_agent_mcp();
             }
             KeyCode::Char('r') => {
                 self.reload_agents();
-                self.set_status("Rescanned all 17 agent harnesses");
+                self.set_status("Rescanned configured agent harnesses");
             }
             _ => {}
         }
@@ -1303,6 +1633,9 @@ impl App {
             }
             KeyCode::Char('p') => {
                 self.trigger_precheck();
+            }
+            KeyCode::Char('h') => {
+                self.open_heatmap_popup(self.memory.selected_heatmap);
             }
             KeyCode::Char('f') => {
                 self.memory.filter = match self.memory.filter {
@@ -1372,6 +1705,12 @@ impl App {
                 self.reload_headroom();
                 self.set_status("Reloaded BYOK routes and provider statuses");
             }
+            KeyCode::Char('m') => {
+                self.refresh_gateway_models();
+            }
+            KeyCode::Char('e') => {
+                self.cycle_selected_profile_effort();
+            }
             KeyCode::Char('c') => {
                 // Simulate 1024 token prompt cache alignment test
                 let sample_prompt = "You are a helpful coding assistant. Implement the requested function.";
@@ -1380,12 +1719,18 @@ impl App {
                 self.set_status(&format!("Prompt aligned to 1024 boundary (estimated tokens: {})", est));
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                if self.headroom.selected_route > 0 {
+                if !self.headroom.profiles.is_empty() && self.headroom.selected_profile > 0 {
+                    self.headroom.selected_profile -= 1;
+                } else if self.headroom.selected_route > 0 {
                     self.headroom.selected_route -= 1;
                 }
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                if self.headroom.selected_route + 1 < self.headroom.routes.len() {
+                if !self.headroom.profiles.is_empty()
+                    && self.headroom.selected_profile + 1 < self.headroom.profiles.len()
+                {
+                    self.headroom.selected_profile += 1;
+                } else if self.headroom.selected_route + 1 < self.headroom.routes.len() {
                     self.headroom.selected_route += 1;
                 }
             }
@@ -1398,17 +1743,25 @@ impl App {
             KeyCode::Up | KeyCode::Char('k') => {
                 if self.governance.selected > 0 {
                     self.governance.selected -= 1;
-                } else if !self.governance.keys.is_empty() {
-                    self.governance.selected = self.governance.keys.len() - 1;
+                } else if !self.governance.keyring_entries.is_empty() {
+                    self.governance.selected = self.governance.keyring_entries.len() - 1;
                 }
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                if !self.governance.keys.is_empty() {
-                    self.governance.selected = (self.governance.selected + 1) % self.governance.keys.len();
+                if !self.governance.keyring_entries.is_empty() {
+                    self.governance.selected =
+                        (self.governance.selected + 1) % self.governance.keyring_entries.len();
                 }
             }
+            KeyCode::Char('e') => {
+                self.export_db();
+            }
+            KeyCode::Char('i') => {
+                self.import_db();
+            }
             KeyCode::Char('r') => {
-                self.set_status("Rate-limit sliding windows reset for all virtual keys");
+                self.reload_governance();
+                self.set_status("Refreshed Keyring & Database state");
             }
             KeyCode::Char('c') => {
                 self.governance.circuit_breaker_trips = 0;
@@ -1418,8 +1771,26 @@ impl App {
         }
     }
 
+    pub fn toggle_daemon(&mut self) {
+        let running = is_daemon_running();
+        if running {
+            let _ = crate::commands::daemon::run_daemon_cli(&["stop".to_string()]);
+            self.daemon_live_flag.store(false, Ordering::Relaxed);
+            self.monitor.daemon_up = false;
+            self.set_status("Daemon stopped");
+        } else {
+            let _ = crate::commands::daemon::run_daemon_cli(&["start".to_string()]);
+            self.daemon_live_flag.store(true, Ordering::Relaxed);
+            self.monitor.daemon_up = true;
+            self.set_status("Daemon started");
+        }
+    }
+
     fn handle_logs_key(&mut self, key: KeyEvent) {
         match key.code {
+            KeyCode::Char('s') => {
+                self.toggle_daemon();
+            }
             KeyCode::Char('f') => {
                 self.logs.follow = !self.logs.follow;
             }
@@ -1464,6 +1835,10 @@ impl App {
                     if let Some(ref mut p) = self.memory.precheck_result {
                         p.scroll = p.scroll.saturating_add(3);
                     }
+                } else if self.memory.heatmap_popup.is_some() {
+                    if let Some(ref mut h) = self.memory.heatmap_popup {
+                        h.scroll = h.scroll.saturating_add(3);
+                    }
                 } else if self.current_tab == 6 {
                     self.logs.follow = false;
                     self.logs.scroll_offset = self.logs.scroll_offset.saturating_add(3);
@@ -1473,6 +1848,10 @@ impl App {
                 if self.agents.inspect_mcp.is_some() {
                     if let Some(ref mut m) = self.agents.inspect_mcp {
                         m.scroll = m.scroll.saturating_sub(3);
+                    }
+                } else if self.memory.heatmap_popup.is_some() {
+                    if let Some(ref mut h) = self.memory.heatmap_popup {
+                        h.scroll = h.scroll.saturating_sub(3);
                     }
                 } else if self.memory.precheck_result.is_some() {
                     if let Some(ref mut p) = self.memory.precheck_result {
@@ -1491,14 +1870,20 @@ impl App {
     }
 
     fn handle_mouse_left_click(&mut self, col: u16, row: u16, area: Rect) {
-        // 1. Modals dismiss on click
+        // 1. Modals dismiss on click outside
         if self.agents.inspect_mcp.is_some() {
-            // Click outside or any click dismisses
             if row < 4 || row > area.height.saturating_sub(4) {
                 self.agents.inspect_mcp = None;
             }
             return;
         }
+        if self.memory.heatmap_popup.is_some() {
+            if row < 4 || row > area.height.saturating_sub(4) {
+                self.memory.heatmap_popup = None;
+            }
+            return;
+        }
+
         if self.memory.precheck_result.is_some() {
             if row < 4 || row > area.height.saturating_sub(4) {
                 self.memory.precheck_result = None;
@@ -1558,11 +1943,18 @@ impl App {
                 }
             }
             7 => {
-                // AI Gateway & Quotas (Headroom / BYOK) tab: routes table starts around row 21
+                // AI Gateway & Quotas: <byok, model, effort> profiles or routes table
                 let table_top = 21;
                 if row >= table_top {
                     let clicked_index = (row - table_top) as usize;
-                    if clicked_index < self.headroom.routes.len() {
+                    if clicked_index < self.headroom.profiles.len() {
+                        self.headroom.selected_profile = clicked_index;
+                        self.set_status(&format!(
+                            "Selected profile: {} ({})",
+                            self.headroom.profiles[clicked_index].instance_label,
+                            self.headroom.profiles[clicked_index].model_id
+                        ));
+                    } else if clicked_index < self.headroom.routes.len() {
                         self.headroom.selected_route = clicked_index;
                         self.set_status(&format!("Selected route: {}", self.headroom.routes[clicked_index].provider));
                     }
@@ -1589,9 +1981,17 @@ impl App {
                     }
                     return;
                 }
-                // Memory events table starts around row 8
-                if row >= 8 {
-                    let clicked_index = (row - 8) as usize;
+                // Clickable Heatmap strip on row 7
+                if row == 7 && !self.memory.heatmap.is_empty() {
+                    let cell_idx = (col / 24) as usize;
+                    if cell_idx < self.memory.heatmap.len() {
+                        self.open_heatmap_popup(cell_idx);
+                    }
+                    return;
+                }
+                // Memory events table starts around row 9
+                if row >= 9 {
+                    let clicked_index = (row - 9) as usize;
                     let count = self.memory.filtered_events().len();
                     if clicked_index < count {
                         self.memory.selected = clicked_index;
@@ -1610,12 +2010,15 @@ impl App {
                 }
             }
             8 => {
-                // Keyring & Database (Governance) tab: keys table starts around row 11
-                if row >= 11 && row < 11 + self.governance.keys.len() as u16 {
+                // Keyring & Database tab: keyring table starts around row 11
+                if row >= 11 && row < 11 + self.governance.keyring_entries.len() as u16 {
                     let clicked_index = (row - 11) as usize;
-                    if clicked_index < self.governance.keys.len() {
+                    if clicked_index < self.governance.keyring_entries.len() {
                         self.governance.selected = clicked_index;
-                        self.set_status(&format!("Selected virtual key: {}", self.governance.keys[clicked_index].name));
+                        self.set_status(&format!(
+                            "Selected keyring entry: {}",
+                            self.governance.keyring_entries[clicked_index].service
+                        ));
                     }
                 }
             }
@@ -1660,24 +2063,34 @@ impl App {
                 self.set_status("Refreshed War Room telemetry snapshot");
             }
             2 => {
-                // Agents: [Wire/Unwire Agent] [Inspect MCP] [Rescan Fleet]
-                if col < 26 {
-                    self.toggle_agent_wire();
-                } else if col < 52 {
+                // Agents: [Direct-Wire] [Config-Wire] [Unwire] [Fix] [Inspect MCP] [Rescan]
+                if col < 18 {
+                    self.direct_wire_selected_agent();
+                } else if col < 36 {
+                    self.config_wire_selected_agent();
+                } else if col < 50 {
+                    self.unwire_selected_agent();
+                } else if col < 62 {
+                    self.fix_selected_agent();
+                } else if col < 82 {
                     self.inspect_agent_mcp();
-                } else if col < 72 {
+                } else {
                     self.reload_agents();
                     self.set_status("Rescanned configured agent harnesses");
                 }
             }
             7 => {
-                // AI Gateway & Quotas: [Test Cache Align] [Reload Routes]
-                if col < 24 {
+                // AI Gateway & Quotas: [Refresh Models] [Cycle Effort] [Test Cache Align] [Reload]
+                if col < 22 {
+                    self.refresh_gateway_models();
+                } else if col < 42 {
+                    self.cycle_selected_profile_effort();
+                } else if col < 64 {
                     let sample_prompt = "You are a helpful coding assistant. Implement the requested function.";
                     let aligned = crate::headroom::cache_align::align_to_1024_tokens(sample_prompt);
                     let est = crate::headroom::cache_align::estimate_tokens(&aligned);
                     self.set_status(&format!("Prompt aligned to 1024 boundary (estimated tokens: {})", est));
-                } else if col < 46 {
+                } else {
                     self.reload_headroom();
                     self.set_status("Reloaded BYOK routes and provider statuses");
                 }
@@ -1695,10 +2108,12 @@ impl App {
                 }
             }
             3 => {
-                // Memory: [Run Precheck] [Cycle Filter] [Search]
-                if col < 24 {
+                // Memory: [Run Precheck] [Heatmap Detail] [Cycle Filter] [Search]
+                if col < 20 {
                     self.trigger_precheck();
-                } else if col < 44 {
+                } else if col < 40 {
+                    self.open_heatmap_popup(self.memory.selected_heatmap);
+                } else if col < 58 {
                     self.memory.filter = match self.memory.filter {
                         MemoryFilter::All => MemoryFilter::Issues,
                         MemoryFilter::Issues => MemoryFilter::Decisions,
@@ -1707,7 +2122,7 @@ impl App {
                         MemoryFilter::Icm => MemoryFilter::All,
                     };
                     self.memory.selected = 0;
-                } else if col < 64 {
+                } else if col < 76 {
                     self.memory.search_active = true;
                 }
             }
@@ -1728,19 +2143,23 @@ impl App {
                 }
             }
             8 => {
-                // Keyring & Database / Governance: [Reset Windows] [Clear Breakers]
-                if col < 26 {
-                    self.set_status("Rate-limit sliding windows reset for all virtual keys");
-                } else if col < 52 {
-                    self.governance.circuit_breaker_trips = 0;
-                    self.set_status("Circuit breaker trip counters cleared");
+                // Keyring & Database: [Export DB] [Import DB] [Refresh]
+                if col < 22 {
+                    self.export_db();
+                } else if col < 44 {
+                    self.import_db();
+                } else {
+                    self.reload_governance();
+                    self.set_status("Refreshed Keyring & Database state");
                 }
             }
             6 => {
-                // Logs: [Pause/Resume Follow] [Clear Buffer]
+                // System Controls & Logs: [Daemon Start/Stop] [Pause/Resume Follow] [Clear Buffer]
                 if col < 24 {
+                    self.toggle_daemon();
+                } else if col < 48 {
                     self.logs.follow = !self.logs.follow;
-                } else if col < 44 {
+                } else if col < 68 {
                     self.logs.entries.clear();
                     self.set_status("Cleared log buffer");
                 }

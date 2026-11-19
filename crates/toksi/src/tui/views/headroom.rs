@@ -117,75 +117,144 @@ pub fn render_headroom_view(f: &mut Frame, area: Rect, app: &App) {
     f.render_widget(Paragraph::new(cascade_text).block(cascade_block).wrap(Wrap { trim: false }), chunks[1]);
 
     // Section 3: BYOK Provider Routes Table
+    // Section 3: Configured <byok, model, effort> Profiles & Routes Table
     let table_block = Block::default()
-        .title(format!(" [4] Configured BYOK Routes ({}) ", app.headroom.routes.len()))
+        .title(format!(
+            " [4] Configured <byok, model, effort> Profiles ({}) | Routes ({}) | Quota Windows ({}) | Models ({}) ",
+            app.headroom.profiles.len(),
+            app.headroom.routes.len(),
+            app.headroom.quota_windows.len(),
+            app.headroom.models_count
+        ))
         .borders(Borders::ALL)
         .border_style(Style::default().fg(Color::White));
 
-    let header_row = Row::new(vec![
-        Cell::from("Provider").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("Tier").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("Target Upstream URL").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("Virtual Prefix").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("Health (/livez)").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("Quota Usage").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Cell::from("Assigned Agents").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-    ])
-    .bottom_margin(1);
+    if !app.headroom.profiles.is_empty() {
+        let header_row = Row::new(vec![
+            Cell::from("Instance").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("Provider").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("Model").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("Effort").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("State").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("Priority/Weight").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("Quota (hour..year)").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        ])
+        .bottom_margin(1);
 
-    let rows: Vec<Row> = app
-        .headroom
-        .routes
-        .iter()
-        .enumerate()
-        .map(|(idx, route)| {
-            let is_selected = idx == app.headroom.selected_route;
-            let row_style = if is_selected {
-                Style::default().bg(Color::Rgb(30, 45, 60))
-            } else {
-                Style::default()
-            };
-
-            let tier_style = match route.tier_badge.as_str() {
-                "[BYOK]" | "[API-KEY]" | "[OAUTH]" => {
-                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
-                }
-                "[FREE-TIER]" => Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-                _ => Style::default().fg(Color::DarkGray),
-            };
-
-            Row::new(vec![
-                Cell::from(Span::styled(&route.provider, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
-                Cell::from(Span::styled(&route.tier_badge, tier_style)),
-                Cell::from(Span::styled(&route.target_url, Style::default().fg(Color::White))),
-                Cell::from(Span::styled(&route.virtual_prefix, Style::default().fg(Color::Yellow))),
-                Cell::from(if route.healthy {
-                    Span::styled("● OK (200)", Style::default().fg(Color::Green))
+        let rows: Vec<Row> = app
+            .headroom
+            .profiles
+            .iter()
+            .enumerate()
+            .map(|(idx, prof)| {
+                let is_selected = idx == app.headroom.selected_profile;
+                let row_style = if is_selected {
+                    Style::default().bg(Color::Rgb(30, 45, 60))
                 } else {
-                    Span::styled("○ UNREACHABLE", Style::default().fg(Color::Red))
-                }),
-                Cell::from(Span::styled(&route.quota_display, Style::default().fg(Color::Gray))),
-                Cell::from(Span::styled(&route.agents_assigned, Style::default().fg(Color::DarkGray))),
-            ])
-            .style(row_style)
-        })
-        .collect();
+                    Style::default()
+                };
+                let quota_summary = app
+                    .headroom
+                    .quota_windows
+                    .iter()
+                    .find(|q| q.profile_id == prof.id)
+                    .map(|q| format!("{} ({})", q.window_kind, q.plan_label))
+                    .unwrap_or_else(|| "Read-only".into());
 
-    let widths = [
-        Constraint::Length(14),
-        Constraint::Length(21),
-        Constraint::Length(28),
-        Constraint::Length(22),
-        Constraint::Length(14),
-        Constraint::Length(14),
-        Constraint::Min(20),
-    ];
+                Row::new(vec![
+                    Cell::from(Span::styled(&prof.instance_label, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+                    Cell::from(Span::styled(&prof.provider_id, Style::default().fg(Color::White))),
+                    Cell::from(Span::styled(&prof.model_id, Style::default().fg(Color::Yellow))),
+                    Cell::from(Span::styled(&prof.thinking_effort, Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD))),
+                    Cell::from(if prof.enabled {
+                        Span::styled("● ENABLED", Style::default().fg(Color::Green))
+                    } else {
+                        Span::styled("○ DISABLED", Style::default().fg(Color::DarkGray))
+                    }),
+                    Cell::from(Span::styled(format!("p{} / w{}", prof.priority, prof.weight), Style::default().fg(Color::Gray))),
+                    Cell::from(Span::styled(quota_summary, Style::default().fg(Color::Green))),
+                ])
+                .style(row_style)
+            })
+            .collect();
 
-    let table = Table::new(rows, widths)
-        .header(header_row)
-        .block(table_block);
+        let widths = [
+            Constraint::Length(18),
+            Constraint::Length(14),
+            Constraint::Length(26),
+            Constraint::Length(10),
+            Constraint::Length(12),
+            Constraint::Length(16),
+            Constraint::Min(18),
+        ];
+        let table = Table::new(rows, widths).header(header_row).block(table_block);
+        f.render_widget(table, chunks[2]);
+    } else {
+        let header_row = Row::new(vec![
+            Cell::from("Provider").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("Account").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("Target Upstream URL").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("Virtual Prefix").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("Health (/livez)").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("Quota Usage").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Cell::from("Assigned Agents").style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        ])
+        .bottom_margin(1);
 
-    f.render_widget(table, chunks[2]);
+        let rows: Vec<Row> = app
+            .headroom
+            .routes
+            .iter()
+            .enumerate()
+            .map(|(idx, route)| {
+                let is_selected = idx == app.headroom.selected_route;
+                let row_style = if is_selected {
+                    Style::default().bg(Color::Rgb(30, 45, 60))
+                } else {
+                    Style::default()
+                };
+
+                let tier_style = match route.tier_badge.as_str() {
+                    "[BYOK]" | "[API-KEY]" | "[OAUTH]" => {
+                        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                    }
+                    "[FREE-TIER]" => Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                    _ => Style::default().fg(Color::DarkGray),
+                };
+
+                Row::new(vec![
+                    Cell::from(Span::styled(&route.provider, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
+                    Cell::from(Span::styled(&route.tier_badge, tier_style)),
+                    Cell::from(Span::styled(&route.target_url, Style::default().fg(Color::White))),
+                    Cell::from(Span::styled(&route.virtual_prefix, Style::default().fg(Color::Yellow))),
+                    Cell::from(if route.healthy {
+                        Span::styled("● OK (200)", Style::default().fg(Color::Green))
+                    } else {
+                        Span::styled("○ UNREACHABLE", Style::default().fg(Color::Red))
+                    }),
+                    Cell::from(Span::styled(&route.quota_display, Style::default().fg(Color::Gray))),
+                    Cell::from(Span::styled(&route.agents_assigned, Style::default().fg(Color::DarkGray))),
+                ])
+                .style(row_style)
+            })
+            .collect();
+
+        let widths = [
+            Constraint::Length(14),
+            Constraint::Length(16),
+            Constraint::Length(28),
+            Constraint::Length(22),
+            Constraint::Length(14),
+            Constraint::Length(14),
+            Constraint::Min(20),
+        ];
+
+        let table = Table::new(rows, widths)
+            .header(header_row)
+            .block(table_block);
+
+        f.render_widget(table, chunks[2]);
+    }
 
     // Section 4: Action Buttons Bar
     let btn_block = Block::default()
@@ -197,17 +266,27 @@ pub fn render_headroom_view(f: &mut Frame, area: Rect, app: &App) {
         .constraints([
             Constraint::Length(22),
             Constraint::Length(20),
-            Constraint::Min(10),
+            Constraint::Length(22),
+            Constraint::Length(16),
+            Constraint::Min(4),
         ])
         .split(btn_block.inner(btn_area));
 
-    crate::tui::widgets::Button::new("Test Cache Align (c)")
+    crate::tui::widgets::Button::new("Refresh Models (m)")
         .style(crate::tui::widgets::ButtonStyle::Primary)
         .render(btn_sub[0], f.buffer_mut());
 
-    crate::tui::widgets::Button::new("Reload Routes (r)")
-        .style(crate::tui::widgets::ButtonStyle::Neutral)
+    crate::tui::widgets::Button::new("Cycle Effort (e)")
+        .style(crate::tui::widgets::ButtonStyle::Success)
         .render(btn_sub[1], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Test Cache Align (c)")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[2], f.buffer_mut());
+
+    crate::tui::widgets::Button::new("Reload (r)")
+        .style(crate::tui::widgets::ButtonStyle::Neutral)
+        .render(btn_sub[3], f.buffer_mut());
 
     f.render_widget(btn_block, btn_area);
 }

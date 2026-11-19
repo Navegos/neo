@@ -99,7 +99,7 @@ pub fn render_logs_view(f: &mut Frame, area: Rect, app: &App) {
 
     let log_block = Block::default()
         .title(format!(
-            " [Tab 6] Real-Time Diagnostic Stream ({} events) ",
+            " [Tab 7] System Controls & Diagnostic Stream ({} events) ",
             total_lines
         ))
         .borders(Borders::ALL)
@@ -120,23 +120,32 @@ pub fn render_logs_view(f: &mut Frame, area: Rect, app: &App) {
     let btn_sub = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
+            Constraint::Length(24),
             Constraint::Length(22),
             Constraint::Length(18),
             Constraint::Min(10),
         ])
         .split(btn_block.inner(btn_area));
 
-    crate::tui::widgets::Button::new(if app.logs.follow { "Pause Follow (f)" } else { "Resume Follow (f)" })
-        .style(if app.logs.follow {
-            crate::tui::widgets::ButtonStyle::Success
+    crate::tui::widgets::Button::new(if app.monitor.daemon_up { "Daemon Stop (s)" } else { "Daemon Start (s)" })
+        .style(if app.monitor.daemon_up {
+            crate::tui::widgets::ButtonStyle::Warning
         } else {
-            crate::tui::widgets::ButtonStyle::Neutral
+            crate::tui::widgets::ButtonStyle::Success
         })
         .render(btn_sub[0], f.buffer_mut());
 
+    crate::tui::widgets::Button::new(if app.logs.follow { "Pause Follow (f)" } else { "Resume Follow (f)" })
+        .style(if app.logs.follow {
+            crate::tui::widgets::ButtonStyle::Primary
+        } else {
+            crate::tui::widgets::ButtonStyle::Neutral
+        })
+        .render(btn_sub[1], f.buffer_mut());
+
     crate::tui::widgets::Button::new("Clear Buffer (c)")
         .style(crate::tui::widgets::ButtonStyle::Danger)
-        .render(btn_sub[1], f.buffer_mut());
+        .render(btn_sub[2], f.buffer_mut());
 
     f.render_widget(btn_block, btn_area);
 }

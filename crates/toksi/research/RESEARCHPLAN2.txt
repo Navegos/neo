@@ -449,3 +449,5 @@ we add, edit, reedit, modify, import, convert, update, extend, fix, all things c
 Please reorganize, all PLANS's, fort the best solution for unified of all tools and analyser in one toksi with Super Intelligence agent.
 
 If we are missing some implementations, features, addons, plugins to acomplish our unified, tools, agent, analyser, please research and add-it in our PLAN's.
+
+We are running in toksi environment and we need to make sure that all test that needs toksi tests to run, to not interfere with the running tooksi, so the best options for necessary toksi tests that interfere with running toksi, its running in a sandbox or docker environment with the required packages for a sucess running tests.
