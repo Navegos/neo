@@ -677,6 +677,10 @@ fn resolve_candidates_for_request(
             {
                 let mut cand = RouteCandidate::for_provider(pid, &p.model_id);
                 cand.priority = p.priority.max(0) as u32;
+                let trimmed_base = p.base_url.trim();
+                if !trimmed_base.is_empty() {
+                    cand.base_url = Some(trimmed_base.trim_end_matches('/').to_string());
+                }
                 candidates.push(cand);
             }
         }

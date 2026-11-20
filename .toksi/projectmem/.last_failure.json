@@ -1,6 +1,6 @@
 {
   "command": "cargo check --workspace",
-  "root_cause": "error[E0609]: no field `is_enabled` on type `db::schema::ByokProfileRecord`",
-  "raw_output": "    Checking toksi v3.0.13 (D:\\AI\\neo\\crates\\toksi)\nerror[E0609]: no field `is_enabled` on type `db::schema::ByokProfileRecord`\n   --> crates\\toksi\\src\\gateway\\server.rs:674:18\n    |\n674 |             if p.is_enabled\n    |                  ^^^^^^^^^^ unknown field\n    |\n    = note: available fields are: `id`, `provider_id`, `instance_label`, `model_id`, `thinking_effort` ... and 11 others\n\nFor more information about this error, try `rustc --explain E0609`.\nerror: could not compile `toksi` (lib) due to 1 previous error\n",
-  "timestamp": "2026-11-20T19:55:57Z"
+  "root_cause": "error[E0425]: cannot find value `cached_read` in this scope",
+  "raw_output": "    Checking toksi v3.0.13 (D:\\AI\\neo\\crates\\toksi)\nerror[E0425]: cannot find value `cached_read` in this scope\n   --> crates\\toksi\\src\\gateway\\proxy.rs:178:13\n    |\n178 |             cached_read,\n    |             ^^^^^^^^^^^ not found in this scope\n\nFor more information about this error, try `rustc --explain E0425`.\nerror: could not compile `toksi` (lib) due to 1 previous error\n",
+  "timestamp": "2026-11-20T20:44:06Z"
 }

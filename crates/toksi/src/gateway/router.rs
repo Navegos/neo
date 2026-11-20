@@ -115,6 +115,8 @@ pub struct RouteCandidate {
     pub estimated_memory_bytes: u64,
     pub supports_tools: bool,
     pub supported_effort: ReasoningEffort,
+    #[serde(default)]
+    pub base_url: Option<String>,
 }
 
 impl RouteCandidate {
@@ -141,6 +143,7 @@ impl RouteCandidate {
             estimated_memory_bytes: 0,
             supports_tools: true,
             supported_effort: ReasoningEffort::Medium,
+            base_url: None,
         }
     }
 }

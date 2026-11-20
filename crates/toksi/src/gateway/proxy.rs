@@ -89,6 +89,52 @@ impl GatewayProxyOrchestrator {
         }
     }
 
+    fn resolve_candidate_endpoint(
+        explicit_endpoint: Option<&str>,
+        candidate_base_url: Option<&str>,
+        client: &dyn ProviderClient,
+    ) -> String {
+        if let Some(ep) = explicit_endpoint {
+            let trimmed = ep.trim();
+            if !trimmed.is_empty() {
+                return trimmed.to_string();
+            }
+        }
+        if let Some(base) = candidate_base_url {
+            let trimmed = base.trim().trim_end_matches('/');
+            if !trimmed.is_empty() {
+                if trimmed.ends_with("/chat/completions")
+                    || trimmed.ends_with("/messages")
+                    || trimmed.ends_with("/responses")
+                    || trimmed.ends_with("/embeddings")
+                    || trimmed.contains(":generateContent")
+                {
+                    return trimmed.to_string();
+                }
+                if client.id() == ProviderId::Anthropic {
+                    if trimmed.ends_with("/v1") {
+                        return format!("{}/messages", trimmed);
+                    }
+                    return format!("{}/v1/messages", trimmed);
+                }
+                return format!("{}/chat/completions", trimmed);
+            }
+        }
+        client.endpoint()
+    }
+
+    fn emit_headroom_telemetry(hr_stats: &crate::headroom::effort::EffortCompressionStats) {
+        if hr_stats.bytes_saved > 0 || hr_stats.mcp_tools_pruned > 0 {
+            crate::telemetry::collector::try_send_telemetry_event(
+                crate::telemetry::collector::TelemetryEvent::HeadroomOptimization {
+                    raw_bytes: hr_stats.original_bytes,
+                    compressed_bytes: hr_stats.compressed_bytes,
+                    pruned_tools: hr_stats.mcp_tools_pruned,
+                },
+            );
+        }
+    }
+
     fn resolve_key(&self, provider: ProviderId, explicit_key: Option<&str>) -> Result<String, String> {
         if let Some(k) = explicit_key {
             let trimmed = k.trim();
@@ -125,13 +171,6 @@ impl GatewayProxyOrchestrator {
             .record_tokens(session_id, total_tokens)
             .map_err(|e| format!("Circuit breaker triggered: {:?}", e))?;
 
-        let real_cost = calculate_cost(
-            &parsed.model,
-            parsed.input_tokens as u64,
-            parsed.output_tokens as u64,
-            0,
-        );
-
         let cached_read = parsed
             .raw
             .get("usage")
@@ -141,6 +180,43 @@ impl GatewayProxyOrchestrator {
                         .and_then(|d| d.get("cached_tokens"))
                 })
             })
+            .or_else(|| {
+                parsed
+                    .raw
+                    .get("usageMetadata")
+                    .and_then(|m| m.get("cachedContentTokenCount"))
+            })
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+
+        let real_cost = calculate_cost(
+            &parsed.model,
+            parsed.input_tokens as u64,
+            parsed.output_tokens as u64,
+            cached_read,
+        );
+
+        let reasoning_tokens = parsed
+            .raw
+            .get("usage")
+            .and_then(|u| {
+                u.get("completion_tokens_details")
+                    .or_else(|| u.get("output_tokens_details"))
+                    .and_then(|d| d.get("reasoning_tokens"))
+            })
+            .or_else(|| {
+                parsed
+                    .raw
+                    .get("usageMetadata")
+                    .and_then(|m| m.get("thoughtsTokenCount"))
+            })
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+
+        let cache_creation_tokens = parsed
+            .raw
+            .get("usage")
+            .and_then(|u| u.get("cache_creation_input_tokens"))
             .and_then(Value::as_u64)
             .unwrap_or(0);
 
@@ -153,8 +229,8 @@ impl GatewayProxyOrchestrator {
                 prompt_tokens: parsed.input_tokens as u64,
                 completion_tokens: parsed.output_tokens as u64,
                 cached_tokens: cached_read,
-                reasoning_tokens: 0,
-                cache_creation_tokens: 0,
+                reasoning_tokens,
+                cache_creation_tokens,
                 saved_tokens: 0,
             },
             latency_ms as u64,
@@ -235,11 +311,12 @@ impl GatewayProxyOrchestrator {
         } else {
             "/v1/chat/completions"
         };
-        let _hr_stats = HeadroomEffortCompressor::gateway_default().compress_json_payload(
+        let hr_stats = HeadroomEffortCompressor::gateway_default().compress_json_payload(
             headroom_path,
             &[],
             payload,
         );
+        Self::emit_headroom_telemetry(&hr_stats);
 
         let prompt_str = payload.to_string();
         if let Some(cached_resp) = self.lookup_cache(provider.as_str(), &prompt_str) {
@@ -367,11 +444,12 @@ impl GatewayProxyOrchestrator {
             }
             None => Vec::new(),
         };
-        let _hr_stats = HeadroomEffortCompressor::gateway_default().compress_json_payload(
+        let hr_stats = HeadroomEffortCompressor::gateway_default().compress_json_payload(
             "/v1/chat/completions",
             &effort_headers,
             payload,
         );
+        Self::emit_headroom_telemetry(&hr_stats);
         let prompt_str = payload.to_string();
 
         let ranked = self
@@ -434,9 +512,11 @@ impl GatewayProxyOrchestrator {
 
             let client = build_provider_client(provider);
             let req_formatted = client.format_request(&unified_req);
-            let endpoint = explicit_endpoint
-                .map(str::to_string)
-                .unwrap_or_else(|| client.endpoint());
+            let endpoint = Self::resolve_candidate_endpoint(
+                explicit_endpoint,
+                route.candidate.base_url.as_deref(),
+                client.as_ref(),
+            );
             let is_loopback = endpoint.starts_with("http://127.0.0.1")
                 || endpoint.starts_with("http://localhost");
             let dispatch_client = if is_loopback {
@@ -561,11 +641,12 @@ impl GatewayProxyOrchestrator {
             }
             None => Vec::new(),
         };
-        let _hr_stats = HeadroomEffortCompressor::gateway_default().compress_json_payload(
+        let hr_stats = HeadroomEffortCompressor::gateway_default().compress_json_payload(
             "/v1/chat/completions",
             &effort_headers,
             payload,
         );
+        Self::emit_headroom_telemetry(&hr_stats);
 
         let ranked = self
             .router
@@ -603,9 +684,11 @@ impl GatewayProxyOrchestrator {
 
             let client = build_provider_client(provider);
             let req_formatted = client.format_request(&unified_req);
-            let endpoint = explicit_endpoint
-                .map(str::to_string)
-                .unwrap_or_else(|| client.endpoint());
+            let endpoint = Self::resolve_candidate_endpoint(
+                explicit_endpoint,
+                route.candidate.base_url.as_deref(),
+                client.as_ref(),
+            );
             let is_loopback = endpoint.starts_with("http://127.0.0.1")
                 || endpoint.starts_with("http://localhost");
             let dispatch_client = if is_loopback {

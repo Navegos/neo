@@ -1766,7 +1766,10 @@ fn record_byok_upstream_telemetry(
     elapsed_ms: u64,
 ) {
     let usage = parser.total_usage();
-    let _limits = crate::telemetry::extract_provider_rate_limits(hdr_pairs);
+    let now_epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
     let model = serde_json::from_slice::<serde_json::Value>(req_body)
         .ok()
         .and_then(|v| v.get("model").and_then(|m| m.as_str()).map(|s| s.to_string()))
@@ -1782,6 +1785,20 @@ fn record_byok_upstream_telemetry(
     } else {
         "openai"
     };
+    let windows = crate::telemetry::tokentracker::extract_quota_windows(
+        provider,
+        "byok-proxy",
+        hdr_pairs,
+        now_epoch,
+    );
+    if !windows.is_empty()
+        && let Ok(arc) = crate::db::shared_db()
+        && let Ok(mut db) = arc.lock()
+    {
+        for w in &windows {
+            let _ = db.upsert_quota_window(w);
+        }
+    }
     if usage.prompt_tokens > 0
         || usage.completion_tokens > 0
         || usage.cached_tokens > 0
@@ -1974,6 +1991,7 @@ pub async fn forward_streaming_to_byok_target(
                 || low.contains("application/x-ndjson")
                 || (low.contains("stream") && path_low.contains("stream"))
                 || (low.contains("grpc") && (path_low.contains("stream") || path_low.contains("task")))
+                || ((low.contains("connect+proto") || low.contains("grpc")) && resp.content_length().is_none())
             {
                 is_stream = true;
             }

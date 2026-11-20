@@ -213,3 +213,139 @@ async fn test_phase17_6_gateway_real_dispatch_and_sse_accounting() {
     gw_handle.shutdown();
     upstream_task.abort();
 }
+
+#[test]
+fn test_phase17_6_sse_anthropic_cache_creation_reasoning_and_gemini() {
+    let mut parser = SseStreamTokenParser::new();
+    let lines = [
+        r#"data: {"type":"message_start","message":{"usage":{"input_tokens":120,"cache_creation_input_tokens":45,"cache_read_input_tokens":30}}}"#,
+        r#"data: {"type":"message_delta","usage":{"output_tokens":25}}"#,
+    ];
+    for line in lines {
+        let _ = parser.feed_line(line);
+    }
+    let u = parser.total_usage();
+    assert_eq!(u.prompt_tokens, 120);
+    assert_eq!(u.completion_tokens, 25);
+    assert_eq!(u.cached_tokens, 30);
+    assert_eq!(u.cache_creation_tokens, 45);
+
+    let mut oai_parser = SseStreamTokenParser::new();
+    let _ = oai_parser.feed_line(
+        r#"data: {"usage":{"prompt_tokens":50,"completion_tokens":40,"completion_tokens_details":{"reasoning_tokens":18}}}"#,
+    );
+    let oai_u = oai_parser.total_usage();
+    assert_eq!(oai_u.reasoning_tokens, 18);
+
+    let mut gem_parser = SseStreamTokenParser::new();
+    let _ = gem_parser.feed_line(
+        r#"data: {"usageMetadata":{"promptTokenCount":80,"candidatesTokenCount":35,"thoughtsTokenCount":12,"cachedContentTokenCount":10}}"#,
+    );
+    let gem_u = gem_parser.total_usage();
+    assert_eq!(gem_u.prompt_tokens, 80);
+    assert_eq!(gem_u.completion_tokens, 35);
+    assert_eq!(gem_u.reasoning_tokens, 12);
+    assert_eq!(gem_u.cached_tokens, 10);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_phase17_6_connectrpc_binary_frame_roundtrip() {
+    let upstream_listener = TcpListener::bind("127.0.0.1:0").await.expect("bind upstream");
+    let upstream_port = upstream_listener.local_addr().expect("local addr").port();
+
+    // Binary ConnectRPC envelope: 1 byte flags (0x00) + 4 byte big-endian length (5) + 5 raw non-UTF8 bytes
+    let expected_frame: Vec<u8> = vec![0x00, 0x00, 0x00, 0x00, 0x05, 0x08, 0xff, 0xfe, 0x01, 0x2a];
+    let upstream_frame = expected_frame.clone();
+
+    let upstream_task = tokio::spawn(async move {
+        if let Ok((mut sock, _)) = upstream_listener.accept().await {
+            let mut buf = [0u8; 4096];
+            let _ = sock.read(&mut buf).await;
+            let header = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/connect+proto\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                upstream_frame.len()
+            );
+            let _ = sock.write_all(header.as_bytes()).await;
+            let _ = sock.write_all(&upstream_frame).await;
+        }
+    });
+
+    let proxy_listener = TcpListener::bind("127.0.0.1:0").await.expect("bind proxy");
+    let proxy_port = proxy_listener.local_addr().expect("proxy addr").port();
+    let upstream_base = format!("http://127.0.0.1:{}", upstream_port);
+
+    let proxy_task = tokio::spawn(async move {
+        if let Ok((mut client_stream, _)) = proxy_listener.accept().await {
+            let mut raw = Vec::new();
+            let mut buf = [0u8; 4096];
+            let mut hdr_end = None;
+            while hdr_end.is_none() {
+                let n = client_stream.read(&mut buf).await.unwrap_or(0);
+                if n == 0 {
+                    break;
+                }
+                raw.extend_from_slice(&buf[..n]);
+                if let Some(pos) = raw.windows(4).position(|w| w == b"\r\n\r\n") {
+                    hdr_end = Some(pos + 4);
+                }
+            }
+            if let Some(end) = hdr_end {
+                let head_str = String::from_utf8_lossy(&raw[..end]);
+                let mut lines = head_str.lines();
+                let req_line = lines.next().unwrap_or("");
+                let mut parts = req_line.split_whitespace();
+                let method = parts.next().unwrap_or("POST").to_string();
+                let path = parts.next().unwrap_or("/").to_string();
+                let mut headers = Vec::new();
+                let mut content_len = 0usize;
+                for line in lines {
+                    if let Some((k, v)) = line.split_once(':') {
+                        let key = k.trim().to_string();
+                        let val = v.trim().to_string();
+                        if key.eq_ignore_ascii_case("content-length") {
+                            content_len = val.parse().unwrap_or(0);
+                        }
+                        headers.push((key, val));
+                    }
+                }
+                while raw.len() < end + content_len {
+                    let n = client_stream.read(&mut buf).await.unwrap_or(0);
+                    if n == 0 {
+                        break;
+                    }
+                    raw.extend_from_slice(&buf[..n]);
+                }
+                let body = raw[end..raw.len().min(end + content_len)].to_vec();
+                let _ = toksi::headroom::byok_gateway::forward_streaming_to_byok_target(
+                    &upstream_base,
+                    &method,
+                    &path,
+                    None,
+                    &headers,
+                    &body,
+                    &mut client_stream,
+                )
+                .await;
+            }
+        }
+    });
+
+    let client = reqwest::Client::builder().no_proxy().build().expect("client");
+    let resp = client
+        .post(format!(
+            "http://127.0.0.1:{}/google.internal.cloud.code.v1internal.CodeService/StreamGenerate",
+            proxy_port
+        ))
+        .header("Content-Type", "application/connect+proto")
+        .header("Connect-Protocol-Version", "1")
+        .body(expected_frame.clone())
+        .send()
+        .await
+        .expect("connectrpc roundtrip");
+    assert_eq!(resp.status().as_u16(), 200);
+    let body = resp.bytes().await.expect("bytes");
+    assert_eq!(body.as_ref(), expected_frame.as_slice());
+
+    proxy_task.abort();
+    upstream_task.abort();
+}

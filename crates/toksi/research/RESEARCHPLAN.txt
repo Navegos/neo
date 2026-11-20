@@ -460,9 +460,15 @@ we add, edit, reedit, modify, import, convert, update, extend, fix, all things c
 
 Please reorganize, all PLANS's, fort the best solution for unified of all tools and analyser in one toksi with Super Intelligence agent.
 
-If we are missing some implementations, features, addons, plugins to acomplish our unified, tools, agent, analyser, please research and add-it in our PLAN's.
+If we are missing some implementations, features, addons, plugins to acomplish our unified, tools, agent, analyser, please research and implemente in our PLANs.
 
 We are running in toksi environment and we need to make sure that all test that needs toksi tests to run, to not interfere with the original running tooksi and services, so the best options for necessary toksi tests that interfere with running toksi, its running in a sandbox or docker environment with the required packages for a sucess running tests.
 
-we are not copying files from <neo>/inspect-vault/ that are not necessary for toksi or agents, and we absolutely are not copying scripts, bash, yaml actions, we dont want to pollute our repo with unnecessary files. And all files that we are using from <neo>/inspect-vault/ must be adapted for our <neo> toksi repo, and if you find files in our repo that are not adapted or not supposed to our <neo> toksi repo must be fixed, removed, and or healed.
+We are making sure that daemon start all toksi services correctly and that each toksi service Network Port as a dedicated toksi process, this way we splitting threeading process dedicated for each toksi process Network Port, making sure that all toksi service process direct-wire each other correctly and our toksi siagent service process also direct-wires to all of them correctly. 
+
+we are not copying files from <neo>/inspect-vault/ that are not necessary for toksi or agents, and we absolutely are not copying scripts, bash, yaml actions, we dont want to polute our repo with unnecessary files. And all files that we are using from <neo>/inspect-vault/ must be adapted for our <neo> toksi repo, and if you find files in our repo <neo> toksi that are not adapted or not supposed for our repo <neo> toksi it must be fixed, removed, and or healed.
+
+We are marking wat its deep research done, plan done, plan implemented, plan fixed, missing deep research, plan not done, plan unimplemented, plan needs fix, in <repo>/.agents/brain/*.md, reorganize the plans methods, for continuation of the implementation of our plans, and also making sure all of our plans are updated for every prompt finish, <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, <repo>/.agents/brain/*.md.
+
+Wen need to reorganize our research ideas and PLANS, implementation order, research ideas consolidation, for better agent follow up, <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, <repo>/.agents/brain/*.md, <repo>/crates/toksi/RESEARCHPLAN.md, <repo>/crates/toksi/RESEARCHPLAN.txt.
 
