@@ -195,6 +195,23 @@ impl DirectWireBus {
         })
     }
 
+    pub fn intercept_slash_command(&self, agent_id: &str, input: &str) -> Option<String> {
+        let res = crate::agent_runtime::global_slash_engine().execute(input, agent_id);
+        if res.handled {
+            let _ = self.sender.send(DirectWireEvent {
+                event_type: "slash_intercepted".to_string(),
+                source_agent: agent_id.to_string(),
+                target: res.command.clone(),
+                action: "execute".to_string(),
+                payload: serde_json::json!({ "elapsed_us": res.elapsed_us }),
+                timestamp_ms: chrono::Utc::now().timestamp_millis(),
+            });
+            Some(res.output)
+        } else {
+            None
+        }
+    }
+
     pub fn status(&self) -> Value {
         let agents = self.list_agents();
         let direct_count = agents

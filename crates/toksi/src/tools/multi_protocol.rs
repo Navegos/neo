@@ -861,6 +861,18 @@ impl MultiProtocolDispatcher {
     }
 
     fn dispatch_context(&self, req: &UnifiedRequest, root: &Path) -> UnifiedResponse {
+        if req.action == "status" {
+            let norm = normalize_path(&root.to_string_lossy());
+            let db_exists = root.join(".toksi").join("context").join("context.db").exists();
+            let res = serde_json::json!({
+                "status": "ok",
+                "tool": "context",
+                "workspace": norm,
+                "db_initialized": db_exists,
+            });
+            let text = serde_json::to_string(&res).ok();
+            return UnifiedResponse::success(req.protocol, req.tool, res, text);
+        }
         let server = crate::contextmode::mcp::ContextMcpServer::new(Some(root.to_path_buf()));
         let res = server.execute_tool(&req.action, &req.payload);
         UnifiedResponse::success(
@@ -1166,10 +1178,12 @@ impl MultiProtocolDispatcher {
                 )
             }
             "status" => {
+                let mgr = crate::agent_runtime::sandbox::global_sandbox_manager();
                 let res = serde_json::json!({
                     "status": "ok",
                     "workspace": normalize_path(&root.to_string_lossy()),
-                    "backends": ["native-process", "contextmode-sandbox"],
+                    "backends": ["native", "sandbox-runtime", "openshell", "e2b", "sbx"],
+                    "instances": mgr.list().len(),
                 });
                 let text = serde_json::to_string(&res).ok();
                 UnifiedResponse::success(req.protocol, req.tool, res, text)
@@ -1183,18 +1197,37 @@ impl MultiProtocolDispatcher {
     }
 
     fn dispatch_plugins(&self, req: &UnifiedRequest, root: &Path) -> UnifiedResponse {
+        let reg = crate::plugins::global_plugin_registry();
         match req.action.as_str() {
             "status" | "list" => {
                 let wire_status = super::direct_wire::global_direct_wire_bus().status();
+                let plugins = reg.list();
                 let res = serde_json::json!({
                     "status": "ok",
                     "workspace": normalize_path(&root.to_string_lossy()),
                     "direct_wire": wire_status,
+                    "plugins_count": plugins.len(),
+                    "plugins": plugins,
                     "wiring_modes": ["direct-wired", "config-wired"],
                     "protocols": ["mcp", "a2a", "acp", "stdio", "sse", "http", "directwire"],
                 });
                 let text = serde_json::to_string(&res).ok();
                 UnifiedResponse::success(req.protocol, req.tool, res, text)
+            }
+            "load" | "enable" => {
+                let id = req.payload.get("id").and_then(Value::as_str).unwrap_or("");
+                match reg.load(id) {
+                    Ok(p) => UnifiedResponse::success(req.protocol, req.tool, serde_json::json!(p), None),
+                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, e),
+                }
+            }
+            "unload" | "disable" => {
+                let id = req.payload.get("id").and_then(Value::as_str).unwrap_or("");
+                let res = if req.action == "disable" { reg.disable(id) } else { reg.unload(id) };
+                match res {
+                    Ok(p) => UnifiedResponse::success(req.protocol, req.tool, serde_json::json!(p), None),
+                    Err(e) => UnifiedResponse::error(req.protocol, req.tool, e),
+                }
             }
             other => UnifiedResponse::error(
                 req.protocol,

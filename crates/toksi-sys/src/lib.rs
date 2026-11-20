@@ -13,6 +13,7 @@
 
 pub mod console;
 pub mod process;
+pub mod sandbox;
 pub mod windows_cred;
 pub mod windows_env;
 
@@ -35,6 +36,9 @@ pub enum SysError {
 
     #[error("Unsupported platform operation: {0}")]
     UnsupportedPlatform(&'static str),
+
+    #[error("Sandbox execution error: {0}")]
+    Sandbox(String),
 }
 
 impl SysError {

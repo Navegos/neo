@@ -30,6 +30,11 @@ pub fn run_agent_cli(args: &[String]) -> i32 {
         "remove" => handle_remove(rest),
         "edit" => handle_edit(rest),
         "list" => handle_list(),
+        "chat" => super::agent_runtime::run_chat_cli(rest),
+        "run" => super::agent_runtime::run_runtime_run_cli(rest),
+        "exec" => super::agent_runtime::run_runtime_exec_cli(rest),
+        "swarm" => super::agent_runtime::run_runtime_swarm_cli(rest),
+        "resume" => super::agent_runtime::run_runtime_resume_cli(rest),
         "-h" | "--help" | "help" => {
             print_agent_help();
             0

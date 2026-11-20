@@ -1,0 +1,133 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+// project: neo
+// file: crates/toksi/src/commands/agent_runtime.rs
+// created: 2026-11-20
+// lastModified: 2026-11-20
+
+//! CLI handlers for `toksi chat`, `toksi run`, `toksi exec`, `toksi swarm`,
+//! and `toksi agent chat|run|exec|swarm|resume`.
+
+#![deny(unsafe_code)]
+
+use std::path::PathBuf;
+
+use crate::agent_runtime::AgentRuntimeEngine;
+use crate::util::colors::C;
+
+fn workspace_from_args(args: &[String]) -> (PathBuf, Vec<String>) {
+    let mut root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut rest = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        if (args[i] == "--workspace" || args[i] == "-w") && i + 1 < args.len() {
+            root = PathBuf::from(&args[i + 1]);
+            i += 2;
+            continue;
+        }
+        if let Some(val) = args[i].strip_prefix("--workspace=") {
+            root = PathBuf::from(val);
+            i += 1;
+            continue;
+        }
+        rest.push(args[i].clone());
+        i += 1;
+    }
+    (root, rest)
+}
+
+pub fn run_chat_cli(args: &[String]) -> i32 {
+    let (root, _) = workspace_from_args(args);
+    let mut engine = AgentRuntimeEngine::new(root, "toksi-cli");
+    engine.run_chat_repl()
+}
+
+pub fn run_runtime_run_cli(args: &[String]) -> i32 {
+    let (root, rest) = workspace_from_args(args);
+    let prompt = rest.join(" ").trim().to_string();
+    if prompt.is_empty() {
+        eprintln!("Usage: toksi run \"<prompt>\" [--workspace <path>]");
+        return 1;
+    }
+    let mut engine = AgentRuntimeEngine::new(root, "toksi-cli");
+    match engine.run_single_shot(&prompt) {
+        Ok(rep) => {
+            println!("{}", rep.output);
+            0
+        }
+        Err(e) => {
+            eprintln!("{} {}", C.red("Error:"), e);
+            1
+        }
+    }
+}
+
+pub fn run_runtime_exec_cli(args: &[String]) -> i32 {
+    let (root, rest) = workspace_from_args(args);
+    let cmd = rest.join(" ").trim().to_string();
+    if cmd.is_empty() {
+        eprintln!("Usage: toksi exec \"<command>\" [--workspace <path>]");
+        return 1;
+    }
+    let mut engine = AgentRuntimeEngine::new(root, "toksi-sandbox");
+    match engine.run_sandboxed_exec(&cmd) {
+        Ok(rep) => {
+            println!("{}", rep.output);
+            0
+        }
+        Err(e) => {
+            eprintln!("{} {}", C.red("Sandbox Error:"), e);
+            1
+        }
+    }
+}
+
+pub fn run_runtime_swarm_cli(args: &[String]) -> i32 {
+    let (root, rest) = workspace_from_args(args);
+    let goal = rest.join(" ").trim().to_string();
+    if goal.is_empty() {
+        eprintln!("Usage: toksi swarm \"<goal>\" [--workspace <path>]");
+        return 1;
+    }
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Tokio runtime init error: {}", e);
+            return 1;
+        }
+    };
+    let mut engine = AgentRuntimeEngine::new(root, "toksi-swarm");
+    match rt.block_on(engine.run_swarm(&goal)) {
+        Ok(rep) => {
+            println!("{}", rep.output);
+            0
+        }
+        Err(e) => {
+            eprintln!("{} {}", C.red("Swarm Error:"), e);
+            1
+        }
+    }
+}
+
+pub fn run_runtime_resume_cli(args: &[String]) -> i32 {
+    let (root, rest) = workspace_from_args(args);
+    let plan_id = rest.first().map(|s| s.as_str()).unwrap_or("");
+    if plan_id.is_empty() {
+        let out = crate::agent_runtime::global_slash_engine()
+            .execute("/resume", "toksi-cli")
+            .output;
+        println!("{}", out);
+        return 0;
+    }
+    let mut engine = AgentRuntimeEngine::new(root, "toksi-cli");
+    match engine.resume_plan(plan_id) {
+        Ok(msg) => {
+            println!("{}", msg);
+            0
+        }
+        Err(e) => {
+            eprintln!("{} {}", C.red("Resume Error:"), e);
+            1
+        }
+    }
+}

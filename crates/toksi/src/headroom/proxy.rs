@@ -89,6 +89,115 @@ pub fn proxy_port() -> u16 {
     headroom_proxy_port()
 }
 
+/// Extracts the latest user prompt text from OpenAI/Anthropic/Gemini chat payloads
+/// and intercepts any of the 16 Toksi slash commands in `< 5ms` without upstream round-trips.
+pub fn try_intercept_chat_slash(path: &str, json_val: &serde_json::Value) -> Option<(String, String)> {
+    let user_text = extract_last_user_text(json_val)?;
+    let trimmed = user_text.trim();
+    if !trimmed.starts_with('/') {
+        return None;
+    }
+    let res = crate::agent_runtime::global_slash_engine().execute(trimmed, "proxy-hooked-agent");
+    if !res.handled {
+        return None;
+    }
+
+    let is_stream = json_val
+        .get("stream")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
+        || path.contains("stream");
+
+    if path.contains("/v1/messages") {
+        if is_stream {
+            let delta = serde_json::json!({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": { "type": "text_delta", "text": res.output }
+            });
+            let sse = format!(
+                "event: content_block_delta\ndata: {}\n\nevent: message_stop\ndata: {{\"type\":\"message_stop\"}}\n\n",
+                delta
+            );
+            return Some(("text/event-stream".to_string(), sse));
+        }
+        let body = serde_json::json!({
+            "id": "msg_toksi_slash",
+            "type": "message",
+            "role": "assistant",
+            "content": [{ "type": "text", "text": res.output }],
+            "stop_reason": "end_turn"
+        });
+        return Some(("application/json".to_string(), body.to_string()));
+    }
+
+    if path.contains("Content") || path.contains("gemini") {
+        let body = serde_json::json!({
+            "candidates": [{
+                "content": { "role": "model", "parts": [{ "text": res.output }] },
+                "finishReason": "STOP"
+            }]
+        });
+        return Some(("application/json".to_string(), body.to_string()));
+    }
+
+    if is_stream {
+        let chunk = serde_json::json!({
+            "id": "chatcmpl-toksi-slash",
+            "object": "chat.completion.chunk",
+            "choices": [{ "index": 0, "delta": { "role": "assistant", "content": res.output }, "finish_reason": "stop" }]
+        });
+        let sse = format!("data: {}\n\ndata: [DONE]\n\n", chunk);
+        return Some(("text/event-stream".to_string(), sse));
+    }
+
+    let body = serde_json::json!({
+        "id": "chatcmpl-toksi-slash",
+        "object": "chat.completion",
+        "choices": [{
+            "index": 0,
+            "message": { "role": "assistant", "content": res.output },
+            "finish_reason": "stop"
+        }]
+    });
+    Some(("application/json".to_string(), body.to_string()))
+}
+
+fn extract_last_user_text(json_val: &serde_json::Value) -> Option<String> {
+    if let Some(msgs) = json_val.get("messages").and_then(|v| v.as_array()) {
+        for m in msgs.iter().rev() {
+            let role = m.get("role").and_then(|v| v.as_str()).unwrap_or("");
+            if role == "user" {
+                if let Some(s) = m.get("content").and_then(|v| v.as_str()) {
+                    return Some(s.to_string());
+                }
+                if let Some(parts) = m.get("content").and_then(|v| v.as_array()) {
+                    for p in parts {
+                        if let Some(t) = p.get("text").and_then(|v| v.as_str()) {
+                            return Some(t.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if let Some(contents) = json_val.get("contents").and_then(|v| v.as_array()) {
+        for c in contents.iter().rev() {
+            if let Some(parts) = c.get("parts").and_then(|v| v.as_array()) {
+                for p in parts {
+                    if let Some(t) = p.get("text").and_then(|v| v.as_str()) {
+                        return Some(t.to_string());
+                    }
+                }
+            }
+        }
+    }
+    json_val
+        .get("input")
+        .and_then(|v| v.as_str())
+        .map(ToString::to_string)
+}
+
 pub fn proxy_url() -> String {
     headroom_proxy_url()
 }
@@ -747,6 +856,24 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
 
             if is_llm_path {
                 if let Ok(json_val) = serde_json::from_slice::<serde_json::Value>(&req.body) {
+                    if let Some((ctype, payload)) = try_intercept_chat_slash(&path, &json_val) {
+                        let headers = vec![
+                            ("Content-Type".to_string(), ctype),
+                            ("X-Toksi-Slash".to_string(), "HIT".to_string()),
+                        ];
+                        super::byok_gateway::write_http_response(
+                            &mut stream,
+                            200,
+                            "OK",
+                            &headers,
+                            payload.as_bytes(),
+                        )
+                        .await?;
+                        if is_close_requested {
+                            break;
+                        }
+                        continue;
+                    }
                     let has_prompt_body = json_val.get("messages").is_some()
                         || json_val.get("contents").is_some()
                         || json_val.get("input").is_some();

@@ -455,10 +455,35 @@ fn run() -> i32 {
     if args.len() >= 3 && args[1] == "codex-perm" && args[2] == "codex" {
         return run_codex_perm_hook();
     }
-    if args.len() >= 2 && args[1].starts_with("/codegraph") {
+    if args.len() >= 2 && args[1].starts_with('/') {
         let full = args[1..].join(" ");
-        println!("{}", toksi::codegraph::handle_slash_command(&full, None));
-        return 0;
+        let res = toksi::agent_runtime::global_slash_engine().execute(&full, "toksi-cli");
+        if res.handled {
+            println!("{}", res.output);
+            return 0;
+        }
+        if args[1].starts_with("/codegraph") {
+            println!("{}", toksi::codegraph::handle_slash_command(&full, None));
+            return 0;
+        }
+    }
+    if args.len() >= 2 && args[1] == "chat" {
+        return toksi::commands::run_chat_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "run" {
+        return toksi::commands::run_runtime_run_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "exec" {
+        return toksi::commands::run_runtime_exec_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "swarm" {
+        return toksi::commands::run_runtime_swarm_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "resume" {
+        return toksi::commands::run_runtime_resume_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "plugin" {
+        return toksi::commands::run_plugin_cli(&args[2..]);
     }
     if args.len() >= 2 && args[1] == "codegraph-hook" {
         return run_codegraph_index_hook();

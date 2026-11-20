@@ -6,6 +6,7 @@
 // lastModified: 2026-10-31
 
 pub mod agent;
+pub mod agent_runtime;
 pub mod auth;
 pub mod byok;
 pub mod codex_perm_hook;
@@ -23,6 +24,7 @@ pub mod index;
 pub mod info;
 pub mod init;
 pub mod mcp_proxy;
+pub mod plugin;
 pub mod prime;
 pub mod proxy;
 pub mod rtk;
@@ -34,6 +36,7 @@ pub mod tui;
 pub mod update;
 
 pub use agent::*;
+pub use agent_runtime::*;
 pub use auth::*;
 pub use byok::*;
 pub use codex_perm_hook::*;
@@ -51,6 +54,7 @@ pub use index::*;
 pub use info::*;
 pub use init::*;
 pub use mcp_proxy::*;
+pub use plugin::*;
 pub use prime::*;
 pub use proxy::*;
 pub use rtk::*;
