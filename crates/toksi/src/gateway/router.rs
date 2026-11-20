@@ -46,6 +46,46 @@ pub enum ReasoningEffort {
     High,
 }
 
+/// Quality gate enforced by the 7-D router and cascade failover.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QualityGate {
+    pub min_capability_score: f64,
+    pub require_non_empty: bool,
+    pub allow_tool_calls: bool,
+}
+
+impl Default for QualityGate {
+    fn default() -> Self {
+        Self {
+            min_capability_score: 0.0,
+            require_non_empty: true,
+            allow_tool_calls: true,
+        }
+    }
+}
+
+impl QualityGate {
+    pub fn passes_candidate(&self, candidate: &RouteCandidate) -> bool {
+        candidate.capability_score >= self.min_capability_score
+    }
+
+    pub fn passes_response(&self, resp: &crate::gateway::providers::UnifiedResponse) -> bool {
+        if !self.require_non_empty {
+            return true;
+        }
+        if !resp.content.trim().is_empty() {
+            return true;
+        }
+        if self.allow_tool_calls
+            && (resp.raw.get("choices").and_then(|c| c.get(0)).and_then(|c| c.get("message")).and_then(|m| m.get("tool_calls")).is_some()
+                || resp.raw.get("content").and_then(|c| c.as_array()).is_some_and(|a| !a.is_empty()))
+        {
+            return true;
+        }
+        false
+    }
+}
+
 /// Routing policy passed with each gateway inference request.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RoutingPolicy {
@@ -55,6 +95,8 @@ pub struct RoutingPolicy {
     pub max_latency_ms: Option<u32>,
     pub budget_bytes: Option<u64>,
     pub required_tools: bool,
+    #[serde(default)]
+    pub quality_gate: Option<QualityGate>,
 }
 
 /// Candidate endpoint descriptor evaluated by [`Router::route_ranked`].
@@ -153,6 +195,11 @@ impl Router {
                 }
                 if let Some(reg) = breakers {
                     if reg.is_open(c.provider) {
+                        return false;
+                    }
+                }
+                if let Some(ref gate) = policy.quality_gate {
+                    if !gate.passes_candidate(c) {
                         return false;
                     }
                 }

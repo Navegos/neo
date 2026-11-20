@@ -587,6 +587,9 @@ async fn run_supervised_daemon_async(
         None
     };
 
+    let reconnect_watchdog =
+        crate::gateway::reconnect::start_global_watchdog(Duration::from_secs(10));
+
     let fmt_state = |enabled: bool| if enabled { "active" } else { "skipped (unconfigured)" };
     L.raw(&format!(
         "  {} Supervised 8-port control plane:\n\
@@ -759,6 +762,7 @@ async fn run_supervised_daemon_async(
     }
 
     // Clean teardown of all tasks and isolated thread pools
+    reconnect_watchdog.abort();
     if let Some(t) = hr_task {
         t.abort();
     }

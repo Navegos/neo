@@ -1642,9 +1642,15 @@ pub async fn forward_to_byok_target(
 
     let req_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
     let mut req_builder = client.request(req_method.clone(), target_url);
+    let is_proto = is_proto_or_connect_request(incoming_path, headers);
     let enriched_headers = enrich_headers_with_keyring_credentials(target_base, headers);
+    let safe_headers = if is_proto {
+        crate::gateway::reconnect::AutoHealingClientPool::build_connectrpc_safe_headers(&enriched_headers)
+    } else {
+        enriched_headers
+    };
 
-    for (k, v) in &enriched_headers {
+    for (k, v) in &safe_headers {
         if k.eq_ignore_ascii_case(BYOK_ROUTE_HEADER)
             || k.eq_ignore_ascii_case("host")
             || k.eq_ignore_ascii_case("content-length")
@@ -1868,9 +1874,15 @@ pub async fn forward_streaming_to_byok_target(
 
     let req_method = reqwest::Method::from_bytes(method.as_bytes()).unwrap_or(reqwest::Method::POST);
     let mut req_builder = client.request(req_method.clone(), target_url);
+    let is_proto = is_proto_or_connect_request(incoming_path, headers);
     let enriched_headers = enrich_headers_with_keyring_credentials(target_base, headers);
+    let safe_headers = if is_proto {
+        crate::gateway::reconnect::AutoHealingClientPool::build_connectrpc_safe_headers(&enriched_headers)
+    } else {
+        enriched_headers
+    };
 
-    for (k, v) in &enriched_headers {
+    for (k, v) in &safe_headers {
         if k.eq_ignore_ascii_case(BYOK_ROUTE_HEADER)
             || k.eq_ignore_ascii_case("host")
             || k.eq_ignore_ascii_case("content-length")

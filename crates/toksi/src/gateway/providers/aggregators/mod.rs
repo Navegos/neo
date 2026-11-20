@@ -22,7 +22,7 @@ impl AggregatorProvider {
     pub fn new(provider_id: ProviderId) -> Self {
         Self {
             provider_id,
-            endpoint_url: provider_id.default_endpoint().to_string(),
+            endpoint_url: provider_id.effective_endpoint(),
         }
     }
 }
@@ -53,11 +53,27 @@ impl ProviderClient for AggregatorProvider {
     }
 
     fn format_request(&self, req: &UnifiedRequest) -> Value {
-        json!({
+        let mut messages = req.messages.clone();
+        if let Some(ref sys) = req.system {
+            if !sys.is_empty() && !messages.iter().any(|m| m.get("role").and_then(Value::as_str) == Some("system")) {
+                messages.insert(0, json!({ "role": "system", "content": sys }));
+            }
+        }
+        let mut body = json!({
             "model": req.model,
-            "messages": req.messages,
+            "messages": messages,
             "max_tokens": req.max_tokens.unwrap_or(4096),
-        })
+        });
+        if let Some(temp) = req.temperature {
+            body["temperature"] = json!(temp);
+        }
+        if let Some(stream) = req.stream {
+            body["stream"] = json!(stream);
+        }
+        if let Some(ref tools) = req.tools {
+            body["tools"] = json!(tools);
+        }
+        body
     }
 
     fn parse_response(&self, resp: &Value) -> Result<UnifiedResponse, String> {

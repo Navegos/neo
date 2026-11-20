@@ -494,6 +494,25 @@ pub fn force_network_pool_reconnect(reason: &str) -> Result<u64, NetworkHealingE
     global_healing_pool().invalidate_and_reconnect(reason)
 }
 
+/// Spawns the background OS reconnect watchdog loop for `global_healing_pool()`.
+pub fn start_global_watchdog(probe_interval: Duration) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let pool = global_healing_pool();
+        let mut interval = tokio::time::interval(probe_interval);
+        loop {
+            interval.tick().await;
+            pool.check_and_heal_sleep_wake();
+            pool.check_and_heal_interface_change();
+            if pool.status() == NetworkStatus::Degraded
+                && (pool.probe_network_connectivity("1.1.1.1:53", Duration::from_secs(1))
+                    || pool.probe_network_connectivity("8.8.8.8:53", Duration::from_secs(1)))
+            {
+                let _ = pool.invalidate_and_reconnect("network connectivity restored after degradation");
+            }
+        }
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Unit Tests
 // ---------------------------------------------------------------------------

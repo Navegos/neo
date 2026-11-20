@@ -255,7 +255,7 @@ impl BifrostProviderClient {
 
 impl Default for BifrostProviderClient {
     fn default() -> Self {
-        Self::new(ProviderId::Bifrost.default_endpoint())
+        Self::from_config()
     }
 }
 

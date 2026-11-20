@@ -260,6 +260,19 @@ async fn handle_gateway_connection(
 
         // 3. Drop-in OpenAI endpoint: /v1/chat/completions
         if path == "/v1/chat/completions" && req.method == "POST" {
+            if is_stream_requested(&req.body) {
+                stream_gateway_request(
+                    &mut stream,
+                    &req,
+                    &orchestrator,
+                    crate::gateway::providers::ProviderId::OpenAI,
+                    "gateway-default",
+                ).await?;
+                if is_close_requested {
+                    break;
+                }
+                continue;
+            }
             let (status, response) = handle_openai_chat_completions(&req, &orchestrator).await;
             let status_text = if status < 400 { "OK" } else { "Bad Gateway" };
             write_http_response(
@@ -339,6 +352,19 @@ async fn handle_gateway_connection(
 
         // 4. Drop-in Anthropic endpoint: /v1/messages
         if path == "/v1/messages" && req.method == "POST" {
+            if is_stream_requested(&req.body) {
+                stream_gateway_request(
+                    &mut stream,
+                    &req,
+                    &orchestrator,
+                    crate::gateway::providers::ProviderId::Anthropic,
+                    "gateway-anthropic",
+                ).await?;
+                if is_close_requested {
+                    break;
+                }
+                continue;
+            }
             let (status, response) = handle_anthropic_messages(&req, &orchestrator).await;
             let status_text = if status < 400 { "OK" } else { "Bad Gateway" };
             write_http_response(
@@ -468,19 +494,163 @@ fn error_json_bytes(message: &str, err_type: &str) -> Vec<u8> {
     serde_json::to_vec(&body).unwrap_or_default()
 }
 
+fn is_stream_requested(body: &[u8]) -> bool {
+    serde_json::from_slice::<Value>(body)
+        .ok()
+        .and_then(|v| v.get("stream").and_then(Value::as_bool))
+        .unwrap_or(false)
+}
+
+async fn stream_gateway_request(
+    stream: &mut TcpStream,
+    req: &ParsedHttpRequest,
+    orchestrator: &Arc<GatewayProxyOrchestrator>,
+    default_provider: crate::gateway::providers::ProviderId,
+    default_session: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use tokio::io::AsyncWriteExt;
+    let mut payload: Value = match serde_json::from_slice(&req.body) {
+        Ok(v) => v,
+        Err(e) => {
+            let err = error_json_bytes(&format!("Invalid JSON payload: {}", e), "invalid_request_error");
+            write_http_response(
+                stream,
+                400,
+                "Bad Request",
+                &[
+                    ("Content-Type".to_string(), "application/json".to_string()),
+                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+                ],
+                &err,
+            ).await?;
+            return Ok(());
+        }
+    };
+    let model = payload
+        .get("model")
+        .and_then(Value::as_str)
+        .unwrap_or("gpt-4o")
+        .to_string();
+    let vk = header_value(req, crate::gateway::governance::TOKSI_VK_HEADER);
+    let session_id = header_value(req, "x-toksi-session").unwrap_or(default_session);
+    let explicit_key = extract_auth_key(req);
+    let explicit_upstream = header_value(req, "x-toksi-upstream");
+    let candidates = resolve_candidates_for_request(req, &model, default_provider);
+    let policy = routing_policy_for_request(req, &payload);
+
+    let start_ts = std::time::Instant::now();
+    match orchestrator
+        .dispatch_stream_with_cascade_async(
+            vk,
+            explicit_key.as_deref(),
+            explicit_upstream,
+            &candidates,
+            &policy,
+            &mut payload,
+        )
+        .await
+    {
+        Ok((provider, mut resp, used_model)) => {
+            let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nTransfer-Encoding: chunked\r\nAccess-Control-Allow-Origin: *\r\nConnection: keep-alive\r\n\r\n";
+            stream.write_all(head.as_bytes()).await?;
+            stream.flush().await?;
+
+            let mut sse_parser = crate::telemetry::SseStreamTokenParser::new();
+            let mut line_buf = String::new();
+            while let Some(chunk) = resp.chunk().await.ok().flatten() {
+                if chunk.is_empty() {
+                    continue;
+                }
+                let text = String::from_utf8_lossy(&chunk);
+                line_buf.push_str(&text);
+                while let Some(pos) = line_buf.find('\n') {
+                    let line = line_buf[..pos].to_string();
+                    line_buf.drain(..=pos);
+                    let _ = sse_parser.feed_line(&line);
+                }
+                let chunk_header = format!("{:x}\r\n", chunk.len());
+                stream.write_all(chunk_header.as_bytes()).await?;
+                stream.write_all(&chunk).await?;
+                stream.write_all(b"\r\n").await?;
+                stream.flush().await?;
+            }
+            if !line_buf.trim().is_empty() {
+                let _ = sse_parser.feed_line(&line_buf);
+            }
+            let usage = sse_parser.total_usage();
+            if usage.prompt_tokens > 0
+                || usage.completion_tokens > 0
+                || usage.cached_tokens > 0
+                || usage.cache_creation_tokens > 0
+            {
+                let _ = crate::telemetry::tokentracker::global_token_tracker().record_usage(
+                    session_id,
+                    "gateway",
+                    provider.as_str(),
+                    &used_model,
+                    usage,
+                    start_ts.elapsed().as_millis() as u64,
+                );
+            }
+            stream.write_all(b"0\r\n\r\n").await?;
+            stream.flush().await?;
+            Ok(())
+        }
+        Err(e) => {
+            let err = error_json_bytes(&e, "upstream_gateway_error");
+            write_http_response(
+                stream,
+                502,
+                "Bad Gateway",
+                &[
+                    ("Content-Type".to_string(), "application/json".to_string()),
+                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+                ],
+                &err,
+            ).await
+        }
+    }
+}
+
 fn routing_policy_for_request(
     req: &ParsedHttpRequest,
     payload: &Value,
 ) -> crate::gateway::router::RoutingPolicy {
-    use crate::gateway::router::{ReasoningEffort, RoutingPolicy};
+    use crate::gateway::router::{DataClass, Prefer, QualityGate, ReasoningEffort, RoutingPolicy};
     use crate::headroom::effort::{detect_effort_level, EffortLevel};
     let mapped = match detect_effort_level(&req.headers, Some(payload)) {
         EffortLevel::Low => ReasoningEffort::Low,
         EffortLevel::Medium => ReasoningEffort::Medium,
         EffortLevel::High => ReasoningEffort::High,
     };
+    let data_class = match header_value(req, "x-toksi-data-class")
+        .map(|s| s.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("confidential") | Some("private") | Some("local") => DataClass::Confidential,
+        Some("internal") => DataClass::Internal,
+        _ => DataClass::Public,
+    };
+    let prefer = match header_value(req, "x-toksi-prefer")
+        .map(|s| s.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("latency") => Prefer::Latency,
+        Some("cost") => Prefer::Cost,
+        Some("quality") => Prefer::Quality,
+        _ => Prefer::Balanced,
+    };
+    let quality_gate = header_value(req, "x-toksi-min-quality")
+        .and_then(|s| s.trim().parse::<f64>().ok())
+        .map(|min_score| QualityGate {
+            min_capability_score: min_score,
+            ..QualityGate::default()
+        });
     RoutingPolicy {
+        data_class,
+        prefer,
         effort: Some(mapped),
+        quality_gate,
         ..RoutingPolicy::default()
     }
 }
@@ -495,8 +665,27 @@ fn resolve_candidates_for_request(
     if let Some(explicit) = header_value(req, "x-toksi-provider").and_then(ProviderId::from_name) {
         return vec![RouteCandidate::for_provider(explicit, model)];
     }
-    let primary = infer_provider_from_model(model, default_provider);
-    vec![RouteCandidate::for_provider(primary, model)]
+    let mut candidates = Vec::new();
+    if let Ok(arc) = crate::db::shared_db()
+        && let Ok(db) = arc.lock()
+        && let Ok(profiles) = db.list_byok_profiles()
+    {
+        for p in profiles {
+            if p.is_active
+                && let Some(pid) = ProviderId::from_name(&p.provider_id)
+                && (p.model_id == model || model == "default" || model.is_empty())
+            {
+                let mut cand = RouteCandidate::for_provider(pid, &p.model_id);
+                cand.priority = p.priority.max(0) as u32;
+                candidates.push(cand);
+            }
+        }
+    }
+    if candidates.is_empty() {
+        let primary = infer_provider_from_model(model, default_provider);
+        candidates.push(RouteCandidate::for_provider(primary, model));
+    }
+    candidates
 }
 
 async fn handle_openai_chat_completions(
@@ -665,7 +854,7 @@ async fn handle_openai_embeddings(
 }
 
 fn handle_models_list() -> Vec<u8> {
-    let data: Vec<Value> = crate::gateway::providers::ProviderId::ALL
+    let mut data: Vec<Value> = crate::gateway::providers::ProviderId::ALL
         .iter()
         .map(|p| {
             json!({
@@ -676,6 +865,20 @@ fn handle_models_list() -> Vec<u8> {
             })
         })
         .collect();
+    if let Ok(arc) = crate::db::shared_db()
+        && let Ok(db) = arc.lock()
+        && let Ok(models) = db.list_provider_models(None)
+    {
+        for m in models {
+            data.push(json!({
+                "id": m.id,
+                "object": "model",
+                "owned_by": m.provider_id,
+                "context_window": m.context_window,
+                "max_output_tokens": m.max_output_tokens,
+            }));
+        }
+    }
     serde_json::to_vec(&json!({ "object": "list", "data": data })).unwrap_or_default()
 }
 

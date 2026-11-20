@@ -192,6 +192,31 @@ impl GatewayProxyOrchestrator {
         self.circuit_registry.record_failure(provider, hint);
     }
 
+    fn record_rate_limit_windows(provider: ProviderId, headers: &HashMap<String, String>) {
+        let pairs: Vec<(String, String)> = headers
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let now_epoch = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        let windows = crate::telemetry::tokentracker::extract_quota_windows(
+            provider.as_str(),
+            "gateway",
+            &pairs,
+            now_epoch,
+        );
+        if !windows.is_empty()
+            && let Ok(arc) = crate::db::shared_db()
+            && let Ok(mut db) = arc.lock()
+        {
+            for w in &windows {
+                let _ = db.upsert_quota_window(w);
+            }
+        }
+    }
+
     /// Processes an incoming agent request synchronously through the optimization & upstream HTTP pipeline.
     pub fn process_request(
         &self,
@@ -295,6 +320,7 @@ impl GatewayProxyOrchestrator {
             .collect();
         let body_text = resp.text().map_err(|e| e.to_string())?;
         let latency_ms = start.elapsed().as_secs_f64() * 1000.0;
+        Self::record_rate_limit_windows(provider, &headers);
 
         if status >= 400 {
             self.record_upstream_failure(provider, &key, status, &headers, &body_text, latency_ms);
@@ -461,6 +487,7 @@ impl GatewayProxyOrchestrator {
                 }
             };
             let latency_ms = start.elapsed().as_secs_f64() * 1000.0;
+            Self::record_rate_limit_windows(provider, &headers);
 
             if status >= 400 {
                 self.record_upstream_failure(provider, &key, status, &headers, &body_text, latency_ms);
@@ -486,11 +513,158 @@ impl GatewayProxyOrchestrator {
                 }
             };
 
+            if let Some(ref gate) = policy.quality_gate
+                && !gate.passes_response(&parsed)
+            {
+                self.load_balancer.release_flight(provider, latency_ms);
+                last_error = format!("{} response failed QualityGate", provider.as_str());
+                continue;
+            }
+
             if !key.is_empty() {
                 self.key_manager.record_result(provider, &key, None, None);
             }
             self.record_usage_and_cache(session_id, vk_opt, provider, &prompt_str, &parsed, latency_ms)?;
             return Ok((provider, parsed));
+        }
+
+        if let Some(vk) = vk_opt {
+            self.governance.release_and_record_spend(vk, 0.0);
+        }
+        Err(last_error)
+    }
+
+    /// Streams an upstream SSE response directly without buffering the entire body,
+    /// returning the chosen provider, raw `reqwest::Response`, and model name.
+    pub async fn dispatch_stream_with_cascade_async(
+        &self,
+        vk_opt: Option<&str>,
+        explicit_api_key: Option<&str>,
+        explicit_endpoint: Option<&str>,
+        candidates: &[RouteCandidate],
+        policy: &RoutingPolicy,
+        payload: &mut Value,
+    ) -> Result<(ProviderId, reqwest::Response, String), String> {
+        if let Some(vk) = vk_opt {
+            self.governance.check_and_acquire(vk, 1000)?;
+        }
+
+        let effort_headers: Vec<(String, String)> = match policy.effort {
+            Some(ReasoningEffort::Low) => {
+                vec![("x-toksi-effort".to_string(), EffortLevel::Low.as_str().to_string())]
+            }
+            Some(ReasoningEffort::Medium) => {
+                vec![("x-toksi-effort".to_string(), EffortLevel::Medium.as_str().to_string())]
+            }
+            Some(ReasoningEffort::High) => {
+                vec![("x-toksi-effort".to_string(), EffortLevel::High.as_str().to_string())]
+            }
+            None => Vec::new(),
+        };
+        let _hr_stats = HeadroomEffortCompressor::gateway_default().compress_json_payload(
+            "/v1/chat/completions",
+            &effort_headers,
+            payload,
+        );
+
+        let ranked = self
+            .router
+            .route_ranked(candidates, policy, Some(&self.circuit_registry));
+        if ranked.is_empty() {
+            if let Some(vk) = vk_opt {
+                self.governance.release_and_record_spend(vk, 0.0);
+            }
+            return Err("No healthy routing candidates satisfy policy constraints".to_string());
+        }
+
+        let async_client = match global_healing_pool().get_async_client() {
+            Ok(c) => c,
+            Err(e) => {
+                if let Some(vk) = vk_opt {
+                    self.governance.release_and_record_spend(vk, 0.0);
+                }
+                return Err(e.to_string());
+            }
+        };
+
+        let unified_req = Self::build_unified_request(payload);
+        let model_name = unified_req.model.clone();
+        let mut last_error = String::from("No upstream candidates attempted");
+
+        for route in ranked {
+            let provider = route.candidate.provider;
+            let key = match self.resolve_key(provider, explicit_api_key) {
+                Ok(k) => k,
+                Err(e) => {
+                    last_error = e;
+                    continue;
+                }
+            };
+
+            let client = build_provider_client(provider);
+            let req_formatted = client.format_request(&unified_req);
+            let endpoint = explicit_endpoint
+                .map(str::to_string)
+                .unwrap_or_else(|| client.endpoint());
+            let is_loopback = endpoint.starts_with("http://127.0.0.1")
+                || endpoint.starts_with("http://localhost");
+            let dispatch_client = if is_loopback {
+                reqwest::Client::builder()
+                    .no_proxy()
+                    .timeout(std::time::Duration::from_secs(60))
+                    .build()
+                    .unwrap_or_else(|_| async_client.clone())
+            } else {
+                async_client.clone()
+            };
+
+            self.load_balancer.acquire_flight(provider);
+            let start = Instant::now();
+            let mut builder = dispatch_client.post(&endpoint).json(&req_formatted);
+            for (k, v) in client.auth_headers(&key) {
+                if !key.is_empty() || k.eq_ignore_ascii_case("content-type") {
+                    builder = builder.header(k, v);
+                }
+            }
+
+            let resp = match builder.send().await {
+                Ok(r) => r,
+                Err(e) => {
+                    let err_str = e.to_string();
+                    let _ = global_healing_pool().report_transport_error(&err_str);
+                    self.load_balancer
+                        .release_flight(provider, start.elapsed().as_secs_f64() * 1000.0);
+                    self.circuit_registry.record_failure(provider, None);
+                    last_error = format!("{} transport failed: {}", provider.as_str(), err_str);
+                    continue;
+                }
+            };
+
+            let status = resp.status().as_u16();
+            let headers: HashMap<String, String> = resp
+                .headers()
+                .iter()
+                .filter_map(|(k, v)| v.to_str().ok().map(|s| (k.as_str().to_lowercase(), s.to_string())))
+                .collect();
+            let latency_ms = start.elapsed().as_secs_f64() * 1000.0;
+            Self::record_rate_limit_windows(provider, &headers);
+
+            if status >= 400 {
+                let body_text = resp.text().await.unwrap_or_default();
+                self.record_upstream_failure(provider, &key, status, &headers, &body_text, latency_ms);
+                last_error = format!("{} HTTP {}: {}", provider.as_str(), status, body_text);
+                continue;
+            }
+
+            self.load_balancer.release_flight(provider, latency_ms);
+            self.circuit_registry.record_success(provider);
+            if !key.is_empty() {
+                self.key_manager.record_result(provider, &key, None, None);
+            }
+            if let Some(vk) = vk_opt {
+                self.governance.release_and_record_spend(vk, 0.0);
+            }
+            return Ok((provider, resp, model_name));
         }
 
         if let Some(vk) = vk_opt {
