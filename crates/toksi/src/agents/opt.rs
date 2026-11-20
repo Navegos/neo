@@ -175,6 +175,48 @@ impl AgentOptimizer {
         crate::codegraph::jcodemunch::summarize_code_for_prompt(file_path, content, budget_lines)
     }
 
+    /// Extracts structured AST symbol outline via `codegraph::jcodemunch`.
+    pub fn get_symbol_outline(
+        &self,
+        file_path: &str,
+        content: &str,
+    ) -> crate::codegraph::jcodemunch::FileOutline {
+        crate::codegraph::jcodemunch::extract_file_outline(file_path, content)
+    }
+
+    /// Reads an O(1) byte-offset symbol slice from a `CodeGraph` index.
+    pub fn read_symbol_slice(
+        &self,
+        cg: &crate::codegraph::CodeGraph,
+        id_or_name: &str,
+    ) -> Option<(String, String)> {
+        crate::codegraph::jcodemunch::extract_symbol_slice_o1(cg, id_or_name)
+    }
+
+    /// Deduplicates 1-hop context via SHA-256 and trims total payload to `max_chars` using AST outlines when needed.
+    pub fn trim_context(&self, items: &[(&str, &str)], max_chars: usize) -> Vec<(String, String)> {
+        let deduped = self.dedup_one_hop_context(items);
+        let mut remaining = max_chars;
+        let mut out = Vec::with_capacity(deduped.len());
+        for (label, content) in deduped {
+            if remaining == 0 {
+                break;
+            }
+            if content.len() <= remaining {
+                remaining -= content.len();
+                out.push((label, content));
+            } else {
+                let summarized = self.slice_ast_outline(&label, &content, 20);
+                let clipped: String = summarized.chars().take(remaining).collect();
+                remaining = remaining.saturating_sub(clipped.len());
+                if !clipped.is_empty() {
+                    out.push((label, clipped));
+                }
+            }
+        }
+        out
+    }
+
     /// Detects semantic oscillation (consecutive repeats >= `max_repetitions` or 2-step A<->B cycles).
     pub fn detect_semantic_oscillation(&self, max_repetitions: usize) -> bool {
         let threshold = max_repetitions.max(2);

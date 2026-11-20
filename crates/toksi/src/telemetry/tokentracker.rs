@@ -1091,6 +1091,73 @@ pub fn query_provider_quota_free(provider: &str, api_key: Option<&str>) -> Provi
     }
 }
 
+/// Zero-cost TTL cache for provider quota / rate-limit metadata (`limits-cache`).
+pub const DEFAULT_LIMITS_CACHE_TTL_SECS: u64 = 60;
+
+#[derive(Debug, Clone)]
+struct CachedQuotaEntry {
+    status: ProviderQuotaStatus,
+    expires_at_ms: u64,
+}
+
+#[derive(Debug, Default)]
+pub struct LimitsCache {
+    entries: RwLock<std::collections::HashMap<String, CachedQuotaEntry>>,
+    ttl_ms: u64,
+}
+
+impl LimitsCache {
+    pub fn new(ttl_secs: u64) -> Self {
+        Self {
+            entries: RwLock::new(std::collections::HashMap::new()),
+            ttl_ms: ttl_secs.saturating_mul(1000),
+        }
+    }
+
+    pub fn get_cached(&self, provider: &str, now_ms: u64) -> Option<ProviderQuotaStatus> {
+        let key = provider.trim().to_ascii_lowercase();
+        let guard = self.entries.read().ok()?;
+        let entry = guard.get(&key)?;
+        if now_ms < entry.expires_at_ms {
+            Some(entry.status.clone())
+        } else {
+            None
+        }
+    }
+
+    pub fn put_cached(&self, status: ProviderQuotaStatus, now_ms: u64) {
+        let key = status.provider.trim().to_ascii_lowercase();
+        if let Ok(mut guard) = self.entries.write() {
+            guard.insert(
+                key,
+                CachedQuotaEntry {
+                    status,
+                    expires_at_ms: now_ms.saturating_add(self.ttl_ms),
+                },
+            );
+        }
+    }
+
+    pub fn query_or_cached(&self, provider: &str, api_key: Option<&str>) -> ProviderQuotaStatus {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        if let Some(hit) = self.get_cached(provider, now_ms) {
+            return hit;
+        }
+        let fresh = query_provider_quota_free(provider, api_key);
+        self.put_cached(fresh.clone(), now_ms);
+        fresh
+    }
+}
+
+static GLOBAL_LIMITS_CACHE: std::sync::OnceLock<LimitsCache> = std::sync::OnceLock::new();
+
+pub fn global_limits_cache() -> &'static LimitsCache {
+    GLOBAL_LIMITS_CACHE.get_or_init(|| LimitsCache::new(DEFAULT_LIMITS_CACHE_TTL_SECS))
+}
+
 /// Asynchronous version of `query_provider_quota_free`.
 pub async fn query_provider_quota_free_async(provider: &str, api_key: Option<&str>) -> ProviderQuotaStatus {
     let now_ms = std::time::SystemTime::now()
@@ -1345,5 +1412,20 @@ mod tests {
         assert_eq!(windows[0].window_kind, "day");
         assert_eq!(windows[0].remaining_requests, Some(950));
         assert_eq!(windows[0].reset_at_epoch, Some(1_700_000_060));
+    }
+
+    #[test]
+    fn test_limits_cache_ttl_hit_and_expiry() {
+        let cache = LimitsCache::new(60);
+        let status = ProviderQuotaStatus {
+            provider: "OpenAI".to_string(),
+            is_available: true,
+            rate_limits: ProviderRateLimits::default(),
+            message: "HTTP 200".to_string(),
+            queried_epoch_ms: 1_000,
+        };
+        cache.put_cached(status, 1_000);
+        assert!(cache.get_cached("openai", 30_000).is_some());
+        assert!(cache.get_cached("openai", 61_001).is_none());
     }
 }

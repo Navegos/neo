@@ -79,3 +79,61 @@ impl ProviderClient for EcosystemProvider {
     }
 }
 
+/// All 12 Category 4 Agentic Service & Cloud Platform Providers (webhooks, PR/review MCP/A2A hooks).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Category4ServiceId {
+    Devin,
+    FactoryAI,
+    OpenHandsCloud,
+    AugmentCode,
+    MagicDev,
+    PoolsideAI,
+    SweepAI,
+    CodeRabbit,
+    Qodo,
+    GritIo,
+    Ellipsis,
+    GitHubCopilotAgentHQ,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Category4Connector {
+    pub id: Category4ServiceId,
+    pub slug: &'static str,
+    pub webhook_event: &'static str,
+    pub a2a_capability: &'static str,
+    pub supports_pr_review: bool,
+}
+
+pub const CATEGORY_4_CONNECTORS: [Category4Connector; 12] = [
+    Category4Connector { id: Category4ServiceId::Devin, slug: "devin", webhook_event: "devin.session.completed", a2a_capability: "autonomous-task", supports_pr_review: true },
+    Category4Connector { id: Category4ServiceId::FactoryAI, slug: "factory-ai", webhook_event: "factory.droid.finished", a2a_capability: "code-droid", supports_pr_review: true },
+    Category4Connector { id: Category4ServiceId::OpenHandsCloud, slug: "openhands-cloud", webhook_event: "openhands.action.finished", a2a_capability: "cloud-sandbox", supports_pr_review: true },
+    Category4Connector { id: Category4ServiceId::AugmentCode, slug: "augment-code", webhook_event: "augment.context.synced", a2a_capability: "codebase-rag", supports_pr_review: true },
+    Category4Connector { id: Category4ServiceId::MagicDev, slug: "magic-dev", webhook_event: "magic.ltm.ready", a2a_capability: "long-context-synth", supports_pr_review: false },
+    Category4Connector { id: Category4ServiceId::PoolsideAI, slug: "poolside-ai", webhook_event: "poolside.eval.done", a2a_capability: "rl-code-gen", supports_pr_review: false },
+    Category4Connector { id: Category4ServiceId::SweepAI, slug: "sweep-ai", webhook_event: "sweep.pr.created", a2a_capability: "issue-to-pr", supports_pr_review: true },
+    Category4Connector { id: Category4ServiceId::CodeRabbit, slug: "coderabbit", webhook_event: "coderabbit.review.completed", a2a_capability: "pr-review-mcp", supports_pr_review: true },
+    Category4Connector { id: Category4ServiceId::Qodo, slug: "qodo", webhook_event: "qodo.pr.analyzed", a2a_capability: "test-and-review", supports_pr_review: true },
+    Category4Connector { id: Category4ServiceId::GritIo, slug: "grit-io", webhook_event: "grit.migration.applied", a2a_capability: "ast-migration", supports_pr_review: true },
+    Category4Connector { id: Category4ServiceId::Ellipsis, slug: "ellipsis", webhook_event: "ellipsis.review.posted", a2a_capability: "pr-review-bot", supports_pr_review: true },
+    Category4Connector { id: Category4ServiceId::GitHubCopilotAgentHQ, slug: "copilot-agent-hq", webhook_event: "copilot.agent.completed", a2a_capability: "github-agent-hq", supports_pr_review: true },
+];
+
+pub fn find_category4_connector(slug: &str) -> Option<&'static Category4Connector> {
+    let norm = slug.trim().to_ascii_lowercase();
+    CATEGORY_4_CONNECTORS.iter().find(|c| c.slug == norm)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_category4_12_connectors_registered() {
+        assert_eq!(CATEGORY_4_CONNECTORS.len(), 12);
+        assert!(find_category4_connector("coderabbit").map(|c| c.supports_pr_review).unwrap_or(false));
+        assert!(find_category4_connector("devin").is_some());
+    }
+}
+

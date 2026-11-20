@@ -256,6 +256,66 @@ impl TokenEconomizer {
         prune_schema_recursive(&mut val);
         val
     }
+
+    /// Runs the 3-stage economizer followed by deterministic LLMLingua-style entropy pruning
+    /// (preserving code blocks, numbers, identifiers, and negation words) to approach `target_ratio`.
+    pub fn economize_with_entropy(&mut self, prompt: &str, target_ratio: f32) -> (String, EconomizerReport) {
+        let (stage2, mut report) = self.economize_prompt(prompt);
+        if stage2.is_empty() {
+            return (stage2, report);
+        }
+        let pruned = llmlingua_entropy_prune(&stage2, target_ratio);
+        report.economized_chars = pruned.len();
+        report.economized_estimated_tokens = (pruned.len() / 4) as u64;
+        report.tokens_saved = report
+            .original_estimated_tokens
+            .saturating_sub(report.economized_estimated_tokens);
+        (pruned, report)
+    }
+}
+
+/// Deterministic LLMLingua-inspired token-entropy pruner.
+/// Drops low-information English filler/stopwords in prose lines while preserving fenced code blocks,
+/// JSON lines, numbers, identifiers, and negation words (`not`, `never`, `no`, `only`, `except`).
+pub fn llmlingua_entropy_prune(text: &str, target_ratio: f32) -> String {
+    if text.trim().is_empty() || target_ratio >= 0.99 {
+        return text.to_string();
+    }
+    let ratio = target_ratio.clamp(0.25, 0.99);
+    const LOW_ENTROPY_FILLER: &[&str] = &[
+        "actually", "basically", "really", "simply", "just", "very", "quite", "rather",
+        "somewhat", "please", "kindly", "note", "that", "basically,", "actually,",
+    ];
+    let mut out = Vec::new();
+    let mut in_fence = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            in_fence = !in_fence;
+            out.push(line.to_string());
+            continue;
+        }
+        if in_fence || trimmed.starts_with('{') || trimmed.starts_with('[') || trimmed.len() < 40 {
+            out.push(line.to_string());
+            continue;
+        }
+        let words: Vec<&str> = trimmed.split_whitespace().collect();
+        let target_words = ((words.len() as f32) * ratio).ceil().max(1.0) as usize;
+        let mut kept = Vec::with_capacity(words.len());
+        let mut dropped = 0usize;
+        let max_drop = words.len().saturating_sub(target_words);
+        for w in &words {
+            let low = w.to_ascii_lowercase();
+            let is_negation = matches!(low.as_str(), "not" | "never" | "no" | "only" | "except");
+            if !is_negation && dropped < max_drop && LOW_ENTROPY_FILLER.contains(&low.as_str()) {
+                dropped += 1;
+                continue;
+            }
+            kept.push(*w);
+        }
+        out.push(kept.join(" "));
+    }
+    out.join("\n")
 }
 
 fn collapse_line_whitespace(s: &str) -> String {
@@ -476,5 +536,15 @@ End of prompt.
         assert_eq!(compacted_json, "{\"a\":1,\"b\":2}");
         let compacted_diff = ToolCompact::compact(ToolCompactFormat::Diff, "context\n+added\n-removed\ncontext");
         assert_eq!(compacted_diff, "+added\n-removed");
+    }
+
+    #[test]
+    fn test_llmlingua_entropy_prune_preserves_negations_and_code() {
+        let mut econ = TokenEconomizer::default();
+        let prompt = "Please really basically just check that we do not ever skip verification here.\n```rust\nlet x = 1;\n```";
+        let (pruned, rep) = econ.economize_with_entropy(prompt, 0.6);
+        assert!(pruned.contains("not"));
+        assert!(pruned.contains("let x = 1;"));
+        assert!(rep.economized_chars <= rep.original_chars);
     }
 }

@@ -255,7 +255,7 @@ impl UnifiedResponse {
                 serde_json::to_string(&serde_json::json!({
                     "version": "1.0",
                     "protocol": "a2a",
-                    "sender": format!("toksi-{}", self.tool),
+                    "sender": self.tool.to_string(),
                     "status": self.status,
                     "body": self.result,
                     "text": self.raw_text
@@ -1775,7 +1775,7 @@ mod tests {
         );
         let frame_a2a = resp_a2a.format_protocol_frame();
         assert!(frame_a2a.contains("\"protocol\":\"a2a\""));
-        assert!(frame_a2a.contains("\"sender\":\"toksi-codegraph\""));
+        assert!(frame_a2a.contains("\"sender\":\"codegraph\""));
     }
 
     #[test]
