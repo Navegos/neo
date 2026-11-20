@@ -58,10 +58,26 @@ fn print_agent_help() {
     println!("  edit <agent>        Print primary configuration path for direct editing");
     println!("  list                List all supported agents and directory layouts\n");
     println!("{}", C.bold("Supported Agents:"));
-    println!("  openagents, antigravity, copilot, claude, codex, cursor, grok, droid, cline, opencode...\n");
+    println!("  openagents, antigravity, antigravity-cli, antigravity-ide, copilot, copilot-cli,");
+    println!("  copilot-vscode, claude, codex, cursor, grok, droid, cline, opencode...\n");
     println!("{}", C.bold("Flags:"));
-    println!("  --workspace, -w     Operate strictly on current workspace directory instead of user home");
-    println!("  --json              Output raw JSON report");
+    println!("  --workspace, -w         Operate strictly on current workspace root instead of user home");
+    println!("  --components <list>     Granular toggles: hooks,mcp,skills,rules,instructions,configs (or all)");
+    println!("  --json                  Output raw JSON report");
+}
+
+fn parse_components_flag(args: &[String]) -> Result<crate::rules::SyncComponents, String> {
+    let mut i = 0;
+    while i < args.len() {
+        if let Some(val) = args[i].strip_prefix("--components=") {
+            return crate::rules::SyncComponents::from_csv(val).map_err(|e| e.to_string());
+        }
+        if args[i] == "--components" && i + 1 < args.len() {
+            return crate::rules::SyncComponents::from_csv(&args[i + 1]).map_err(|e| e.to_string());
+        }
+        i += 1;
+    }
+    Ok(crate::rules::SyncComponents::all())
 }
 
 fn handle_list() -> i32 {
@@ -81,15 +97,22 @@ fn handle_list() -> i32 {
 }
 
 fn handle_install(args: &[String]) -> i32 {
-    if args.is_empty() {
+    if args.is_empty() || args[0].starts_with('-') {
         eprintln!("Error: Missing required agent argument. Example: 'toksi agent install antigravity'");
         return 1;
     }
 
     let agent_id = &args[0];
     let workspace = args.iter().any(|a| a == "--workspace" || a == "-w");
+    let components = match parse_components_flag(args) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("{} Invalid --components value: {}", C.red("✗"), e);
+            return 1;
+        }
+    };
 
-    match AgentManager::install(agent_id, workspace) {
+    match AgentManager::install_with_options(agent_id, workspace, components) {
         Ok(res) => {
             println!(
                 "{} Successfully installed configuration for {}: {}",
@@ -311,5 +334,47 @@ fn handle_edit(args: &[String]) -> i32 {
             eprintln!("{} Failed to locate config for {}: {}", C.red("✗"), agent_id, e);
             1
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_components_flag() {
+        let all = parse_components_flag(&["claude".to_string()]).ok();
+        assert_eq!(all, Some(crate::rules::SyncComponents::all()));
+
+        let subset = parse_components_flag(&[
+            "claude".to_string(),
+            "--components".to_string(),
+            "hooks,mcp,skills".to_string(),
+        ])
+        .ok();
+        assert_eq!(
+            subset,
+            Some(crate::rules::SyncComponents {
+                hooks: true,
+                mcp: true,
+                skills: true,
+                rules: false,
+                instructions: false,
+                configs: false,
+            })
+        );
+
+        let eq_subset = parse_components_flag(&["--components=rules,configs".to_string()]).ok();
+        assert_eq!(
+            eq_subset,
+            Some(crate::rules::SyncComponents {
+                hooks: false,
+                mcp: false,
+                skills: false,
+                rules: true,
+                instructions: false,
+                configs: true,
+            })
+        );
     }
 }

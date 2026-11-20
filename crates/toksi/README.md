@@ -166,7 +166,94 @@ toksi agent resume [<plan_id>]
 
 ## 6. Supported Agent Layouts & CLI Quick Reference
 
-* **Agent Conventions**: `.agents/` (`agents-structures/` + `agentskills` + `.agents/mcp -> skills/<tool>` + `.agents/plugins/`), `.gemini/` (`settings.json`, `commands/*.toml`), `.copilot/` & `.github/`, `.claude/` (`.mcp.json`), `.codex/`, `.cursor/`, `.grok/` (`hooks/*.json`), `.opencode/` (`hooks.json`).
+* **Agent Conventions & User-Level vs Explicit Repo Opt-In**:
+  - **Configured-Only & User-Level Auto-Install**: Hooks, MCPs, instructions, rules, skills, and configs auto-install ONLY to user-level directories (`~/.<agent>/` or `~/.agents/`) ONLY for user-configured/selected agents, with granular component toggles (`--components hooks,mcp,skills,rules,instructions,configs`).
+  - **Explicit Repo Opt-In**: Workspace repository installation (`<repo>/.<agent>/`) is NEVER automatic; it only installs into root `<repo>/` when explicitly requested (`--workspace`), never into nested crate subfolders. Nested `.<agent>/` and `.toksi/` folders are auto-merged into `<repo>/` on `init` / `doctor --fix` / `agent fix --workspace`.
+  - **Open Agents Standard (`.agents/`)**: `mcp.json`, `models.json`, `system-prompt.md`, `agents.md`, `agents/`, `skills/`, `tasks/`, `knowledge/`, `memories/`, `layouts/`, `.agents/mcp -> skills/<tool>`, plus `"openagents"` adapter (`DirectWireBus` `direct-wired` + `mcp_adapters.rs`).
+  - **Vendor Directory Alignment**: `.gemini/` (`settings.json`, `commands/*.toml`, split `antigravity-cli` vs `antigravity-ide`), `.copilot/` (`hooks/`) & `.github/copilot/` (split `copilot-cli` vs `copilot-vscode`), `.claude/` (`.mcp.json`), `.codex/` (`agents/`, `plugins/`, `rules/`, `skills/`, `worktrees/`, `config.toml`, `hooks.json`), `.cursor/`, `.grok/` (`hooks/*.json`), `.opencode/` (`hooks.json`).
+  - **Lifecycle Operations**: `toksi agent install|health|mismatch|upgrade|fix|restore|remove|edit|list|resume`.
+* **Declarative `~/.toksi/config.toml` Reference**:
+  ```toml
+  default_agents = ["claude", "antigravity-cli", "copilot-cli", "openagents"]
+
+  [ports]
+  headroom = 8787
+  grok_oauth = 8788
+  copilot_vscode = 8789
+  copilot_cli = 8790
+  protocol_bus = 9098
+  gateway = 9099
+  dashboard = 9100
+  byok_gateway = 18787
+
+  [repositories]
+  neo = "d:/AI/neo"
+  advisory = "d:/AI/neo/inspect-vault/advisory"
+  skills = "d:/AI/neo/inspect-vault/skills"
+  user_skills = "~/.toksi/user-skills"
+
+  [auth.gcp_adc]
+  enabled = true # AGY_ADC_AUTH=true
+  project = "my-gcp-project"
+  location = "us-central1"
+
+  [optimization]
+  default_effort = "medium" # low | medium | high
+
+  [security]
+  defenseclaw_fail_closed = true
+  skill_scanner_policy = "balanced"
+  kill_all_services_on_bypass = true
+  adr_enabled = true
+  zero_plaintext_blind_signatures = true
+  sandbox_backend = "auto" # native | sandbox-runtime | openshell | e2b | sbx
+
+  [plugins]
+  plugin_dirs = ["~/.toksi/plugins", ".toksi/plugins", ".agents/plugins"]
+  enforce_security_scan = true
+  fail_closed_hooks = true
+  protocols = ["mcp", "a2a", "acp", "stdio", "sse", "http"]
+  allow_agent_to_agent = true
+  ```
+* **Complete CLI Command Reference (`toksi --help` 1:1)**:
+  - `toksi chat` — Interactive `<toksi-siagent>` coding CLI (`chat|run|exec|swarm`)
+  - `toksi run` — Single-shot autonomous task execution with durable checkpoints
+  - `toksi exec` — Execute task inside 5-backend isolated agent sandbox (`native`, `sandbox-runtime`, `OpenShell`, `E2B`, `sbx`)
+  - `toksi swarm` — Multi-agent parallel swarm orchestrator with `DirectWireBus`
+  - `toksi [init]` — Install + wire configured agents and tools (default; safe to re-run)
+  - `toksi update` — Update Toksi CLI, inspect version diff, and upgrade tools
+  - `toksi doctor` — Audit 18+ agents, consolidate `<repo>/.toksi/<tool>`, fix regressions (`--fix`, `--workspace`)
+  - `toksi gain` — Display ground-truth token savings & effort-tier `tokview` attribution
+  - `toksi top` — Live interactive terminal monitor for proxies and active agent requests
+  - `toksi tui` — Full mouse-capable 9-tab async terminal control center
+  - `toksi dashboard` — Web telemetry cockpit on `:9100` (`start|stop|restart --port --open --agents`)
+  - `toksi prime` — Generate unified context primer for AI agent sessions
+  - `toksi daemon` — Unified 8-port supervisor (`start|stop|restart|status --agents`)
+  - `toksi proxy` — Manage streaming Headroom/Copilot/Grok proxies (`start|stop|restart|status --agents`)
+  - `toksi config` — Manage `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`, `[ports]`, `[auth.gcp_adc]`)
+  - `toksi byok` — Multi-instance `<byok, model, effort>` profiles & read-only `quota_windows` (zero paid-tier blocks)
+  - `toksi auth` — OS Keyring & Google Cloud ADC (`AGY_ADC_AUTH=true`) manager: `status|get|set|delete|sync`
+  - `toksi db` — SQLite `~/.toksi/toksi.db` manager: `status|export|import|backup|restore`
+  - `toksi security` — `opa`/`cedar` Policy-as-Code, `spire` IAM, `Guardrails`/`llm-guard`, ADR, 41-lang SAST & OSV/EPSS scanner
+  - `toksi compile-blind` — Zero-Plaintext Blind Signature Engine (`BLAKE3` + `sparse::DFA`)
+  - `toksi advisory` — Native Git/PR Validator & 12-DB `UpstreamDeduplicator` for `Navegos/advisory`
+  - `toksi skills` — Externalized zero-bloat `<skills>` sync, `skilldoctor` & `agentskills` YAML healer
+  - `toksi sandbox` — 5-backend isolated sandbox (`native|sandbox-runtime|OpenShell|E2B|sbx` CLI)
+  - `toksi plugin` — Toksi Unified Plugin System (`<enforce>` scanned, 7 mount surfaces)
+  - `toksi agent` — Agent directory lifecycle: `install|health|mismatch|upgrade|fix|restore|remove|edit|list|resume`
+  - `toksi mem` — ProjectMem (`<repo>/.toksi/projectmem/`) persistent memory & `plan_checkpoints`
+  - `toksi ctx` — Context-mode (`<repo>/.toksi/context/`) isolated sandbox & SQLite FTS5 chunker
+  - `toksi graph` — CodeGraph (`<repo>/.toksi/codegraph/`) 45-lang Tree-sitter AST, SCIP & OpenWiki
+  - `toksi icm` — Instant Context Memory (`<repo>/.toksi/icm/`) FTS5 BM25 & temporal recall
+  - `toksi handoff` — Hybrid Graph-Vector Memory (`Cognee`/`Graphiti`/`Qdrant`/`Lance`/`Letta`) & handoffs
+  - `toksi rtk` — Execute command with 100+ token-reduction filters and ANSI stripping
+  - `toksi rules` — Sync externalized `<enforce>` Karpathy/Caveman v4/Ponytail guidelines
+  - `toksi info` — Show installation details, paths, config locations, and database status
+  - `toksi index` — Build per-project AST code graph index under `<repo>/.toksi/codegraph/`
+  - `toksi disable` — Disable agent hooks and proxy routing without removing files
+  - `toksi uninstall` — Remove everything Toksi ever touched, hooks, and environment variables
+  - `toksi self-update` — In-place binary self-update to latest release
+  - **Architecture Guides**: **37** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_18_6`) across all **295** mandated vaults (`36` + `259` Wave 18 Sections `2.1`–`2.10`).
 * **Quick Commands**:
   ```bash
   toksi config show                                 # Inspect ~/.toksi/config.toml, [repositories], [plugins] & AGY_ADC_AUTH

@@ -1,0 +1,200 @@
+---
+name: langwatch-kanban
+description: "Manage the LangWatch Kanban GitHub project board — sync statuses, view your board, find stale items, move issues, assign work."
+user-invocable: true
+allowed-tools: Bash(gh:*), Bash(python3:*)
+argument-hint: "<sync|my-board|stale|move|assign> [args]"
+---
+
+# LangWatch Kanban
+
+Manage the LangWatch Kanban GitHub project board (project #5, org: langwatch).
+
+## Project Reference
+
+The **Constants** section at the bottom of this file holds the ids as last seen. They can
+change, so resolve the project id, Status field id and option ids from the API before the first
+mutation of a run, and prefer those over the constants:
+`gh api graphql -f query='{organization(login:"langwatch"){projectV2(number:5){id field(name:"Status"){... on ProjectV2SingleSelectField{id options{id name}}}}}}'`.
+
+**Use python3 for JSON parsing of item lists** (issue titles with special characters break jq); `--jq` is fine for a single scalar such as the login.
+
+## Subcommands
+
+Parse `$ARGUMENTS` to determine which subcommand to run:
+
+### `sync`
+
+Sync the project board so statuses match reality.
+
+1. **Page through all project items** (100 per page) until `hasNextPage` is false, using the GraphQL `projectV2.items` query. If you stop early, say the result is truncated
+2. Find items where:
+   - Issue/PR state is `CLOSED` or `MERGED` **but** project status is NOT `Done` or `Released`
+3. For each stale item, update the Status field to `Done` using the `updateProjectV2ItemFieldValue` mutation
+4. Report what was changed:
+   ```
+   Synced N items to Done:
+     #123 — Title here (was: In progress)
+     #456 — Title here (was: Ready)
+   ```
+5. If nothing to sync, say "Board is in sync — no stale items found."
+
+### `my-board`
+
+Show the current user's assigned items grouped by status.
+
+1. Get current user: `gh api user --jq .login`
+2. Page through all project items (query `assignees(first: 10){nodes{login}}` on the issue or pull request), collecting items where the current user is an assignee
+3. Group by status and display:
+   ```
+   ## In progress (3)
+   - #123 — Title here [bug]
+   - #456 — Title here [feature, scenarios]
+
+   ## Ready (2)
+   - #789 — Title here [chore]
+
+   ## Backlog (5)
+   - #101 — Title here
+   ...
+   ```
+4. Skip `Done` and `Released` items
+5. Show a count summary at the end
+
+### `stale`
+
+Find items that may be stuck or forgotten.
+
+1. Page through all project items, with `updatedAt` and the latest comment and review dates on each issue or pull request
+2. Flag items that are:
+   - **In progress** but the issue has had no updates in 14+ days
+   - **In review** but the linked PR has no review activity in 7+ days
+   - **Blocked** with no recent comments explaining why
+3. For each flagged item, show:
+   ```
+   #123 — Title [In progress, last updated 21 days ago]
+   #456 — Title [Blocked, no comments since 2026-03-01]
+   ```
+4. Suggest actions: "Move to Backlog?", "Close as stale?", "Needs attention?"
+
+### `move <issue-number> <status>`
+
+Move an issue to a new status on the board.
+
+1. Parse the issue number and target status from arguments
+2. Map status name (case-insensitive) to option ID:
+   - `backlog` → `14fed42e`
+   - `blocked` → `131e7d86`
+   - `ready` → `12261fbf`
+   - `in-progress` / `progress` → `3264b20e`
+   - `in-review` / `review` → `90b57b27`
+   - `done` → `2b388473`
+   - `released` → `7717b7ed`
+   - `stale` → `9fefdc9d`
+3. Find the project item ID by paging through items and matching the issue number
+4. Update the status field
+5. Confirm: `Moved #123 to In progress`
+
+### `assign <issue-number>`
+
+Assign an issue to the current user and ensure it's on the board.
+
+1. Get current user: `gh api user --jq .login`
+2. Assign the issue: `gh issue edit <number> --repo langwatch/langwatch --add-assignee <login>`
+3. Check if it's on the project board; if not, add it: `gh project item-add 5 --owner langwatch --url <issue-url>`
+4. Confirm: `Assigned #123 to <login> and added to LangWatch Kanban`
+
+## GraphQL Pagination Pattern
+
+Use this python3 pattern for all paginated queries:
+
+```python
+import subprocess, json
+
+cursor = None
+results = []
+
+while True:
+    after = f', after: "{cursor}"' if cursor else ''
+    query = '''{
+      organization(login: "langwatch") {
+        projectV2(number: 5) {
+          items(first: 100''' + after + ''') {
+            nodes {
+              id
+              content {
+                ... on Issue { number title state updatedAt assignees(first: 10) { nodes { login } } }
+                ... on PullRequest { number title state merged updatedAt assignees(first: 10) { nodes { login } } }
+              }
+              fieldValueByName(name: "Status") {
+                ... on ProjectV2ItemFieldSingleSelectValue { name }
+              }
+            }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+      }
+    }'''
+
+    result = subprocess.run(
+        ['gh', 'api', 'graphql', '-f', f'query={query}'],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        raise SystemExit(result.stderr)
+    data = json.loads(result.stdout)
+    if data.get('errors'):
+        raise SystemExit(json.dumps(data['errors']))
+    items = data['data']['organization']['projectV2']['items']
+
+    for n in items['nodes']:
+        content = n.get('content') or {}
+        status = (n.get('fieldValueByName') or {}).get('name', '')
+        # ... process each item ...
+        results.append({...})
+
+    if not items['pageInfo']['hasNextPage']:
+        break
+    cursor = items['pageInfo']['endCursor']
+```
+
+## Error Handling
+
+- If `$ARGUMENTS` is empty or unrecognized, show usage:
+  ```
+  Usage: /langwatch-kanban <command> [args]
+
+  Commands:
+    sync                     Sync closed issues/PRs to Done status
+    my-board                 Show your assigned items by status
+    stale                    Find stuck or forgotten items
+    move <#number> <status>  Move an issue to a new status
+    assign <#number>         Assign issue to you and add to board
+
+  Statuses: backlog, blocked, ready, in-progress, in-review, done, released, stale
+  ```
+- If `gh auth status` fails, tell the user to run `gh auth login`
+- If a project API call fails, show the error and suggest `gh auth refresh -s project`
+
+## Constants
+
+These were read from the LangWatch Kanban project and were not re-verified when this file was last edited:
+
+```
+PROJECT_NUMBER = 5
+ORG = "langwatch"
+REPO = "langwatch/langwatch"
+PROJECT_ID = "PVT_kwDOCL9uOs4BH69J"
+STATUS_FIELD_ID = "PVTSSF_lADOCL9uOs4BH69Jzg4iLlU"
+
+STATUS_OPTIONS = {
+    "Backlog": "14fed42e",
+    "Blocked": "131e7d86",
+    "Ready": "12261fbf",
+    "In progress": "3264b20e",
+    "In review": "90b57b27",
+    "Done": "2b388473",
+    "Released": "7717b7ed",
+    "Stale": "9fefdc9d",
+}
+```

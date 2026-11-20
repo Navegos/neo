@@ -334,6 +334,9 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/funes
 <neo>/inspect-vault/agentrix-os
 <neo>/inspect-vault/anp
+<neo>/inspect-vault/clearml-agent
+<neo>/inspect-vault/open-multi-agent
+<neo>/inspect-vault/orca
 }
 
 Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.

@@ -190,10 +190,25 @@ impl AgentManager {
 
     /// Installs agent configuration.
     /// User-level is the default auto-install location.
-    /// Workspace-level is only populated if `workspace: true`.
+    /// Workspace-level is only populated if `workspace: true` (explicit opt-in at `<repo>` root).
     pub fn install(agent_id: &str, workspace: bool) -> Result<AgentLifecycleResult, AgentManagerError> {
-        let target_dir = if workspace {
-            Self::workspace_config_dir(agent_id, Path::new("."))
+        Self::install_with_options(agent_id, workspace, crate::rules::SyncComponents::all())
+    }
+
+    /// Installs agent configuration with granular component toggles (`hooks`, `mcp`, `skills`, `rules`, `instructions`, `configs`).
+    /// User-level (`~/.<agent>/` or `~/.agents/`) is the default; workspace-level installs only into `<repo>` root when `workspace == true`.
+    pub fn install_with_options(
+        agent_id: &str,
+        workspace: bool,
+        components: crate::rules::SyncComponents,
+    ) -> Result<AgentLifecycleResult, AgentManagerError> {
+        let ws_root = if workspace {
+            Some(PathBuf::from(crate::commands::find_project_dir(".")))
+        } else {
+            None
+        };
+        let target_dir = if let Some(ref root) = ws_root {
+            Self::workspace_config_dir(agent_id, root)
         } else {
             Self::user_config_dir(agent_id)
         };
@@ -203,27 +218,73 @@ impl AgentManager {
         if agent_id == "openagents" {
             let scaffolded = scaffold_open_agents_structure(&target_dir)?;
             details.extend(scaffolded);
+            if components.mcp
+                && let Some(adapter) = crate::agents::mcp_adapter_for("openagents")
+            {
+                for tool in ["codegraph", "context", "projectmem", "icm", "aimemory", "rtk"] {
+                    let _ = adapter.configure_mcp(tool, &[]);
+                }
+                details.push("Wired OpenAgents MCP servers".to_string());
+            }
         } else {
             if !target_dir.exists() {
                 fs::create_dir_all(&target_dir)?;
                 details.push(format!("Created directory: {}", normalize_path(&target_dir.to_string_lossy())));
             }
 
-            // Sync standard in-tree rules & skills strictly for this selected agent
-            let sync_opts = crate::rules::SyncOptions::for_agents([agent_id]);
-            if workspace {
+            if components.configs {
+                let subdirs: &[&str] = match agent_id {
+                    "codex" => &["agents", "plugins", "rules", "skills", "worktrees"],
+                    "copilot" | "copilot-cli" => &["agents", "extensions", "hooks", "instructions", "skills"],
+                    "copilot-vscode" => &["copilot", "hooks", "instructions"],
+                    "antigravity" | "antigravity-cli" | "antigravity-ide" | "agy" => &["commands", "skills"],
+                    "grok" => &["hooks"],
+                    _ => &[],
+                };
+                for sub in subdirs {
+                    let sd = target_dir.join(sub);
+                    if !sd.exists() {
+                        fs::create_dir_all(&sd)?;
+                        details.push(format!("Created directory: {}", normalize_path(&sd.to_string_lossy())));
+                    }
+                }
+            }
+
+            // Sync standard in-tree rules & skills strictly for this selected agent with granular component toggles
+            let sync_opts = crate::rules::SyncOptions::for_agents([agent_id])
+                .with_components(components)
+                .with_workspace_opt_in(workspace);
+            if let Some(ref root) = ws_root {
                 let _ = crate::rules::sync_workspace_rules_with_options(
-                    ".",
+                    root,
                     crate::rules::RuleKind::all(),
                     &sync_opts,
                 );
-                details.push("Synced workspace rules (AGENTS.md, instructions, skills)".to_string());
+                details.push(format!(
+                    "Synced workspace rules into {} (hooks={}, mcp={}, skills={}, rules={}, instructions={}, configs={})",
+                    normalize_path(&root.to_string_lossy()),
+                    components.hooks,
+                    components.mcp,
+                    components.skills,
+                    components.rules,
+                    components.instructions,
+                    components.configs
+                ));
             } else {
                 let _ = crate::rules::sync_global_rules_with_options(
                     crate::rules::RuleKind::all(),
                     &sync_opts,
                 );
-                details.push(format!("Synced user-level rules into {}", normalize_path(&target_dir.to_string_lossy())));
+                details.push(format!(
+                    "Synced user-level components into {} (hooks={}, mcp={}, skills={}, rules={}, instructions={}, configs={})",
+                    normalize_path(&target_dir.to_string_lossy()),
+                    components.hooks,
+                    components.mcp,
+                    components.skills,
+                    components.rules,
+                    components.instructions,
+                    components.configs
+                ));
             }
         }
 
@@ -445,6 +506,16 @@ impl AgentManager {
             details.push("Repaired user-level in-tree rules and skills".to_string());
         }
         if let Some(ws) = workspace_root {
+            if let Ok(merged_toksi) = crate::commands::doctor::consolidate_nested_toksi_dirs(ws)
+                && merged_toksi > 0
+            {
+                details.push(format!("Consolidated {} nested .toksi directory/directories into root", merged_toksi));
+            }
+            if let Ok(merged_agents) = crate::commands::doctor::consolidate_nested_agent_dirs(ws)
+                && merged_agents > 0
+            {
+                details.push(format!("Consolidated {} nested .<agent> directory/directories into root", merged_agents));
+            }
             let _ = crate::rules::sync_workspace_rules_with_options(
                 ws,
                 crate::rules::RuleKind::all(),
@@ -914,10 +985,11 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
         }
     }
 
-    // 2. Copilot & .github hook files (`agents-structures` parity: `codegraph.json`, `context.json`, `projectmem.json`, `rtk.json`)
+    // 2. Copilot & .github/.github/copilot hook files (`agents-structures` parity: `codegraph.json`, `context.json`, `projectmem.json`, `rtk.json`)
     for hooks_dir in [
         base_dir.join(".copilot").join("hooks"),
         base_dir.join(".github").join("hooks"),
+        base_dir.join(".github").join("copilot").join("hooks"),
     ] {
         if !hooks_dir.is_dir() {
             continue;
@@ -1017,7 +1089,7 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
         }
     }
 
-    // Grok legacy hook file
+    // Grok legacy hook file & command standardization across .grok/hooks/*.json
     let grok_hooks = base_dir.join(".grok").join("hooks");
     if grok_hooks.is_dir() {
         for legacy_pm in ["toksi-projectmem.json", "tokless-projectmem.json", "projectmem-context.json"] {
@@ -1033,6 +1105,23 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
                     "Migrated legacy Grok hook {}",
                     normalize_path(&lp.to_string_lossy())
                 ));
+            }
+        }
+        if let Ok(entries) = fs::read_dir(&grok_hooks) {
+            for entry in entries.flatten() {
+                let hp = entry.path();
+                if hp.is_file()
+                    && hp.extension().and_then(|e| e.to_str()) == Some("json")
+                    && let Some(raw) = read_file_safe(&hp)
+                    && let Some(mut val) = try_parse_jsonc(&raw)
+                    && rewrite_commands_in_json_value(&mut val, Some("grok"))
+                    && write_file_atomic(&hp, &stringify_json(&val)).is_ok()
+                {
+                    actions.push(format!(
+                        "Standardized Grok hook commands in {}",
+                        normalize_path(&hp.to_string_lossy())
+                    ));
+                }
             }
         }
     }
@@ -1080,7 +1169,7 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
     }
 
     // 5. Normalize legacy MCP server keys AND repair broken legacy runners (`node`/`npx`/`python`/`uvx`/`tokless_*`/`toksi-codegraph-init.js`/`pjm-mcp`)
-    let mcp_files: [(PathBuf, &str, &str); 13] = [
+    let mcp_files: [(PathBuf, &str, &str); 14] = [
         (base_dir.join(".gemini").join("config").join("mcp_config.json"), "mcpServers", "antigravity"),
         (base_dir.join(".gemini").join("antigravity").join("mcp_config.json"), "mcpServers", "antigravity"),
         (base_dir.join(".gemini").join("antigravity-cli").join("mcp_config.json"), "mcpServers", "antigravity-cli"),
@@ -1089,6 +1178,7 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
         (base_dir.join(".vscode").join("mcp.json"), "servers", "copilot-vscode"),
         (base_dir.join(".cursor").join("mcp.json"), "mcpServers", "cursor"),
         (base_dir.join(".claude.json"), "mcpServers", "claude"),
+        (base_dir.join(".claude").join(".mcp.json"), "mcpServers", "claude"),
         (base_dir.join(".claude").join("settings.json"), "mcpServers", "claude"),
         (base_dir.join(".mcp.json"), "mcpServers", "claude"),
         (base_dir.join(".agents").join("mcp.json"), "mcpServers", "openagents"),
@@ -1382,6 +1472,39 @@ args = ["toksi-projectmem.js"]
         assert!(!healed.contains("toksi-projectmem.js"));
         assert!(healed.contains("toksi"));
         assert!(healed.contains("\"ctx\"") && healed.contains("\"mem\""));
+        Ok(())
+    }
+
+    #[test]
+    fn test_heal_claude_mcp_json_and_grok_hooks() -> TestResult {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path();
+
+        let claude_mcp = root.join(".claude").join(".mcp.json");
+        fs::create_dir_all(claude_mcp.parent().ok_or("no parent")?)?;
+        fs::write(
+            &claude_mcp,
+            r#"{"mcpServers":{"toksi-context-mode":{"command":"npx","args":["-y","context-mode"]}}}"#,
+        )?;
+
+        let grok_hook = root.join(".grok").join("hooks").join("rtk.json");
+        fs::create_dir_all(grok_hook.parent().ok_or("no parent")?)?;
+        fs::write(
+            &grok_hook,
+            r#"{"hooks":{"preToolUse":[{"command":"rtk hook grok"}]}}"#,
+        )?;
+
+        let actions = heal_all_agent_legacy_configs(Some(root));
+        assert!(!actions.is_empty());
+
+        let healed_claude = fs::read_to_string(&claude_mcp)?;
+        assert!(healed_claude.contains("\"context\""));
+        assert!(!healed_claude.contains("toksi-context-mode"));
+        assert!(!healed_claude.contains("npx"));
+
+        let healed_grok = fs::read_to_string(&grok_hook)?;
+        assert!(healed_grok.contains("rtk-hook grok"));
+        assert!(!healed_grok.contains("rtk hook grok"));
         Ok(())
     }
 }

@@ -337,6 +337,8 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/clearml-agent
 <neo>/inspect-vault/open-multi-agent
 <neo>/inspect-vault/orca
+<neo>/inspect-vault/nemo-platform
+<neo>/inspect-vault/tura
 }
 
 Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.
@@ -460,4 +462,7 @@ Please reorganize, all PLANS's, fort the best solution for unified of all tools 
 
 If we are missing some implementations, features, addons, plugins to acomplish our unified, tools, agent, analyser, please research and add-it in our PLAN's.
 
-We are running in toksi environment and we need to make sure that all test that needs toksi tests to run, to not interfere with the running tooksi, so the best options for necessary toksi tests that interfere with running toksi, its running in a sandbox or docker environment with the required packages for a sucess running tests.
+We are running in toksi environment and we need to make sure that all test that needs toksi tests to run, to not interfere with the original running tooksi and services, so the best options for necessary toksi tests that interfere with running toksi, its running in a sandbox or docker environment with the required packages for a sucess running tests.
+
+we are not copying files from <neo>/inspect-vault/ that are not necessary for toksi or agents, and we absolutely do are not copying scripts, bash, yaml actions, we dont want to pollute our repo with unnecessary files. And all files that we are using from <neo>/inspect-vault/ must be adapted for our <neo> toksi repo, and if you find files in our repo that are not adapted or not supposed to our <neo> toksi repo must be fixed, removed, and or healed.
+

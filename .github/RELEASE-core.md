@@ -1,0 +1,368 @@
+<!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+
+# cuda.core Release Process
+
+This document covers the `cuda.core` release process. See the
+[bindings release guide](RELEASE-bindings.md) for `cuda-bindings` and
+`cuda-python`. The `cuda-pathfinder` release process is largely automated by
+the [CI: Release](workflows/release.yml) workflow.
+
+To release `cuda-pathfinder`, dispatch **CI: Release** with
+`component` set to `cuda-pathfinder`, `release-action` set
+to `full-release`, and `git-tag` set to the existing
+`cuda-pathfinder-v<VERSION>` tag. The workflow finds the successful
+tag-triggered CI run, checks release notes, creates or reuses a draft,
+builds and deploys versioned docs, and uploads the source archive, checksum,
+and wheels. It publishes to TestPyPI, verifies installation and the imported
+version, then publishes to PyPI and verifies again before publishing the
+GitHub Release without marking it as latest. A failed
+docs build prevents asset uploads, package publication, and finalization.
+
+The workflow revision supplies the release tools; release notes and the
+package registry (`ci/versions.yml`) come from `git-tag`. Current tooling
+requires that source to use the `schema_version: 2` package-root registry.
+For older layouts, select a compatible historical workflow ref as described
+in the [bindings release guide](RELEASE-bindings.md#older-release-layouts).
+The release-notes job exports
+the checked version and rejects an empty version before documentation, asset
+uploads, or package publication can start. Pathfinder package publication also
+requires successful draft metadata preparation. Existing tags stay immutable.
+
+The default `dry-run` action validates preparation, builds docs, and
+collects release artifacts without creating a GitHub Release or publishing
+packages. It can be dispatched from a development branch; use
+`dry-run-docs-branch` only when a preview deployment is needed.
+
+Each section below provides detailed guidance for a step in the
+[Release Checklist](ISSUE_TEMPLATE/release_checklist.yml). To start a
+release, create a new issue from that template and work through it item by
+item, referring back here as needed.
+
+---
+
+## File an internal nvbug
+
+Create an nvbug to request that SWQA begin post-release validation.  Issues
+identified by that process are typically addressed in a patch release.  To find
+the template, search for a previous release's nvbug (e.g. by title "Release of
+cuda.core") and create a new bug from the same template.
+
+Example:
+
+> **Title:** Release of cuda.core v0.6.0
+>
+> **Description:**
+>
+> Requesting SWQA validation for the cuda.core v0.6.0 release. Please test
+> the following SW combinations on all listed platforms and report any
+> issues found.
+>
+> **SW Combinations**
+> - cuda.core 0.6.0 / cuda.bindings 12.9 / CTK 12.9 / CUDA 12.9 driver
+> - cuda.core 0.6.0 / cuda.bindings 13.0 / CTK 13.0 / CUDA 13.0 driver
+> - cuda.core 0.6.0 / cuda.bindings 13.1 / CTK 13.1 / CUDA 13.1 driver
+>
+> **Platforms**
+> - Linux x86-64
+> - Linux arm64
+> - Windows x86-64 (TCC and WDDM)
+> - WSL
+>
+> **Test Plan**
+>
+> Functional tests as described in the cuda.core test plan.
+>
+> **Release Milestones**
+> - Pre-release QA (this request)
+> - GitHub release tag and posting
+> - PyPI wheel upload
+> - Post-release validation
+
+Update the version, SW combinations (check with the release owner), and
+platforms as appropriate for each release.
+
+---
+
+## Check (or update if needed) the dependency requirements
+
+Review `cuda_core/pyproject.toml` and verify that all dependency
+requirements are current.
+
+The `cu12`/`cu13` extras declare the `cuda-bindings` floors. A release
+does not raise a floor to the newest `cuda-bindings`; see "Bumping the
+cuda-bindings floor" in `cuda_core/AGENTS.md`. Check the floors instead:
+
+- The minor of each floor equals the minor of that major's toolkit pin
+  in `ci/versions.yml`. If a floor's minor is lower, the toolkit-bump
+  window is open: move the floor before the release.
+- In the latest CI run on `main`, the CUDA 13 rows whose CUDA minor
+  differs from the current major's toolkit pin (for example "CUDA 13.0.2") installed the
+  literal floor. Their logs show `Installing bindings (source: floor)` and
+  `cuda-bindings==<floor>`, and no "predates ... headers" line. Standard
+  CI does not install the CUDA 12 floor: its rows use the same-run
+  maintenance bindings build.
+- The release notes list every floor move since the last release.
+
+Update the `cuda-core` pin in `cuda_python/setup.py` to the new minor
+series (`cuda-core~=X.Y.0`), and plan a `cuda-python` release right after
+this one. Until that release, `pip install cuda-python` resolves to the
+previous `cuda-core`.
+
+---
+
+## Sweep deprecations whose removal version has arrived
+
+Deprecated APIs are marked in the source with a Sphinx `deprecated`
+directive naming the version that introduced the deprecation, and their
+docstrings state the version in which they will be removed. Find them all
+with:
+
+```console
+$ grep -rn 'deprecated::' cuda_core/cuda
+```
+
+For each hit, check the stated removal version against the version being
+released. If the release has reached or passed it, remove the API, its
+runtime `DeprecationWarning`, and any tests asserting that warning.
+
+This must happen *before* the release tag is cut. Removals are breaking
+changes, so they are only permitted at a major-version boundary per the
+[support policy](https://nvidia.github.io/cuda-python/cuda-core/latest/support.html).
+
+---
+
+## Finalize the doc update, including release notes
+
+Review every PR included in the release. For each one, check whether new
+functions, classes, or features were added and whether they have complete
+docstrings. Add or edit docstrings as needed — touching docstrings and
+type annotations in code is OK during code freeze.
+
+Write the release notes in `cuda_core/docs/source/release/`. Look at
+historical release notes for guidance on format and structure. Balance all
+entries for length, specificity, tone, and consistency. Highlight a few
+notable items in the highlights section, keeping their full entries in the
+appropriate sections below.
+
+---
+
+## Update the docs for the new version
+
+Add the new version to
+`cuda_core/docs/nv-versions.json`. This file drives the version
+switcher on the documentation site. Add an entry for the new version
+after `"latest"`, following the existing pattern. The docs themselves are
+built and deployed automatically by the release workflow.
+
+---
+
+## Create the release branch
+
+Each `cuda-core` minor series has one release branch,
+`release/cuda-core-vX.Y.x`. Releases are tagged on that branch, not on
+`main`. Patch releases of the series land there too.
+
+For a minor release (`X.Y.0`), create the branch after every pre-release
+pull request has merged into `main`. Branch from the `main` commit that
+holds the final release notes:
+
+```bash
+git fetch origin main
+git push origin origin/main:refs/heads/release/cuda-core-v0.6.x
+```
+
+For a patch release (`X.Y.Z`), use the existing branch. Changes reach it
+through pull requests that cherry-pick the fixes from `main`, with
+`(cherry picked from commit ...)` trailers. The release notes for the patch
+release must be on the release branch before the tag: the release workflow
+checks for them in the tagged tree. Add them to `main` as well, so the docs
+switcher and the `latest` docs list them.
+
+The repository ruleset protects `release/**`: a push to an existing release
+branch needs a pull request and passing checks.
+
+---
+
+## Create a public release tag
+
+**Warning:** Pushing a tag is a potentially irrevocable action.  Be absolutely
+certain the tag points to the correct commit before pushing.
+
+Tags should be GPG-signed. The tag name format is `cuda-core-v<VERSION>`
+(e.g. `cuda-core-v0.6.0`). The tag must point to a commit on the release
+branch.
+
+```bash
+git fetch origin release/cuda-core-v0.6.x
+git checkout --detach origin/release/cuda-core-v0.6.x
+git tag -s cuda-core-v0.6.0 -m "cuda-core v0.6.0"
+git push origin cuda-core-v0.6.0
+```
+
+---
+
+## Wait for the tag-triggered CI run to complete
+
+Pushing the tag triggers a CI run automatically. Monitor it in the
+**Actions** tab on GitHub.
+
+- **All CI tests should succeed.** If any fail, investigate and rerun as
+  needed.
+- Note the **run ID** of the successful tag-triggered run. The release
+  workflow can auto-detect it from the tag, but you can also provide it
+  explicitly.
+
+---
+
+## Upload wheels to PyPI
+
+First validate the release with a dry run. After reviewing that result, a
+`full-release` run publishes to TestPyPI, then publishes the same wheel set to
+PyPI.
+
+1. Go to **Actions > CI: Release** and run the workflow with:
+   - **Component**: `cuda-core`
+   - **The release git tag**: `cuda-core-v0.6.0`
+   - **What to run**: `dry-run`
+
+   Leave `run-id` blank to exercise automatic lookup of the successful
+   tag-triggered CI run. Leave `dry-run-docs-branch` blank to validate the docs
+   without deploying them.
+
+2. Review the completed dry run, then approve publication under the team's
+   release procedure and run the workflow for the same component and tag with
+   **What to run** set to `full-release`.
+
+3. Wait for that run to complete. It deploys versioned documentation and uploads
+   the source archive, checksum, and wheels to the GitHub Release draft. It
+   publishes the selected wheel set to TestPyPI followed by PyPI. The release
+   owner publishes the GitHub Release draft in the announcement step.
+
+4. After completion, verify the final PyPI upload:
+
+```bash
+pip install cuda-core==0.6.0
+```
+
+---
+
+## Update the conda recipe & release conda packages
+
+The conda-forge feedstock builds from the GitHub Release source archive
+(not from PyPI). There are three approaches to updating the feedstock,
+from least effort to most control.
+
+### Approach A: Wait for the bot
+
+The `regro-cf-autotick-bot` periodically scans for new releases and opens
+a PR automatically. If nothing has changed in the build requirements, the
+bot's PR may be sufficient — review it and ask a feedstock maintainer
+to merge. However, the bot only
+updates the version and sha256. If build dependencies, import paths, or
+other recipe fields have changed, the bot's PR will be incomplete and CI
+will fail.
+
+### Approach B: Request a bot update
+
+If the bot hasn't opened a PR, you can request one explicitly. Go to the
+feedstock's Issues tab and create a new "Bot commands" issue:
+
+- **Title**: `@conda-forge-admin, please update version`
+- **Body**: (leave empty)
+
+This triggers the bot to create a version-bump PR. As with approach A,
+review the PR and push additional fixes if needed.
+
+### Approach C: Manual PR
+
+For full control — or when the bot's PR needs extensive fixes — open a
+PR manually from a fork.
+
+**Fork and clone** (one-time setup):
+
+```bash
+gh repo fork conda-forge/cuda-core-feedstock --clone
+cd cuda-core-feedstock
+```
+
+**Create a branch and edit `recipe/meta.yaml`:**
+
+```bash
+git checkout -b update-v0.6.0 origin/main
+```
+
+Update the following fields:
+
+1. **`version`**: Set to the new version (e.g. `0.6.0`).
+2. **`number`** (build number): Reset to `0` for a new version.
+3. **`sha256`**: The SHA-256 of the source archive from the GitHub
+   Release. Download it and compute the hash:
+
+   ```bash
+   curl -sL https://github.com/NVIDIA/cuda-python/releases/download/cuda-core-v0.6.0/cuda-python-cuda-core-v0.6.0.tar.gz \
+       | sha256sum
+   ```
+
+4. **Host dependencies**: Ensure all build-time dependencies are listed.
+   For example, v0.6.0 added a Cython C++ dependency on `nvrtc.h`,
+   requiring `cuda-nvrtc-dev` in both `host` requirements and
+   `ignore_run_exports_from`.
+
+5. **Test commands and descriptions**: Update any import paths or
+   descriptions that changed (e.g. `cuda.core.experimental` ->
+   `cuda.core`).
+
+**Open a PR:**
+
+```bash
+git add recipe/meta.yaml
+git commit -m "Update cuda-core to 0.6.0"
+git push <your-github-username> update-v0.6.0
+
+gh pr create \
+    --repo conda-forge/cuda-core-feedstock \
+    --head <your-github-username>:update-v0.6.0 \
+    --title "Update cuda-core to 0.6.0" \
+    --body "Update cuda-core to version 0.6.0."
+```
+
+### Notes
+
+The feedstock CI (Azure Pipelines) triggers automatically on the PR.
+Monitor it for build failures — common issues include missing build-time
+header dependencies. Feedstock maintainers (listed in
+`recipe/meta.yaml` under `extra.recipe-maintainers`) can merge the PR.
+
+---
+
+## Post-release QA
+
+*TBD*
+
+---
+
+## Finalize the announcement update
+
+The release workflow creates a draft GitHub Release. To publish it:
+
+1. Go to the repository on GitHub, click **Tags**, then switch to the
+   **Releases** tab.
+2. Find the draft release for the new tag and click **Edit**.
+3. Copy the body from a previous release as a starting point. It
+   typically links to the release notes in the documentation (e.g.
+   `https://nvidia.github.io/cuda-python/cuda-core/latest/release/0.6.0-notes.html`).
+4. Update the link and any version references, then click
+   **Publish release**.
+
+---
+
+## Send out the announcement internally
+
+The release owner will prepare and send the announcement.
+
+---
+
+## Send out the announcement externally (GitHub Release -> Announcement)
+
+*TBD*

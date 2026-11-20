@@ -491,3 +491,6 @@ release_notes.md
 .toksi/projectmem/watch.log
 .toksi/projectmem/structure.json
 .toksi/projectmem/.last_failure.json
+
+# Ignore .agents
+.agents/notes

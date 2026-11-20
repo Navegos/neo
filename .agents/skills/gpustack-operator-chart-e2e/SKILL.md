@@ -1,0 +1,155 @@
+---
+name: gpustack-operator-chart-e2e
+description: "Verify the operator Helm chart end to end on a local cluster: build and load the image, `helm install`, assert the rollout and the version contract, then `helm uninstall` and assert zero leftovers."
+disable-model-invocation: true
+allowed-tools: "Read, Agent, Bash(bash .claude/skills/_e2e-lib/scripts/preflight.sh*), Bash(bash .claude/skills/_e2e-lib/scripts/assert-core.sh*), Bash(bash .claude/skills/_e2e-lib/scripts/kube-context.sh*), Bash(bash .claude/skills/gpustack-operator-chart-e2e/cases/case-1.sh*), Bash(kubectl get*), Bash(kubectl describe*), Bash(kubectl logs*), Bash(kubectl cluster-info*), Bash(kubectl version*), Bash(kubectl config current-context), Bash(helm status*), Bash(helm list*), Bash(helm template*), Bash(helm lint*), Bash(git diff*), Bash(git rev-parse*), Bash(command -v*), Bash(date*), Bash(mkdir -p .claude/reports/*), Bash(tee .claude/reports/*)"
+---
+
+# GPUStack Operator — Helm chart E2E verification
+
+Use [the shared module map](../../../docs/README.md#module-map) to locate the relevant guides,
+owning specs, code entry points and related modules. [AGENTS.md](../../../AGENTS.md#finding-sources)
+owns the retrieval and evidence rules; this skill owns its execution procedure.
+
+Install the operator **from its Helm chart** onto a **local** cluster and verify it installs, runs, and uninstalls cleanly — with the **right version** baked in.
+
+**Scope — chart contract only, NOT feature e2e:**
+- **Validates:** chart changes, install, startup/rollout, the image build, and the version contract (image tag ↔ bundled chart tgz ↔ `gpustack-operator --version`).
+- **Does NOT** assert scheduling-chain behavior — deep NFD → Worker → Kueue behavior lives in `gpustack-operator-e2e`. Keep only install/uninstall + version-contract assertions here; add no behavioral assertions.
+
+## Orchestration
+
+Run as a **test-orchestration lead** (main agent) coordinating read-only **domain specialists** (`Agent` tool). **Read [`orchestration.md`](../_e2e-lib/references/orchestration.md) before Phase 0** — it owns roles, phases, parallelism/rendezvous rules, report layout, and the fix-and-retest loop. Below are the chart-e2e specifics.
+
+**Hard rules** (full list in `orchestration.md`; chart-e2e specifics):
+- **Pin the run to a user-confirmed context** — `preflight.sh` shows the active one; proceed only after the user confirms the intended local cluster. Never switch on your own judgement. When the confirmed cluster is **not** the active context, do not switch: take its isolated kubeconfig with `bash ../_e2e-lib/scripts/kube-context.sh <ctx>` and prefix every command of the run with the `KUBECONFIG=<path>` it prints (details in `../_e2e-lib/references/orchestration.md`). On the user's explicit say-so you may switch instead — then record the context to return to as an outstanding environment mutation and restore it in Phase 8.
+- **Build locally, never push** — `build-load.sh` keeps `PACKAGE_PUSH=false`.
+- **Touch only what this run creates** — the Helm release + its cleanup. Never modify or delete the user's pre-existing resources.
+- **Confirm every mutating step** (`build-load.sh`, `deploy.sh`, CASE 2, CASE 3, CASE 4, CASE 5, CASE 6, CASE 7); read-only steps (`preflight.sh`, CASE 1) run unprompted.
+- **Specialists are read-only** — the lead is the sole writer.
+
+**Layout:**
+- `../_e2e-lib/scripts/` — `preflight.sh`, `build-load.sh <TAG>`, `deploy.sh <NS> <TAG> [--set …]`, `assert-core.sh <NS>`, `teardown.sh <NS>` (custom-resource drain, test artifacts, release uninstall and a CRD-drain verdict; the drain and the cleanup are both delegated to the chart's `files/drain.sh` and `files/cleanup.sh`), `kube-context.sh <ctx>` (read-only; targets a context that is not the current one).
+- `cases/case-N.sh` — one scenario each; ends in a `STATUS | CHECK | OBJECT` table, exits non-zero on any FAIL.
+- `references/version-contract.md`; shared `../_e2e-lib/references/{orchestration,troubleshooting}.md`.
+
+## Cases (locked titles)
+
+| Case | Title | Run when these change (`git diff --name-only origin/main...HEAD`) | Script | Mutates |
+|---|---|---|---|---|
+| 1 | Install + version consistency | always (mandatory) | `cases/case-1.sh` | no |
+| 2 | Uninstall leaves zero leftovers | `deploy/gpustack-operator/chart/**`, `pkg/worker/kuberess/**` | `cases/case-2.sh` | yes (confirm) |
+| 3 | Release version survives a warm build cache | `pack/gpustack-operator/Dockerfile`, `hack/package.sh` (optional) | `cases/case-3.sh` | yes (confirm) |
+| 4 | The control plane survives losing its leader | `deploy/gpustack-operator/chart/values.yaml`, `deploy/gpustack-operator/chart/templates/worker/**`, `deploy/gpustack-operator/chart/charts/**` | `cases/case-4.sh` | yes (confirm) |
+| 5 | Adopting another release's objects needs `--take-ownership` | `deploy/gpustack-operator/chart/templates/migrate/**`, `deploy/gpustack-operator/chart/files/migrate-*.sh`, `deploy/gpustack-operator/chart/charts/**` | `cases/case-5.sh` | yes (confirm) |
+| 6 | Image mode: the worker installs the bundled chart itself | `pkg/worker/kuberess/**`, `pkg/kubeapp/**`, `pack/gpustack-operator/Dockerfile` | `cases/case-6.sh` | yes (confirm) |
+| 7 | A live older install rolls forward onto this build | `pkg/worker/kuberess/**`, `pkg/kubeapp/**`, `deploy/gpustack-operator/chart/templates/migrate/**`, `deploy/gpustack-operator/chart/files/migrate-*.sh` | `cases/case-7.sh` | yes (confirm) |
+| 8 | Topograph AWS API uses EKS Pod Identity and brokers complete IMDS discovery | `deploy/gpustack-operator/chart/charts/topograph/**`, `deploy/gpustack-operator/chart/values.yaml`, `testing/infra/clusters/eks/**` | `cases/case-8.sh` | no |
+
+**CASES 6 and 7 need a cluster with no chart release** — the two install modes are exclusive, because
+both renders carry cluster-scoped objects, the Kueue CRDs and ClusterRoles among them, and Helm refuses
+the second render on ownership metadata. Run them in Phase 4 **before** the Phase 3 install, or after CASE 2's
+teardown in Phase 8. They are also exclusive with **each other**: both drive the same image-mode
+release, so each needs the other torn down first (each one's trap does that). CASE 4 and CASE 5 both
+upgrade the release and restore the captured values on exit, so they run against the Phase 3 install,
+one at a time.
+
+**CASE 7 is the upgrade counterpart to CASE 6's fresh install.** CASE 6 proves several replicas
+converge on one release from nothing; CASE 7 starts from a *published* older build — one that
+predates the subchart layout and therefore installs one release per application — and proves the
+rollout onto this build adopts all of it into the single release without a human uninstalling
+anything. It is the only case that runs a release-to-release migration end to end, and the only one
+whose inputs come from a registry rather than the local build, so it needs outbound network.
+
+## Case header contract
+
+Every `cases/case-N.sh` opens with a header describing the case **on its own terms — no spec anchors** (no Story/Task numbers, F-codes, `specs/*.md` paths, or commit hashes). A reader must understand what the case does, needs, and asserts from the header alone. New/edited cases follow this six-field template:
+
+```
+# CASE N — <one-line behavior title>   (<mutation posture>)
+#
+#   case-N.sh <args>
+#
+# Goal:        <the one contract/behavior this case proves>
+# Environment: <what the cluster/builder must provide + when it AUTO-SKIPS or is OPTIONAL>
+# Inputs:      <what the case runs / installs / builds; mark any MOCKED inputs vs the real thing verified>
+# Expected:    <the PASS assertions — the observable final state>
+# Cleanup:     <what the trap / teardown restores; idempotent + safe to re-run>
+```
+
+- **Mutation posture** rides the title line: `READ-ONLY` (asserts existing state, no trap) or `MUTATING` (writes). Append the running constraint when there is one — `run LAST` (teardown), `OPTIONAL`, or `local build only` (no cluster).
+- **Environment** always names the constraint (cluster with the chart installed, a local Docker builder, a warm-cache prerequisite) so the run/skip decision is readable without executing the case.
+- **Inputs** distinguish any **MOCKED** inputs from the **real** objects under test — these chart-contract cases mock nothing, so they state "nothing mocked".
+- Describe behavior in **plain terms** (e.g. "the running binary version equals the bundled tgz"), not by spec reference; the case↔code mapping lives in the table's "Run when these change" column.
+- Runtime output (results banner, `record` messages, FAIL-footer) stays spec-anchor-free and self-explanatory.
+
+## Flow
+
+Generic phase semantics (roles, rendezvous, report, fix-retest) live in [`orchestration.md`](../_e2e-lib/references/orchestration.md); below are the chart-e2e specifics. Let `RPT=.claude/reports/$(date +%F)-chart-e2e`.
+
+**Phase 0 — Environment (read-only).** Preflight, confirm the context, record drift; optionally `helm lint deploy/gpustack-operator/chart`:
+
+```bash
+bash .claude/skills/_e2e-lib/scripts/preflight.sh
+git rev-parse HEAD; git diff --stat origin/main...HEAD
+```
+
+Do not continue unless the user confirms a local `k3s` / `docker-desktop` context. Then `mkdir -p "$RPT"/raw` and write the report header + node inventory.
+
+**Phase 1 — Test-item list.** Match `git diff --name-only origin/main...HEAD` against the case table; CASE 1 always included. Confirm with the user (`AskUserQuestion`) when a high-impact surface (chart, `kuberess` app-install, image build) changed. No drift → ask for new items, invoking `interview-me` if the ask is too coarse.
+
+**Phase 2 — Plan.** Pick the specialist roster — version-contract consistency → `agent-skills:test-engineer`; uninstall cleanliness / leftover-leak → `agent-skills:security-auditor`; image build → `general-purpose`; root-cause → `agent-skills:code-reviewer`. Keep to the chart contract — **no behavioral assertions**. Write the test-plan section.
+
+**Phase 3 — Build & deploy (confirm).**
+
+```bash
+TAG=dev-$(git rev-parse --short HEAD); NS=gpustack-system
+bash .claude/skills/_e2e-lib/scripts/build-load.sh "$TAG"   2>&1 | tee "$RPT"/raw/01-build.txt
+bash .claude/skills/_e2e-lib/scripts/deploy.sh "$NS" "$TAG" 2>&1 | tee "$RPT"/raw/02-deploy.txt
+```
+
+- The chart deploys everything in **one release** — the worker, the device-managers, and Kueue / NFD / the two CSI drivers as subcharts. `--set deviceManager.enabled=false` now only means "render no device-manager DaemonSets"; the worker installs nothing at runtime. The **version-critical path** (see `references/version-contract.md`) is CASE 6's image mode, not a flag on this install.
+- To exercise the gated pre-delete and post-delete hooks in-cluster, add `--set cleanupOnUninstall=true`.
+
+**Phase 4 — Execute + analyze.** CASE 1 read-only (no prompt); pass the built `$TAG` so it also checks the deployed image tag. Optional CASE 3 (confirm) reproduces the version/warm-cache path — run it after the Phase 3 build so the cache is warm. Per the rendezvous rule, fan out specialists on each case's snapshot before the next mutating step.
+
+```bash
+bash .claude/skills/gpustack-operator-chart-e2e/cases/case-1.sh "$NS" "$TAG" 2>&1 | tee "$RPT"/raw/10-case1.txt   # mandatory, read-only
+# optional, warm-cache (confirm):
+bash .claude/skills/gpustack-operator-chart-e2e/cases/case-3.sh              2>&1 | tee "$RPT"/raw/11-case3.txt
+# HA and adoption, one at a time (confirm each) — both upgrade the release and restore it on exit:
+bash .claude/skills/gpustack-operator-chart-e2e/cases/case-4.sh "$NS" 2      2>&1 | tee "$RPT"/raw/12-case4.txt
+bash .claude/skills/gpustack-operator-chart-e2e/cases/case-5.sh "$NS"        2>&1 | tee "$RPT"/raw/13-case5.txt
+```
+
+CASE 6 (image mode) and CASE 7 (the upgrade onto it) are the cases that cannot share the cluster with
+the Phase 3 install — run them either before Phase 3 or after Phase 8's teardown (confirm each), one
+at a time, and each cleans up after itself:
+
+```bash
+bash .claude/skills/gpustack-operator-chart-e2e/cases/case-6.sh "$NS" "$TAG" 2>&1 | tee "$RPT"/raw/14-case6.txt
+# from the published older build (default v0.5.4) up to this one; needs outbound network:
+bash .claude/skills/gpustack-operator-chart-e2e/cases/case-7.sh "$NS" "$TAG" 2>&1 | tee "$RPT"/raw/15-case7.txt
+```
+
+Read the PASS/FAIL table; do not re-derive from raw output.
+
+**Phase 5 — Triage.** On a FAIL/suspicion, diagnose (`kubectl -n "$NS" describe/logs deploy/gpustack-operator-worker`, `helm status gpustack-operator -n "$NS"`) and record a `Finding #N` block.
+
+**Phase 6 — Summary.** Write the summary (confirmed problems + repro + conclusion) + the **suite gaps & upgrade backlog** accrued during the run.
+
+**Phase 7 — Fix & retest / Suite upgrade (optional).** Per `orchestration.md`, two user-gated branches: (a) real bugs → confirm, choose local vs remote (SSH/RSYNC) packaging (record connection info), fix → `make lint` → signoff commit → package → redeploy → retest → append; (b) sink the self-upgrade backlog into the suite (new/adjusted `cases`, tightened assertions, case-table/`references` updates) or this protocol — confirm each, signoff commit, retest any changed case.
+
+**Phase 8 — Teardown (mandatory) — CASE 2, uninstall & assert zero leftovers.** Run unconditionally as the final phase (confirm the single call); defer only if a Phase 7 loop is still running. CASE 2 runs the shared `teardown.sh` then asserts the cluster is clean:
+
+```bash
+bash .claude/skills/gpustack-operator-chart-e2e/cases/case-2.sh gpustack-system 2>&1 | tee "$RPT"/raw/90-case2-teardown.txt
+```
+
+`teardown.sh` removes the operator release — which now takes Kueue / NFD / the CSI drivers with it, since they are subcharts of it — plus the releases it does not own (the worker's own image-mode release, and the pre-subchart per-application ones), their CRDs/finalizers, the APIServices/webhooks, and anything a failed migration hook left behind. The `gpustack-system` namespace is kept on purpose. Never delete the user's pre-existing resources.
+
+## References
+
+- `../_e2e-lib/references/orchestration.md` — the shared multi-specialist flow: roles, phases, rendezvous rules, report layout, and the fix-and-retest loop.
+- `references/version-contract.md` — the three-view version contract, the device-manager runtime-install path, and the warm-cache risk CASE 3 reproduces.
+- `../_e2e-lib/references/troubleshooting.md` — shared image/rollout/teardown failure modes.
