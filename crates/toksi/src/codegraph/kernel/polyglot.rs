@@ -291,7 +291,78 @@ fn extract_sfc_full(file_path: &str, content: &str, host_lang: &str) -> FileExtr
         &mut refs,
     );
 
+    // Extract embedded <style> (CSS/SCSS) blocks and attach rulesets to component
+    for style_block in extract_sfc_styles(content) {
+        let style_src = &content[style_block.body_start..style_block.body_end];
+        let ext = extract_structural(&norm_path, style_src, style_block.style_lang);
+        for mut n in ext.nodes {
+            if n.kind == "file" {
+                continue;
+            }
+            n.start_line += style_block.line_offset;
+            n.end_line += style_block.line_offset;
+            n.id = format!("{}#L{}", n.id, n.start_line);
+            let id = n.id.clone();
+            nodes.push(n);
+            edges.push(SymbolEdge {
+                source_id: comp_id.clone(),
+                target_id: id,
+                kind: "contains".to_string(),
+                line: None,
+                column: None,
+            });
+        }
+    }
+
     FileExtraction { nodes, edges, refs }
+}
+
+struct SfcStyleBlock {
+    body_start: usize,
+    body_end: usize,
+    style_lang: &'static str,
+    line_offset: u32,
+}
+
+fn extract_sfc_styles(content: &str) -> Vec<SfcStyleBlock> {
+    let mut blocks = Vec::new();
+    let lower = content.to_ascii_lowercase();
+    let mut cursor = 0usize;
+    while let Some(rel_start) = lower[cursor..].find("<style") {
+        let start_idx = cursor + rel_start;
+        let Some(rel_gt) = lower[start_idx..].find('>') else {
+            break;
+        };
+        let open_end = start_idx + rel_gt;
+        if content[..=open_end].trim_end().ends_with("/>") {
+            cursor = open_end + 1;
+            continue;
+        }
+        let attrs_lower = lower[start_idx + 6..open_end].to_string();
+        let body_start = open_end + 1;
+        let body_end = lower[body_start..]
+            .find("</style")
+            .map(|e| body_start + e)
+            .unwrap_or(content.len());
+        let after_end = lower[body_end..]
+            .find('>')
+            .map(|e| body_end + e + 1)
+            .unwrap_or(content.len());
+        let style_lang = if attrs_lower.contains("scss") || attrs_lower.contains("sass") {
+            "scss"
+        } else {
+            "css"
+        };
+        let line_offset = content[..body_start].bytes().filter(|&b| b == b'\n').count() as u32;
+        blocks.push(SfcStyleBlock {
+            body_start,
+            body_end,
+            style_lang,
+            line_offset,
+        });
+        cursor = after_end;
+    }
+    blocks
 }
 
 fn sfc_script_style_line_ranges(content: &str) -> Vec<(u32, u32)> {

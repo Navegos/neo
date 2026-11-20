@@ -9,6 +9,9 @@ description = "Safe FFI wrappers for Tree-sitter C grammars"
 
 [dependencies]
 tree-sitter-language = "0.1"
+arborium-dockerfile = "2.18.2"
+arborium-scss = "2.18.2"
+arborium-vue = { version = "2.18.2", default-features = false }
 
 [build-dependencies]
 cc = "1.2"

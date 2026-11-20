@@ -41,6 +41,18 @@ pub fn language_swift() -> LanguageFn {
     unsafe { LanguageFn::from_raw(tree_sitter_swift) }
 }
 
+pub fn language_dockerfile() -> LanguageFn {
+    arborium_dockerfile::language()
+}
+
+pub fn language_scss() -> LanguageFn {
+    arborium_scss::language()
+}
+
+pub fn language_vue() -> LanguageFn {
+    arborium_vue::language()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -52,5 +64,8 @@ mod tests {
         let _ = language_kotlin();
         let _ = language_scala();
         let _ = language_swift();
+        let _ = language_dockerfile();
+        let _ = language_scss();
+        let _ = language_vue();
     }
 }

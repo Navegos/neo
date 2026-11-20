@@ -1309,3 +1309,30 @@ class App {
         );
     }
 
+    #[test]
+    fn test_all_45_languages_and_dedicated_grammars() {
+        use crate::codegraph::kernel::langs::{grammar_for, LANGUAGES};
+        assert_eq!(LANGUAGES.len(), 45);
+        for lang in LANGUAGES {
+            assert!(
+                grammar_for(lang).is_some(),
+                "missing grammar_for({})",
+                lang
+            );
+        }
+        assert_ne!(grammar_for("dockerfile"), grammar_for("bash"));
+        assert_ne!(grammar_for("vue"), grammar_for("html"));
+        assert_ne!(grammar_for("scss"), grammar_for("css"));
+
+        let vue_src = r#"<template><Card /></template>
+<script setup lang="ts">
+function greet() { return "hi"; }
+</script>
+<style lang="scss">
+.card-box { color: red; }
+</style>"#;
+        let vue_ext = extract_file("Card.vue", vue_src, "vue").unwrap();
+        assert!(vue_ext.nodes.iter().any(|n| n.name == "greet"));
+        assert!(vue_ext.nodes.iter().any(|n| n.kind == "rule" && n.name.contains("card-box")));
+    }
+

@@ -500,7 +500,8 @@ impl ContentStore {
                 code_chunk_count INTEGER NOT NULL DEFAULT 0,
                 indexed_at TEXT NOT NULL DEFAULT (datetime('now')),
                 file_path TEXT,
-                content_hash TEXT
+                content_hash TEXT,
+                subproject_id TEXT NOT NULL DEFAULT '.'
             );
 
             CREATE VIRTUAL TABLE IF NOT EXISTS chunks USING fts5(
@@ -549,6 +550,22 @@ impl ContentStore {
 
             CREATE INDEX IF NOT EXISTS idx_sources_label ON sources(label);",
         )?;
+
+        let has_subproj: bool = conn
+            .prepare("PRAGMA table_info(sources)")?
+            .query_map([], |row| row.get::<_, String>(1))?
+            .filter_map(Result::ok)
+            .any(|c| c == "subproject_id");
+        if !has_subproj {
+            let _ = conn.execute(
+                "ALTER TABLE sources ADD COLUMN subproject_id TEXT NOT NULL DEFAULT '.'",
+                [],
+            );
+        }
+        let _ = conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sources_subproject ON sources(subproject_id)",
+            [],
+        );
 
         // Attempt trigram virtual table creation
         let has_trigram = conn
@@ -1059,6 +1076,7 @@ impl ContentStore {
                 .map(|p| crate::util::paths::normalize_path(&p.to_string_lossy()))
                 .unwrap_or_else(|_| crate::util::paths::normalize_path(&path.to_string_lossy()));
 
+            let sub_id = crate::codegraph::cache::derive_subproject_id(&rel_path);
             let label = if let Some(prefix) = label_prefix {
                 format!("{}/{}", prefix.trim_end_matches('/'), rel_path)
             } else {
@@ -1075,6 +1093,10 @@ impl ContentStore {
 
             match self.index(&content, &label, Some(ctype), None) {
                 Ok(ir) => {
+                    let _ = self.conn.execute(
+                        "UPDATE sources SET subproject_id = ?1 WHERE label = ?2",
+                        params![sub_id, label],
+                    );
                     files_indexed += 1;
                     total_chunks += ir.total_chunks;
                     total_bytes += ir.total_bytes;
