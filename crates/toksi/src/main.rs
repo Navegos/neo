@@ -5,6 +5,8 @@
 // created: 2026-10-05
 // lastModified: 2026-11-18
 
+#![deny(unsafe_code)]
+
 use std::collections::HashMap;
 use std::env;
 use std::process;
@@ -473,6 +475,9 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "daemon" {
         return run_daemon_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "config" {
+        return toksi::commands::run_config_cli(&args[2..]);
+    }
     if args.len() >= 2 && args[1] == "mem" {
         return toksi::projectmem::run_mem_cli(&args[2..]);
     }
@@ -578,6 +583,7 @@ fn run() -> i32 {
             output_file: p.flags.get("output").or_else(|| p.flags.get("o")).cloned(),
         }),
         "daemon" => run_daemon_cli(&args[2..]),
+        "config" => toksi::commands::run_config_cli(&args[2..]),
         "info" => run_info(),
         "index" => run_index(opts, p.bools.get("auto") == Some(&true)),
         "disable" => run_disable(opts),

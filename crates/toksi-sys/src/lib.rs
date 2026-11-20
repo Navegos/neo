@@ -11,6 +11,7 @@
 //! `// SAFETY:` comment proving pointer validity, null-termination, alignment,
 //! and buffer size invariants.
 
+pub mod console;
 pub mod process;
 pub mod windows_cred;
 pub mod windows_env;

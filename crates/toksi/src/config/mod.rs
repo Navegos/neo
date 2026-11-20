@@ -221,6 +221,30 @@ impl Default for TestConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct ByokTableEntry {
+    pub base_url: String,
+    #[serde(alias = "model_id")]
+    pub model: String,
+    #[serde(alias = "thinking_effort")]
+    pub effort: String,
+    pub enabled: bool,
+    pub provider_id: String,
+}
+
+impl Default for ByokTableEntry {
+    fn default() -> Self {
+        Self {
+            base_url: String::new(),
+            model: String::new(),
+            effort: "medium".to_string(),
+            enabled: true,
+            provider_id: String::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct ToksiTomlConfig {
@@ -229,6 +253,7 @@ pub struct ToksiTomlConfig {
     pub base_urls: HashMap<String, String>,
     pub default_agents: Vec<String>,
     pub auth: AuthConfig,
+    pub byok: HashMap<String, ByokTableEntry>,
     pub byok_profiles: Vec<ByokProfileConfig>,
     pub test: TestConfig,
 }
@@ -236,6 +261,7 @@ pub struct ToksiTomlConfig {
 impl ToksiTomlConfig {
     pub fn has_enabled_byok_profiles(&self) -> bool {
         self.byok_profiles.iter().any(|p| p.enabled)
+            || self.byok.values().any(|p| p.enabled)
     }
 
     pub fn enabled_profiles_for_provider(&self, provider_id: &str) -> Vec<&ByokProfileConfig> {
@@ -342,11 +368,48 @@ pub fn save_toksi_toml_config(cfg: &ToksiTomlConfig) -> Result<(), ConfigError> 
     Ok(())
 }
 
+pub const DEFAULT_COMMENTED_CONFIG_TOML: &str = r#"# Toksi Global Configuration (~/.toksi/config.toml)
+# All paths use forward slashes ('/').
+
+[general]
+default_agents = []
+direct_wire = true
+auto_install_user_hooks = true
+auto_install_repo_hooks = false
+
+[ports]
+headroom = 8787
+grok_oauth = 8788
+copilot_vscode = 8789
+copilot_cli = 8790
+protocol_bus = 9098
+gateway = 9099
+dashboard = 9100
+byok_gateway = 18787
+
+[test]
+incremental = true
+baseline_path = ".toksi/test-baseline.json"
+
+[auth.gcp_adc]
+agy_adc_auth = false
+gcp_project = ""
+gcp_location = "us-central1"
+
+# Example BYOK profile override:
+# [byok.openai-fast]
+# base_url = "https://api.openai.com/v1"
+# model = "gpt-4o-mini"
+# effort = "medium"
+# enabled = true
+"#;
+
 pub fn ensure_default_config_toml() -> Result<PathBuf, ConfigError> {
     let path = toksi_config_toml_path();
     if !path.exists() {
-        let default_cfg = ToksiTomlConfig::default();
-        save_toksi_toml_config(&default_cfg)?;
+        let norm = normalize_path(&path.to_string_lossy());
+        write_file_atomic(&path, DEFAULT_COMMENTED_CONFIG_TOML)
+            .map_err(|source| ConfigError::Io { path: norm, source })?;
     }
     Ok(path)
 }
@@ -460,7 +523,13 @@ pub fn resolve_default_agents() -> Vec<String> {
 }
 
 pub fn enabled_byok_profile_count() -> usize {
-    let cfg_count = load_toksi_toml_config()
+    let cfg = load_toksi_toml_config();
+    let table_count = cfg
+        .byok
+        .iter()
+        .filter(|(id, p)| p.enabled && (!id.trim().is_empty() || !p.provider_id.trim().is_empty()))
+        .count();
+    let cfg_count = cfg
         .byok_profiles
         .into_iter()
         .filter(|p| p.enabled && !p.provider_id.trim().is_empty())
@@ -475,7 +544,7 @@ pub fn enabled_byok_profile_count() -> usize {
             })
         })
         .unwrap_or(0);
-    cfg_count + db_count
+    table_count + cfg_count + db_count
 }
 
 #[cfg(test)]

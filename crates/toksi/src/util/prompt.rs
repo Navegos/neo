@@ -5,9 +5,10 @@
 // created: 2026-10-05
 // lastModified: 2026-10-31
 
+#![deny(unsafe_code)]
+
 use std::collections::HashSet;
 use std::io::{self, BufRead, Read, Write};
-use std::sync::atomic::AtomicU32;
 
 use super::colors::{interactive_tty, pick, set_vt_ready, stdin_is_tty, vt_ready, C, SYM};
 
@@ -33,200 +34,37 @@ pub fn is_interactive() -> bool {
     stdin_is_tty()
 }
 
-#[allow(dead_code)]
-static SAVED_OUTPUT_CP: AtomicU32 = AtomicU32::new(0);
-
-#[cfg(windows)]
-mod win_console {
-    use std::ffi::c_void;
-    use std::os::windows::io::AsRawHandle;
-    use std::sync::atomic::Ordering;
-    use super::SAVED_OUTPUT_CP;
-
-    const WIN_ENABLE_PROCESSED_INPUT: u32 = 0x0001;
-    const WIN_ENABLE_LINE_INPUT: u32 = 0x0002;
-    const WIN_ENABLE_ECHO_INPUT: u32 = 0x0004;
-    const WIN_ENABLE_WINDOW_INPUT: u32 = 0x0008;
-    const WIN_ENABLE_MOUSE_INPUT: u32 = 0x0010;
-    const WIN_ENABLE_VT_INPUT: u32 = 0x0200;
-    const WIN_ENABLE_VT_PROCESSING: u32 = 0x0004;
-
-    #[link(name = "kernel32")]
-    unsafe extern "system" {
-        fn GetConsoleMode(hConsoleHandle: *mut c_void, lpMode: *mut u32) -> i32;
-        fn SetConsoleMode(hConsoleHandle: *mut c_void, dwMode: u32) -> i32;
-        fn GetConsoleOutputCP() -> u32;
-        fn SetConsoleOutputCP(wCodePageID: u32) -> i32;
-    }
-
-    fn get_console_mode(handle: *mut c_void) -> Option<u32> {
-        let mut mode: u32 = 0;
-        let ok = unsafe { GetConsoleMode(handle, &mut mode) };
-        if ok != 0 { Some(mode) } else { None }
-    }
-
-    fn set_console_mode(handle: *mut c_void, mode: u32) -> bool {
-        unsafe { SetConsoleMode(handle, mode) != 0 }
-    }
-
-    pub fn restore_console_cp() {
-        let saved = SAVED_OUTPUT_CP.load(Ordering::Relaxed);
-        if saved != 0 && saved != 65001 {
-            unsafe {
-                let _ = SetConsoleOutputCP(saved);
-            }
-        }
-    }
-
-    pub fn enable_vt() -> bool {
-        unsafe {
-            let cp = GetConsoleOutputCP();
-            if cp != 0 {
-                SAVED_OUTPUT_CP.store(cp, Ordering::Relaxed);
-            }
-            let _ = SetConsoleOutputCP(65001);
-        }
-        let mut ok = true;
-        let stdout_h = std::io::stdout().as_raw_handle() as *mut c_void;
-        let stderr_h = std::io::stderr().as_raw_handle() as *mut c_void;
-        for h in [stdout_h, stderr_h] {
-            if let Some(mode) = get_console_mode(h) {
-                if mode & WIN_ENABLE_VT_PROCESSING == 0 {
-                    if !set_console_mode(h, mode | WIN_ENABLE_VT_PROCESSING) {
-                        ok = false;
-                    }
-                }
-            }
-        }
-        ok
-    }
-
-    pub fn raw_mode() -> Option<Box<dyn FnOnce()>> {
-        let stdin_h = std::io::stdin().as_raw_handle() as *mut c_void;
-        let saved = get_console_mode(stdin_h)?;
-        let mut raw = saved
-            & !(WIN_ENABLE_ECHO_INPUT
-                | WIN_ENABLE_LINE_INPUT
-                | WIN_ENABLE_PROCESSED_INPUT
-                | WIN_ENABLE_WINDOW_INPUT
-                | WIN_ENABLE_MOUSE_INPUT);
-        raw |= WIN_ENABLE_VT_INPUT;
-        if !set_console_mode(stdin_h, raw) {
-            return None;
-        }
-        let handle_addr = stdin_h as usize;
-        Some(Box::new(move || {
-            let _ = set_console_mode(handle_addr as *mut c_void, saved);
-        }))
-    }
-
-    pub fn suspend_tty(restore: Box<dyn FnOnce()>) -> (Box<dyn FnOnce()>, bool) {
-        (restore, false)
-    }
-}
-
-#[cfg(not(windows))]
-mod unix_console {
-    use std::process::{Command, Stdio};
-
-    pub fn restore_console_cp() {}
-
-    pub fn enable_vt() -> bool {
-        true
-    }
-
-    pub fn raw_mode() -> Option<Box<dyn FnOnce()>> {
-        let saved_out = Command::new("stty")
-            .args(["-F", "/dev/tty", "-g"])
-            .output()
-            .ok()
-            .filter(|o| o.status.success())
-            .or_else(|| {
-                Command::new("stty")
-                    .arg("-g")
-                    .stdin(Stdio::inherit())
-                    .output()
-                    .ok()
-                    .filter(|o| o.status.success())
-            })?;
-        let saved = String::from_utf8_lossy(&saved_out.stdout).trim().to_string();
-        if saved.is_empty() {
-            return None;
-        }
-
-        let set_ok = Command::new("stty")
-            .args(["-F", "/dev/tty", "raw", "-echo"])
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-            || Command::new("stty")
-                .args(["raw", "-echo"])
-                .stdin(Stdio::inherit())
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false);
-        if !set_ok {
-            return None;
-        }
-
-        Some(Box::new(move || {
-            let ok = Command::new("stty")
-                .args(["-F", "/dev/tty", &saved])
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false);
-            if !ok {
-                let _ = Command::new("stty")
-                    .arg(&saved)
-                    .stdin(Stdio::inherit())
-                    .status();
-            }
-        }))
-    }
-
-    pub fn suspend_tty(restore: Box<dyn FnOnce()>) -> (Box<dyn FnOnce()>, bool) {
-        restore();
-        let _ = std::io::Write::write_all(&mut std::io::stdout(), b"\r\n");
-        let _ = std::io::Write::flush(&mut std::io::stdout());
-        restore_console_cp();
-        unsafe {
-            libc::kill(libc::getpid(), libc::SIGTSTP);
-        }
-        match raw_mode() {
-            Some(next) => (next, true),
-            None => (Box::new(|| {}), false),
-        }
-    }
-}
-
 pub fn restore_console_cp() {
-    #[cfg(windows)]
-    win_console::restore_console_cp();
-    #[cfg(not(windows))]
-    unix_console::restore_console_cp();
+    toksi_sys::console::restore_console_cp();
 }
 
 pub fn enable_vt() -> bool {
-    #[cfg(windows)]
-    let ok = win_console::enable_vt();
-    #[cfg(not(windows))]
-    let ok = unix_console::enable_vt();
+    let ok = toksi_sys::console::enable_vt();
     set_vt_ready(ok);
     ok
 }
 
 pub fn raw_mode() -> Option<Box<dyn FnOnce()>> {
-    #[cfg(windows)]
-    return win_console::raw_mode();
-    #[cfg(not(windows))]
-    return unix_console::raw_mode();
+    toksi_sys::console::raw_mode()
 }
 
 fn suspend_tty(restore: Box<dyn FnOnce()>) -> (Box<dyn FnOnce()>, bool) {
     #[cfg(windows)]
-    return win_console::suspend_tty(restore);
+    {
+        (restore, false)
+    }
     #[cfg(not(windows))]
-    return unix_console::suspend_tty(restore);
+    {
+        restore();
+        let _ = std::io::Write::write_all(&mut std::io::stdout(), b"\r\n");
+        let _ = std::io::Write::flush(&mut std::io::stdout());
+        restore_console_cp();
+        toksi_sys::console::send_sigtstp_self();
+        match raw_mode() {
+            Some(next) => (next, true),
+            None => (Box::new(|| {}), false),
+        }
+    }
 }
 
 fn prompt_exit(restore: Option<Box<dyn FnOnce()>>) -> ! {

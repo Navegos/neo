@@ -5,6 +5,7 @@
 // created: 2026-10-05
 // lastModified: 2026-10-31
 
+#![deny(unsafe_code)]
 #![recursion_limit = "256"]
 
 pub mod config;

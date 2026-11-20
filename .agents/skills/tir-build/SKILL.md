@@ -1,3 +1,10 @@
+---
+name: build-tvm
+description: Build TVM from the current worktree using CMake. Use when the user asks to compile, rebuild, or set up a local TVM build directory.
+---
+
+# Build TVM
+
 Build TVM from the current worktree.
 
 ## Steps

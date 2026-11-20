@@ -8,6 +8,7 @@
 pub mod agent;
 pub mod auth;
 pub mod codex_perm_hook;
+pub mod config;
 pub mod ctx;
 pub mod daemon;
 pub mod dashboard;
@@ -34,6 +35,7 @@ pub mod update;
 pub use agent::*;
 pub use auth::*;
 pub use codex_perm_hook::*;
+pub use config::*;
 pub use ctx::*;
 pub use daemon::*;
 pub use dashboard::*;
