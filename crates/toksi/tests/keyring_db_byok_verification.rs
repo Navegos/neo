@@ -169,6 +169,7 @@ fn test_wave18_db_dump_and_blind_signature_guard() {
         gcp_location: "us-central1".to_string(),
         priority: 20,
         weight: 1,
+        headroom_enabled: true,
         is_active: true,
         created_at: 1000,
         updated_at: 1000,
@@ -264,5 +265,134 @@ fn test_adc_and_spire_svid_and_alias() {
     }
 
     let _ = get_agent_token("gemini:antigravity");
+}
+
+#[test]
+fn test_multi_instance_byok_crud_and_overwrite_reset() {
+    let mut db = ToksiConfigDb::open_in_memory().expect("open memory db");
+    let now = 1000;
+
+    // Seed a stale profile that should be wiped when import_dump(..., overwrite = true) runs
+    db.upsert_byok_profile(&ByokProfileRecord {
+        id: "stale.profile".to_string(),
+        provider_id: "stale".to_string(),
+        instance_label: "old".to_string(),
+        model_id: "old-model".to_string(),
+        thinking_effort: "low".to_string(),
+        base_url: "https://stale.example.com".to_string(),
+        secret_ref: String::new(),
+        auth_mode: "api_key".to_string(),
+        gcp_project: String::new(),
+        gcp_location: "us-central1".to_string(),
+        priority: 1,
+        weight: 1,
+        headroom_enabled: true,
+        is_active: true,
+        created_at: now,
+        updated_at: now,
+    })
+    .expect("seed stale profile");
+
+    let mut clean_db = ToksiConfigDb::open_in_memory().expect("open clean db");
+    let flash_low = ByokProfileRecord {
+        id: "google:flash-low:gemini-2.5-flash:low".to_string(),
+        provider_id: "google".to_string(),
+        instance_label: "flash-low".to_string(),
+        model_id: "gemini-2.5-flash".to_string(),
+        thinking_effort: "low".to_string(),
+        base_url: "https://generativelanguage.googleapis.com".to_string(),
+        secret_ref: "keyring://gemini/antigravity".to_string(),
+        auth_mode: "oauth".to_string(),
+        gcp_project: String::new(),
+        gcp_location: "us-central1".to_string(),
+        priority: 100,
+        weight: 100,
+        headroom_enabled: true,
+        is_active: true,
+        created_at: now,
+        updated_at: now,
+    };
+    let pro_high = ByokProfileRecord {
+        id: "google:pro-high:gemini-2.5-pro:high".to_string(),
+        provider_id: "google".to_string(),
+        instance_label: "pro-high".to_string(),
+        model_id: "gemini-2.5-pro".to_string(),
+        thinking_effort: "high".to_string(),
+        base_url: "https://generativelanguage.googleapis.com".to_string(),
+        secret_ref: "keyring://gemini/antigravity".to_string(),
+        auth_mode: "oauth".to_string(),
+        gcp_project: String::new(),
+        gcp_location: "us-central1".to_string(),
+        priority: 90,
+        weight: 50,
+        headroom_enabled: true,
+        is_active: true,
+        created_at: now,
+        updated_at: now,
+    };
+
+    clean_db.upsert_byok_profile(&flash_low).expect("upsert flash-low");
+    clean_db.upsert_byok_profile(&pro_high).expect("upsert pro-high");
+    assert_eq!(clean_db.list_byok_profiles().expect("list").len(), 2);
+
+    let dump = clean_db.export_dump().expect("export dump");
+    db.import_dump(&dump, true).expect("import with overwrite");
+
+    // Stale profile must be gone, leaving only the 2 clean profiles
+    let after = db.list_byok_profiles().expect("list after overwrite");
+    assert_eq!(after.len(), 2);
+    assert!(db.get_byok_profile("stale.profile").expect("get stale").is_none());
+
+    // CRUD updates
+    assert!(db
+        .update_byok_profile_url(&flash_low.id, "https://custom.example.com")
+        .expect("update url"));
+    assert!(db
+        .update_byok_profile_model(&flash_low.id, "gemini-2.5-flash-lite", Some("medium"))
+        .expect("update model"));
+    let updated = db
+        .get_byok_profile(&flash_low.id)
+        .expect("get")
+        .expect("present");
+    assert_eq!(updated.base_url, "https://custom.example.com");
+    assert_eq!(updated.model_id, "gemini-2.5-flash-lite");
+    assert_eq!(updated.thinking_effort, "medium");
+    assert!(updated.headroom_enabled);
+
+    assert!(db.delete_byok_profile(&pro_high.id).expect("delete"));
+    assert_eq!(db.list_byok_profiles().expect("list").len(), 1);
+}
+
+#[test]
+fn test_ccr_mcp_tools_compress_retrieve_stats_read() {
+    use toksi::headroom::ccr::{handle_mcp_ccr_tool, CcrStore, InMemoryCcrStore};
+
+    let store = InMemoryCcrStore::default();
+    let hash = "test_hash_1234";
+    store.put(hash, "alpha\nbeta\ngamma\ndelta");
+
+    let ret = handle_mcp_ccr_tool("headroom_retrieve", &serde_json::json!({ "hash": hash }), &store)
+        .expect("retrieve");
+    assert_eq!(ret["found"], true);
+    assert_eq!(ret["content"], "alpha\nbeta\ngamma\ndelta");
+
+    let read_slice = handle_mcp_ccr_tool(
+        "headroom_read",
+        &serde_json::json!({ "hash": hash, "offset": 6, "limit": 4 }),
+        &store,
+    )
+    .expect("read");
+    assert_eq!(read_slice["content"], "beta");
+
+    let stats = handle_mcp_ccr_tool("headroom_stats", &serde_json::json!({}), &store).expect("stats");
+    assert!(stats.get("raw_bytes_total").is_some());
+
+    let comp = handle_mcp_ccr_tool(
+        "headroom_compress",
+        &serde_json::json!({ "content": "{\"a\": 1, \"b\": 2}", "hint": "json" }),
+        &store,
+    )
+    .expect("compress");
+    assert!(comp.get("compressed").is_some());
 }
 

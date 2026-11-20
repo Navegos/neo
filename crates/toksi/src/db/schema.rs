@@ -17,6 +17,10 @@ fn default_gcp_location() -> String {
     "us-central1".to_string()
 }
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ProviderRecord {
     pub id: String,
@@ -104,6 +108,8 @@ pub struct ByokProfileRecord {
     pub gcp_location: String,
     pub priority: i32,
     pub weight: i32,
+    #[serde(default = "default_true")]
+    pub headroom_enabled: bool,
     pub is_active: bool,
     pub created_at: i64,
     pub updated_at: i64,
@@ -283,6 +289,7 @@ CREATE TABLE IF NOT EXISTS byok_profiles (
     gcp_location TEXT NOT NULL DEFAULT 'us-central1',
     priority INTEGER NOT NULL DEFAULT 0,
     weight INTEGER NOT NULL DEFAULT 1,
+    headroom_enabled INTEGER NOT NULL DEFAULT 1,
     is_active INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,

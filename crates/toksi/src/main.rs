@@ -505,6 +505,9 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "auth" {
         return toksi::commands::run_auth_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "byok" {
+        return toksi::commands::run_byok_cli(&args[2..]);
+    }
     if args.len() >= 2 && args[1] == "db" {
         return toksi::commands::run_db_cli(&args[2..]);
     }
@@ -596,6 +599,7 @@ fn run() -> i32 {
         "handoff" | "aimemory" => toksi::aimemory::run_handoff_cli(&args[2..]),
         "rules" => toksi::rules::run_rules_cli(&args[2..]),
         "auth" => toksi::commands::run_auth_cli(&args[2..]),
+        "byok" => toksi::commands::run_byok_cli(&args[2..]),
         "db" => toksi::commands::run_db_cli(&args[2..]),
         "agent" => toksi::commands::run_agent_cli(&args[2..]),
         "self-update" => run_self_update(p.bools.get("check") == Some(&true)),

@@ -396,8 +396,32 @@ pub fn global_ccr_store() -> Arc<dyn CcrStore> {
         .clone()
 }
 
-/// Handles MCP `headroom_retrieve` / `headroom_search` tool calls against the CCR store.
+/// Handles MCP `headroom_{compress,retrieve,stats,read,search}` tool calls against the CCR store.
 pub fn handle_mcp_ccr_tool(tool_name: &str, args: &Value, store: &dyn CcrStore) -> HeadroomResult<Value> {
+    if tool_name == "headroom_stats" {
+        let c = crate::telemetry::collector::global_collector();
+        let raw = c.headroom_raw_bytes_total.load(std::sync::atomic::Ordering::Relaxed);
+        let compressed = c.headroom_compressed_bytes_total.load(std::sync::atomic::Ordering::Relaxed);
+        let pruned = c.headroom_mcp_pruned_tools_total.load(std::sync::atomic::Ordering::Relaxed);
+        return Ok(json!({
+            "raw_bytes_total": raw,
+            "compressed_bytes_total": compressed,
+            "bytes_saved": raw.saturating_sub(compressed),
+            "mcp_tools_pruned": pruned,
+        }));
+    }
+
+    if tool_name == "headroom_compress" {
+        let content = args.get("content").and_then(|v| v.as_str()).unwrap_or("");
+        let hint = args.get("hint").and_then(|v| v.as_str());
+        let compressed = crate::headroom::compression::compress_content(content, hint);
+        return Ok(json!({
+            "compressed": compressed,
+            "original_bytes": content.len(),
+            "compressed_bytes": compressed.len(),
+        }));
+    }
+
     let hash = args
         .get("hash")
         .or_else(|| args.get("key"))
@@ -409,9 +433,20 @@ pub fn handle_mcp_ccr_tool(tool_name: &str, args: &Value, store: &dyn CcrStore) 
     }
 
     match tool_name {
-        "headroom_retrieve" => {
+        "headroom_retrieve" | "headroom_read" => {
             if let Some(original) = store.get(hash) {
-                Ok(json!({ "hash": hash, "found": true, "content": original }))
+                let offset = args.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+                let limit = args.get("limit").and_then(|v| v.as_u64()).map(|l| l as usize);
+                let sliced = if offset > 0 || limit.is_some() {
+                    let start = offset.min(original.len());
+                    let end = limit
+                        .map(|l| start.saturating_add(l).min(original.len()))
+                        .unwrap_or(original.len());
+                    String::from_utf8_lossy(&original.as_bytes()[start..end]).to_string()
+                } else {
+                    original
+                };
+                Ok(json!({ "hash": hash, "found": true, "content": sliced }))
             } else {
                 Ok(json!({ "hash": hash, "found": false, "content": null }))
             }

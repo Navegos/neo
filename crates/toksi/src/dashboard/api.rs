@@ -1311,6 +1311,7 @@ pub fn handle_byok_profile_upsert(payload: &[u8]) -> Result<serde_json::Value, S
         gcp_location: "us-central1".to_string(),
         priority: req.priority.unwrap_or(1),
         weight: req.weight.unwrap_or(100),
+        headroom_enabled: true,
         is_active: req.enabled.unwrap_or(true),
         created_at: now,
         updated_at: now,

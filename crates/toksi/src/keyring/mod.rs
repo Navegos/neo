@@ -313,8 +313,8 @@ pub fn audit_keyring_statuses() -> Vec<KeyringStatus> {
             || (agent == "antigravity" && configured.contains("gemini"));
 
         // Privacy & Strict Configured-Only Activation:
-        // Display ONLY user-configured agents or agents with active stored credentials.
-        if !has_credential && !is_configured {
+        // Display ONLY user-configured agents or BYOK providers.
+        if !is_configured {
             continue;
         }
 
@@ -532,6 +532,7 @@ pub fn sync_os_credentials_to_db(
                 gcp_location: adc_status.gcp_location,
                 priority: 15,
                 weight: 1,
+                headroom_enabled: true,
                 is_active: true,
                 created_at: now,
                 updated_at: now,

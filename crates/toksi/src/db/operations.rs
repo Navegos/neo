@@ -110,6 +110,12 @@ impl ToksiConfigDb {
                 [],
             )?;
         }
+        if !cols.iter().any(|c| c == "headroom_enabled") {
+            self.conn.execute(
+                "ALTER TABLE byok_profiles ADD COLUMN headroom_enabled INTEGER NOT NULL DEFAULT 1",
+                [],
+            )?;
+        }
         Ok(())
     }
 
@@ -514,8 +520,8 @@ impl ToksiConfigDb {
             p.gcp_location.trim()
         };
         self.conn.execute(
-            r#"INSERT INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, is_active, created_at, updated_at)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+            r#"INSERT INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, created_at, updated_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
                ON CONFLICT(provider_id, instance_label, model_id, thinking_effort) DO UPDATE SET
                    base_url = excluded.base_url,
                    secret_ref = excluded.secret_ref,
@@ -524,6 +530,7 @@ impl ToksiConfigDb {
                    gcp_location = excluded.gcp_location,
                    priority = excluded.priority,
                    weight = excluded.weight,
+                   headroom_enabled = excluded.headroom_enabled,
                    is_active = excluded.is_active,
                    updated_at = excluded.updated_at"#,
             params![
@@ -539,6 +546,7 @@ impl ToksiConfigDb {
                 gcp_location,
                 p.priority,
                 p.weight,
+                p.headroom_enabled as i32,
                 p.is_active as i32,
                 p.created_at,
                 p.updated_at,
@@ -549,10 +557,11 @@ impl ToksiConfigDb {
 
     pub fn list_byok_profiles(&self) -> Result<Vec<ByokProfileRecord>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, is_active, created_at, updated_at FROM byok_profiles ORDER BY priority DESC, provider_id, instance_label, model_id",
+            "SELECT id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, created_at, updated_at FROM byok_profiles ORDER BY priority DESC, provider_id, instance_label, model_id",
         )?;
         let rows = stmt.query_map([], |row| {
-            let active: i32 = row.get(12)?;
+            let headroom: i32 = row.get(12)?;
+            let active: i32 = row.get(13)?;
             Ok(ByokProfileRecord {
                 id: row.get(0)?,
                 provider_id: row.get(1)?,
@@ -566,9 +575,10 @@ impl ToksiConfigDb {
                 gcp_location: row.get(9)?,
                 priority: row.get(10)?,
                 weight: row.get(11)?,
+                headroom_enabled: headroom != 0,
                 is_active: active != 0,
-                created_at: row.get(13)?,
-                updated_at: row.get(14)?,
+                created_at: row.get(14)?,
+                updated_at: row.get(15)?,
             })
         })?;
         let mut list = Vec::new();
@@ -576,6 +586,72 @@ impl ToksiConfigDb {
             list.push(r?);
         }
         Ok(list)
+    }
+
+    pub fn get_byok_profile(&self, id: &str) -> Result<Option<ByokProfileRecord>, rusqlite::Error> {
+        self.conn
+            .query_row(
+                "SELECT id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, created_at, updated_at FROM byok_profiles WHERE id = ?1",
+                params![id],
+                |row| {
+                    let headroom: i32 = row.get(12)?;
+                    let active: i32 = row.get(13)?;
+                    Ok(ByokProfileRecord {
+                        id: row.get(0)?,
+                        provider_id: row.get(1)?,
+                        instance_label: row.get(2)?,
+                        model_id: row.get(3)?,
+                        thinking_effort: row.get(4)?,
+                        base_url: row.get(5)?,
+                        secret_ref: row.get(6)?,
+                        auth_mode: row.get(7)?,
+                        gcp_project: row.get(8)?,
+                        gcp_location: row.get(9)?,
+                        priority: row.get(10)?,
+                        weight: row.get(11)?,
+                        headroom_enabled: headroom != 0,
+                        is_active: active != 0,
+                        created_at: row.get(14)?,
+                        updated_at: row.get(15)?,
+                    })
+                },
+            )
+            .optional()
+    }
+
+    pub fn delete_byok_profile(&mut self, id: &str) -> Result<bool, rusqlite::Error> {
+        let n = self.conn.execute("DELETE FROM byok_profiles WHERE id = ?1", params![id])?;
+        Ok(n > 0)
+    }
+
+    pub fn update_byok_profile_url(&mut self, id: &str, base_url: &str) -> Result<bool, rusqlite::Error> {
+        let now = now_epoch_secs();
+        let n = self.conn.execute(
+            "UPDATE byok_profiles SET base_url = ?2, updated_at = ?3 WHERE id = ?1",
+            params![id, base_url, now],
+        )?;
+        Ok(n > 0)
+    }
+
+    pub fn update_byok_profile_model(
+        &mut self,
+        id: &str,
+        model_id: &str,
+        thinking_effort: Option<&str>,
+    ) -> Result<bool, rusqlite::Error> {
+        let now = now_epoch_secs();
+        let n = if let Some(effort) = thinking_effort {
+            self.conn.execute(
+                "UPDATE byok_profiles SET model_id = ?2, thinking_effort = ?3, updated_at = ?4 WHERE id = ?1",
+                params![id, model_id, effort, now],
+            )?
+        } else {
+            self.conn.execute(
+                "UPDATE byok_profiles SET model_id = ?2, updated_at = ?3 WHERE id = ?1",
+                params![id, model_id, now],
+            )?
+        };
+        Ok(n > 0)
     }
 
     pub fn upsert_agent_profile_binding(&mut self, b: &AgentProfileBindingRecord) -> Result<(), rusqlite::Error> {
@@ -936,11 +1012,36 @@ impl ToksiConfigDb {
     }
 
     pub fn import_dump(&mut self, dump: &ToksiDbDump, overwrite: bool) -> Result<usize, rusqlite::Error> {
+        self.apply_dump(dump, overwrite, overwrite)
+    }
+
+    pub fn merge_dump(&mut self, dump: &ToksiDbDump) -> Result<usize, rusqlite::Error> {
+        self.apply_dump(dump, true, false)
+    }
+
+    fn apply_dump(&mut self, dump: &ToksiDbDump, overwrite: bool, reset_existing: bool) -> Result<usize, rusqlite::Error> {
         for s in &dump.blind_signatures {
             Self::validate_blind_signature(s)?;
         }
 
         let tx = self.conn.transaction()?;
+        if reset_existing {
+            tx.execute_batch(
+                "DELETE FROM agent_profile_bindings;
+                 DELETE FROM agent_configs;
+                 DELETE FROM provider_keys;
+                 DELETE FROM provider_models;
+                 DELETE FROM byok_routes;
+                 DELETE FROM byok_profiles;
+                 DELETE FROM quota_windows;
+                 DELETE FROM plugins_registry;
+                 DELETE FROM blind_signatures;
+                 DELETE FROM advisory_embargoes;
+                 DELETE FROM adr_audit_events;
+                 DELETE FROM gateway_configs;
+                 DELETE FROM providers;",
+            )?;
+        }
         let mut count = 0;
 
         for p in &dump.providers {
@@ -1047,20 +1148,20 @@ impl ToksiConfigDb {
             let auth_mode = if bp.auth_mode.trim().is_empty() { "api_key" } else { bp.auth_mode.trim() };
             let gcp_location = if bp.gcp_location.trim().is_empty() { "us-central1" } else { bp.gcp_location.trim() };
             let sql = if overwrite {
-                r#"INSERT INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, is_active, created_at, updated_at)
-                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+                r#"INSERT INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, created_at, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
                    ON CONFLICT(provider_id, instance_label, model_id, thinking_effort) DO UPDATE SET
                        base_url = excluded.base_url, secret_ref = excluded.secret_ref,
                        auth_mode = excluded.auth_mode, gcp_project = excluded.gcp_project, gcp_location = excluded.gcp_location,
-                       priority = excluded.priority, weight = excluded.weight,
+                       priority = excluded.priority, weight = excluded.weight, headroom_enabled = excluded.headroom_enabled,
                        is_active = excluded.is_active, updated_at = excluded.updated_at"#
             } else {
-                r#"INSERT OR IGNORE INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, is_active, created_at, updated_at)
-                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"#
+                r#"INSERT OR IGNORE INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, created_at, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)"#
             };
             count += tx.execute(
                 sql,
-                params![bp.id, bp.provider_id, bp.instance_label, bp.model_id, bp.thinking_effort, bp.base_url, bp.secret_ref, auth_mode, bp.gcp_project, gcp_location, bp.priority, bp.weight, bp.is_active as i32, bp.created_at, bp.updated_at],
+                params![bp.id, bp.provider_id, bp.instance_label, bp.model_id, bp.thinking_effort, bp.base_url, bp.secret_ref, auth_mode, bp.gcp_project, gcp_location, bp.priority, bp.weight, bp.headroom_enabled as i32, bp.is_active as i32, bp.created_at, bp.updated_at],
             )?;
         }
 
@@ -1187,7 +1288,7 @@ impl ToksiConfigDb {
         }
         let source_db = ToksiConfigDb::open(source_path)?;
         let dump = source_db.export_dump()?;
-        self.import_dump(&dump, true)
+        self.merge_dump(&dump)
     }
 
     pub fn backup_to_file(&self, dest_path: &Path) -> Result<(), rusqlite::Error> {
@@ -1252,7 +1353,7 @@ pub fn merge_toksi_db(target_path: &Path, source_path: &Path) -> Result<usize, r
     let mut target_db = ToksiConfigDb::open(target_path)?;
     let source_db = ToksiConfigDb::open(source_path)?;
     let dump = source_db.export_dump()?;
-    target_db.import_dump(&dump, true)
+    target_db.merge_dump(&dump)
 }
 
 /// Merges records from another memory.db (ICM) into target_path row-by-row without data loss.

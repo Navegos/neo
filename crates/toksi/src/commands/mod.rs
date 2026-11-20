@@ -7,6 +7,7 @@
 
 pub mod agent;
 pub mod auth;
+pub mod byok;
 pub mod codex_perm_hook;
 pub mod config;
 pub mod ctx;
@@ -34,6 +35,7 @@ pub mod update;
 
 pub use agent::*;
 pub use auth::*;
+pub use byok::*;
 pub use codex_perm_hook::*;
 pub use config::*;
 pub use ctx::*;
