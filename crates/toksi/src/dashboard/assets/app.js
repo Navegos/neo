@@ -98,6 +98,11 @@ found 0 vulnerabilities`,
     this.loadWarRoom();
     this.loadGatewayControls();
     this.loadKeyringAndDb();
+    this.loadSandboxSecurity();
+    this.loadPlugins();
+    this.loadSkillsStatus();
+    this.loadSystemLogs();
+    this.browseDbTable();
     this.applySandboxPreset('cargo');
 
     // Polling fallback if SSE drops
@@ -1231,8 +1236,9 @@ found 0 vulnerabilities`,
           <td style="font-family: var(--font-mono); font-size: 0.75rem;">${p.base_url || 'default'}</td>
           <td>${p.priority}</td>
           <td>${p.weight}</td>
+          <td><button class="btn btn-danger" onclick="app.deleteByokProfile('${p.id}')">Delete</button></td>
         </tr>
-      `).join('') || '<tr><td colspan="7" style="color: var(--text-muted);">No &lt;byok, model, effort&gt; profiles configured yet.</td></tr>';
+      `).join('') || '<tr><td colspan="8" style="color: var(--text-muted);">No &lt;byok, model, effort&gt; profiles configured yet.</td></tr>';
     } catch (e) {
       console.error('loadByokProfiles error:', e);
     }
@@ -1300,6 +1306,239 @@ found 0 vulnerabilities`,
       }
     } catch (e) {
       this.showToast(`Repair error: ${e.message}`, 'error');
+    }
+  }
+
+  async loadCodeGraphPreview() {
+    const mode = document.getElementById('cg-preview-mode')?.value || 'ast-grep';
+    const pattern = (document.getElementById('cg-preview-pattern')?.value || '').trim();
+    const out = document.getElementById('cg-preview-output');
+    if (!out) return;
+    try {
+      const res = await fetch(`/api/codegraph/preview?mode=${encodeURIComponent(mode)}&pattern=${encodeURIComponent(pattern)}`);
+      if (res.ok) {
+        out.textContent = JSON.stringify(await res.json(), null, 2);
+      }
+    } catch (e) {
+      out.textContent = `Preview error: ${e.message}`;
+    }
+  }
+
+  async searchAdvisory() {
+    const q = (document.getElementById('advisory-search-input')?.value || '').trim();
+    const out = document.getElementById('advisory-scan-output');
+    if (!out) return;
+    try {
+      const res = await fetch(`/api/security/advisory?q=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        out.textContent = JSON.stringify(await res.json(), null, 2);
+      }
+    } catch (e) {
+      out.textContent = `Advisory error: ${e.message}`;
+    }
+  }
+
+  async runSecurityScan() {
+    const out = document.getElementById('advisory-scan-output');
+    if (!out) return;
+    try {
+      const res = await fetch('/api/security/scan', { method: 'POST', body: '{}' });
+      if (res.ok) {
+        out.textContent = JSON.stringify(await res.json(), null, 2);
+      }
+    } catch (e) {
+      out.textContent = `Scan error: ${e.message}`;
+    }
+  }
+
+  async loadSandboxSecurity() {
+    try {
+      const [sbRes, ctxRes, audRes] = await Promise.all([
+        fetch('/api/security/sandbox'),
+        fetch('/api/contextmode/telemetry'),
+        fetch('/api/security/audit-evidence'),
+      ]);
+      const sbEl = document.getElementById('sandbox-backend-info');
+      const gdEl = document.getElementById('sandbox-guard-info');
+      const adrEl = document.getElementById('sandbox-adr-events');
+      if (ctxRes.ok && sbRes.ok && sbEl) {
+        const ctx = await ctxRes.json();
+        const sb = await sbRes.json();
+        sbEl.textContent = `Backend: ${sb.active_backend || ctx.os} | FTS5 Sources: ${ctx.fts5_sources_count} | URL Cache TTL: ${ctx.url_cache_ttl_secs}s`;
+      }
+      if (sbRes.ok && gdEl) {
+        const sb = await sbRes.json();
+        gdEl.textContent = `Fail-Closed: ${sb.defenseclaw?.fail_closed} | Kill-Switch Armed: ${sb.command_guard?.kill_switch_armed} | Blocked: ${sb.command_guard?.blocked_commands || 0}`;
+      }
+      if (audRes.ok && adrEl) {
+        const aud = await audRes.json();
+        adrEl.textContent = aud.count > 0 ? JSON.stringify(aud.events.slice(0, 5)) : 'No ADR quarantine events recorded.';
+      }
+    } catch (e) {
+      console.error('loadSandboxSecurity error:', e);
+    }
+  }
+
+  async systemServiceAction(service, action) {
+    try {
+      const res = await fetch('/api/system/service', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service, action }),
+      });
+      if (res.ok) {
+        this.showToast(`${service} ${action}: ${JSON.stringify(await res.json())}`, 'info');
+      }
+    } catch (e) {
+      this.showToast(`Service error: ${e.message}`, 'error');
+    }
+  }
+
+  async loadPlugins() {
+    try {
+      const res = await fetch('/api/plugins');
+      if (!res.ok) return;
+      const d = await res.json();
+      const tbody = document.getElementById('plugins-manager-tbody');
+      if (!tbody) return;
+      const list = d.plugins || [];
+      tbody.innerHTML = list.map(p => `
+        <tr>
+          <td style="font-family: var(--font-mono);">${p.id}</td>
+          <td>${p.version}</td>
+          <td>${(p.protocols || []).join(', ')}</td>
+          <td><span class="badge badge-cyan">${p.security_scan_status}</span></td>
+          <td>${p.enabled ? 'ENABLED' : 'DISABLED'}</td>
+          <td><button class="btn btn-primary" onclick="app.togglePlugin('${p.id}', ${!p.enabled})">${p.enabled ? 'Disable' : 'Enable'}</button></td>
+        </tr>
+      `).join('') || '<tr><td colspan="6" style="color: var(--text-muted);">No plugins registered in plugins_registry.</td></tr>';
+    } catch (e) {
+      console.error('loadPlugins error:', e);
+    }
+  }
+
+  async togglePlugin(id, enabled) {
+    try {
+      const res = await fetch(`/api/plugins/${encodeURIComponent(id)}/${enabled ? 'enable' : 'disable'}`, { method: 'POST' });
+      if (res.ok) {
+        this.showToast(`Plugin ${id} ${enabled ? 'enabled' : 'disabled'}`, 'success');
+        this.loadPlugins();
+      }
+    } catch (e) {
+      this.showToast(`Plugin error: ${e.message}`, 'error');
+    }
+  }
+
+  async loadSkillsStatus() {
+    const el = document.getElementById('skills-sync-status');
+    if (!el) return;
+    try {
+      const res = await fetch('/api/skills/status');
+      if (res.ok) {
+        const d = await res.json();
+        el.textContent = `External <skills>: ${d.skills_count} skills, ${d.rules_count} rules | Dir: ${d.local_skills_dir} (zero_binary_bloat=${d.zero_binary_bloat})`;
+      }
+    } catch (e) {
+      el.textContent = `Skills status error: ${e.message}`;
+    }
+  }
+
+  async syncExternalSkills() {
+    try {
+      const res = await fetch('/api/skills/sync', { method: 'POST' });
+      const d = await res.json();
+      if (d.success) {
+        this.showToast(`Synced ${d.skills_synced} skills, healed ${d.healed_count}`, 'success');
+        this.loadSkillsStatus();
+      } else {
+        this.showToast(d.error || 'Skills sync failed', 'error');
+      }
+    } catch (e) {
+      this.showToast(`Sync error: ${e.message}`, 'error');
+    }
+  }
+
+  async loadSystemLogs() {
+    const el = document.getElementById('system-logs-output');
+    if (!el) return;
+    try {
+      const res = await fetch('/api/system/logs');
+      if (res.ok) {
+        const d = await res.json();
+        el.textContent = (d.lines || []).join('\n') || 'No log lines yet.';
+      }
+    } catch (e) {
+      el.textContent = `Logs error: ${e.message}`;
+    }
+  }
+
+  async deleteByokProfile(id) {
+    try {
+      const res = await fetch(`/api/byok/profiles?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      if (res.ok) {
+        this.showToast(`Deleted profile ${id}`, 'success');
+        this.loadByokProfiles();
+      }
+    } catch (e) {
+      this.showToast(`Delete error: ${e.message}`, 'error');
+    }
+  }
+
+  async saveKeyringSecret() {
+    const service = (document.getElementById('kr-service')?.value || '').trim();
+    const account = (document.getElementById('kr-account')?.value || '').trim();
+    const secret = document.getElementById('kr-secret')?.value || '';
+    if (!service || !account || !secret) {
+      this.showToast('Service, account, and secret are required', 'error');
+      return;
+    }
+    try {
+      const res = await fetch('/api/keyring/set', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service, account, secret }),
+      });
+      if (res.ok) {
+        this.showToast(`Saved keyring secret for ${service}`, 'success');
+        this.loadKeyringAndDb();
+      }
+    } catch (e) {
+      this.showToast(`Keyring save error: ${e.message}`, 'error');
+    }
+  }
+
+  async browseDbTable() {
+    const table = document.getElementById('db-table-select')?.value || 'byok_profiles';
+    const out = document.getElementById('db-table-preview');
+    if (!out) return;
+    try {
+      const res = await fetch(`/api/db/table?name=${encodeURIComponent(table)}`);
+      if (res.ok) {
+        out.textContent = JSON.stringify(await res.json(), null, 2);
+      }
+    } catch (e) {
+      out.textContent = `Table browse error: ${e.message}`;
+    }
+  }
+
+  async dbRestorePrompt() {
+    const path = prompt('Enter path to JSON backup file to restore (overwrites existing records):');
+    if (!path) return;
+    try {
+      const res = await fetch('/api/db/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backup_path: path }),
+      });
+      const d = await res.json();
+      if (res.ok && d.success) {
+        this.showToast(`Restored ${d.restored_records} records`, 'success');
+        this.loadDbStatus();
+      } else {
+        this.showToast(d.error || 'Restore failed', 'error');
+      }
+    } catch (e) {
+      this.showToast(`Restore error: ${e.message}`, 'error');
     }
   }
 

@@ -387,6 +387,30 @@
             </div>
           </div>
         </div>
+
+        <!-- ast-grep / SCIP / Repomix Preview, Static Security + skill-scanner & Navegos/advisory -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+          <div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+              <select id="cg-preview-mode" class="input-text">
+                <option value="ast-grep">ast-grep CST</option>
+                <option value="scip">SCIP Index</option>
+                <option value="repomix">Repomix Pack</option>
+              </select>
+              <input type="text" id="cg-preview-pattern" class="input-text" placeholder="Pattern / filter..." style="flex: 1;">
+              <button class="btn btn-primary" onclick="app.loadCodeGraphPreview()">Preview</button>
+            </div>
+            <pre id="cg-preview-output" class="code-box" style="max-height: 180px; overflow-y: auto; margin: 0;">Select mode and click Preview.</pre>
+          </div>
+          <div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+              <input type="text" id="advisory-search-input" class="input-text" placeholder="Navegos/advisory O(1) prefix (e.g. CVE-2026)..." style="flex: 1;">
+              <button class="btn btn-primary" onclick="app.searchAdvisory()">Advisory</button>
+              <button class="btn btn-warning" onclick="app.runSecurityScan()">Scan SAST/CEL</button>
+            </div>
+            <div id="advisory-scan-output" class="code-box" style="max-height: 180px; overflow-y: auto;">skill-scanner &amp; Navegos/advisory ready.</div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -432,8 +456,25 @@
           <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
             <input type="text" id="sandbox-fts-query" class="input-text" placeholder="FTS5 Search Test Bar..." style="flex: 1;">
             <button class="btn btn-primary" onclick="app.searchSandboxFts()">Search FTS5</button>
+            <button class="btn btn-neutral" onclick="app.loadSandboxSecurity()">Refresh ADR &amp; DefenseClaw</button>
           </div>
           <div id="sandbox-fts-results" style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-secondary);"></div>
+        </div>
+
+        <!-- OS Sandbox Backend, URL Cache, ADR Quarantine, CommandGuard & DefenseClaw -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-top: 1rem; border-top: 1px solid var(--border-color); padding-top: 1rem;">
+          <div style="background: #0f172a; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.8rem; font-weight: 600; color: var(--accent-cyan); margin-bottom: 0.35rem;">OS Sandbox &amp; URL Cache</div>
+            <div id="sandbox-backend-info" style="font-size: 0.78rem; font-family: var(--font-mono); color: var(--text-secondary);">Loading...</div>
+          </div>
+          <div style="background: #0f172a; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.8rem; font-weight: 600; color: var(--accent-amber); margin-bottom: 0.35rem;">DefenseClaw &amp; CommandGuard Kill-Switch</div>
+            <div id="sandbox-guard-info" style="font-size: 0.78rem; font-family: var(--font-mono); color: var(--text-secondary);">Loading...</div>
+          </div>
+          <div style="background: #0f172a; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.8rem; font-weight: 600; color: var(--accent-red); margin-bottom: 0.35rem;">ADR Quarantine &amp; Audit Evidence</div>
+            <div id="sandbox-adr-events" style="font-size: 0.78rem; font-family: var(--font-mono); color: var(--text-secondary);">No quarantine events.</div>
+          </div>
         </div>
       </div>
     </section>
@@ -451,9 +492,11 @@
           <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
             Headroom proxy routes traffic from wired agents, strips ANSI codes, compresses AST tokens, and caches completions.
           </p>
-          <div style="display: flex; gap: 0.5rem;">
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
             <button class="btn btn-primary" onclick="app.systemProxyRestart()">Restart Proxy</button>
             <button class="btn btn-danger" onclick="app.systemProxyStop()">Stop Proxy</button>
+            <button class="btn btn-neutral" onclick="app.systemServiceAction('daemon', 'status')">Daemon Status</button>
+            <button class="btn btn-neutral" onclick="app.systemServiceAction('dashboard', 'status')">Dashboard Status</button>
           </div>
         </div>
 
@@ -541,6 +584,35 @@
           </div>
         </div>
 
+        <!-- Interactive Plugin Manager & External <skills> Sync Manager -->
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="card-header">
+            <div class="card-title">Unified Plugin Manager &amp; External &lt;skills&gt; Sync</div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-primary" onclick="app.loadPlugins()">Refresh Plugins</button>
+              <button class="btn btn-success" onclick="app.syncExternalSkills()">Sync Navegos/skills</button>
+            </div>
+          </div>
+          <div id="skills-sync-status" style="font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-secondary); margin-bottom: 0.75rem;">Loading external skills catalog...</div>
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr><th>Plugin ID</th><th>Version</th><th>Protocols</th><th>Scan</th><th>State</th><th>Action</th></tr>
+              </thead>
+              <tbody id="plugins-manager-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Live System Logs -->
+        <div class="card" style="grid-column: 1 / -1;">
+          <div class="card-header">
+            <div class="card-title">Live Daemon &amp; Proxy Event Logs</div>
+            <button class="btn btn-neutral" onclick="app.loadSystemLogs()">Refresh Logs</button>
+          </div>
+          <pre id="system-logs-output" class="code-box" style="max-height: 180px; overflow-y: auto; margin: 0;">No log lines yet.</pre>
+        </div>
+
       </div>
     </section>
 
@@ -622,6 +694,7 @@
                   <th>Base URL</th>
                   <th>Priority</th>
                   <th>Weight</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody id="byok-profiles-tbody"></tbody>
@@ -688,6 +761,12 @@
               </tbody>
             </table>
           </div>
+          <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
+            <input type="text" id="kr-service" class="input-text" placeholder="Service (e.g. gemini:antigravity)">
+            <input type="text" id="kr-account" class="input-text" placeholder="Account">
+            <input type="password" id="kr-secret" class="input-text" placeholder="API Key / Secret">
+            <button class="btn btn-success" onclick="app.saveKeyringSecret()">Save Key</button>
+          </div>
         </div>
 
         <!-- Database Maintenance & Backup -->
@@ -706,9 +785,23 @@
             <button class="btn btn-primary" onclick="app.dbBackup()">Backup Database</button>
             <button class="btn btn-success" onclick="app.dbExport()">Export JSON</button>
             <button class="btn btn-neutral" onclick="app.dbImportPrompt()">Import JSON</button>
+            <button class="btn btn-neutral" onclick="app.dbRestorePrompt()">Restore Backup</button>
             <button class="btn btn-danger" onclick="app.dbRepairLegacy()">Repair Legacy Nested &lt;repo&gt;</button>
           </div>
           <div id="db-action-result" style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--accent-green); font-family: var(--font-mono);"></div>
+          <div style="margin-top: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+            <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+              <select id="db-table-select" class="input-text" onchange="app.browseDbTable()">
+                <option value="byok_profiles">byok_profiles</option>
+                <option value="plugins_registry">plugins_registry</option>
+                <option value="blind_signatures">blind_signatures</option>
+                <option value="advisory_embargoes">advisory_embargoes</option>
+                <option value="adr_audit_events">adr_audit_events</option>
+              </select>
+              <button class="btn btn-primary" onclick="app.browseDbTable()">Browse Table</button>
+            </div>
+            <pre id="db-table-preview" class="code-box" style="max-height: 150px; overflow-y: auto; margin: 0;">Select a table to inspect rows.</pre>
+          </div>
         </div>
 
       </div>

@@ -297,6 +297,22 @@
                                                                        "phase13_e2e_verification"
                                                                    ]
                                                 },
+                   "phase14_keyring_config_db_verification":  {
+                                                    "watched_paths":  [
+                                                                          "crates/toksi/src/keyring/",
+                                                                          "crates/toksi/src/db/",
+                                                                          "crates/toksi/tests/phase14_keyring_config_db_verification.rs"
+                                                                      ],
+                                                    "tree_blake3":  "",
+                                                    "last_passed_unix":  0,
+                                                    "cargo_args":  [
+                                                                       "test",
+                                                                       "-p",
+                                                                       "toksi",
+                                                                       "--test",
+                                                                       "phase14_keyring_config_db_verification"
+                                                                   ]
+                                                },
                    "phase15_1_topology_and_standards_verification":  {
                                                                          "watched_paths":  [
                                                                                                "crates/toksi/src/util/",
@@ -331,6 +347,121 @@
                                                                                           "--test",
                                                                                           "phase15_2_unified_8port_daemon_verification"
                                                                                       ]
-                                                                   }
+                                                                   },
+                   "phase15_3_to_15_6_ecosystem_verification":  {
+                                                                    "watched_paths":  [
+                                                                                          "crates/toksi/src/agents/",
+                                                                                          "crates/toksi/src/gateway/",
+                                                                                          "crates/toksi/src/tools/",
+                                                                                          "crates/toksi/tests/phase15_3_to_15_6_ecosystem_verification.rs"
+                                                                                      ],
+                                                                    "tree_blake3":  "",
+                                                                    "last_passed_unix":  0,
+                                                                    "cargo_args":  [
+                                                                                       "test",
+                                                                                       "-p",
+                                                                                       "toksi",
+                                                                                       "--test",
+                                                                                       "phase15_3_to_15_6_ecosystem_verification"
+                                                                                   ]
+                                                                },
+                   "phase16_ui_and_open_agents_verification":  {
+                                                                   "watched_paths":  [
+                                                                                         "crates/toksi/src/tui/",
+                                                                                         "crates/toksi/src/dashboard/",
+                                                                                         "crates/toksi/tests/phase16_ui_and_open_agents_verification.rs"
+                                                                                     ],
+                                                                   "tree_blake3":  "",
+                                                                   "last_passed_unix":  0,
+                                                                   "cargo_args":  [
+                                                                                      "test",
+                                                                                      "-p",
+                                                                                      "toksi",
+                                                                                      "--test",
+                                                                                      "phase16_ui_and_open_agents_verification"
+                                                                                  ]
+                                                               },
+                   "phase17_1_to_17_4_config_byok_treesitter_verification":  {
+                                                                               "watched_paths":  [
+                                                                                                     "crates/toksi/src/config/",
+                                                                                                     "crates/toksi/src/codegraph/",
+                                                                                                     "crates/toksi/src/headroom/",
+                                                                                                     "crates/toksi/tests/phase17_1_to_17_4_config_byok_treesitter_verification.rs"
+                                                                                                 ],
+                                                                               "tree_blake3":  "",
+                                                                               "last_passed_unix":  0,
+                                                                               "cargo_args":  [
+                                                                                                  "test",
+                                                                                                  "-p",
+                                                                                                  "toksi",
+                                                                                                  "--test",
+                                                                                                  "phase17_1_to_17_4_config_byok_treesitter_verification"
+                                                                                              ]
+                                                                           },
+                   "phase17_5_agent_runtime_verification":  {
+                                                                "watched_paths":  [
+                                                                                      "crates/toksi/src/agent_runtime/",
+                                                                                      "crates/toksi/tests/phase17_5_agent_runtime_verification.rs"
+                                                                                  ],
+                                                                "tree_blake3":  "",
+                                                                "last_passed_unix":  0,
+                                                                "cargo_args":  [
+                                                                                   "test",
+                                                                                   "-p",
+                                                                                   "toksi",
+                                                                                   "--test",
+                                                                                   "phase17_5_agent_runtime_verification"
+                                                                               ]
+                                                            },
+                   "phase17_6_gateway_accounting_verification":  {
+                                                                     "watched_paths":  [
+                                                                                           "crates/toksi/src/gateway/",
+                                                                                           "crates/toksi/src/telemetry/",
+                                                                                           "crates/toksi/tests/phase17_6_gateway_accounting_verification.rs"
+                                                                                       ],
+                                                                     "tree_blake3":  "",
+                                                                     "last_passed_unix":  0,
+                                                                     "cargo_args":  [
+                                                                                        "test",
+                                                                                        "-p",
+                                                                                        "toksi",
+                                                                                        "--test",
+                                                                                        "phase17_6_gateway_accounting_verification"
+                                                                                    ]
+                                                                 },
+                   "phase17_7_ui_parity_and_test_baseline_verification":  {
+                                                                              "watched_paths":  [
+                                                                                                    "crates/toksi/src/tui/",
+                                                                                                    "crates/toksi/src/dashboard/",
+                                                                                                    "crates/toksi/src/commands/test_runner.rs",
+                                                                                                    "crates/toksi/tests/phase17_7_ui_parity_and_test_baseline_verification.rs"
+                                                                                                ],
+                                                                              "tree_blake3":  "",
+                                                                              "last_passed_unix":  0,
+                                                                              "cargo_args":  [
+                                                                                                 "test",
+                                                                                                 "-p",
+                                                                                                 "toksi",
+                                                                                                 "--test",
+                                                                                                 "phase17_7_ui_parity_and_test_baseline_verification"
+                                                                                             ]
+                                                                          },
+                   "phase18_1_to_18_6_siagent_and_vaults_verification":  {
+                                                                             "watched_paths":  [
+                                                                                                   "crates/toksi/src/agent_runtime/",
+                                                                                                   "crates/toksi/src/plugins/",
+                                                                                                   "crates/toksi/src/rules/",
+                                                                                                   "crates/toksi/tests/phase18_1_to_18_6_siagent_and_vaults_verification.rs"
+                                                                                               ],
+                                                                             "tree_blake3":  "",
+                                                                             "last_passed_unix":  0,
+                                                                             "cargo_args":  [
+                                                                                                "test",
+                                                                                                "-p",
+                                                                                                "toksi",
+                                                                                                "--test",
+                                                                                                "phase18_1_to_18_6_siagent_and_vaults_verification"
+                                                                                            ]
+                                                                         }
                }
 }

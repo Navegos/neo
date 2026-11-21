@@ -409,7 +409,7 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
             Err(e) => HttpResponse::bad_request(&e),
         },
 
-        ("GET", "/api/memory") => {
+        ("GET", "/api/memory") | ("GET", "/api/memory/dag") => {
             let q = req.query.get("q").map(|s| s.as_str());
             let sub = req.query.get("subproject").map(|s| s.as_str());
             HttpResponse::ok_json(handle_memory_filtered(q, sub))
@@ -420,9 +420,14 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
             HttpResponse::ok_json(handle_memory_heatmap_drilldown(&decoded))
         }
 
-        ("GET", "/api/codegraph") => HttpResponse::ok_json(handle_codegraph()),
-        ("GET", "/api/codegraph/blast") => {
-            let sym = req.query.get("symbol").cloned().unwrap_or_else(|| "run_dashboard".into());
+        ("GET", "/api/codegraph") | ("GET", "/api/graph/explore") => HttpResponse::ok_json(handle_codegraph()),
+        ("GET", "/api/codegraph/blast") | ("GET", "/api/graph/impact") => {
+            let sym = req
+                .query
+                .get("symbol")
+                .or_else(|| req.query.get("sym"))
+                .cloned()
+                .unwrap_or_else(|| "run_dashboard".into());
             let depth = req
                 .query
                 .get("depth")
@@ -479,20 +484,43 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
 
         ("GET", "/api/quotas") => HttpResponse::ok_json(handle_quotas_get()),
         ("GET", "/api/keyring/status") => HttpResponse::ok_json(handle_keyring_status()),
+        ("POST", "/api/keyring/set") => match handle_keyring_set(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
         ("GET", "/api/plugins") => HttpResponse::ok_json(handle_plugins_get()),
         ("POST", "/api/plugins/toggle") => match handle_plugin_toggle(&req.body) {
             Ok(val) => HttpResponse::ok_json(val),
             Err(e) => HttpResponse::bad_request(&e),
         },
+        ("POST", p) if p.starts_with("/api/plugins/") => {
+            let rest = p.trim_start_matches("/api/plugins/");
+            match handle_plugin_action(rest) {
+                Ok(val) => HttpResponse::ok_json(val),
+                Err(e) => HttpResponse::bad_request(&e),
+            }
+        }
+        ("GET", "/api/skills/status") => HttpResponse::ok_json(handle_skills_status()),
+        ("POST", "/api/skills/sync") => HttpResponse::ok_json(handle_skills_sync()),
         ("GET", "/api/security/advisory") => {
             let q = req.query.get("q").map(|s| s.as_str());
             HttpResponse::ok_json(handle_security_advisory(q))
         }
+        ("POST", "/api/security/scan") => HttpResponse::ok_json(handle_security_scan(&req.body)),
         ("GET", "/api/security/sandbox") => HttpResponse::ok_json(handle_security_sandbox()),
+        ("GET", "/api/security/audit-evidence") => HttpResponse::ok_json(handle_security_audit_evidence()),
         ("GET", "/api/telemetry/spans") => HttpResponse::ok_json(handle_telemetry_spans()),
 
         ("GET", "/api/db/status") => HttpResponse::ok_json(handle_db_status()),
+        ("GET", "/api/db/table") => {
+            let name = req.query.get("name").map(|s| s.as_str()).unwrap_or("byok_profiles");
+            HttpResponse::ok_json(handle_db_table_browse(name))
+        }
         ("POST", "/api/db/backup") => HttpResponse::ok_json(handle_db_backup()),
+        ("POST", "/api/db/restore") => match handle_db_restore(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
         ("GET", "/api/db/export") | ("POST", "/api/db/export") => HttpResponse::ok_json(handle_db_export()),
         ("POST", "/api/db/import") => match handle_db_import(&req.body) {
             Ok(val) => HttpResponse::ok_json(val),
@@ -501,10 +529,17 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
         ("POST", "/api/db/repair-legacy") => HttpResponse::ok_json(handle_db_repair_legacy()),
 
         ("GET", "/api/byok/profiles") => HttpResponse::ok_json(handle_byok_profiles_get()),
-        ("POST", "/api/byok/profiles") => match handle_byok_profile_upsert(&req.body) {
+        ("POST", "/api/byok/profiles") | ("PUT", "/api/byok/profiles") => match handle_byok_profile_upsert(&req.body) {
             Ok(val) => HttpResponse::ok_json(val),
             Err(e) => HttpResponse::bad_request(&e),
         },
+        ("DELETE", "/api/byok/profiles") => {
+            let id = req.query.get("id").map(|s| s.as_str()).unwrap_or("");
+            match handle_byok_profile_delete(id) {
+                Ok(val) => HttpResponse::ok_json(val),
+                Err(e) => HttpResponse::bad_request(&e),
+            }
+        }
         ("POST", "/api/byok/models-refresh") => match handle_byok_models_refresh(&req.body) {
             Ok(val) => HttpResponse::ok_json(val),
             Err(e) => HttpResponse::bad_request(&e),

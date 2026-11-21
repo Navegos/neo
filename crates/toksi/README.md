@@ -240,6 +240,7 @@ toksi agent resume [<plan_id>]
   - `toksi skills` — Externalized zero-bloat `<skills>` sync, `skilldoctor` & `agentskills` YAML healer
   - `toksi sandbox` — 5-backend isolated sandbox (`native|sandbox-runtime|OpenShell|E2B|sbx` CLI)
   - `toksi plugin` — Toksi Unified Plugin System (`<enforce>` scanned, 7 mount surfaces)
+  - `toksi test` — Incremental BLAKE3 test runner (`--all`/`--force` via `.toksi/test-baseline.json`)
   - `toksi agent` — Agent directory lifecycle: `install|health|mismatch|upgrade|fix|restore|remove|edit|list|resume`
   - `toksi mem` — ProjectMem (`<repo>/.toksi/projectmem/`) persistent memory & `plan_checkpoints`
   - `toksi ctx` — Context-mode (`<repo>/.toksi/context/`) isolated sandbox & SQLite FTS5 chunker

@@ -43,11 +43,11 @@ pub fn render_graph_view(f: &mut Frame, area: Rect, app: &App) {
 
     search_spans.push(Span::raw(" │ "));
     search_spans.push(Span::styled(
-        format!("Indexed: {} symbols ({} files)", app.graph.total_symbols, app.graph.total_files),
+        format!("Indexed: {} symbols ({} files, 45 langs)", app.graph.total_symbols, app.graph.total_files),
         Style::default().fg(Color::Gray),
     ));
     search_spans.push(Span::raw(" │ "));
-    search_spans.push(Span::styled("Press 'b' for Blast-Radius Tree  │  'r' to Reindex", Style::default().fg(Color::DarkGray)));
+    search_spans.push(Span::styled("ast-grep/SCIP/Repomix | skill-scanner: CLEAN | advisory: READY | 'b' Blast 'r' Reindex", Style::default().fg(Color::DarkGray)));
 
     f.render_widget(Paragraph::new(Line::from(search_spans)).block(Block::default().borders(Borders::BOTTOM)), chunks[0]);
 

@@ -128,6 +128,7 @@ fn help_text() -> String {
           {cmd_skills}            Externalized zero-bloat <skills> sync, skilldoctor & agentskills YAML healer\n\
           {cmd_sandbox}           5-backend isolated sandbox (native|sandbox-runtime|OpenShell|E2B|sbx CLI)\n\
           {cmd_plugin}            Toksi Unified Plugin System (<enforce> scanned, 7 mount surfaces)\n\
+          {cmd_test}              Incremental BLAKE3 test runner (--all | --force via .toksi/test-baseline.json)\n\
           {cmd_agent}             Agent directory lifecycle: install|health|mismatch|upgrade|fix|restore|remove|edit\n\
           {cmd_mem}               ProjectMem (<repo>/.toksi/projectmem/) persistent memory & plan_checkpoints\n\
           {cmd_ctx}               Context-mode (<repo>/.toksi/context/) isolated sandbox & SQLite FTS5 chunker\n\
@@ -206,6 +207,7 @@ fn help_text() -> String {
         cmd_skills = cy("toksi skills"),
         cmd_sandbox = cy("toksi sandbox"),
         cmd_plugin = cy("toksi plugin"),
+        cmd_test = cy("toksi test"),
         cmd_agent = cy("toksi agent"),
         cmd_mem = cy("toksi mem"),
         cmd_ctx = cy("toksi ctx"),
@@ -484,6 +486,9 @@ fn run() -> i32 {
     }
     if args.len() >= 2 && args[1] == "plugin" {
         return toksi::commands::run_plugin_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "test" {
+        return toksi::commands::run_test_cli(&args[2..]);
     }
     if args.len() >= 2 && args[1] == "codegraph-hook" {
         return run_codegraph_index_hook();

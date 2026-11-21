@@ -99,7 +99,7 @@ pub fn render_logs_view(f: &mut Frame, area: Rect, app: &App) {
 
     let log_block = Block::default()
         .title(format!(
-            " [Tab 7] System Controls & Diagnostic Stream ({} events) ",
+            " [Tab 7] System Controls, Plugins, <skills> Sync & Diagnostic Stream ({} events) ",
             total_lines
         ))
         .borders(Borders::ALL)
