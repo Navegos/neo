@@ -499,6 +499,9 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "skills" {
         return toksi::commands::run_skills_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "sandbox" {
+        return toksi::commands::run_sandbox_cli(&args[2..]);
+    }
     if args.len() >= 2 && args[1] == "test" {
         return toksi::commands::run_test_cli(&args[2..]);
     }

@@ -549,6 +549,25 @@
                 "--test",
                 "phase18_4_doc_and_checkpoint_hygiene"
             ]
+        },
+        "phase18_5_adr_sandbox_and_guard_verification": {
+            "watched_paths": [
+                "crates/toksi/src/agent_runtime/",
+                "crates/toksi/src/commands/guard.rs",
+                "crates/toksi/src/commands/sandbox.rs",
+                "crates/toksi/src/security/adr.rs",
+                "crates/toksi/src/config/mod.rs",
+                "crates/toksi/tests/phase18_5_adr_sandbox_and_guard_verification.rs"
+            ],
+            "tree_blake3": "",
+            "last_passed_unix": 0,
+            "cargo_args": [
+                "test",
+                "-p",
+                "toksi",
+                "--test",
+                "phase18_5_adr_sandbox_and_guard_verification"
+            ]
         }
     }
 }

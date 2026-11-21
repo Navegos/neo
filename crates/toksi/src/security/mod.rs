@@ -10,6 +10,7 @@
 
 #![deny(unsafe_code)]
 
+pub mod adr;
 pub mod advisory_client;
 pub mod analyzer;
 pub mod audit;
@@ -39,6 +40,7 @@ pub mod semgrep_engine;
 pub mod skill_scanner;
 pub mod yara_mcp;
 
+pub use adr::*;
 pub use advisory_client::*;
 pub use analyzer::*;
 pub use audit::*;

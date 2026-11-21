@@ -254,6 +254,77 @@ pub struct RepositoriesConfig {
     pub user_skills_dir: String,
 }
 
+fn default_true_sec() -> bool {
+    true
+}
+
+fn default_skill_scanner_policy() -> String {
+    "balanced".to_string()
+}
+
+fn default_policy_engine() -> String {
+    "opa_cedar".to_string()
+}
+
+fn default_iam_attestation() -> String {
+    "spiffe_spire".to_string()
+}
+
+fn default_sandbox_backend() -> String {
+    "auto".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct SecurityConfig {
+    #[serde(default = "default_true_sec")]
+    pub enforce_in_repo_skills: bool,
+    #[serde(default = "default_true_sec")]
+    pub auto_heal_skill_frontmatter: bool,
+    #[serde(default = "default_true_sec")]
+    pub static_analyzer_enabled: bool,
+    #[serde(default = "default_true_sec")]
+    pub defenseclaw_fail_closed: bool,
+    #[serde(default = "default_skill_scanner_policy")]
+    pub skill_scanner_policy: String,
+    #[serde(default = "default_policy_engine")]
+    pub policy_engine: String,
+    #[serde(default = "default_iam_attestation")]
+    pub iam_attestation: String,
+    #[serde(default = "default_true_sec")]
+    pub kill_all_services_on_bypass: bool,
+    #[serde(default = "default_true_sec")]
+    pub adr_enabled: bool,
+    #[serde(default = "default_true_sec")]
+    pub zero_plaintext_blind_signatures: bool,
+    #[serde(default = "default_sandbox_backend")]
+    pub sandbox_backend: String,
+    pub external_analyzers: Vec<String>,
+}
+
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            enforce_in_repo_skills: true,
+            auto_heal_skill_frontmatter: true,
+            static_analyzer_enabled: true,
+            defenseclaw_fail_closed: true,
+            skill_scanner_policy: default_skill_scanner_policy(),
+            policy_engine: default_policy_engine(),
+            iam_attestation: default_iam_attestation(),
+            kill_all_services_on_bypass: true,
+            adr_enabled: true,
+            zero_plaintext_blind_signatures: true,
+            sandbox_backend: default_sandbox_backend(),
+            external_analyzers: vec![
+                "rust-analyzer".to_string(),
+                "gopls".to_string(),
+                "clang-tidy".to_string(),
+            ],
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
 pub struct ToksiTomlConfig {
@@ -265,6 +336,7 @@ pub struct ToksiTomlConfig {
     pub byok: HashMap<String, ByokTableEntry>,
     pub byok_profiles: Vec<ByokProfileConfig>,
     pub repositories: RepositoriesConfig,
+    pub security: SecurityConfig,
     pub test: TestConfig,
 }
 

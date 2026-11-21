@@ -28,18 +28,41 @@ pub struct HttpRecordedExchange {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpenCodeHooksConfig {
-    pub pre_tool_use: Vec<String>,
-    pub post_tool_use: Vec<String>,
     pub session_start: Vec<String>,
+    pub session_shutdown: Vec<String>,
+    pub before_agent_start: Vec<String>,
+    pub turn_start: Vec<String>,
+    pub turn_end: Vec<String>,
+    pub tool_call: Vec<String>,
+    pub tool_result: Vec<String>,
+    #[serde(rename = "shell.env")]
+    pub shell_env: Vec<String>,
 }
 
 impl Default for OpenCodeHooksConfig {
     fn default() -> Self {
         Self {
-            pre_tool_use: vec!["rtk-hook opencode".to_string()],
-            post_tool_use: vec!["projectmem-hook opencode".to_string()],
             session_start: vec!["codegraph-hook opencode".to_string()],
+            session_shutdown: vec!["projectmem-hook opencode".to_string()],
+            before_agent_start: vec!["context-hook opencode".to_string()],
+            turn_start: vec!["rtk-hook opencode".to_string()],
+            turn_end: vec!["projectmem-hook opencode".to_string()],
+            tool_call: vec!["rtk-hook opencode".to_string()],
+            tool_result: vec!["projectmem-hook opencode".to_string()],
+            shell_env: vec!["rtk-hook opencode".to_string()],
         }
+    }
+}
+
+pub fn normalize_opencode_hook_event(event: &str) -> &'static str {
+    match event.trim().to_ascii_lowercase().as_str() {
+        "session_start" => "SessionInit",
+        "session_shutdown" => "SessionEnd",
+        "before_agent_start" | "turn_start" => "PromptPre",
+        "turn_end" => "TurnStop",
+        "tool_call" | "shell.env" => "ToolPre",
+        "tool_result" => "ToolPost",
+        _ => "HookEvent",
     }
 }
 

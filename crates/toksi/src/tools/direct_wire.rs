@@ -94,6 +94,15 @@ impl DirectWireBus {
         self.sender.subscribe()
     }
 
+    pub fn clear_all(&self) -> usize {
+        if let Ok(mut guard) = self.agents.write() {
+            let count = guard.len();
+            guard.clear();
+            return count;
+        }
+        0
+    }
+
     pub fn register_agent(
         &self,
         agent_id: impl Into<String>,

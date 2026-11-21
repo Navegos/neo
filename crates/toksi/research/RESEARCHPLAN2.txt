@@ -325,7 +325,7 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/unsloth-studio
 <neo>/inspect-vault/deer-flow
 <neo>/inspect-vault/openworker
-<neo>/inspect-vault/dsh-superagent
+<neo>/inspect-vault/dsh-superagent-prototype
 <neo>/inspect-vault/openai-agents-python
 <neo>/inspect-vault/openai-cli
 <neo>/inspect-vault/openai-python
@@ -393,7 +393,6 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/torchaudio
 <neo>/inspect-vault/torchignite
 <neo>/inspect-vault/wandb
-<neo>/inspect-vault/torchao
 <neo>/inspect-vault/rpmalloc
 <neo>/inspect-vault/BLAKE3
 <neo>/inspect-vault/protobuf
@@ -431,6 +430,16 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/Crane
 <neo>/inspect-vault/agent-threat-rules
 <neo>/inspect-vault/Automodel
+<neo>/inspect-vault/warp
+<neo>/inspect-vault/cuvs
+<neo>/inspect-vault/anything-llm
+<neo>/inspect-vault/cc-router
+<neo>/inspect-vault/continue
+<neo>/inspect-vault/xinfer
+<neo>/inspect-vault/claurst
+<neo>/inspect-vault/hf-hub
+<neo>/inspect-vault/swarms-rs
+<neo>/inspect-vault/CV-CUDA
 }
 
 Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.

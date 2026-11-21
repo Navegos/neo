@@ -130,6 +130,17 @@ impl AgentRuntimeEngine {
             return Err(format!("Blocked by <enforce> hook: {reason}"));
         }
 
+        if let crate::commands::guard::GuardDecision::Deny { reason, .. }
+        | crate::commands::guard::GuardDecision::KillSwitchTriggered { reason, .. } =
+            crate::commands::guard::CommandGuard::check_pre_exec(
+                &self.agent_id,
+                prompt,
+                Some(&self.workspace_root),
+            )
+        {
+            return Err(reason);
+        }
+
         let lease = self.turn_leases.acquire_lease(&self.agent_id, 1)?;
         self.event_log
             .append("turn_started", json!({ "lease": lease.lease_id, "prompt": prompt }));

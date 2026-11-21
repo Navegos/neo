@@ -152,6 +152,18 @@ impl SlashCommandEngine {
             };
         }
 
+        if let crate::commands::guard::GuardDecision::Deny { reason, .. }
+        | crate::commands::guard::GuardDecision::KillSwitchTriggered { reason, .. } =
+            crate::commands::guard::CommandGuard::check_pre_exec(agent_id, trimmed, None)
+        {
+            return SlashDispatchResult {
+                handled: true,
+                command: trimmed.split_whitespace().next().unwrap_or("").to_string(),
+                output: format!("[CommandGuard] {reason}"),
+                elapsed_us: started.elapsed().as_micros(),
+            };
+        }
+
         let mut parts = trimmed.splitn(2, char::is_whitespace);
         let cmd = parts.next().unwrap_or("").to_ascii_lowercase();
         let args = parts.next().unwrap_or("").trim();
@@ -645,6 +657,7 @@ impl SlashCommandEngine {
             }
             "policy" => serde_json::to_string(&mgr.policy()).unwrap_or_default(),
             "secret" => format!("[/sandbox secret] keys={:?}", mgr.list_secret_keys()),
+            "prune" => format!("[/sandbox prune] removed={} stopped sandbox(es).", mgr.prune_stopped()),
             "run" | "exec" => {
                 let rest: Vec<String> = parts.map(ToString::to_string).collect();
                 if rest.is_empty() {
@@ -658,7 +671,11 @@ impl SlashCommandEngine {
                     Err(e) => format!("[/sandbox {}] {}", sub, e),
                 }
             }
-            _ => "[/sandbox] Subcommands: run|create|exec|ls|inspect|stop|rm|policy|secret".to_string(),
+            other if super::sandbox::SBX_VERBS.contains(&other) => {
+                let rest: Vec<String> = parts.map(ToString::to_string).collect();
+                mgr.dispatch_sbx_verb(other, &rest)
+            }
+            _ => "[/sandbox] Subcommands: run|create|attach|exec|ls|inspect|stop|rm|prune|move|cp|ports|ttl|tui|policy|secret|kit|env|mcp|skills|template|volume|schedule|daemon|df|diagnose|reset".to_string(),
         }
     }
 

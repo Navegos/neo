@@ -22,11 +22,14 @@ pub mod loop_engine;
 pub mod modes;
 pub mod mofa;
 pub mod openclaw;
+pub mod openshell;
 pub mod patch;
 pub mod sandbox;
+pub mod sandbox_e2b;
 pub mod scheduler;
 pub mod slash;
 pub mod state;
+pub mod unification;
 pub mod workflow_state;
 
 pub use loop_engine::{AgentRuntimeEngine, RuntimeRunReport};

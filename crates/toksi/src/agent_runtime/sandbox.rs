@@ -26,6 +26,42 @@ pub const SHELL_METACHARS: &[char] = &[
     ';', '|', '&', '$', '`', '>', '<', '(', ')', '{', '}', '\n', '\r',
 ];
 
+pub const SBX_VERBS: &[&str] = &[
+    "run", "create", "attach", "exec", "ls", "inspect", "stop", "rm", "prune", "move", "cp",
+    "ports", "ttl", "tui", "policy", "secret", "kit", "env", "mcp", "skills", "template",
+    "volume", "schedule", "daemon", "df", "diagnose", "reset", "setup", "settings",
+];
+
+pub const SBX_BUILT_IN_AGENTS: &[&str] = &[
+    "claude",
+    "codex",
+    "cursor",
+    "devin",
+    "docker-agent",
+    "gemini",
+    "opencode",
+    "shell",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SkillsMountMode {
+    #[default]
+    ReadOnly,
+    ReadWrite,
+    Off,
+}
+
+impl SkillsMountMode {
+    pub fn from_str_loose(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "readwrite" | "rw" => Self::ReadWrite,
+            "off" | "none" => Self::Off,
+            _ => Self::ReadOnly,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SandboxBackend {
@@ -44,6 +80,16 @@ impl SandboxBackend {
             Self::OpenShell => "openshell",
             Self::E2b => "e2b",
             Self::Sbx => "sbx",
+        }
+    }
+
+    pub fn from_str_loose(s: &str) -> Self {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "sandbox-runtime" | "srt" => Self::SandboxRuntime,
+            "openshell" | "nemoclaw" => Self::OpenShell,
+            "e2b" | "firecracker" => Self::E2b,
+            "sbx" | "docker" | "sandboxd" => Self::Sbx,
+            _ => Self::Native,
         }
     }
 }
@@ -69,6 +115,10 @@ pub struct PermissionPolicy {
     pub blocked_commands: Vec<String>,
     pub max_memory_mb: u64,
     pub timeout_secs: u64,
+    #[serde(default)]
+    pub allowed_network_patterns: Vec<String>,
+    #[serde(default)]
+    pub skills_mode: SkillsMountMode,
 }
 
 impl Default for PermissionPolicy {
@@ -87,8 +137,52 @@ impl Default for PermissionPolicy {
             ],
             max_memory_mb: 1024,
             timeout_secs: 30,
+            allowed_network_patterns: Vec::new(),
+            skills_mode: SkillsMountMode::ReadOnly,
         }
     }
+}
+
+/// Pure-Rust outbound HTTP/SOCKS5 domain-filtering proxy policy (`sandbox-runtime/proxy-main.ts`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DomainFilterProxy {
+    pub listen_addr: String,
+    pub socks5_addr: String,
+    pub allowed_domains: Vec<String>,
+    pub denied_domains: Vec<String>,
+    pub wfp_egress_enforced: bool,
+}
+
+impl Default for DomainFilterProxy {
+    fn default() -> Self {
+        Self {
+            listen_addr: "127.0.0.1:0".to_string(),
+            socks5_addr: "127.0.0.1:0".to_string(),
+            allowed_domains: vec!["api.openai.com".to_string(), "api.anthropic.com".to_string()],
+            denied_domains: vec!["169.254.169.254".to_string(), "metadata.google.internal".to_string()],
+            wfp_egress_enforced: cfg!(windows),
+        }
+    }
+}
+
+impl DomainFilterProxy {
+    pub fn is_host_allowed(&self, host: &str) -> bool {
+        if ssrf_guard(host).is_err() {
+            return false;
+        }
+        let lower = host.trim().to_ascii_lowercase();
+        if self.denied_domains.iter().any(|d| lower == d.to_ascii_lowercase()) {
+            return false;
+        }
+        self.allowed_domains.iter().any(|d| {
+            let pat = d.to_ascii_lowercase();
+            lower == pat || lower.ends_with(&format!(".{pat}"))
+        })
+    }
+}
+
+pub fn probe_mxc_base_container() -> bool {
+    cfg!(windows) && !crate::util::paths::which("docker").is_empty()
 }
 
 /// Validates a URL or hostname against SSRF private/loopback/link-local ranges.
@@ -123,10 +217,10 @@ pub fn ssrf_guard(target: &str) -> Result<(), SandboxError> {
         return Err(SandboxError::SsrfBlocked(format!("blocked host '{host}'")));
     }
 
-    if let Ok(ip) = host.parse::<IpAddr>() {
-        if is_private_or_reserved_ip(ip) {
-            return Err(SandboxError::SsrfBlocked(format!("blocked IP '{ip}'")));
-        }
+    if let Ok(ip) = host.parse::<IpAddr>()
+        && is_private_or_reserved_ip(ip)
+    {
+        return Err(SandboxError::SsrfBlocked(format!("blocked IP '{ip}'")));
     }
 
     Ok(())
@@ -307,19 +401,58 @@ impl SandboxManager {
     }
 
     pub fn create(&self, id: impl Into<String>, backend: SandboxBackend, workspace_root: &Path) -> SandboxInstance {
+        self.create_with_options(id, backend, workspace_root, "shell", self.policy())
+    }
+
+    pub fn create_with_options(
+        &self,
+        id: impl Into<String>,
+        backend: SandboxBackend,
+        workspace_root: &Path,
+        agent: &str,
+        policy: PermissionPolicy,
+    ) -> SandboxInstance {
         let id = id.into();
         let inst = SandboxInstance {
             id: id.clone(),
             backend,
             workspace_root: normalize_path(&workspace_root.to_string_lossy()),
-            status: "running".to_string(),
-            policy: self.policy(),
+            status: format!("running:{agent}"),
+            policy,
             created_at_secs: now_secs(),
         };
         if let Ok(mut g) = self.instances.write() {
             g.insert(id, inst.clone());
         }
         inst
+    }
+
+    pub fn prune_stopped(&self) -> usize {
+        if let Ok(mut g) = self.instances.write() {
+            let before = g.len();
+            g.retain(|_, v| v.status != "stopped");
+            return before.saturating_sub(g.len());
+        }
+        0
+    }
+
+    /// Proxy-injected secret handles (`sbx secret` pattern): raw secret values never enter
+    /// sandbox container environments; only opaque `toksi-secret-handle://<key>` references are exposed.
+    pub fn resolve_proxy_injected_env(&self) -> HashMap<String, String> {
+        self.list_secret_keys()
+            .into_iter()
+            .map(|k| (format!("TOKSI_SECRET_{}", k.to_ascii_uppercase()), format!("toksi-secret-handle://{k}")))
+            .collect()
+    }
+
+    pub fn dispatch_sbx_verb(&self, verb: &str, args: &[String]) -> String {
+        format!(
+            "{{\"verb\":\"{}\",\"args\":{},\"active_sandboxes\":{},\"mxc_probe\":{}}}",
+            verb,
+            serde_json::to_string(args).unwrap_or_else(|_| "[]".to_string()),
+            self.list().len(),
+            probe_mxc_base_container()
+        )
     }
 
     pub fn list(&self) -> Vec<SandboxInstance> {
@@ -369,6 +502,13 @@ impl SandboxManager {
         } else {
             format!("{} {}", program, args.join(" "))
         };
+        match crate::commands::guard::CommandGuard::check_pre_exec("sandbox", &joined, Some(cwd)) {
+            crate::commands::guard::GuardDecision::Allow => {}
+            crate::commands::guard::GuardDecision::Deny { reason, .. }
+            | crate::commands::guard::GuardDecision::KillSwitchTriggered { reason, .. } => {
+                return Err(SandboxError::RbacDenied(reason));
+            }
+        }
         validate_command_rbac(&joined, &policy)?;
 
         #[cfg(target_os = "linux")]
