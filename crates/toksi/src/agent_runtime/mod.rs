@@ -11,9 +11,12 @@
 #![deny(unsafe_code)]
 
 pub mod acp;
+pub mod checkpoint;
 pub mod codemode;
 pub mod crew;
+pub mod durable_journal;
 pub mod fleet;
+pub mod graph_checkpoint;
 pub mod hermes;
 pub mod loop_engine;
 pub mod modes;

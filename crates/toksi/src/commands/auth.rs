@@ -20,7 +20,7 @@ pub fn run_auth_cli(args: &[String]) -> i32 {
     let sub = args.first().map(|s| s.as_str()).unwrap_or("status");
     match sub {
         "status" => run_auth_status(),
-        "adc" => run_auth_adc(),
+        "adc" => run_auth_adc(&args[1..]),
         "get" => {
             if args.len() < 2 {
                 eprintln!("Usage: toksi auth get <service|agent> [--account <name>] [--reveal]");
@@ -143,7 +143,62 @@ fn run_auth_status() -> i32 {
     0
 }
 
-fn run_auth_adc() -> i32 {
+fn run_auth_adc(args: &[String]) -> i32 {
+    let mut project_arg: Option<String> = None;
+    let mut location_arg: Option<String> = None;
+    let mut model_arg: String = "gemini-2.5-pro".to_string();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--project" | "-p" if i + 1 < args.len() => {
+                project_arg = Some(args[i + 1].trim().to_string());
+                i += 2;
+                continue;
+            }
+            "--location" | "-l" if i + 1 < args.len() => {
+                location_arg = Some(args[i + 1].trim().to_string());
+                i += 2;
+                continue;
+            }
+            "--model" | "-m" if i + 1 < args.len() => {
+                model_arg = args[i + 1].trim().to_string();
+                i += 2;
+                continue;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+
+    if let Some(ref proj) = project_arg {
+        if !proj.is_empty() {
+            let loc = location_arg
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(crate::keyring::adc::DEFAULT_GCP_LOCATION);
+            let mut cfg = crate::config::load_toksi_toml_config();
+            cfg.auth.gcp_adc.agy_adc_auth = true;
+            cfg.auth.gcp_adc.gcp_project = proj.clone();
+            cfg.auth.gcp_adc.gcp_location = loc.to_string();
+            if let Err(e) = crate::config::save_toksi_toml_config(&cfg) {
+                eprintln!("Failed to save config.toml: {}", e);
+            }
+            if let Ok(mut db) = open_default_db() {
+                let profile_id = format!("vertex-adc-{}", proj);
+                if let Err(e) = crate::db::upsert_adc_byok_profile(
+                    &mut db,
+                    &profile_id,
+                    &model_arg,
+                    proj,
+                    loc,
+                    "medium",
+                ) {
+                    eprintln!("Failed to register ADC BYOK profile: {}", e);
+                }
+            }
+        }
+    }
+
     let adc = inspect_adc_status();
     println!("{}", C.bold("Google Cloud Application Default Credentials (ADC)"));
     println!("  Enabled:  {}", adc.enabled);
@@ -151,6 +206,9 @@ fn run_auth_adc() -> i32 {
     println!("  Location: {}", adc.gcp_location);
     println!("  Path:     {}", adc.adc_path);
     println!("  Present:  {}", adc.adc_present);
+    if let Some(ref kind) = adc.credential_kind {
+        println!("  Kind:     {}", kind);
+    }
     if let Some(diag) = adc.diagnostic {
         println!("  Action:   {}", C.yellow(&diag));
         return 1;

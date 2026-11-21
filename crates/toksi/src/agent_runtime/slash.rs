@@ -19,10 +19,11 @@ use serde_json::json;
 
 use crate::config::{load_toksi_toml_config, save_toksi_toml_config};
 use crate::db::{open_default_db, AgentProfileBindingRecord, ByokProfileRecord, ToksiConfigDb};
-use crate::headroom::effort::EffortLevel;
+use crate::headroom::effort::{global_effort_metrics, EffortLevel};
 use crate::plugins::{global_plugin_registry, global_plugin_slash_router};
 use crate::projectmem::plan_checkpoint::{
     latest_resumable_checkpoint, list_plan_checkpoints, load_plan_checkpoint,
+    validate_dirty_tree_and_plugins,
 };
 use crate::rules::skill_validator::{analyze_directory, fix_skill_content};
 use crate::rules::skills_repo::{
@@ -334,6 +335,7 @@ impl SlashCommandEngine {
         if let Ok(mut st) = self.state.write() {
             st.active_effort = Some(level.as_str().to_string());
         }
+        global_effort_metrics().set_active_effort(level);
         format!(
             "[/effort] Thinking effort set to '{}' (HeadroomEffortCompressor scaled).",
             level.as_str()
@@ -726,14 +728,37 @@ impl SlashCommandEngine {
 
         match loaded {
             Ok(Some(cp)) => {
-                let total = cp.total_steps.max(cp.completed_steps.len() + cp.pending_steps.len());
+                let preflight = validate_dirty_tree_and_plugins(Some(root), &cp);
+                let _ = crate::agent_runtime::acp::handle_acp_jsonrpc(
+                    &json!({
+                        "jsonrpc": "2.0",
+                        "id": "resume-notify",
+                        "method": "session/resume",
+                        "params": {
+                            "plan_id": cp.plan_id,
+                            "next_step_index": preflight.next_step_index,
+                            "next_step_title": preflight.next_step_title,
+                            "verified_plugins": preflight.verified_plugins,
+                            "missing_plugins": preflight.missing_plugins,
+                        }
+                    }),
+                    EffortLevel::from_str_loose(&cp.active_effort).unwrap_or_default(),
+                );
+                let next_label = preflight
+                    .next_step_title
+                    .as_deref()
+                    .unwrap_or("done");
                 format!(
-                    "[/resume] Hydrated checkpoint '{}' ('{}'): completed={}/{}, remaining={}, status={:?}",
+                    "[/resume] Hydrated checkpoint '{}' ('{}'): completed={}/{}, next_step={} ('{}'), dirty_mismatches={}, verified_plugins={}, missing_plugins={}, status={:?}",
                     cp.plan_id,
                     cp.title,
-                    cp.completed_steps.len(),
-                    total,
-                    cp.pending_steps.len(),
+                    preflight.completed_count,
+                    preflight.total_steps,
+                    preflight.next_step_index,
+                    next_label,
+                    preflight.dirty_mismatches.len(),
+                    preflight.verified_plugins.len(),
+                    preflight.missing_plugins.len(),
                     cp.status
                 )
             }

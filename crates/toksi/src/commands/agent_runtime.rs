@@ -30,6 +30,18 @@ fn workspace_from_args(args: &[String]) -> (PathBuf, Vec<String>) {
             i += 1;
             continue;
         }
+        if args[i] == "--effort" && i + 1 < args.len() {
+            let _ = crate::agent_runtime::global_slash_engine()
+                .execute(&format!("/effort {}", args[i + 1]), "toksi-cli");
+            i += 2;
+            continue;
+        }
+        if let Some(val) = args[i].strip_prefix("--effort=") {
+            let _ = crate::agent_runtime::global_slash_engine()
+                .execute(&format!("/effort {}", val), "toksi-cli");
+            i += 1;
+            continue;
+        }
         rest.push(args[i].clone());
         i += 1;
     }

@@ -9,6 +9,7 @@
 //! enforced across all 7 inference and protocol entrypoints (`:8787`–`:8790`,
 //! `:9098`, `:9099`, `:18787`).
 
+use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -146,8 +147,109 @@ pub fn detect_effort_level(headers: &[(String, String)], payload: Option<&Value>
     EffortLevel::Medium
 }
 
+/// Global atomic live effort metrics exposed to Telemetry, `tokview`, and `/effort`.
+pub struct EffortMetricsRegistry {
+    active_effort: AtomicU8,
+    low_requests: AtomicU64,
+    medium_requests: AtomicU64,
+    high_requests: AtomicU64,
+    total_bytes_saved: AtomicU64,
+    total_tokens_saved: AtomicU64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EffortMetricsSnapshot {
+    pub active_effort: EffortLevel,
+    pub low_requests: u64,
+    pub medium_requests: u64,
+    pub high_requests: u64,
+    pub total_bytes_saved: u64,
+    pub total_tokens_saved: u64,
+}
+
+static EFFORT_METRICS: EffortMetricsRegistry = EffortMetricsRegistry {
+    active_effort: AtomicU8::new(1), // Medium
+    low_requests: AtomicU64::new(0),
+    medium_requests: AtomicU64::new(0),
+    high_requests: AtomicU64::new(0),
+    total_bytes_saved: AtomicU64::new(0),
+    total_tokens_saved: AtomicU64::new(0),
+};
+
+impl EffortMetricsRegistry {
+    pub fn set_active_effort(&self, effort: EffortLevel) {
+        let code = match effort {
+            EffortLevel::Low => 0,
+            EffortLevel::Medium => 1,
+            EffortLevel::High => 2,
+        };
+        self.active_effort.store(code, Ordering::Relaxed);
+    }
+
+    pub fn active_effort(&self) -> EffortLevel {
+        match self.active_effort.load(Ordering::Relaxed) {
+            0 => EffortLevel::Low,
+            2 => EffortLevel::High,
+            _ => EffortLevel::Medium,
+        }
+    }
+
+    pub fn record(&self, stats: &EffortCompressionStats) {
+        match stats.effort {
+            EffortLevel::Low => {
+                self.low_requests.fetch_add(1, Ordering::Relaxed);
+            }
+            EffortLevel::Medium => {
+                self.medium_requests.fetch_add(1, Ordering::Relaxed);
+            }
+            EffortLevel::High => {
+                self.high_requests.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        if stats.bytes_saved > 0 {
+            self.total_bytes_saved
+                .fetch_add(stats.bytes_saved as u64, Ordering::Relaxed);
+        }
+        if stats.estimated_tokens_saved > 0 {
+            self.total_tokens_saved
+                .fetch_add(stats.estimated_tokens_saved as u64, Ordering::Relaxed);
+        }
+    }
+
+    pub fn snapshot(&self) -> EffortMetricsSnapshot {
+        EffortMetricsSnapshot {
+            active_effort: self.active_effort(),
+            low_requests: self.low_requests.load(Ordering::Relaxed),
+            medium_requests: self.medium_requests.load(Ordering::Relaxed),
+            high_requests: self.high_requests.load(Ordering::Relaxed),
+            total_bytes_saved: self.total_bytes_saved.load(Ordering::Relaxed),
+            total_tokens_saved: self.total_tokens_saved.load(Ordering::Relaxed),
+        }
+    }
+}
+
+pub fn global_effort_metrics() -> &'static EffortMetricsRegistry {
+    &EFFORT_METRICS
+}
+
+/// Returns `true` if the Anthropic model name does not support extended thinking.
+pub fn is_non_thinking_anthropic_model(model: &str) -> bool {
+    let m = model.to_ascii_lowercase();
+    m.contains("haiku") || m.contains("claude-2") || m.contains("claude-3-opus-20240229")
+}
+
+/// Returns `true` if the Gemini / Vertex model name does not support `thinkingConfig`.
+pub fn is_non_thinking_gemini_model(model: &str) -> bool {
+    let m = model.to_ascii_lowercase();
+    m.contains("gemini-1.5")
+        || m.contains("gemini-1.0")
+        || m.contains("flash-lite")
+        || m.contains("embedding")
+}
+
 /// Translates an explicit `EffortLevel` into OpenAI / Anthropic / Gemini wire parameters
 /// when the model supports thinking or the payload already carries thinking settings.
+/// Auto-omits/strips thinking blocks for non-thinking models and clamps Gemini budgets.
 pub fn apply_effort_wire_translation(
     path: &str,
     payload: &mut Value,
@@ -186,44 +288,69 @@ pub fn apply_effort_wire_translation(
         || model.contains("claude-opus-4")
         || obj.contains_key("thinking");
 
-    if is_anthropic_thinking && (explicit_override || obj.contains_key("thinking")) {
-        let budget = effort.anthropic_budget_tokens();
-        let mut thinking = obj
-            .get("thinking")
-            .and_then(Value::as_object)
-            .cloned()
-            .unwrap_or_default();
-        thinking.insert("type".to_string(), Value::String("enabled".to_string()));
-        thinking.insert("budget_tokens".to_string(), json!(budget));
-        obj.insert("thinking".to_string(), Value::Object(thinking));
-        return true;
+    if is_anthropic_thinking {
+        if !model.is_empty() && is_non_thinking_anthropic_model(&model) {
+            obj.remove("thinking");
+            return false;
+        }
+        if explicit_override || obj.contains_key("thinking") {
+            let budget = effort.anthropic_budget_tokens();
+            let mut thinking = obj
+                .get("thinking")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            thinking.insert("type".to_string(), Value::String("enabled".to_string()));
+            thinking.insert("budget_tokens".to_string(), json!(budget));
+            obj.insert("thinking".to_string(), Value::Object(thinking));
+            return true;
+        }
     }
 
     let is_gemini_thinking = path.contains("generateContent")
         || model.contains("gemini-2.5")
+        || model.contains("gemini-3")
+        || model.contains("gemini-4")
         || obj
             .get("generationConfig")
             .and_then(|g| g.get("thinkingConfig"))
             .is_some();
 
-    if is_gemini_thinking
-        && (explicit_override
+    if is_gemini_thinking {
+        if (!model.is_empty() && is_non_thinking_gemini_model(&model))
+            || (path.contains("gemini-1.5") || path.contains("flash-lite"))
+        {
+            if let Some(gen_map) = obj
+                .get_mut("generationConfig")
+                .and_then(Value::as_object_mut)
+            {
+                gen_map.remove("thinkingConfig");
+            }
+            return false;
+        }
+        if explicit_override
             || obj
                 .get("generationConfig")
                 .and_then(|g| g.get("thinkingConfig"))
-                .is_some())
-    {
-        let budget = effort.gemini_thinking_budget();
-        let gen_cfg = obj
-            .entry("generationConfig")
-            .or_insert_with(|| Value::Object(Default::default()));
-        if let Some(gen_map) = gen_cfg.as_object_mut() {
-            let tc = gen_map
-                .entry("thinkingConfig")
+                .is_some()
+        {
+            let raw_budget = effort.gemini_thinking_budget();
+            let budget = if model.contains("gemini-2.5-pro") || path.contains("gemini-2.5-pro") {
+                raw_budget.clamp(128, 32768)
+            } else {
+                raw_budget.clamp(0, 24576)
+            };
+            let gen_cfg = obj
+                .entry("generationConfig")
                 .or_insert_with(|| Value::Object(Default::default()));
-            if let Some(tc_map) = tc.as_object_mut() {
-                tc_map.insert("thinkingBudget".to_string(), json!(budget));
-                return true;
+            if let Some(gen_map) = gen_cfg.as_object_mut() {
+                let tc = gen_map
+                    .entry("thinkingConfig")
+                    .or_insert_with(|| Value::Object(Default::default()));
+                if let Some(tc_map) = tc.as_object_mut() {
+                    tc_map.insert("thinkingBudget".to_string(), json!(budget));
+                    return true;
+                }
             }
         }
     }
@@ -329,6 +456,7 @@ impl HeadroomEffortCompressor {
         stats.compressed_bytes = final_bytes;
         stats.bytes_saved = orig_bytes.saturating_sub(final_bytes);
         stats.estimated_tokens_saved = stats.bytes_saved / 4;
+        global_effort_metrics().record(&stats);
         stats
     }
 
@@ -425,6 +553,7 @@ impl HeadroomEffortCompressor {
         stats.compressed_bytes = final_body.len();
         stats.bytes_saved = body.len().saturating_sub(final_body.len());
         stats.estimated_tokens_saved = stats.bytes_saved / 4;
+        global_effort_metrics().record(&stats);
         (final_body, stats)
     }
 }

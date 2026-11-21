@@ -7,10 +7,12 @@
 
 #![deny(unsafe_code)]
 
+pub mod byok;
 pub mod migrate;
 pub mod operations;
 pub mod schema;
 
+pub use byok::*;
 pub use migrate::*;
 pub use operations::*;
 pub use schema::*;

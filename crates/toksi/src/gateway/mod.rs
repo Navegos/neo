@@ -12,6 +12,7 @@ pub mod cascade;
 pub mod circuit_breaker;
 pub mod compat;
 pub mod cost_quality_router;
+pub mod effort_router;
 pub mod gemini_wire;
 pub mod governance;
 pub mod inference_bridge;

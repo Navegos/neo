@@ -98,6 +98,7 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/langflow
 <neo>/inspect-vault/deepagents
 <neo>/inspect-vault/openwiki
+<neo>/inspect-vault/langgraph-swarm-py
 <neo>/inspect-vault/bosun
 <neo>/inspect-vault/Codewhale
 <neo>/inspect-vault/cline
@@ -275,7 +276,7 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/physicsnemo-serve
 <neo>/inspect-vault/NeMo-Fabric
 <neo>/inspect-vault/aistore
-<neo>/inspect-vault/xla_staging
+<neo>/inspect-vault/xla
 <neo>/inspect-vault/Nomos
 <neo>/inspect-vault/tokenspeed
 <neo>/inspect-vault/slurm
@@ -328,6 +329,9 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/openai-agents-python
 <neo>/inspect-vault/openai-cli
 <neo>/inspect-vault/openai-python
+<neo>/inspect-vault/openai-guardrails-python
+<neo>/inspect-vault/model_spec
+<neo>/inspect-vault/tiktoken
 <neo>/inspect-vault/ChatDev
 <neo>/inspect-vault/multica
 <neo>/inspect-vault/maki
@@ -359,6 +363,18 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/ir-py
 <neo>/inspect-vault/onnxmltools
 <neo>/inspect-vault/digestai
+<neo>/inspect-vault/lancedb
+<neo>/inspect-vault/gloo
+<neo>/inspect-vault/redis
+<neo>/inspect-vault/smolagents
+<neo>/inspect-vault/elasticsearch
+<neo>/inspect-vault/nanotron
+<neo>/inspect-vault/lighteval
+<neo>/inspect-vault/paddler
+<neo>/inspect-vault/milvus-storage
+<neo>/inspect-vault/safetensors
+<neo>/inspect-vault/llguidance
+<neo>/inspect-vault/Emerging-Optimizers
 }
 
 Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.
