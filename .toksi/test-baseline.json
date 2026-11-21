@@ -568,6 +568,27 @@
                 "--test",
                 "phase18_5_adr_sandbox_and_guard_verification"
             ]
+        },
+        "phase18_6_siagent_and_inference_stack_verification": {
+            "watched_paths": [
+                "crates/toksi/src/security/",
+                "crates/toksi/src/gateway/",
+                "crates/toksi/src/agent_runtime/",
+                "crates/toksi/src/aimemory/",
+                "crates/toksi/src/codegraph/",
+                "crates/toksi/src/telemetry/",
+                "crates/toksi/src/tools/direct_wire.rs",
+                "crates/toksi/tests/phase18_6_siagent_and_inference_stack_verification.rs"
+            ],
+            "tree_blake3": "",
+            "last_passed_unix": 0,
+            "cargo_args": [
+                "test",
+                "-p",
+                "toksi",
+                "--test",
+                "phase18_6_siagent_and_inference_stack_verification"
+            ]
         }
     }
 }

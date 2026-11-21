@@ -10,12 +10,14 @@
 pub mod ast_grep;
 pub mod bpe;
 pub mod cache;
+pub mod embeddings;
 pub mod graph;
 pub mod jcodemunch;
 pub mod kernel;
 pub mod mcp;
 pub mod openwiki;
 pub mod repomix;
+pub mod reranker;
 pub mod scip;
 pub mod slash;
 pub mod walker;

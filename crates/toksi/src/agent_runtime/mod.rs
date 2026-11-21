@@ -12,6 +12,7 @@
 
 pub mod acp;
 pub mod checkpoint;
+pub mod cluster_exec;
 pub mod codemode;
 pub mod crew;
 pub mod durable_journal;
@@ -23,7 +24,9 @@ pub mod modes;
 pub mod mofa;
 pub mod openclaw;
 pub mod openshell;
+pub mod orchestrator;
 pub mod patch;
+pub mod rl;
 pub mod sandbox;
 pub mod sandbox_e2b;
 pub mod scheduler;
@@ -31,6 +34,7 @@ pub mod slash;
 pub mod state;
 pub mod unification;
 pub mod workflow_state;
+pub mod world_model;
 
 pub use loop_engine::{AgentRuntimeEngine, RuntimeRunReport};
 pub use slash::{global_slash_engine, SlashCommandEngine, SlashDispatchResult, CORE_SLASH_COMMANDS};

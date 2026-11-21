@@ -9,8 +9,11 @@
 
 pub mod collector;
 pub mod cost;
+pub mod evals;
+pub mod gpu_monitor;
 pub mod guardrails;
 pub mod openinference;
+pub mod perf_tuning;
 pub mod prometheus;
 pub mod tokentracker;
 pub mod tokenspeed;

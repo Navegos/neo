@@ -87,6 +87,29 @@ pub fn redact(text: &str) -> (String, Vec<String>) {
     (cow.into_owned(), fired)
 }
 
+/// Format-preserving PII anonymizer (`Anonymizer` parity) for emails and IPv4 addresses.
+pub fn anonymize_pii_format_preserving(text: &str) -> (String, Vec<String>) {
+    static EMAIL_RE: LazyLock<Option<Regex>> =
+        LazyLock::new(|| Regex::new(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b").ok());
+    static IPV4_RE: LazyLock<Option<Regex>> =
+        LazyLock::new(|| Regex::new(r"\b(?:\d{1,3}\.){3}\d{1,3}\b").ok());
+
+    let (mut out, mut fired) = redact(text);
+    if let Some(re) = EMAIL_RE.as_ref() {
+        if re.is_match(&out) {
+            fired.push("pii_email".to_string());
+            out = re.replace_all(&out, "anon@redacted.local").to_string();
+        }
+    }
+    if let Some(re) = IPV4_RE.as_ref() {
+        if re.is_match(&out) {
+            fired.push("pii_ipv4".to_string());
+            out = re.replace_all(&out, "0.0.0.0").to_string();
+        }
+    }
+    (out, fired)
+}
+
 pub fn redact_event_fields(event: &mut Event) -> Vec<String> {
     if !is_redaction_enabled() {
         return Vec::new();

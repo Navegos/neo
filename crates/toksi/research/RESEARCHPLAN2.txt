@@ -440,6 +440,22 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/hf-hub
 <neo>/inspect-vault/swarms-rs
 <neo>/inspect-vault/CV-CUDA
+<neo>/inspect-vault/crewAIInc-skills
+<neo>/inspect-vault/tidev
+<neo>/inspect-vault/ironclaw
+<neo>/inspect-vault/cudarc
+<neo>/inspect-vault/xa
+<neo>/inspect-vault/octos
+<neo>/inspect-vault/Essential-Hermes-Skills
+<neo>/inspect-vault/rust-code
+<neo>/inspect-vault/oxillama
+<neo>/inspect-vault/ringlet
+<neo>/inspect-vault/ironcode
+<neo>/inspect-vault/brat
+<neo>/inspect-vault/arc-cli
+<neo>/inspect-vault/aitk
+<neo>/inspect-vault/moly-ai
+
 }
 
 Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.

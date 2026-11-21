@@ -20,6 +20,45 @@ use crate::util::paths::normalize_path;
 
 pub const DIRECT_WIRE_BUS_CAPACITY: usize = 256;
 
+/// All 35 `<toksi-siagent>` Super Intelligence Architecture components (`RESEARCHPLAN.md` Section 0.2).
+pub const SIAGENT_35_COMPONENTS: &[&str] = &[
+    "Orchestrator",
+    "Agent",
+    "Inference Engine",
+    "Model Gateway",
+    "LLM Router",
+    "Embedding Model",
+    "Reranker",
+    "Vector Database",
+    "Knowledge Graph",
+    "Context Store",
+    "Episodic Memory",
+    "Semantic Memory",
+    "Ingestion Pipeline",
+    "Tool Registry",
+    "MCP Server",
+    "Code Sandbox",
+    "State Machine",
+    "Checkpointer",
+    "Message Broker",
+    "Event Bus",
+    "Semantic Cache",
+    "Guardrails",
+    "Telemetry Engine",
+    "Tracing Engine",
+    "Eval Harness",
+    "HITL Gateway",
+    "World Model",
+    "Hierarchical Planner",
+    "Verification Engine",
+    "Agent Runtime Daemon",
+    "IAM Attestation Layer",
+    "Policy-as-Code Engine",
+    "Circuit Breaker",
+    "Kill Switch",
+    "Immutable Audit Log",
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum WireRegistrationMode {
@@ -219,6 +258,17 @@ impl DirectWireBus {
         } else {
             None
         }
+    }
+
+    pub fn register_siagent_35_components(&self) -> usize {
+        for comp in SIAGENT_35_COMPONENTS {
+            self.register_agent(
+                format!("siagent:{}", comp.to_ascii_lowercase().replace(' ', "_")),
+                WireRegistrationMode::DirectWired,
+                vec![(*comp).to_string()],
+            );
+        }
+        SIAGENT_35_COMPONENTS.len()
     }
 
     pub fn status(&self) -> Value {

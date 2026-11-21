@@ -96,10 +96,22 @@ pub fn scan_llm_guard(text: &str, cfg: &LlmGuardConfig) -> LlmGuardVerdict {
         }
     }
 
+    let lower_sanitized = sanitized.to_ascii_lowercase();
+    if lower_sanitized.contains("eval(") && lower_sanitized.contains("base64") {
+        triggered.push("CodeInjection".to_string());
+        max_risk = max_risk.max(0.9);
+    }
+    if lower_sanitized.contains("http://169.254.169.254") {
+        triggered.push("BanUrl(metadata-ssrf)".to_string());
+        max_risk = max_risk.max(1.0);
+    }
+
     let is_valid = !triggered.iter().any(|t| {
         t.starts_with("PromptInjection")
             || t == "InvisibleUnicode"
             || t.starts_with("TokenLimit")
+            || t == "CodeInjection"
+            || t.starts_with("BanUrl")
     });
 
     LlmGuardVerdict {
