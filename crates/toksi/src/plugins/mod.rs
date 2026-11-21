@@ -9,6 +9,8 @@
 
 #![deny(unsafe_code)]
 
+pub mod analyzer_plugin;
+pub mod cli_bridge;
 pub mod hooks;
 pub mod loader;
 pub mod manifest;
@@ -25,6 +27,8 @@ use sha2::{Digest, Sha256};
 use crate::db::{open_default_db, PluginRegistryRecord};
 use crate::util::paths::{home, normalize_path};
 
+pub use analyzer_plugin::{global_analyzer_plugin_registry, AnalyzerPlugin, AnalyzerPluginRegistry};
+pub use cli_bridge::{global_plugin_cli_bridge, CliPluginHandler, PluginCliBridge};
 pub use hooks::{global_hook_dispatcher, HookContext, HookEventName, HookOutcome, PluginHookDispatcher};
 pub use slash_router::{global_plugin_slash_router, PluginSlashEntry, PluginSlashRouter};
 

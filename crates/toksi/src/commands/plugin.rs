@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-use crate::plugins::{global_plugin_registry, PluginSecurityStatus};
+use crate::plugins::{global_plugin_cli_bridge, global_plugin_registry, PluginSecurityStatus};
 use crate::util::colors::C;
 
 pub fn run_plugin_cli(args: &[String]) -> i32 {
@@ -117,8 +117,18 @@ pub fn run_plugin_cli(args: &[String]) -> i32 {
                 1
             }
         },
+        "run" if !target.is_empty() => {
+            let cmd_args: Vec<String> = args.iter().skip(2).cloned().collect();
+            match global_plugin_cli_bridge().execute(target, &cmd_args) {
+                Ok(code) => code,
+                Err(e) => {
+                    eprintln!("{}", e);
+                    1
+                }
+            }
+        }
         _ => {
-            eprintln!("Usage: toksi plugin <list|load <id|path>|unload <id>|reload <id>|info <id>|scan <path>|enable <id>|disable <id>>");
+            eprintln!("Usage: toksi plugin <list|load <id|path>|unload <id>|reload <id>|info <id>|scan <path>|enable <id>|disable <id>|run <cmd>>");
             1
         }
     }

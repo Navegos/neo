@@ -247,6 +247,15 @@ impl Default for ByokTableEntry {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(default)]
+pub struct RepositoriesConfig {
+    pub neo_dir: String,
+    pub advisory_dir: String,
+    pub skills_dir: String,
+    pub user_skills_dir: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
 pub struct ToksiTomlConfig {
     pub general: GeneralConfig,
     pub ports: PortsConfig,
@@ -255,6 +264,7 @@ pub struct ToksiTomlConfig {
     pub auth: AuthConfig,
     pub byok: HashMap<String, ByokTableEntry>,
     pub byok_profiles: Vec<ByokProfileConfig>,
+    pub repositories: RepositoriesConfig,
     pub test: TestConfig,
 }
 

@@ -233,7 +233,7 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/DataDesigner
 <neo>/inspect-vault/Export-Deploy
 <neo>/inspect-vault/DataDesignerPlugins
-<neo>/inspect-vault/neural-compressor
+<neo>/inspect-vault/intel-neural-compressor
 <neo>/inspect-vault/pytorch
 <neo>/inspect-vault/helion
 <neo>/inspect-vault/torchtitan
@@ -326,6 +326,8 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/openworker
 <neo>/inspect-vault/dsh-superagent
 <neo>/inspect-vault/openai-agents-python
+<neo>/inspect-vault/openai-cli
+<neo>/inspect-vault/openai-python
 <neo>/inspect-vault/ChatDev
 <neo>/inspect-vault/multica
 <neo>/inspect-vault/maki
@@ -345,6 +347,18 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/depyler
 <neo>/inspect-vault/paiml-mcp-agent-toolkit
 <neo>/inspect-vault/DeepSpeed-MII
+<neo>/inspect-vault/DeepSpeed-Kernels
+<neo>/inspect-vault/mongo
+<neo>/inspect-vault/rocksdb
+<neo>/inspect-vault/cockroach
+<neo>/inspect-vault/rpmalloc-rs
+<neo>/inspect-vault/grpc
+<neo>/inspect-vault/onnx
+<neo>/inspect-vault/neural-compressor
+<neo>/inspect-vault/optimizer
+<neo>/inspect-vault/ir-py
+<neo>/inspect-vault/onnxmltools
+<neo>/inspect-vault/digestai
 }
 
 Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.
@@ -474,7 +488,7 @@ We are making sure that daemon start all toksi services correctly and that each 
 
 we are not copying files from <neo>/inspect-vault/ that are not necessary for toksi or agents, and we absolutely are not copying scripts, bash, yaml actions, we dont want to polute our repo with unnecessary files. And all files that we are using from <neo>/inspect-vault/ must be adapted for our <neo> toksi repo, and if you find files in our repo <neo> toksi that are not adapted or not supposed for our repo <neo> toksi it must be fixed, removed, and or healed.
 
-We are marking wat its deep research done, plan done, plan implemented, plan fixed, missing deep research, plan not done, plan unimplemented, plan needs fix, in <repo>/.agents/brain/*.md, reorganize the plans methods, for continuation of the implementation of our plans, and also making sure all of our plans are updated for every prompt finish, <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, <repo>/.agents/brain/*.md.
+We are marking wat its, deep research done, plan done, plan implemented, plan fixed, missing deep research, plan not done, plan unimplemented, plan needs fix, in <repo>/.agents/brain/*.md, reorganize the plans methods, for continuation of the implementation of our plans, and also making sure all of our plans are updated for every prompt finish, <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, <repo>/.agents/brain/*.md.
 
-Wen need to reorganize our research ideas and PLANS, implementation order, research ideas consolidation, for better agent follow up, <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, <repo>/.agents/brain/*.md, <repo>/crates/toksi/RESEARCHPLAN.md, <repo>/crates/toksi/RESEARCHPLAN.txt.
+We need to reorganize our research ideas and PLANS, implementation order, research ideas consolidation, for better agent follow up, <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, <repo>/.agents/brain/*.md, <repo>/crates/toksi/RESEARCHPLAN.md, <repo>/crates/toksi/RESEARCHPLAN.txt.
 

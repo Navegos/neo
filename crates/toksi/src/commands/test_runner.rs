@@ -31,6 +31,7 @@ const CHUNK_START: u32 = 1 << 0;
 const CHUNK_END: u32 = 1 << 1;
 const PARENT: u32 = 1 << 2;
 const ROOT: u32 = 1 << 3;
+const KEYED_HASH: u32 = 1 << 4;
 const CHUNK_LEN: usize = 1024;
 const BLOCK_LEN: usize = 64;
 
@@ -104,16 +105,22 @@ fn first_8_words(out: [u32; 16]) -> [u32; 8] {
     [out[0], out[1], out[2], out[3], out[4], out[5], out[6], out[7]]
 }
 
-fn chunk_cv(chunk: &[u8], chunk_index: u64, is_root: bool) -> [u32; 8] {
-    let mut cv = IV;
+fn chunk_cv_with_iv(
+    initial_cv: &[u32; 8],
+    base_flags: u32,
+    chunk: &[u8],
+    chunk_index: u64,
+    is_root: bool,
+) -> [u32; 8] {
+    let mut cv = *initial_cv;
     if chunk.is_empty() {
         let block = [0u32; 16];
-        let flags = CHUNK_START | CHUNK_END | if is_root { ROOT } else { 0 };
+        let flags = base_flags | CHUNK_START | CHUNK_END | if is_root { ROOT } else { 0 };
         return first_8_words(compress(&cv, &block, chunk_index, 0, flags));
     }
     let num_blocks = chunk.len().div_ceil(BLOCK_LEN);
     for (idx, block_bytes) in chunk.chunks(BLOCK_LEN).enumerate() {
-        let mut flags = 0u32;
+        let mut flags = base_flags;
         if idx == 0 {
             flags |= CHUNK_START;
         }
@@ -129,17 +136,23 @@ fn chunk_cv(chunk: &[u8], chunk_index: u64, is_root: bool) -> [u32; 8] {
     cv
 }
 
-fn parent_cv(left: &[u32; 8], right: &[u32; 8], is_root: bool) -> [u32; 8] {
+fn parent_cv_with_iv(
+    initial_cv: &[u32; 8],
+    base_flags: u32,
+    left: &[u32; 8],
+    right: &[u32; 8],
+    is_root: bool,
+) -> [u32; 8] {
     let mut block = [0u32; 16];
     block[..8].copy_from_slice(left);
     block[8..].copy_from_slice(right);
-    let flags = PARENT | if is_root { ROOT } else { 0 };
-    first_8_words(compress(&IV, &block, 0, BLOCK_LEN as u32, flags))
+    let flags = base_flags | PARENT | if is_root { ROOT } else { 0 };
+    first_8_words(compress(initial_cv, &block, 0, BLOCK_LEN as u32, flags))
 }
 
-pub fn blake3_hash(input: &[u8]) -> [u8; 32] {
+fn blake3_hash_with_iv(initial_cv: &[u32; 8], base_flags: u32, input: &[u8]) -> [u8; 32] {
     if input.len() <= CHUNK_LEN {
-        let cv = chunk_cv(input, 0, true);
+        let cv = chunk_cv_with_iv(initial_cv, base_flags, input, 0, true);
         let mut out = [0u8; 32];
         for (i, w) in cv.iter().enumerate() {
             out[i * 4..(i + 1) * 4].copy_from_slice(&w.to_le_bytes());
@@ -150,13 +163,13 @@ pub fn blake3_hash(input: &[u8]) -> [u8; 32] {
     let mut stack: Vec<[u32; 8]> = Vec::new();
     let chunks: Vec<&[u8]> = input.chunks(CHUNK_LEN).collect();
     for (idx, chunk) in chunks.iter().enumerate() {
-        let mut cv = chunk_cv(chunk, idx as u64, false);
+        let mut cv = chunk_cv_with_iv(initial_cv, base_flags, chunk, idx as u64, false);
         let mut total_chunks = idx + 1;
         let is_last = idx + 1 == chunks.len();
         if !is_last {
             while total_chunks & 1 == 0 {
                 if let Some(left) = stack.pop() {
-                    cv = parent_cv(&left, &cv, false);
+                    cv = parent_cv_with_iv(initial_cv, base_flags, &left, &cv, false);
                 }
                 total_chunks >>= 1;
             }
@@ -164,7 +177,7 @@ pub fn blake3_hash(input: &[u8]) -> [u8; 32] {
         } else {
             while let Some(left) = stack.pop() {
                 let root_now = stack.is_empty();
-                cv = parent_cv(&left, &cv, root_now);
+                cv = parent_cv_with_iv(initial_cv, base_flags, &left, &cv, root_now);
             }
             let mut out = [0u8; 32];
             for (i, w) in cv.iter().enumerate() {
@@ -177,8 +190,29 @@ pub fn blake3_hash(input: &[u8]) -> [u8; 32] {
     [0u8; 32]
 }
 
+pub fn blake3_hash(input: &[u8]) -> [u8; 32] {
+    blake3_hash_with_iv(&IV, 0, input)
+}
+
+pub fn blake3_keyed_hash(key: &[u8; 32], input: &[u8]) -> [u8; 32] {
+    let mut key_words = [0u32; 8];
+    for (i, chunk) in key.chunks_exact(4).enumerate() {
+        key_words[i] = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+    }
+    blake3_hash_with_iv(&key_words, KEYED_HASH, input)
+}
+
 pub fn blake3_hex(input: &[u8]) -> String {
     let digest = blake3_hash(input);
+    let mut s = String::with_capacity(64);
+    for b in digest {
+        s.push_str(&format!("{:02x}", b));
+    }
+    s
+}
+
+pub fn blake3_keyed_hex(key: &[u8; 32], input: &[u8]) -> String {
+    let digest = blake3_keyed_hash(key, input);
     let mut s = String::with_capacity(64);
     for b in digest {
         s.push_str(&format!("{:02x}", b));

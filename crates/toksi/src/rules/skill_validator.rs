@@ -2119,6 +2119,82 @@ fn push_yaml_entry(lines: &mut Vec<String>, key: &str, val: &YamlValue) {
     }
 }
 
+/// `SkillSpector` structural & frontmatter regression inspector.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillSpector {
+    pub min_score: u8,
+    pub require_enforce: bool,
+}
+
+impl Default for SkillSpector {
+    fn default() -> Self {
+        Self {
+            min_score: 80,
+            require_enforce: true,
+        }
+    }
+}
+
+impl SkillSpector {
+    pub fn inspect(&self, path: &str, content: &str) -> SkillValidationReport {
+        analyze_content(path, content, Some(FileKind::Skill))
+    }
+
+    pub fn passes_regression(&self, report: &SkillValidationReport) -> bool {
+        report.vetted_for_install
+            && report.is_valid_agentskills
+            && report.score >= self.min_score
+            && (!self.require_enforce || report.has_enforce_guard)
+    }
+}
+
+/// `SkillEvaluator` batch regression evaluator across healed skills.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SkillEvaluator {
+    pub spector: SkillSpector,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SkillEvalBatchSummary {
+    pub total: usize,
+    pub passed: usize,
+    pub failed: usize,
+    pub batch_score: f64,
+}
+
+impl SkillEvaluator {
+    pub fn evaluate_batch(&self, items: &[(&str, &str)]) -> SkillEvalBatchSummary {
+        let mut passed = 0usize;
+        let mut failed = 0usize;
+        let mut scores = Vec::with_capacity(items.len());
+
+        for (path, content) in items {
+            let rep = self.spector.inspect(path, content);
+            scores.push(rep.score as f64);
+            if self.spector.passes_regression(&rep) {
+                passed += 1;
+            } else {
+                failed += 1;
+            }
+        }
+
+        let batch_score = if scores.is_empty() {
+            100.0
+        } else {
+            let mean = scores.iter().sum::<f64>() / scores.len() as f64;
+            let worst = scores.iter().copied().fold(100.0_f64, f64::min);
+            0.6 * mean + 0.4 * worst
+        };
+
+        SkillEvalBatchSummary {
+            total: items.len(),
+            passed,
+            failed,
+            batch_score,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -5,13 +5,15 @@
 // created: 2026-11-21
 
 //! Native CVE JSON 5.1 (`cve-schema`, `cve-validation-library`, `cve-services`),
-//! OSV 1.7.4 (`osv-schema`, `cve-bin-tool`, `cve-lite-cli`), and zero-plaintext
-//! `Navegos/advisory` validator.
+//! OSV 1.7.4 (`osv-schema`, `cve-bin-tool`, `cve-lite-cli`), STIX 2.1, SARIF 2.1.0,
+//! ATR YAML, `SKILL.md`, `AGENTS.md`, and zero-plaintext `Navegos/advisory` validator.
 
 #![deny(unsafe_code)]
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use crate::rules::skill_validator::{analyze_content, FileKind};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AdvisoryValidationResult {
@@ -20,30 +22,85 @@ pub struct AdvisoryValidationResult {
     pub errors: Vec<String>,
 }
 
-const FORBIDDEN_PLAINTEXT_KEYS: &[&str] = &["raw_exploit", "poc_code", "raw_regex", "exploit_payload"];
+const FORBIDDEN_PLAINTEXT_KEYS: &[&str] = &[
+    "raw_exploit",
+    "poc_code",
+    "raw_regex",
+    "exploit_payload",
+    "plaintext_pattern",
+];
 
-/// Validates an OSV 1.7.4 or CVE JSON 5.1 advisory document and enforces zero-plaintext hygiene.
+/// Validates OSV 1.7.4, CVE JSON 5.1, STIX 2.1, or SARIF 2.1.0 JSON and enforces zero-plaintext hygiene.
 pub fn validate_advisory_json(doc: &Value) -> AdvisoryValidationResult {
     let mut errors = Vec::new();
     let schema_kind = if doc.get("dataType").and_then(Value::as_str) == Some("CVE_RECORD") {
-        if doc.get("cveMetadata").and_then(|m| m.get("cveId")).and_then(Value::as_str).is_none() {
+        if doc
+            .get("cveMetadata")
+            .and_then(|m| m.get("cveId"))
+            .and_then(Value::as_str)
+            .is_none()
+        {
             errors.push("CVE 5.1 missing cveMetadata.cveId".to_string());
         }
         if doc.get("containers").is_none() {
             errors.push("CVE 5.1 missing containers".to_string());
         }
         "cve-5.1".to_string()
+    } else if doc.get("type").and_then(Value::as_str) == Some("bundle")
+        && doc.get("objects").and_then(Value::as_array).is_some()
+    {
+        if doc.get("id").and_then(Value::as_str).is_none() {
+            errors.push("STIX 2.1 bundle missing id".to_string());
+        }
+        "stix-2.1".to_string()
+    } else if doc.get("version").and_then(Value::as_str) == Some("2.1.0")
+        && doc.get("runs").and_then(Value::as_array).is_some()
+    {
+        "sarif-2.1.0".to_string()
     } else if doc.get("id").and_then(Value::as_str).is_some() {
         if doc.get("schema_version").and_then(Value::as_str).is_none() {
             errors.push("OSV 1.7.4 missing schema_version".to_string());
         }
         "osv-1.7.4".to_string()
     } else {
-        errors.push("Unrecognized advisory schema (expected CVE 5.1 or OSV 1.7.4)".to_string());
+        errors.push(
+            "Unrecognized advisory schema (expected CVE 5.1, OSV 1.7.4, STIX 2.1, or SARIF 2.1.0)"
+                .to_string(),
+        );
         "unknown".to_string()
     };
 
     check_no_plaintext_keys(doc, &mut errors);
+
+    AdvisoryValidationResult {
+        valid: errors.is_empty(),
+        schema_kind,
+        errors,
+    }
+}
+
+/// Validates ATR YAML, `SKILL.md`, or `AGENTS.md` content for structural and `<enforce>` compliance.
+pub fn validate_rule_or_skill_text(path: &str, content: &str) -> AdvisoryValidationResult {
+    let lower = path.to_ascii_lowercase();
+    let mut errors = Vec::new();
+    let schema_kind = if lower.ends_with(".yaml") || lower.ends_with(".yml") {
+        if !content.contains("id:") && !content.contains("title:") {
+            errors.push("ATR YAML missing 'id:' or 'title:'".to_string());
+        }
+        "atr-yaml".to_string()
+    } else if lower.ends_with("agents.md") {
+        let rep = analyze_content(path, content, Some(FileKind::AgentsMd));
+        if !rep.vetted_for_install {
+            errors.push("AGENTS.md failed security/enforce validation".to_string());
+        }
+        "agents-md".to_string()
+    } else {
+        let rep = analyze_content(path, content, Some(FileKind::Skill));
+        if !rep.vetted_for_install {
+            errors.push(format!("SKILL.md failed vetting (score={})", rep.score));
+        }
+        "skill-md".to_string()
+    };
 
     AdvisoryValidationResult {
         valid: errors.is_empty(),

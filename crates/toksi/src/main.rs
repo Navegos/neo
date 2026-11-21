@@ -487,6 +487,18 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "plugin" {
         return toksi::commands::run_plugin_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "security" {
+        return toksi::commands::run_security_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "compile-blind" {
+        return toksi::commands::run_compile_blind_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "advisory" {
+        return toksi::commands::run_advisory_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "skills" {
+        return toksi::commands::run_skills_cli(&args[2..]);
+    }
     if args.len() >= 2 && args[1] == "test" {
         return toksi::commands::run_test_cli(&args[2..]);
     }

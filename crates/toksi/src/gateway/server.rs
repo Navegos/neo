@@ -350,6 +350,35 @@ async fn handle_gateway_connection(
             continue;
         }
 
+        // 3e. Static code & blind-signature security scan endpoint: /v1/security/scan
+        if path == "/v1/security/scan" && req.method == "POST" {
+            let body_val: serde_json::Value =
+                serde_json::from_slice(&req.body).unwrap_or(serde_json::Value::Null);
+            let target = body_val
+                .get("path")
+                .and_then(|v| v.as_str())
+                .unwrap_or(".");
+            let summary = crate::security::analyzer::scan_path_security(
+                std::path::Path::new(target),
+                None,
+            );
+            let response = serde_json::to_vec(&summary).unwrap_or_else(|_| b"{}".to_vec());
+            write_http_response(
+                &mut stream,
+                200,
+                "OK",
+                &[
+                    ("Content-Type".to_string(), "application/json".to_string()),
+                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+                ],
+                &response,
+            ).await?;
+            if is_close_requested {
+                break;
+            }
+            continue;
+        }
+
         // 4. Drop-in Anthropic endpoint: /v1/messages
         if path == "/v1/messages" && req.method == "POST" {
             if is_stream_requested(&req.body) {

@@ -5,11 +5,13 @@
 // created: 2026-10-05
 // lastModified: 2026-10-31
 
+pub mod advisory;
 pub mod agent;
 pub mod agent_runtime;
 pub mod auth;
 pub mod byok;
 pub mod codex_perm_hook;
+pub mod compile_blind;
 pub mod config;
 pub mod ctx;
 pub mod daemon;
@@ -30,17 +32,21 @@ pub mod proxy;
 pub mod rtk;
 pub mod rtk_hook;
 pub mod runmcp;
+pub mod security;
 pub mod selfupdate;
+pub mod skills;
 pub mod test_runner;
 pub mod top;
 pub mod tui;
 pub mod update;
 
+pub use advisory::*;
 pub use agent::*;
 pub use agent_runtime::*;
 pub use auth::*;
 pub use byok::*;
 pub use codex_perm_hook::*;
+pub use compile_blind::*;
 pub use config::*;
 pub use ctx::*;
 pub use daemon::*;
@@ -61,7 +67,9 @@ pub use proxy::*;
 pub use rtk::*;
 pub use rtk_hook::*;
 pub use runmcp::*;
+pub use security::*;
 pub use selfupdate::*;
+pub use skills::*;
 pub use test_runner::*;
 pub use top::*;
 pub use tui::*;
