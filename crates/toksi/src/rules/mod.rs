@@ -27,7 +27,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub use caveman as caveman_rule;
-pub use cli::run_rules_cli;
+pub use cli::{audit_docs, run_rules_cli, DocAuditFinding, DocAuditReport};
 pub use ponytail as ponytail_rule;
 pub use principles as principles_rule;
 pub use sync::{

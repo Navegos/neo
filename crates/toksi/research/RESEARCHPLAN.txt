@@ -98,6 +98,7 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/langflow
 <neo>/inspect-vault/deepagents
 <neo>/inspect-vault/openwiki
+<neo>/inspect-vault/langgraph-swarm-py
 <neo>/inspect-vault/bosun
 <neo>/inspect-vault/Codewhale
 <neo>/inspect-vault/cline
@@ -137,6 +138,7 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/NeMo-Skills
 <neo>/inspect-vault/ollama
 <neo>/inspect-vault/llama.cpp
+<neo>/inspect-vault/whisper.cpp
 <neo>/inspect-vault/jan
 <neo>/inspect-vault/Mysti
 <neo>/inspect-vault/koboldcpp
@@ -232,7 +234,7 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/DataDesigner
 <neo>/inspect-vault/Export-Deploy
 <neo>/inspect-vault/DataDesignerPlugins
-<neo>/inspect-vault/neural-compressor
+<neo>/inspect-vault/intel-neural-compressor
 <neo>/inspect-vault/pytorch
 <neo>/inspect-vault/helion
 <neo>/inspect-vault/torchtitan
@@ -274,7 +276,7 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/physicsnemo-serve
 <neo>/inspect-vault/NeMo-Fabric
 <neo>/inspect-vault/aistore
-<neo>/inspect-vault/xla_staging
+<neo>/inspect-vault/xla
 <neo>/inspect-vault/Nomos
 <neo>/inspect-vault/tokenspeed
 <neo>/inspect-vault/slurm
@@ -468,7 +470,7 @@ We are making sure that daemon start all toksi services correctly and that each 
 
 we are not copying files from <neo>/inspect-vault/ that are not necessary for toksi or agents, and we absolutely are not copying scripts, bash, yaml actions, we dont want to polute our repo with unnecessary files. And all files that we are using from <neo>/inspect-vault/ must be adapted for our <neo> toksi repo, and if you find files in our repo <neo> toksi that are not adapted or not supposed for our repo <neo> toksi it must be fixed, removed, and or healed.
 
-We are marking wat its deep research done, plan done, plan implemented, plan fixed, missing deep research, plan not done, plan unimplemented, plan needs fix, in <repo>/.agents/brain/*.md, reorganize the plans methods, for continuation of the implementation of our plans, and also making sure all of our plans are updated for every prompt finish, <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, <repo>/.agents/brain/*.md.
+We are marking wat its, deep research done, plan done, plan implemented, plan fixed, missing deep research, plan not done, plan unimplemented, plan needs fix, in <repo>/.agents/brain/*.md, reorganize the plans methods, for continuation of the implementation of our plans, and also making sure all of our plans are updated for every prompt finish, <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, <repo>/.agents/brain/*.md.
 
-Wen need to reorganize our research ideas and PLANS, implementation order, research ideas consolidation, for better agent follow up, <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, <repo>/.agents/brain/*.md, <repo>/crates/toksi/RESEARCHPLAN.md, <repo>/crates/toksi/RESEARCHPLAN.txt.
+We need to reorganize our research ideas and PLANS, implementation order, research ideas consolidation, for better agent follow up, <repo>/crates/toksi/CONSOLIDATION_PLAN.md, <repo>/crates/toksi/PLAN.md, <repo>/.toksi/projectmem/plan.md, <repo>/.toksi/projectmem/PROJECT_MAP.md, <repo>/.toksi/projectmem/summary.md, <repo>/.agents/brain/*.md, <repo>/crates/toksi/RESEARCHPLAN.md, <repo>/crates/toksi/RESEARCHPLAN.txt.
 

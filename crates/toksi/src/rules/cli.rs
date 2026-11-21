@@ -26,6 +26,7 @@ pub fn print_rules_help() {
           toksi rules heal [path]\n\
           toksi rules catalog\n\
           toksi rules repo-sync\n\
+          toksi rules audit-docs [repo_root]\n\
           toksi rules inject <file> <rule>\n\
           toksi rules remove <file> <rule>\n\
           toksi rules status [target_dir]\n\n\
@@ -515,10 +516,150 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
                 }
             }
         }
+        "audit-docs" => {
+            let root = if rest.is_empty() {
+                crate::projectmem::store::find_repo_root(None)
+            } else {
+                PathBuf::from(&rest[0])
+            };
+            match audit_docs(&root) {
+                Ok(report) => {
+                    if report.findings.is_empty() {
+                        println!(
+                            "{} Documentation audit clean: {} file(s) scanned, 0 stale .projectmem/ pre-read references.",
+                            C.green(Sym::CHECK),
+                            report.files_scanned
+                        );
+                        0
+                    } else {
+                        for f in &report.findings {
+                            eprintln!("{} {}:{} -> {}", C.red(Sym::CROSS), f.file, f.line, f.snippet);
+                        }
+                        eprintln!(
+                            "{} Found {} stale .projectmem/ pre-read reference(s) across {} file(s).",
+                            C.red(Sym::CROSS),
+                            report.findings.len(),
+                            report.files_scanned
+                        );
+                        1
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error auditing docs: {}", e);
+                    1
+                }
+            }
+        }
         other => {
             eprintln!("Error: unknown subcommand '{}'", other);
             print_rules_help();
             1
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocAuditFinding {
+    pub file: String,
+    pub line: usize,
+    pub snippet: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocAuditReport {
+    pub files_scanned: usize,
+    pub findings: Vec<DocAuditFinding>,
+}
+
+fn line_has_stale_projectmem_preread(line: &str) -> bool {
+    const STALE_TARGETS: &[&str] = &[
+        "plan.md",
+        "PROJECT_MAP.md",
+        "summary.md",
+        "events.jsonl",
+        "config.toml",
+        "*.md",
+        "plan_checkpoints",
+        "issues/",
+    ];
+    let mut search_from = 0usize;
+    while let Some(rel_idx) = line[search_from..].find(".projectmem/") {
+        let idx = search_from + rel_idx;
+        let preceded_by_toksi = idx >= 7 && &line[idx - 7..idx] == ".toksi/";
+        if !preceded_by_toksi {
+            let after = &line[idx + ".projectmem/".len()..];
+            if STALE_TARGETS.iter().any(|t| after.starts_with(t)) {
+                return true;
+            }
+        }
+        search_from = idx + ".projectmem/".len();
+    }
+    false
+}
+
+/// Audit `.agents/brain/*.md`, `crates/toksi/{CONSOLIDATION_PLAN,PLAN,README}.md`,
+/// and `.toksi/projectmem/*.md` for stale `.projectmem/` pre-read references.
+pub fn audit_docs(repo_root: &Path) -> std::result::Result<DocAuditReport, String> {
+    let mut targets: Vec<PathBuf> = Vec::new();
+
+    let brain_dir = repo_root.join(".agents/brain");
+    if brain_dir.is_dir() {
+        let entries = std::fs::read_dir(&brain_dir)
+            .map_err(|e| format!("failed to read {}: {}", brain_dir.display(), e))?;
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() && p.extension().and_then(|e| e.to_str()) == Some("md") {
+                targets.push(p);
+            }
+        }
+    }
+
+    for rel in [
+        "crates/toksi/CONSOLIDATION_PLAN.md",
+        "crates/toksi/PLAN.md",
+        "crates/toksi/README.md",
+    ] {
+        let p = repo_root.join(rel);
+        if p.is_file() {
+            targets.push(p);
+        }
+    }
+
+    let pm_dir = repo_root.join(".toksi/projectmem");
+    if pm_dir.is_dir() {
+        let entries = std::fs::read_dir(&pm_dir)
+            .map_err(|e| format!("failed to read {}: {}", pm_dir.display(), e))?;
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() && p.extension().and_then(|e| e.to_str()) == Some("md") {
+                targets.push(p);
+            }
+        }
+    }
+
+    targets.sort();
+    let mut findings = Vec::new();
+    for path in &targets {
+        let content = std::fs::read_to_string(path)
+            .map_err(|e| format!("failed to read {}: {}", path.display(), e))?;
+        let rel = path
+            .strip_prefix(repo_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        for (idx, line) in content.lines().enumerate() {
+            if line_has_stale_projectmem_preread(line) {
+                findings.push(DocAuditFinding {
+                    file: rel.clone(),
+                    line: idx + 1,
+                    snippet: line.trim().to_string(),
+                });
+            }
+        }
+    }
+
+    Ok(DocAuditReport {
+        files_scanned: targets.len(),
+        findings,
+    })
 }

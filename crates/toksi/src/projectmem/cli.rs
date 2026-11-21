@@ -50,6 +50,7 @@ pub fn print_mem_help() {
           toksi mem resume [plan_id]\n\
           toksi mem wiki-sync\n\
           toksi mem sync\n\
+          toksi mem migrate\n\
           toksi mem global <status|list|add|add-gotcha|remove|detect|prune>\n\
           toksi mem mcp\n"
     );
@@ -1059,6 +1060,30 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
                     1
                 }
             }
+        }
+        "migrate" => {
+            let root = super::store::find_repo_root(None);
+            let mem_merged = match super::store::consolidate_nested_mem_dirs(&root) {
+                Ok(n) => n,
+                Err(e) => {
+                    eprintln!("Error migrating projectmem directories: {}", e);
+                    return 1;
+                }
+            };
+            let toksi_merged = match crate::commands::doctor::consolidate_nested_toksi_dirs(&root) {
+                Ok(n) => n,
+                Err(e) => {
+                    eprintln!("Error consolidating nested tool directories: {}", e);
+                    return 1;
+                }
+            };
+            println!(
+                "Migrated {} projectmem item(s) and {} legacy tool directory/directories into {}/.toksi/",
+                mem_merged,
+                toksi_merged,
+                crate::util::paths::normalize_path(&root.to_string_lossy())
+            );
+            0
         }
         "resume" => {
             let plan_id = rest.first().map(|s| s.as_str());

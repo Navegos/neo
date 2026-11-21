@@ -187,12 +187,10 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
             let path = entry.path();
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str == "target"
-                || name_str == ".git"
-                || name_str == "node_modules"
-                || name_str == "dist"
-                || name_str == "build"
-            {
+            if matches!(
+                name_str.as_ref(),
+                "target" | ".git" | "node_modules" | "dist" | "build" | "inspect-vault" | ".venv" | "venv" | "__pycache__" | "vendor"
+            ) {
                 continue;
             }
             if path.is_dir() {
@@ -297,7 +295,7 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
                     let root_sym = target_tool_dir.join("symbols.db");
                     let _ = crate::db::merge_symbols_db(&root_sym, &sub_sym);
                 }
-            } else if legacy_name == ".icm" {
+            } else if legacy_name == ".icm" || legacy_name == ".projectmem" {
                 let sub_mem = legacy_path.join("memory.db");
                 if sub_mem.exists() {
                     let root_mem = target_tool_dir.join("memory.db");
@@ -492,6 +490,57 @@ pub fn audit_toksi_config_toml() -> Vec<String> {
     warnings
 }
 
+/// Detect any loose legacy dot-folders (`.projectmem`, `.codegraph`, `.context-mode`,
+/// `.icm`, `.ai-memory`, `.rtk`) or nested `.toksi` directories outside `<repo>/.toksi/`.
+pub fn detect_loose_dot_folders(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut found = Vec::new();
+    let root_canon = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
+    let root_toksi = root_canon.join(".toksi");
+    const LOOSE_NAMES: &[&str] = &[
+        ".projectmem",
+        ".codegraph",
+        ".context-mode",
+        ".context",
+        ".icm",
+        ".ai-memory",
+        ".aimemory",
+        ".rtk",
+    ];
+    let mut stack = vec![root_canon];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            if matches!(
+                name.as_str(),
+                ".git" | "target" | "node_modules" | "dist" | "build" | "inspect-vault" | ".venv" | "venv" | "__pycache__" | "vendor"
+            ) {
+                continue;
+            }
+            if name == ".toksi" {
+                let path_canon = std::fs::canonicalize(&path).unwrap_or_else(|_| path.clone());
+                if path_canon != root_toksi {
+                    found.push(path);
+                }
+                continue;
+            }
+            if LOOSE_NAMES.contains(&name.as_str()) {
+                found.push(path);
+                continue;
+            }
+            stack.push(path);
+        }
+    }
+    found.sort();
+    found
+}
+
 pub fn audit_externalized_skills_and_rules(ws: Option<&std::path::Path>) -> Vec<String> {
     let mut rows = Vec::new();
     let cfg = crate::rules::skills_repo::SkillsRepoConfig::load();
@@ -558,15 +607,15 @@ pub fn audit_externalized_skills_and_rules(ws: Option<&std::path::Path>) -> Vec<
         }
     }
 
-    // 3. Canonical <repo>/.toksi/projectmem/ vs legacy <repo>/.projectmem/ check
+    // 3. Canonical <repo>/.toksi/<tool>/ vs loose dot-folder check
     if let Some(root) = ws {
-        let legacy_pm = root.join(".projectmem");
-        if legacy_pm.is_dir() {
+        for loose in detect_loose_dot_folders(root) {
             rows.push(format!(
-                "{} legacy {} detected — run {} to migrate into .toksi/projectmem/",
+                "{} loose legacy/nested dot-folder {} detected — run {} or {} to migrate into .toksi/",
                 C.yellow(Sym::WARN),
-                normalize_path(&legacy_pm.to_string_lossy()),
-                paint_cmd("toksi doctor --fix")
+                normalize_path(&loose.to_string_lossy()),
+                paint_cmd("toksi doctor --fix"),
+                paint_cmd("toksi projectmem migrate")
             ));
         }
     }

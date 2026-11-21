@@ -520,7 +520,7 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "config" {
         return toksi::commands::run_config_cli(&args[2..]);
     }
-    if args.len() >= 2 && args[1] == "mem" {
+    if args.len() >= 2 && (args[1] == "mem" || args[1] == "projectmem") {
         return toksi::projectmem::run_mem_cli(&args[2..]);
     }
     if args.len() >= 2 && (args[1] == "ctx" || args[1] == "context" || args[1] == "context-mode") {
@@ -634,7 +634,7 @@ fn run() -> i32 {
         "disable" => run_disable(opts),
         "uninstall" => run_uninstall(opts),
         "rtk" => run_rtk_cli(&args[2..]),
-        "mem" => toksi::projectmem::run_mem_cli(&args[2..]),
+        "mem" | "projectmem" => toksi::projectmem::run_mem_cli(&args[2..]),
         "ctx" => toksi::contextmode::run_ctx_cli(&args[2..]),
         "graph" | "codegraph" => toksi::codegraph::run_graph_cli(&args[2..]),
         "icm" => toksi::icm::run_icm_cli(&args[2..]),

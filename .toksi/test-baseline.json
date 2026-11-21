@@ -532,6 +532,23 @@
                 "--test",
                 "phase18_3_adc_effort_checkpoint_verification"
             ]
+        },
+        "phase18_4_doc_and_checkpoint_hygiene": {
+            "watched_paths": [
+                "crates/toksi/src/projectmem/",
+                "crates/toksi/src/commands/doctor.rs",
+                "crates/toksi/src/rules/cli.rs",
+                "crates/toksi/tests/phase18_4_doc_and_checkpoint_hygiene.rs"
+            ],
+            "tree_blake3": "",
+            "last_passed_unix": 0,
+            "cargo_args": [
+                "test",
+                "-p",
+                "toksi",
+                "--test",
+                "phase18_4_doc_and_checkpoint_hygiene"
+            ]
         }
     }
 }

@@ -859,11 +859,21 @@ pub fn consolidate_nested_mem_dirs(repo_root: &Path) -> Result<usize> {
     fs::create_dir_all(&root_mem)?;
     let root_events_path = root_mem.join(EVENTS_FILE);
 
-    let mut existing_ids: std::collections::HashSet<String> = read_events(Some(repo_root))
-        .unwrap_or_default()
-        .into_iter()
-        .map(|e| e.id)
-        .collect();
+    let mut existing_ids: std::collections::HashSet<String> = if root_events_path.is_file() {
+        File::open(&root_events_path)
+            .ok()
+            .map(|f| {
+                BufReader::new(f)
+                    .lines()
+                    .map_while(|l| l.ok())
+                    .filter_map(|line| serde_json::from_str::<Event>(line.trim()).ok())
+                    .map(|e| e.id)
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        std::collections::HashSet::new()
+    };
 
     let mut nested_dirs: Vec<(PathBuf, String)> = Vec::new();
     let mut stack = vec![repo_root.to_path_buf()];
@@ -879,17 +889,24 @@ pub fn consolidate_nested_mem_dirs(repo_root: &Path) -> Result<usize> {
                 continue;
             }
             let name = entry.file_name().to_string_lossy().to_string();
-            if name == ".git" || name == "target" || name == "node_modules" {
+            if matches!(
+                name.as_str(),
+                ".git" | "target" | "node_modules" | "dist" | "build" | "inspect-vault" | ".venv" | "venv" | "__pycache__" | "vendor"
+            ) {
                 continue;
             }
-            if dir == repo_root && (name == ".toksi" || name == ".projectmem") {
+            if dir == repo_root && name == ".toksi" {
                 continue;
             }
             if name == ".projectmem" {
-                if let Ok(rel) = dir.strip_prefix(repo_root) {
-                    let sub_id = crate::util::paths::normalize_path(&rel.to_string_lossy());
-                    nested_dirs.push((p, sub_id));
-                }
+                let sub_id = if dir == repo_root {
+                    String::new()
+                } else {
+                    dir.strip_prefix(repo_root)
+                        .map(|rel| crate::util::paths::normalize_path(&rel.to_string_lossy()))
+                        .unwrap_or_default()
+                };
+                nested_dirs.push((p, sub_id));
                 continue;
             }
             if name == ".toksi" {
@@ -943,6 +960,35 @@ pub fn consolidate_nested_mem_dirs(repo_root: &Path) -> Result<usize> {
                         }
                     }
                 }
+            }
+        }
+        // Merge plan_checkpoints/, issues/, memory.db, and missing markdown/config files
+        for subdir in ["plan_checkpoints", ISSUES_DIR] {
+            let src_sub = nested.join(subdir);
+            if src_sub.is_dir() {
+                let dst_sub = root_mem.join(subdir);
+                let _ = fs::create_dir_all(&dst_sub);
+                if let Ok(entries) = fs::read_dir(&src_sub) {
+                    for entry in entries.flatten() {
+                        let sp = entry.path();
+                        let dp = dst_sub.join(entry.file_name());
+                        if sp.is_file() && !dp.exists() && fs::copy(&sp, &dp).is_ok() {
+                            merged_count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        let sub_mem_db = nested.join("memory.db");
+        if sub_mem_db.is_file() {
+            let root_mem_db = root_mem.join("memory.db");
+            let _ = crate::db::merge_memory_db_with_subproject(&root_mem_db, &sub_mem_db, &sub_id);
+        }
+        for fname in [PLAN_FILE, PROJECT_MAP_FILE, SUMMARY_FILE, CONFIG_FILE] {
+            let sp = nested.join(fname);
+            let dp = root_mem.join(fname);
+            if sp.is_file() && !dp.exists() && fs::copy(&sp, &dp).is_ok() {
+                merged_count += 1;
             }
         }
         let _ = fs::remove_dir_all(&nested);
