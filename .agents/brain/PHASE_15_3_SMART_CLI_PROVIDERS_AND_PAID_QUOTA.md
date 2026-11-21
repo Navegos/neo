@@ -1,5 +1,7 @@
 # Phase 15.3: Smart Agent CLI Providers & Open BYOK Quota Telemetry *(Zero Paid-Tier Restrictions)*
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_15_3_SMART_CLI_PROVIDERS_AND_PAID_QUOTA.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -33,7 +35,7 @@ Requirements:
    - Delete `FreeTierDisqualified` / `ACTIVE_PAID_PROVIDERS` gatekeeping.
    - Populate `quota_windows` (`hour|day|week|month|year`) & model capabilities via zero-cost `/v1/models` and response rate-limit headers (`x-ratelimit-*`, `anthropic-ratelimit-*`).
 4. Bifrost BYOK Provider Integration:
-   - Implement `gateway/providers/aggregators/bifrost.rs` with health probes, failover routing, custom `base_url` override support, and real `LoadBalancer` (`olla`, `RouteLLM`, `Switchyard`, `mofa-engine` 7-D) dispatch for **35-component `<toksi-siagent>`** across **295 mandated vaults**, **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`), shared 7-entrypoint `HeadroomEffortCompressor`, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
+   - Implement `gateway/providers/aggregators/bifrost.rs` with health probes, failover routing, custom `base_url` override support, and real `LoadBalancer` (`olla`, `RouteLLM`, `Switchyard`, `mofa-engine` 7-D) dispatch for **35-component `<toksi-siagent>`** across **432 mandated vaults**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), shared 7-entrypoint `HeadroomEffortCompressor`, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
 5. Verification:
    - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```
@@ -54,4 +56,8 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Include `AGY_ADC_AUTH=true` Vertex ADC profiles (`src/keyring/adc.rs`), `26` local/Rust inference engines (`mistral.rs`, `candle`, `ollama`, `llama.cpp`, `vllm`, `sglang`, `dynamo`, `frontend-crates`), and `RouteLLM`/`olla` routing across **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.
+- Include `AGY_ADC_AUTH=true` Vertex ADC profiles (`src/keyring/adc.rs`), `26` local/Rust inference engines (`mistral.rs`, `candle`, `ollama`, `llama.cpp`, `vllm`, `sglang`, `dynamo`, `frontend-crates`), and `RouteLLM`/`olla` routing across **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

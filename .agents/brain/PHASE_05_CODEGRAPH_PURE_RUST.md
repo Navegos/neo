@@ -1,5 +1,7 @@
 # Phase 05: CodeGraph Pure Rust Engine
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_05_CODEGRAPH_PURE_RUST.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -27,7 +29,7 @@ Requirements:
 5. Incremental AST symbol cache in `<repo>/.toksi/codegraph/symbols.db`.
 6. Serve `codegraph_explore`, `codegraph_impact`, and `codegraph_symbol` via in-process multi-protocol server (`MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`, `DirectWireBus`).
 7. Connect to `crates/toksi/src/projectmem/` to auto-resolve `location: "file:line"` coordinates to AST symbol names.
-8. Expose the native CLI command `toksi graph ...` wired out of the box into **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
+8. Expose the native CLI command `toksi graph ...` wired out of the box into **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, **432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 9. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
@@ -53,4 +55,8 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Upgrade `"dockerfile"`, `"vue"`, and `"scss"` from fallback alias grammars (`tree_sitter_bash`, `tree_sitter_html`, `tree_sitter_css` in `langs.rs:99–103`) to dedicated grammars in `crates/toksi-grammars`; integrate `openwiki.rs`, `bpe.rs` (`tokenizers`), `embeddings.rs` (`text-embeddings-inference`), `reranker.rs` (`NeMo-Retriever`), `Codewhale` diff context, and `security/polyglot.rs` 41-language SAST across `<toksi-siagent>` (`35` components, `295` mandated vaults, `37` `.agents/brain/*.md` guides, canonical `<repo>/.toksi/projectmem/`).
+- Upgrade `"dockerfile"`, `"vue"`, and `"scss"` from fallback alias grammars (`tree_sitter_bash`, `tree_sitter_html`, `tree_sitter_css` in `langs.rs:99–103`) to dedicated grammars in `crates/toksi-grammars`; integrate `openwiki.rs`, `bpe.rs` (`tokenizers`), `embeddings.rs` (`text-embeddings-inference`), `reranker.rs` (`NeMo-Retriever`), `Codewhale` diff context, and `security/polyglot.rs` 41-language SAST across `<toksi-siagent>` (`35` components, `432` mandated vaults, `43` `.agents/brain/*.md` guides, canonical `<repo>/.toksi/projectmem/`).
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

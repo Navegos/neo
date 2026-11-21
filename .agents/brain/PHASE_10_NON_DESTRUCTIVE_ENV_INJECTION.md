@@ -1,5 +1,7 @@
 # Phase 10: Non-Destructive Environment Injection & Lifecycle Teardown
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_10_NON_DESTRUCTIVE_ENV_INJECTION.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -28,7 +30,7 @@ Requirements:
 3. RAII Teardown Guard (`teardown.rs`):
    - Stores original environment snapshots.
    - Restores original variables or deletes injected proxy keys on normal exit, `SIGINT`, `SIGTERM`, `SIGHUP`, or panic hook trigger.
-4. Integrate with `toksi daemon start` and `toksi daemon stop` (plus `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, `AGY_ADC_AUTH=true` Google Cloud ADC pass-through, and **35-component `<toksi-siagent>`** across **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
+4. Integrate with `toksi daemon start` and `toksi daemon stop` (plus `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, `AGY_ADC_AUTH=true` Google Cloud ADC pass-through, and **35-component `<toksi-siagent>`** across **432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 5. Ensure 0 compiler warnings and passing unit tests.
 ```
 
@@ -54,4 +56,8 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Enforce `CommandGuard` immediate bypass kill-switch teardown (`src/commands/guard.rs`), `AGY_ADC_AUTH=true` ADC pass-through (`PHASE_18_3`), and `:9098` Protocol Bus export across **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/` with externalized `<skills>` & `<advisory>`.
+- Enforce `CommandGuard` immediate bypass kill-switch teardown (`src/commands/guard.rs`), `AGY_ADC_AUTH=true` ADC pass-through (`PHASE_18_3`), and `:9098` Protocol Bus export across **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/` with externalized `<skills>` & `<advisory>`.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

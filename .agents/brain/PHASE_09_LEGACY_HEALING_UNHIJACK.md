@@ -1,5 +1,7 @@
 # Phase 09: Legacy Healing & Binary Un-Hijack
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_09_LEGACY_HEALING_UNHIJACK.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -24,7 +26,7 @@ Requirements:
    - Clean up hijacked symlinks or junction points across Windows, Linux, and macOS.
    - Purge legacy strings/keys across configs & codebase: `tokless_*` (`paths.rs`), `toksi-projectmem`, `toksi-codegraph`, `toksi-codegraph-index`, `agy-hook codegraph-index`, `rtk hook cursor` (`main.rs:340`), `toksi-codegraph-init.js`.
    - Migrate legacy `.gemini/mcp`, `.copilot/mcp`, `.claude/mcp`, `.agents/mcp` folders to `skills/<tool>`, standardize hook invocation to `<tool>-hook <agent>`, and merge nested crate `.toksi/` / `.<agent>/` DBs/files cleanly into root `<repo>/.toksi/<tool>` / `<repo>/.<agent>`.
-2. Hook into `toksi doctor --fix` and `toksi daemon stop` (plus PATH verification via `check_executable_in_path`), aligned with **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
+2. Hook into `toksi doctor --fix` and `toksi daemon stop` (plus PATH verification via `check_executable_in_path`), aligned with **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, **432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 3. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
@@ -49,4 +51,8 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Pair `heal.rs` binary un-hijack with `skilldoctor` + `agentskills` YAML frontmatter healing (`PHASE_18_2`), legacy `.projectmem/` -> `<repo>/.toksi/projectmem/` consolidation (`PHASE_18_4`), and `<enforce>` plugin verification across **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and externalized `<skills>` & `<advisory>`.
+- Pair `heal.rs` binary un-hijack with `skilldoctor` + `agentskills` YAML frontmatter healing (`PHASE_18_2`), legacy `.projectmem/` -> `<repo>/.toksi/projectmem/` consolidation (`PHASE_18_4`), and `<enforce>` plugin verification across **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and externalized `<skills>` & `<advisory>`.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

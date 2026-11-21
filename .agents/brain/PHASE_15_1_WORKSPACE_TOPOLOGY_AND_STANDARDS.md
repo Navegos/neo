@@ -1,5 +1,7 @@
 # Phase 15.1: Workspace Topology, Forward-Slash Normalization, Standards & PATH Validation
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_15_1_WORKSPACE_TOPOLOGY_AND_STANDARDS.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -59,7 +61,7 @@ Requirements:
    - MCP settings to skills mapping: map `.gemini/mcp`, `.copilot/mcp`, `.claude/mcp`, `.agents/mcp` to `skills/<tool>`.
    - Differentiate agent CLI vs agent editor: `antigravity-cli` vs `antigravity-ide` (fixing `hooks.rs` collapse), `copilot-cli` vs `copilot-vscode`, `claude-cli` vs `claude-desktop`, `cursor-cli` vs `cursor-ide`, `grok-cli` vs `grok-ide`, plus `"openagents"`.
 8. Verification:
-   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi` honoring **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`), shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`, and canonical `<repo>/.toksi/projectmem/`.
+   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi` honoring **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`, and canonical `<repo>/.toksi/projectmem/`.
 ```
 
 ---
@@ -115,4 +117,8 @@ pub fn check_executable_in_path(cmd: &str) -> Result<(), String> {
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Keep `<neo>/agents/` and `<neo>/rules/` outside `crates/toksi/` synced to `<skills>` (`Navegos/skills`) with zero binary bloat, keep `<advisory>` (`Navegos/advisory`) outside `crates/toksi/`, and enforce canonical `<repo>/.toksi/projectmem/` across **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, and zero paid-tier restrictions.
+- Keep `<neo>/agents/` and `<neo>/rules/` outside `crates/toksi/` synced to `<skills>` (`Navegos/skills`) with zero binary bloat, keep `<advisory>` (`Navegos/advisory`) outside `crates/toksi/`, and enforce canonical `<repo>/.toksi/projectmem/` across **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, and zero paid-tier restrictions.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+- **Wave 19 Reconciliation:** Core safety fixed (`0` `unsafe` blocks across `456` `.rs` files under `#![deny(unsafe_code)]`; forward-slash normalization active); `[PLAN-NEEDS-FIX]` remains only for `PHASE_19_4` root + `<neo>/.agents/skills/` 922-dir hygiene cleanup.

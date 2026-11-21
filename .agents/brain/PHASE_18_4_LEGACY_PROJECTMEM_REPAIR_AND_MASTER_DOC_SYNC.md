@@ -1,9 +1,11 @@
 # Phase 18.4 — Legacy `.projectmem/` Repair, Documentation Integrity & Final Workspace Verification
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+
 ## Ready-to-Run Chat Prompt
 
 ```text
-Execute Phase 18.4 of the Toksi Unified Consolidation Plan (Repository-Wide Documentation Integrity across all 37 `.agents/brain/*.md` guides, `<repo>/.toksi/projectmem/` Repair across 295 Mandated Vaults & 35-Component `<toksi-siagent>`, and End-to-End Verification Gate).
+Execute Phase 18.4 of the Toksi Unified Consolidation Plan (Repository-Wide Documentation Integrity across all 43 `.agents/brain/*.md` guides, `<repo>/.toksi/projectmem/` Repair across 295 Mandated Vaults & 35-Component `<toksi-siagent>`, and End-to-End Verification Gate).
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, and .agents/brain/PHASE_18_4_LEGACY_PROJECTMEM_REPAIR_AND_MASTER_DOC_SYNC.md first.
 
 Your goals in Rust (`crates/toksi`) & Repo Verification:
@@ -11,9 +13,9 @@ Your goals in Rust (`crates/toksi`) & Repo Verification:
    - Verify `toksi doctor` and `toksi projectmem migrate` detect any loose `.projectmem/`, `.codegraph/`, `.context-mode/`, `.icm/`, `.ai-memory/`, `.rtk/` directories at repo root or nested subcrates, atomically migrate rows/events/checkpoints into `<repo>/.toksi/<tool>/`, and leave zero loose dot-folders outside `<repo>/.toksi/` (except legacy `.projectmem` test fixtures created strictly inside temporary `tempfile::TempDir` sandboxes).
    - Ensure `toksi rules audit-docs` verifies zero stale pre-read references (`(?<!\.toksi/)\.projectmem/`) remain in `.agents/brain/*.md`, `crates/toksi/CONSOLIDATION_PLAN.md`, `crates/toksi/PLAN.md`, `crates/toksi/README.md`, and `.toksi/projectmem/*.md`.
 2. Automated Documentation Hygiene Test (`crates/toksi/tests/phase18_4_doc_and_checkpoint_hygiene.rs`):
-   - Assert exact count and completeness of `.agents/brain/INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_18_6` (**37 files**).
+   - Assert exact count and completeness of `.agents/brain/INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_19_6` (**37 files**).
    - Assert every `PHASE_*.md` chat prompt pre-reads `.toksi/projectmem/plan.md`, `.toksi/projectmem/PROJECT_MAP.md`, `.toksi/projectmem/summary.md`.
-   - Assert `crates/toksi/README.md`, `PLAN.md`, `CONSOLIDATION_PLAN.md`, `research/RESEARCHPLAN.md`, and `.toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md}` match current codebase module names (zero phantom `crates/tokless/*` paths), 3-repository topology (`<neo>`, `<advisory>`, `<skills>` with zero binary bloat), 8-port topology (`:8787..:8790, :9098, :9099, :9100, :18787`), universal 7-entrypoint `HeadroomEffortCompressor` pass (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`), **35-component `<toksi-siagent>`** out-of-the-box `DirectWireBus` bindings across all gateways/Protocol Bus/295 vaults, **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), Unified Plugin System (`src/plugins/`, `plugins_registry`), Zero-Plaintext Blind Engine + `validator/` + `adr.rs` + `sandbox.rs` (5 backends) + `guard.rs` kill-switch + `opa`/`cedar`/`spire` + `Guardrails`/`llm-guard` + `defenseclaw` + `skill-scanner`, and all **295** mandated vaults.
+   - Assert `crates/toksi/README.md`, `PLAN.md`, `CONSOLIDATION_PLAN.md`, `research/RESEARCHPLAN.md`, and `.toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md}` match current codebase module names (zero phantom `crates/tokless/*` paths), 3-repository topology (`<neo>`, `<advisory>`, `<skills>` with zero binary bloat), 8-port topology (`:8787..:8790, :9098, :9099, :9100, :18787`), universal 7-entrypoint `HeadroomEffortCompressor` pass (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`), **35-component `<toksi-siagent>`** out-of-the-box `DirectWireBus` bindings across all gateways/Protocol Bus/432 vaults, **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), Unified Plugin System (`src/plugins/`, `plugins_registry`), Zero-Plaintext Blind Engine + `validator/` + `adr.rs` + `sandbox.rs` (5 backends) + `guard.rs` kill-switch + `opa`/`cedar`/`spire` + `Guardrails`/`llm-guard` + `defenseclaw` + `skill-scanner`, and all **432** mandated vaults.
 3. Run Full Workspace Verification Gate & Update `.toksi/test-baseline.json`:
    - `cargo check --workspace`
    - `cargo clippy --workspace --all-targets -- -D warnings`
@@ -29,7 +31,7 @@ Your goals in Rust (`crates/toksi`) & Repo Verification:
 - **Workspace Memory Root**: Always `<repo>/.toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md,events.jsonl,plan_checkpoints/<plan_id>.json}`. Never bare `.projectmem/` or `~/.toksi/projectmem/`.
 - **Legacy Path Cleanup**: Eliminate stale `crates/tokless/*` documentation references in favor of `crates/toksi/*`.
 - **Master Architecture Alignment**:
-  - Audited Vaults: **295** unique mandated vaults (`292` `<deep-research>` vaults across Sections `2.1`–`2.10` + companion `<advisory>` & `<skills>` + `agents-structures` = `36` prior + `259` Wave 18 vaults).
+  - Audited Vaults: **432** unique mandated vaults (`292` `<deep-research>` vaults across Sections `2.1`–`2.10` + companion `<advisory>` & `<skills>` + `agents-structures` = `36` prior + `259` Wave 18 vaults).
   - `<toksi-siagent>` Super Intelligence Architecture: All **35** technical components (`Section 0.2`) wired out of the box via `DirectWireBus` and the shared 7-entrypoint `HeadroomEffortCompressor`.
   - Three-Repository Ecosystem: `<neo>` (`Navegos/neo`), `<advisory>` (`Navegos/advisory`), `<skills>` (`Navegos/skills`) with externalized skills/rules staged outside `crates/toksi/` (zero binary bloat).
   - Daemon Topology: **8 Ports** (`:8787` Headroom, `:8788` Grok OAuth, `:8789` Copilot VS Code, `:8790` Copilot CLI, `:9098` Protocol Bus, `:9099` Gateway, `:9100` Web Cockpit, `:18787` BYOK Gateway).
@@ -37,3 +39,7 @@ Your goals in Rust (`crates/toksi`) & Repo Verification:
   - Unified Plugins & Fail-Closed Security: `src/plugins/*`, `commands/plugin.rs`, SQLite `plugins_registry`, `[plugins]`/`[security]`/`[repositories]` in `~/.toksi/config.toml`, Zero-Plaintext Blind Engine + `src/validator/*` + `src/security/adr.rs` + `src/agent_runtime/sandbox.rs` (5 backends) + `src/commands/guard.rs` kill-switch + `opa`/`cedar`/`spire` + `Guardrails`/`llm-guard` + `defenseclaw` + `skill-scanner` integration.
   - Phases & Brain Files: **37** files in `.agents/brain/` (`INDEX_AND_EXECUTION_GUIDE.md` + 36 `PHASE_*.md` files covering Phases 1–14, 15.1–15.6, 16.1–16.3, 17.1–17.7, 18.1–18.6).
   - Verification Gate: `cargo check --workspace` + `cargo clippy --workspace --all-targets -- -D warnings` + incremental `<repo>/.toksi/test-baseline.json`.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

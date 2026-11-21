@@ -1,5 +1,7 @@
 # Phase 08: Downloader Purge & System Refactor
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_08_DOWNLOADER_PURGE.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -33,7 +35,7 @@ Requirements:
    - Tool `rtk` -> internal pure Rust `src/rtk/`
    - Tool `icm` -> internal pure Rust `src/icm/`
    - Tool `ai-memory` (`aimemory`) -> internal pure Rust `src/aimemory/` (fixing `runmcp.rs` routing!)
-   - Unified into **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`).
+   - Unified into **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, **432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`).
 4. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
@@ -58,4 +60,8 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Keep zero runtime downloaders (`npm`/`pip`/`uv`/`curl`) and zero embedded `.md`/`.yaml`/`.json` skills/rules inside `crates/toksi/`; sync vetted external `<skills>` (`Navegos/skills`) and `<advisory>` (`Navegos/advisory`) cleanly under `<enforce>`, `skilldoctor`/`agentskills`, and `defenseclaw`/`skill-scanner` across **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/`.
+- Keep zero runtime downloaders (`npm`/`pip`/`uv`/`curl`) and zero embedded `.md`/`.yaml`/`.json` skills/rules inside `crates/toksi/`; sync vetted external `<skills>` (`Navegos/skills`) and `<advisory>` (`Navegos/advisory`) cleanly under `<enforce>`, `skilldoctor`/`agentskills`, and `defenseclaw`/`skill-scanner` across **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/`.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

@@ -1,9 +1,11 @@
 # Phase 18.3 — Google Cloud ADC (`AGY_ADC_AUTH=true`), Thinking-Effort Optimization & Safe Plan Checkpoints
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 
 ```text
-Implement Phase 18.3 of the Toksi Unified Consolidation Plan (Google Cloud ADC Gateway, Thinking-Effort-Aware Optimization across 295 Mandated Vaults & 35-Component `<toksi-siagent>`, and Safe Temporal/Restate/LangGraph Plan Checkpoint/Resume across 37 `.agents/brain/*.md` guides).
+Implement Phase 18.3 of the Toksi Unified Consolidation Plan (Google Cloud ADC Gateway, Thinking-Effort-Aware Optimization across 295 Mandated Vaults & 35-Component `<toksi-siagent>`, and Safe Temporal/Restate/LangGraph Plan Checkpoint/Resume across 43 `.agents/brain/*.md` guides).
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 1–3, 4.3, 12–13), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, and .agents/brain/PHASE_18_3_GOOGLE_ADC_EFFORT_OPTIMIZATION_AND_PLAN_CHECKPOINT.md first.
 
 Your goals in Rust (`crates/toksi`):
@@ -78,3 +80,7 @@ Your goals in Rust (`crates/toksi`):
   "last_error": null
 }
 ```
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

@@ -1,5 +1,7 @@
 # Phase 04: ICM & ai-memory Integration
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_04_ICM_AND_AIMEMORY.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -32,7 +34,7 @@ Requirements:
    - Open Knowledge Format (OKF v0.2) markdown wiki store inside `<repo>/.toksi/ai-memory/`.
    - Claim-once multi-agent handoff state machine with atomic file lock transitions (`pending` -> `claimed` -> `completed`).
    - Progressive disclosure packer: Tiered L0 (TOC), L1 (Abstracts), L2 (Full markdown bodies) based on Headroom context budget.
-3. Prepare integration hooks for shared 7-entrypoint `HeadroomEffortCompressor` (`crates/toksi/src/headroom/adaptive_mem.rs`, `effort.rs`) and **35-component `<toksi-siagent>`** (`cognee`/`graphiti`/`qdrant`/`lance`/`milvus`/`letta`/`text-embeddings-inference`/`NeMo-Retriever` hybrid RAG across **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
+3. Prepare integration hooks for shared 7-entrypoint `HeadroomEffortCompressor` (`crates/toksi/src/headroom/adaptive_mem.rs`, `effort.rs`) and **35-component `<toksi-siagent>`** (`cognee`/`graphiti`/`qdrant`/`lance`/`milvus`/`letta`/`text-embeddings-inference`/`NeMo-Retriever` hybrid RAG across **432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 4. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 
@@ -58,4 +60,8 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Extend `<repo>/.toksi/ai-memory/` with `lance_store.rs`, `qdrant_store.rs`, `cognee_graph.rs`, `temporal_graph.rs` (`graphiti`), `letta_memgpt.rs`, `milvus_adapter.rs`, `mongo_bridge.rs`, `embeddings.rs` (`text-embeddings-inference`), and `retriever.rs` (`NeMo-Retriever`) for `<toksi-siagent>` (`35` components, `295` mandated vaults, `37` `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, externalized `<skills>` & `<advisory>`).
+- Extend `<repo>/.toksi/ai-memory/` with `lance_store.rs`, `qdrant_store.rs`, `cognee_graph.rs`, `temporal_graph.rs` (`graphiti`), `letta_memgpt.rs`, `milvus_adapter.rs`, `mongo_bridge.rs`, `embeddings.rs` (`text-embeddings-inference`), and `retriever.rs` (`NeMo-Retriever`) for `<toksi-siagent>` (`35` components, `432` mandated vaults, `43` `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, externalized `<skills>` & `<advisory>`).
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

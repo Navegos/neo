@@ -1,5 +1,7 @@
 # Phase 15.5: Ground-Truth Token Accounting & Network Reconnect Healing
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_15_5_TOKEN_ACCOUNTING_AND_NETWORK_HEALING.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -32,7 +34,7 @@ Requirements:
 3. Universal Rules, Skills & Instructions Sync (`rules/sync.rs` + `agents/manager.rs`):
    - Sync externalized `<enforce>` `Karpathy`, `Caveman` v4, and `Ponytail` guidelines (staged outside `crates/toksi/` in `<neo>/agents/` & `<neo>/rules/`, zero binary bloat) across ONLY user-configured/selected agents (`18+` built-in + `.agents` + Category 1–5) with granular component toggles (`hooks|mcp|skills|rules|instructions|configs`), respecting `user` auto-install vs explicit `repo` opt-in.
 4. Comprehensive CLI Help (`crates/toksi/src/main.rs`):
-   - Update `help_text()` with exhaustive documentation of all commands (`chat|run|exec|swarm`, `daemon|proxy|dashboard start|stop|restart --agents`, `config`, `byok`, `db`, `auth`, `security`, `compile-blind`, `advisory`, `skills`, `sandbox`, `plugin`, `agent`, `mem`, `graph`, `ctx`, `rtk`, `doctor`), 8 ports (`8787..18787`, incl. `:9098` Protocol Bus), `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`), **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `direct-wired` bus, effort-tier `tokview` attribution, **35-component `<toksi-siagent>`** across **295 mandated vaults** (**37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`), and `<repo>/.toksi/<tool>` rules.
+   - Update `help_text()` with exhaustive documentation of all commands (`chat|run|exec|swarm`, `daemon|proxy|dashboard start|stop|restart --agents`, `config`, `byok`, `db`, `auth`, `security`, `compile-blind`, `advisory`, `skills`, `sandbox`, `plugin`, `agent`, `mem`, `graph`, `ctx`, `rtk`, `doctor`), 8 ports (`8787..18787`, incl. `:9098` Protocol Bus), `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`), **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `direct-wired` bus, effort-tier `tokview` attribution, **35-component `<toksi-siagent>`** across **432 mandated vaults** (**43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`), and `<repo>/.toksi/<tool>` rules.
 5. Verification:
    - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```
@@ -55,4 +57,8 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Integrate `tokview`, `langfuse`, `phoenix` OpenInference spans, `tokenspeed` TTFT/TPOT latency, `vmon` + `cuda-rust` telemetry, and `tokenizers` exact BPE counting across all **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.
+- Integrate `tokview`, `langfuse`, `phoenix` OpenInference spans, `tokenspeed` TTFT/TPOT latency, `vmon` + `cuda-rust` telemetry, and `tokenizers` exact BPE counting across all **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

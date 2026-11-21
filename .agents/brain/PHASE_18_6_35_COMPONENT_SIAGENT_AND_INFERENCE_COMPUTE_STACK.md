@@ -1,5 +1,7 @@
 # Phase 18.6 — 35-Component `<toksi-siagent>` Super Intelligence Architecture & Full Inference/Compute Stack Consolidation
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 
 ```text
@@ -29,7 +31,7 @@ Your goals in Rust (`crates/toksi`):
    - Port pure-Rust GPU/inference node telemetry from `vmon` and `cuda-rust` (`cuda-core`, `cuda-async`), `gpustack*`/`gpu-operator`/`cuda-python`, OpenInference traces (`phoenix`), TTFT/TPOT/ITL percentiles (`tokenspeed`), and standardized evaluation harnesses (`lm-evaluation-harness`, `sgl-eval`, `genai-bench`, `guidellm`, `perf-eval`, `Evaluator`, `nemo-compass`, `eval-author`, `Gym`, `nemo-helix`, `UserSim`, `DataDesigner*`, `deepseek-harness`, `optimum-benchmark`, `torchmetrics`).
 7. Out-of-the-Box ("Off the Back") Wiring & Shared 7-Entrypoint `HeadroomEffortCompressor` Invariant:
    - Bind all 35 `<toksi-siagent>` components via `DirectWireBus` and across all 7 inference/protocol entrypoints (`:8787`, `:8788`, `:8789`, `:8790`, `:9098`, `:9099`, `:18787`) through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High` + `live_zone` + `CcrStore` + `SmartCrusher` + `TokenEconomizer` + `agent-opt` + MCP Pruner + `RTK` + `Chroma`/`Lance`/`Qdrant` + `<enforce>`), with zero paid-tier restrictions.
-8. Verify with `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --test phase18_6_siagent_and_inference_stack_verification`, keep all **37** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_18_6`) synchronized, and update `<repo>/.toksi/test-baseline.json`.
+8. Verify with `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --test phase18_6_siagent_and_inference_stack_verification`, keep all **43** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_19_6`) synchronized, and update `<repo>/.toksi/test-baseline.json`.
 ```
 
 ---
@@ -49,3 +51,7 @@ All 26 base `<agent>` components plus all 9 `<siagent>` Super Intelligence exten
 ### 3. Verification Criteria
 - `cargo check --workspace` and `cargo clippy --workspace --all-targets -- -D warnings` pass with zero errors or warnings.
 - `cargo test --test phase18_6_siagent_and_inference_stack_verification` verifies OPA/Cedar policy gating, SPIRE SVID attestation, Guardrails/LLM-Guard sanitization, Temporal/Restate durable journal replay, Qdrant/Cognee/Graphiti hybrid recall, all 26 local engine descriptors, `vmon`/`cuda-rust` telemetry, and out-of-the-box `DirectWireBus` + 7-entrypoint `HeadroomEffortCompressor` routing.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

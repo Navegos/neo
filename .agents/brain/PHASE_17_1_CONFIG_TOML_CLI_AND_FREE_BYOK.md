@@ -1,5 +1,7 @@
 # Phase 17.1: `~/.toksi/config.toml`, CLI Process Controls, Edition 2024 `#![deny(unsafe_code)]`, & Zero Paid-Tier Restrictions
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 12–13), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_1_CONFIG_TOML_CLI_AND_FREE_BYOK.md first.
@@ -33,7 +35,7 @@ Requirements:
    - `toksi proxy start|stop|restart --agents <list>`.
    - `toksi dashboard start|stop|restart [--foreground] [--open]` (detaches in background by default!).
 3. Purge all `FreeTierDisqualified` / `ACTIVE_PAID_PROVIDERS` checks from `tier_check.rs`, `dashboard/api.rs`, `dashboard/assets/app.js`, and `tui/`.
-4. Verify: `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi` across **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
+4. Verify: `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi` across **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
 ```
 
 ---
@@ -72,4 +74,8 @@ Supports dynamic `[[byok.profiles]]` overrides merged cleanly with `~/.toksi/tok
 
 ## Wave 18 (v5.2) Synchronization Addendum
 - Extend `~/.toksi/config.toml` with `[repositories]` (`advisory_dir`, `advisory_remote`, `advisory_pages_url`, `skills_dir`, `skills_remote`, `skills_pages_url`, `user_skills_dir`, `stage_dir_outside_crates`), `[ports].protocol_bus = 9098`, `[auth.gcp_adc]` (`agy_adc_auth`, `gcp_project`, `gcp_location`), `[optimization]` (`adapt_to_thinking_effort`, `low_effort_compression`, `medium_effort_compression`, `high_effort_compression`), `[security]` (`enforce_in_repo_skills = true`, `auto_heal_skill_frontmatter = true`, `static_analyzer_enabled = true`, `defenseclaw_fail_closed = true`, `skill_scanner_policy = "balanced"`, `policy_engine = "opa_cedar"`, `iam_attestation = "spiffe_spire"`, `kill_all_services_on_bypass = true`, `adr_enabled = true`, `zero_plaintext_blind_signatures = true`, `sandbox_backend = "auto"`), `[plugins]` (`enabled = true`, `plugin_dirs = ["~/.toksi/plugins", "<repo>/.toksi/plugins", "<repo>/.agents/plugins"]`, `enforce_security_scan = true`, `fail_closed_hooks = true`, `protocols = ["mcp", "a2a", "acp", "stdio", "sse", "http"]`, `allow_agent_to_agent = true`), and `[checkpoint]` (`auto_save_on_429`, `auto_save_milestones`).
-- Pair directly with `PHASE_18_2` (`src/plugins/`, `src/validator/`, zero-plaintext engine, `defenseclaw`, `skill-scanner`), `PHASE_18_3` (`AGY_ADC_AUTH=true` + `"gcp.project"` / `"gcp.location"`), `PHASE_18_5` (`adr.rs`, `sandbox.rs`, `guard.rs` kill-switch), and `PHASE_18_6` (**35-component `<toksi-siagent>`** across **295 mandated vaults** & **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, canonical `<repo>/.toksi/projectmem/`).
+- Pair directly with `PHASE_18_2` (`src/plugins/`, `src/validator/`, zero-plaintext engine, `defenseclaw`, `skill-scanner`), `PHASE_18_3` (`AGY_ADC_AUTH=true` + `"gcp.project"` / `"gcp.location"`), `PHASE_18_5` (`adr.rs`, `sandbox.rs`, `guard.rs` kill-switch), and `PHASE_18_6` (**35-component `<toksi-siagent>`** across **432 mandated vaults** & **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, canonical `<repo>/.toksi/projectmem/`).
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

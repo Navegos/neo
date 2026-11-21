@@ -1,5 +1,7 @@
 # Phase 17.5: Native `toksi` Coding CLI & Swarm (`src/agent_runtime/`), `DirectWireBus`, & 16 In-Chat Slash Commands
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Section 13.3), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_5_AGENT_RUNTIME_DIRECT_WIRE_AND_SLASH_CMDS.md first.
@@ -32,7 +34,7 @@ Requirements:
    - **`openclaw.rs` + `state.rs`**: 6-detector `ToolLoopDetector` (`generic_repeat`, `argument_churn`, `unknown_tool_repeat=10`, `known_poll_no_progress`, `global_circuit_breaker=30`, `ping_pong`, normalized SHA-256 history size `30`, `CRITICAL=20`), `PendingMessageQueue` rollback, periodic `advisor` fork, BLAKE2b-256 `EventLog` + CRDT merge (`openclaw-rs`).
    - **`mofa.rs` + `crew.rs` + `scheduler.rs`**: `MoFAAgent`/`AgentContext`/`InterruptSignal`, `SubtaskDAG` (`petgraph::DiGraph`) + wave `ParallelScheduler`, `SwarmHITLGate`, `TaskAnalyzer`, `ReflectionAgent` (max 3 rounds), `ProcessMode`, `ReasoningPlan`, `InterceptionPoint`/`HookAborted`, causal `EventBus`, single-sleep `CronService` + `HEARTBEAT.md`.
    - **`sandbox.rs` + `patch.rs`**: Native 3-OS sandbox (`bwrap`/seccomp/`Landlock`, macOS `.sbpl` `sandbox-exec`, Windows `WindowsRestrictedToken` + Job Objects via `toksi-sys`), `PermissionPolicy`, `ssrf_guard`, `SHELL_METACHARS` RBAC, Lark `ApplyPatchTool`, `HashlineEditTool`, unified `HookEventName` matrix, TOML/MD slash loader.
-   - Wire directly out of the box ("off the back", zero manual config) via `DirectWireBus` and local `:8787`/`:9098`/`:9099`/`:18787` endpoints to Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`), `src/plugins/`, `src/security/{adr,policy_opa,policy_cedar,iam_attestation,guardrails_validators,llm_guard}.rs`, `src/agent_runtime/sandbox.rs`, `src/commands/guard.rs` kill-switch, and all **295** consolidated `inspect-vault/*` tools forming the **35-component `<toksi-siagent>`** (`PHASE_18_1`–`PHASE_18_6`, **37** `.agents/brain/*.md` guides, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized zero-bloat `<skills>` & `<advisory>`).
+   - Wire directly out of the box ("off the back", zero manual config) via `DirectWireBus` and local `:8787`/`:9098`/`:9099`/`:18787` endpoints to Enterprise AI Gateway, BYOK & Vertex ADC Gateway, Protocol Bus (`MCP`/`A2A`/`ACP`/`SSE`), shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`), `src/plugins/`, `src/security/{adr,policy_opa,policy_cedar,iam_attestation,guardrails_validators,llm_guard}.rs`, `src/agent_runtime/sandbox.rs`, `src/commands/guard.rs` kill-switch, and all **432** consolidated `inspect-vault/*` tools forming the **35-component `<toksi-siagent>`** (`PHASE_18_1`–`PHASE_18_6`, **43** `.agents/brain/*.md` guides, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized zero-bloat `<skills>` & `<advisory>`).
 2. Ship `DirectWireBus` (`src/tools/direct_wire.rs`) & Upgrade `tools/multi_protocol.rs`:
    - `DirectWireBus`: Zero-config-file in-process interception for tools & agent-to-agent messages (`direct-wired` mode alongside optional `config-wired`).
    - Real `A2aTaskStore` v1.0 JSON-RPC 2.0 (`SendMessage`/`GetTask` + `"message/send"`/`"tasks/get"`, SHA-256 constant-time bearer check, 1 MiB cap, `(peer, messageId)` dedupe) + `SessionActorQueue` ACP v2.0.
@@ -65,4 +67,8 @@ Requirements:
 
 ## Wave 18 (v5.2) Synchronization Addendum
 - Expand `< 5ms` universal slash commands to **16**: `/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume` (plus plugin-registered `/plugin:*` mounts via `src/plugins/slash_router.rs`).
-- Expose `:9098` Protocol Bus (`MCP` / `A2A` / `ACP` `agent-client-protocol` + `src/plugins/` mounts) and persist safe `temporal`/`restate`/`langgraph` plan checkpoints inside `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` across **35-component `<toksi-siagent>`** (**295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, `PHASE_18_1`–`PHASE_18_6`).
+- Expose `:9098` Protocol Bus (`MCP` / `A2A` / `ACP` `agent-client-protocol` + `src/plugins/` mounts) and persist safe `temporal`/`restate`/`langgraph` plan checkpoints inside `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` across **35-component `<toksi-siagent>`** (**432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, `PHASE_18_1`–`PHASE_18_6`).
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+- **Wave 19 Reconciliation:** `16` core slash commands implemented on disk (`CORE_SLASH_COMMANDS.len() == 16` kept green during Wave 19 doc sync); `PHASE_19_1`/`19_5`/`19_6` expand runtime to `21` commands (`/ctxmode`, `/workforce`, `/spec`, `/train`, `/serve`, `/voice`).

@@ -1,5 +1,7 @@
 # Phase 16.2: Enterprise Web Telemetry Cockpit Dashboard
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_16_2_WEB_COCKPIT_DASHBOARD.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -43,7 +45,7 @@ Requirements:
    - **`AI Gateway & Quotas`**: Multi-instance `<byok, model, effort>` CRUD (multiple profiles per BYOK provider with editable custom `base_url` + zero-cost `/v1/models` refresh), per-agent & per-`<byok, model, effort>` Dynamic Complexity Routing & Load Balancer algorithm selector, Headroom bypass monitor.
    - **`Keyring & Database`**: Configured-only OS Keyring entries (normalized `gemini:antigravity` alias), SQLite DB Export (`POST /api/db/export`), Import (`POST /api/db/import` with `overwrite`), Backup/Restore, legacy nested `<repo>` repair.
 3. Verification:
-   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi` honoring **35-component `<toksi-siagent>`**, **295 mandated vaults**, **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
+   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi` honoring **35-component `<toksi-siagent>`**, **432 mandated vaults**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
 ```
 
 ---
@@ -64,4 +66,8 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Mirror Wave 18 controls in `:9100` HTMX/Alpine Web Cockpit across all **295 mandated vaults** and **35-component `<toksi-siagent>`** (**37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized `<skills>` & `<advisory>`): live `tokview` + `phoenix` + `tokenspeed` + `vmon`/`cuda-rust` effort/token/GPU telemetry, `openwiki` interactive CodeGraph architecture diagrams, `temporal`/`restate`/`langgraph` `plan_checkpoints` pause/resume controls, `skill-scanner` CEL/SARIF + built-in 41-language static security findings + `Navegos/advisory` O(1) prefix search & `publish-pr` status (Tab 5), 5-backend OS sandbox (`native`/`sandbox-runtime`/`OpenShell`/`E2B`/`sbx`) + ADR quarantine events + `CommandGuard` kill-switch audit + `opa`/`cedar`/`spire`/`Guardrails`/`llm-guard`/`defenseclaw` fail-closed guardrails & `/api/security/audit-evidence` + `sage` threat alerts (Tab 6), Interactive Plugin Manager `/api/plugins` + External `<skills>` Sync Manager (`Navegos/skills` + user skills dir, zero binary embed) + `skilldoctor`/`agentskills` healer diff preview + Google Cloud ADC (`AGY_ADC_AUTH=true`) status badge (Tab 7), and `plugins_registry`/`blind_signatures`/`advisory_embargoes`/`adr_audit_events` SQLite DB export/import (Tab 9).
+- Mirror Wave 18 controls in `:9100` HTMX/Alpine Web Cockpit across all **432 mandated vaults** and **35-component `<toksi-siagent>`** (**43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized `<skills>` & `<advisory>`): live `tokview` + `phoenix` + `tokenspeed` + `vmon`/`cuda-rust` effort/token/GPU telemetry, `openwiki` interactive CodeGraph architecture diagrams, `temporal`/`restate`/`langgraph` `plan_checkpoints` pause/resume controls, `skill-scanner` CEL/SARIF + built-in 41-language static security findings + `Navegos/advisory` O(1) prefix search & `publish-pr` status (Tab 5), 5-backend OS sandbox (`native`/`sandbox-runtime`/`OpenShell`/`E2B`/`sbx`) + ADR quarantine events + `CommandGuard` kill-switch audit + `opa`/`cedar`/`spire`/`Guardrails`/`llm-guard`/`defenseclaw` fail-closed guardrails & `/api/security/audit-evidence` + `sage` threat alerts (Tab 6), Interactive Plugin Manager `/api/plugins` + External `<skills>` Sync Manager (`Navegos/skills` + user skills dir, zero binary embed) + `skilldoctor`/`agentskills` healer diff preview + Google Cloud ADC (`AGY_ADC_AUTH=true`) status badge (Tab 7), and `plugins_registry`/`blind_signatures`/`advisory_embargoes`/`adr_audit_events` SQLite DB export/import (Tab 9).
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+- **Wave 19 Reconciliation:** Detached `:9100` Web Cockpit active; Wave 19 extends `_worker` supervisor health/restart controls, workforce war-room views, and training/serving panels (`PHASE_19_2`, `19_5`, `19_6`).

@@ -1,5 +1,7 @@
 # Phase 16.1: High-Performance 9-Tab Async Mouse-Capable TUI
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_16_1_MOUSE_CAPABLE_TUI.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -35,7 +37,7 @@ Requirements:
    - High-contrast cyber-slate/cyan/emerald/amber aesthetic matching Web Cockpit.
    - Show true configured token savings, `direct-wired` vs `config-wired` badges, PATH availability, read-only plan & `hour..year` quota windows without `[PAID]`/`[DISQUALIFIED-FREE]` restrictions.
 4. Verification:
-   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi` honoring **35-component `<toksi-siagent>`**, **295 mandated vaults**, **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
+   - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi` honoring **35-component `<toksi-siagent>`**, **432 mandated vaults**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
 ```
 
 ---
@@ -59,6 +61,10 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Tab 1 surfaces `tokview` + `phoenix` OpenInference savings/effort telemetry (`Low`/`Medium`/`High`), `tokenspeed` percentiles, `vmon`/`cuda-rust` GPU metrics, and `:9098` Protocol Bus status across **295 mandated vaults** and **35-component `<toksi-siagent>`** (**37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized `<skills>` & `<advisory>`).
+- Tab 1 surfaces `tokview` + `phoenix` OpenInference savings/effort telemetry (`Low`/`Medium`/`High`), `tokenspeed` percentiles, `vmon`/`cuda-rust` GPU metrics, and `:9098` Protocol Bus status across **432 mandated vaults** and **35-component `<toksi-siagent>`** (**43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized `<skills>` & `<advisory>`).
 - Tab 4 displays paused `temporal`/`restate`/`langgraph`/`<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` states with one-click `/resume` trigger.
 - Tab 5 surfaces `skill-scanner` multi-engine/CEL policy findings (SARIF 2.1.0), built-in 41-language SAST/OSV findings (`src/security/`), `Navegos/advisory` O(1) prefix search + `publish-pr` status, and `skilldoctor`/`agentskills` YAML frontmatter healing status; Tab 6 surfaces 5-backend OS sandbox (`native` / `sandbox-runtime` / `OpenShell` / `E2B` / `sbx`), ADR interception & quarantine events (`adr.rs`), `CommandGuard` offensive-policy + bypass kill-switch audit log (`guard.rs`), `opa`/`cedar` Policy-as-Code + `spire` IAM attestation + `Guardrails`/`llm-guard` + `defenseclaw` fail-closed hookguard/`tool-chains.json`/`audit-evidence`, `<enforce>` violations, and `sage` threat blocks; Tab 7 exposes Interactive Plugin Manager (`src/plugins/`), External `<skills>` Sync Manager (`Navegos/skills` + user skills dir, `[repositories]`), Google Cloud ADC (`AGY_ADC_AUTH=true`) project/location & `/effort` controls; Tab 9 exposes `plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events` + `byok_profiles` DB export/import.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+- **Wave 19 Reconciliation:** 9-tab Ratatui TUI rendered; Wave 19 extends async live telemetry panels for dedicated `_worker` subprocesses, `/workforce`, `/spec`, and `toksi train | serve | eval` (`PHASE_19_2`, `19_5`, `19_6`).

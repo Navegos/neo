@@ -1,5 +1,7 @@
 # Phase 07: Headroom Deep Integration & Gateway Catalog
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_07_HEADROOM_AND_GATEWAY_CATALOG.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -43,7 +45,7 @@ Requirements:
    - `providers/`: full **65/90+ Categories 1–5 ecosystem + 22 local inference engines** (`Ollama`, `vLLM`, `llama.cpp`, `LM Studio`, `SGLang`, `TGI`, `Exo`, etc., self-hosted `Bifrost`, SageMaker, Mantle).
    - `cascade.rs`, `loadbalancer.rs`, `router.rs` (`mofa-engine` 7-D `route_ranked`), `governance.rs` (virtual keys + `CircuitBreakerRegistry`), `semantic_cache.rs` (Chroma ANN HNSW/USearch/SPANN + `foyer` spill wired live into `proxy.rs`), `compat/` (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`, `/v1/embeddings`, `/v1beta/models/*`).
 4. Supervise Copilot dual-port architecture (Port `8789` VS Code + Port `8790` CLI) with real OAuth/SSE upstream streaming (removing `"copilot proxy ready"` & `"wrap"` stubs).
-5. Wire all **26** local/Rust inference vaults (`ollama`, `llama.cpp`, `candle`, `candle-vllm`, `mistral.rs`, `dynamo`, `frontend-crates`, `nixl`, `radixshmem`), `RouteLLM`/`olla`/`Switchyard`/`NeMo-Relay`, `tokenizers` BPE, and `Guardrails`/`llm-guard` across the **35-component `<toksi-siagent>`** (`295` mandated vaults, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`), ensuring 0 compiler warnings and targeted `cargo test` pass.
+5. Wire all **26** local/Rust inference vaults (`ollama`, `llama.cpp`, `candle`, `candle-vllm`, `mistral.rs`, `dynamo`, `frontend-crates`, `nixl`, `radixshmem`), `RouteLLM`/`olla`/`Switchyard`/`NeMo-Relay`, `tokenizers` BPE, and `Guardrails`/`llm-guard` across the **35-component `<toksi-siagent>`** (`432` mandated vaults, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`), ensuring 0 compiler warnings and targeted `cargo test` pass.
 ```
 
 ---
@@ -68,4 +70,8 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Route all 7 inference/protocol entrypoints (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`) through shared `HeadroomEffortCompressor` (`Low`/`Med`/`High` + `live_zone` + `CcrStore` + `SmartCrusher` + `TokenEconomizer` + `agent-opt` + MCP Pruner + `RTK` + `Chroma`/`Lance`/`Qdrant` + `<enforce>`) for **35-component `<toksi-siagent>`** across **295 mandated vaults**, **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`), canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>` (`PHASE_18_3`, `PHASE_18_6`).
+- Route all 7 inference/protocol entrypoints (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`) through shared `HeadroomEffortCompressor` (`Low`/`Med`/`High` + `live_zone` + `CcrStore` + `SmartCrusher` + `TokenEconomizer` + `agent-opt` + MCP Pruner + `RTK` + `Chroma`/`Lance`/`Qdrant` + `<enforce>`) for **35-component `<toksi-siagent>`** across **432 mandated vaults**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>` (`PHASE_18_3`, `PHASE_18_6`).
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

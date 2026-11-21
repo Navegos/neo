@@ -1,5 +1,7 @@
 # Phase 17.6: Ground-Truth SSE Accounting, Gateway Real Dispatch (`:9099` / `:8789` / `:8790` / `:18787`), Network Heal, & ConnectRPC
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 13.3–13.5), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_6_TOKEN_ACCOUNTING_NETWORK_HEAL_AND_GATEWAY.md first.
@@ -37,7 +39,7 @@ Requirements:
    - Rebuild `ArcSwap<reqwest::Client>` pools and flush dead sockets automatically when sleep/wake, VPN toggles, DNS errors, or keep-alive timeouts occur (preventing dormant agent stalls).
    - Ensure HTTP/2 ConnectRPC streaming headers, trailers, and binary frames pass safely without corruption (closing `#0033`/`#0034`).
 4. Verification:
-   - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi` honoring **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
+   - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi` honoring **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
 ```
 
 ---
@@ -55,5 +57,9 @@ Requirements:
 
 ## Wave 18 (v5.2) Synchronization Addendum
 - Add `tokview` + `langfuse` + `phoenix` OpenInference local trace & effort-level token accounting (`Low`/`Medium`/`High`), `tokenspeed` TTFT/TPOT, and `vmon` + `cuda-rust` telemetry (`PHASE_18_1`, `PHASE_18_3`, `PHASE_18_6`).
-- Route `AGY_ADC_AUTH=true` profiles through native Google Cloud ADC Vertex endpoints (`https://{location}-aiplatform.googleapis.com/v1beta1/...`) with cached OAuth2 refresh-token / service-account exchange and clear `gcloud auth application-default login` diagnostics (`PHASE_18_3`), plus all **26** local/Rust engines (`mistral.rs`, `candle`, `ollama`, `llama.cpp`, `vllm`, `sglang`, `dynamo`, `frontend-crates`) and `RouteLLM`/`olla` routing across **295 mandated vaults**, **35-component `<toksi-siagent>`**, and **37** `.agents/brain/*.md` guides.
+- Route `AGY_ADC_AUTH=true` profiles through native Google Cloud ADC Vertex endpoints (`https://{location}-aiplatform.googleapis.com/v1beta1/...`) with cached OAuth2 refresh-token / service-account exchange and clear `gcloud auth application-default login` diagnostics (`PHASE_18_3`), plus all **26** local/Rust engines (`mistral.rs`, `candle`, `ollama`, `llama.cpp`, `vllm`, `sglang`, `dynamo`, `frontend-crates`) and `RouteLLM`/`olla` routing across **432 mandated vaults**, **35-component `<toksi-siagent>`**, and **43** `.agents/brain/*.md` guides.
 - Expose `:9098` Protocol Bus alongside `:8787..:8790`, `:9099`, `:9100`, and `:18787` (unified **8-port daemon**).
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

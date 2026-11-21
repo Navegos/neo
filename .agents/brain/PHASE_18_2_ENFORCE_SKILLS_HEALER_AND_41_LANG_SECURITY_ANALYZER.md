@@ -1,5 +1,7 @@
 # Phase 18.2 — `<enforce>` Security, Unified Plugin System, Zero-Plaintext Engine, Validator, `<skills>` + `skilldoctor`/`agentskills`, & 41-Lang SAST
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 
 ```text
@@ -59,6 +61,10 @@ Your goals in Rust (`crates/toksi`) & Externalized Repos (`<neo>`, `<advisory>`,
 | Native Compiler Diagnostics | `PATH` (`rust-analyzer`, `gopls`, `clang-tidy`) | Optional subprocess wrapper with RTK output compaction | Unified `SecurityFinding` stream |
 
 ### 3. Externalized `<skills>` Distribution, Unified Plugins & `<enforce>` Contract
-- Stage all curated rules, skills (`huggingface-skills`, `openai-skills`, `langchain-skills`, `mofa-skills`, `NeMo-Skills`, `NVIDIA-skills`, `agent-skills`, `openagent-skills`, `openclaw-agent-skills`), ATR packs, and SAST `.scm` rules outside `crates/toksi/` (`<neo>/agents/`, `<neo>/rules/`) synced to `Navegos/skills` (`<skills>`) — **zero binary bloat** inside `crates/toksi/`, serving all **295 mandated vaults**, **35-component `<toksi-siagent>`**, and **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`).
+- Stage all curated rules, skills (`huggingface-skills`, `openai-skills`, `langchain-skills`, `mofa-skills`, `NeMo-Skills`, `NVIDIA-skills`, `agent-skills`, `openagent-skills`, `openclaw-agent-skills`), ATR packs, and SAST `.scm` rules outside `crates/toksi/` (`<neo>/agents/`, `<neo>/rules/`) synced to `Navegos/skills` (`<skills>`) — **zero binary bloat** inside `crates/toksi/`, serving all **432 mandated vaults**, **35-component `<toksi-siagent>`**, and **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`).
 - Enclose immutable security invariants inside `<enforce>...</enforce>` tags across synced agent configs (`AGENTS.md`, `GEMINI.md`, `CLAUDE.md`, `.cursor/rules/*`, `~/.codex/AGENTS.md`), skills, and Unified Plugins (`src/plugins/`).
 - `src/security/skill_audit.rs` + `skill_scanner.rs` assign trust tiers (`BuiltinVerified`, `WorkspaceLocal`, `ImportedAudited`, `Quarantined`); when `[plugins].enforce_security_scan = true` or `defenseclaw_fail_closed = true`, plugins with `blocked_fail_closed` or `unscanned` status cannot activate hooks, CLI bridges, tools, `/plugin:*` chat commands, `:9098` protocols (`MCP`/`A2A`/`ACP`/`stdio`/`SSE`/`HTTP`), or agent-to-agent messaging.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

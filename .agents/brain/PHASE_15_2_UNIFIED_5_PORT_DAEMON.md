@@ -1,5 +1,7 @@
 # Phase 15.2: Unified 8-Port Daemon, `config.toml`, & Copilot Supervision
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_15_2_UNIFIED_5_PORT_DAEMON.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -40,7 +42,7 @@ Requirements:
    - Guarantee complete socket buffer and thread isolation between Port `9099` (LLM streaming inference) and Port `9100` (browser web cockpit).
 4. Environment Teardown:
    - Cleanly uninject all proxy environment variables on daemon exit or `SIGINT`/`SIGTERM`.
-   - Unify **35-component `<toksi-siagent>`** out of the box ("off the back") via `DirectWireBus` and `:8787`/`:9098`/`:9099`/`:18787` across all **295 mandated vaults**, **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`), zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`, and canonical `<repo>/.toksi/projectmem/`.
+   - Unify **35-component `<toksi-siagent>`** out of the box ("off the back") via `DirectWireBus` and `:8787`/`:9098`/`:9099`/`:18787` across all **432 mandated vaults**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`, and canonical `<repo>/.toksi/projectmem/`.
 5. Verification:
    - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```
@@ -62,4 +64,8 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Ensure `CommandGuard` bypass kill-switch (`src/commands/guard.rs`) cleanly shuts down all 8 daemon ports (`:8787..:8790, :9098, :9099, :9100, :18787`), while ALL 7 inference/protocol ports enforce the shared `HeadroomEffortCompressor` across **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.
+- Ensure `CommandGuard` bypass kill-switch (`src/commands/guard.rs`) cleanly shuts down all 8 daemon ports (`:8787..:8790, :9098, :9099, :9100, :18787`), while ALL 7 inference/protocol ports enforce the shared `HeadroomEffortCompressor` across **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+- **Wave 19 Reconciliation:** Marked `[PLAN-NEEDS-FIX]` in Wave 19: `src/commands/daemon.rs:491-588` still spawns in-process Tokio tasks/threads. `PHASE_19_2` splits all 8 network ports (`8787`–`8790`, `9098`, `9099`, `9100`, `18787`), `<toksi-siagent>`, and core tools into dedicated OS worker subprocesses (`toksi _worker <role>`) over Named Pipe / UDS IPC.

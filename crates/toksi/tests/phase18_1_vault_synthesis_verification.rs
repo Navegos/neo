@@ -429,5 +429,5 @@ fn test_goal6_brain_guides_count_is_37() {
         .flatten()
         .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"))
         .count();
-    assert_eq!(count, 37);
+    assert_eq!(count, 43);
 }

@@ -1,5 +1,7 @@
 # Phase 18.1 — 259 New & Companion Wave 18 Vaults Research & Synthesis (Total 295 Mandated Vaults)
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 
 ```text
@@ -17,12 +19,12 @@ Your goals in Rust (`crates/toksi`):
    - 26 Section 2.7 local/Rust engines (`ollama`, `llama.cpp`, `candle`, `candle-vllm`, `mistral.rs`, `dynamo`, `velo`, `exo`, `mlx`, `vllm`, `sglang`, `TensorRT-LLM`, `exllamav2`, `lmdeploy`, `tabbyAPI`, `mlc-llm`, `jan`, `Mysti`, `koboldcpp`, `llamafile`, `LocalAI`, `FastChat`, `LitServe`, `aitune`, `radixshmem`, `modelexpress`, `nixl`) + 140 Section 2.8–2.10 vLLM/DeepSeek/SGLang/HF/NeMo/PyTorch/TensorRT/Triton/GPUStack/CUDA/Slurm telemetry & recipe adapters (`vmon`, `cuda-rust`, `srt-slurm`).
 3. ACP, MCP Frameworks, Coding Runtimes & Off-the-Back `<toksi-siagent>` (`src/agent_runtime/`, `src/agents/opencode.rs`, `src/tools/multi_protocol.rs`):
    - Expose JSON-RPC 2.0 Agent Client Protocol (`agent-client-protocol`) on `:9098/acp` alongside `MCP` (`modelcontextprotocol-servers`, `mcp-framework`), `A2A`, `stdio`, `SSE`, and `HTTP`, routing payloads through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`).
-   - Synthesize `opencode` (`codemode`, `http-recorder`, Drizzle/SQLite session state, `.opencode/hooks.json`), `temporal` + `restate` + `langgraph` durable state/journals, `deepagents`, `langchain` + `langchain-litellm` + `langflow`, `cline` + `kilocode` modes, `alphacode`, `bosun`, `Codewhale`, `zeroclaw`, `agent-framework`, `dify`, `mastra`, `agno`, `SWE-agent`, `OpenHands`, `open-swe`, `EnterpriseBlueprints`, `kimi-code`, `loopwright`, `hermes-webui`, and `agents-structures` — wiring `<toksi-siagent>` out of the box ("off the back") via `DirectWireBus` and `:8787`/`:9098`/`:9099`/`:18787` across all **295** vaults.
+   - Synthesize `opencode` (`codemode`, `http-recorder`, Drizzle/SQLite session state, `.opencode/hooks.json`), `temporal` + `restate` + `langgraph` durable state/journals, `deepagents`, `langchain` + `langchain-litellm` + `langflow`, `cline` + `kilocode` modes, `alphacode`, `bosun`, `Codewhale`, `zeroclaw`, `agent-framework`, `dify`, `mastra`, `agno`, `SWE-agent`, `OpenHands`, `open-swe`, `EnterpriseBlueprints`, `kimi-code`, `loopwright`, `hermes-webui`, and `agents-structures` — wiring `<toksi-siagent>` out of the box ("off the back") via `DirectWireBus` and `:8787`/`:9098`/`:9099`/`:18787` across all **432** vaults.
 4. Gemini / Vertex SDK Adapters (`src/gateway/gemini_wire.rs`, `vertex_adc.rs`): Parity with `python-genai` (`v1beta` `thinkingConfig`) and `python-aiplatform` regional Vertex endpoints (`AGY_ADC_AUTH=true`).
 5. Policy-as-Code, IAM Attestation, CVE/OSV, Guardrails, SkillDoctor, Sandbox & Companion Repos (`src/security/`, `src/validator/`, `src/rules/skill_validator.rs`, `src/agent_runtime/sandbox.rs`, `src/plugins/{manifest,loader}.rs`):
    - Synthesize `opa`, `cedar`, `spire`, `Guardrails`, `llm-guard`, `E2B`, `E2B-runtime`, `OpenShell`, `NemoClaw`, `sandbox-runtime`, `safeagents`, `garak`, `Anonymizer`, `Safe-Synthesizer`, `cve-schema`, `cve-validation-library`, `cve-services`, `osv-schema`, `cve-bin-tool`, `cve-lite-cli`, `skilldoctor`, `SkillSpector`, `SkillEvaluator`, `defenseclaw`, `skill-scanner`, `huggingface-skills`, `openai-skills`, `langchain-skills`, `mofa-skills`, `NeMo-Skills`, `NVIDIA-skills`, `<advisory>` (`Navegos/advisory`), and `<skills>` (`Navegos/skills`) with externalized staging outside `crates/toksi/` (zero binary bloat).
    - Parse `plugin.toml`, `plugin.yaml`, and `openclaw.plugin.json` manifests across `[plugins].plugin_dirs` (`~/.toksi/plugins`, `<repo>/.toksi/plugins`, `<repo>/.agents/plugins`).
-6. Update `.toksi/test-baseline.json`, confirm alignment across all **37** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_18_6`), and run `cargo test --test phase18_1_vault_synthesis_verification`. Zero unrequested daemons or home-dir leakage.
+6. Update `.toksi/test-baseline.json`, confirm alignment across all **43** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_19_6`), and run `cargo test --test phase18_1_vault_synthesis_verification`. Zero unrequested daemons or home-dir leakage.
 ```
 
 ---
@@ -49,3 +51,7 @@ Your goals in Rust (`crates/toksi`):
 ### 3. Language Grammar Specialization Note (`crates/toksi/src/codegraph/kernel/langs.rs`)
 - `langs.rs` already registers all 45 language IDs (`L13–19`) and maps `"dockerfile"` -> `tree_sitter_bash`, `"vue"` -> `tree_sitter_html`, and `"scss"` -> `tree_sitter_css` at `L99–103`.
 - Upgrade `"dockerfile"`, `"vue"`, and `"scss"` from fallback alias grammars to dedicated Dockerfile/Vue-SFC/SCSS grammars inside `crates/toksi-grammars` during Phase 17.3 / 18.2 so AST security and CodeGraph extraction achieve full syntax fidelity.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

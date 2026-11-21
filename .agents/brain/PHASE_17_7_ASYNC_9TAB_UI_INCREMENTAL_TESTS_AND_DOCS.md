@@ -1,5 +1,7 @@
 # Phase 17.7: Async 9-Tab Mouse TUI, Live Web Cockpit (`:9100`), Incremental `.toksi/test-baseline.json` Harness, CLI `--help`, & Full Doc Sync
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 11 & 13.5–13.6), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_7_ASYNC_9TAB_UI_INCREMENTAL_TESTS_AND_DOCS.md first.
@@ -39,7 +41,7 @@ Requirements:
    - `Keyring & Database`: configured-only Keyring (`gemini:antigravity` normalized), live key editor, SQLite table browser (`byok_profiles`, `plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events`), working `Export` (`POST /api/db/export`), `Import` (`POST /api/db/import` with `overwrite`), Backup/Restore, legacy nested `<repo>` repair.
 2. Ship `.toksi/test-baseline.json` Incremental Test Skip Harness + Integration Suites `phase14`–`phase18_5`:
    - Recompute BLAKE3 over `Cargo.lock` + suite `watched_paths`; print `[SKIP-UNCHANGED] <suite>` for clean untouched suites while running dirty/failed suites and always running `cargo check --workspace` & `cargo clippy --workspace --all-targets -- -D warnings`.
-   - Add integration suites covering `phase14`–`phase18_6` across all **295 mandated vaults** and **35-component `<toksi-siagent>`** (**37** `.agents/brain/*.md` guides, config TOML incl. `[repositories]`/`[plugins]`/`[security]`, free BYOK, multi-profile `<byok, model, effort>`, `plugins_registry`/`blind_signatures`/`advisory_embargoes`/`adr_audit_events`, Keyring `gemini:antigravity` & `AGY_ADC_AUTH=true`, `live_zone` + `/byok/` Headroom + effort scaling across all 7 entrypoints, 41+ Tree-sitter & repo-only isolation, `TokenEconomizer`/`agent-opt`/`ctx-hook`/`runmcp`, `DirectWireBus` + **16** slash cmds incl. `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`, Zero-Plaintext Blind Engine + Validator PRs + ADR + 5-backend Sandbox + `CommandGuard` kill-switch, `opa`/`cedar`/`spire`/`Guardrails`/`llm-guard`, `temporal`/`restate`/`langgraph`, `Qdrant`/`Cognee`/`Graphiti`, local/Rust/cluster inference `mistral.rs`/`candle`/`ollama`/`vllm`/`sglang`/`vmon`/`cuda-rust`, gateway/ConnectRPC/reconnect, 9-tab API/SSE, `<enforce>`/`skilldoctor`/`agentskills` healer/41-lang SAST, and `.toksi/projectmem/plan_checkpoints/`).
+   - Add integration suites covering `phase14`–`phase18_6` across all **432 mandated vaults** and **35-component `<toksi-siagent>`** (**43** `.agents/brain/*.md` guides, config TOML incl. `[repositories]`/`[plugins]`/`[security]`, free BYOK, multi-profile `<byok, model, effort>`, `plugins_registry`/`blind_signatures`/`advisory_embargoes`/`adr_audit_events`, Keyring `gemini:antigravity` & `AGY_ADC_AUTH=true`, `live_zone` + `/byok/` Headroom + effort scaling across all 7 entrypoints, 41+ Tree-sitter & repo-only isolation, `TokenEconomizer`/`agent-opt`/`ctx-hook`/`runmcp`, `DirectWireBus` + **16** slash cmds incl. `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`, Zero-Plaintext Blind Engine + Validator PRs + ADR + 5-backend Sandbox + `CommandGuard` kill-switch, `opa`/`cedar`/`spire`/`Guardrails`/`llm-guard`, `temporal`/`restate`/`langgraph`, `Qdrant`/`Cognee`/`Graphiti`, local/Rust/cluster inference `mistral.rs`/`candle`/`ollama`/`vllm`/`sglang`/`vmon`/`cuda-rust`, gateway/ConnectRPC/reconnect, 9-tab API/SSE, `<enforce>`/`skilldoctor`/`agentskills` healer/41-lang SAST, and `.toksi/projectmem/plan_checkpoints/`).
 3. Finalize `main.rs` `--help` & `crates/toksi/README.md`, then execute final full build + clippy + tests.
 4. Verification:
    - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test -p toksi` (and verify subsequent incremental run logs `[SKIP-UNCHANGED]`).
@@ -53,3 +55,7 @@ Requirements:
 - `init_waterfall_samples` and fake API constants (`1428`, `0.38`, `68.0`, `[DISQUALIFIED-FREE]`) have **0** matches across `crates/toksi/src/`.
 - Both `crates/toksi/src/tui/` and `crates/toksi/src/dashboard/assets/index.html` render the exact 9 named tabs identically.
 - Second incremental test run with no source edits logs `[SKIP-UNCHANGED]` for all green suites; editing 1 file in a watched module re-triggers only the affected suite(s).
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+- **Wave 19 Reconciliation:** `.toksi/test-baseline.json` tracks `35` suites; `PHASE_19_3` adds `docker/Dockerfile.test`, `toksi test --docker|--sandbox`, and `TOKSI_HOME`/`:0` isolation.

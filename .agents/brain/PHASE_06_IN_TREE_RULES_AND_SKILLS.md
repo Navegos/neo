@@ -1,5 +1,7 @@
 # Phase 06: Externalized Rules, `<skills>` Staging, `<enforce>` Guard & Skill Healing
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 0.1, 1.1.4, 3, 9, 12.1), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_06_IN_TREE_RULES_AND_SKILLS.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -46,7 +48,7 @@ Requirements:
    - `.grok/` (Grok: `hooks/*.json`, `skills/`, `rules/`)
    Plus auto-merge nested subfolder `.toksi/` / `.<agent>/` dirs into root `<repo>/` cleanly.
 4. Support skill wiring from MCP settings: map `.gemini/mcp`, `.copilot/mcp`, `.claude/mcp`, `.agents/mcp` to `skills/<tool>`.
-5. Ensure 0 compiler warnings and targeted `cargo test` pass across the **295-vault** externalized `<skills>` / `<advisory>` 3-repo architecture, **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/` across **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`).
+5. Ensure 0 compiler warnings and targeted `cargo test` pass across the **295-vault** externalized `<skills>` / `<advisory>` 3-repo architecture, **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/` across **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`).
 ```
 
 ---
@@ -70,6 +72,10 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Enforce `<enforce>...</enforce>` wrapping on all staged rule blocks, script hooks, externalized `<skills>` assets (`huggingface-skills`, `openai-skills`, `langchain-skills`, `mofa-skills`, `NeMo-Skills`, `NVIDIA-skills`, `agent-skills`, `openagent-skills`, `openclaw-agent-skills` — zero binary bloat inside `crates/toksi/`), and **Toksi Unified Plugin System (`src/plugins/`)** mounts across all **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/` (`PHASE_18_2`).
+- Enforce `<enforce>...</enforce>` wrapping on all staged rule blocks, script hooks, externalized `<skills>` assets (`huggingface-skills`, `openai-skills`, `langchain-skills`, `mofa-skills`, `NeMo-Skills`, `NVIDIA-skills`, `agent-skills`, `openagent-skills`, `openclaw-agent-skills` — zero binary bloat inside `crates/toksi/`), and **Toksi Unified Plugin System (`src/plugins/`)** mounts across all **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/` (`PHASE_18_2`).
 - Integrate pure-Rust `skilldoctor` grading/fixing + `SkillSpector` + `SkillEvaluator` + `agentskills` YAML frontmatter validator & auto-healer (`src/rules/skill_validator.rs`) plus semantic trigger deduplication (`src/rules/skills_catalog.rs`).
 - Audit every synced skill, plugin, and script against **`defenseclaw`** fail-closed hookguard/audit + **`skill-scanner`** multi-engine/CEL policy + **`opa`/`cedar`** Policy-as-Code + `research-securety-skills` and `sage` threat rules before activation (`toksi skills heal`, `toksi security scan-skills`, `toksi plugin scan`).
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+- **Wave 19 Reconciliation:** Marked `[PLAN-NEEDS-FIX]` in Wave 19: `<neo>/.agents/skills/` still holds `922` unadapted directories alongside `<neo>/agents/` (`28`) and `<neo>/rules/` (`24`). `PHASE_19_4` audits/cleans all foreign scripts/actions, grades vetted skills via `skilldoctor`/`agentskills`/`upskill`/`skill-scanner`, and syncs cleanly to `Navegos/skills`.

@@ -1,5 +1,7 @@
 # Phase 17.4: Deep Vault Parity, 65/90+ Ecosystem & 22 Local Engines, & Hook/MCP Cleanup
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 10 & 13.3), crates/toksi/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_and_quota_architecture.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_4_VAULT_ECOSYSTEM_CONNECTORS_AND_HOOK_CLEANUP.md first.
@@ -42,7 +44,7 @@ Requirements:
    - Fix `agents/mcp_adapters.rs:992` (`"openagents"` + `.agents/mcp`), `agents/hooks.rs` (`antigravity-cli` vs `antigravity-ide`), `.grok/hooks/*.json`, `.copilot/hooks/`, `.github/copilot/`, `.gemini/{settings.json, commands/*.toml}`, `.claude/.mcp.json`.
    - Purge legacy strings/helpers: `toksi-projectmem`, `toksi-codegraph`, `toksi-codegraph-index`, `agy-hook codegraph-index`, `rtk hook cursor` (`main.rs:340`), `tokless_*` (`paths.rs`), `resolve_npm_binary` (`util/exec.rs`), `toksi-codegraph-init.js` (`tools/autoindex.rs`), `util/projectmem.rs`.
 5. Verification:
-   - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi` honoring **295 mandated vaults**, **35-component `<toksi-siagent>`**, **37** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_18_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
+   - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi` honoring **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
 ```
 
 ---
@@ -57,5 +59,9 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Expand audited reference scope from **36** to all **295 unique mandated vaults** (`+259` Wave 18 new & companion vaults across Sections `2.1`–`2.10` incl. `opencode`, `temporal`, `restate`, `qdrant`, `cognee`, `graphiti`, `opa`, `cedar`, `spire`, `Guardrails`, `llm-guard`, `E2B`, `OpenShell`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `defenseclaw`, `skill-scanner`, 26 local/Rust inference engines, 48 vLLM/DeepSeek/SGLang vaults, 41 HF/Optimum/NeMo vaults, 51 PyTorch/TRT/Triton/GPUStack/CUDA/Slurm vaults, `<advisory>`, `<skills>` synthesized in `PHASE_18_1`–`PHASE_18_6`) into **35-component `<toksi-siagent>`** and **37** `.agents/brain/*.md` guides (`shared 7-entrypoint HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`).
+- Expand audited reference scope from **36** to all **432 unique mandated vaults** (`+259` Wave 18 new & companion vaults across Sections `2.1`–`2.10` incl. `opencode`, `temporal`, `restate`, `qdrant`, `cognee`, `graphiti`, `opa`, `cedar`, `spire`, `Guardrails`, `llm-guard`, `E2B`, `OpenShell`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `defenseclaw`, `skill-scanner`, 26 local/Rust inference engines, 48 vLLM/DeepSeek/SGLang vaults, 41 HF/Optimum/NeMo vaults, 51 PyTorch/TRT/Triton/GPUStack/CUDA/Slurm vaults, `<advisory>`, `<skills>` synthesized in `PHASE_18_1`–`PHASE_18_6`) into **35-component `<toksi-siagent>`** and **43** `.agents/brain/*.md` guides (`shared 7-entrypoint HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`).
 - Enforce `<enforce>` security delimiters, `defenseclaw` fail-closed hookguard + `skill-scanner` multi-engine/CEL scan, `skilldoctor` + `agentskills` YAML frontmatter healing + deduplication (`PHASE_18_2`), externalized `<skills>` staging (zero binary bloat), Toksi Unified Plugin System (`src/plugins/`) hook/MCP mounts, and OpenCode `.opencode/hooks.json` unification (`PHASE_18_5`) across all synced rule files, `SKILL.md` assets, plugins, and agent hook catalogs.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+- **Wave 19 Reconciliation:** Legacy misroutes in `commands/{index,ctx,runmcp}.rs` repaired; `[PLAN-NEEDS-FIX]` tracks `PHASE_19_1` `ctxmode-hook` migration and `PHASE_19_2` subprocess Direct-Wire IPC.

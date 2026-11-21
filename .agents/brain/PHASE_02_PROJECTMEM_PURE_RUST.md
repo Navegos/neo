@@ -1,5 +1,7 @@
 # Phase 02: ProjectMem Pure Rust Port
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_02_PROJECTMEM_PURE_RUST.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -28,7 +30,7 @@ Requirements:
    - `heatmap.rs` (failure clustering, ROI metrics, clickable cell drilldown payloads for UI `Memory Decision DAG` modal)
    - `global.rs` (repo-registry metadata index without duplicating workspace `events.jsonl` outside `<repo>/.toksi/projectmem/`)
    - `mcp.rs` (all 16 `projectmem` MCP tools including `precheck_file`, `list_projects`, `current_project`, `staleness`, `structure`, `heatmap`) + `/projectmem` slash command integration.
-2. Support multi-protocol interfaces (`MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`) and `DirectWireBus` for `<toksi-siagent>` (**35 components**, **295 mandated vaults**, **37** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
+2. Support multi-protocol interfaces (`MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`) and `DirectWireBus` for `<toksi-siagent>` (**35 components**, **432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 3. Expose the native CLI command `toksi mem ...` and atomic `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` resume integration (`PHASE_18_3` / `PHASE_18_6` Temporal+Restate+LangGraph durability).
 4. Ensure zero Python runtime dependency, zero `unsafe`, 0 compiler warnings, and targeted `cargo test` pass.
 ```
@@ -56,4 +58,8 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Pair `projectmem` with `temporal`/`restate`/`langgraph` atomic checkpoints (`<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json`), `openwiki` `PROJECT_MAP.md` sync, `Anonymizer` PII redaction, and `graphiti` bi-temporal `supersedes` DAG edges across `<toksi-siagent>` (35 components, 295 mandated vaults, 37 `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, externalized `<skills>` & `<advisory>`).
+- Pair `projectmem` with `temporal`/`restate`/`langgraph` atomic checkpoints (`<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json`), `openwiki` `PROJECT_MAP.md` sync, `Anonymizer` PII redaction, and `graphiti` bi-temporal `supersedes` DAG edges across `<toksi-siagent>` (35 components, 432 mandated vaults, 43 `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, externalized `<skills>` & `<advisory>`).
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).

@@ -41,13 +41,24 @@ fn test_phase18_4_brain_guides_37_files_and_prereads() {
 
     assert_eq!(
         md_files.len(),
-        37,
-        "Expected exact 37 .agents/brain/*.md files (INDEX_AND_EXECUTION_GUIDE.md + PHASE_01..PHASE_18_6)"
+        43,
+        "Expected exact 43 .agents/brain/*.md files (INDEX_AND_EXECUTION_GUIDE.md + PHASE_01..PHASE_19_6)"
     );
     assert!(md_files.iter().any(|f| f == "INDEX_AND_EXECUTION_GUIDE.md"));
 
     let phase_files: Vec<&String> = md_files.iter().filter(|f| f.starts_with("PHASE_")).collect();
-    assert_eq!(phase_files.len(), 36, "Expected 36 PHASE_*.md files");
+    assert_eq!(phase_files.len(), 42, "Expected 42 PHASE_*.md files");
+
+    let valid_states = [
+        "[DEEP-RESEARCH-DONE]",
+        "[PLAN-DONE]",
+        "[PLAN-IMPLEMENTED]",
+        "[PLAN-FIXED]",
+        "[MISSING-DEEP-RESEARCH]",
+        "[PLAN-NOT-DONE]",
+        "[PLAN-UNIMPLEMENTED]",
+        "[PLAN-NEEDS-FIX]",
+    ];
 
     for pf in phase_files {
         let content = fs::read_to_string(brain_dir.join(pf)).expect("read phase file");
@@ -64,6 +75,11 @@ fn test_phase18_4_brain_guides_37_files_and_prereads() {
         assert!(
             content.contains(".toksi/projectmem/summary.md"),
             "{} missing .toksi/projectmem/summary.md pre-read",
+            pf
+        );
+        assert!(
+            valid_states.iter().any(|s| content.contains(s)),
+            "{} missing mandatory 8-State Progress Taxonomy badge",
             pf
         );
     }
@@ -116,11 +132,14 @@ fn test_phase18_4_master_docs_topology_and_parity() {
             }
         }
 
-        // Core Wave 18 / v5.2 invariants present across all 7 master docs
-        assert!(content.contains("295"), "{} missing 295 mandated vaults", rel);
+        // Core Wave 19 / v6.0 invariants present across all 7 master docs
+        assert!(content.contains("432"), "{} missing 432 mandated vaults", rel);
         assert!(content.contains("<toksi-siagent>"), "{} missing <toksi-siagent>", rel);
         assert!(content.contains("<advisory>"), "{} missing <advisory> 3-repo topology", rel);
         assert!(content.contains("<skills>"), "{} missing <skills> 3-repo topology", rel);
+        assert!(content.contains("ctxmode"), "{} missing Wave 19 ctxmode rename spec", rel);
+        assert!(content.contains("toksi _worker"), "{} missing Wave 19 multi-process worker spec", rel);
+        assert!(content.contains("Dockerfile.test"), "{} missing Wave 19 Dockerfile.test spec", rel);
     }
 
     let plan = fs::read_to_string(root.join("crates/toksi/PLAN.md")).expect("read PLAN.md");
@@ -141,9 +160,10 @@ fn test_phase18_4_master_docs_topology_and_parity() {
         assert!(plan.contains(tok), "PLAN.md missing {}", tok);
     }
     for slash in [
-        "/byok", "/model", "/effort", "/byokmodel", "/projectmem", "/context",
+        "/byok", "/model", "/effort", "/byokmodel", "/projectmem", "/ctxmode",
         "/codegraph", "/icm", "/ai-memory", "/rtk", "/security", "/advisory",
         "/skills", "/sandbox", "/plugin", "/resume",
+        "/workforce", "/spec", "/train", "/serve", "/voice",
     ] {
         assert!(plan.contains(slash), "PLAN.md missing slash command {}", slash);
     }

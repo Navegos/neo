@@ -1,5 +1,7 @@
 # Phase 01: RTK Filter Engine Integration
 
+> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+
 ## Ready-to-Run Chat Prompt
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_01_RTK_FILTER_ENGINE.md first to understand the global master architecture, cross-tool coupling, directory topology, features, etc.
@@ -26,7 +28,7 @@ Requirements:
    - `crates/toksi/src/headroom/` (pre-filtering tool outputs)
 3. Expose the native CLI command `toksi rtk <command...>`, including `toksi rtk gain`, `toksi rtk discover`, `toksi rtk learn`.
 4. Implement standard tool hook syntax: `rtk-hook <agent>` (e.g., `rtk-hook agy`, `rtk-hook antigravity-cli`, `rtk-hook copilot`, `rtk-hook cursor`). Purge legacy aliases such as `rtk hook cursor` (`main.rs:340`).
-5. Ensure 100% functional parity across the **295-vault** ecosystem and **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor` across `:8787`–`:8790`, `:9098`, `:9099`, `:18787`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`, and canonical `<repo>/.toksi/projectmem/` across all 37 `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`), zero external binary spawns, 0 compiler warnings, and targeted `cargo test -p toksi` pass (or `.toksi/test-baseline.json` skip if unchanged).
+5. Ensure 100% functional parity across the **295-vault** ecosystem and **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor` across `:8787`–`:8790`, `:9098`, `:9099`, `:18787`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`, and canonical `<repo>/.toksi/projectmem/` across all 43 `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`), zero external binary spawns, 0 compiler warnings, and targeted `cargo test -p toksi` pass (or `.toksi/test-baseline.json` skip if unchanged).
 ```
 
 ---
@@ -51,5 +53,9 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Wire `rtk` filters directly into the shared 7-entrypoint `HeadroomEffortCompressor` (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`) and `<toksi-siagent>` (`35` components, `295` mandated vaults, `37` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_18_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`).
+- Wire `rtk` filters directly into the shared 7-entrypoint `HeadroomEffortCompressor` (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`) and `<toksi-siagent>` (`35` components, `432` mandated vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`).
 - Enforce `CommandGuard` + `adr.rs` + `defenseclaw` pre-execution filtering before any shell command output enters `rtk`.
+
+## Wave 19 (v6.0) Synchronization Addendum
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).
