@@ -10,6 +10,8 @@
 #![deny(unsafe_code)]
 
 pub mod hooks;
+pub mod loader;
+pub mod manifest;
 pub mod slash_router;
 
 use std::collections::HashMap;

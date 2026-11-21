@@ -8,11 +8,13 @@
 #![deny(unsafe_code)]
 
 pub mod ast_grep;
+pub mod bpe;
 pub mod cache;
 pub mod graph;
 pub mod jcodemunch;
 pub mod kernel;
 pub mod mcp;
+pub mod openwiki;
 pub mod repomix;
 pub mod scip;
 pub mod slash;

@@ -8,21 +8,39 @@
 #![deny(unsafe_code)]
 
 pub mod cli;
+pub mod cognee_graph;
+pub mod embeddings;
 pub mod handoff;
+pub mod lance_store;
+pub mod letta_memgpt;
 pub mod mcp;
 pub mod mem0_bridge;
 pub mod message;
+pub mod milvus_adapter;
+pub mod mongo_bridge;
+pub mod qdrant_store;
+pub mod retriever;
 pub mod slash;
+pub mod temporal_graph;
 pub mod tiered;
 pub mod wiki;
 pub mod wire;
 
 pub use cli::*;
+pub use cognee_graph::*;
+pub use embeddings::*;
 pub use handoff::*;
+pub use lance_store::*;
+pub use letta_memgpt::*;
 pub use mcp::*;
 pub use mem0_bridge::*;
 pub use message::*;
+pub use milvus_adapter::*;
+pub use mongo_bridge::*;
+pub use qdrant_store::*;
+pub use retriever::*;
 pub use slash::*;
+pub use temporal_graph::*;
 pub use tiered::*;
 pub use wiki::*;
 pub use wire::*;

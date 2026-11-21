@@ -28,6 +28,7 @@ pub mod responses_compat;
 pub mod router;
 pub mod search_compressor;
 pub mod smart_crusher;
+pub mod tokenizer;
 pub mod watchdog;
 
 pub use adaptive_mem::*;

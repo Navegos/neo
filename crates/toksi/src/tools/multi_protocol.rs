@@ -1551,6 +1551,41 @@ async fn serve_protocol_bus_connection(
             continue;
         }
 
+        if default_proto == ProtocolKind::Acp {
+            if let Ok(raw_val) = serde_json::from_slice::<Value>(&req.body) {
+                let method = raw_val.get("method").and_then(Value::as_str).unwrap_or("");
+                if matches!(
+                    method,
+                    "initialize" | "session/new" | "session/prompt" | "session/cancel"
+                ) {
+                    let effort = crate::headroom::effort::detect_effort_level(
+                        &req.headers,
+                        Some(&raw_val),
+                    );
+                    let resp = crate::agent_runtime::acp::handle_acp_jsonrpc(&raw_val, effort);
+                    let bytes = serde_json::to_vec(&resp).unwrap_or_default();
+                    let mut headers =
+                        vec![("Content-Type".to_string(), "application/json".to_string())];
+                    if is_close_requested {
+                        headers.push(("Connection".to_string(), "close".to_string()));
+                    }
+                    crate::headroom::byok_gateway::write_http_response(
+                        &mut stream,
+                        200,
+                        "OK",
+                        &headers,
+                        &bytes,
+                    )
+                    .await?;
+                    if is_close_requested {
+                        let _ = stream.shutdown().await;
+                        break;
+                    }
+                    continue;
+                }
+            }
+        }
+
         let mut body_val: Value = match serde_json::from_slice(&req.body) {
             Ok(v) => v,
             Err(e) => {

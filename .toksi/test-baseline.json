@@ -446,6 +446,30 @@
                                                                                                  "phase17_7_ui_parity_and_test_baseline_verification"
                                                                                              ]
                                                                           },
+                   "phase18_1_vault_synthesis_verification":  {
+                                                                  "watched_paths":  [
+                                                                                        "crates/toksi/src/aimemory/",
+                                                                                        "crates/toksi/src/codegraph/",
+                                                                                        "crates/toksi/src/headroom/tokenizer.rs",
+                                                                                        "crates/toksi/src/contextmode/text_norm.rs",
+                                                                                        "crates/toksi/src/telemetry/",
+                                                                                        "crates/toksi/src/gateway/",
+                                                                                        "crates/toksi/src/agent_runtime/",
+                                                                                        "crates/toksi/src/plugins/",
+                                                                                        "crates/toksi/src/security/",
+                                                                                        "crates/toksi/src/validator/",
+                                                                                        "crates/toksi/tests/phase18_1_vault_synthesis_verification.rs"
+                                                                                    ],
+                                                                  "tree_blake3":  "",
+                                                                  "last_passed_unix":  0,
+                                                                  "cargo_args":  [
+                                                                                     "test",
+                                                                                     "-p",
+                                                                                     "toksi",
+                                                                                     "--test",
+                                                                                     "phase18_1_vault_synthesis_verification"
+                                                                                 ]
+                                                              },
                    "phase18_1_to_18_6_siagent_and_vaults_verification":  {
                                                                              "watched_paths":  [
                                                                                                    "crates/toksi/src/agent_runtime/",

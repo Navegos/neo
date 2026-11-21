@@ -137,6 +137,7 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/NeMo-Skills
 <neo>/inspect-vault/ollama
 <neo>/inspect-vault/llama.cpp
+<neo>/inspect-vault/whisper.cpp
 <neo>/inspect-vault/jan
 <neo>/inspect-vault/Mysti
 <neo>/inspect-vault/koboldcpp
@@ -339,6 +340,11 @@ Repository 3: <skills> Navegos/skills (https://github.com/Navegos/skills.git →
 <neo>/inspect-vault/orca
 <neo>/inspect-vault/nemo-platform
 <neo>/inspect-vault/tura
+<neo>/inspect-vault/llama-swap
+<neo>/inspect-vault/langwatch
+<neo>/inspect-vault/depyler
+<neo>/inspect-vault/paiml-mcp-agent-toolkit
+<neo>/inspect-vault/DeepSpeed-MII
 }
 
 Please research from the <neo>/inspect-vault/* above and from the this text next, the best solution for implementing our unified <toksi-siagent> analyser, <etc's>, <detail's>, <enforce>.

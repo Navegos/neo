@@ -10,9 +10,13 @@
 
 #![deny(unsafe_code)]
 
+pub mod acp;
+pub mod codemode;
 pub mod crew;
+pub mod fleet;
 pub mod hermes;
 pub mod loop_engine;
+pub mod modes;
 pub mod mofa;
 pub mod openclaw;
 pub mod patch;
@@ -20,6 +24,7 @@ pub mod sandbox;
 pub mod scheduler;
 pub mod slash;
 pub mod state;
+pub mod workflow_state;
 
 pub use loop_engine::{AgentRuntimeEngine, RuntimeRunReport};
 pub use slash::{global_slash_engine, SlashCommandEngine, SlashDispatchResult, CORE_SLASH_COMMANDS};

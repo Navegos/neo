@@ -9,8 +9,13 @@
 
 pub mod collector;
 pub mod cost;
+pub mod guardrails;
+pub mod openinference;
 pub mod prometheus;
 pub mod tokentracker;
+pub mod tokenspeed;
+pub mod tokview;
+pub mod traces;
 pub mod tracker;
 #[cfg(test)]
 pub mod tests;

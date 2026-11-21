@@ -83,3 +83,35 @@ pub fn normalize_and_scrub(input: &str) -> String {
     let normalized = normalize_text(input);
     scrub_secrets(&normalized)
 }
+
+/// WFST-style unit/whitespace canonicalization (`NeMo-text-processing` parity).
+pub fn wfst_canonicalize(input: &str) -> String {
+    let norm = normalize_and_scrub(input);
+    norm.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Deterministic 64-bit MinHash-style shingle fingerprint (`Curator` / `DALI` dedup parity).
+pub fn minhash_fingerprint(input: &str, shingle_words: usize) -> u64 {
+    let canon = wfst_canonicalize(input).to_ascii_lowercase();
+    let words: Vec<&str> = canon.split_whitespace().collect();
+    if words.is_empty() {
+        return 0;
+    }
+    let width = shingle_words.max(1).min(words.len());
+    let mut min_hash = u64::MAX;
+    for win in words.windows(width) {
+        let mut h: u64 = 0xcbf29ce484222325;
+        for w in win {
+            for b in w.as_bytes() {
+                h ^= u64::from(*b);
+                h = h.wrapping_mul(0x100000001b3);
+            }
+            h ^= 0x20;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        if h < min_hash {
+            min_hash = h;
+        }
+    }
+    min_hash
+}
