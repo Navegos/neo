@@ -486,3 +486,260 @@ Show Docker Sandboxes version information.
 - **Options:**
   - `--format`: Output format: `table`, `json`, or `yaml`
   - `--json`: Output in JSON format
+
+---
+
+## YAML File Reference
+
+Docker Sandboxes uses two distinct declarative YAML schemas:
+1. **Sandbox Environment Files (`sbxenv.yaml`)** (`schemaVersion: "1"`): Consumed by `sbx env` to configure a sandbox's agent, kits, workspace mounts, ports, environment variables, secrets, MCP servers, host lifecycle hooks, and VM/container resources.
+2. **Kit Descriptors (`<kit>.yaml` / `spec.yaml`)** (`schemaVersion: "3"`): Consumed by BuildKit (`# syntax=docker/sandbox-kit:3`) and `sbx kit` to package agent workloads, tool mixins, or kit sets as OCI artifacts.
+
+> **Important:** Swapping `schemaVersion` values between `sbxenv.yaml` (`"1"`) and Kit v3 descriptors (`"3"`) fails strict validation. Both parsers reject unrecognized keys.
+
+---
+
+### 1. Sandbox Environment File (`sbxenv.yaml`)
+
+#### File Resolution & Merge Semantics
+- **Default lookup (`sbx env run` without `PATH`):** Loads `~/.sbxenv.yaml` (user defaults, if present) as the base layer, then merges `./sbxenv.yaml` from the current working directory.
+- **Explicit `PATH` (`sbx env run ./custom.yaml` or `sbx env run base.sbxenv.yaml local.sbxenv.yaml`):** Skips `~/.sbxenv.yaml` and deep-merges the specified files in declaration order (`docker compose -f` semantics). Passing a directory resolves to `<DIR>/sbxenv.yaml`.
+- **Merge rules:**
+  - Scalar fields: Later files override earlier values.
+  - Maps (`env`, `args`, `secrets`, `bindings`, `registries`, `sandboxOptions`): Merge key-by-key; later keys override earlier ones.
+  - `entrypoint` and `cmd`: Later arrays replace earlier arrays completely.
+  - `ports`: Deduplicated by `(container, protocol)`; later matching entry replaces the entire earlier entry in-place.
+  - `mcp.servers`: Deduplicated by exact `name`; later matching entry replaces the entire earlier entry in-place.
+  - `additionalWorkspaces`: Deduplicated by container `target` (or resolved host `path` when `target` is omitted); later matching entry replaces the entire earlier entry in-place.
+  - `kits`: Entries with the same `source` merge their `args` map by key.
+  - Other lists: Concatenate in declaration order.
+- **Variable interpolation (`${{ ... }}`):**
+  - `${{ env.projectDir }}`: Directory from which `sbx env` was invoked (required root for `workspace` in `~/.sbxenv.yaml`).
+  - `${{ env.fileDir }}`: Absolute path to the directory containing the declaring environment file.
+  - `${{ args.<NAME> }}`: Value of an environment argument declared under `args:` (overridable via `--env-arg NAME=VALUE` or `--env-args-file`).
+  - *Note:* Interpolation cannot be used in YAML keys or inside the `args:` block. Unquoted references are parsed as typed YAML values (e.g., integers/booleans); quote them to preserve strings.
+
+#### Top-Level Fields (`schemaVersion: "1"`)
+
+| Field | Type | Required | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `schemaVersion` | string | **Yes** | — | Must be `"1"` |
+| `agent` | string | **Yes** | — | Built-in agent name (`claude`, `codex`, `cursor`, `devin`, `docker-agent`, `gemini`, `opencode`, `shell`) or manifest name of a workload kit in `kits:` |
+| `name` | string | No | Derived from directory | Sandbox name (overridable via `--name`; disallowed in `~/.sbxenv.yaml`) |
+| `entrypoint` | list of strings | No | Image/kit default | Override container launch entrypoint (exec argv, not shell-expanded) |
+| `cmd` | list of strings | No | Image/kit default | Override default launch arguments appended to `entrypoint` (replaced by CLI args after `--`) |
+| `args` | map | No | `{}` | Environment template arguments (`<NAME>: { default: <VAL>, description: <STR> }`) referenced via `${{ args.<NAME> }}` |
+| `kits` | list | No | `[]` | Workload or mixin kits to apply (strings or objects with `source` and `args`) |
+| `workspace` | string or object | No | None | Primary host directory mount (local-only; unsupported with `--cloud`) |
+| `additionalWorkspaces` | list | No | `[]` | Extra host directory mounts (local-only; unsupported with `--cloud`) |
+| `ports` | list | No | `[]` | Sandbox ports to publish to the host (local-only; unsupported with `--cloud`) |
+| `env` | map | No | `{}` | Key-value environment variables injected into the sandbox |
+| `secrets` | map | No | `{}` | Sandbox-scoped service credentials provisioned on creation |
+| `bindings` | map | No | `{}` | Host-global credential domain bindings merged into `~/.config/sbx/credentials.yaml` |
+| `registries` | map | No | `{}` | Sandbox-scoped private container registry credentials (local-only) |
+| `mcp` | object | No | `{}` | MCP server registrations (`servers:` list; local-only) |
+| `lifecycle` | object | No | `{}` | Host-executed lifecycle hooks (`initialize`, `postCreate`) |
+| `sandboxOptions` | object | No | `{}` | VM/container sizing, template, and runtime feature flags |
+
+#### Nested Field Specifications
+
+**`kits` (list items)**
+Can be a string reference (local path prefixed with `./` or `../`, Git URL, ZIP archive, or OCI image reference) or an object:
+- `source` (string, **required**): Kit path, URL, or OCI image reference.
+- `args` (map, optional): Key-value arguments passed to the kit (overridable via `--kit-arg` / `--kit-args-file`).
+
+**`workspace` & `additionalWorkspaces[]`** *(local-only)*
+- String shorthand (for `workspace` or `additionalWorkspaces[]`): Host path resolved relative to the declaring file's directory.
+- Object form:
+  - `path` (string, **required**): Host directory path.
+  - `target` (string, optional — `additionalWorkspaces` only): Custom mount destination path inside the sandbox.
+  - `readOnly` (bool, optional, default `false`): Mount directory read-only inside the sandbox.
+  - `clone` (bool, optional): Clone the repository instead of bind-mounting directly.
+
+**`ports[]`** *(local-only)*
+- `container` (int, **required**): Sandbox port (`1`–`65535`).
+- `host` (int, optional): Host port to bind (omitting allocates an ephemeral host port).
+- `hostIP` (string, optional): Host IP interface to bind (e.g., `127.0.0.1`).
+- `protocol` (string, optional): `tcp`, `udp`, `tcp4`, or `tcp6` (case-insensitive; defaults to `tcp4`, or `tcp6` for IPv6 `hostIP`).
+
+**`secrets`, `bindings`, and `registries`**
+- `secrets.<SERVICE_NAME>`: Provisions sandbox-scoped credentials from host environment variables, files, or host helper commands (supports `snapshot: true` for `--cloud` to resolve once at creation).
+- `bindings.<SERVICE_NAME>`: Approves/merges per-service domain routing rules into `~/.config/sbx/credentials.yaml` (persists across `sbx env rm` unless `--prune-bindings` is passed).
+- `registries.<REGISTRY_HOST>` *(local-only)*: Provisions sandbox-scoped registry authentication for pulling images inside the sandbox.
+
+**`mcp`** *(local-only)*
+- `mcp.servers[]`:
+  - `name` (string, **required**): Unique server identifier.
+  - `command` (string or list, optional): Host command for local stdio MCP servers (scoped to the environment).
+  - `args` (list of strings, optional): Arguments for `command`.
+  - `env` (map, optional): Environment variables for local MCP process.
+  - `url` (string, optional): Endpoint URL for remote HTTP/SSE MCP servers (registered host-globally).
+
+**`lifecycle`** *(executes on the host with user permissions; skipped with `--skip-host-commands`)*
+- `initialize[]`: Runs on every `sbx env create` and `sbx env run` (including reattaching to an existing sandbox).
+- `postCreate[]`: Runs once immediately after sandbox creation and before interactive attach (receives `SBX_SANDBOX_NAME`).
+  - Entry fields: `name` (string, optional display label), `command` (string, **required**).
+
+**`sandboxOptions`**
+
+| Field | Type | Cloud Support | Description |
+| :--- | :--- | :--- | :--- |
+| `cpus` | int/number | Yes | vCPU allocation for the sandbox |
+| `memory` | string | Yes | Memory limit (e.g., `4g`, `8g`, `12g`; up to host total with warning above 75%) |
+| `rootSize` | string | Yes | Root filesystem disk size |
+| `dockerSize` | string | Yes | Internal `/var/lib/docker` storage disk size |
+| `clonedWorkspaceSize` | string | No | Disk allocation for cloned workspaces |
+| `template` | string | No | Custom sandbox template image reference |
+| `profile` | string | No | Sandbox runtime profile |
+| `pullPolicy` | string | No | Image pull policy (`always`, `missing`, `never`) |
+| `skills` | string | No | Shared skills mount mode (`readonly`, `readwrite`, `off`) |
+| `fuse` | bool | No | Enable FUSE filesystem support inside local sandboxes |
+| `gpu` | bool/config | No | Enable GPU passthrough |
+| `usb` | bool/config | No | Enable USB passthrough |
+| `display` | bool/config | No | Enable graphical display forwarding |
+| `writableEnvFiles` | bool | No | Allow the sandbox agent to modify `sbxenv.yaml` (default `false`; mounted read-only by default) |
+
+#### Complete `sbxenv.yaml` Example
+```yaml
+schemaVersion: "1"
+name: web-platform
+agent: codex
+workspace: ./web-app
+additionalWorkspaces:
+  - path: ./shared-components
+  - path: ./architecture-docs
+    readOnly: true
+
+args:
+  nodeEnv:
+    default: development
+
+env:
+  NODE_ENV: ${{ args.nodeEnv }}
+  GOFLAGS: -mod=readonly
+
+kits:
+  - source: docker.io/sbx/playwright:1.61.1
+  - source: ./kits/custom-linter
+    args:
+      strict: "true"
+
+ports:
+  - container: 3000
+    host: 3000
+    protocol: tcp
+
+bindings:
+  github:
+    domains:
+      - api.github.com
+      - github.com
+
+mcp:
+  servers:
+    - name: local-docs
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "./architecture-docs"]
+
+lifecycle:
+  postCreate:
+    - name: Verify sandbox health
+      command: sbx exec "$SBX_SANDBOX_NAME" node --version
+
+sandboxOptions:
+  cpus: 4
+  memory: 8g
+  fuse: true
+  writableEnvFiles: false
+```
+
+---
+
+### 2. Kit v3 Descriptor YAML (`<kit>.yaml`)
+
+Kit v3 descriptors are compiled into OCI images using BuildKit (`# syntax=docker/sandbox-kit:3`). A kit can be structured as:
+- **Companion pair:** `<name>.yaml` + `<name>.dockerfile` (matched by filename stem).
+- **Single-file inline:** `<name>.yaml` containing an inline `build:` block.
+- **Comment descriptor:** A Dockerfile embedding YAML declarations inside a `# kit:` comment block.
+- **Kit set (`kind: set`):** A YAML descriptor composing multiple published kits via `kits:` without a Dockerfile.
+
+#### Top-Level Descriptor Fields (`schemaVersion: "3"`)
+
+```yaml
+# syntax=docker/sandbox-kit:3
+# yaml-language-server: $schema=https://raw.githubusercontent.com/docker/sandbox-kit-spec/main/schema/kit.schema.json
+```
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `schemaVersion` | string | **Yes** | Must be `"3"` |
+| `kind` | string | **Yes** | Kit role: `workload` (base agent/shell environment), `mixin` (tool/policy overlay), or `set` (curated composition of kits) |
+| `displayName` | string | Recommended | Human-readable kit title |
+| `description` | string | Recommended | Summary of what the kit provides |
+| `version` | string | Recommended | Semantic version string (required for publishing) |
+| `author` | string | No | Author or organization name |
+| `sourceUrl` | string | Recommended | Upstream source repository URL |
+| `iconUrl` | string | No | URL to kit icon asset |
+| `licenses` | list of strings | Recommended | SPDX license identifiers (e.g., `[MIT]`, `[Apache-2.0]`) |
+| `provides` | list of strings | No | Matchable virtual capability/package identifiers (e.g., `["gh@2.72.0"]`) |
+| `requires` | list of strings | No | Required virtual identifiers that must be satisfied by the composed kit set |
+| `conflicts` | list of strings | No | Virtual identifiers that cannot coexist with this kit |
+| `args` | map | No | Build-time and create-time typed arguments exposed as `${{ kit.args.<NAME> }}` |
+| `build` | string/object | Conditional | Inline Dockerfile content (for single-file kits without a companion `.dockerfile`) |
+| `kits` | list | Conditional | Component kits to compose (required when `kind: set`; entries take `ref:` and optional `args:`) |
+| `capabilities` | list | No | Typed, versioned host resource grants and runtime behaviors |
+
+#### Well-Known Capabilities (`capabilities[]`)
+Each item in `capabilities` specifies `type` (required), `optional` (bool, default `false`), `description` (string, optional), and capability-specific `config`:
+
+| Capability Type | Shape | Permission Gate | Purpose & Key `config` Fields |
+| :--- | :--- | :--- | :--- |
+| `com.docker.sandbox/sbx@1` | Singleton | No | Declares workload compliance for `sbx` (no `config`; requires `/bin/sh`, `/bin/bash`, non-empty image `USER` in `/etc/passwd`, and `BASH_ENV`) |
+| `com.docker.sandbox/lifecycle@1` | Singleton | No | `install[]` (once at create: `command`, `user`, `env[]`, `description`), `startup[]` (every boot: `command`, `user`, `background`, `env[]`), `files[]` (`path`, `content`, `mode`, `overwrite`), and `interactive` (argv tail for TTY sessions) |
+| `com.docker.sandbox/network-policy@1` | Instance | Yes | Outbound network allowlists split by phase (`install.allow[]`, `runtime.allow[]`) |
+| `com.docker.sandbox/credential@1` | Instance | Yes | Proxy-injected service credentials (`service`, `phase`: `install`\|`runtime`, `inject[]` domains — every injected domain must be allowed in that phase's `network-policy@1`) |
+| `com.docker.sandbox/ssh-agent@1` | Singleton | Yes | Requests host SSH agent socket forwarding into the sandbox |
+| `com.docker.sandbox/port@1` | Instance | Yes | Declares inbound container port to publish (`name`, `container`: `1..65535`, `transport`: `tcp`\|`udp`, `family`: `ipv4`\|`ipv6`\|`dual`) |
+| `com.docker.sandbox/agent-context@2` | Instance | No | Injects inline agent guidance (`content`, optional `directory` and `filename`; replaces `@1` `contentFile`) |
+| `com.docker.sandbox/agent-interactive-sessions@1` | Singleton | No | Maps interactive TUI CLI verbs (`prompt`, `resume`, `continue`, `newSession`, `sessionPicker`) |
+| `com.docker.sandbox/agent-sessions@1` | Singleton | No | Maps headless/programmatic session CLI verbs |
+| `com.docker.sandbox/agent-skills@1` | Singleton | No | Declares support for mounting host shared skills |
+| `com.docker.sandbox/long-running@1` | Singleton | No | Prevents session-idle auto-stop when all clients disconnect (no `config`) |
+| `com.docker.sandbox/dockerd@1` | Singleton | Yes | Provisions private persistent `/var/lib/docker` storage and starts `dockerd` inside the sandbox |
+| `com.docker.sandbox/kit-registry@1` | Singleton | Yes | Routes sandbox access to the runtime's local Kit registry endpoint (no `config`) |
+
+#### Complete Kit v3 Mixin Example (`gh.yaml`)
+```yaml
+# syntax=docker/sandbox-kit:3
+schemaVersion: "3"
+kind: mixin
+displayName: GitHub CLI
+description: gh CLI overlay with GitHub API credential injection
+sourceUrl: https://github.com/cli/cli
+version: "2.72.0"
+licenses: [MIT]
+provides: ["gh@2.72.0"]
+
+capabilities:
+  - type: com.docker.sandbox/network-policy@1
+    config:
+      runtime:
+        allow:
+          - api.github.com
+          - github.com
+
+  - type: com.docker.sandbox/credential@1
+    optional: true
+    description: GitHub API access for gh
+    config:
+      service: github
+      phase: runtime
+      inject:
+        - domain: api.github.com
+        - domain: github.com
+
+  - type: com.docker.sandbox/agent-context@2
+    config:
+      content: |
+        Use `gh` for GitHub pull requests, issues, and repository queries.
+```

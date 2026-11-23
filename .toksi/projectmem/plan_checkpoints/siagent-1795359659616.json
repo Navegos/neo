@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "plan_id": "siagent-1795359659616",
+  "repo_root": "",
+  "title": "hello",
+  "status": "completed",
+  "current_step": 2,
+  "total_steps": 2,
+  "active_effort": "Medium",
+  "active_model": "",
+  "completed_steps": [
+    "analyze",
+    "execute"
+  ],
+  "pending_steps": [],
+  "steps": [],
+  "active_plugins": [],
+  "dirty_files_sha256": {},
+  "durable_journal_seq": 0,
+  "updated_at": "2026-11-22T15:01:02Z"
+}

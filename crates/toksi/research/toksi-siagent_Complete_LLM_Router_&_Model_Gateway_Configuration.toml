@@ -1,0 +1,258 @@
+# <toksi-siagent> Complete LLM Router & Model Gateway Configuration
+
+# <toksi-siagent> uses all tools and services Out of the box ("off the back").
+
+# <here_byok_profiles> here can be the full [[byok_profiles]] list or several or one from [[byok_profiles]]id.
+
+[toksi_siagent_router]
+gateway = "Model Gateway" # probably not necessary we have our Gateway internally.
+router = "LLM Router"  # probably not necessary we have our LLM router and semantic-router internally.
+default_fallback = "agy-adc-gemini-4-neon" # <here_byok_profiles>
+
+# =====================================================================
+# 1. META-COGNITION & GOVERNANCE (THE "SELF")
+# =====================================================================
+
+[toksi_siagent_router.1_meta_cognition_governance.orchestrate_route]
+model_tier = "ultra-low-latency-classifier"
+primary_model = "claude-haiku-5.5" # <here_byok_profiles>
+fallback_model = "gpt-6-luna" # <here_byok_profiles>
+reasoning_effort = "low"
+temperature = 1.0 # Required baseline for Claude 5.5 / reasoning; determinism controlled via effort = "low"
+top_p = 0.85 # Tight nucleus for consistent routing decisions
+top_k = 20 # Caps low-probability tail tokens during route classification
+architecture = ["Orchestrator", "LLM Router", "Model Gateway", "State Machine", "Event Bus", "Message Broker"]
+
+[toksi_siagent_router.1_meta_cognition_governance.reflect_self_critique]
+model_tier = "deep-reasoning-critic"
+primary_model = "gpt-6-astra" # <here_byok_profiles>
+fallback_model = "gemini-3.1-pro" # <here_byok_profiles>
+reasoning_effort = "high"
+temperature = 1.0 # Prevents token looping on Gemini 3.1 Pro & GPT-6 Astra reasoning paths
+top_p = 0.95 # Preserves broad candidate space for thorough flaw/hallucination critique
+top_k = 40 # Moderate tail cap to avoid erratic tokens during critique
+architecture = ["Verification Engine", "Eval Harness", "Tracing Engine", "Telemetry Engine"]
+
+[toksi_siagent_router.1_meta_cognition_governance.align_guardrail]
+model_tier = "deterministic-policy-verifier"
+primary_model = "claude-haiku-5.5" # <here_byok_profiles>
+fallback_model = "gemini-3.1-flash-lite" # <here_byok_profiles>
+reasoning_effort = "low"
+temperature = 1.0 # Safe default for Gemini 3.1 Flash-Lite & Claude 5.5 policy verification
+top_p = 0.8 # Narrow nucleus for conservative policy/safety verification
+top_k = 15 # Strict candidate cap to keep guardrail evaluations predictable
+architecture = ["Guardrails", "Policy-as-Code Engine", "IAM Attestation Layer", "Circuit Breaker", "Kill Switch", "HITL Gateway"]
+
+[toksi_siagent_router.1_meta_cognition_governance.evolve_self_improve]
+model_tier = "frontier-meta-architect"
+primary_model = "claude-fable-5.2" # <here_byok_profiles>
+fallback_model = "gpt-6-astra" # <here_byok_profiles>
+reasoning_effort = "max"
+temperature = 1.0 # Required when effort = "max" is active
+top_p = 0.95 # Allows wide exploration of new skills, heuristics, and prompt revisions
+top_k = 50 # Balanced cap for frontier architectural synthesis
+architecture = ["Eval Harness", "Checkpointer", "Immutable Audit Log", "Tool Registry"]
+
+# =====================================================================
+# 2. MEMORY & WORLD MODELING
+# =====================================================================
+
+[toksi_siagent_router.2_memory_world_modeling.recall_retrieve]
+model_tier = "retrieval-embedding-rerank"
+embedding_model = "text-embedding-3-large" # <here_byok_profiles>
+reranker_model = "cohere-rerank-v3.5" # <here_byok_profiles>
+query_rewriter_model = "gpt-6-luna" # <here_byok_profiles>
+reasoning_effort = "low"
+top_p = 0.85 # Focused query rewriting without drifting from user intent
+top_k = 20 # Limits query expansion noise
+architecture = ["Context Store", "Episodic Memory", "Semantic Memory", "Vector Database", "Knowledge Graph", "Embedding Model", "Reranker", "Semantic Cache"]
+
+[toksi_siagent_router.2_memory_world_modeling.consolidate_memorize]
+model_tier = "structured-extraction-compression"
+primary_model = "gemini-3.6-flash" # <here_byok_profiles>
+fallback_model = "claude-sonnet-5.5" # <here_byok_profiles>
+reasoning_effort = "medium"
+temperature = 1.0 # Gemini 3.6+ ignores sub-1.0 values; Claude 5.5 requires 1.0 with effort enabled
+top_p = 0.85 # Keeps memory extraction structured and faithful to session facts
+top_k = 25 # Prevents noisy tokens when compressing into structured memory
+architecture = ["Ingestion Pipeline", "Episodic Memory", "Semantic Memory", "Knowledge Graph", "Checkpointer"]
+
+[toksi_siagent_router.2_memory_world_modeling.simulate_predict]
+model_tier = "causal-world-simulation"
+primary_model = "gemini-4-neon" # <here_byok_profiles>
+fallback_model = "gpt-6-astra" # <here_byok_profiles>
+reasoning_effort = "high"
+temperature = 1.0 # Gemini 4 & GPT-6 Astra standard reasoning baseline
+top_p = 0.95 # Supports multi-branch consequence modeling and scenario rollouts
+top_k = 40 # Trims extreme outliers while retaining plausible counterfactuals
+architecture = ["World Model", "Hierarchical Planner", "Inference Engine"]
+
+# =====================================================================
+# 3. DISCOVERY & EPISTEMICS
+# =====================================================================
+
+[toksi_siagent_router.3_discovery_epistemics.chat_interface]
+model_tier = "high-elo-conversational"
+primary_model = "claude-sonnet-5.5" # <here_byok_profiles>
+fallback_model = "gemini-3.6-flash" # <here_byok_profiles>
+reasoning_effort = "medium"
+temperature = 1.0 # Standard conversational baseline for Claude 5.5 & Gemini 3.6
+top_p = 0.92 # Natural, engaging conversational phrasing
+top_k = 40 # Standard candidate pool for clear dialogue
+architecture = ["HITL Gateway", "Context Store", "LLM Router", "Guardrails"]
+
+[toksi_siagent_router.3_discovery_epistemics.brainstorm_diverge]
+model_tier = "creative-lateral-synthesis"
+primary_model = "claude-fable-5.2" # <here_byok_profiles>
+fallback_model = "gemini-4-neon" # <here_byok_profiles>
+reasoning_effort = "high"
+temperature = 1.0 # Keeps reasoning enabled while allowing lateral synthesis
+top_p = 0.98 # Wide nucleus for cross-domain associations and novel hypotheses
+top_k = 64 # Larger candidate set to encourage divergent/unconventional ideas
+architecture = ["World Model", "Inference Engine", "Knowledge Graph"]
+
+[toksi_siagent_router.3_discovery_epistemics.research_ground]
+model_tier = "long-context-browser-synthesis"
+primary_model = "gemini-4-neon" # <here_byok_profiles>
+fallback_model = "gpt-6.1-sol" # <here_byok_profiles>
+reasoning_effort = "high"
+temperature = 1.0 # Gemini 4 & GPT-6.1 Sol standard reasoning baseline
+top_p = 0.9 # Favors factual grounding and accurate source synthesis
+top_k = 30 # Constrains speculative wording during evidence synthesis
+architecture = ["MCP Server", "Tool Registry", "Ingestion Pipeline", "Reranker", "Vector Database"]
+
+[toksi_siagent_router.3_discovery_epistemics.synthesize_abstract]
+model_tier = "1m-context-distillation"
+primary_model = "gemini-3.1-pro" # <here_byok_profiles>
+fallback_model = "claude-opus-5.5" # <here_byok_profiles>
+reasoning_effort = "high"
+temperature = 1.0 # Prevents Gemini 3.1 Pro long-context stalling/looping
+top_p = 0.9 # Keeps distillation focused on core principles across large contexts
+top_k = 35 # Moderate cap to preserve clarity over long-context summaries
+architecture = ["Semantic Memory", "Knowledge Graph", "Inference Engine"]
+
+# =====================================================================
+# 4. PEDAGOGY & KNOWLEDGE TRANSFER
+# =====================================================================
+
+[toksi_siagent_router.4_pedagogy_knowledge_transfer.study_deconstruct]
+model_tier = "pedagogical-axiom-builder"
+primary_model = "claude-sonnet-5.5" # <here_byok_profiles>
+fallback_model = "gemini-3.1-pro" # <here_byok_profiles>
+reasoning_effort = "medium"
+temperature = 1.0 # Safe baseline for both Claude Sonnet 5.5 and Gemini 3.1 Pro
+top_p = 0.9 # Clear, structured explanation of foundational concepts
+top_k = 35 # Keeps pedagogical breakdowns well-focused
+architecture = ["Semantic Memory", "Knowledge Graph", "Hierarchical Planner"]
+
+[toksi_siagent_router.4_pedagogy_knowledge_transfer.coach_socratic]
+model_tier = "adaptive-tutor"
+primary_model = "claude-fable-5.2" # <here_byok_profiles>
+fallback_model = "claude-sonnet-5.5" # <here_byok_profiles>
+reasoning_effort = "medium"
+temperature = 1.0 # Required baseline when effort parameter is passed to Claude 5.x
+top_p = 0.92 # Adaptive, varied Socratic questioning without losing pedagogical focus
+top_k = 40 # Supports nuanced prompts tailored to learner responses
+architecture = ["Episodic Memory", "Context Store", "HITL Gateway"]
+
+# =====================================================================
+# 5. STRATEGY & ARCHITECTURE
+# =====================================================================
+
+[toksi_siagent_router.5_strategy_architecture.plan_decompose]
+model_tier = "hierarchical-dag-planner"
+primary_model = "gpt-6-astra" # <here_byok_profiles>
+fallback_model = "gemini-3.1-pro" # <here_byok_profiles>
+reasoning_effort = "high"
+temperature = 1.0 # Prevents reasoning degradation on GPT-6 Astra & Gemini 3.1 Pro
+top_p = 0.92 # Balances structural rigor with viable fallback/dependency paths
+top_k = 35 # Keeps DAG decomposition disciplined and coherent
+architecture = ["Hierarchical Planner", "World Model", "State Machine", "Checkpointer"]
+
+[toksi_siagent_router.5_strategy_architecture.toolsmith_architect]
+model_tier = "agentic-tool-engineer"
+primary_model = "gpt-6.2-astra" # <here_byok_profiles>
+fallback_model = "claude-opus-5.5" # <here_byok_profiles>
+reasoning_effort = "high"
+temperature = 1.0 # Required baseline for GPT-6.2 Astra & Claude Opus 5.5 reasoning
+top_p = 0.9 # High precision for tool schemas, contracts, and API wrappers
+top_k = 30 # Limits syntax/schema drift in generated tool definitions
+architecture = ["Tool Registry", "MCP Server", "Code Sandbox", "IAM Attestation Layer"]
+
+# =====================================================================
+# 6. AUTONOMOUS EXECUTION
+# =====================================================================
+
+[toksi_siagent_router.6_autonomous_execution.write_code_build]
+model_tier = "frontier-software-engineering"
+primary_model = "gpt-6.2-astra" # <here_byok_profiles>
+fallback_model = "claude-opus-5.5" # <here_byok_profiles>
+reasoning_effort = "high"
+temperature = 1.0 # Required baseline for GPT-6.2 Astra & Claude Opus 5.5 reasoning
+top_p = 0.9 # Keeps code generation idiomatic and low-variance
+top_k = 30 # Reduces low-probability syntax/identifier errors
+architecture = ["Code Sandbox", "Inference Engine", "Checkpointer"]
+
+[toksi_siagent_router.6_autonomous_execution.refactor_optimize]
+model_tier = "algorithmic-efficiency-coder"
+primary_model = "claude-opus-5.5" # <here_byok_profiles>
+fallback_model = "gpt-6.1-sol" # <here_byok_profiles>
+reasoning_effort = "high"
+temperature = 1.0 # Required baseline for Claude Opus 5.5 & GPT-6.1 Sol reasoning
+top_p = 0.9 # Focused optimization while retaining algorithmic alternatives
+top_k = 30 # Keeps refactored code clean and idiomatic
+architecture = ["Code Sandbox", "Telemetry Engine", "Semantic Cache"]
+
+[toksi_siagent_router.6_autonomous_execution.act_operate]
+model_tier = "high-reliability-tool-caller"
+primary_model = "gemini-4-neon" # <here_byok_profiles>
+fallback_model = "gpt-6.1-terra" # <here_byok_profiles>
+reasoning_effort = "medium"
+temperature = 1.0 # Gemini 4 & GPT-6.1 Terra standard baseline; tool schemas enforce determinism
+top_p = 0.85 # Tight nucleus for reliable shell/API/infrastructure actions
+top_k = 20 # Restricts tail tokens during operational execution
+architecture = ["Agent Runtime Daemon", "MCP Server", "Tool Registry", "IAM Attestation Layer", "Policy-as-Code Engine"]
+
+# =====================================================================
+# 7. VERIFICATION & RESILIENCE
+# =====================================================================
+
+[toksi_siagent_router.7_verification_resilience.running_tests_verify]
+model_tier = "fast-deterministic-verifier"
+primary_model = "deepseek-v4.1-flash" # <here_byok_profiles>
+fallback_model = "gpt-6.1-terra" # <here_byok_profiles>
+reasoning_effort = "low"
+temperature = 0.0 # Non-reasoning fast flash verifier benefits from strict greedy decoding
+top_p = 0.1 # Near-greedy nucleus matching deterministic verification
+top_k = 1 # Greedy top-1 selection for maximum reproducibility
+architecture = ["Verification Engine", "Code Sandbox", "Eval Harness"]
+
+[toksi_siagent_router.7_verification_resilience.debug_heal]
+model_tier = "root-cause-trace-surgeon"
+primary_model = "gpt-6.2-astra" # <here_byok_profiles>
+fallback_model = "claude-opus-5.5" # <here_byok_profiles>
+reasoning_effort = "high"
+temperature = 1.0 # Required baseline for GPT-6.2 Astra & Claude Opus 5.5 deep trace analysis
+top_p = 0.9 # Keeps root-cause hypotheses grounded in stack traces and telemetry
+top_k = 30 # Balances diagnostic thoroughness with precision
+architecture = ["Tracing Engine", "Telemetry Engine", "Code Sandbox", "Checkpointer"]
+
+[toksi_siagent_router.7_verification_resilience.audit_red_team]
+model_tier = "adversarial-security-auditor"
+primary_model = "gpt-6-astra" # <here_byok_profiles>
+fallback_model = "claude-fable-5.2" # <here_byok_profiles>
+reasoning_effort = "max"
+temperature = 1.0 # Required baseline when effort = "max" is active
+top_p = 0.95 # Explores diverse attack vectors, edge cases, and bypasses
+top_k = 45 # Preserves adversarial creativity without drifting off-target
+architecture = ["Verification Engine", "Policy-as-Code Engine", "Immutable Audit Log", "Circuit Breaker"]
+
+[toksi_siagent_router.7_verification_resilience.document_log]
+model_tier = "fast-structured-writer"
+primary_model = "gemini-3.6-flash" # <here_byok_profiles>
+fallback_model = "claude-sonnet-5.5" # <here_byok_profiles>
+reasoning_effort = "low"
+temperature = 1.0 # Safe baseline for Gemini 3.6 Flash & Claude Sonnet 5.5
+top_p = 0.85 # Keeps ADRs, logs, and telemetry summaries concise and uniform
+top_k = 20 # Limits stylistic drift in audit/documentation records
+architecture = ["Immutable Audit Log", "Tracing Engine", "Telemetry Engine", "Ingestion Pipeline"]
