@@ -210,6 +210,9 @@ impl Default for ByokProfileConfig {
 pub struct TestConfig {
     pub incremental: bool,
     pub baseline_path: String,
+    pub live_safe_isolation: bool,
+    pub sandbox_backend: String,
+    pub test_image: String,
 }
 
 impl Default for TestConfig {
@@ -217,6 +220,9 @@ impl Default for TestConfig {
         Self {
             incremental: true,
             baseline_path: ".toksi/test-baseline.json".to_string(),
+            live_safe_isolation: true,
+            sandbox_backend: "docker".to_string(),
+            test_image: "toksi-test:local".to_string(),
         }
     }
 }
@@ -325,7 +331,57 @@ impl Default for SecurityConfig {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(default)]
+pub struct SupervisorConfig {
+    pub restart_backoff_ms: u64,
+    pub max_restarts_per_min: u32,
+    pub heartbeat_interval_ms: u64,
+    pub drain_timeout_ms: u64,
+}
+
+impl Default for SupervisorConfig {
+    fn default() -> Self {
+        Self {
+            restart_backoff_ms: 500,
+            max_restarts_per_min: 10,
+            heartbeat_interval_ms: 3000,
+            drain_timeout_ms: 2000,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct SiagentModeOverrideConfig {
+    pub model_tier: Option<String>,
+    pub primary_model: Option<String>,
+    pub fallback_model: Option<String>,
+    pub embedding_model: Option<String>,
+    pub reranker_model: Option<String>,
+    pub query_rewriter_model: Option<String>,
+    pub reasoning_effort: Option<String>,
+    pub temperature: Option<f64>,
+    pub top_p: Option<f64>,
+    pub top_k: Option<u32>,
+    #[serde(default)]
+    pub architecture: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct ToksiSiagentRouterConfig {
+    pub gateway: Option<String>,
+    pub router: Option<String>,
+    pub default_fallback: Option<String>,
+    #[serde(flatten)]
+    pub domains: std::collections::BTreeMap<
+        String,
+        std::collections::BTreeMap<String, SiagentModeOverrideConfig>,
+    >,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct ToksiTomlConfig {
     pub general: GeneralConfig,
@@ -337,7 +393,10 @@ pub struct ToksiTomlConfig {
     pub byok_profiles: Vec<ByokProfileConfig>,
     pub repositories: RepositoriesConfig,
     pub security: SecurityConfig,
+    #[serde(alias = "testing")]
     pub test: TestConfig,
+    pub supervisor: SupervisorConfig,
+    pub toksi_siagent_router: ToksiSiagentRouterConfig,
 }
 
 impl ToksiTomlConfig {

@@ -644,23 +644,25 @@ pub(crate) fn kilo_projectmem_server(command: &[String]) -> bool {
 
 pub(crate) fn kilo_context_server(command: &[String]) -> bool {
     if command.len() == 1 {
-        return kilo_command_base(&command[0]) == "context-mode";
+        return matches!(kilo_command_base(&command[0]).as_str(), "ctxmode" | "context-mode");
     }
     if command.len() == 3
         && kilo_command_base(&command[0]) == "npx"
         && command[1] == "--no-install"
-        && command[2] == "context-mode"
+        && (command[2] == "ctxmode" || command[2] == "context-mode")
     {
         return true;
     }
     if command.len() == 5
         && kilo_cmd_shim_server(&command[..3], "npx")
         && command[3] == "--no-install"
-        && command[4] == "context-mode"
+        && (command[4] == "ctxmode" || command[4] == "context-mode")
     {
         return true;
     }
-    command.len() == 3 && kilo_cmd_shim_server(command, "context-mode")
+    command.len() == 3
+        && (kilo_cmd_shim_server(command, "ctxmode")
+            || kilo_cmd_shim_server(command, "context-mode"))
 }
 
 pub(crate) fn kilo_codegraph_server(command: &[String]) -> bool {

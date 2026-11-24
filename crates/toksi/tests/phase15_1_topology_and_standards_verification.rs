@@ -149,18 +149,21 @@ fn test_phase15_1_standard_tool_hooks_and_mcp_naming() {
     // 1. Uniform hook commands: <tool>-hook <agent>
     assert_eq!(standard_hook_command("codegraph", "agy"), vec!["codegraph-hook", "agy"]);
     assert_eq!(standard_hook_command("projectmem", "copilot"), vec!["projectmem-hook", "copilot"]);
-    assert_eq!(standard_hook_command("context-mode", "cursor"), vec!["context-hook", "cursor"]);
+    assert_eq!(standard_hook_command("context-mode", "cursor"), vec!["ctxmode-hook", "cursor"]);
+    assert_eq!(standard_hook_command("ctxmode", "cursor"), vec!["ctxmode-hook", "cursor"]);
     assert_eq!(standard_hook_command("rtk", "claude"), vec!["rtk-hook", "claude"]);
 
     // 2. Normalized MCP tool names
     assert_eq!(normalize_mcp_tool_id("toksi-projectmem"), "projectmem");
-    assert_eq!(normalize_mcp_tool_id("toksi-context-mode"), "context");
-    assert_eq!(normalize_mcp_tool_id("context-mode"), "context");
+    assert_eq!(normalize_mcp_tool_id("toksi-context-mode"), "ctxmode");
+    assert_eq!(normalize_mcp_tool_id("context-mode"), "ctxmode");
+    assert_eq!(normalize_mcp_tool_id("ctxmode"), "ctxmode");
     assert_eq!(normalize_mcp_tool_id("toksi-codegraph-index"), "codegraph");
 
     // 3. MCP settings to skills mapping
     assert_eq!(agent_mcp_to_skills_path(".gemini", "codegraph"), ".gemini/skills/codegraph");
-    assert_eq!(agent_mcp_to_skills_path(".copilot", "context"), ".copilot/skills/context");
+    assert_eq!(agent_mcp_to_skills_path(".copilot", "ctxmode"), ".copilot/skills/ctxmode");
+    assert_eq!(agent_mcp_to_skills_path(".copilot", "context"), ".copilot/skills/ctxmode");
     assert_eq!(agent_mcp_to_skills_path(".claude", "projectmem"), ".claude/skills/projectmem");
 
     // 4. Agent taxonomy: CLI vs Editor/IDE (non-collapsing)
@@ -229,7 +232,7 @@ fn test_phase15_1_ai_memory_layout_and_dashboard_in_path() {
     let count = consolidate_nested_toksi_dirs(repo).expect("consolidate");
     assert!(count >= 1);
     assert!(!legacy_ai.exists());
-    assert!(repo.join(".toksi").join("ai-memory").join("wiki.md").exists());
+    assert!(repo.join(".toksi").join("aimemory").join("wiki.md").exists());
 
     let agents_val = toksi::dashboard::api::handle_agents();
     let arr = agents_val.as_array().expect("agents array");

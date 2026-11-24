@@ -305,13 +305,13 @@ pub fn run_handoff_cli(args: &[String]) -> i32 {
 
 pub fn run_aimemory_cli(args: &[String]) -> i32 {
     if args.is_empty() {
-        println!("{}", crate::aimemory::slash::handle_slash_command("/ai-memory help", None));
+        println!("{}", crate::aimemory::slash::handle_slash_command("/aimemory help", None));
         return 0;
     }
     if args[0] == "handoff" {
         return run_handoff_cli(&args[1..]);
     }
-    let cmd = format!("/ai-memory {}", args.join(" "));
+    let cmd = format!("/aimemory {}", args.join(" "));
     let out = crate::aimemory::slash::handle_slash_command(&cmd, None);
     println!("{}", out);
     0

@@ -17,9 +17,9 @@ use super::security::is_own_file;
 use super::store::find_repo_root_and_subproject;
 
 pub const GEMINI_REPLACE_LEAD: &str =
-    "the tool ran and succeeded; context-mode indexed its full output, and this is the part that answers the call:\n";
+    "the tool ran and succeeded; ctxmode indexed its full output, and this is the part that answers the call:\n";
 
-/// Entrypoint for native hook execution: `toksi context-hook <agent>`
+/// Entrypoint for native hook execution: `toksi ctxmode-hook <agent>`
 pub fn run_context_hook(args: &[String], input: &[u8]) -> i32 {
     let agent_name = resolve_agent(args);
 
@@ -68,7 +68,7 @@ pub fn run_context_hook(args: &[String], input: &[u8]) -> i32 {
     let event_name = extract_event_name(payload);
     let worktree = normalize_path(&repo_root.to_string_lossy());
 
-    let db_path = repo_root.join(".toksi").join("context").join("context.db");
+    let db_path = super::fts::resolve_content_store_path(Some(&repo_root));
     let mut store = match ContentStore::open(&db_path) {
         Ok(s) => s,
         Err(_) => return 0,

@@ -1,6 +1,6 @@
 # Phase 17.5: Native `toksi` Coding CLI & Swarm (`src/agent_runtime/`), `DirectWireBus`, & 16 In-Chat Slash Commands
 
-> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -72,3 +72,7 @@ Requirements:
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
 - **Wave 19 Reconciliation:** `16` core slash commands implemented on disk (`CORE_SLASH_COMMANDS.len() == 16` kept green during Wave 19 doc sync); `PHASE_19_1`/`19_5`/`19_6` expand runtime to `21` commands (`/ctxmode`, `/workforce`, `/spec`, `/train`, `/serve`, `/voice`).
+
+## Wave 20 (v7.0) Synchronization Addendum
+- Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).
+- Enforces `<toksi-siagent>` (`_worker siagent`, 22 Orchestrator Modes, 29 slash commands), decoupled 10-Tab UI, `~/.toksi/services/*.db`, `ctxmode`/`aimemory` renames, `docker/compose.test.yaml`, 11 AI/ML Pillars, Distributed Cluster Stack (`src/cluster/`), and OpenTelemetry Rust (`gen_ai.*`).

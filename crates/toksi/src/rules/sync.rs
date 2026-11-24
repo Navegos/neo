@@ -200,7 +200,7 @@ impl SyncReport {
 /// Known tool identifiers that get wired into `skills/<tool>`.
 pub const MANAGED_MCP_TOOLS: &[&str] = &[
     "codegraph",
-    "context",
+    "ctxmode",
     "projectmem",
     "rtk",
     "icm",
@@ -670,7 +670,7 @@ fn default_mcp_servers_json(tools: &[String]) -> Value {
     for t in tools {
         let (key, subcmd) = match t.as_str() {
             "codegraph" => ("codegraph", "graph"),
-            "context" | "context-mode" => ("context", "ctx"),
+            "ctxmode" | "context" | "context-mode" => ("ctxmode", "ctxmode"),
             "projectmem" => ("projectmem", "mem"),
             "icm" => ("icm", "icm"),
             "aimemory" | "ai-memory" => ("aimemory", "aimem"),
@@ -753,22 +753,56 @@ pub fn wire_mcp_skills_for_dirs(
         let mut effective_tools: BTreeSet<String> = tools.iter().cloned().collect();
         for cfg_name in [".mcp.json", "mcp.json", "mcp_config.json", "mcp-config.json"] {
             let cfg_path = agent_path.join(cfg_name);
-            if let Ok(raw) = fs::read_to_string(&cfg_path) {
-                if let Ok(Value::Object(root)) = serde_json::from_str::<Value>(&raw) {
-                    if let Some(Value::Object(servers)) = root.get("mcpServers") {
-                        for k in servers.keys() {
-                            let canonical = crate::agents::normalize_mcp_tool_id(k);
-                            effective_tools.insert(canonical.to_string());
-                        }
-                    }
+            if let Ok(raw) = fs::read_to_string(&cfg_path)
+                && let Ok(Value::Object(root)) = serde_json::from_str::<Value>(&raw)
+                && let Some(Value::Object(servers)) = root.get("mcpServers")
+            {
+                for k in servers.keys() {
+                    let canonical = crate::agents::normalize_mcp_tool_id(k);
+                    effective_tools.insert(canonical.to_string());
                 }
             }
         }
 
         for tool in &effective_tools {
-            let tool_mcp_dir = mcp_dir.join(tool);
-            let tool_mcp_file = mcp_dir.join(format!("{}.md", tool));
-            let tool_mcp_json = mcp_dir.join(format!("{}.json", tool));
+            let aliases: &[&str] = match tool.as_str() {
+                "ctxmode" => &["ctxmode", "context", "context-mode"],
+                "aimemory" => &["aimemory", "ai-memory"],
+                _ => &[],
+            };
+            let tool_mcp_dir = if mcp_dir.join(tool).is_dir() {
+                mcp_dir.join(tool)
+            } else if let Some(found) = aliases
+                .iter()
+                .map(|a| mcp_dir.join(a))
+                .find(|p| p.is_dir())
+            {
+                found
+            } else {
+                mcp_dir.join(tool)
+            };
+            let tool_mcp_file = if mcp_dir.join(format!("{}.md", tool)).is_file() {
+                mcp_dir.join(format!("{}.md", tool))
+            } else if let Some(found) = aliases
+                .iter()
+                .map(|a| mcp_dir.join(format!("{}.md", a)))
+                .find(|p| p.is_file())
+            {
+                found
+            } else {
+                mcp_dir.join(format!("{}.md", tool))
+            };
+            let tool_mcp_json = if mcp_dir.join(format!("{}.json", tool)).is_file() {
+                mcp_dir.join(format!("{}.json", tool))
+            } else if let Some(found) = aliases
+                .iter()
+                .map(|a| mcp_dir.join(format!("{}.json", a)))
+                .find(|p| p.is_file())
+            {
+                found
+            } else {
+                mcp_dir.join(format!("{}.json", tool))
+            };
             let tool_skill = skills_dir.join(tool);
 
             if tool_mcp_dir.is_dir() {
@@ -788,12 +822,12 @@ pub fn wire_mcp_skills_for_dirs(
             } else if tool_mcp_file.is_file() || tool_mcp_json.is_file() {
                 fs::create_dir_all(&tool_skill).map_err(|e| RulesError::io(&tool_skill, e))?;
                 for src in [&tool_mcp_file, &tool_mcp_json] {
-                    if src.is_file() {
-                        if let (Some(name), Ok(content)) = (src.file_name(), fs::read_to_string(src)) {
-                            let target = tool_skill.join(name);
-                            fs::write(&target, content).map_err(|e| RulesError::io(&target, e))?;
-                            wired.push(PathBuf::from(normalize_path(&target.to_string_lossy())));
-                        }
+                    if src.is_file()
+                        && let (Some(name), Ok(content)) = (src.file_name(), fs::read_to_string(src))
+                    {
+                        let target = tool_skill.join(name);
+                        fs::write(&target, content).map_err(|e| RulesError::io(&target, e))?;
+                        wired.push(PathBuf::from(normalize_path(&target.to_string_lossy())));
                     }
                 }
             }

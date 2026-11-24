@@ -246,7 +246,7 @@ pub fn tool_definitions() -> Value {
         },
         {
             "name": "memory_status",
-            "description": "Get summary telemetry and storage status of ai-memory wiki, handoffs, and messages.",
+            "description": "Get summary telemetry and storage status of aimemory wiki, handoffs, and messages.",
             "inputSchema": { "type": "object", "properties": {} }
         },
         {

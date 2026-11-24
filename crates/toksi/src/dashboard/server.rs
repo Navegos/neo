@@ -469,6 +469,24 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
             Err(e) => HttpResponse::bad_request(&e),
         },
         ("GET", "/api/system/logs") => HttpResponse::ok_json(handle_system_logs()),
+        ("GET", "/api/supervisor/workers") => HttpResponse::ok_json(handle_supervisor_workers()),
+        ("GET", "/api/activity") => HttpResponse::ok_json(handle_activity_get()),
+        ("GET", "/api/orchestrator/modes") => HttpResponse::ok_json(handle_orchestrator_modes_get()),
+        ("PUT", "/api/orchestrator/modes") => match handle_orchestrator_modes_put(&req.body) {
+            Ok(val) => HttpResponse::ok_json(val),
+            Err(e) => HttpResponse::bad_request(&e),
+        },
+        ("POST", p) if p.starts_with("/api/daemon/service/") => {
+            let rest = p.trim_start_matches("/api/daemon/service/");
+            if let Some((name, action)) = rest.split_once('/') {
+                match handle_daemon_service_action(name, action) {
+                    Ok(val) => HttpResponse::ok_json(val),
+                    Err(e) => HttpResponse::bad_request(&e),
+                }
+            } else {
+                HttpResponse::bad_request("Expected /api/daemon/service/:name/:action")
+            }
+        }
 
         ("GET", "/api/providers") => HttpResponse::ok_json(handle_providers_get()),
         ("POST", "/api/providers/update") => match handle_provider_update(&req.body) {

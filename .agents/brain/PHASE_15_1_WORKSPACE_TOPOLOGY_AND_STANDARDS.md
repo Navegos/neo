@@ -1,6 +1,6 @@
 # Phase 15.1: Workspace Topology, Forward-Slash Normalization, Standards & PATH Validation
 
-> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -122,3 +122,7 @@ pub fn check_executable_in_path(cmd: &str) -> Result<(), String> {
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
 - **Wave 19 Reconciliation:** Core safety fixed (`0` `unsafe` blocks across `456` `.rs` files under `#![deny(unsafe_code)]`; forward-slash normalization active); `[PLAN-NEEDS-FIX]` remains only for `PHASE_19_4` root + `<neo>/.agents/skills/` 922-dir hygiene cleanup.
+
+## Wave 20 (v7.0) Synchronization Addendum
+- Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).
+- Enforces `<toksi-siagent>` (`_worker siagent`, 22 Orchestrator Modes, 29 slash commands), decoupled 10-Tab UI, `~/.toksi/services/*.db`, `ctxmode`/`aimemory` renames, `docker/compose.test.yaml`, 11 AI/ML Pillars, Distributed Cluster Stack (`src/cluster/`), and OpenTelemetry Rust (`gen_ai.*`).

@@ -451,7 +451,7 @@ pub fn start_byok_gateway() -> Result<(), Box<dyn std::error::Error + Send + Syn
     let self_exe = toksi_abs();
     let mut cmd = Command::new(&self_exe);
     cmd.arg(BYOK_GATEWAY_SERVE_ARG);
-    cmd.stdout(Stdio::inherit()).stderr(Stdio::inherit());
+    cmd.stdout(Stdio::null()).stderr(Stdio::null());
     let child = spawn_detached(&mut cmd)
         .map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { format!("start BYOK gateway: {}", e).into() })?;
     let pid = child.id();

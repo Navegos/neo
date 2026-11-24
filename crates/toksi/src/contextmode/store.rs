@@ -9,14 +9,16 @@ use std::path::{Path, PathBuf};
 use crate::util::paths::normalize_path;
 use super::error::ContextModeError;
 
-pub const TOKSI_CONTEXT_SUBDIR: &str = ".toksi/context";
+pub const TOKSI_CONTEXT_SUBDIR: &str = ".toksi/ctxmode";
+pub const LEGACY_TOKSI_CONTEXT_SUBDIR: &str = ".toksi/context";
 pub const LEGACY_CONTEXT_DIR: &str = ".context-mode";
-pub const DB_NAME: &str = "context.db";
+pub const DB_NAME: &str = "ctxmode.db";
+pub const LEGACY_DB_NAME: &str = "context.db";
 
 /// Strict repo-only locator: discovers `<repo>` containing `.git`.
 /// Returns `(repo_root, subproject_id)`.
 /// Strictly enforces:
-/// - NEVER in `~/.toksi/context/`
+/// - NEVER in `~/.toksi/ctxmode/` (or `~/.toksi/context/`)
 /// - NEVER outside a `.git` repository root
 /// - NEVER inside `<repo>/.git/`
 pub fn find_repo_root_and_subproject(start: Option<&Path>) -> Result<(PathBuf, String), ContextModeError> {
@@ -91,31 +93,64 @@ pub fn find_repo_root_and_subproject(start: Option<&Path>) -> Result<(PathBuf, S
     Ok((repo_root, subproject_id))
 }
 
-/// Resolves the strict `<repo>/.toksi/context` directory.
-pub fn resolve_context_dir(start: Option<&Path>) -> Result<PathBuf, ContextModeError> {
-    let (repo_root, _) = find_repo_root_and_subproject(start)?;
-    let context_dir = repo_root.join(".toksi").join("context");
-
-    // Auto-migrate legacy .context-mode if present
-    let legacy_dir = repo_root.join(LEGACY_CONTEXT_DIR);
-    if legacy_dir.is_dir() {
-        let _ = fs::create_dir_all(&context_dir);
-        let legacy_db = legacy_dir.join(DB_NAME);
-        let target_db = context_dir.join(DB_NAME);
-        if legacy_db.exists() && !target_db.exists() {
-            let _ = fs::copy(&legacy_db, &target_db);
+fn copy_non_db_tree(src: &Path, dst: &Path) {
+    let Ok(entries) = fs::read_dir(src) else {
+        return;
+    };
+    let _ = fs::create_dir_all(dst);
+    for entry in entries.flatten() {
+        let p = entry.path();
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if name_str.ends_with(".db") || name_str.ends_with(".db-wal") || name_str.ends_with(".db-shm") {
+            continue;
         }
-        let _ = fs::remove_dir_all(&legacy_dir);
+        let target = dst.join(&name);
+        if p.is_dir() {
+            copy_non_db_tree(&p, &target);
+        } else if !target.exists() {
+            let _ = fs::copy(&p, &target);
+        }
     }
-
-    if !context_dir.exists() {
-        fs::create_dir_all(&context_dir).map_err(ContextModeError::Io)?;
-    }
-
-    Ok(context_dir)
 }
 
-/// Resolves the strict `<repo>/.toksi/context/context.db` SQLite database file.
+/// Resolves the strict `<repo>/.toksi/ctxmode` directory, transactionally auto-migrating
+/// legacy `<repo>/.context-mode/` and `<repo>/.toksi/context/` stores without data loss.
+pub fn resolve_context_dir(start: Option<&Path>) -> Result<PathBuf, ContextModeError> {
+    let (repo_root, _) = find_repo_root_and_subproject(start)?;
+    let ctxmode_dir = repo_root.join(".toksi").join("ctxmode");
+    let target_db = ctxmode_dir.join(DB_NAME);
+
+    for legacy_dir in [
+        repo_root.join(LEGACY_CONTEXT_DIR),
+        repo_root.join(".toksi").join("context"),
+    ] {
+        if legacy_dir.is_dir() && legacy_dir != ctxmode_dir {
+            let _ = fs::create_dir_all(&ctxmode_dir);
+            for db_name in [DB_NAME, LEGACY_DB_NAME] {
+                let legacy_db = legacy_dir.join(db_name);
+                if legacy_db.is_file() {
+                    let _ = super::fts::migrate_legacy_ctxmode_db(&target_db, &legacy_db);
+                }
+            }
+            copy_non_db_tree(&legacy_dir, &ctxmode_dir);
+            let _ = fs::remove_dir_all(&legacy_dir);
+        }
+    }
+
+    let in_place_legacy_db = ctxmode_dir.join(LEGACY_DB_NAME);
+    if in_place_legacy_db.is_file() && in_place_legacy_db != target_db {
+        let _ = super::fts::migrate_legacy_ctxmode_db(&target_db, &in_place_legacy_db);
+    }
+
+    if !ctxmode_dir.exists() {
+        fs::create_dir_all(&ctxmode_dir).map_err(ContextModeError::Io)?;
+    }
+
+    Ok(ctxmode_dir)
+}
+
+/// Resolves the strict `<repo>/.toksi/ctxmode/ctxmode.db` SQLite database file.
 pub fn resolve_context_db_path(start: Option<&Path>) -> Result<PathBuf, ContextModeError> {
     let dir = resolve_context_dir(start)?;
     Ok(dir.join(DB_NAME))

@@ -225,6 +225,7 @@ fn run_byok_add(args: &[String]) -> i32 {
         is_active,
         created_at: now,
         updated_at: now,
+        ..Default::default()
     };
 
     let mut db = match open_default_db() {

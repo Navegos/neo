@@ -349,7 +349,20 @@ impl GatewayProxyOrchestrator {
             }
         };
 
-        let req_formatted = client.format_request(&Self::build_unified_request(payload));
+        let unified_req = Self::build_unified_request(payload);
+        let mut req_formatted = client.format_request(&unified_req);
+        let raw_model = payload
+            .get("model")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let eff = crate::headroom::effort::detect_effort_level(&[], Some(payload));
+        crate::gateway::sampling::apply_sampling_params_to_payload(
+            provider.as_str(),
+            raw_model,
+            eff,
+            &crate::gateway::sampling::SamplingParams::default(),
+            &mut req_formatted,
+        );
         let endpoint = client.endpoint();
         let is_loopback = endpoint.starts_with("http://127.0.0.1")
             || endpoint.starts_with("http://localhost");
@@ -432,18 +445,17 @@ impl GatewayProxyOrchestrator {
             self.governance.check_and_acquire(vk, 1000)?;
         }
 
-        let effort_headers: Vec<(String, String)> = match policy.effort {
-            Some(ReasoningEffort::Low) => {
-                vec![("x-toksi-effort".to_string(), EffortLevel::Low.as_str().to_string())]
-            }
-            Some(ReasoningEffort::Medium) => {
-                vec![("x-toksi-effort".to_string(), EffortLevel::Medium.as_str().to_string())]
-            }
-            Some(ReasoningEffort::High) => {
-                vec![("x-toksi-effort".to_string(), EffortLevel::High.as_str().to_string())]
-            }
-            None => Vec::new(),
+        let mapped_effort = match policy.effort {
+            Some(ReasoningEffort::Low) => Some(EffortLevel::Low),
+            Some(ReasoningEffort::Medium) => Some(EffortLevel::Medium),
+            Some(ReasoningEffort::High) => Some(EffortLevel::High),
+            Some(ReasoningEffort::XHigh) => Some(EffortLevel::XHigh),
+            Some(ReasoningEffort::Max) => Some(EffortLevel::Max),
+            None => None,
         };
+        let effort_headers: Vec<(String, String)> = mapped_effort
+            .map(|e| vec![("x-toksi-effort".to_string(), e.as_str().to_string())])
+            .unwrap_or_default();
         let hr_stats = HeadroomEffortCompressor::gateway_default().compress_json_payload(
             "/v1/chat/completions",
             &effort_headers,
@@ -511,7 +523,16 @@ impl GatewayProxyOrchestrator {
             };
 
             let client = build_provider_client(provider);
-            let req_formatted = client.format_request(&unified_req);
+            let mut req_formatted = client.format_request(&unified_req);
+            let raw_model = payload.get("model").and_then(Value::as_str).unwrap_or("");
+            let eff = crate::headroom::effort::detect_effort_level(&[], Some(payload));
+            crate::gateway::sampling::apply_sampling_params_to_payload(
+                provider.as_str(),
+                raw_model,
+                eff,
+                &crate::gateway::sampling::SamplingParams::default(),
+                &mut req_formatted,
+            );
             let endpoint = Self::resolve_candidate_endpoint(
                 explicit_endpoint,
                 route.candidate.base_url.as_deref(),
@@ -629,18 +650,17 @@ impl GatewayProxyOrchestrator {
             self.governance.check_and_acquire(vk, 1000)?;
         }
 
-        let effort_headers: Vec<(String, String)> = match policy.effort {
-            Some(ReasoningEffort::Low) => {
-                vec![("x-toksi-effort".to_string(), EffortLevel::Low.as_str().to_string())]
-            }
-            Some(ReasoningEffort::Medium) => {
-                vec![("x-toksi-effort".to_string(), EffortLevel::Medium.as_str().to_string())]
-            }
-            Some(ReasoningEffort::High) => {
-                vec![("x-toksi-effort".to_string(), EffortLevel::High.as_str().to_string())]
-            }
-            None => Vec::new(),
+        let mapped_effort = match policy.effort {
+            Some(ReasoningEffort::Low) => Some(EffortLevel::Low),
+            Some(ReasoningEffort::Medium) => Some(EffortLevel::Medium),
+            Some(ReasoningEffort::High) => Some(EffortLevel::High),
+            Some(ReasoningEffort::XHigh) => Some(EffortLevel::XHigh),
+            Some(ReasoningEffort::Max) => Some(EffortLevel::Max),
+            None => None,
         };
+        let effort_headers: Vec<(String, String)> = mapped_effort
+            .map(|e| vec![("x-toksi-effort".to_string(), e.as_str().to_string())])
+            .unwrap_or_default();
         let hr_stats = HeadroomEffortCompressor::gateway_default().compress_json_payload(
             "/v1/chat/completions",
             &effort_headers,
@@ -683,7 +703,16 @@ impl GatewayProxyOrchestrator {
             };
 
             let client = build_provider_client(provider);
-            let req_formatted = client.format_request(&unified_req);
+            let mut req_formatted = client.format_request(&unified_req);
+            let raw_model = payload.get("model").and_then(Value::as_str).unwrap_or("");
+            let eff = crate::headroom::effort::detect_effort_level(&[], Some(payload));
+            crate::gateway::sampling::apply_sampling_params_to_payload(
+                provider.as_str(),
+                raw_model,
+                eff,
+                &crate::gateway::sampling::SamplingParams::default(),
+                &mut req_formatted,
+            );
             let endpoint = Self::resolve_candidate_endpoint(
                 explicit_endpoint,
                 route.candidate.base_url.as_deref(),

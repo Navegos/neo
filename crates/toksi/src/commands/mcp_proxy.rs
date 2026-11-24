@@ -115,7 +115,7 @@ pub fn run_mcp_proxy(
     };
 
     let allowed_tools: Option<&[&str]> = match tool {
-        "context-mode" => Some(CONTEXT_MODE_TOOLS),
+        "ctxmode" | "context-mode" | "context" => Some(CONTEXT_MODE_TOOLS),
         "projectmem" => Some(PROJECTMEM_MCP_TOOL_NAMES),
         _ => None,
     };
@@ -321,7 +321,7 @@ const STATIC_TOOL_UNIVERSES: &[StaticUniverse] = &[
         ],
     },
     StaticUniverse {
-        _tool: "context-mode",
+        _tool: "ctxmode",
         names: &[
             "ctx_execute", "ctx_execute_file", "ctx_batch_execute", "ctx_search",
             "ctx_index", "ctx_fetch_and_index", "ctx_stats", "ctx_doctor",

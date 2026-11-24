@@ -14,7 +14,7 @@ pub const TOKSI_OWNERS: &[&str] = &[
     "caveman",
     "ponytail",
     "codegraph",
-    "context-mode",
+    "ctxmode",
     "projectmem",
 ];
 
@@ -24,7 +24,7 @@ pub fn section_header_for_owner(owner: &str) -> &'static str {
         "caveman" => "## Response Style (caveman)",
         "ponytail" => "## Build Discipline (ponytail)",
         "codegraph" => "## Code Index (codegraph)",
-        "context-mode" => "## Context Tools (context-mode)",
+        "ctxmode" | "context-mode" | "context" => "## Context Tools (ctxmode)",
         "projectmem" => "## Project Memory (projectmem)",
         _ => "",
     }
@@ -61,7 +61,7 @@ pub const CURSOR_PROJECT_RULE_SPECS: &[CursorProjectRuleSpec] = &[
     CursorProjectRuleSpec {
         filename: "context-tools.mdc",
         description: "This rule guides efficient context collection, analysis, and retrieval while keeping raw data focused.",
-        owner: "context-mode",
+        owner: "ctxmode",
     },
     CursorProjectRuleSpec {
         filename: "project-memory.mdc",
@@ -142,7 +142,7 @@ static AGENT_INSTRUCTIONS_CACHE: OnceLock<String> = OnceLock::new();
 
 fn build_fallback_instructions() -> String {
     format!(
-        "# Agent Instructions\n\nApply on every coding task:\n\n**Skills (apply):**\n- Principles — think, simplify, edit surgically, verify.\n- Response Style (caveman) — terse prose, full technical accuracy.\n- Build Discipline (ponytail) — reuse first, write only what must exist.\n\n**Tools (call):**\n- Code Index (codegraph) — MCP `codegraph_explore` for structure, flows, dependencies.\n- Context Tools (context-mode) — MCP `ctx_*` for large, uncertain, multi-source analysis.\n- Project Memory (projectmem) — MCP tools log issues, attempts, fixes, decisions, gotchas.\n\n## Principles\n\n{}\n\n## Response Style (caveman)\n\n{}\n\n## Build Discipline (ponytail)\n\n{}\n\n## Code Index (codegraph)\n\nMCP tool `codegraph_explore` gives source, call path, and blast radius in one call.\n\n## Context Tools (context-mode)\n\nMCP tools `ctx_*` keep large or uncertain analysis out of context.\n\n## Project Memory (projectmem)\n\nMCP tools record issues, attempts, fixes, decisions, and gotchas.\n",
+        "# Agent Instructions\n\nApply on every coding task:\n\n**Skills (apply):**\n- Principles — think, simplify, edit surgically, verify.\n- Response Style (caveman) — terse prose, full technical accuracy.\n- Build Discipline (ponytail) — reuse first, write only what must exist.\n\n**Tools (call):**\n- Code Index (codegraph) — MCP `codegraph_explore` for structure, flows, dependencies.\n- Context Tools (ctxmode) — MCP `ctx_*` for large, uncertain, multi-source analysis.\n- Project Memory (projectmem) — MCP tools log issues, attempts, fixes, decisions, gotchas.\n\n## Principles\n\n{}\n\n## Response Style (caveman)\n\n{}\n\n## Build Discipline (ponytail)\n\n{}\n\n## Code Index (codegraph)\n\nMCP tool `codegraph_explore` gives source, call path, and blast radius in one call.\n\n## Context Tools (ctxmode)\n\nMCP tools `ctx_*` keep large or uncertain analysis out of context.\n\n## Project Memory (projectmem)\n\nMCP tools record issues, attempts, fixes, decisions, and gotchas.\n",
         crate::rules::RuleKind::Principles.section_body(),
         crate::rules::RuleKind::Caveman.section_body(),
         crate::rules::RuleKind::Ponytail.section_body(),
@@ -170,13 +170,13 @@ pub fn instruction_index_section() -> String {
 }
 
 pub fn instruction_section(owner: &str) -> String {
-    let marker = section_header_for_owner(owner);
-    if marker.is_empty() {
+    let markers = section_markers(owner);
+    if markers.is_empty() {
         return String::new();
     }
     let body = normalized_agent_instructions();
     let trimmed = body.trim_end_matches('\n');
-    let start_pos = match trimmed.find(marker) {
+    let start_pos = match markers.iter().find_map(|m| trimmed.find(m)) {
         Some(pos) => pos,
         None => return String::new(),
     };
@@ -229,11 +229,12 @@ pub fn section_markers(owner: &str) -> Vec<&'static str> {
             "## Codegraph — MUST USE FOR CODE",
             "## Code Index (codegraph)",
         ],
-        "context-mode" => &[
+        "ctxmode" | "context-mode" | "context" => &[
             "## 5. Context Control",
             "## Context Tools",
             "## Context Tools — MUST USE FOR DATA",
             "## Context Tools (context-mode)",
+            "## Context Tools (ctxmode)",
         ],
         _ => &[],
     };
@@ -261,8 +262,10 @@ pub fn toksi_agent_body(owners: &[&str]) -> String {
         out.push_str(&instruction_section("principles"));
         out.push_str("\n\n");
     }
-    for &sec in &["caveman", "ponytail", "codegraph", "context-mode", "projectmem"] {
-        if owners.contains(&sec) {
+    for &sec in &["caveman", "ponytail", "codegraph", "ctxmode", "projectmem"] {
+        if owners.contains(&sec)
+            || (sec == "ctxmode" && (owners.contains(&"context-mode") || owners.contains(&"context")))
+        {
             out.push_str(&instruction_section(sec));
             out.push_str("\n\n");
         }

@@ -231,10 +231,10 @@ impl SkillsRepoConfig {
 
 fn read_first_matching(candidates: &[PathBuf]) -> Option<String> {
     for path in candidates {
-        if path.is_file() {
-            if let Ok(raw) = fs::read_to_string(path) {
-                return Some(raw.replace("\r\n", "\n"));
-            }
+        if path.is_file()
+            && let Ok(raw) = fs::read_to_string(path)
+        {
+            return Some(raw.replace("\r\n", "\n"));
         }
     }
     None
@@ -491,6 +491,296 @@ pub async fn fetch_online_skills_from_pages(
         }
         report.synced_files.push(pb);
         report.catalog_count += 1;
+    }
+
+    Ok(report)
+}
+
+/// Canonical skills authored or explicitly adapted for `<neo>`.
+pub const CANONICAL_NEO_SKILLS: &[&str] = &[
+    "aimemory",
+    "codegraph",
+    "ctxmode",
+    "icm",
+    "projectmem",
+    "rtk",
+    "cavecrew",
+    "caveman",
+    "caveman-commit",
+    "caveman-compress",
+    "caveman-discover",
+    "caveman-evidence-review",
+    "caveman-explore",
+    "caveman-help",
+    "caveman-learn",
+    "caveman-manage",
+    "caveman-optimize",
+    "caveman-review",
+    "caveman-stats",
+    "investigate-first",
+    "lean-build",
+    "megacave",
+    "migration",
+    "ponytail",
+    "ponytail-audit",
+    "ponytail-debt",
+    "ponytail-gain",
+    "ponytail-help",
+    "ponytail-review",
+    "principles",
+    "safe-refactor",
+    "surgical-patch",
+    "ultracave",
+    "verify-and-stop",
+    "security",
+];
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NeoHygieneAuditReport {
+    pub retained_skills: Vec<String>,
+    pub pruned_skills: Vec<String>,
+    pub renamed_context_to_ctxmode: bool,
+    pub healed_skills: Vec<String>,
+    pub blocked_skills: Vec<(String, String)>,
+    pub raw_script_violations: Vec<String>,
+    pub embedded_bloat_violations: Vec<String>,
+    pub advisory_plaintext_violations: Vec<String>,
+}
+
+fn collect_raw_skill_scripts(dir: &Path, root_label: &Path, out: &mut Vec<String>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+    paths.sort();
+    for p in paths {
+        if p.is_dir() {
+            collect_raw_skill_scripts(&p, root_label, out);
+        } else if p.is_file() {
+            let ext = p
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|s| s.to_ascii_lowercase())
+                .unwrap_or_default();
+            if matches!(ext.as_str(), "sh" | "ps1" | "bat" | "cmd") {
+                let rel = p
+                    .strip_prefix(root_label)
+                    .map(|r| normalize_path(&r.to_string_lossy()))
+                    .unwrap_or_else(|_| normalize_path(&p.to_string_lossy()));
+                out.push(rel);
+            }
+        }
+    }
+}
+
+fn scan_crates_src_for_bloat(dir: &Path, base: &Path, out: &mut Vec<String>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+    paths.sort();
+    for p in paths {
+        if p.is_dir() {
+            scan_crates_src_for_bloat(&p, base, out);
+        } else if p.extension().and_then(|e| e.to_str()) == Some("rs")
+            && let Ok(content) = fs::read_to_string(&p)
+        {
+            let rel = p
+                .strip_prefix(base)
+                .map(|r| normalize_path(&r.to_string_lossy()))
+                .unwrap_or_else(|_| normalize_path(&p.to_string_lossy()));
+            for (idx, line) in content.lines().enumerate() {
+                let trimmed = line.trim();
+                if trimmed.starts_with("//") {
+                    continue;
+                }
+                if trimmed.contains("include_str!(")
+                    && (trimmed.contains(".md\"")
+                        || trimmed.contains(".yaml\"")
+                        || trimmed.contains(".yml\""))
+                {
+                    out.push(format!("{}:{}", rel, idx + 1));
+                }
+            }
+        }
+    }
+}
+
+fn scan_advisory_plaintext(dir: &Path, base: &Path, out: &mut Vec<String>) {
+    const LEAK_MARKERS: &[&str] = &[
+        "BEGIN PRIVATE KEY",
+        "BEGIN RSA PRIVATE KEY",
+        "ghp_",
+        "sk-ant-",
+        "AIzaSy",
+        "exploit_payload",
+    ];
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    let mut paths: Vec<PathBuf> = entries.flatten().map(|e| e.path()).collect();
+    paths.sort();
+    for p in paths {
+        let name = p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("");
+        if name == ".git" {
+            continue;
+        }
+        if p.is_dir() {
+            scan_advisory_plaintext(&p, base, out);
+        } else if p.is_file() {
+            let ext = p
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|s| s.to_ascii_lowercase())
+                .unwrap_or_default();
+            if matches!(ext.as_str(), "json" | "md" | "toml" | "txt")
+                && let Ok(raw) = fs::read_to_string(&p)
+                && LEAK_MARKERS.iter().any(|m| raw.contains(m))
+            {
+                let rel = p
+                    .strip_prefix(base)
+                    .map(|r| normalize_path(&r.to_string_lossy()))
+                    .unwrap_or_else(|_| normalize_path(&p.to_string_lossy()));
+                out.push(rel);
+            }
+        }
+    }
+}
+
+/// Audits `<neo>/.agents/skills/`, `crates/toksi/src/` zero-bloat policy, and
+/// `<advisory>` zero-plaintext policy. When `clean` is true, renames `context` ->
+/// `ctxmode`, deletes unadapted foreign skill dirs, heals kept skills with `<enforce>`,
+/// and optionally stages vetted skills into `<neo>/agents/` and `<skills>`.
+pub fn audit_neo_skills_hygiene(
+    neo_root: &Path,
+    clean: bool,
+    stage_to_external: bool,
+) -> Result<NeoHygieneAuditReport, RulesError> {
+    let mut report = NeoHygieneAuditReport::default();
+    let agents_skills = neo_root.join(".agents").join("skills");
+
+    if agents_skills.is_dir() {
+        let legacy_ctx = agents_skills.join("context");
+        let canonical_ctxmode = agents_skills.join("ctxmode");
+        if legacy_ctx.is_dir() && clean {
+            if !canonical_ctxmode.exists() {
+                fs::rename(&legacy_ctx, &canonical_ctxmode)
+                    .map_err(|e| RulesError::io(&canonical_ctxmode, e))?;
+                let skill_md = canonical_ctxmode.join("SKILL.md");
+                if skill_md.is_file()
+                    && let Ok(raw) = fs::read_to_string(&skill_md)
+                {
+                    let updated = raw
+                        .replace("name: context", "name: ctxmode")
+                        .replace("# context", "# ctxmode")
+                        .replace("for context.", "for ctxmode.");
+                    fs::write(&skill_md, updated).map_err(|e| RulesError::io(&skill_md, e))?;
+                }
+            } else {
+                fs::remove_dir_all(&legacy_ctx).map_err(|e| RulesError::io(&legacy_ctx, e))?;
+            }
+            report.renamed_context_to_ctxmode = true;
+        }
+
+        let entries = fs::read_dir(&agents_skills).map_err(|e| RulesError::io(&agents_skills, e))?;
+        let mut dirs: Vec<PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .collect();
+        dirs.sort();
+
+        for dir in dirs {
+            let Some(dir_name) = dir.file_name().and_then(|n| n.to_str()).map(ToString::to_string)
+            else {
+                continue;
+            };
+            if !CANONICAL_NEO_SKILLS.contains(&dir_name.as_str()) {
+                report.pruned_skills.push(dir_name.clone());
+                if clean {
+                    fs::remove_dir_all(&dir).map_err(|e| RulesError::io(&dir, e))?;
+                } else {
+                    collect_raw_skill_scripts(&dir, neo_root, &mut report.raw_script_violations);
+                }
+                continue;
+            }
+
+            collect_raw_skill_scripts(&dir, neo_root, &mut report.raw_script_violations);
+
+            let skill_file = if dir.join("SKILL.md").is_file() {
+                dir.join("SKILL.md")
+            } else if dir.join("skill.md").is_file() {
+                dir.join("skill.md")
+            } else {
+                continue;
+            };
+            let raw = fs::read_to_string(&skill_file).map_err(|e| RulesError::io(&skill_file, e))?;
+            let norm = normalize_path(&skill_file.to_string_lossy());
+            let initial_scan = crate::security::skill_scanner::scan_skill_or_plugin(&norm, &raw);
+            if initial_scan.verdict != crate::security::CelVerdict::Allow {
+                report
+                    .blocked_skills
+                    .push((dir_name.clone(), initial_scan.cel_reason));
+                if clean {
+                    fs::remove_dir_all(&dir).map_err(|e| RulesError::io(&dir, e))?;
+                }
+                continue;
+            }
+
+            let healed = heal_skill_content(&norm, &raw, Some(&dir_name), true);
+            let check = analyze_content(&norm, &healed.output, Some(FileKind::Skill));
+            let post_scan =
+                crate::security::skill_scanner::scan_skill_or_plugin(&norm, &healed.output);
+            if !check.vetted_for_install || post_scan.verdict != crate::security::CelVerdict::Allow
+            {
+                report
+                    .blocked_skills
+                    .push((dir_name.clone(), post_scan.cel_reason));
+                continue;
+            }
+
+            if clean && healed.changed {
+                fs::write(&skill_file, &healed.output)
+                    .map_err(|e| RulesError::io(&skill_file, e))?;
+                report.healed_skills.push(dir_name.clone());
+            }
+            report.retained_skills.push(dir_name.clone());
+
+            if clean && stage_to_external {
+                let staged_dir = neo_root.join("agents").join("skills").join(&dir_name);
+                fs::create_dir_all(&staged_dir).map_err(|e| RulesError::io(&staged_dir, e))?;
+                let staged_file = staged_dir.join("SKILL.md");
+                fs::write(&staged_file, &healed.output)
+                    .map_err(|e| RulesError::io(&staged_file, e))?;
+            }
+        }
+    }
+
+    let crates_src = neo_root.join("crates").join("toksi").join("src");
+    if crates_src.is_dir() {
+        scan_crates_src_for_bloat(&crates_src, neo_root, &mut report.embedded_bloat_violations);
+    }
+
+    let advisory_dir = neo_root.join("inspect-vault").join("advisory");
+    if advisory_dir.is_dir() {
+        scan_advisory_plaintext(&advisory_dir, neo_root, &mut report.advisory_plaintext_violations);
+    }
+
+    if clean
+        && stage_to_external
+        && (neo_root.join("agents").join("skills").is_dir()
+            || neo_root.join("inspect-vault").join("skills").is_dir())
+    {
+        let mut scoped_cfg = SkillsRepoConfig::load();
+        scoped_cfg.neo_root = Some(neo_root.to_path_buf());
+        scoped_cfg.stage_rules_dir = neo_root.join("rules");
+        scoped_cfg.stage_agents_dir = neo_root.join("agents");
+        scoped_cfg.skills_dir = neo_root.join("inspect-vault").join("skills");
+        scoped_cfg.user_skills_dir = neo_root.join(".agents").join("skills");
+        let _ = sync_external_skills_repo(&scoped_cfg)?;
     }
 
     Ok(report)

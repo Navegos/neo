@@ -44,6 +44,8 @@ pub enum ReasoningEffort {
     #[default]
     Medium,
     High,
+    XHigh,
+    Max,
 }
 
 /// Quality gate enforced by the 7-D router and cascade failover.

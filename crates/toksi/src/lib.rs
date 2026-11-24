@@ -31,6 +31,8 @@ pub mod dashboard;
 pub mod env_injector;
 pub mod telemetry;
 pub mod keyring;
+pub mod ipc;
 pub mod db;
+pub mod training;
 pub mod validator;
 

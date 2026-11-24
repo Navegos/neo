@@ -39,16 +39,17 @@ fn test_phase12_tui_initialization_and_tabs() {
 
     let app = App::new();
     assert_eq!(app.current_tab, 0);
-    assert_eq!(app.tab_names.len(), 9);
+    assert_eq!(app.tab_names.len(), 10);
     assert_eq!(app.tab_names[0], "Savings");
-    assert_eq!(app.tab_names[1], "The War Room");
-    assert_eq!(app.tab_names[2], "AI Agent Fleet & Quotas");
-    assert_eq!(app.tab_names[3], "Memory Decision DAG");
-    assert_eq!(app.tab_names[4], "CodeGraph Explorer");
-    assert_eq!(app.tab_names[5], "Sandbox Inspector");
-    assert_eq!(app.tab_names[6], "System Controls");
-    assert_eq!(app.tab_names[7], "AI Gateway & Quotas");
+    assert_eq!(app.tab_names[1], "Activity Room");
+    assert_eq!(app.tab_names[2], "AI Agent Fleet");
+    assert_eq!(app.tab_names[3], "Quotas");
+    assert_eq!(app.tab_names[4], "Memory Decision DAG");
+    assert_eq!(app.tab_names[5], "CodeGraph Explorer");
+    assert_eq!(app.tab_names[6], "Sandbox Inspector");
+    assert_eq!(app.tab_names[7], "AI Gateway");
     assert_eq!(app.tab_names[8], "Keyring & Database");
+    assert_eq!(app.tab_names[9], "System Controls");
     assert!(!app.should_quit);
 
     // Tab 1: Savings & Waterfall (Ground-truth session accounting)
@@ -121,7 +122,7 @@ fn test_phase12_tui_navigation_and_interactions() {
     }
 
     // 3. Memory tab: filter cycling, search, precheck modal
-    app.current_tab = 3;
+    app.current_tab = 4;
     app.handle_key(press_key(KeyCode::Char('f')));
     assert_eq!(app.memory.filter, MemoryFilter::Issues);
     app.handle_key(press_key(KeyCode::Char('f')));
@@ -143,18 +144,18 @@ fn test_phase12_tui_navigation_and_interactions() {
     assert!(app.memory.precheck_result.is_none(), "Esc closes precheck modal");
 
     // 4. CodeGraph tab: blast tree toggle
-    app.current_tab = 4;
+    app.current_tab = 5;
     let prev_tree = app.graph.show_tree_view;
     app.handle_key(press_key(KeyCode::Char('b')));
     assert_ne!(app.graph.show_tree_view, prev_tree, "'b' toggles blast radius tree");
 
-    // 5. AI Gateway & Quotas tab (Tab 8 = index 7): cache alignment test
+    // 5. AI Gateway tab (Tab 8 = index 7): cache alignment test
     app.current_tab = 7;
     app.handle_key(press_key(KeyCode::Char('c')));
     assert!(app.status_message.as_ref().map(|s| s.contains("aligned to 1024")).unwrap_or(false));
 
-    // 6. Logs tab (Tab 6): follow toggle and clear
-    app.current_tab = 6;
+    // 6. Logs tab (Tab 10 = index 9): follow toggle and clear
+    app.current_tab = 9;
     let prev_follow = app.logs.follow;
     app.handle_key(press_key(KeyCode::Char('f')));
     assert_ne!(app.logs.follow, prev_follow, "'f' toggles follow mode");

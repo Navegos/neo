@@ -102,6 +102,8 @@ found 0 vulnerabilities`,
     this.loadPlugins();
     this.loadSkillsStatus();
     this.loadSystemLogs();
+    this.loadActivityRoom();
+    this.loadOrchestratorModes();
     this.browseDbTable();
     this.applySandboxPreset('cargo');
 
@@ -1539,6 +1541,52 @@ found 0 vulnerabilities`,
       }
     } catch (e) {
       this.showToast(`Restore error: ${e.message}`, 'error');
+    }
+  }
+
+  async loadActivityRoom() {
+    try {
+      const res = await fetch('/api/activity');
+      if (!res.ok) return;
+      const data = await res.json();
+      const summary = document.getElementById('activity-service-summary');
+      const list = document.getElementById('activity-services-list');
+      const workers = data.workers || [];
+      if (summary) summary.textContent = `${workers.length} Workers | SI Agent: ${data.siagent || 'ready'}`;
+      if (list) {
+        list.innerHTML = workers.map(w =>
+          `<button class="btn btn-neutral" onclick="app.triggerServiceAction('${w.role || w.name}', 'heal')">${w.role || w.name} (${w.status || 'standby'})</button>`
+        ).join('');
+      }
+    } catch (e) {
+      console.error('loadActivityRoom error:', e);
+    }
+  }
+
+  async loadOrchestratorModes() {
+    try {
+      const res = await fetch('/api/orchestrator/modes');
+      if (!res.ok) return;
+      const modes = await res.json();
+      const tbody = document.getElementById('orchestrator-modes-tbody');
+      if (!tbody || !Array.isArray(modes)) return;
+      tbody.innerHTML = modes.slice(0, 22).map(m =>
+        `<tr><td>${m.mode}</td><td>${m.domain}</td><td>${m.role}</td><td><span class="badge badge-cyan">${m.effort}</span></td></tr>`
+      ).join('');
+    } catch (e) {
+      console.error('loadOrchestratorModes error:', e);
+    }
+  }
+
+  async triggerServiceAction(name, action) {
+    try {
+      const res = await fetch(`/api/daemon/service/${encodeURIComponent(name)}/${encodeURIComponent(action)}`, { method: 'POST' });
+      if (res.ok) {
+        this.showToast(`Service ${name}: ${action}`, 'success');
+        this.loadActivityRoom();
+      }
+    } catch (e) {
+      this.showToast(`Service action failed: ${e.message}`, 'error');
     }
   }
 

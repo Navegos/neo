@@ -55,7 +55,7 @@ use toksi::validator::validate::validate_advisory_json;
 #[test]
 fn test_goal1_vector_graph_embeddings_and_text_norm() {
     let dir = tempdir().expect("tempdir");
-    let ai_mem = dir.path().join(".toksi").join("ai-memory");
+    let ai_mem = dir.path().join(".toksi").join("aimemory");
 
     // Lance store + scalar filter + .ignore purge
     let mut lance = LanceStore::open(&ai_mem).expect("open lance");
@@ -301,7 +301,7 @@ fn test_goal2_and_goal4_telemetry_routing_engines_and_gemini_vertex() {
 
     let vertex = VertexAdcEndpoint::from_env_or_config("my-proj", "us-central1", "gemini-2.5-pro");
     let vurl = vertex.publisher_url(false).expect("vertex url");
-    assert!(vurl.contains("us-central1-aiplatform.googleapis.com/v1/projects/my-proj"));
+    assert!(vurl.contains("us-central1-aiplatform.googleapis.com/v1beta1/projects/my-proj"));
 }
 
 #[test]
@@ -429,5 +429,5 @@ fn test_goal6_brain_guides_count_is_37() {
         .flatten()
         .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"))
         .count();
-    assert_eq!(count, 43);
+    assert_eq!(count, 49);
 }

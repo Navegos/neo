@@ -439,27 +439,27 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
                         .and_then(|n| n.to_str())
                         .unwrap_or("")
                         .to_ascii_lowercase();
-                    if lower == "skill.md" || lower.ends_with(".skill.md") {
-                        if let Ok(raw) = std::fs::read_to_string(&cur) {
-                            let parent_dir = cur
-                                .parent()
-                                .and_then(|p| p.file_name())
-                                .and_then(|n| n.to_str())
-                                .filter(|d| !d.eq_ignore_ascii_case("skills"));
-                            let res = skill_validator::heal_skill_content(
-                                &cur.to_string_lossy(),
-                                &raw,
-                                parent_dir,
-                                true,
-                            );
-                            if res.changed {
-                                if let Err(e) = std::fs::write(&cur, &res.output) {
-                                    eprintln!("Error writing {}: {}", cur.display(), e);
-                                    return 1;
-                                }
-                                healed_count += 1;
-                                println!("  {} Healed {}: {}", C.green(Sym::CHECK), cur.display(), res.applied.join(", "));
+                    if (lower == "skill.md" || lower.ends_with(".skill.md"))
+                        && let Ok(raw) = std::fs::read_to_string(&cur)
+                    {
+                        let parent_dir = cur
+                            .parent()
+                            .and_then(|p| p.file_name())
+                            .and_then(|n| n.to_str())
+                            .filter(|d| !d.eq_ignore_ascii_case("skills"));
+                        let res = skill_validator::heal_skill_content(
+                            &cur.to_string_lossy(),
+                            &raw,
+                            parent_dir,
+                            true,
+                        );
+                        if res.changed {
+                            if let Err(e) = std::fs::write(&cur, &res.output) {
+                                eprintln!("Error writing {}: {}", cur.display(), e);
+                                return 1;
                             }
+                            healed_count += 1;
+                            println!("  {} Healed {}: {}", C.green(Sym::CHECK), cur.display(), res.applied.join(", "));
                         }
                     }
                 }
@@ -550,6 +550,7 @@ pub fn run_rules_cli(args: &[String]) -> i32 {
                 }
             }
         }
+        "audit-neo" => crate::commands::skills::run_audit_neo_command(rest),
         other => {
             eprintln!("Error: unknown subcommand '{}'", other);
             print_rules_help();

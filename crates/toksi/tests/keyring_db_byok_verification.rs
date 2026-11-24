@@ -173,6 +173,7 @@ fn test_wave18_db_dump_and_blind_signature_guard() {
         is_active: true,
         created_at: 1000,
         updated_at: 1000,
+        ..Default::default()
     })
     .expect("upsert profile");
 
@@ -290,6 +291,7 @@ fn test_multi_instance_byok_crud_and_overwrite_reset() {
         is_active: true,
         created_at: now,
         updated_at: now,
+        ..Default::default()
     })
     .expect("seed stale profile");
 
@@ -311,6 +313,7 @@ fn test_multi_instance_byok_crud_and_overwrite_reset() {
         is_active: true,
         created_at: now,
         updated_at: now,
+        ..Default::default()
     };
     let pro_high = ByokProfileRecord {
         id: "google:pro-high:gemini-2.5-pro:high".to_string(),
@@ -329,6 +332,7 @@ fn test_multi_instance_byok_crud_and_overwrite_reset() {
         is_active: true,
         created_at: now,
         updated_at: now,
+        ..Default::default()
     };
 
     clean_db.upsert_byok_profile(&flash_low).expect("upsert flash-low");

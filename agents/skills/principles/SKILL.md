@@ -1,13 +1,13 @@
 ---
 name: principles
-description: Behavioral guidelines to reduce common LLM coding mistakes. Use when writing, reviewing, or refactoring code to avoid overcomplication, make surgical changes, surface assumptions, and define verifiable success criteria.
+description: Behavioral guidelines to reduce common LLM coding mistakes: think before coding, simplicity first, surgical changes, goal-driven execution.
 license: MIT
 ---
 
 <enforce>
-# Karpathy Guidelines
+# Principles
 
-Behavioral guidelines to reduce common LLM coding mistakes, derived from [Andrej Karpathy's observations](https://x.com/karpathy/status/2015883857489522876) on LLM coding pitfalls.
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
@@ -54,16 +54,20 @@ The test: Every changed line should trace directly to the user's request.
 **Define success criteria. Loop until verified.**
 
 Transform tasks into verifiable goals:
-- "Add validation" â†’ "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" â†’ "Write a test that reproduces it, then make it pass"
-- "Refactor X" â†’ "Ensure tests pass before and after"
+- "Add validation": "Write tests for invalid inputs, then make them pass"
+- "Fix the bug": "Write a test that reproduces it, then make it pass"
+- "Refactor X": "Ensure tests pass before and after"
 
 For multi-step tasks, state a brief plan:
 ```
-1. [Step] â†’ verify: [check]
-2. [Step] â†’ verify: [check]
-3. [Step] â†’ verify: [check]
+1. [Step]. Verify: [check]
+2. [Step]. Verify: [check]
+3. [Step]. Verify: [check]
 ```
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 </enforce>

@@ -536,6 +536,7 @@ pub fn sync_os_credentials_to_db(
                 is_active: true,
                 created_at: now,
                 updated_at: now,
+                ..Default::default()
             };
             db.upsert_byok_profile(&profile)
                 .map_err(|e| KeyringError::DatabaseError(e.to_string()))?;

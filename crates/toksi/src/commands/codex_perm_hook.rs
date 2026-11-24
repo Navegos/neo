@@ -12,7 +12,7 @@ use crate::util::paths::is_win;
 const CODEX_PERM_ALLOWLIST: &[&str] = &[
     "rtk", "toksi", "git", "cd", "ls",
     "node", "npm", "npx",
-    "context-mode", "codegraph",
+    "ctxmode", "context-mode", "codegraph",
     "cat", "head", "tail",
     "grep", "find", "pwd",
     "which", "echo", "true", "false",

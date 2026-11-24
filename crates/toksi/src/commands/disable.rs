@@ -139,7 +139,7 @@ pub fn purge_binaries(tools: &[Arc<ToolManifest>], dry_run: bool) {
                 }
                 bar.complete("removed");
             }
-            "codegraph" | "context-mode" | "context" | "projectmem" | "icm" | "aimemory" | "ai-memory" => {
+            "codegraph" | "ctxmode" | "context-mode" | "context" | "projectmem" | "icm" | "aimemory" | "ai-memory" => {
                 bar.complete("in-tree (no external binary)");
             }
             "headroom" => {

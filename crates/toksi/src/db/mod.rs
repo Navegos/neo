@@ -11,11 +11,13 @@ pub mod byok;
 pub mod migrate;
 pub mod operations;
 pub mod schema;
+pub mod service_dbs;
 
 pub use byok::*;
 pub use migrate::*;
 pub use operations::*;
 pub use schema::*;
+pub use service_dbs::*;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};

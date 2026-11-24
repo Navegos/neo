@@ -1,7 +1,7 @@
-# Toksi Native Consolidation Master Architecture Plan (Wave 19 / v6.0)
+# Toksi Native Consolidation Master Architecture Plan (Wave 20 / v7.0)
 **Project:** `neo/crates/toksi` (`<neo>` `Navegos/neo`, `<advisory>` `Navegos/advisory`, `<skills>` `Navegos/skills`)  
-**Status:** Approved Wave 19 (v6.0) Master Architectural Blueprint & Implementation Specification (**432 Mandated Vaults `[DEEP-RESEARCH-DONE]`**, **43 `.agents/brain/*.md` Guides**, **8-State Progress Taxonomy**)  
-**Objective:** 100% Native Rust (Edition 2024, `#![deny(unsafe_code)]` via leaf FFI crates `crates/toksi-sys` & `crates/toksi-grammars`) consolidation of all **35 `<toksi-siagent>` Super Intelligence components (`RESEARCHPLAN.md` Section 0.2: 26 base `<agent>` components + 9 `<siagent>` extensions)** — spanning **Dedicated Multi-Process Supervisor (`toksi _worker <role>` + Named Pipe/UDS `src/ipc/` Direct-Wire IPC)**, **`ctxmode` Tool Rename Everywhere (`PHASE_19_1`)**, **Live-Safe `docker/Dockerfile.test` & `--sandbox` Test Isolation (`PHASE_19_3`)**, **Zero-Pollution `.agents/skills/` 922-Dir Hygiene Cleanup (`PHASE_19_4`)**, token-optimization (`HeadroomEffortCompressor` + `tiktoken` + `RTK` + `ctxmode`), bi-temporal knowledge graph & hybrid vector memory (`cognee`, `graphiti`, `qdrant`, `lance` + `arrow-rs`, `chroma`, `milvus`, `letta`, `funes`), code-intelligence (`45` Tree-sitter language IDs with dedicated `dockerfile`/`vue`/`scss` grammars + `pmat` TDG), **Toksi Unified Plugin System (`src/plugins/`)**, **Zero-Plaintext Blind Signature Engine (`BLAKE3` + `sparse::DFA`, `src/security/`)**, **Native Git/PR Validator (`src/validator/` + 12-DB `UpstreamDeduplicator`)**, **Policy-as-Code (`opa`, `cedar`) & SPIFFE IAM Attestation (`spire`)**, **Guardrails / LLM-Guard / `openai-guardrails-python` / SafeAgents / `ATR` (`19,699` YAMLs) / `model_spec` / Defensive Garak / Anonymizer**, **Agent Detection & Response (`src/security/adr.rs`)**, **5-Backend Isolated Agent Sandbox (`src/agent_runtime/sandbox.rs`: 3-OS native + `sandbox-runtime` + `OpenShell` + `E2B` + `sbx` CLI)**, **Default-Deny `CommandGuard` & Bypass Kill-Switch (`src/commands/guard.rs`)**, `<enforce>` security & `skilldoctor` + `agentskills` + `upskill` YAML auto-healing/eval across externalized `<skills>` (zero binary bloat: staged outside `crates/toksi/` in `<neo>/agents/` & `<neo>/rules/`), `defenseclaw` fail-closed runtime governance + `skill-scanner` multi-engine/CEL scanning, built-in 45-language static code security & OSV/EPSS lockfile analysis (`src/security/`), Google Cloud ADC (`AGY_ADC_AUTH=true` + `vertex_rust_sdk`) & thinking-effort-aware (`Low`/`Medium`/`High`) routing, durable Temporal/Restate/LangGraph/`chevalier` workflow state & atomic `.toksi/projectmem/plan_checkpoints/` pause/resume, Multi-Agent Workforce (`OMA`, `swarms-rs`, `ChatDev`, `deer-flow`) & `OpenSpec` (`/spec`), gateway & disaggregated serving/routing (`pingora`, `RouteLLM`, `olla`, `Switchyard`, `dynamo`, `frontend-crates`), telemetry (`tokview`, `phoenix`, `langwatch`, `tokenspeed`, `vmon`, `cudarc`, `cuda-rust`, `srt-slurm`, `lighteval`), **Model Training, Quantization & Multimodal Serving Plane (`src/training/` `toksi train|serve|eval` + `/voice` `livekit*` + `oxillama`/`xinfer`/`Crane`/`paddler`/`llama-swap`/`llguidance`/`whisper.cpp`/`stable-diffusion.cpp`/`unsloth*`/`Automodel`/`nanotron`/`onnx*`/`Olive`)**, and native coding CLI/swarm engines (`src/agent_runtime/` unifying `<neo>/inspect-vault/*<agent>`, `adk-rust`, `rig`, `maki`, `steer`, `agentrix-os`, `ironclaw`, `brat`) directly embedded into `crates/toksi/src/*` — consolidating **all 432 unique mandated vaults** (`294` Waves 1–18 vaults incl. `xla` & companion repos + **138 Wave 19 additions/reconciliations** across Sections `2.1`–`2.14`) alongside all 65/90+ ecosystem providers. Zero external downloaders, forward-slash (`/`) paths, `~/.toksi/config.toml` (`[repositories]`, `[supervisor]`, `[testing]`, `[plugins]`, `[security]`) + `~/.toksi/toksi.db` (`plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events`, `supervisor_workers`, multi-instance `<byok, model, effort>`, `gcp_project`/`gcp_location`, zero paid-tier restrictions), strict `<repo>/.toksi/<tool>` repo-only storage (incl. `<repo>/.toksi/ctxmode/` w/ auto-migration), standardized `<tool>-hook <agent>` + Named Pipe/UDS `direct wired` bus (`MCP`, `A2A` v1.0, `ACP` v2.0, **`ANP` `did_wba`**, `stdio`, `SSE`, `HTTP`, **`QUIC`** on `:9098`), `.toksi/test-baseline.json` (`35` suites) live-safe incremental skip manifest, **21 target universal slash commands** (`16` core + `/ctxmode`, `/workforce`, `/spec`, `/train`, `/serve`, `/voice`), and 9-tab async TUI + Web Cockpit (`:9100`).
+**Status:** Approved Wave 20 (v7.0) Master Architectural Blueprint & Implementation Specification (**493 Mandated Vaults `[DEEP-RESEARCH-DONE]`**, **49 `.agents/brain/*.md` Guides**, **8-State Progress Taxonomy**)  
+**Objective:** 100% Native Rust (Edition 2024, `#![deny(unsafe_code)]` via leaf FFI crates `crates/toksi-sys` & `crates/toksi-grammars`) consolidation across all **493 unique mandated vaults** (`294` Waves 1–18 + `138` Wave 19 + `61` Wave 20 across Sections `2.1`–`2.17`), **11 AI/ML Lifecycle Pillars**, **Distributed Cluster Stack (`src/cluster/` `toksi cluster`)**, **OpenTelemetry Rust LLMOps (`src/telemetry/otel.rs` `gen_ai.*`)**, **35 `<toksi-siagent>` components** running inside dedicated `toksi _worker siagent` across **22 Orchestrator Modes / 7 Cognitive Domains (`[toksi_siagent_router.*]`)** (killing local stubs in `loop_engine.rs`), **Dedicated Multi-Process Supervisor (`toksi _worker <role>`, `toksi daemon start|stop|restart|heal|status|dashboard|service <name> <action>`)**, detached `:9100` cockpit (`daemon start` never auto-starts dashboard), separated per-service DBs (`~/.toksi/services/*.db`) vs config DB (`~/.toksi/toksi.db`), **`ctxmode`** (`303` legacy refs) & **`aimemory`** (`67` legacy refs) canonical renames, **Max|XHigh|High|Medium|Low** thinking efforts + strict per-model `(temperature, top_p, top_k)` sampling compatibility matrix + auto `/v1` base URLs + concurrent standard `agy` & `AGY_ADC_AUTH=true` Vertex ADC, **`docker/Dockerfile.test` + `docker/compose.test.yaml` + `sbxenv.yaml`/Kit v3**, **Zero-Pollution `.agents/skills/` (`933` items / `922` dirs) cleanup**, **29 universal slash commands**, and **10-Tab UI** (`Savings`, `Activity Room`, `AI Agent Fleet`, `Quotas`, `Memory Decision DAG`, `CodeGraph Explorer`, `Sandbox Inspector`, `AI Gateway`, `Keyring & Database`, `System Controls`).
 
 ---
 
@@ -13,7 +13,7 @@
      * **Port 8788 (`_worker grok`)**: Grok OAuth Dedicated Proxy (`http://127.0.0.1:8788`, reverse proxy & multi-instance Grok OAuth failover)
      * **Port 8789 (`_worker copilot-vscode`)**: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`, real Copilot reverse proxy — zero stub strings)
      * **Port 8790 (`_worker copilot-cli`)**: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`)
-     * **Port 9098 (`_worker protocol-bus`)**: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` `agent-client-protocol` / **`ANP` (`did_wba`)** / `stdio` / `SSE` / `HTTP` / **`QUIC` (`quinn`)** / Temporal-Restate-LangGraph checkpoint event bus) with shared `HeadroomEffortCompressor` payload compression (`Low`/`Med`/`High`) and unified `ToolTarget` routing across all **432** vault engines, `Headroom`, `Security`, `Advisory`, `Sandbox`, and `Plugins`
+     * **Port 9098 (`_worker protocol-bus`)**: Unified Protocol Bus (`MCP` / `A2A` v1.0 / `ACP` `agent-client-protocol` / **`ANP` (`did_wba`)** / `stdio` / `SSE` / `HTTP` / **`QUIC` (`quinn`)** / Temporal-Restate-LangGraph checkpoint event bus) with shared `HeadroomEffortCompressor` payload compression (`Max|XHigh|High|Medium|Low`) and unified `ToolTarget` routing across all **493** vault engines, `Headroom`, `Security`, `Advisory`, `Sandbox`, `Cluster`, and `Plugins`
      * **Port 9099 (`_worker gateway`)**: Enterprise AI Gateway & Drop-in SDK Endpoints (`/v1/chat/completions`, `/v1/messages`, `/v1/responses`, `/v1/embeddings`, `/v1/security/scan`, `/v1beta/models/*`, `/metrics`, Google Cloud ADC Vertex proxy via `vertex_rust_sdk`, pure-Rust `oxillama`/`xinfer`/`Crane`/`candle`/`mistral.rs`/`frontend-crates` bridges, `pingora` upstream pooling) enforcing full `HeadroomEffortCompressor` (`Low`/`Medium`/`High`, `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, MCP schema pruner, RTK, Chroma/Lance/Qdrant semantic cache, `<enforce>`)
      * **Port 9100 (`_worker dashboard`)**: Zero-Dependency Real-Time Web Telemetry & Control Dashboard Cockpit (detached subprocess, exact 9-tab parity, `tokview`, `phoenix`/`langwatch`/`tokenspeed`/`vmon` GPU metrics, `_worker` controls, workforce, training/serving, security, `Navegos/advisory` & checkpoint controls)
      * **Port 18787 (`_worker byok-gateway`)**: BYOK Multi-Profile & Google Cloud ADC Gateway (`http://127.0.0.1:18787`, OpenAI, Anthropic, Gemini, Vertex ADC `AGY_ADC_AUTH=true`, Ollama/vLLM/LM Studio/`oxillama`/`xinfer`/`Crane`/`paddler`/`llama-swap`/`mistral.rs`/`candle`/all **30+** local & Rust-native engines via multi-instance `<byok, model, effort>` + `RouteLLM`/`olla`/`Switchyard` routing) passing every enabled request through the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`)
@@ -231,9 +231,9 @@ Every subsystem must execute seamlessly and natively across Windows 10/11, Ubunt
 
 ### 3.1 Workspace & User Directory Layout
 ```
-docker/                       # Planned Wave 19.3 Live-Safe Container Test Isolation
+docker/                       # Wave 19.3 / 20.3 Live-Safe Container Test Isolation
 ├── Dockerfile.test
-└── docker-compose.test.yml
+└── compose.test.yaml
 
 crates/toksi/src/
 ├── main.rs                   # Unified CLI entrypoint (#![deny(unsafe_code)]) & full usage help
@@ -855,7 +855,7 @@ flowchart TD
         LB["Load Balancer & Effort/Cost-Quality Router (<byok, model, effort>, Pingora, RouteLLM, olla)"]
         Cache["Dual-Tier Hybrid Graph-Vector Cache (Chroma, Lance+arrow-rs, Qdrant, Cognee, Graphiti, Letta, funes)"]
         Pruner["MCP Pruner & <enforce> Security Filter (OPA, Cedar, SPIRE, Guardrails, OpenAI-Guardrails, ATR, model_spec, CommandGuard, ADR, defenseclaw, skill-scanner)"]
-        AllTools["Unified 432-Vault Tool & Plugin Bus (_worker codegraph/ctxmode/projectmem/icm/aimemory/rtk/security + src/plugins/ + src/validator/)"]
+        AllTools["Unified 493-Vault Tool & Plugin Bus (_worker codegraph/ctxmode/projectmem/icm/aimemory/rtk/security/cluster + src/plugins/ + src/validator/)"]
         Telemetry["Telemetry, Training & Eval Plane (tokview, Phoenix, LangWatch, tokenspeed, cudarc, vmon, lighteval, unsloth, Automodel)"]
         Watchdog["Supervisor Watchdog (iggy/UDS/Named Pipe) & Temporal/Restate/chevalier Plan Checkpoints"]
     end
@@ -1092,7 +1092,7 @@ CREATE TABLE IF NOT EXISTS adr_audit_events (
 
 ---
 
-## 8. Upstream Vaults Audit, 35-Component `<toksi-siagent>` Matrix, & Wave 19 Consolidation (`432` Unique Reference Engines across Sections `2.1`–`2.14`)
+## 8. Upstream Vaults Audit, 35-Component `<toksi-siagent>` Matrix, & Wave 20 Consolidation (`493` Unique Reference Engines across Sections `2.1`–`2.17`)
 
 Continuous re-audit against all **295 unique mandated vaults & companion repositories** (`292` unique `<deep-research>` vaults in `RESEARCHPLAN.txt:28–320` + companion repos `<advisory>` & `<skills>` + `agents-structures` = `36` prior + `259` Wave 18 additions in `neo/inspect-vault/*`) powering the **35-component `<toksi-siagent>` Super Intelligence Architecture (`RESEARCHPLAN.md` Section 0.2)** to guarantee full feature parity, upstream bug fixes, zero omitted capabilities, and real end-to-end wiring:
 
@@ -1193,7 +1193,7 @@ Continuous re-audit against all **295 unique mandated vaults & companion reposit
    - **Section 2.10 (`51` compute/CUDA/cluster vaults):** `14` PyTorch/Lightning vaults, `12` TensorRT/Triton/Compiler vaults, and `25` GPUStack/CUDA (`cuda-rust`)/RAPIDS/Slurm (`srt-slurm`)/Cluster vaults.
 5. **35-Component `<toksi-siagent>` Matrix (`RESEARCHPLAN.md` Section 0.2):** All 26 base `<agent>` components + 9 `<siagent>` Super Intelligence extensions (`World Model`, `Hierarchical Planner`, `Verification Engine`, `Agent Runtime Daemon`, `IAM Attestation Layer`, `Policy-as-Code Engine`, `Circuit Breaker`, `Kill Switch`, `Immutable Audit Log`) execute in safe Rust via Named Pipe/UDS `DirectWireBus` and the 8-port multi-process supervisor (`:8787..:8790, :9098, :9099, :9100, :18787`) through shared `HeadroomEffortCompressor`.
 
-### 8.5 Full Wave 19 Vaults Synthesis Sections `2.10`–`2.14` (`138` Additions / `432` Total Unique Vaults — `[DEEP-RESEARCH-DONE]`)
+### 8.5 Full Wave 19 Vaults Synthesis Sections `2.10`–`2.14` (`138` Wave 19 Additions / `432` Cumulative -> `493` Wave 20 — `[DEEP-RESEARCH-DONE]`)
 
 All **138 Wave 19 new & reconciled vaults** (`RESEARCHPLAN.md` Sections `2.10`–`2.14`) are source-inspected (`[DEEP-RESEARCH-DONE]`):
 1. **Section 2.11 Pure-Rust & Next-Gen Agents, Workforces, Specs & Voice (`56` vaults):** `adk-rust` (`ws@3.0.0`, 49 crates incl. `adk-acp`, `adk-agent`, `adk-action`, `adk-artifact`), `rig` (`0.46.0`), `swarms-rs` + `swarms` (`Py@17.0.3`), `maki` (`0.7.2`, 15 crates), `steer` (`ws@0.19.0`), `chevalier` (Ed 2024 `chevalier-durable`, `chevalier-vfs-hash`), `funes` (`1.3.1+dev`), `agentrix-os` (`spatial-os@0.1.0`), `anp` (`1.0.7` `did_wba`), `OpenSpec` (`2.1.0`), `deer-flow` (`2.3.0-dev`), `openworker` (`0.3.4`), `dsh-superagent-prototype` (`0.1.0`), `ChatDev` (`DevAll@0.1.0`), `multica` (`0.2.0`), `open-multi-agent` (`OMA`), `orca` (`1.4.214`), `nemo-platform` (`nemohelix`), `tura` (`0.1.0`, 17 members `#![deny(unsafe_code)]`), `smolagents`, `SillyTavern`, `sim`, `livekit*` (`v2`), `adk-python`, `agents-cli`, `bridge-mcp` (`8.0.0`, 476 SSH tools), `openrag`, `pochi`, `tabby` (`18` crates), `refact`, `native-cli-ai` (`nca@0.66.0`), `ironwire`, `anything-llm`, `cc-router`, `continue` (read-only ref), `claurst`, `tidev` (`0.9.0`, 16 crates), `ironclaw` (`0.1.0`, 68 crates), `xa`, `octos` (`2.0.3-rc.11`, 38 crates), `rust-code` (`sgr-agent-core`), `ringlet`, `ironcode`, `brat` (12 `libbrat-*`), `arc-cli` (31 crates), `aitk`, `moly-ai`, `agent-code`, `agent-manager`, `langgraph-swarm-py`, `openai-agents-python`, `openai-cli`, `openai-python`.
@@ -1201,8 +1201,15 @@ All **138 Wave 19 new & reconciled vaults** (`RESEARCHPLAN.md` Sections `2.10`�
 3. **Sections 2.10 (`xla`) + 2.13 Training, Quantization, Pure-Rust/Multimodal Serving, ONNX/TRT & MLOps (`47` vaults):** `oxillama` (`0.1.4`), `xinfer` (`0.14.7`), `Crane` (`26.9.0`), `paddler` (`5.0.0`, 35 crates), `llama-swap`, `llguidance` (10 crates `parser::earley`/`toktrie`), `safetensors` (`0.9.0-dev.0`), `ggml`, `whisper.cpp`, `whisper`, `stable-diffusion.cpp`, `cudarc` (`0.19.10`), `server` + `core` (`tritonserver`), `DeepSpeed-MII`, `DeepSpeed-Kernels`, `unsloth`, `unsloth-studio`, `Automodel` (`nemo-automodel`), `nanotron`, `Emerging-Optimizers`, `torchtune` (archived upstream recipe ref), `torchdata`, `torchvision`, `torchcodec`, `torchinfer`, `torchrec`, `torchaudio`, `torchignite`, `onnx`, `optimizer`, `ir-py`, `onnxmltools`, `onnx-tensorrt`, `Olive`, `intel-neural-compressor`, `digestai`, `sentence-transformers`, `cuvs`, `CV-CUDA`, `warp`, `xla`, `lighteval`, `langwatch`, `wandb` (`parquet-rust-wrapper`), `clearml`, `clearml-agent`.
 4. **Section 2.14 Wave 19 Security, Guardrails & Skill Distillation Packs (`7` vaults — `<enforce>`):** `agent-threat-rules` (`SPEC.md` v1.0.1, `19,699` YAMLs), `openai-guardrails-python` (`0.3.6`), `model_spec`, `upskill` (`0.2.1`), `qdrant-skills` (`35` skills), `crewAIInc-skills` (`11` skills), `Essential-Hermes-Skills` (`91` skills, `reverse-skill` security-audited under `<enforce>`).
 
+### 8.6 Full Wave 20 Vaults Synthesis Sections `2.15`–`2.17` (`61` Additions / `493` Total Unique Vaults — `[DEEP-RESEARCH-DONE]`)
+
+All **61 Wave 20 new & reconciled vaults** (`RESEARCHPLAN.md` Sections `2.15`–`2.17`) are source-inspected (`[DEEP-RESEARCH-DONE]`):
+1. **Section 2.15 Kubernetes, Kubeflow, Cluster Operations & NVIDIA AI-Factory Infrastructure (`26` vaults -> `src/cluster/`, `toksi cluster`, `PHASE_20_5`):** `kubernetes`, `minikube`, `kompose`, `kops`, `helm`, `autoscaler`, `node-problem-detector`, `cluster-readiness-engine` (NVCRE), `NVSentinel`, `aicr`, `knavigator`, `AI-Factory-Operations-Agent`, `deepops`, Kubeflow (`hub`, `pipelines`, `katib` archival HPO ref, `sdk`, `trainer`, `kale`, `spark-operator`, `dashboard`, `notebooks`, `semantic-operator`), `Run` (`nemo_run`), `spark`, `cudf-spark`.
+2. **Section 2.16 Datasets, Ontologies, Retrieval/RAG, Prompt-Ops, Compression, Serving, Agent Toolkits & IDE/CLI Ecosystem (`26` vaults -> `11 AI/ML Pillars`, `PHASE_20_4`):** `ossie`, `ossie-converters`, `auto-ontology`, `structured-data-models`, `Megatron-Energon`, `cuPhoton`, `hyperflare-inference` (Rust CUDA-graph inference), `kvpress`, `bitsandbytes`, `Personal-AI-Router` (PAIR LAN mesh), `semantic-router`, `NeMo-Agent-Toolkit`, `NeMo-Agent-Toolkit-UI`, `NeMo-Relay-Plugins` (Rust native/gRPC plugins), `elements`, `llama_index`, `llama-agents`, `liteparse` (Rust 6-crate PDF/OCR parser), `haystack`, `prompt-ops`, `llama` (archival), `llama-models`, `ogx`, `ogx-client-go`, `vscode`, `aider`.
+3. **Section 2.17 OpenTelemetry Native Observability, Automated Failure Analysis, RAG/LLM Evals & Llama Security Guardrails (`9` vaults -> `PHASE_20_4`/`PHASE_20_6`):** `AutoFA`, `deepeval`, `ragas`, `PurpleLlama` (`CodeShield`, `LlamaFirewall`, `Llama-Guard`), `opentelemetry-rust`, `opentelemetry-collector`, `opentelemetry-operator`, `opentelemetry-python`, `opentelemetry-python-genai` (`gen_ai.*`).
+
 ---
-## 9. Chronological Execution Roadmap (Phases 1–19.6) — 8-State Progress Taxonomy
+## 9. Chronological Execution Roadmap (Phases 1–20.6) — 8-State Progress Taxonomy
 
 | Phase | Subsystem | Core Focus & Actions | 8-State Status | Key Deliverable |
 |---|---|---|---|---|
@@ -1244,17 +1251,23 @@ All **138 Wave 19 new & reconciled vaults** (`RESEARCHPLAN.md` Sections `2.10`�
 | **Phase 18.6** | **35-Component `<toksi-siagent>` & Inference/Compute Stack** | Wired all 35 `<toksi-siagent>` components, OPA/Cedar/SPIRE IAM, Guardrails/LLM-Guard, Temporal/Restate, Qdrant/Cognee/Graphiti, 26 local/Rust engines & Section 2.8–2.10 compute probes. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` | Full 35-component Super Intelligence stack across Waves 1–18 vaults. |
 | **Phase 19.1** | **`ctxmode` Tool Rename Everywhere (`RESEARCHPLAN.txt:578`)** | Rename all `316` `context-mode` & conflicting `context` refs across CLI (`toksi ctxmode`), `/ctxmode`, `ctxmode-hook <agent>`, MCP key `"ctxmode"`, `<repo>/.toksi/ctxmode/` w/ auto-migration from `.context-mode/` & `<repo>/.toksi/context/`. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]` | Zero legacy `context-mode` collisions; clean zero-loss SQLite migration. |
 | **Phase 19.2** | **Dedicated Multi-Process Supervisor (`toksi _worker <role>`) & Direct-Wire IPC** | Split `commands/daemon.rs` in-process Tokio tasks into isolated OS subprocesses per Port (`8787..18787`), `<toksi-siagent>`, and core tools over Named Pipes / UDS `DirectWireBus` (`src/ipc/`, `pingora`/`iggy`/`quinn`/`rpmalloc-rs`, `supervisor_workers` table). | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Crash-isolated multi-process supervision, watchdog restart & kill-switch fan-out. |
-| **Phase 19.3** | **Live-Safe Sandboxed & Docker Test Isolation (`Dockerfile.test`)** | Build `docker/Dockerfile.test`, `docker/docker-compose.test.yml`, `toksi test --docker\|--sandbox`, and ephemeral `TOKSI_HOME`/`:0` isolation never disturbing live host services or `~/.toksi/toksi.db`. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | 100% host-safe container/sandbox E2E & unit suite honoring `.toksi/test-baseline.json`. |
+| **Phase 19.3** | **Live-Safe Sandboxed & Docker Test Isolation (`Dockerfile.test`)** | Build `docker/Dockerfile.test`, `docker/compose.test.yaml`, `toksi test --docker\|--sandbox`, and ephemeral `TOKSI_HOME`/`:0` isolation never disturbing live host services or `~/.toksi/toksi.db`. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | 100% host-safe container/sandbox E2E & unit suite honoring `.toksi/test-baseline.json`. |
 | **Phase 19.4** | **Zero-Pollution Hygiene & `.agents/skills/` (922 Dirs) Cleanup** | Audit all **922** dirs in `<neo>/.agents/skills/` + `<neo>/agents/` (`28`) + `<neo>/rules/` (`24`); strip unadapted foreign scripts/actions; grade via `skilldoctor`/`agentskills`/`upskill`/`skill-scanner` (`<enforce>`); sync to `Navegos/skills` + `Navegos/advisory`. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]` | Zero unadapted foreign bloat in `<neo>`; verified externalized `<skills>` & `<advisory>`. |
 | **Phase 19.5** | **Wave 19 SI Agentic Stack, Workforce (`OMA`/`Swarms`), `ANP` & ATR/Guardrails** | Implement Wave 19 pure-Rust agents (`adk-rust`, `rig`, `maki`, `steer`, `chevalier`, `funes`, `agentrix-os`, `ironclaw`, `brat`), Workforce (`/workforce`), `OpenSpec` (`/spec`), `ANP` (`did_wba`) + `QUIC` (`:9098`), `vertex_rust_sdk`/`lancedb`/`arrow-rs`/`tiktoken`/`BLAKE3`/`pmat`, and `ATR` + `openai-guardrails-python` + `model_spec` (`91` Sec `2.11`/`2.12`/`2.14` vaults). | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Wave 19 pure-Rust agent swarm, spec lifecycle, decentralized ANP & ATR/Guardrails. |
-| **Phase 19.6** | **Model Training, Quantization, Pure-Rust/Multimodal Serving & 43-File 8-State Sync** | Implement `src/training/`, `toksi train\|serve\|eval`, `/train`, `/serve`, `/voice` (`47` Sec `2.10`/`2.13` vaults: `oxillama`, `xinfer`, `Crane`, `paddler`, `llama-swap`, `llguidance`, `safetensors`, `whisper*`, `sd.cpp`, `cudarc`, `triton`, `DeepSpeed`, `unsloth*`, `Automodel`, `nanotron`, `onnx*`, `Olive`, `lighteval`, `langwatch`, `wandb`, `clearml*`, `livekit*`, `moly-ai`, `robius`, `robrix`, `xla`) + 43-file 8-state sync (`doc sync complete; runtime pending`). | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Unified training/quant/serving/voice CLI & synchronized 43-file 8-state master catalog. |
+| **Phase 19.6** | **Model Training, Quantization, Pure-Rust/Multimodal Serving & Multimodal Plane** | Implement `src/training/`, `toksi train\|serve\|eval`, `/train`, `/serve`, `/voice` (`47` Sec `2.10`/`2.13` vaults: `oxillama`, `xinfer`, `Crane`, `paddler`, `llama-swap`, `llguidance`, `safetensors`, `whisper*`, `sd.cpp`, `cudarc`, `triton`, `DeepSpeed`, `unsloth*`, `Automodel`, `nanotron`, `onnx*`, `Olive`, `lighteval`, `langwatch`, `wandb`, `clearml*`, `livekit*`, `moly-ai`, `robius`, `robrix`, `xla`). | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Unified training/quant/serving/voice CLI. |
+| **Phase 20.1** | **Real `<toksi-siagent>` Subprocess, 22-Mode Router, 5 Efforts, Sampling & 29 Slash Cmds** | Kill `loop_engine.rs` stubs, run `_worker siagent`, wire 22 modes (`[toksi_siagent_router.*]`), `Max\|XHigh\|High\|Medium\|Low` efforts, strict sampling matrix, & **29** slash commands. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Real 22-mode SI agent execution & 29 instant commands. |
+| **Phase 20.2** | **`daemon heal\|dashboard\|service`, Detached `:9100`, Service DBs, Auto `/v1` & 10-Tab UI** | Detach `:9100` from `daemon start`, add `daemon heal\|dashboard\|service`, split `~/.toksi/services/*.db`, auto `/v1`, dual `agy`/ADC, remove `"opencode"` stub, ship **10-Tab UI**. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]` | Decoupled supervisor, split DBs & 10-Tab UI. |
+| **Phase 20.3** | **Docker CLI/Compose Virtualization (`compose.test.yaml`) & `sbxenv.yaml`/Kit v3** | Author `docker/compose.test.yaml` + pure-Rust `ComposeSpec`, `sbxenv.yaml` v1 & Kit v3 sandbox engine (`toksi sandbox compose\|sbxenv`). | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Declarative Compose & `sbxenv` v1/Kit v3 isolation. |
+| **Phase 20.4** | **11-Pillar AI/ML Lifecycle & Wave 20 Vaults (`toksi dataset\|compress\|eval`)** | Integrate `liteparse`, `hyperflare-inference`, `NeMo-Relay-Plugins`, `kvpress`, `bitsandbytes`, `Megatron-Energon`, `ossie*`, `auto-ontology`, `semantic-router`, `AutoFA`, `deepeval`, `ragas`, `PurpleLlama`. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | 11 AI/ML Pillars across 493 vaults. |
+| **Phase 20.5** | **Toksi Distributed Cluster Stack (`src/cluster/` & `toksi cluster`)** | Build `src/cluster/` unifying K8s/Minikube/Kompose/Kops/Helm/Autoscaler/NPD, NVCRE/`NVSentinel`/`aicr`/Knavigator/DeepOps, Kubeflow/`Run`, Spark/`cudf-spark`/`cuPhoton`, & PAIR LAN mesh. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Dual-mode Local + Cluster orchestration. |
+| **Phase 20.6** | **OpenTelemetry Native LLMOps (`opentelemetry-rust`) & 49-File 8-State Sync** | Embed `opentelemetry-rust` OTLP + `gen_ai.*` spans (`~/.toksi/services/otel.db`), collector/operator CRDs, `phase19..20` verification & 49-file 8-state sync. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Native OTel observability & green 49-file sync. |
 
 ---
 
 ## 10. Master-Plan-Aware Ready-to-Run Prompts
 
 > **Modular Brain Execution Policy**:  
-> To execute without context saturation, each phase prompt is isolated in `.agents/brain/*.md` (**43** files total: `INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_19_6`, each tagged with the mandatory **8-State Progress Taxonomy**). Copy and paste the prompt into a fresh chat session:
+> To execute without context saturation, each phase prompt is isolated in `.agents/brain/*.md` (**49** files total: `INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_20_6`, each tagged with the mandatory **8-State Progress Taxonomy**). Copy and paste the prompt into a fresh chat session:
 > - **Phase 01**: [`.agents/brain/PHASE_01_RTK_FILTER_ENGINE.md`](../../.agents/brain/PHASE_01_RTK_FILTER_ENGINE.md)
 > - **Phase 02**: [`.agents/brain/PHASE_02_PROJECTMEM_PURE_RUST.md`](../../.agents/brain/PHASE_02_PROJECTMEM_PURE_RUST.md)
 > - **Phase 03**: [`.agents/brain/PHASE_03_CONTEXTMODE_PURE_RUST.md`](../../.agents/brain/PHASE_03_CONTEXTMODE_PURE_RUST.md)
@@ -1297,6 +1310,12 @@ All **138 Wave 19 new & reconciled vaults** (`RESEARCHPLAN.md` Sections `2.10`�
 > - **Phase 19.4**: [`.agents/brain/PHASE_19_4_ZERO_POLLUTION_HYGIENE_AND_SKILLS_CLEANUP.md`](../../.agents/brain/PHASE_19_4_ZERO_POLLUTION_HYGIENE_AND_SKILLS_CLEANUP.md)
 > - **Phase 19.5**: [`.agents/brain/PHASE_19_5_SI_AGENTIC_STACK_WORKFORCE_ANP_AND_SECURITY_VAULTS.md`](../../.agents/brain/PHASE_19_5_SI_AGENTIC_STACK_WORKFORCE_ANP_AND_SECURITY_VAULTS.md)
 > - **Phase 19.6**: [`.agents/brain/PHASE_19_6_TRAINING_SERVING_MULTIMODAL_PLANE_AND_8STATE_SYNC.md`](../../.agents/brain/PHASE_19_6_TRAINING_SERVING_MULTIMODAL_PLANE_AND_8STATE_SYNC.md)
+> - **Phase 20.1**: [`.agents/brain/PHASE_20_1_REAL_SIAGENT_SUBPROCESS_22_MODE_ROUTER_AND_29_SLASH_CMDS.md`](../../.agents/brain/PHASE_20_1_REAL_SIAGENT_SUBPROCESS_22_MODE_ROUTER_AND_29_SLASH_CMDS.md)
+> - **Phase 20.2**: [`.agents/brain/PHASE_20_2_DAEMON_HEAL_SERVICE_PER_SERVICE_DBS_AND_10TAB_UI.md`](../../.agents/brain/PHASE_20_2_DAEMON_HEAL_SERVICE_PER_SERVICE_DBS_AND_10TAB_UI.md)
+> - **Phase 20.3**: [`.agents/brain/PHASE_20_3_DOCKER_COMPOSE_VIRTUALIZATION_AND_SBXENV_KIT_V3.md`](../../.agents/brain/PHASE_20_3_DOCKER_COMPOSE_VIRTUALIZATION_AND_SBXENV_KIT_V3.md)
+> - **Phase 20.4**: [`.agents/brain/PHASE_20_4_11_PILLAR_AIML_LIFECYCLE_AND_WAVE20_VAULTS.md`](../../.agents/brain/PHASE_20_4_11_PILLAR_AIML_LIFECYCLE_AND_WAVE20_VAULTS.md)
+> - **Phase 20.5**: [`.agents/brain/PHASE_20_5_DISTRIBUTED_CLUSTER_STACK_AND_AI_FACTORY_MESH.md`](../../.agents/brain/PHASE_20_5_DISTRIBUTED_CLUSTER_STACK_AND_AI_FACTORY_MESH.md)
+> - **Phase 20.6**: [`.agents/brain/PHASE_20_6_OPENTELEMETRY_RUST_LLMOPS_AND_49FILE_8STATE_SYNC.md`](../../.agents/brain/PHASE_20_6_OPENTELEMETRY_RUST_LLMOPS_AND_49FILE_8STATE_SYNC.md)
 
 ---
 
@@ -2296,18 +2315,18 @@ Requirements:
 ### Prompt: Phase 19.3 — Live-Safe Sandboxed & Docker Test Isolation (`docker/Dockerfile.test`)
 ```text
 Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 0-13), crates/toksi/research/docker_sandboxes_sbx_cli_reference.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_19_3_LIVE_SAFE_SANDBOXED_AND_DOCKER_TEST_ISOLATION.md first.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 0-13), crates/toksi/research/docker_sandboxes_sbx_cli_yaml_reference.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_19_3_LIVE_SAFE_SANDBOXED_AND_DOCKER_TEST_ISOLATION.md first.
 
 Execute Phase 19.3: Live-Safe Sandboxed & Docker Test Isolation (`RESEARCHPLAN.txt:584`).
 Targets:
-  - docker/Dockerfile.test & docker/docker-compose.test.yml
+  - docker/Dockerfile.test & docker/compose.test.yaml
   - crates/toksi/src/commands/test_runner.rs
   - crates/toksi/src/config/mod.rs (`[testing]`)
   - crates/toksi/tests/common/mod.rs & integration suites
 
 Requirements:
 1. Isolate every unit/integration test harness onto ephemeral `TempDir` `TOKSI_HOME` and `:0` OS-assigned ports so `cargo test` NEVER touches live host `toksi` daemons, `~/.toksi/toksi.db`, OS keyring entries, or user shell/IDE configs.
-2. Create `docker/Dockerfile.test` and `docker/docker-compose.test.yml`, and implement `toksi test --docker | --sandbox` in `src/commands/test_runner.rs` while honoring `.toksi/test-baseline.json` BLAKE3 unchanged-suite skipping without test relaxation.
+2. Create `docker/Dockerfile.test` and `docker/compose.test.yaml`, and implement `toksi test --docker | --sandbox` in `src/commands/test_runner.rs` while honoring `.toksi/test-baseline.json` BLAKE3 unchanged-suite skipping without test relaxation.
 3. Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test --test phase19_3_live_safe_test_isolation_verification`.
 ```
 
@@ -2371,5 +2390,49 @@ Targets:
 Requirements:
 1. Build `src/training/` and `toksi train | serve | eval` + `/train`, `/serve`, `/voice` unifying `oxillama`, `xinfer`, `Crane`, `paddler`, hot-swap `llama-swap`, `llguidance` CFG/JSON masking, pickle-free `safetensors` inspection, `whisper.cpp`/`stable-diffusion.cpp`/`livekit*` multimodal `/voice`, `cudarc` GPU probes, `unsloth`/`Automodel`/`nanotron` recipes, `onnx*`/`Olive`/`intel-neural-compressor` quant profiles, and `lighteval`/`langwatch` evals.
 2. Complete `CORE_SLASH_COMMANDS` **21-command** expansion and update Tab 1–9 TUI & `:9100` Cockpit views for `_worker` subprocesses, `/workforce`, `/spec`, `/train`, `/serve`, `/voice`.
-3. Update `.toksi/test-baseline.json`, synchronize all 6 master docs + 43 `.agents/brain/*.md` 8-state badges from `[PLAN-UNIMPLEMENTED]`/`[PLAN-NEEDS-FIX]` to `[PLAN-IMPLEMENTED]`/`[PLAN-FIXED]`, and verify `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and full test suite.
+3. Update `.toksi/test-baseline.json`, synchronize all 6 master docs + 49 `.agents/brain/*.md` 8-state badges, and verify `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and full test suite.
+```
+
+---
+
+### Prompt: Phase 20.1 — Real `<toksi-siagent>` Subprocess, 22-Mode Router, 5 Efforts, Sampling Matrix & 29 Slash Commands
+```text
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
+Read ALL 12 canonical files + router TOML and .agents/brain/PHASE_20_1_REAL_SIAGENT_SUBPROCESS_22_MODE_ROUTER_AND_29_SLASH_CMDS.md first.
+Execute Phase 20.1: Kill local stubs in loop_engine.rs:173-176, 249-251; wire _worker siagent, 22 Orchestrator Modes ([toksi_siagent_router.*]), Max|XHigh|High|Medium|Low efforts, per-model sampling filter, and 29 slash commands.
+```
+
+### Prompt: Phase 20.2 — `daemon heal|dashboard|service`, Detached `:9100`, Per-Service DBs, Auto `/v1`, Dual `agy`/ADC & 10-Tab UI
+```text
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-NEEDS-FIX]
+Read ALL 12 canonical files + router TOML and .agents/brain/PHASE_20_2_DAEMON_HEAL_SERVICE_PER_SERVICE_DBS_AND_10TAB_UI.md first.
+Execute Phase 20.2: Detach :9100 from daemon start, implement daemon heal|dashboard|service, separate ~/.toksi/services/*.db, auto /v1, dual agy/ADC, remove "opencode" stub, deliver 10-Tab UI.
+```
+
+### Prompt: Phase 20.3 — Docker CLI/Compose OS Virtualization (`compose.test.yaml`) & `sbxenv.yaml`/Kit v3 Engine
+```text
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
+Read ALL 12 canonical files + router TOML and .agents/brain/PHASE_20_3_DOCKER_COMPOSE_VIRTUALIZATION_AND_SBXENV_KIT_V3.md first.
+Execute Phase 20.3: Author docker/compose.test.yaml + pure-Rust ComposeSpec & sbxenv.yaml/Kit v3 validators in src/agent_runtime/sandbox.rs and src/commands/sandbox.rs.
+```
+
+### Prompt: Phase 20.4 — 11-Pillar AI/ML Lifecycle & Wave 20 Vaults (`toksi dataset|compress|eval`)
+```text
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
+Read ALL 12 canonical files + router TOML and .agents/brain/PHASE_20_4_11_PILLAR_AIML_LIFECYCLE_AND_WAVE20_VAULTS.md first.
+Execute Phase 20.4: Integrate liteparse, hyperflare-inference, NeMo-Relay-Plugins, kvpress, bitsandbytes, Megatron-Energon, ossie*, auto-ontology, semantic-router, AutoFA, deepeval, ragas, PurpleLlama.
+```
+
+### Prompt: Phase 20.5 — Toksi Distributed Cluster Stack (`src/cluster/` & `toksi cluster`)
+```text
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
+Read ALL 12 canonical files + router TOML and .agents/brain/PHASE_20_5_DISTRIBUTED_CLUSTER_STACK_AND_AI_FACTORY_MESH.md first.
+Execute Phase 20.5: Build src/cluster/ + toksi cluster unifying Kubernetes, Minikube, Kompose, Kops, Helm, Autoscaler, NPD, NVCRE, NVSentinel, aicr, Knavigator, DeepOps, Kubeflow, Run, Spark, cudf-spark, cuPhoton, Personal-AI-Router.
+```
+
+### Prompt: Phase 20.6 — OpenTelemetry Native LLMOps (`opentelemetry-rust`) & 49-File 8-State Master Sync
+```text
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
+Read ALL 12 canonical files + router TOML and .agents/brain/PHASE_20_6_OPENTELEMETRY_RUST_LLMOPS_AND_49FILE_8STATE_SYNC.md first.
+Execute Phase 20.6: Embed opentelemetry-rust OTLP + gen_ai.* semantic spans (~/.toksi/services/otel.db), collector/operator CRDs, phase19/phase20 tests, and 49-file 8-state master synchronization.
 ```

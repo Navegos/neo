@@ -636,6 +636,33 @@ pub fn delete_spire_svid(spiffe_id: &str) -> bool {
     delete_credential("spiffe", clean_id)
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DualAgyAuthSnapshot {
+    pub standard_agy_available: bool,
+    pub vertex_adc_available: bool,
+    pub concurrent_ready: bool,
+    pub standard_route_key: String,
+    pub vertex_adc_route_key: String,
+    pub adc_location: String,
+}
+
+/// Inspects standard `agy` CLI OAuth/keyring availability concurrently with
+/// `AGY_ADC_AUTH=true` Vertex ADC under separate route keys without overwriting either.
+pub fn inspect_dual_agy_auth() -> DualAgyAuthSnapshot {
+    let standard_agy_available = get_credential("gemini", "antigravity").is_some()
+        || get_credential("agy", "default").is_some();
+    let adc = inspect_adc_status();
+    let vertex_adc_available = adc.enabled && adc.adc_present && adc.gcp_project.is_some();
+    DualAgyAuthSnapshot {
+        standard_agy_available,
+        vertex_adc_available,
+        concurrent_ready: standard_agy_available && vertex_adc_available,
+        standard_route_key: "gemini:antigravity".to_string(),
+        vertex_adc_route_key: "vertex-adc:default".to_string(),
+        adc_location: adc.gcp_location,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -681,5 +708,17 @@ mod tests {
         assert!(get_cached_adc_token("test-key", now).is_some());
         assert!(get_cached_adc_token("test-key", now + 61).is_none());
         clear_adc_token_cache();
+    }
+
+    #[test]
+    fn test_inspect_dual_agy_auth_distinct_routes() {
+        let snap = inspect_dual_agy_auth();
+        assert_eq!(snap.standard_route_key, "gemini:antigravity");
+        assert_eq!(snap.vertex_adc_route_key, "vertex-adc:default");
+        assert!(!snap.adc_location.is_empty());
+        assert_eq!(
+            snap.concurrent_ready,
+            snap.standard_agy_available && snap.vertex_adc_available
+        );
     }
 }

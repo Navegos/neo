@@ -52,6 +52,15 @@ pub const SECTION_2_7_LOCAL_ENGINES: &[LocalEngineDescriptor] = &[
     LocalEngineDescriptor { id: "radixshmem", default_port: 0, pure_rust: true, openai_compat: false },
     LocalEngineDescriptor { id: "modelexpress", default_port: 8001, pure_rust: true, openai_compat: false },
     LocalEngineDescriptor { id: "nixl", default_port: 0, pure_rust: false, openai_compat: false },
+    LocalEngineDescriptor { id: "oxillama", default_port: 11435, pure_rust: true, openai_compat: true },
+    LocalEngineDescriptor { id: "xinfer", default_port: 8082, pure_rust: true, openai_compat: true },
+    LocalEngineDescriptor { id: "crane", default_port: 8083, pure_rust: true, openai_compat: true },
+    LocalEngineDescriptor { id: "paddler", default_port: 8084, pure_rust: true, openai_compat: true },
+    LocalEngineDescriptor { id: "llama-swap", default_port: 8085, pure_rust: false, openai_compat: true },
+    LocalEngineDescriptor { id: "whisper.cpp", default_port: 8086, pure_rust: false, openai_compat: true },
+    LocalEngineDescriptor { id: "stable-diffusion.cpp", default_port: 8087, pure_rust: false, openai_compat: true },
+    LocalEngineDescriptor { id: "triton-server", default_port: 8000, pure_rust: false, openai_compat: true },
+    LocalEngineDescriptor { id: "deepspeed-mii", default_port: 8088, pure_rust: false, openai_compat: true },
 ];
 
 /// Section 2.8 (48), Section 2.9 (41), and Section 2.10 (51) compute & serving vaults (140 total).

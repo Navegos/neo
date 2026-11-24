@@ -61,13 +61,13 @@ pub fn synthesize_openwiki_markdown(
     out
 }
 
-/// Writes `<repo>/.toksi/ai-memory/wiki/openwiki.md` and synchronizes `PROJECT_MAP.md`.
+/// Writes `<repo>/.toksi/aimemory/wiki/openwiki.md` and synchronizes `PROJECT_MAP.md`.
 pub fn write_openwiki_and_sync_project_map(
     repo_root: &Path,
     project_name: &str,
     edges: &[(String, String, String)],
 ) -> Result<String, String> {
-    let wiki_dir = repo_root.join(".toksi").join("ai-memory").join("wiki");
+    let wiki_dir = repo_root.join(".toksi").join("aimemory").join("wiki");
     fs::create_dir_all(&wiki_dir).map_err(|e| format!("openwiki mkdir failed: {e}"))?;
     let markdown = synthesize_openwiki_markdown(project_name, edges);
     fs::write(wiki_dir.join("openwiki.md"), &markdown)

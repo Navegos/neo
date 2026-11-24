@@ -221,7 +221,7 @@ impl AgentManager {
             if components.mcp
                 && let Some(adapter) = crate::agents::mcp_adapter_for("openagents")
             {
-                for tool in ["codegraph", "context", "projectmem", "icm", "aimemory", "rtk"] {
+                for tool in ["codegraph", "ctxmode", "projectmem", "icm", "aimemory", "rtk"] {
                     let _ = adapter.configure_mcp(tool, &[]);
                 }
                 details.push("Wired OpenAgents MCP servers".to_string());
@@ -363,9 +363,13 @@ impl AgentManager {
         let mut missing_mcp_servers = Vec::new();
 
         // Check essential tools wiring
-        for &tool in &["codegraph", "context", "projectmem", "rtk", "icm", "aimemory"] {
+        for &tool in &["codegraph", "ctxmode", "projectmem", "rtk", "icm", "aimemory"] {
             let hook_sub = user_dir.join("hooks").join(format!("{}.json", tool));
-            if !hook_sub.exists() && !user_dir.join("hooks.json").exists() {
+            let legacy_hook_sub = user_dir.join("hooks").join("context.json");
+            if !hook_sub.exists()
+                && !(tool == "ctxmode" && legacy_hook_sub.exists())
+                && !user_dir.join("hooks.json").exists()
+            {
                 missing_hooks.push(tool.to_string());
             }
         }
@@ -386,13 +390,13 @@ impl AgentManager {
             _ => None,
         };
         if let Some(raw) = mcp_raw {
-            for &tool in &["codegraph", "context", "projectmem"] {
+            for &tool in &["codegraph", "ctxmode", "projectmem"] {
                 if !raw.contains(tool) {
                     missing_mcp_servers.push(tool.to_string());
                 }
             }
         } else {
-            missing_mcp_servers.extend(["codegraph", "context", "projectmem"].iter().map(|s| (*s).to_string()));
+            missing_mcp_servers.extend(["codegraph", "ctxmode", "projectmem"].iter().map(|s| (*s).to_string()));
         }
 
         let outdated_rules = !user_dir.join("skills").exists() && !user_dir.join("rules").exists();
@@ -804,11 +808,14 @@ fn rewrite_legacy_hook_command_string(cmd: &str, default_agent: Option<&str>) ->
         let before = &updated[..idx];
         let after = &updated[idx + "context-mode hook ".len()..];
         let rebuilt = if before.trim().is_empty() {
-            format!("toksi context-hook {after}")
+            format!("toksi ctxmode-hook {after}")
         } else {
-            format!("{before}context-hook {after}")
+            format!("{before}ctxmode-hook {after}")
         };
         updated = rebuilt;
+        changed = true;
+    } else if updated.contains("context-hook ") {
+        updated = updated.replace("context-hook ", "ctxmode-hook ");
         changed = true;
     }
 
@@ -873,7 +880,7 @@ fn native_mcp_entry_for(agent_id: &str, norm_tool: &str, legacy_shape: Option<&O
     if is_copilot_cli {
         entry.insert("tools".to_string(), Value::Array(vec![Value::String("*".to_string())]));
     }
-    if norm_tool == "context" && (is_copilot_cli || is_vscode) {
+    if (norm_tool == "ctxmode" || norm_tool == "context") && (is_copilot_cli || is_vscode) {
         let mut env = OrderedMap::new();
         env.insert(
             "CONTEXT_MODE_PLATFORM".to_string(),
@@ -965,10 +972,18 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
                 changed = true;
             }
         }
-        for legacy_ctx in ["toksi-context-mode", "tokless-context-mode", "context-mode", "ctx"] {
+        for legacy_ctx in [
+            "toksi-context-mode",
+            "tokless-context-mode",
+            "context-mode",
+            "toksi-context",
+            "tokless-context",
+            "context",
+            "ctx",
+        ] {
             if let Some(val) = cfg.shift_remove(legacy_ctx) {
-                if !cfg.contains_key("context") {
-                    cfg.insert("context".to_string(), val);
+                if !cfg.contains_key("ctxmode") {
+                    cfg.insert("ctxmode".to_string(), val);
                 }
                 changed = true;
             }
@@ -1002,7 +1017,12 @@ pub fn heal_hook_and_mcp_configs_in_dir(base_dir: &Path) -> Vec<String> {
         let file_migrations: [(&[&str], &str); 4] = [
             (&["toksi-codegraph-index.json", "tokless-codegraph-index.json"], "codegraph.json"),
             (&["projectmem-context.json", "toksi-projectmem.json", "tokless-projectmem.json"], "projectmem.json"),
-            (&["context-mode.json", "toksi-context-mode.json", "tokless-context-mode.json"], "context.json"),
+            (&[
+                "context-mode.json",
+                "toksi-context-mode.json",
+                "tokless-context-mode.json",
+                "context.json",
+            ], "ctxmode.json"),
             (&["toksi-rtk.json", "tokless-rtk.json"], "rtk.json"),
         ];
         for (legacy_names, canonical_name) in file_migrations {
@@ -1433,7 +1453,8 @@ mod tests {
     fn test_in_tree_mcp_spawn_routing_and_wire_mode() {
         use crate::util::mcpspawn::pick_mcp_spawn;
         assert_eq!(pick_mcp_spawn("projectmem", &[]).args, vec!["mem", "mcp"]);
-        assert_eq!(pick_mcp_spawn("context", &[]).args, vec!["ctx", "mcp"]);
+        assert_eq!(pick_mcp_spawn("ctxmode", &[]).args, vec!["ctxmode", "mcp"]);
+        assert_eq!(pick_mcp_spawn("context", &[]).args, vec!["ctxmode", "mcp"]);
         assert_eq!(pick_mcp_spawn("codegraph", &[]).args, vec!["graph", "mcp"]);
         assert_eq!(pick_mcp_spawn("icm", &[]).args, vec!["icm", "mcp"]);
         assert_eq!(pick_mcp_spawn("aimemory", &[]).args, vec!["aimemory", "mcp"]);
@@ -1466,12 +1487,12 @@ args = ["toksi-projectmem.js"]
         assert!(!actions.is_empty());
 
         let healed = fs::read_to_string(&codex_toml)?;
-        assert!(healed.contains("[mcp_servers.context]"));
+        assert!(healed.contains("[mcp_servers.ctxmode]"));
         assert!(healed.contains("[mcp_servers.projectmem]"));
         assert!(!healed.contains("npx"));
         assert!(!healed.contains("toksi-projectmem.js"));
         assert!(healed.contains("toksi"));
-        assert!(healed.contains("\"ctx\"") && healed.contains("\"mem\""));
+        assert!(healed.contains("\"ctxmode\"") && healed.contains("\"mem\""));
         Ok(())
     }
 
@@ -1498,7 +1519,7 @@ args = ["toksi-projectmem.js"]
         assert!(!actions.is_empty());
 
         let healed_claude = fs::read_to_string(&claude_mcp)?;
-        assert!(healed_claude.contains("\"context\""));
+        assert!(healed_claude.contains("\"ctxmode\""));
         assert!(!healed_claude.contains("toksi-context-mode"));
         assert!(!healed_claude.contains("npx"));
 

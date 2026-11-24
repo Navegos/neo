@@ -12,6 +12,7 @@ pub mod headroom;
 pub mod logs;
 pub mod memory;
 pub mod monitor;
+pub mod quotas;
 pub mod sandbox;
 pub mod warroom;
 
@@ -22,5 +23,6 @@ pub use headroom::*;
 pub use logs::*;
 pub use memory::*;
 pub use monitor::*;
+pub use quotas::*;
 pub use sandbox::*;
 pub use warroom::*;

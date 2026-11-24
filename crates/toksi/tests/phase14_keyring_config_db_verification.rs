@@ -43,6 +43,7 @@ fn test_phase14_keyring_normalization_and_sqlite_tables() {
         is_active: true,
         created_at: 1,
         updated_at: 1,
+        ..Default::default()
     })
     .expect("upsert profile");
 

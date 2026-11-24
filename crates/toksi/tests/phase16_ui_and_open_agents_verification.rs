@@ -9,18 +9,19 @@ use toksi::dashboard::assets::{APP_JS, INDEX_HTML};
 use toksi::tui::app::App;
 
 #[test]
-fn test_phase16_exact_9_tab_parity_and_zero_fake_data() {
+fn test_phase16_exact_10_tab_parity_and_zero_fake_data() {
     let app = App::new();
     let expected = [
         "Savings",
-        "The War Room",
-        "AI Agent Fleet & Quotas",
+        "Activity Room",
+        "AI Agent Fleet",
+        "Quotas",
         "Memory Decision DAG",
         "CodeGraph Explorer",
         "Sandbox Inspector",
-        "System Controls",
-        "AI Gateway & Quotas",
+        "AI Gateway",
         "Keyring & Database",
+        "System Controls",
     ];
     assert_eq!(app.tab_names, expected);
 

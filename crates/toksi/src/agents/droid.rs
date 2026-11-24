@@ -173,7 +173,7 @@ fn toksi_managed_command(cmd: &str, args: &[&str]) -> bool {
 fn droid_enabled_tools(tool_id: &str) -> Option<&'static [&'static str]> {
     match tool_id {
         "codegraph" => Some(CODEGRAPH_DROID_TOOL_NAMES),
-        "context-mode" => Some(CONTEXT_MODE_DROID_TOOL_NAMES),
+        "ctxmode" | "context-mode" | "context" => Some(CONTEXT_MODE_DROID_TOOL_NAMES),
         "projectmem" => Some(PROJECTMEM_MCP_TOOL_NAMES),
         _ => None,
     }

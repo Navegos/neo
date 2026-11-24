@@ -41,10 +41,13 @@ use super::helpers::{
 use super::mcp_dispatch::{mcp_adapter, mcp_configure, mcp_has, mcp_remove};
 
 pub const CONTEXT_MODE_MIN_NODE: i32 = 22;
-pub const CTX_GEMINI_MARKER: &str = "context-mode — MANDATORY routing rules";
+pub const CTX_GEMINI_MARKER: &str = "ctxmode — MANDATORY routing rules";
 
 pub fn plugin_is_context_mode(entry: &str) -> bool {
-    entry == "context-mode" || entry.starts_with("context-mode@")
+    entry == "ctxmode"
+        || entry.starts_with("ctxmode@")
+        || entry == "context-mode"
+        || entry.starts_with("context-mode@")
 }
 
 pub fn ctx_ensure_installed(opts: &RunOpts) -> Result<bool, DynError> {
@@ -225,15 +228,15 @@ pub fn ctx_configure_mcp(agent: &str, opts: &RunOpts) -> Result<bool, DynError> 
     if opts.dry_run {
         return Ok(true);
     }
-    if mcp_configure(agent, "context-mode") {
+    if mcp_configure(agent, "ctxmode") {
         Ok(true)
     } else {
-        Err(format!("failed to configure context-mode MCP for {}", agent).into())
+        Err(format!("failed to configure ctxmode MCP for {}", agent).into())
     }
 }
 
 pub fn ctx_verify_claude() -> bool {
-    mcp_has("claude", "context-mode", false)
+    mcp_has("claude", "ctxmode", false)
 }
 
 pub fn ctx_verify_opencode() -> bool {
@@ -253,10 +256,10 @@ pub fn ctx_verify_opencode() -> bool {
             }
         }
     }
-    let spawn = pick_mcp_spawn("context-mode", &[]);
+    let spawn = pick_mcp_spawn("ctxmode", &[]);
     let mut command = vec![spawn.command];
     command.extend(spawn.args);
-    open_code_mcp_matches(&cfg, "context-mode", &command)
+    open_code_mcp_matches(&cfg, "ctxmode", &command)
 }
 
 pub fn ctx_verify_opencode_v2() -> bool {
@@ -276,10 +279,10 @@ pub fn ctx_verify_opencode_v2() -> bool {
             }
         }
     }
-    let spawn = pick_mcp_spawn("context-mode", &[]);
+    let spawn = pick_mcp_spawn("ctxmode", &[]);
     let mut command = vec![spawn.command];
     command.extend(spawn.args);
-    open_code_mcp_matches(&cfg, "context-mode", &command)
+    open_code_mcp_matches(&cfg, "ctxmode", &command)
 }
 
 pub fn ctx_verify_codex() -> bool {
@@ -290,13 +293,13 @@ pub fn ctx_verify_codex() -> bool {
     if raw.contains("[mcp_servers.context-mode]") {
         return false;
     }
-    if !mcp_has("codex", "context-mode", false) {
+    if !mcp_has("codex", "ctxmode", false) {
         return false;
     }
     let Some(agents_raw) = read_file_safe(&cx.instructions) else {
         return false;
     };
-    let hdr = section_header_for_owner("context-mode");
+    let hdr = section_header_for_owner("ctxmode");
     if hdr.is_empty() || !agents_raw.contains(hdr) {
         return false;
     }
@@ -326,26 +329,26 @@ pub fn ctx_verify_codex() -> bool {
 }
 
 pub fn ctx_verify_antigravity() -> bool {
-    antigravity_mcp_bounded("context-mode") && !has_antigravity_context_mode_hook()
+    antigravity_mcp_bounded("ctxmode") && !has_antigravity_context_mode_hook()
 }
 
 pub fn ctx_verify_copilot() -> bool {
-    copilot_mcp_bounded("context-mode", false)
-        && copilot_mcp_bounded("context-mode", true)
+    copilot_mcp_bounded("ctxmode", false)
+        && copilot_mcp_bounded("ctxmode", true)
         && has_copilot_context_mode_hook()
         && has_copilot_ide_context_mode_hook()
 }
 
 pub fn ctx_verify_droid() -> bool {
-    droid_mcp_bounded("context-mode") && !has_droid_ctx_mode_pre_tool_use()
+    droid_mcp_bounded("ctxmode") && !has_droid_ctx_mode_pre_tool_use()
 }
 
 pub fn ctx_verify_pi() -> bool {
-    pi_mcp_bounded("context-mode")
+    pi_mcp_bounded("ctxmode")
 }
 
 pub fn ctx_verify_grok() -> bool {
-    grok_context_mode_mcp_has() && has_owner("grok", "context-mode")
+    grok_context_mode_mcp_has() && has_owner("grok", "ctxmode")
 }
 
 pub fn ctx_verify(agent: &str) -> bool {
@@ -354,27 +357,27 @@ pub fn ctx_verify(agent: &str) -> bool {
         "opencode" => ctx_verify_opencode(),
         "opencode2" => ctx_verify_opencode_v2(),
         "codex" => ctx_verify_codex(),
-        "cursor" => cursor_mcp_has("context-mode") && has_cursor_mcp_permissions("context-mode"),
+        "cursor" => cursor_mcp_has("ctxmode") && has_cursor_mcp_permissions("ctxmode"),
         "antigravity" => ctx_verify_antigravity(),
         "copilot" => ctx_verify_copilot(),
         "droid" => ctx_verify_droid(),
         "grok" => ctx_verify_grok(),
         "pi" => ctx_verify_pi(),
-        "omp" => omp_mcp_has("context-mode") && has_owner("omp", "context-mode"),
+        "omp" => omp_mcp_has("ctxmode") && has_owner("omp", "ctxmode"),
         "kilo" => {
-            let spawn = pick_mcp_spawn("context-mode", &[]);
+            let spawn = pick_mcp_spawn("ctxmode", &[]);
             let mut expected = vec![spawn.command];
             expected.extend(spawn.args);
-            kilo_mcp_matches("context-mode", &expected) && kilo_has_owner("context-mode")
+            kilo_mcp_matches("ctxmode", &expected) && kilo_has_owner("ctxmode")
         }
         "cline" => {
-            let spawn = pick_mcp_spawn("context-mode", &[]);
+            let spawn = pick_mcp_spawn("ctxmode", &[]);
             let mut expected = vec![spawn.command];
             expected.extend(spawn.args);
-            cline_mcp_matches("context-mode", &expected) && has_owner("cline", "context-mode")
+            cline_mcp_matches("ctxmode", &expected) && has_owner("cline", "ctxmode")
         }
         "amp" | "kimi" | "cmd" | "dsh" | "zcode" => {
-            mcp_has(agent, "context-mode", false) && has_owner(agent, "context-mode")
+            mcp_has(agent, "ctxmode", false) && has_owner(agent, "ctxmode")
         }
         _ => false,
     }
@@ -389,7 +392,7 @@ pub fn ctx_wired_any_claude() -> bool {
     };
     cfg.get("mcpServers")
         .and_then(|v| v.as_object())
-        .is_some_and(|sm| sm.contains_key("context-mode"))
+        .is_some_and(|sm| sm.contains_key("ctxmode") || sm.contains_key("context-mode") || sm.contains_key("context"))
 }
 
 pub fn ctx_wired_any_opencode() -> bool {
@@ -409,11 +412,11 @@ pub fn ctx_wired_any_opencode() -> bool {
         }
     }
     if let Some(Value::Object(mm)) = cfg.get("mcp") {
-        if mm.contains_key("context-mode") {
+        if mm.contains_key("ctxmode") || mm.contains_key("context-mode") {
             return true;
         }
         if let Some(Value::Object(sm)) = mm.get("servers") {
-            if sm.contains_key("context-mode") {
+            if sm.contains_key("ctxmode") || sm.contains_key("context-mode") {
                 return true;
             }
         }
@@ -438,11 +441,11 @@ pub fn ctx_wired_any_opencode_v2() -> bool {
         }
     }
     if let Some(Value::Object(mm)) = cfg.get("mcp") {
-        if mm.contains_key("context-mode") {
+        if mm.contains_key("ctxmode") || mm.contains_key("context-mode") {
             return true;
         }
         if let Some(Value::Object(sm)) = mm.get("servers") {
-            return sm.contains_key("context-mode");
+            return sm.contains_key("ctxmode") || sm.contains_key("context-mode");
         }
     }
     false
@@ -452,7 +455,9 @@ pub fn ctx_wired_any_codex() -> bool {
     let Some(raw) = read_file_safe(&codex_paths_resolved().config) else {
         return false;
     };
-    raw.contains("[mcp_servers.context_mode]") || raw.contains("[mcp_servers.context-mode]")
+    raw.contains("[mcp_servers.ctxmode]")
+        || raw.contains("[mcp_servers.context_mode]")
+        || raw.contains("[mcp_servers.context-mode]")
 }
 
 pub fn ctx_wired_any(agent: &str) -> bool {
@@ -461,11 +466,11 @@ pub fn ctx_wired_any(agent: &str) -> bool {
         "opencode" => ctx_wired_any_opencode(),
         "opencode2" => ctx_wired_any_opencode_v2(),
         "codex" => ctx_wired_any_codex(),
-        "droid" => droid_mcp_has("context-mode"),
-        "pi" => pi_mcp_has("context-mode"),
-        "antigravity" => antigravity_mcp_has("context-mode"),
-        "copilot" => copilot_mcp_has("context-mode"),
-        _ => mcp_has(agent, "context-mode", true),
+        "droid" => droid_mcp_has("ctxmode"),
+        "pi" => pi_mcp_has("ctxmode"),
+        "antigravity" => antigravity_mcp_has("ctxmode"),
+        "copilot" => copilot_mcp_has("ctxmode"),
+        _ => mcp_has(agent, "ctxmode", true),
     }
 }
 
@@ -476,11 +481,13 @@ pub fn ctx_wire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
     match agent {
         "claude" => {
             if is_test() {
-                let spawn = pick_mcp_spawn("context-mode", &[]);
+                let spawn = pick_mcp_spawn("ctxmode", &[]);
                 let cp = claude_code_paths();
                 let _ = ensure_dir(&cp.dir);
                 let mut cfg = load_ordered(&cp.global_json);
                 let servers = get_or_create_map(&mut cfg, "mcpServers");
+                let _ = servers.shift_remove("context-mode");
+                let _ = servers.shift_remove("context");
                 let mut entry = OrderedMap::new();
                 entry.insert("type".to_string(), Value::String("stdio".to_string()));
                 entry.insert("command".to_string(), Value::String(spawn.command));
@@ -488,15 +495,15 @@ pub fn ctx_wire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
                     "args".to_string(),
                     Value::Array(spawn.args.into_iter().map(Value::String).collect()),
                 );
-                servers.insert("context-mode".to_string(), Value::Object(entry));
+                servers.insert("ctxmode".to_string(), Value::Object(entry));
                 let _ = write_file(&cp.global_json, &stringify_json(&Value::Object(cfg)));
-                allow_claude_mcp_tool("context-mode");
-                write_owner("claude", "context-mode");
+                allow_claude_mcp_tool("ctxmode");
+                write_owner("claude", "ctxmode");
                 return Ok(ctx_verify_claude());
             }
-            mcp_configure("claude", "context-mode");
-            write_owner("claude", "context-mode");
-            L.sub("tip: to enable slash commands, type inside Claude Code: /plugin marketplace add mksglu/context-mode && /plugin install context-mode@context-mode");
+            mcp_configure("claude", "ctxmode");
+            write_owner("claude", "ctxmode");
+            L.sub("tip: use '/ctxmode' inside agents for native off-thread context sandboxing.");
             Ok(ctx_verify_claude())
         }
         "opencode" => {
@@ -505,8 +512,8 @@ pub fn ctx_wire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
             let mut cfg = load_ordered(&op.config);
             remove_context_mode_plugin_in_map(&mut cfg);
             let _ = write_file(&op.config, &stringify_json(&Value::Object(cfg)));
-            mcp_configure("opencode", "context-mode");
-            write_owner("opencode", "context-mode");
+            mcp_configure("opencode", "ctxmode");
+            write_owner("opencode", "ctxmode");
             if !is_test() {
                 clean_all_context_mode_cache();
             }
@@ -518,8 +525,8 @@ pub fn ctx_wire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
             let mut cfg = load_ordered(&op.config);
             remove_context_mode_plugin_in_map(&mut cfg);
             let _ = write_file(&op.config, &stringify_json(&Value::Object(cfg)));
-            mcp_configure("opencode2", "context-mode");
-            write_owner("opencode2", "context-mode");
+            mcp_configure("opencode2", "ctxmode");
+            write_owner("opencode2", "ctxmode");
             if !is_test() {
                 clean_all_context_mode_cache();
             }
@@ -534,100 +541,100 @@ pub fn ctx_wire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
                     let _ = write_file(&cx.config, &next);
                 }
             }
-            if !mcp_configure("codex", "context-mode") {
+            if !mcp_configure("codex", "ctxmode") {
                 return Ok(false);
             }
             cleanup_codex_context_mode_hooks();
             cleanup_workspace_codex_context_mode_mcp(&cx.dir);
             if !cx.instructions.is_empty() {
-                write_owner("codex", "context-mode");
+                write_owner("codex", "ctxmode");
             }
-            Ok(mcp_has("codex", "context-mode", false))
+            Ok(mcp_has("codex", "ctxmode", false))
         }
         "cursor" => {
-            if !mcp_configure("cursor", "context-mode") {
+            if !mcp_configure("cursor", "ctxmode") {
                 return Ok(false);
             }
-            Ok(mcp_has("cursor", "context-mode", false))
+            Ok(mcp_has("cursor", "ctxmode", false))
         }
         "antigravity" => {
-            mcp_configure("antigravity", "context-mode");
+            mcp_configure("antigravity", "ctxmode");
             cleanup_legacy_antigravity_context_mode();
             cleanup_dead_ide_hooks();
             remove_antigravity_entry("command(echo)");
             remove_antigravity_context_mode_hook();
-            write_owner("antigravity", "context-mode");
+            write_owner("antigravity", "ctxmode");
             Ok(ctx_verify_antigravity())
         }
         "copilot" => {
             with_copilot_transaction(&[], || {
                 if let Some(adapter) = mcp_adapter("copilot") {
-                    let reply = adapter.configure_mcp("context-mode", &[]);
+                    let reply = adapter.configure_mcp("ctxmode", &[]);
                     if let Some(err) = reply.err {
                         return Err(err.into());
                     }
                 }
                 install_copilot_context_mode_hook_safe().map_err(|e| -> DynError { e.into() })?;
                 install_copilot_ide_context_mode_hook_safe().map_err(|e| -> DynError { e.into() })?;
-                if !write_owner("copilot", "context-mode") && !has_owner("copilot", "context-mode") {
-                    return Err("failed to write Copilot context-mode owner".into());
+                if !write_owner("copilot", "ctxmode") && !has_owner("copilot", "ctxmode") {
+                    return Err("failed to write Copilot ctxmode owner".into());
                 }
                 sync_copilot_ide_instructions_safe().map_err(|e| -> DynError { e.into() })?;
                 Ok(ctx_verify_copilot())
             })
         }
         "droid" => {
-            mcp_configure("droid", "context-mode");
+            mcp_configure("droid", "ctxmode");
             remove_droid_ctx_mode_pre_tool_use();
-            write_owner("droid", "context-mode");
+            write_owner("droid", "ctxmode");
             Ok(ctx_verify_droid())
         }
         "grok" => {
-            if !mcp_configure("grok", "context-mode") {
+            if !mcp_configure("grok", "ctxmode") {
                 return Ok(false);
             }
-            write_owner("grok", "context-mode");
-            if !has_owner("grok", "context-mode") {
-                mcp_remove("grok", "context-mode");
+            write_owner("grok", "ctxmode");
+            if !has_owner("grok", "ctxmode") {
+                mcp_remove("grok", "ctxmode");
                 return Ok(false);
             }
             Ok(ctx_verify_grok())
         }
         "pi" => {
             pi_purge_context_mode_packages();
-            if !mcp_configure("pi", "context-mode") {
+            if !mcp_configure("pi", "ctxmode") {
                 return Ok(false);
             }
-            write_owner("pi", "context-mode");
+            write_owner("pi", "ctxmode");
             Ok(ctx_verify_pi())
         }
         "omp" => {
-            if !mcp_configure("omp", "context-mode") {
+            if !mcp_configure("omp", "ctxmode") {
                 return Ok(false);
             }
-            write_owner("omp", "context-mode");
-            Ok(has_owner("omp", "context-mode"))
+            write_owner("omp", "ctxmode");
+            Ok(has_owner("omp", "ctxmode"))
         }
         "kilo" => {
-            if !mcp_configure("kilo", "context-mode") {
+            if !mcp_configure("kilo", "ctxmode") {
                 return Ok(false);
             }
-            kilo_write_owner("context-mode");
-            Ok(mcp_has("kilo", "context-mode", false) && kilo_has_owner("context-mode"))
+            kilo_write_owner("ctxmode");
+            Ok(mcp_has("kilo", "ctxmode", false) && kilo_has_owner("ctxmode"))
         }
         "cline" => {
-            if !mcp_configure("cline", "context-mode") {
+            if !mcp_configure("cline", "ctxmode") {
                 return Ok(false);
             }
-            write_owner("cline", "context-mode");
-            Ok(mcp_has("cline", "context-mode", false) && has_owner("cline", "context-mode"))
+            write_owner("cline", "ctxmode");
+            Ok(mcp_has("cline", "ctxmode", false) && has_owner("cline", "ctxmode"))
         }
         _ => {
-            if !mcp_configure(agent, "context-mode") {
+            if !mcp_configure(agent, "ctxmode") {
                 return Ok(false);
             }
-            write_owner(agent, "context-mode");
-            Ok(mcp_has(agent, "context-mode", false) && has_owner(agent, "context-mode"))
+            write_owner(agent, "ctxmode");
+            Ok(mcp_has(agent, "ctxmode", false) && has_owner(agent, "ctxmode"))
         }
     }
 }
@@ -638,8 +645,9 @@ pub fn ctx_unwire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
     }
     match agent {
         "claude" => {
+            mcp_remove("claude", "ctxmode");
             mcp_remove("claude", "context-mode");
-            remove_owner("claude", "context-mode");
+            remove_owner("claude", "ctxmode");
             Ok(true)
         }
         "opencode" => {
@@ -662,8 +670,9 @@ pub fn ctx_unwire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
                 }
                 let _ = write_file(&op.config, &stringify_json(&Value::Object(cfg)));
             }
+            mcp_remove("opencode", "ctxmode");
             mcp_remove("opencode", "context-mode");
-            remove_owner("opencode", "context-mode");
+            remove_owner("opencode", "ctxmode");
             Ok(true)
         }
         "opencode2" => {
@@ -676,33 +685,37 @@ pub fn ctx_unwire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
                 remove_context_mode_plugin_in_map(&mut cfg);
                 let _ = write_file(&op.config, &stringify_json(&Value::Object(cfg)));
             }
+            mcp_remove("opencode2", "ctxmode");
             mcp_remove("opencode2", "context-mode");
-            remove_owner("opencode2", "context-mode");
+            remove_owner("opencode2", "ctxmode");
             Ok(true)
         }
         "codex" => {
+            mcp_remove("codex", "ctxmode");
             mcp_remove("codex", "context-mode");
             cleanup_codex_context_mode_hooks();
-            remove_owner("codex", "context-mode");
+            remove_owner("codex", "ctxmode");
             Ok(true)
         }
         "cursor" => {
-            if !mcp_remove("cursor", "context-mode") {
+            let _ = mcp_remove("cursor", "context-mode");
+            if !mcp_remove("cursor", "ctxmode") {
                 return Ok(false);
             }
-            remove_owner("cursor", "context-mode");
+            remove_owner("cursor", "ctxmode");
             Ok(true)
         }
         "antigravity" => {
+            mcp_remove("antigravity", "ctxmode");
             mcp_remove("antigravity", "context-mode");
             cleanup_legacy_antigravity_context_mode();
             cleanup_dead_ide_hooks();
             remove_antigravity_context_mode_hook();
-            remove_owner("antigravity", "context-mode");
+            remove_owner("antigravity", "ctxmode");
             if let Ok(cwd) = std::env::current_dir() {
                 let dest = cwd.join("GEMINI.md");
                 if let Some(raw) = read_file_safe(dest.to_string_lossy().as_ref()) {
-                    if raw.contains(CTX_GEMINI_MARKER) {
+                    if raw.contains(CTX_GEMINI_MARKER) || raw.contains("context-mode — MANDATORY routing rules") {
                         let _ = fs::remove_file(dest);
                     }
                 }
@@ -712,72 +725,80 @@ pub fn ctx_unwire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
         "copilot" => {
             with_copilot_transaction(&[], || {
                 if let Some(adapter) = mcp_adapter("copilot") {
-                    let reply = adapter.remove_mcp("context-mode", &[]);
+                    let reply = adapter.remove_mcp("ctxmode", &[]);
                     if let Some(err) = reply.err {
                         return Err(err.into());
                     }
+                    let _ = adapter.remove_mcp("context-mode", &[]);
                 }
                 remove_copilot_context_mode_hook_safe().map_err(|e| -> DynError { e.into() })?;
                 remove_copilot_ide_context_mode_hook_safe().map_err(|e| -> DynError { e.into() })?;
-                remove_owner_safe("copilot", "context-mode").map_err(|e| -> DynError { e.into() })?;
+                remove_owner_safe("copilot", "ctxmode").map_err(|e| -> DynError { e.into() })?;
                 sync_copilot_ide_instructions_safe().map_err(|e| -> DynError { e.into() })?;
                 Ok(true)
             })
         }
         "droid" => {
+            mcp_remove("droid", "ctxmode");
             mcp_remove("droid", "context-mode");
             remove_droid_ctx_mode_pre_tool_use();
-            remove_owner("droid", "context-mode");
+            remove_owner("droid", "ctxmode");
             Ok(true)
         }
         "grok" => {
-            if !mcp_remove("grok", "context-mode") {
+            let _ = mcp_remove("grok", "context-mode");
+            if !mcp_remove("grok", "ctxmode") {
                 return Ok(false);
             }
-            remove_owner("grok", "context-mode");
+            remove_owner("grok", "ctxmode");
             Ok(true)
         }
         "pi" => {
             pi_purge_context_mode_packages();
+            mcp_remove("pi", "ctxmode");
             mcp_remove("pi", "context-mode");
-            remove_owner("pi", "context-mode");
+            remove_owner("pi", "ctxmode");
             Ok(true)
         }
         "omp" => {
-            if !mcp_remove("omp", "context-mode") {
+            let _ = mcp_remove("omp", "context-mode");
+            if !mcp_remove("omp", "ctxmode") {
                 return Ok(false);
             }
-            remove_owner("omp", "context-mode");
+            remove_owner("omp", "ctxmode");
             Ok(true)
         }
         "kilo" => {
-            if !mcp_remove("kilo", "context-mode") {
+            let _ = mcp_remove("kilo", "context-mode");
+            if !mcp_remove("kilo", "ctxmode") {
                 return Ok(false);
             }
-            kilo_remove_owner("context-mode");
+            kilo_remove_owner("ctxmode");
             Ok(true)
         }
         "cline" => {
-            if !mcp_remove("cline", "context-mode") {
+            let _ = mcp_remove("cline", "context-mode");
+            if !mcp_remove("cline", "ctxmode") {
                 return Ok(false);
             }
-            remove_owner("cline", "context-mode");
+            remove_owner("cline", "ctxmode");
             Ok(true)
         }
         _ => {
+            mcp_remove(agent, "ctxmode");
             mcp_remove(agent, "context-mode");
-            remove_owner(agent, "context-mode");
+            remove_owner(agent, "ctxmode");
             Ok(true)
         }
     }
 }
 
 pub fn build_context_mode() -> ToolManifest {
-    let mut tool = ToolManifest::new("context-mode", "Context-Mode");
+    let mut tool = ToolManifest::new("ctxmode", "CtxMode");
     tool.description =
         "Routes long context off-thread to a sandbox, keeping the agent's window small.".into();
-    tool.homepage = "https://github.com/mksglu/context-mode".into();
-    tool.install_hint = "Native embedded in toksi (toksi ctx)".into();
+    tool.homepage = "https://github.com/Navegos/toksi".into();
+    tool.install_hint = "Native embedded in toksi (toksi ctxmode)".into();
     tool.channel = Channel::Binary;
     tool.needs_node = false;
     tool.min_node_major = 0;

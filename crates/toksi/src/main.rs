@@ -131,7 +131,7 @@ fn help_text() -> String {
           {cmd_test}              Incremental BLAKE3 test runner (--all | --force via .toksi/test-baseline.json)\n\
           {cmd_agent}             Agent directory lifecycle: install|health|mismatch|upgrade|fix|restore|remove|edit\n\
           {cmd_mem}               ProjectMem (<repo>/.toksi/projectmem/) persistent memory & plan_checkpoints\n\
-          {cmd_ctx}               Context-mode (<repo>/.toksi/context/) isolated sandbox & SQLite FTS5 chunker\n\
+          {cmd_ctx}               CtxMode (<repo>/.toksi/ctxmode/) isolated sandbox & SQLite FTS5 chunker\n\
           {cmd_graph}             CodeGraph (<repo>/.toksi/codegraph/) 45-lang Tree-sitter AST, SCIP & OpenWiki\n\
           {cmd_icm}               Instant Context Memory (<repo>/.toksi/icm/) FTS5 BM25 & temporal recall\n\
           {cmd_handoff}           Hybrid Graph-Vector Memory (Cognee/Graphiti/Qdrant/Lance/Letta) & handoffs\n\
@@ -152,17 +152,17 @@ fn help_text() -> String {
           {p9100}           Web Telemetry & Control Dashboard Cockpit (detached 9-tab SPA + SSE)\n\
           {p18787}          BYOK Multi-Profile & Vertex ADC Gateway (AGY_ADC_AUTH=true + Headroom)\n\n\
         {sec_slash}\n\
-          /byok, /model, /effort, /byokmodel, /projectmem, /context, /codegraph, /icm,\n\
-          /ai-memory, /rtk, /security, /advisory, /skills, /sandbox, /plugin, /resume\n\n\
+          /byok, /model, /effort, /byokmodel, /projectmem, /ctxmode, /codegraph, /icm,\n\
+          /aimemory, /rtk, /security, /advisory, /skills, /sandbox, /plugin, /resume\n\n\
         {sec_config}\n\
           ~/.toksi/config.toml : [ports], [repositories] (neo/advisory/skills), [plugins], [security], [auth.gcp_adc], [optimization]\n\
           ~/.toksi/toksi.db    : byok_profiles, quota_windows, plugins_registry, blind_signatures, advisory_embargoes, adr_audit_events\n\
-          <repo>/.toksi/<tool> : strict repo-only storage (codegraph|context|projectmem|icm|ai-memory|rtk|headroom|security)\n\n\
+          <repo>/.toksi/<tool> : strict repo-only storage (codegraph|ctxmode|projectmem|icm|aimemory|rtk|headroom|security)\n\n\
         {sec_agents}\n\
           claude, opencode, opencode2, codex, antigravity (antigravity-cli|ide), copilot (copilot-cli|vscode),\n\
           cursor, droid, grok, pi, omp, kilo, cline, amp, kimi, zcode, dsh, openagents (.agents + Category 1-5)\n\n\
         {sec_tools}\n\
-          rtk, codegraph, context, projectmem, icm, aimemory, headroom, security, advisory, skills, sandbox, plugin\n\n\
+          rtk, codegraph, ctxmode, projectmem, icm, aimemory, headroom, security, advisory, skills, sandbox, plugin\n\n\
         {sec_flags}\n\
           --agents <list>     Limit to a subset of user-configured agents (comma-separated)\n\
           --tools <list>      Limit to a subset of tools (comma-separated)\n\
@@ -210,7 +210,7 @@ fn help_text() -> String {
         cmd_test = cy("toksi test"),
         cmd_agent = cy("toksi agent"),
         cmd_mem = cy("toksi mem"),
-        cmd_ctx = cy("toksi ctx"),
+        cmd_ctx = cy("toksi ctxmode"),
         cmd_graph = cy("toksi graph"),
         cmd_icm = cy("toksi icm"),
         cmd_handoff = cy("toksi handoff"),
@@ -271,13 +271,19 @@ fn is_session_boot_arg(args: &[String]) -> bool {
     match args {
         [cmd, ..] if cmd == "run-mcp" || cmd == "rtk-hook" || cmd == "grok-hook" || cmd == "codex-perm"
             || cmd == "codegraph-hook" || cmd == "cursor-hook" || cmd == "copilot-hook"
-            || cmd == "projectmem-hook" || cmd == "ctx-hook" || cmd == "context-hook" || cmd == "context-mode-hook"
+            || cmd == "projectmem-hook"
+            || cmd == "ctxmode-hook"
+            || cmd == "ctx-hook"
+            || cmd == "context-hook"
+            || cmd == "context-mode-hook"
+            || cmd == "aimemory-hook"
+            || cmd == "ai-memory-hook"
             || cmd == "icm-hook" => true,
-        [a, b, ..] if (a == "codegraph" || a == "ctx" || a == "context" || a == "context-mode" || a == "icm") && b == "hook" => true,
+        [a, b, ..] if (a == "codegraph" || a == "ctxmode" || a == "ctx" || a == "context" || a == "context-mode" || a == "icm" || a == "aimemory" || a == "ai-memory") && b == "hook" => true,
         [a, b, ..] if a == "mem" && b == "mcp" => true,
-        [a, b, ..] if (a == "ctx" || a == "context" || a == "context-mode") && b == "mcp" => true,
+        [a, b, ..] if (a == "ctxmode" || a == "ctx" || a == "context" || a == "context-mode") && b == "mcp" => true,
         [a, b, ..] if a == "graph" && b == "mcp" => true,
-        [a, b, ..] if (a == "icm" || a == "handoff" || a == "aimemory") && b == "mcp" => true,
+        [a, b, ..] if (a == "icm" || a == "handoff" || a == "aimemory" || a == "ai-memory") && b == "mcp" => true,
         _ => false,
     }
 }
@@ -381,6 +387,9 @@ fn run() -> i32 {
         }
     }
 
+    if args.len() >= 2 && args[1] == "_worker" {
+        return toksi::commands::run_worker_cli(&args[2..]);
+    }
     if is_session_boot_arg(&args[1..]) {
         if args.len() >= 4 && args[1] == "codegraph-hook" && args[2] == "copilot" && args[3] == "--vscode" {
             let _ = ensure_copilot_proxy_up();
@@ -435,17 +444,28 @@ fn run() -> i32 {
         let agent = args.get(3).map(|s| s.as_str()).unwrap_or("generic");
         return run_icm_hook(agent);
     }
-    if args.len() >= 3 && (args[1] == "ai-memory-hook" || args[1] == "aimemory-hook") {
+    if args.len() >= 3 && (args[1] == "aimemory-hook" || args[1] == "ai-memory-hook") {
         return run_aimemory_hook(&args[2]);
     }
-    if args.len() >= 3 && (args[1] == "ai-memory" || args[1] == "aimemory") && args[2] == "hook" {
+    if args.len() >= 3 && (args[1] == "aimemory" || args[1] == "ai-memory") && args[2] == "hook" {
         let agent = args.get(3).map(|s| s.as_str()).unwrap_or("generic");
         return run_aimemory_hook(agent);
     }
-    if args.len() >= 2 && (args[1] == "ctx-hook" || args[1] == "context-hook" || args[1] == "context-mode-hook") {
+    if args.len() >= 2
+        && (args[1] == "ctxmode-hook"
+            || args[1] == "ctx-hook"
+            || args[1] == "context-hook"
+            || args[1] == "context-mode-hook")
+    {
         return run_ctx_hook(&args[2..]);
     }
-    if args.len() >= 3 && (args[1] == "ctx" || args[1] == "context" || args[1] == "context-mode") && args[2] == "hook" {
+    if args.len() >= 3
+        && (args[1] == "ctxmode"
+            || args[1] == "ctx"
+            || args[1] == "context"
+            || args[1] == "context-mode")
+        && args[2] == "hook"
+    {
         return run_ctx_hook(&args[3..]);
     }
     if args.len() >= 3 && args[1] == "grok-hook" && args[2] == "session-start" {
@@ -505,6 +525,18 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "test" {
         return toksi::commands::run_test_cli(&args[2..]);
     }
+    if args.len() >= 2 && args[1] == "train" {
+        return toksi::commands::run_train_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "serve" {
+        return toksi::commands::run_serve_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "eval" {
+        return toksi::commands::run_eval_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "orchestrator" {
+        return toksi::commands::run_orchestrator_cli(&args[2..]);
+    }
     if args.len() >= 2 && args[1] == "codegraph-hook" {
         return run_codegraph_index_hook();
     }
@@ -526,7 +558,15 @@ fn run() -> i32 {
     if args.len() >= 2 && (args[1] == "mem" || args[1] == "projectmem") {
         return toksi::projectmem::run_mem_cli(&args[2..]);
     }
-    if args.len() >= 2 && (args[1] == "ctx" || args[1] == "context" || args[1] == "context-mode") {
+    if args.len() >= 2
+        && (args[1] == "ctxmode"
+            || args[1] == "ctx"
+            || args[1] == "context"
+            || args[1] == "context-mode")
+    {
+        if args[1] == "context" || args[1] == "context-mode" {
+            eprintln!("[deprecated] 'toksi {}' is renamed to 'toksi ctxmode'.", args[1]);
+        }
         return toksi::contextmode::run_ctx_cli(&args[2..]);
     }
     if args.len() >= 2 && args[1] == "graph" {
@@ -535,7 +575,10 @@ fn run() -> i32 {
     if args.len() >= 2 && args[1] == "icm" {
         return toksi::icm::run_icm_cli(&args[2..]);
     }
-    if args.len() >= 2 && (args[1] == "handoff" || args[1] == "aimemory" || args[1] == "ai-memory") {
+    if args.len() >= 2 && (args[1] == "aimemory" || args[1] == "handoff" || args[1] == "ai-memory") {
+        if args[1] == "ai-memory" {
+            eprintln!("[deprecated] 'toksi ai-memory' is renamed to 'toksi aimemory'.");
+        }
         return toksi::aimemory::run_aimemory_cli(&args[2..]);
     }
     if args.len() >= 2 && args[1] == "tui" {

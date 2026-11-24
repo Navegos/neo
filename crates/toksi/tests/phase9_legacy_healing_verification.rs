@@ -212,7 +212,7 @@ fn test_phase9_legacy_mcp_to_skills_and_hook_standardization() {
     for (agent_dir, legacy_tool, expected_skill) in [
         (".gemini", "toksi-codegraph", "codegraph"),
         (".copilot", "toksi-projectmem", "projectmem"),
-        (".claude", "context-mode", "context"),
+        (".claude", "context-mode", "ctxmode"),
         (".agents", "toksi-codegraph-index", "codegraph"),
     ] {
         let legacy_mcp = ws.join(agent_dir).join("mcp").join(legacy_tool);
@@ -265,7 +265,7 @@ fn test_phase9_legacy_mcp_to_skills_and_hook_standardization() {
     assert!(!ws.join(".copilot").join("mcp").exists());
     assert!(ws.join(".copilot").join("skills").join("projectmem").join("SKILL.md").exists());
     assert!(!ws.join(".claude").join("mcp").exists());
-    assert!(ws.join(".claude").join("skills").join("context").join("SKILL.md").exists());
+    assert!(ws.join(".claude").join("skills").join("ctxmode").join("SKILL.md").exists());
     assert!(!ws.join(".agents").join("mcp").exists());
     assert!(ws.join(".agents").join("skills").join("codegraph").join("SKILL.md").exists());
 

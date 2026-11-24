@@ -14,6 +14,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::util::paths::normalize_path;
 
+pub use crate::training::quant::{verify_safetensors_header, SafetensorsHeaderInfo};
+pub use crate::training::serving::LlguidanceJsonMask;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BytecodeAuditFinding {
     pub path: String,

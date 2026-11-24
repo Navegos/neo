@@ -34,6 +34,7 @@ pub mod proxy;
 pub mod quant_catalog;
 pub mod reconnect;
 pub mod router;
+pub mod sampling;
 pub mod routing;
 pub mod semantic_cache;
 pub mod server;

@@ -116,6 +116,36 @@ impl ToksiConfigDb {
                 [],
             )?;
         }
+        if !cols.iter().any(|c| c == "models_json") {
+            self.conn.execute(
+                "ALTER TABLE byok_profiles ADD COLUMN models_json TEXT NOT NULL DEFAULT '[]'",
+                [],
+            )?;
+        }
+        if !cols.iter().any(|c| c == "efforts_json") {
+            self.conn.execute(
+                "ALTER TABLE byok_profiles ADD COLUMN efforts_json TEXT NOT NULL DEFAULT '[\"medium\"]'",
+                [],
+            )?;
+        }
+        if !cols.iter().any(|c| c == "temperature") {
+            self.conn.execute(
+                "ALTER TABLE byok_profiles ADD COLUMN temperature REAL",
+                [],
+            )?;
+        }
+        if !cols.iter().any(|c| c == "top_p") {
+            self.conn.execute(
+                "ALTER TABLE byok_profiles ADD COLUMN top_p REAL",
+                [],
+            )?;
+        }
+        if !cols.iter().any(|c| c == "top_k") {
+            self.conn.execute(
+                "ALTER TABLE byok_profiles ADD COLUMN top_k INTEGER",
+                [],
+            )?;
+        }
         Ok(())
     }
 
@@ -519,9 +549,11 @@ impl ToksiConfigDb {
         } else {
             p.gcp_location.trim()
         };
+        let models_json = if p.models_json.trim().is_empty() { "[]" } else { p.models_json.trim() };
+        let efforts_json = if p.efforts_json.trim().is_empty() { r#"["medium"]"# } else { p.efforts_json.trim() };
         self.conn.execute(
-            r#"INSERT INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, created_at, updated_at)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+            r#"INSERT INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, models_json, efforts_json, temperature, top_p, top_k, created_at, updated_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)
                ON CONFLICT(provider_id, instance_label, model_id, thinking_effort) DO UPDATE SET
                    base_url = excluded.base_url,
                    secret_ref = excluded.secret_ref,
@@ -532,6 +564,11 @@ impl ToksiConfigDb {
                    weight = excluded.weight,
                    headroom_enabled = excluded.headroom_enabled,
                    is_active = excluded.is_active,
+                   models_json = excluded.models_json,
+                   efforts_json = excluded.efforts_json,
+                   temperature = excluded.temperature,
+                   top_p = excluded.top_p,
+                   top_k = excluded.top_k,
                    updated_at = excluded.updated_at"#,
             params![
                 p.id,
@@ -548,6 +585,11 @@ impl ToksiConfigDb {
                 p.weight,
                 p.headroom_enabled as i32,
                 p.is_active as i32,
+                models_json,
+                efforts_json,
+                p.temperature,
+                p.top_p,
+                p.top_k,
                 p.created_at,
                 p.updated_at,
             ],
@@ -557,7 +599,7 @@ impl ToksiConfigDb {
 
     pub fn list_byok_profiles(&self) -> Result<Vec<ByokProfileRecord>, rusqlite::Error> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, created_at, updated_at FROM byok_profiles ORDER BY priority DESC, provider_id, instance_label, model_id",
+            "SELECT id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, models_json, efforts_json, temperature, top_p, top_k, created_at, updated_at FROM byok_profiles ORDER BY priority DESC, provider_id, instance_label, model_id",
         )?;
         let rows = stmt.query_map([], |row| {
             let headroom: i32 = row.get(12)?;
@@ -577,8 +619,13 @@ impl ToksiConfigDb {
                 weight: row.get(11)?,
                 headroom_enabled: headroom != 0,
                 is_active: active != 0,
-                created_at: row.get(14)?,
-                updated_at: row.get(15)?,
+                models_json: row.get(14)?,
+                efforts_json: row.get(15)?,
+                temperature: row.get(16)?,
+                top_p: row.get(17)?,
+                top_k: row.get(18)?,
+                created_at: row.get(19)?,
+                updated_at: row.get(20)?,
             })
         })?;
         let mut list = Vec::new();
@@ -591,7 +638,7 @@ impl ToksiConfigDb {
     pub fn get_byok_profile(&self, id: &str) -> Result<Option<ByokProfileRecord>, rusqlite::Error> {
         self.conn
             .query_row(
-                "SELECT id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, created_at, updated_at FROM byok_profiles WHERE id = ?1",
+                "SELECT id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, models_json, efforts_json, temperature, top_p, top_k, created_at, updated_at FROM byok_profiles WHERE id = ?1",
                 params![id],
                 |row| {
                     let headroom: i32 = row.get(12)?;
@@ -611,8 +658,13 @@ impl ToksiConfigDb {
                         weight: row.get(11)?,
                         headroom_enabled: headroom != 0,
                         is_active: active != 0,
-                        created_at: row.get(14)?,
-                        updated_at: row.get(15)?,
+                        models_json: row.get(14)?,
+                        efforts_json: row.get(15)?,
+                        temperature: row.get(16)?,
+                        top_p: row.get(17)?,
+                        top_k: row.get(18)?,
+                        created_at: row.get(19)?,
+                        updated_at: row.get(20)?,
                     })
                 },
             )
@@ -986,6 +1038,8 @@ impl ToksiConfigDb {
         let blind_signatures = self.list_blind_signatures()?;
         let advisory_embargoes = self.list_advisory_embargoes()?;
         let adr_audit_events = self.list_adr_audit_events()?;
+        let supervisor_workers = self.list_supervisor_workers()?;
+        let orchestrator_mode_routes = self.list_orchestrator_mode_routes()?;
 
         Ok(ToksiDbDump {
             version: 2,
@@ -1003,6 +1057,8 @@ impl ToksiConfigDb {
             blind_signatures,
             advisory_embargoes,
             adr_audit_events,
+            supervisor_workers,
+            orchestrator_mode_routes,
         })
     }
 
@@ -1038,6 +1094,7 @@ impl ToksiConfigDb {
                  DELETE FROM blind_signatures;
                  DELETE FROM advisory_embargoes;
                  DELETE FROM adr_audit_events;
+                 DELETE FROM orchestrator_mode_routes;
                  DELETE FROM gateway_configs;
                  DELETE FROM providers;",
             )?;
@@ -1147,21 +1204,24 @@ impl ToksiConfigDb {
         for bp in &dump.byok_profiles {
             let auth_mode = if bp.auth_mode.trim().is_empty() { "api_key" } else { bp.auth_mode.trim() };
             let gcp_location = if bp.gcp_location.trim().is_empty() { "us-central1" } else { bp.gcp_location.trim() };
+            let models_json = if bp.models_json.trim().is_empty() { "[]" } else { bp.models_json.trim() };
+            let efforts_json = if bp.efforts_json.trim().is_empty() { r#"["medium"]"# } else { bp.efforts_json.trim() };
             let sql = if overwrite {
-                r#"INSERT INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, created_at, updated_at)
-                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
+                r#"INSERT INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, models_json, efforts_json, temperature, top_p, top_k, created_at, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)
                    ON CONFLICT(provider_id, instance_label, model_id, thinking_effort) DO UPDATE SET
                        base_url = excluded.base_url, secret_ref = excluded.secret_ref,
                        auth_mode = excluded.auth_mode, gcp_project = excluded.gcp_project, gcp_location = excluded.gcp_location,
                        priority = excluded.priority, weight = excluded.weight, headroom_enabled = excluded.headroom_enabled,
-                       is_active = excluded.is_active, updated_at = excluded.updated_at"#
+                       is_active = excluded.is_active, models_json = excluded.models_json, efforts_json = excluded.efforts_json,
+                       temperature = excluded.temperature, top_p = excluded.top_p, top_k = excluded.top_k, updated_at = excluded.updated_at"#
             } else {
-                r#"INSERT OR IGNORE INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, created_at, updated_at)
-                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)"#
+                r#"INSERT OR IGNORE INTO byok_profiles (id, provider_id, instance_label, model_id, thinking_effort, base_url, secret_ref, auth_mode, gcp_project, gcp_location, priority, weight, headroom_enabled, is_active, models_json, efforts_json, temperature, top_p, top_k, created_at, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)"#
             };
             count += tx.execute(
                 sql,
-                params![bp.id, bp.provider_id, bp.instance_label, bp.model_id, bp.thinking_effort, bp.base_url, bp.secret_ref, auth_mode, bp.gcp_project, gcp_location, bp.priority, bp.weight, bp.headroom_enabled as i32, bp.is_active as i32, bp.created_at, bp.updated_at],
+                params![bp.id, bp.provider_id, bp.instance_label, bp.model_id, bp.thinking_effort, bp.base_url, bp.secret_ref, auth_mode, bp.gcp_project, gcp_location, bp.priority, bp.weight, bp.headroom_enabled as i32, bp.is_active as i32, models_json, efforts_json, bp.temperature, bp.top_p, bp.top_k, bp.created_at, bp.updated_at],
             )?;
         }
 
@@ -1272,6 +1332,43 @@ impl ToksiConfigDb {
             )?;
         }
 
+        for w in &dump.supervisor_workers {
+            let sql = if overwrite {
+                r#"INSERT INTO supervisor_workers (worker_role, pid, ipc_endpoint, status, restart_count, last_heartbeat)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                   ON CONFLICT(worker_role) DO UPDATE SET
+                       pid = excluded.pid, ipc_endpoint = excluded.ipc_endpoint,
+                       status = excluded.status, restart_count = excluded.restart_count,
+                       last_heartbeat = excluded.last_heartbeat"#
+            } else {
+                r#"INSERT OR IGNORE INTO supervisor_workers (worker_role, pid, ipc_endpoint, status, restart_count, last_heartbeat)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6)"#
+            };
+            count += tx.execute(
+                sql,
+                params![w.worker_role, w.pid, w.ipc_endpoint, w.status, w.restart_count, w.last_heartbeat],
+            )?;
+        }
+
+        for m in &dump.orchestrator_mode_routes {
+            let sql = if overwrite {
+                r#"INSERT INTO orchestrator_mode_routes (mode_id, domain, primary_model, fallback_model, reasoning_effort, temperature, top_p, top_k, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                   ON CONFLICT(mode_id) DO UPDATE SET
+                       domain = excluded.domain, primary_model = excluded.primary_model,
+                       fallback_model = excluded.fallback_model, reasoning_effort = excluded.reasoning_effort,
+                       temperature = excluded.temperature, top_p = excluded.top_p,
+                       top_k = excluded.top_k, updated_at = excluded.updated_at"#
+            } else {
+                r#"INSERT OR IGNORE INTO orchestrator_mode_routes (mode_id, domain, primary_model, fallback_model, reasoning_effort, temperature, top_p, top_k, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"#
+            };
+            count += tx.execute(
+                sql,
+                params![m.mode_id, m.domain, m.primary_model, m.fallback_model, m.reasoning_effort, m.temperature, m.top_p, m.top_k, m.updated_at],
+            )?;
+        }
+
         tx.commit()?;
         Ok(count)
     }
@@ -1335,6 +1432,155 @@ impl ToksiConfigDb {
             adr_audit_events_count,
             file_size_bytes,
         })
+    }
+
+    // -------------------------------------------------------------
+    // Supervisor Workers (Phase 19.2)
+    // -------------------------------------------------------------
+    pub fn upsert_supervisor_worker(&mut self, w: &SupervisorWorkerRecord) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            r#"INSERT INTO supervisor_workers (worker_role, pid, ipc_endpoint, status, restart_count, last_heartbeat)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+               ON CONFLICT(worker_role) DO UPDATE SET
+                   pid = excluded.pid,
+                   ipc_endpoint = excluded.ipc_endpoint,
+                   status = excluded.status,
+                   restart_count = excluded.restart_count,
+                   last_heartbeat = excluded.last_heartbeat"#,
+            params![w.worker_role, w.pid, w.ipc_endpoint, w.status, w.restart_count, w.last_heartbeat],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_worker_heartbeat(&self, worker_role: &str, epoch: i64) -> Result<usize, rusqlite::Error> {
+        self.conn.execute(
+            "UPDATE supervisor_workers SET last_heartbeat = ?1, status = 'running' WHERE worker_role = ?2",
+            params![epoch, worker_role],
+        )
+    }
+
+    pub fn mark_worker_stopped(&self, worker_role: &str) -> Result<usize, rusqlite::Error> {
+        self.conn.execute(
+            "UPDATE supervisor_workers SET pid = NULL, status = 'stopped', last_heartbeat = ?1 WHERE worker_role = ?2",
+            params![now_epoch_secs(), worker_role],
+        )
+    }
+
+    pub fn list_supervisor_workers(&self) -> Result<Vec<SupervisorWorkerRecord>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT worker_role, pid, ipc_endpoint, status, restart_count, last_heartbeat
+             FROM supervisor_workers ORDER BY worker_role ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(SupervisorWorkerRecord {
+                worker_role: row.get(0)?,
+                pid: row.get(1)?,
+                ipc_endpoint: row.get(2)?,
+                status: row.get(3)?,
+                restart_count: row.get(4)?,
+                last_heartbeat: row.get(5)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    // -------------------------------------------------------------
+    // Orchestrator Mode Routes (Phase 20.1)
+    // -------------------------------------------------------------
+    pub fn upsert_orchestrator_mode_route(
+        &mut self,
+        rec: &OrchestratorModeRouteRecord,
+    ) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            r#"INSERT INTO orchestrator_mode_routes
+               (mode_id, domain, primary_model, fallback_model, reasoning_effort, temperature, top_p, top_k, updated_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+               ON CONFLICT(mode_id) DO UPDATE SET
+                   domain = excluded.domain,
+                   primary_model = excluded.primary_model,
+                   fallback_model = excluded.fallback_model,
+                   reasoning_effort = excluded.reasoning_effort,
+                   temperature = excluded.temperature,
+                   top_p = excluded.top_p,
+                   top_k = excluded.top_k,
+                   updated_at = excluded.updated_at"#,
+            params![
+                rec.mode_id,
+                rec.domain,
+                rec.primary_model,
+                rec.fallback_model,
+                rec.reasoning_effort,
+                rec.temperature,
+                rec.top_p,
+                rec.top_k,
+                rec.updated_at
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn get_orchestrator_mode_route(
+        &self,
+        mode_id: &str,
+    ) -> Result<Option<OrchestratorModeRouteRecord>, rusqlite::Error> {
+        self.conn
+            .query_row(
+                "SELECT mode_id, domain, primary_model, fallback_model, reasoning_effort, temperature, top_p, top_k, updated_at
+                 FROM orchestrator_mode_routes WHERE mode_id = ?1",
+                params![mode_id],
+                |row| {
+                    Ok(OrchestratorModeRouteRecord {
+                        mode_id: row.get(0)?,
+                        domain: row.get(1)?,
+                        primary_model: row.get(2)?,
+                        fallback_model: row.get(3)?,
+                        reasoning_effort: row.get(4)?,
+                        temperature: row.get(5)?,
+                        top_p: row.get(6)?,
+                        top_k: row.get(7)?,
+                        updated_at: row.get(8)?,
+                    })
+                },
+            )
+            .optional()
+    }
+
+    pub fn list_orchestrator_mode_routes(
+        &self,
+    ) -> Result<Vec<OrchestratorModeRouteRecord>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT mode_id, domain, primary_model, fallback_model, reasoning_effort, temperature, top_p, top_k, updated_at
+             FROM orchestrator_mode_routes ORDER BY mode_id ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(OrchestratorModeRouteRecord {
+                mode_id: row.get(0)?,
+                domain: row.get(1)?,
+                primary_model: row.get(2)?,
+                fallback_model: row.get(3)?,
+                reasoning_effort: row.get(4)?,
+                temperature: row.get(5)?,
+                top_p: row.get(6)?,
+                top_k: row.get(7)?,
+                updated_at: row.get(8)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    pub fn delete_orchestrator_mode_route(&mut self, mode_id: &str) -> Result<usize, rusqlite::Error> {
+        self.conn.execute(
+            "DELETE FROM orchestrator_mode_routes WHERE mode_id = ?1",
+            params![mode_id],
+        )
     }
 }
 

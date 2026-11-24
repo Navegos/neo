@@ -54,7 +54,7 @@ impl DirectWireBus {
     pub fn dispatch(&self, action: &str, payload: &Value) -> Value {
         let result_str = self.server.execute_tool(action, payload);
         let _ = self.sender.send(WireMessage {
-            topic: "context".to_string(),
+            topic: "ctxmode".to_string(),
             source: "direct-wire".to_string(),
             action: action.to_string(),
             payload: payload.clone(),

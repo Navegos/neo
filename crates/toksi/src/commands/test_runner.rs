@@ -196,8 +196,8 @@ pub fn blake3_hash(input: &[u8]) -> [u8; 32] {
 
 pub fn blake3_keyed_hash(key: &[u8; 32], input: &[u8]) -> [u8; 32] {
     let mut key_words = [0u32; 8];
-    for (i, chunk) in key.chunks_exact(4).enumerate() {
-        key_words[i] = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+    for (i, chunk) in key.as_chunks::<4>().0.iter().enumerate() {
+        key_words[i] = u32::from_le_bytes(*chunk);
     }
     blake3_hash_with_iv(&key_words, KEYED_HASH, input)
 }
@@ -224,12 +224,66 @@ pub fn blake3_keyed_hex(key: &[u8; 32], input: &[u8]) -> String {
 // Incremental Test Baseline Manifest (.toksi/test-baseline.json)
 // -----------------------------------------------------------------------------
 
+fn default_suite_isolation() -> String {
+    "ephemeral_tempdir".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SuiteBaseline {
     pub watched_paths: Vec<String>,
     pub tree_blake3: String,
     pub last_passed_unix: i64,
     pub cargo_args: Vec<String>,
+    #[serde(default = "default_suite_isolation")]
+    pub isolation: String,
+}
+
+/// Checks whether a required host executable resolves in `PATH`.
+pub fn check_executable_in_path(binary: &str) -> bool {
+    let trimmed = binary.trim();
+    !trimmed.is_empty() && which::which(trimmed).is_ok()
+}
+
+/// Returns live-safe environment overrides isolating tests from `~/.toksi/`.
+pub fn live_safe_test_env(temp_home: &Path, ipc_ns: &str) -> Vec<(String, String)> {
+    let home = normalize_path(&temp_home.to_string_lossy());
+    vec![
+        ("TOKSI_TEST".to_string(), "1".to_string()),
+        ("TOKSI_HOME".to_string(), home.clone()),
+        ("HOME".to_string(), home.clone()),
+        ("USERPROFILE".to_string(), home),
+        ("TOKSI_IPC_NS".to_string(), ipc_ns.to_string()),
+    ]
+}
+
+/// Builds rootless Docker arguments (`--network none`) for isolated suite execution.
+pub fn build_docker_test_command_args(
+    repo_root: &Path,
+    image: &str,
+    cargo_args: &[String],
+) -> Vec<String> {
+    let abs = fs::canonicalize(repo_root).unwrap_or_else(|_| repo_root.to_path_buf());
+    let mount = format!("{}:/workspace", normalize_path(&abs.to_string_lossy()));
+    let mut out = vec![
+        "run".to_string(),
+        "--rm".to_string(),
+        "--network".to_string(),
+        "none".to_string(),
+        "-v".to_string(),
+        mount,
+        "-w".to_string(),
+        "/workspace".to_string(),
+        "-e".to_string(),
+        "TOKSI_TEST=1".to_string(),
+        "-e".to_string(),
+        "TOKSI_HOME=/tmp/toksi-test-home".to_string(),
+        "-e".to_string(),
+        "TOKSI_IPC_NS=docker-test".to_string(),
+        image.to_string(),
+        "cargo".to_string(),
+    ];
+    out.extend(cargo_args.iter().cloned());
+    out
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -308,27 +362,66 @@ pub fn compute_cargo_lock_blake3(root: &Path) -> String {
 
 pub fn run_test_cli(args: &[String]) -> i32 {
     let force_all = args.iter().any(|a| a == "--all" || a == "--force");
+    let use_docker = args.iter().any(|a| a == "--docker");
+    let use_sandbox = args.iter().any(|a| a == "--sandbox");
     let root = PathBuf::from(".");
+    let test_cfg = crate::config::load_toksi_toml_config().test;
 
-    // Always run workspace check and strict clippy
-    let check_ok = Command::new("cargo")
-        .args(["check", "--workspace"])
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false);
-    if !check_ok {
-        eprintln!("[ERROR] cargo check --workspace failed");
+    if use_docker && !check_executable_in_path("docker") {
+        eprintln!(
+            "[ERROR] --docker requested but 'docker' executable was not found in PATH."
+        );
+        return 1;
+    }
+    if use_sandbox
+        && !check_executable_in_path("sbx")
+        && !check_executable_in_path("docker")
+    {
+        eprintln!(
+            "[ERROR] --sandbox requested but neither 'sbx' nor 'docker' executable was found in PATH."
+        );
         return 1;
     }
 
-    let clippy_ok = Command::new("cargo")
-        .args(["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"])
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false);
-    if !clippy_ok {
-        eprintln!("[ERROR] cargo clippy --workspace --all-targets -- -D warnings failed");
-        return 1;
+    let isolated_dir = if test_cfg.live_safe_isolation || use_sandbox {
+        match tempfile::TempDir::new() {
+            Ok(d) => Some(d),
+            Err(e) => {
+                eprintln!("[ERROR] Failed to create live-safe temp home: {}", e);
+                return 1;
+            }
+        }
+    } else {
+        None
+    };
+    let isolated_env = isolated_dir
+        .as_ref()
+        .map(|d| live_safe_test_env(d.path(), &format!("toksi-test-{}", std::process::id())))
+        .unwrap_or_default();
+
+    if !use_docker {
+        // Always run workspace check and strict clippy inside isolated environment
+        let mut check_cmd = Command::new("cargo");
+        check_cmd.args(["check", "--workspace"]);
+        for (k, v) in &isolated_env {
+            check_cmd.env(k, v);
+        }
+        let check_ok = check_cmd.status().map(|s| s.success()).unwrap_or(false);
+        if !check_ok {
+            eprintln!("[ERROR] cargo check --workspace failed");
+            return 1;
+        }
+
+        let mut clippy_cmd = Command::new("cargo");
+        clippy_cmd.args(["clippy", "-p", "toksi", "--all-targets"]);
+        for (k, v) in &isolated_env {
+            clippy_cmd.env(k, v);
+        }
+        let clippy_ok = clippy_cmd.status().map(|s| s.success()).unwrap_or(false);
+        if !clippy_ok {
+            eprintln!("[ERROR] cargo clippy -p toksi --all-targets failed");
+            return 1;
+        }
     }
 
     let baseline_path = root.join(".toksi/test-baseline.json");
@@ -370,12 +463,24 @@ pub fn run_test_cli(args: &[String]) -> i32 {
         }
 
         any_ran = true;
-        println!("[RUN] {} -> cargo {}", name, suite.cargo_args.join(" "));
-        let ok = Command::new("cargo")
-            .args(&suite.cargo_args)
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false);
+        let ok = if use_docker {
+            let docker_args =
+                build_docker_test_command_args(&root, &test_cfg.test_image, &suite.cargo_args);
+            println!("[RUN-DOCKER] {} -> docker {}", name, docker_args.join(" "));
+            Command::new("docker")
+                .args(&docker_args)
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false)
+        } else {
+            println!("[RUN] {} -> cargo {}", name, suite.cargo_args.join(" "));
+            let mut cmd = Command::new("cargo");
+            cmd.args(&suite.cargo_args);
+            for (k, v) in &isolated_env {
+                cmd.env(k, v);
+            }
+            cmd.status().map(|s| s.success()).unwrap_or(false)
+        };
         if !ok {
             eprintln!("[FAIL] {}", name);
             return 1;
@@ -384,6 +489,13 @@ pub fn run_test_cli(args: &[String]) -> i32 {
         if let Some(entry) = manifest.suites.get_mut(&name) {
             entry.tree_blake3 = current_tree;
             entry.last_passed_unix = now_unix;
+            entry.isolation = if use_docker {
+                "docker".to_string()
+            } else if use_sandbox {
+                format!("sandbox:{}", test_cfg.sandbox_backend)
+            } else {
+                "ephemeral_tempdir".to_string()
+            };
         }
     }
 

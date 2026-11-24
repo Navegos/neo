@@ -206,13 +206,13 @@ pub fn default_open_agents_mcp() -> OpenAgentsMcpConfig {
             ],
         ),
         (
-            "context",
+            "ctxmode",
             vec![
                 "run-mcp".to_string(),
                 "--tool".to_string(),
-                "context".to_string(),
+                "ctxmode".to_string(),
                 "toksi".to_string(),
-                "ctx".to_string(),
+                "ctxmode".to_string(),
                 "mcp".to_string(),
             ],
         ),
@@ -254,7 +254,7 @@ pub fn verify_direct_wire_bus(project_root: Option<&Path>) -> Vec<String> {
 
     let ctx_bus = crate::contextmode::DirectWireBus::new(root.clone());
     let _ctx_rx = ctx_bus.subscribe();
-    active.push("context:direct-wired".to_string());
+    active.push("ctxmode:direct-wired".to_string());
 
     let icm_bus = crate::icm::DirectWireBus::new(root);
     let _icm_rx = icm_bus.subscribe();
@@ -293,7 +293,7 @@ mod tests {
     #[test]
     fn test_default_open_agents_mcp() {
         let mcp = default_open_agents_mcp();
-        for key in ["codegraph", "context", "projectmem", "icm", "aimemory", "rtk"] {
+        for key in ["codegraph", "ctxmode", "projectmem", "icm", "aimemory", "rtk"] {
             assert!(mcp.mcp_servers.contains_key(key), "missing {key}");
         }
         assert!(!mcp.mcp_servers.contains_key("context-mode"));

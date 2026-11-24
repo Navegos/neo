@@ -44,7 +44,7 @@ impl Default for OpenCodeHooksConfig {
         Self {
             session_start: vec!["codegraph-hook opencode".to_string()],
             session_shutdown: vec!["projectmem-hook opencode".to_string()],
-            before_agent_start: vec!["context-hook opencode".to_string()],
+            before_agent_start: vec!["ctxmode-hook opencode".to_string()],
             turn_start: vec!["rtk-hook opencode".to_string()],
             turn_end: vec!["projectmem-hook opencode".to_string()],
             tool_call: vec!["rtk-hook opencode".to_string()],

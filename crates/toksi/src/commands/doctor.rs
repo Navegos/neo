@@ -106,6 +106,7 @@ const HOME_WORKSPACE_LEAK_DIRS: &[&str] = &[
     "icm",
     "ai-memory",
     "aimemory",
+    "ctxmode",
     "context",
     "context-mode",
     "codegraph",
@@ -167,11 +168,12 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
 
     let tool_migrations = [
         (".codegraph", "codegraph"),
-        (".context-mode", "context"),
-        (".context", "context"),
+        (".context-mode", "ctxmode"),
+        (".context", "ctxmode"),
+        (".ctxmode", "ctxmode"),
         (".icm", "icm"),
-        (".ai-memory", "ai-memory"),
-        (".aimemory", "ai-memory"),
+        (".ai-memory", "aimemory"),
+        (".aimemory", "aimemory"),
         (".rtk", "rtk"),
         (".projectmem", "projectmem"),
     ];
@@ -228,11 +230,25 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
                             }
                         }
 
-                        // Normalize legacy .toksi/aimemory -> .toksi/ai-memory before directory merge
-                        let nested_aimem = path.join("aimemory");
+                        // Normalize legacy .toksi/ai-memory -> .toksi/aimemory & .toksi/context -> .toksi/ctxmode before merge
+                        let nested_aimem = path.join("ai-memory");
                         if nested_aimem.is_dir() {
-                            merge_directory_recursive(&nested_aimem, &root_toksi.join("ai-memory"));
+                            merge_directory_recursive(&nested_aimem, &root_toksi.join("aimemory"));
                             let _ = std::fs::remove_dir_all(&nested_aimem);
+                        }
+                        let nested_ctx = path.join("context");
+                        if nested_ctx.is_dir() {
+                            for db_name in ["context.db", "ctxmode.db"] {
+                                let sub_db = nested_ctx.join(db_name);
+                                if sub_db.is_file() {
+                                    let _ = crate::contextmode::fts::migrate_legacy_ctxmode_db(
+                                        &root_toksi.join("ctxmode").join("ctxmode.db"),
+                                        &sub_db,
+                                    );
+                                }
+                            }
+                            merge_directory_recursive(&nested_ctx, &root_toksi.join("ctxmode"));
+                            let _ = std::fs::remove_dir_all(&nested_ctx);
                         }
 
                         // Recursively merge subdirectories and files into root .toksi
@@ -308,12 +324,36 @@ pub fn consolidate_nested_toksi_dirs(root: &std::path::Path) -> std::io::Result<
         }
     }
 
-    // Migrate legacy root .toksi/aimemory -> .toksi/ai-memory if present
-    let legacy_aimem = root_toksi.join("aimemory");
+    // Migrate legacy root .toksi/ai-memory -> .toksi/aimemory and .toksi/context -> .toksi/ctxmode
+    let legacy_aimem = root_toksi.join("ai-memory");
     if legacy_aimem.is_dir() {
-        let target_aimem = root_toksi.join("ai-memory");
+        let target_aimem = root_toksi.join("aimemory");
         merge_directory_recursive(&legacy_aimem, &target_aimem);
         let _ = std::fs::remove_dir_all(&legacy_aimem);
+        consolidated_count += 1;
+    }
+    let legacy_ctx = root_toksi.join("context");
+    if legacy_ctx.is_dir() {
+        let target_ctx = root_toksi.join("ctxmode");
+        for db_name in ["context.db", "ctxmode.db"] {
+            let sub_db = legacy_ctx.join(db_name);
+            if sub_db.is_file() {
+                let _ = crate::contextmode::fts::migrate_legacy_ctxmode_db(
+                    &target_ctx.join("ctxmode.db"),
+                    &sub_db,
+                );
+            }
+        }
+        merge_directory_recursive(&legacy_ctx, &target_ctx);
+        let _ = std::fs::remove_dir_all(&legacy_ctx);
+        consolidated_count += 1;
+    }
+    let in_place_legacy_ctx_db = root_toksi.join("ctxmode").join("context.db");
+    if in_place_legacy_ctx_db.is_file() {
+        let _ = crate::contextmode::fts::migrate_legacy_ctxmode_db(
+            &root_toksi.join("ctxmode").join("ctxmode.db"),
+            &in_place_legacy_ctx_db,
+        );
         consolidated_count += 1;
     }
 
@@ -1077,7 +1117,7 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
     if tool_stats.is_empty() {
         tree_leaf(&C.dim("no installed tools with local stats"));
     } else {
-        let tool_ids = ["headroom", "projectmem", "rtk", "codegraph", "context", "context-mode"];
+        let tool_ids = ["headroom", "projectmem", "rtk", "codegraph", "ctxmode", "context", "context-mode"];
         for id in tool_ids {
             if let Some(rows) = tool_stats.get(id) {
                 tree_leaf(&format!("{}:", paint_name(id)));

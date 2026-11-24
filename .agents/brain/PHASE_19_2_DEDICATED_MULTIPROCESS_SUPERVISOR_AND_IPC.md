@@ -1,6 +1,6 @@
 # Phase 19.2 — Dedicated Multi-Process Supervisor (`toksi _worker <role>`) & Direct-Wire IPC
 
-> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -70,3 +70,7 @@ CREATE TABLE IF NOT EXISTS supervisor_workers (
 
 ## Verification Criteria
 - `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `phase19_2_multiprocess_supervisor_ipc_verification` pass 100% using ephemeral `TempDir` sockets/pipes and `:0` ports.
+
+## Wave 20 (v7.0) Synchronization Addendum
+- Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).
+- Enforces `<toksi-siagent>` (`_worker siagent`, 22 Orchestrator Modes, 29 slash commands), decoupled 10-Tab UI, `~/.toksi/services/*.db`, `ctxmode`/`aimemory` renames, `docker/compose.test.yaml`, 11 AI/ML Pillars, Distributed Cluster Stack (`src/cluster/`), and OpenTelemetry Rust (`gen_ai.*`).

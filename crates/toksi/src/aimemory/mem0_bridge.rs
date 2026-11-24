@@ -192,16 +192,16 @@ impl Mem0BridgeEngine {
         actions
     }
 
-    /// Canonical `<repo>/.toksi/ai-memory/mem0_facts.json` path (forward-slash normalized).
+    /// Canonical `<repo>/.toksi/aimemory/mem0_facts.json` path (forward-slash normalized).
     pub fn repo_facts_path(repo_root: &Path) -> PathBuf {
         let joined = repo_root
             .join(".toksi")
-            .join("ai-memory")
+            .join("aimemory")
             .join("mem0_facts.json");
         PathBuf::from(normalize_path(&joined.to_string_lossy()))
     }
 
-    /// Persists all entity facts into `<repo>/.toksi/ai-memory/mem0_facts.json`.
+    /// Persists all entity facts into `<repo>/.toksi/aimemory/mem0_facts.json`.
     pub fn save_to_repo(&self, repo_root: &Path) -> Result<usize, Mem0Error> {
         let path = Self::repo_facts_path(repo_root);
         if let Some(parent) = path.parent() {
@@ -215,7 +215,7 @@ impl Mem0BridgeEngine {
         Ok(facts.len())
     }
 
-    /// Loads entity facts from `<repo>/.toksi/ai-memory/mem0_facts.json`.
+    /// Loads entity facts from `<repo>/.toksi/aimemory/mem0_facts.json`.
     pub fn load_from_repo(&self, repo_root: &Path) -> Result<usize, Mem0Error> {
         let path = Self::repo_facts_path(repo_root);
         if !path.exists() {
@@ -231,7 +231,7 @@ impl Mem0BridgeEngine {
         Ok(count)
     }
 
-    /// Syncs stored entity facts with `<repo>/.toksi/ai-memory/` and `<repo>/.toksi/icm/icm.db`.
+    /// Syncs stored entity facts with `<repo>/.toksi/aimemory/` and `<repo>/.toksi/icm/icm.db`.
     pub fn sync_with_icm_and_aimemory(&self, repo_root: &Path) -> Result<usize, Mem0Error> {
         let count = self.save_to_repo(repo_root)?;
         let icm_dir = repo_root.join(".toksi").join("icm");

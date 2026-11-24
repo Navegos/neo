@@ -651,6 +651,8 @@ fn routing_policy_for_request(
         EffortLevel::Low => ReasoningEffort::Low,
         EffortLevel::Medium => ReasoningEffort::Medium,
         EffortLevel::High => ReasoningEffort::High,
+        EffortLevel::XHigh => ReasoningEffort::XHigh,
+        EffortLevel::Max => ReasoningEffort::Max,
     };
     let data_class = match header_value(req, "x-toksi-data-class")
         .map(|s| s.trim().to_ascii_lowercase())

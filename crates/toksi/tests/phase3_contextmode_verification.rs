@@ -68,7 +68,7 @@ fn test_phase3_filter_rtk_pipeline_and_slicing() {
     let sliced = slice_lines(&text, 10);
     assert!(sliced.contains("log line 01"));
     assert!(sliced.contains("log line 05"));
-    assert!(sliced.contains("... [50 lines omitted by context-mode] ..."));
+    assert!(sliced.contains("... [50 lines omitted by ctxmode] ..."));
     assert!(sliced.contains("log line 60"));
 
     // 2. Byte-safe UTF-8 slicing
@@ -247,7 +247,7 @@ fn test_phase3_inprocess_mcp_server_protocol() {
         "params": {}
     });
     let init_res = server.handle_mcp_message(&init_req).expect("handle initialize");
-    assert_eq!(init_res["result"]["serverInfo"]["name"], "context-mode");
+    assert_eq!(init_res["result"]["serverInfo"]["name"], "ctxmode");
     assert_eq!(init_res["result"]["protocolVersion"], "2024-11-05");
 
     // 2. MCP tools/list
@@ -275,7 +275,7 @@ fn test_phase3_inprocess_mcp_server_protocol() {
     let index_res = server.execute_tool(
         "ctx_index",
         &json!({
-            "content": "# Test Module\n\nTesting in-process context-mode MCP server execution.",
+            "content": "# Test Module\n\nTesting in-process ctxmode MCP server execution.",
             "source": "mcp-test-src"
         }),
     );
@@ -293,10 +293,10 @@ fn test_phase3_inprocess_mcp_server_protocol() {
 
     // 5. MCP tool call: ctx_stats and ctx_doctor
     let stats_res = server.execute_tool("ctx_stats", &json!({}));
-    assert!(stats_res.contains("Context-Mode Session Statistics"));
+    assert!(stats_res.contains("CtxMode Session Statistics"));
 
     let doctor_res = server.execute_tool("ctx_doctor", &json!({}));
-    assert!(doctor_res.contains("Context-Mode Doctor Diagnostics"));
+    assert!(doctor_res.contains("CtxMode Doctor Diagnostics"));
     assert!(doctor_res.contains("READY"));
 }
 

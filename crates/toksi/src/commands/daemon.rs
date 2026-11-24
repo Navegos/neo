@@ -136,7 +136,7 @@ pub fn resolve_daemon_plan(explicit: Option<&[String]>) -> DaemonServicePlan {
             protocol_bus: true,
             byok_gateway: has_byok,
             ai_gateway: true,
-            dashboard: true,
+            dashboard: false,
         };
     }
 
@@ -157,7 +157,7 @@ pub fn resolve_daemon_plan(explicit: Option<&[String]>) -> DaemonServicePlan {
         protocol_bus: true,
         byok_gateway: byok_configured,
         ai_gateway: true,
-        dashboard: true,
+        dashboard: false,
     }
 }
 
@@ -188,14 +188,196 @@ pub fn is_daemon_running() -> bool {
 
 fn daemon_help_text() -> String {
     format!(
-        "{} — toksi unified 8-port background supervisor\n\n\
-        {}\n  toksi daemon start [--agents <list>]    Start daemon supervisor in background\n\
-          toksi daemon stop                       Stop daemon supervisor and clean env\n\
-          toksi daemon status                     Check daemon and 8-port endpoint health\n\
-          toksi daemon restart [--agents <list>]  Restart supervisor\n",
+        "{} — toksi unified 8-port multi-process supervisor (`toksi _worker <role>`)\n\n\
+        {}\n  toksi daemon start [--agents <list>]          Start multi-process supervisor in background (detached cockpit)\n\
+          toksi daemon stop                             Gracefully drain & reap all workers and clean env\n\
+          toksi daemon status                           Check daemon and 8-port worker health\n\
+          toksi daemon restart [--agents <list>]        Restart supervisor and workers\n\
+          toksi daemon heal [--agents <list>]           Probe & restart unhealthy/dead workers\n\
+          toksi daemon dashboard [--port <p>]           Launch detached Web Cockpit (:9100)\n\
+          toksi daemon service <role> <start|stop|restart|heal|status>\n",
         C.bold("toksi daemon"),
         C.bold("Usage:")
     )
+}
+
+pub fn daemon_help_text_for_test() -> String {
+    daemon_help_text()
+}
+
+pub fn plan_worker_roles(plan: &DaemonServicePlan) -> Vec<crate::ipc::WorkerRole> {
+    use crate::ipc::WorkerRole;
+    let mut roles = Vec::new();
+    if plan.headroom_proxy {
+        roles.push(WorkerRole::Port8787);
+    }
+    if plan.grok_oauth_proxy {
+        roles.push(WorkerRole::Port8788);
+    }
+    if plan.copilot_vscode_proxy {
+        roles.push(WorkerRole::Port8789);
+    }
+    if plan.copilot_cli_proxy {
+        roles.push(WorkerRole::Port8790);
+    }
+    if plan.protocol_bus {
+        roles.push(WorkerRole::Port9098);
+    }
+    if plan.ai_gateway {
+        roles.push(WorkerRole::Port9099);
+    }
+    if plan.dashboard {
+        roles.push(WorkerRole::Port9100);
+    }
+    if plan.byok_gateway {
+        roles.push(WorkerRole::Port18787);
+    }
+    roles.push(WorkerRole::Siagent);
+    roles.extend_from_slice(WorkerRole::TOOL_WORKERS);
+    roles
+}
+
+pub fn spawn_worker_subprocess(
+    role: crate::ipc::WorkerRole,
+    port_override: Option<u16>,
+    pipe_override: Option<&str>,
+) -> std::io::Result<std::process::Child> {
+    let exe = toksi_abs_strict();
+    let exe_path = if exe.is_empty() {
+        std::env::current_exe()?
+    } else {
+        std::path::PathBuf::from(exe)
+    };
+    let endpoint = pipe_override
+        .map(ToString::to_string)
+        .unwrap_or_else(|| role.ipc_endpoint());
+    let mut cmd = Command::new(&exe_path);
+    cmd.args(["_worker", role.as_str(), "--pipe", &endpoint]);
+    if let Some(p) = port_override {
+        cmd.args(["--port", &p.to_string()]);
+    }
+    crate::env_injector::apply_env_to_command(&mut cmd);
+    cmd.stdin(std::process::Stdio::null());
+    cmd.stdout(std::process::Stdio::null());
+    cmd.stderr(std::process::Stdio::null());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+
+    cmd.spawn()
+}
+
+pub fn daemon_service_action(role_name: &str, action: &str) -> Result<serde_json::Value, String> {
+    use crate::ipc::{IpcFrame, IpcOpcode, WorkerRole};
+    let role = role_name.parse::<WorkerRole>()?;
+    let endpoint = role.ipc_endpoint();
+    let pid_file = crate::ipc::supervisor_pids_dir().join(format!("{}.pid", role.as_str()));
+
+    let worker_alive = || -> bool {
+        let frame = IpcFrame::new(IpcOpcode::Ping, 1, Vec::new());
+        if crate::ipc::client::send_frame_blocking(&endpoint, &frame, Duration::from_millis(250)).is_ok() {
+            return true;
+        }
+        fs::read_to_string(&pid_file)
+            .ok()
+            .and_then(|s| s.trim().parse::<u32>().ok())
+            .is_some_and(process_alive)
+    };
+
+    let act = action.trim().to_ascii_lowercase();
+    match act.as_str() {
+        "status" => Ok(serde_json::json!({
+            "role": role.as_str(),
+            "endpoint": endpoint,
+            "alive": worker_alive(),
+        })),
+        "stop" => {
+            let drain = IpcFrame::new(IpcOpcode::GracefulDrain, 0, Vec::new());
+            let _ = crate::ipc::client::send_frame_blocking(&endpoint, &drain, Duration::from_millis(150));
+            if let Ok(raw) = fs::read_to_string(&pid_file) {
+                if let Ok(pid) = raw.trim().parse::<u32>() {
+                    let _ = crate::headroom::process_identity::kill_process(pid);
+                }
+                let _ = fs::remove_file(&pid_file);
+            }
+            if let Ok(db) = crate::db::open_default_db() {
+                let _ = db.mark_worker_stopped(role.as_str());
+            }
+            Ok(serde_json::json!({
+                "role": role.as_str(),
+                "action": "stop",
+                "stopped": true
+            }))
+        }
+        "start" | "restart" | "heal" => {
+            if act == "heal" && worker_alive() {
+                return Ok(serde_json::json!({
+                    "role": role.as_str(),
+                    "action": "heal",
+                    "restarted": false,
+                    "alive": true
+                }));
+            }
+            if act == "restart" || act == "heal" {
+                let _ = fs::read_to_string(&pid_file)
+                    .ok()
+                    .and_then(|s| s.trim().parse::<u32>().ok())
+                    .map(crate::headroom::process_identity::kill_process);
+            }
+            let _ = ensure_dir(crate::ipc::supervisor_pids_dir());
+            let child = spawn_worker_subprocess(role, None, Some(&endpoint))
+                .map_err(|e| format!("Failed spawning worker '{}': {e}", role.as_str()))?;
+            let cpid = child.id();
+            let _ = write_file_atomic(&pid_file, &cpid.to_string());
+            if let Ok(mut db) = crate::db::open_default_db() {
+                let _ = db.upsert_supervisor_worker(&crate::db::SupervisorWorkerRecord {
+                    worker_role: role.as_str().to_string(),
+                    pid: Some(i64::from(cpid)),
+                    ipc_endpoint: endpoint.clone(),
+                    status: "running".to_string(),
+                    restart_count: if act == "start" { 0 } else { 1 },
+                    last_heartbeat: chrono::Utc::now().timestamp(),
+                });
+            }
+            std::mem::forget(child);
+            Ok(serde_json::json!({
+                "role": role.as_str(),
+                "action": act,
+                "pid": cpid,
+                "restarted": true
+            }))
+        }
+        other => Err(format!("Unsupported service action '{other}' (expected start|stop|restart|heal|status)")),
+    }
+}
+
+fn daemon_heal(explicit_agents: Option<&[String]>) -> i32 {
+    let plan = resolve_daemon_plan(explicit_agents);
+    let mut healed = 0usize;
+    let mut healthy = 0usize;
+    for role in plan_worker_roles(&plan) {
+        match daemon_service_action(role.as_str(), "heal") {
+            Ok(val) => {
+                if val.get("restarted").and_then(|v| v.as_bool()) == Some(true) {
+                    healed += 1;
+                } else {
+                    healthy += 1;
+                }
+            }
+            Err(e) => L.warn(&format!("heal '{}': {}", role.as_str(), e)),
+        }
+    }
+    println!("Daemon heal complete: healthy={} restarted={}", healthy, healed);
+    0
 }
 
 pub fn run_daemon_cli(argv: &[String]) -> i32 {
@@ -208,6 +390,25 @@ pub fn run_daemon_cli(argv: &[String]) -> i32 {
         "start" => daemon_start(agents_opt.as_deref()),
         "stop" => daemon_stop(),
         "status" => daemon_status(),
+        "heal" => daemon_heal(agents_opt.as_deref()),
+        "dashboard" => crate::dashboard::run_dashboard_cli(argv.get(1..).unwrap_or(&[])),
+        "service" => {
+            let pos: Vec<&String> = argv.iter().skip(1).filter(|a| !a.starts_with('-')).collect();
+            let (Some(name), Some(action)) = (pos.first(), pos.get(1)) else {
+                eprintln!("Usage: toksi daemon service <role> <start|stop|restart|heal|status>");
+                return 1;
+            };
+            match daemon_service_action(name, action) {
+                Ok(v) => {
+                    println!("{}", serde_json::to_string_pretty(&v).unwrap_or_default());
+                    0
+                }
+                Err(e) => {
+                    eprintln!("service error: {e}");
+                    1
+                }
+            }
+        }
         "run" | "__run-foreground" => daemon_run_foreground(agents_opt.as_deref()),
         "restart" => {
             daemon_stop();
@@ -416,6 +617,19 @@ fn daemon_stop() -> i32 {
         }
     }
 
+    for role in crate::ipc::WorkerRole::ALL {
+        let drain = crate::ipc::IpcFrame::new(crate::ipc::IpcOpcode::GracefulDrain, 0, Vec::new());
+        let ep = role.ipc_endpoint();
+        let _ = crate::ipc::client::send_frame_blocking(&ep, &drain, Duration::from_millis(100));
+        let wpid_path = crate::ipc::supervisor_pids_dir().join(format!("{}.pid", role.as_str()));
+        if let Ok(raw) = fs::read_to_string(&wpid_path) {
+            if let Ok(wpid) = raw.trim().parse::<u32>() {
+                let _ = crate::headroom::process_identity::kill_process(wpid);
+            }
+            let _ = fs::remove_file(wpid_path);
+        }
+    }
+
     let _ = fs::remove_file(daemon_pid_file());
     let _ = fs::remove_file(daemon_stop_file());
 
@@ -459,6 +673,19 @@ fn daemon_run_foreground(explicit_agents: Option<&[String]>) -> i32 {
         L.err(&format!("Daemon supervisor encountered error: {}", e));
     }
 
+    for role in crate::ipc::WorkerRole::ALL {
+        let drain = crate::ipc::IpcFrame::new(crate::ipc::IpcOpcode::GracefulDrain, 0, Vec::new());
+        let ep = role.ipc_endpoint();
+        let _ = crate::ipc::client::send_frame_blocking(&ep, &drain, Duration::from_millis(100));
+        let wpid_path = crate::ipc::supervisor_pids_dir().join(format!("{}.pid", role.as_str()));
+        if let Ok(raw) = fs::read_to_string(&wpid_path) {
+            if let Ok(wpid) = raw.trim().parse::<u32>() {
+                let _ = crate::headroom::process_identity::kill_process(wpid);
+            }
+            let _ = fs::remove_file(wpid_path);
+        }
+    }
+
     let _ = fs::remove_file(daemon_pid_file());
     let _ = fs::remove_file(daemon_stop_file());
     let _ = crate::env_injector::teardown_proxy_env();
@@ -470,6 +697,8 @@ fn daemon_run_foreground(explicit_agents: Option<&[String]>) -> i32 {
 async fn run_supervised_daemon_async(
     plan: DaemonServicePlan,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use crate::ipc::{IpcFrame, IpcOpcode, WorkerRole};
+
     crate::env_injector::register_teardown_handlers();
 
     let ports = crate::config::resolved_ports();
@@ -488,111 +717,74 @@ async fn run_supervised_daemon_async(
     let p_gw = ports.ai_gateway;
     let p_dash = ports.dashboard;
 
-    let mut hr_task = if plan.headroom_proxy && !crate::headroom::proxy::proxy_running() {
-        Some(tokio::spawn(async move {
-            if let Err(e) = crate::headroom::proxy::run_native_headroom_proxy(p_hr).await {
-                L.warn(&format!("Headroom proxy error: {}", e));
-            }
-        }))
-    } else {
-        None
+    let port_for_role = |role: WorkerRole| -> Option<u16> {
+        match role {
+            WorkerRole::Port8787 => Some(p_hr),
+            WorkerRole::Port8788 => Some(p_grok),
+            WorkerRole::Port8789 => Some(p_copilot),
+            WorkerRole::Port8790 => Some(p_copilot_cli),
+            WorkerRole::Port9098 => Some(p_bus),
+            WorkerRole::Port9099 => Some(p_gw),
+            WorkerRole::Port9100 => Some(p_dash),
+            WorkerRole::Port18787 => Some(p_byok),
+            _ => None,
+        }
     };
 
-    let mut grok_task =
-        if plan.grok_oauth_proxy && !crate::headroom::grok_daemon::grok_oauth_proxy_running() {
-            Some(tokio::spawn(async move {
-                if let Err(e) = crate::headroom::grok_daemon::run_native_grok_proxy(p_grok).await {
-                    L.warn(&format!("Grok OAuth proxy error: {}", e));
+    struct ManagedWorker {
+        role: WorkerRole,
+        port: Option<u16>,
+        endpoint: String,
+        child: Option<std::process::Child>,
+        restart_count: u32,
+        window_started: std::time::Instant,
+    }
+
+    let cfg = crate::config::load_toksi_toml_config();
+    let max_restarts = cfg.supervisor.max_restarts_per_min;
+    let base_backoff_ms = cfg.supervisor.restart_backoff_ms.max(50);
+
+    let _ = ensure_dir(crate::ipc::supervisor_pids_dir());
+    let mut workers = Vec::new();
+    for role in plan_worker_roles(&plan) {
+        let port = port_for_role(role);
+        let endpoint = role.ipc_endpoint();
+        let child = match spawn_worker_subprocess(role, port, Some(&endpoint)) {
+            Ok(c) => {
+                let cpid = c.id();
+                if let Ok(mut db) = crate::db::open_default_db() {
+                    let _ = db.upsert_supervisor_worker(&crate::db::SupervisorWorkerRecord {
+                        worker_role: role.as_str().to_string(),
+                        pid: Some(i64::from(cpid)),
+                        ipc_endpoint: endpoint.clone(),
+                        status: "running".to_string(),
+                        restart_count: 0,
+                        last_heartbeat: chrono::Utc::now().timestamp(),
+                    });
                 }
-            }))
-        } else {
-            None
+                Some(c)
+            }
+            Err(e) => {
+                L.warn(&format!("Failed spawning worker subprocess '{}': {}", role.as_str(), e));
+                None
+            }
         };
-
-    let mut copilot_task = if plan.copilot_vscode_proxy
-        && !crate::headroom::copilot_daemon::copilot_proxy_running()
-    {
-        Some(tokio::spawn(async move {
-            if let Err(e) =
-                crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot, false).await
-            {
-                L.warn(&format!("Copilot VS Code proxy error: {}", e));
-            }
-        }))
-    } else {
-        None
-    };
-
-    let mut copilot_cli_task = if plan.copilot_cli_proxy
-        && !crate::headroom::copilot_daemon::copilot_cli_proxy_running()
-    {
-        Some(tokio::spawn(async move {
-            if let Err(e) =
-                crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot_cli, true)
-                    .await
-            {
-                L.warn(&format!("Copilot CLI proxy error: {}", e));
-            }
-        }))
-    } else {
-        None
-    };
-
-    let mut bus_task = if plan.protocol_bus && !crate::tools::multi_protocol::is_protocol_bus_running() {
-        Some(tokio::spawn(async move {
-            if let Err(e) = crate::tools::multi_protocol::run_protocol_bus_server(p_bus).await {
-                L.warn(&format!("Protocol Bus server error: {}", e));
-            }
-        }))
-    } else {
-        None
-    };
-
-    let byok_allow_empty = plan.explicit_agents && plan.byok_gateway;
-    let mut byok_task = if plan.byok_gateway && !crate::headroom::byok_gateway::byok_gateway_live() {
-        Some(tokio::spawn(async move {
-            if let Err(e) =
-                crate::headroom::byok_gateway::run_byok_gateway_serve_on_port(p_byok, byok_allow_empty)
-                    .await
-            {
-                L.warn(&format!("BYOK gateway error: {}", e));
-            }
-        }))
-    } else {
-        None
-    };
-
-    // Port 9099 (AI Gateway) and Port 9100 (Web Cockpit) run on strictly isolated OS thread pools
-    let mut gw_handle = if plan.ai_gateway && !crate::gateway::server::is_gateway_running() {
-        match crate::gateway::server::spawn_isolated_gateway("127.0.0.1", p_gw) {
-            Ok(h) => Some(h),
-            Err(e) => {
-                L.warn(&format!("Failed spawning isolated AI Gateway thread: {}", e));
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    let mut dash_handle = if plan.dashboard && !crate::dashboard::is_dashboard_running() {
-        match crate::dashboard::spawn_isolated_dashboard("127.0.0.1", p_dash) {
-            Ok(h) => Some(h),
-            Err(e) => {
-                L.warn(&format!("Failed spawning isolated Dashboard thread: {}", e));
-                None
-            }
-        }
-    } else {
-        None
-    };
+        workers.push(ManagedWorker {
+            role,
+            port,
+            endpoint,
+            child,
+            restart_count: 0,
+            window_started: std::time::Instant::now(),
+        });
+    }
 
     let reconnect_watchdog =
         crate::gateway::reconnect::start_global_watchdog(Duration::from_secs(10));
 
     let fmt_state = |enabled: bool| if enabled { "active" } else { "skipped (unconfigured)" };
     L.raw(&format!(
-        "  {} Supervised 8-port control plane:\n\
+        "  {} Supervised 8-port multi-process control plane ({} worker processes):\n\
            {} Headroom Proxy (:{p_hr}) — {}\n\
            {} Grok OAuth Proxy (:{p_grok}) — {}\n\
            {} Copilot VS Code Proxy (:{p_copilot}) — {}\n\
@@ -602,6 +794,7 @@ async fn run_supervised_daemon_async(
            {} AI Gateway (:{p_gw}) — {}\n\
            {} Web Dashboard Cockpit (:{p_dash}) — {}",
         C.green(Sym::CHECK),
+        workers.len(),
         C.cyan("•"),
         fmt_state(plan.headroom_proxy),
         C.cyan("•"),
@@ -620,7 +813,6 @@ async fn run_supervised_daemon_async(
         fmt_state(plan.dashboard),
     ));
 
-    // Non-blocking supervisor watch loop
     let mut last_ignore_check = std::time::Instant::now();
     let mut last_gitignore_mtime = std::collections::HashMap::<String, std::time::SystemTime>::new();
 
@@ -696,96 +888,59 @@ async fn run_supervised_daemon_async(
             }
         }
 
-        // Non-blocking auto-heal for any supervised task/thread that exited unexpectedly
-        if let Some(ref t) = hr_task
-            && t.is_finished()
-        {
-            hr_task = Some(tokio::spawn(async move {
-                let _ = crate::headroom::proxy::run_native_headroom_proxy(p_hr).await;
-            }));
-        }
-        if let Some(ref t) = grok_task
-            && t.is_finished()
-        {
-            grok_task = Some(tokio::spawn(async move {
-                let _ = crate::headroom::grok_daemon::run_native_grok_proxy(p_grok).await;
-            }));
-        }
-        if let Some(ref t) = copilot_task
-            && t.is_finished()
-        {
-            copilot_task = Some(tokio::spawn(async move {
-                let _ =
-                    crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot, false)
-                        .await;
-            }));
-        }
-        if let Some(ref t) = copilot_cli_task
-            && t.is_finished()
-        {
-            copilot_cli_task = Some(tokio::spawn(async move {
-                let _ =
-                    crate::headroom::copilot_daemon::run_native_copilot_proxy(p_copilot_cli, true)
-                        .await;
-            }));
-        }
-        if let Some(ref t) = bus_task
-            && t.is_finished()
-        {
-            bus_task = Some(tokio::spawn(async move {
-                let _ = crate::tools::multi_protocol::run_protocol_bus_server(p_bus).await;
-            }));
-        }
-        if let Some(ref t) = byok_task
-            && t.is_finished()
-        {
-            byok_task = Some(tokio::spawn(async move {
-                let _ = crate::headroom::byok_gateway::run_byok_gateway_serve_on_port(
-                    p_byok,
-                    byok_allow_empty,
-                )
-                .await;
-            }));
-        }
-        if let Some(ref mut h) = gw_handle
-            && h.is_finished()
-            && let Ok(next) = crate::gateway::server::spawn_isolated_gateway("127.0.0.1", p_gw)
-        {
-            gw_handle = Some(next);
-        }
-        if let Some(ref mut h) = dash_handle
-            && h.is_finished()
-            && let Ok(next) = crate::dashboard::spawn_isolated_dashboard("127.0.0.1", p_dash)
-        {
-            dash_handle = Some(next);
+        // Supervise child worker OS processes with bounded exponential backoff restart
+        for w in &mut workers {
+            let needs_restart = match w.child.as_mut() {
+                Some(child) => match child.try_wait() {
+                    Ok(Some(_exit)) => true,
+                    Ok(None) => false,
+                    Err(_) => true,
+                },
+                None => true,
+            };
+            if !needs_restart {
+                continue;
+            }
+            if w.window_started.elapsed() >= Duration::from_secs(60) {
+                w.restart_count = 0;
+                w.window_started = std::time::Instant::now();
+            }
+            if w.restart_count >= max_restarts {
+                continue;
+            }
+            let shift = w.restart_count.min(4);
+            let delay = Duration::from_millis(base_backoff_ms.saturating_mul(1u64 << shift));
+            tokio::time::sleep(delay.min(Duration::from_secs(2))).await;
+            w.restart_count += 1;
+            if let Ok(next_child) = spawn_worker_subprocess(w.role, w.port, Some(&w.endpoint)) {
+                let cpid = next_child.id();
+                if let Ok(mut db) = crate::db::open_default_db() {
+                    let _ = db.upsert_supervisor_worker(&crate::db::SupervisorWorkerRecord {
+                        worker_role: w.role.as_str().to_string(),
+                        pid: Some(i64::from(cpid)),
+                        ipc_endpoint: w.endpoint.clone(),
+                        status: "running".to_string(),
+                        restart_count: i64::from(w.restart_count),
+                        last_heartbeat: chrono::Utc::now().timestamp(),
+                    });
+                }
+                w.child = Some(next_child);
+            }
         }
     }
 
-    // Clean teardown of all tasks and isolated thread pools
     reconnect_watchdog.abort();
-    if let Some(t) = hr_task {
-        t.abort();
-    }
-    if let Some(t) = grok_task {
-        t.abort();
-    }
-    if let Some(t) = copilot_task {
-        t.abort();
-    }
-    if let Some(t) = copilot_cli_task {
-        t.abort();
-    }
-    if let Some(t) = bus_task {
-        t.abort();
-    }
-    if let Some(t) = byok_task {
-        t.abort();
-    }
-    if let Some(mut h) = gw_handle {
-        h.shutdown();
-    }
-    if let Some(mut h) = dash_handle {
-        h.shutdown();
+    let drain_frame = IpcFrame::new(IpcOpcode::GracefulDrain, 0, Vec::new());
+    for w in &mut workers {
+        let _ = crate::ipc::client::send_frame_blocking(&w.endpoint, &drain_frame, Duration::from_millis(120));
+        if let Some(mut child) = w.child.take() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+        if let Ok(db) = crate::db::open_default_db() {
+            let _ = db.mark_worker_stopped(w.role.as_str());
+        }
+        let _ = fs::remove_file(crate::ipc::supervisor_pids_dir().join(format!("{}.pid", w.role.as_str())));
     }
 
     Ok(())
@@ -809,7 +964,7 @@ mod tests {
         assert!(plan.headroom_proxy);
         assert!(plan.protocol_bus);
         assert!(plan.ai_gateway);
-        assert!(plan.dashboard);
+        assert!(!plan.dashboard);
         assert!(!plan.grok_oauth_proxy);
         assert!(!plan.copilot_vscode_proxy);
         assert!(!plan.copilot_cli_proxy);
@@ -829,7 +984,7 @@ mod tests {
         assert!(plan_all.protocol_bus);
         assert!(plan_all.byok_gateway);
         assert!(plan_all.ai_gateway);
-        assert!(plan_all.dashboard);
+        assert!(!plan_all.dashboard);
     }
 
     #[test]

@@ -103,6 +103,29 @@ pub fn byok_route_protocol(api: &str) -> &'static str {
     }
 }
 
+/// Auto-completes `/v1` on OpenAI-compatible provider base URLs when missing,
+/// preserving explicit `/v1beta*`, `/v1/messages`, `/api/v1`, and Vertex URLs.
+pub fn normalize_provider_base_url(raw: &str, provider: &str) -> String {
+    let trimmed = raw.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    let low = trimmed.to_ascii_lowercase();
+    let prov = provider.trim().to_ascii_lowercase();
+    if prov == "anthropic"
+        || prov == "vertex"
+        || prov == "vertex-adc"
+        || low.contains("aiplatform.googleapis.com")
+        || low.contains("generativelanguage.googleapis.com")
+        || low.contains("/v1beta")
+        || low.ends_with("/v1")
+        || low.contains("/v1/")
+    {
+        return trimmed.to_string();
+    }
+    format!("{trimmed}/v1")
+}
+
 pub fn valid_byok_id(value: &str) -> bool {
     if value.is_empty() {
         return false;
@@ -404,5 +427,25 @@ mod tests {
             upstream: "https://api.anthropic.com".to_string(),
         };
         assert_eq!(byok_route_header(&route), "claude.tok_123");
+    }
+
+    #[test]
+    fn test_normalize_provider_base_url_auto_v1() {
+        assert_eq!(
+            normalize_provider_base_url("http://127.0.0.1:11434/", "ollama"),
+            "http://127.0.0.1:11434/v1"
+        );
+        assert_eq!(
+            normalize_provider_base_url("https://api.openai.com/v1/", "openai"),
+            "https://api.openai.com/v1"
+        );
+        assert_eq!(
+            normalize_provider_base_url("https://generativelanguage.googleapis.com/v1beta", "gemini"),
+            "https://generativelanguage.googleapis.com/v1beta"
+        );
+        assert_eq!(
+            normalize_provider_base_url("https://us-central1-aiplatform.googleapis.com", "vertex-adc"),
+            "https://us-central1-aiplatform.googleapis.com"
+        );
     }
 }

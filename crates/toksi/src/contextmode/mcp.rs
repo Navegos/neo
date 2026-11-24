@@ -161,7 +161,7 @@ pub fn mcp_tools_list() -> Value {
         },
         {
             "name": "ctx_doctor",
-            "description": "Diagnose context-mode environment: available runtimes, database health, and sandbox readiness.",
+            "description": "Diagnose ctxmode environment: available runtimes, database health, and sandbox readiness.",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -200,7 +200,7 @@ pub fn mcp_tools_list() -> Value {
         },
         {
             "name": "ctx_upgrade",
-            "description": "Inspect context-mode build version and upgrade status in Toksi pure Rust consolidated engine.",
+            "description": "Inspect ctxmode build version and upgrade status in Toksi pure Rust consolidated engine.",
             "inputSchema": {
                 "type": "object",
                 "properties": {}
@@ -243,11 +243,16 @@ impl ContextMcpServer {
             "ctx_doctor" => self.tool_ctx_doctor(),
             "ctx_upgrade" => self.tool_ctx_upgrade(args),
             "ctx_purge" => self.tool_ctx_purge(),
-            "slash" | "/context" => {
-                let cmd = args.get("command").and_then(|v| v.as_str()).unwrap_or("/context status");
+            "slash" | "/ctxmode" | "/context" => {
+                let cmd = args
+                    .get("command")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("/ctxmode status");
                 handle_slash_command(cmd)
             }
-            other if other.starts_with("/context") => handle_slash_command(other),
+            other if other.starts_with("/ctxmode") || other.starts_with("/context") => {
+                handle_slash_command(other)
+            }
             _ => format!("Unknown tool '{}'", name),
         };
 
@@ -813,7 +818,7 @@ impl ContextMcpServer {
         let tokens_saved = stats.estimated_tokens_saved();
 
         let mut lines = vec![
-            "Context-Mode Session Statistics:".to_string(),
+            "CtxMode Session Statistics:".to_string(),
             format!("  Total tool calls:       {}", stats.calls.values().sum::<usize>()),
             format!("  Bytes returned to agent: {} bytes", total_returned),
             format!("  Bytes processed sandbox: {} bytes", stats.bytes_sandboxed),
@@ -837,7 +842,7 @@ impl ContextMcpServer {
         let db_path = resolve_content_store_path(self.project_root.as_deref());
 
         let lines = vec![
-            "Context-Mode Doctor Diagnostics:".to_string(),
+            "CtxMode Doctor Diagnostics:".to_string(),
             format!("  Default shell:      {}", runtimes.shell),
             format!("  Python runtime:     {}", runtimes.python.as_deref().unwrap_or("none")),
             format!("  Node.js runtime:    {}", runtimes.node.as_deref().unwrap_or("none")),
@@ -865,7 +870,7 @@ impl ContextMcpServer {
     }
 
     fn tool_ctx_upgrade(&self, _args: &Value) -> String {
-        "context-mode: pure native Rust engine embedded in Toksi (v3.3). Node.js and TypeScript runtime dependencies purged. Run `toksi update` for binary updates.".to_string()
+        "ctxmode: pure native Rust engine embedded in Toksi (v3.3). Node.js and TypeScript runtime dependencies purged. Run `toksi update` for binary updates.".to_string()
     }
     pub fn handle_mcp_message(&self, req: &Value) -> Option<Value> {
         let id = req.get("id").cloned();
@@ -878,13 +883,13 @@ impl ContextMcpServer {
                 "result": {
                     "protocolVersion": "2024-11-05",
                     "serverInfo": {
-                        "name": "context-mode",
+                        "name": "ctxmode",
                         "version": "1.0.5"
                     },
                     "capabilities": {
                         "tools": {}
                     },
-                    "instructions": "You are connected to context: an isolated sandbox execution and SQLite FTS5 knowledge retrieval engine."
+                    "instructions": "You are connected to ctxmode: an isolated sandbox execution and SQLite FTS5 knowledge retrieval engine."
                 }
             })),
             "notifications/initialized" => None,
@@ -1002,14 +1007,15 @@ pub fn run_mcp_server_with_root(default_root: Option<&str>) -> i32 {
 
 /// Handles `/context` slash commands: `/context [status|stats|doctor|search|purge|resume]`
 pub fn handle_slash_command(cmd: &str) -> String {
+    let deprecated = cmd.trim_start().starts_with("/context");
     let parts: Vec<&str> = cmd.split_whitespace().collect();
     let sub = parts.get(1).copied().unwrap_or("status");
 
-    match sub {
+    let body = match sub {
         "stats" => {
             let stats = get_stats();
             format!(
-                "Context Session Stats:\n  Total tool calls: {}\n  Bytes sandboxed: {}\n  Bytes indexed: {}\n  Cache hits/misses: {}/{}\n  Estimated token savings: ~{} tokens",
+                "CtxMode Session Stats:\n  Total tool calls: {}\n  Bytes sandboxed: {}\n  Bytes indexed: {}\n  Cache hits/misses: {}/{}\n  Estimated token savings: ~{} tokens",
                 stats.calls.values().sum::<usize>(),
                 stats.bytes_sandboxed,
                 stats.bytes_indexed,
@@ -1022,7 +1028,7 @@ pub fn handle_slash_command(cmd: &str) -> String {
             let runtimes = detect_runtimes();
             let db_path = resolve_content_store_path(None);
             format!(
-                "Context Doctor:\n  Shell: {}\n  Python: {}\n  Node: {}\n  Bun: {}\n  Deno: {}\n  Rust: {}\n  DB: {}\n  Status: READY",
+                "CtxMode Doctor:\n  Shell: {}\n  Python: {}\n  Node: {}\n  Bun: {}\n  Deno: {}\n  Rust: {}\n  DB: {}\n  Status: READY",
                 runtimes.shell,
                 runtimes.python.as_deref().unwrap_or("none"),
                 runtimes.node.as_deref().unwrap_or("none"),
@@ -1035,7 +1041,7 @@ pub fn handle_slash_command(cmd: &str) -> String {
         "search" => {
             let query = parts[2..].join(" ");
             if query.is_empty() {
-                return "Usage: /context search <query>".to_string();
+                return "Usage: /ctxmode search <query>".to_string();
             }
             let db_path = resolve_content_store_path(None);
             let store = match ContentStore::open(&db_path) {
@@ -1052,9 +1058,9 @@ pub fn handle_slash_command(cmd: &str) -> String {
             match store.search(&opts) {
                 Ok(hits) => {
                     if hits.is_empty() {
-                        format!("No matching context chunks for query '{}'", query)
+                        format!("No matching ctxmode chunks for query '{}'", query)
                     } else {
-                        let mut out = format!("Found {} context chunks for '{}':\n", hits.len(), query);
+                        let mut out = format!("Found {} ctxmode chunks for '{}':\n", hits.len(), query);
                         for (i, h) in hits.iter().enumerate() {
                             out.push_str(&format!("\n[{}] {} (score: {:.2})\n{}", i + 1, h.title, h.score, h.content));
                         }
@@ -1071,7 +1077,7 @@ pub fn handle_slash_command(cmd: &str) -> String {
                 Err(e) => return format!("DB open error: {e}"),
             };
             match store.purge_all() {
-                Ok(count) => format!("Purged {} sources from context knowledge base.", count),
+                Ok(count) => format!("Purged {} sources from ctxmode knowledge base.", count),
                 Err(e) => format!("Purge error: {e}"),
             }
         }
@@ -1094,11 +1100,16 @@ pub fn handle_slash_command(cmd: &str) -> String {
                 0
             };
             format!(
-                "Context Subsystem Status:\n  Engine: Pure Rust (Edition 2024)\n  DB Path: {}\n  DB Active: {}\n  Indexed Sources: {}\n  Tool Suite: ctx_execute, ctx_execute_file, ctx_batch_execute, ctx_index, ctx_search, ctx_fetch_and_index\n  Commands: /context [status|stats|doctor|search|purge|resume]",
+                "CtxMode Subsystem Status:\n  Engine: Pure Rust (Edition 2024)\n  DB Path: {}\n  DB Active: {}\n  Indexed Sources: {}\n  Tool Suite: ctx_execute, ctx_execute_file, ctx_batch_execute, ctx_index, ctx_search, ctx_fetch_and_index\n  Commands: /ctxmode [status|stats|doctor|search|purge|resume]",
                 db_path.display(),
                 store_exists,
                 source_count
             )
         }
+    };
+    if deprecated {
+        format!("[deprecated: `/context` is renamed to `/ctxmode`]\n{body}")
+    } else {
+        body
     }
 }

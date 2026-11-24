@@ -130,11 +130,17 @@ pub fn pick_mcp_spawn(bin: &str, extra_args: &[&str]) -> McpSpawn {
             command: self_cmd,
             args: vec!["mem".into(), "mcp".into()],
         };
-    } else if bin == "context-mode" || bin == "context" || bin == "contextmode" || bin == "toksi-context-mode" {
+    } else if bin == "ctxmode"
+        || bin == "context-mode"
+        || bin == "context"
+        || bin == "contextmode"
+        || bin == "toksi-ctxmode"
+        || bin == "toksi-context-mode"
+    {
         let self_cmd = toksi_run_mcp_command();
         return McpSpawn {
             command: self_cmd,
-            args: vec!["ctx".into(), "mcp".into()],
+            args: vec!["ctxmode".into(), "mcp".into()],
         };
     } else if bin == "icm" || bin == "toksi-icm" {
         let self_cmd = toksi_run_mcp_command();

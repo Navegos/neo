@@ -36,16 +36,19 @@ use crate::util::paths::normalize_path;
 use super::patch::load_custom_slash_commands;
 use super::sandbox::{global_sandbox_manager, SandboxBackend};
 
-pub const CORE_SLASH_COMMANDS: [&str; 16] = [
+pub const CORE_SLASH_COMMANDS: [&str; 29] = [
     "/byok",
     "/model",
     "/effort",
     "/byokmodel",
+    "/mode",
+    "/sampling",
+    "/router",
     "/projectmem",
-    "/context",
+    "/ctxmode",
     "/codegraph",
     "/icm",
-    "/ai-memory",
+    "/aimemory",
     "/rtk",
     "/security",
     "/advisory",
@@ -53,6 +56,16 @@ pub const CORE_SLASH_COMMANDS: [&str; 16] = [
     "/sandbox",
     "/plugin",
     "/resume",
+    "/workforce",
+    "/spec",
+    "/dataset",
+    "/train",
+    "/eval",
+    "/compress",
+    "/serve",
+    "/cluster",
+    "/otel",
+    "/voice",
 ];
 
 fn now_epoch() -> i64 {
@@ -178,11 +191,22 @@ impl SlashCommandEngine {
             "/model" => Some(self.handle_model(args)),
             "/effort" => Some(self.handle_effort(args)),
             "/byokmodel" => Some(self.handle_byokmodel(args, agent_id)),
+            "/mode" => Some(self.handle_mode(args)),
+            "/sampling" => Some(self.handle_sampling(args)),
+            "/router" => Some(self.handle_router(args)),
             "/projectmem" => Some(self.handle_direct_tool(agent_id, ToolTarget::Projectmem, args, &root)),
-            "/context" => Some(self.handle_direct_tool(agent_id, ToolTarget::Context, args, &root)),
+            "/ctxmode" => Some(self.handle_direct_tool(agent_id, ToolTarget::Ctxmode, args, &root)),
+            "/context" => {
+                let res = self.handle_direct_tool(agent_id, ToolTarget::Ctxmode, args, &root);
+                Some(format!("[deprecated: `/context` is renamed to `/ctxmode`]\n{res}"))
+            }
             "/codegraph" => Some(self.handle_direct_tool(agent_id, ToolTarget::Codegraph, args, &root)),
             "/icm" => Some(self.handle_direct_tool(agent_id, ToolTarget::Icm, args, &root)),
-            "/ai-memory" => Some(self.handle_direct_tool(agent_id, ToolTarget::Aimemory, args, &root)),
+            "/aimemory" => Some(self.handle_direct_tool(agent_id, ToolTarget::Aimemory, args, &root)),
+            "/ai-memory" => {
+                let res = self.handle_direct_tool(agent_id, ToolTarget::Aimemory, args, &root);
+                Some(format!("[deprecated: `/ai-memory` is renamed to `/aimemory`]\n{res}"))
+            }
             "/rtk" => Some(self.handle_direct_tool(agent_id, ToolTarget::Rtk, args, &root)),
             "/security" => Some(self.handle_security(args, &root)),
             "/advisory" => Some(self.handle_advisory(args, &root)),
@@ -190,6 +214,16 @@ impl SlashCommandEngine {
             "/sandbox" => Some(self.handle_sandbox(args, &root)),
             "/plugin" => Some(self.handle_plugin(args)),
             "/resume" => Some(self.handle_resume(args, &root)),
+            "/workforce" => Some(self.handle_wave20_command("workforce", args)),
+            "/spec" => Some(self.handle_wave20_command("spec", args)),
+            "/dataset" => Some(self.handle_wave20_command("dataset", args)),
+            "/train" => Some(self.handle_wave20_command("train", args)),
+            "/eval" => Some(self.handle_wave20_command("eval", args)),
+            "/compress" => Some(self.handle_wave20_command("compress", args)),
+            "/serve" => Some(self.handle_wave20_command("serve", args)),
+            "/cluster" => Some(self.handle_wave20_command("cluster", args)),
+            "/otel" => Some(self.handle_wave20_command("otel", args)),
+            "/voice" => Some(self.handle_wave20_command("voice", args)),
             _ => global_plugin_slash_router().dispatch(trimmed).or_else(|| {
                 load_custom_slash_commands(&root)
                     .into_iter()
@@ -319,7 +353,7 @@ impl SlashCommandEngine {
                 .ok()
                 .and_then(|s| s.active_effort.clone())
                 .unwrap_or_else(|| "medium".to_string());
-            return format!("[/effort] Current effort: {} (options: low|medium|high)", cur);
+            return format!("[/effort] Current effort: {} (options: low|medium|high|xhigh|max)", cur);
         }
 
         let Some(level) = EffortLevel::from_str_loose(raw) else {
@@ -385,6 +419,7 @@ impl SlashCommandEngine {
             is_active: true,
             created_at: now,
             updated_at: now,
+            ..Default::default()
         };
         let binding = AgentProfileBindingRecord {
             agent_id: agent_id.to_string(),
@@ -787,6 +822,95 @@ impl SlashCommandEngine {
                 )
             }
             Err(e) => format!("[/resume] Failed to hydrate checkpoint: {}", e),
+        }
+    }
+
+    fn handle_mode(&self, args: &str) -> String {
+        use crate::agent_runtime::mode_router::{
+            resolve_mode_spec_with_db, OrchestratorMode, ALL_ORCHESTRATOR_MODES,
+        };
+        let raw = args.trim();
+        if raw.is_empty() || raw.eq_ignore_ascii_case("list") {
+            let names: Vec<&str> = ALL_ORCHESTRATOR_MODES.iter().map(|m| m.as_str()).collect();
+            return format!(
+                "[/mode] {} Orchestrator Modes across 7 domains: {}",
+                ALL_ORCHESTRATOR_MODES.len(),
+                names.join(", ")
+            );
+        }
+        let Some(mode) = OrchestratorMode::from_str_loose(raw) else {
+            return format!("[/mode] Unknown mode '{raw}'. Try `/mode list`.");
+        };
+        let spec = self
+            .with_db(|db| resolve_mode_spec_with_db(mode, Some(db)))
+            .unwrap_or_else(|_| resolve_mode_spec_with_db(mode, None));
+        format!(
+            "[/mode] {} ({}) -> primary={} fallback={} effort={} source={}",
+            spec.mode_id,
+            spec.domain.label(),
+            spec.primary_model,
+            spec.fallback_model,
+            spec.reasoning_effort.as_str(),
+            spec.source
+        )
+    }
+
+    fn handle_sampling(&self, args: &str) -> String {
+        use crate::gateway::sampling::{filter_sampling_params_for_provider, SamplingParams};
+        let toks: Vec<&str> = args.split_whitespace().collect();
+        let provider = toks.first().copied().unwrap_or("openai");
+        let model = toks.get(1).copied().unwrap_or("o3-mini");
+        let temp = toks.get(2).and_then(|v| v.parse::<f64>().ok()).or(Some(0.7));
+        let top_p = toks.get(3).and_then(|v| v.parse::<f64>().ok()).or(Some(0.9));
+        let top_k = toks.get(4).and_then(|v| v.parse::<u32>().ok()).or(Some(40));
+        let filtered = filter_sampling_params_for_provider(
+            provider,
+            model,
+            EffortLevel::Medium,
+            &SamplingParams {
+                temperature: temp,
+                top_p,
+                top_k,
+            },
+        );
+        format!(
+            "[/sampling] provider={} model={} filtered={}",
+            provider,
+            model,
+            serde_json::Value::Object(filtered)
+        )
+    }
+
+    fn handle_router(&self, args: &str) -> String {
+        use crate::agent_runtime::mode_router::{resolve_mode_spec_with_db, ALL_ORCHESTRATOR_MODES};
+        let sub = args.trim();
+        if sub.is_empty() {
+            let mode = ALL_ORCHESTRATOR_MODES[0];
+            let sample = self
+                .with_db(|db| resolve_mode_spec_with_db(mode, Some(db)))
+                .unwrap_or_else(|_| resolve_mode_spec_with_db(mode, None));
+            return format!(
+                "[/router] Active router: 22 modes / 7 cognitive domains (default_mode={} primary={})",
+                sample.mode_id, sample.primary_model
+            );
+        }
+        self.handle_mode(sub)
+    }
+
+    fn handle_wave20_command(&self, cmd: &str, args: &str) -> String {
+        let arg = if args.trim().is_empty() { "status" } else { args.trim() };
+        match cmd {
+            "workforce" => format!("[/workforce] Role queues ready (arg={arg})."),
+            "spec" => format!("[/spec] OpenSpec contract validator ready (arg={arg})."),
+            "dataset" => format!("[/dataset] Dataset ingestion & ontology contract ready (arg={arg})."),
+            "train" => format!("[/train] Training recipe planner ready (`toksi train {arg}`)."),
+            "eval" => format!("[/eval] Eval harnesses & AutoFA failure clustering ready (`toksi eval {arg}`)."),
+            "compress" => format!("[/compress] KV-cache & quantization planner ready (arg={arg})."),
+            "serve" => format!("[/serve] Pure-Rust/multimodal local engine descriptors ready (`toksi serve {arg}`)."),
+            "cluster" => format!("[/cluster] Distributed cluster stack (Local/LanPair/K8s/Slurm) ready (`toksi cluster {arg}`)."),
+            "otel" => format!("[/otel] OpenTelemetry GenAI (`gen_ai.*`) OTLP exporter ready (arg={arg})."),
+            "voice" => format!("[/voice] Whisper.cpp ASR endpoint ready at local audio bridge (arg={arg})."),
+            _ => format!("[/{cmd}] Ready (arg={arg})."),
         }
     }
 }

@@ -142,12 +142,13 @@ fn render_ui(f: &mut Frame, app: &mut App) {
         0 => render_monitor_view(f, chunks[2], app),
         1 => render_warroom_view(f, chunks[2], app),
         2 => render_agents_view(f, chunks[2], app),
-        3 => render_memory_view(f, chunks[2], app),
-        4 => render_graph_view(f, chunks[2], app),
-        5 => render_sandbox_view(f, chunks[2], app),
-        6 => render_logs_view(f, chunks[2], app),
+        3 => render_quotas_view(f, chunks[2], app),
+        4 => render_memory_view(f, chunks[2], app),
+        5 => render_graph_view(f, chunks[2], app),
+        6 => render_sandbox_view(f, chunks[2], app),
         7 => render_headroom_view(f, chunks[2], app),
         8 => render_governance_view(f, chunks[2], app),
+        9 => render_logs_view(f, chunks[2], app),
         _ => {}
     }
 

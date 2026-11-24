@@ -1,6 +1,6 @@
 {
-  "command": "git -C d:\\AI\\neo grep -n -E \\b(8787|8788|8789|8790|879|9098|9099|9100|18787)\\b -- crates/toksi/src",
-  "root_cause": "fatal: cannot change to 'd:AIneo': No such file or directory",
-  "raw_output": "fatal: cannot change to 'd:AIneo': No such file or directory\n",
-  "timestamp": "2026-11-22T12:05:02Z"
+  "command": "cargo test -p toksi --test phase17_5_agent_runtime_verification -- --nocapture",
+  "root_cause": "thread 'test_16_slash_commands_and_direct_wire_and_runtime' (54760) panicked at crates\\toksi\\tests\\phase17_5_agent_runtime_verification.rs:254:9:",
+  "raw_output": "\nrunning 5 tests\ntest test_openclaw_loop_detector_and_state ... ok\ntest test_mofa_crew_and_scheduler ... ok\ntest test_hermes_primitives ... ok\ntest test_sandbox_patch_and_plugins ... ok\ntest test_16_slash_commands_and_direct_wire_and_runtime has been running for over 60 seconds\ntest test_16_slash_commands_and_direct_wire_and_runtime ... FAILED\n\nfailures:\n\nfailures:\n    test_16_slash_commands_and_direct_wire_and_runtime\n\ntest result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 87.77s\n\n\n   Compiling toksi v3.0.13 (D:\\AI\\neo\\crates\\toksi)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 42.78s\n     Running tests\\phase17_5_agent_runtime_verification.rs (target\\debug\\build\\toksi/5b9de4e939ec2d9d\\out\\phase17_5_agent_runtime_verification-5b9de4e939ec2d9d.exe)\n\nthread 'test_16_slash_commands_and_direct_wire_and_runtime' (54760) panicked at crates\\toksi\\tests\\phase17_5_agent_runtime_verification.rs:254:9:\nslash command '/router' took 21.7988283s (expected fast non-blocking)\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\nerror: test failed, to rerun pass `-p toksi --test phase17_5_agent_runtime_verification`\n",
+  "timestamp": "2026-11-24T06:11:49Z"
 }

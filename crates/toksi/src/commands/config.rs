@@ -11,7 +11,7 @@ use std::process::Command;
 
 use crate::config::{
     ensure_default_config_toml, load_toksi_toml_config_checked, save_toksi_toml_config,
-    toksi_config_toml_path, ByokTableEntry, ToksiTomlConfig,
+    toksi_config_toml_path, ToksiTomlConfig,
 };
 use crate::util::colors::*;
 use crate::util::env_path::check_executable_in_path;
@@ -89,6 +89,15 @@ pub fn apply_config_set(cfg: &mut ToksiTomlConfig, key: &str, value: &str) -> Re
         "test.baseline_path" => {
             cfg.test.baseline_path = normalize_path(value.trim());
         }
+        "test.live_safe_isolation" => {
+            cfg.test.live_safe_isolation = parse_bool(value)?;
+        }
+        "test.sandbox_backend" => {
+            cfg.test.sandbox_backend = value.trim().to_ascii_lowercase();
+        }
+        "test.test_image" => {
+            cfg.test.test_image = value.trim().to_string();
+        }
         "auth.gcp_adc.agy_adc_auth" => {
             cfg.auth.gcp_adc.agy_adc_auth = parse_bool(value)?;
         }
@@ -119,7 +128,7 @@ pub fn apply_config_set(cfg: &mut ToksiTomlConfig, key: &str, value: &str) -> Re
             if id.is_empty() {
                 return Err("byok profile id cannot be empty".to_string());
             }
-            let entry = cfg.byok.entry(id.to_string()).or_insert_with(ByokTableEntry::default);
+            let entry = cfg.byok.entry(id.to_string()).or_default();
             match field.trim() {
                 "base_url" => entry.base_url = value.trim().trim_end_matches('/').to_string(),
                 "model" | "model_id" => entry.model = value.trim().to_string(),

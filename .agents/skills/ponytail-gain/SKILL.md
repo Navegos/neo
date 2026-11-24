@@ -5,6 +5,7 @@ description: >
   agentic benchmark. One-shot display. Trigger: /ponytail-gain.
 ---
 
+<enforce>
 # Ponytail Gain
 
 One-shot display: do not change mode, write flag files, or persist anything.
@@ -22,3 +23,4 @@ One-shot display: do not change mode, write flag files, or persist anything.
 ## Honesty Boundary
 
 These are published benchmark averages, not live repo telemetry. Never fabricate per-repo savings numbers. Point to `/ponytail-debt` (shortcut ledger) and `/ponytail-audit` (cuttable code) for repo-specific metrics.
+</enforce>

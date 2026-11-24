@@ -28,7 +28,7 @@ fn test_phase15_zero_paid_tier_blocks_and_protocols() {
     let targets = [
         ToolTarget::Projectmem,
         ToolTarget::Codegraph,
-        ToolTarget::Context,
+        ToolTarget::Ctxmode,
         ToolTarget::Icm,
         ToolTarget::Aimemory,
         ToolTarget::Rtk,

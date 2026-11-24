@@ -105,7 +105,7 @@ pub fn run_mcp(argv: &[String]) -> i32 {
     }
 
     if context_mode && tool.is_empty() {
-        tool = "context-mode".into();
+        tool = "ctxmode".into();
     }
     if tool == "headroom" {
         return 2;
@@ -151,7 +151,11 @@ pub fn run_mcp(argv: &[String]) -> i32 {
         return crate::projectmem::mcp::run_mcp_server_with_root(Some(&root));
     }
 
-    let is_contextmode = actual_cmd_args.iter().any(|a| a.contains("context-mode") || a.contains("ctx-mcp")) || tool == "context-mode" || tool == "context" || context_mode;
+    let is_contextmode = actual_cmd_args
+        .iter()
+        .any(|a| a.contains("ctxmode") || a.contains("context-mode") || a.contains("ctx-mcp"))
+        || matches!(tool.as_str(), "ctxmode" | "context-mode" | "context" | "ctx")
+        || context_mode;
     if is_contextmode {
         let root = projectmem_root(&workspace);
         return crate::contextmode::mcp::run_mcp_server_with_root(Some(&root));

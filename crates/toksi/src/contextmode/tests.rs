@@ -71,7 +71,7 @@ mod tests {
         let sliced = slice_lines(&text, 10);
         assert!(sliced.contains("line 1"));
         assert!(sliced.contains("line 5"));
-        assert!(sliced.contains("omitted by context-mode"));
+        assert!(sliced.contains("omitted by ctxmode"));
         assert!(sliced.contains("line 50"));
 
         let short_text = "line 1\nline 2";
@@ -305,11 +305,11 @@ mod tests {
 
         // 3. ctx_stats
         let stats_out = server.execute_tool("ctx_stats", &json!({}));
-        assert!(stats_out.contains("Context-Mode Session Statistics"));
+        assert!(stats_out.contains("CtxMode Session Statistics"));
 
         // 4. ctx_doctor
         let doc_out = server.execute_tool("ctx_doctor", &json!({}));
-        assert!(doc_out.contains("Context-Mode Doctor Diagnostics"));
+        assert!(doc_out.contains("CtxMode Doctor Diagnostics"));
 
         // 5. ctx_purge
         let purge_out = server.execute_tool("ctx_purge", &json!({}));
@@ -605,9 +605,9 @@ mod tests {
         assert_eq!(found_root_root.canonicalize().unwrap(), repo_root.canonicalize().unwrap());
         assert_eq!(subproject_root_id, "");
 
-        // 3. Context DB path resolves strictly under <repo>/.toksi/context/context.db
+        // 3. CtxMode DB path resolves strictly under <repo>/.toksi/ctxmode/ctxmode.db
         let db_path = resolve_context_db_path(Some(repo_root)).unwrap();
-        assert!(db_path.ends_with(format!(".toksi/context/{}", DB_NAME)) || db_path.ends_with(format!(".toksi\\context\\{}", DB_NAME)));
+        assert!(db_path.ends_with(format!(".toksi/ctxmode/{}", DB_NAME)) || db_path.ends_with(format!(".toksi\\ctxmode\\{}", DB_NAME)));
         assert!(db_path.parent().unwrap().exists());
 
         // 4. Access inside .git directory is strictly prohibited
@@ -945,12 +945,15 @@ mod tests {
     fn test_mcp_handle_slash_command() {
         use super::super::mcp::handle_slash_command;
 
-        let status = handle_slash_command("/context status");
-        assert!(status.contains("Context Subsystem Status:"));
+        let status = handle_slash_command("/ctxmode status");
+        assert!(status.contains("CtxMode Subsystem Status:"));
         assert!(status.contains("Pure Rust (Edition 2024)"));
 
-        let fallback = handle_slash_command("/context unknown_subcommand");
-        assert!(fallback.contains("Context Subsystem Status:"));
+        let fallback = handle_slash_command("/ctxmode unknown_subcommand");
+        assert!(fallback.contains("CtxMode Subsystem Status:"));
+
+        let legacy_status = handle_slash_command("/context status");
+        assert!(legacy_status.contains("[deprecated: `/context` is renamed to `/ctxmode`]"));
     }
 
     #[test]
@@ -968,7 +971,7 @@ mod tests {
 
         // Verify message broadcast over zero-hop channel
         let msg = rx.try_recv().unwrap();
-        assert_eq!(msg.topic, "context");
+        assert_eq!(msg.topic, "ctxmode");
         assert_eq!(msg.action, "ctx_upgrade");
     }
 

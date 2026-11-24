@@ -108,7 +108,7 @@ fn test_all_17_agent_mcp_adapters_and_commands() {
             agent_id
         );
 
-        for tool in ["projectmem", "codegraph", "context-mode", "icm"] {
+        for tool in ["projectmem", "codegraph", "ctxmode", "icm"] {
             let cmd = mcp_command(agent_id, tool);
             assert!(
                 !cmd.is_empty(),
@@ -255,7 +255,7 @@ fn test_streaming_proxy_compression_pipeline() {
 fn test_in_process_mcp_multiplexer_live_simulated_requests() {
     register_tools();
     let tools = tool_ids();
-    for t in ["rtk", "codegraph", "context-mode", "headroom", "projectmem"] {
+    for t in ["rtk", "codegraph", "ctxmode", "headroom", "projectmem"] {
         assert!(tools.contains(&t.to_string()));
     }
 
@@ -306,8 +306,8 @@ fn test_in_process_mcp_multiplexer_live_simulated_requests() {
         "method": "initialize",
         "params": {}
     });
-    let ctx_init_resp = ctx_server.handle_mcp_message(&ctx_init).expect("contextmode init response");
-    assert_eq!(ctx_init_resp["result"]["serverInfo"]["name"], "context-mode");
+    let ctx_init_resp = ctx_server.handle_mcp_message(&ctx_init).expect("ctxmode init response");
+    assert_eq!(ctx_init_resp["result"]["serverInfo"]["name"], "ctxmode");
 
     let ctx_list = json!({
         "jsonrpc": "2.0",
@@ -444,7 +444,7 @@ fn test_zero_external_runtime_dependencies() {
     register_agents();
 
     for agent_id in ALL_17_AGENTS {
-        for tool in ["projectmem", "codegraph", "context-mode", "icm"] {
+        for tool in ["projectmem", "codegraph", "ctxmode", "icm"] {
             let cmd = mcp_command(agent_id, tool);
             for arg in &cmd {
                 let lower = arg.to_lowercase();

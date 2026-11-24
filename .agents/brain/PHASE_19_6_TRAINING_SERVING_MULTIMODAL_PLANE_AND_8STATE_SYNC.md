@@ -1,6 +1,6 @@
 # Phase 19.6 — Model Training, Quantization, Pure-Rust/Multimodal Serving Plane & 43-File 8-State Sync (47 Vaults)
 
-> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -62,3 +62,7 @@ Requirements:
 ## Verification Criteria
 - `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `phase19_6_training_serving_multimodal_verification` pass 100%.
 - All 21 slash commands execute in `< 5ms` non-blocking; all 43 `.agents/brain/*.md` guides + 6 canonical plans accurately reflect `[PLAN-IMPLEMENTED]` / `[PLAN-FIXED]`.
+
+## Wave 20 (v7.0) Synchronization Addendum
+- Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).
+- Enforces `<toksi-siagent>` (`_worker siagent`, 22 Orchestrator Modes, 29 slash commands), decoupled 10-Tab UI, `~/.toksi/services/*.db`, `ctxmode`/`aimemory` renames, `docker/compose.test.yaml`, 11 AI/ML Pillars, Distributed Cluster Stack (`src/cluster/`), and OpenTelemetry Rust (`gen_ai.*`).

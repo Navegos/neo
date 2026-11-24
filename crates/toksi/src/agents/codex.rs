@@ -380,6 +380,8 @@ pub fn configure_codex_mcp(tool_id: &str) -> (bool, String) {
     };
     let section = if tool_id == "context-mode" {
         "mcp_servers.context_mode".to_string()
+    } else if matches!(tool_id, "ctxmode" | "context") {
+        "mcp_servers.ctxmode".to_string()
     } else {
         format!("mcp_servers.{}", tool_id)
     };

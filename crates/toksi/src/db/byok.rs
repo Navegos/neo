@@ -63,6 +63,7 @@ pub fn upsert_adc_byok_profile(
         is_active: true,
         created_at: now,
         updated_at: now,
+        ..Default::default()
     };
     db.upsert_byok_profile(&record)?;
     Ok(record)

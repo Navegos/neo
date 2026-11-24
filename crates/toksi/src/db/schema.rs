@@ -91,13 +91,21 @@ pub struct GatewayConfigRecord {
     pub updated_at: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+fn default_models_json() -> String {
+    "[]".to_string()
+}
+
+fn default_efforts_json() -> String {
+    r#"["medium"]"#.to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ByokProfileRecord {
     pub id: String,
     pub provider_id: String,
     pub instance_label: String,
     pub model_id: String,
-    pub thinking_effort: String, // "none" | "low" | "medium" | "high" | "xhigh"
+    pub thinking_effort: String, // "none" | "low" | "medium" | "high" | "xhigh" | "max"
     pub base_url: String,
     pub secret_ref: String,
     #[serde(default = "default_auth_mode")]
@@ -111,8 +119,46 @@ pub struct ByokProfileRecord {
     #[serde(default = "default_true")]
     pub headroom_enabled: bool,
     pub is_active: bool,
+    #[serde(default = "default_models_json")]
+    pub models_json: String,
+    #[serde(default = "default_efforts_json")]
+    pub efforts_json: String,
+    #[serde(default)]
+    pub temperature: Option<f64>,
+    #[serde(default)]
+    pub top_p: Option<f64>,
+    #[serde(default)]
+    pub top_k: Option<i64>,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+impl Default for ByokProfileRecord {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            provider_id: String::new(),
+            instance_label: "default".to_string(),
+            model_id: String::new(),
+            thinking_effort: "medium".to_string(),
+            base_url: String::new(),
+            secret_ref: String::new(),
+            auth_mode: default_auth_mode(),
+            gcp_project: String::new(),
+            gcp_location: default_gcp_location(),
+            priority: 100,
+            weight: 100,
+            headroom_enabled: true,
+            is_active: true,
+            models_json: default_models_json(),
+            efforts_json: default_efforts_json(),
+            temperature: None,
+            top_p: None,
+            top_k: None,
+            created_at: 0,
+            updated_at: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -183,6 +229,29 @@ pub struct AdrAuditEventRecord {
     pub created_at: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SupervisorWorkerRecord {
+    pub worker_role: String,
+    pub pid: Option<i64>,
+    pub ipc_endpoint: String,
+    pub status: String, // "stopped" | "running" | "draining" | "crashed"
+    pub restart_count: i64,
+    pub last_heartbeat: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OrchestratorModeRouteRecord {
+    pub mode_id: String,
+    pub domain: String,
+    pub primary_model: String,
+    pub fallback_model: String,
+    pub reasoning_effort: String,
+    pub temperature: Option<f64>,
+    pub top_p: Option<f64>,
+    pub top_k: Option<i64>,
+    pub updated_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ToksiDbDump {
     pub version: u32,
@@ -207,6 +276,10 @@ pub struct ToksiDbDump {
     pub advisory_embargoes: Vec<AdvisoryEmbargoRecord>,
     #[serde(default)]
     pub adr_audit_events: Vec<AdrAuditEventRecord>,
+    #[serde(default)]
+    pub supervisor_workers: Vec<SupervisorWorkerRecord>,
+    #[serde(default)]
+    pub orchestrator_mode_routes: Vec<OrchestratorModeRouteRecord>,
 }
 
 pub const SCHEMA_DDL: &str = r#"
@@ -291,6 +364,11 @@ CREATE TABLE IF NOT EXISTS byok_profiles (
     weight INTEGER NOT NULL DEFAULT 1,
     headroom_enabled INTEGER NOT NULL DEFAULT 1,
     is_active INTEGER NOT NULL DEFAULT 1,
+    models_json TEXT NOT NULL DEFAULT '[]',
+    efforts_json TEXT NOT NULL DEFAULT '["medium"]',
+    temperature REAL,
+    top_p REAL,
+    top_k INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     UNIQUE(provider_id, instance_label, model_id, thinking_effort)
@@ -362,4 +440,25 @@ CREATE TABLE IF NOT EXISTS adr_audit_events (
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_adr_audit_agent ON adr_audit_events(agent_id, created_at);
+
+CREATE TABLE IF NOT EXISTS supervisor_workers (
+    worker_role TEXT PRIMARY KEY,
+    pid INTEGER,
+    ipc_endpoint TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'stopped',
+    restart_count INTEGER NOT NULL DEFAULT 0,
+    last_heartbeat INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS orchestrator_mode_routes (
+    mode_id TEXT PRIMARY KEY,
+    domain TEXT NOT NULL,
+    primary_model TEXT NOT NULL,
+    fallback_model TEXT NOT NULL DEFAULT '',
+    reasoning_effort TEXT NOT NULL DEFAULT 'medium',
+    temperature REAL,
+    top_p REAL,
+    top_k INTEGER,
+    updated_at INTEGER NOT NULL
+);
 "#;

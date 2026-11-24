@@ -1155,6 +1155,230 @@ impl ContentStore {
         }
         Ok(purged)
     }
+
+    /// Transactionally merges all sources, FTS5 chunks, trigram chunks, vocabulary, meta,
+    /// and journal events from a legacy SQLite database (`context.db`) into this `ctxmode.db` store.
+    pub fn merge_from(&mut self, legacy_db: &Path) -> Result<usize, rusqlite::Error> {
+        if !legacy_db.is_file() {
+            return Ok(0);
+        }
+        let legacy_conn = Connection::open_with_flags(
+            legacy_db,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )?;
+        let tx = self.conn.transaction()?;
+        let mut migrated = 0usize;
+
+        let has_sources_tbl: bool = legacy_conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='sources')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+
+        if has_sources_tbl {
+            let has_subproj_col: bool = legacy_conn
+                .prepare("PRAGMA table_info(sources)")
+                .and_then(|mut s| {
+                    let cols: Vec<String> = s
+                        .query_map([], |r| r.get::<_, String>(1))?
+                        .filter_map(Result::ok)
+                        .collect();
+                    Ok(cols.iter().any(|c| c == "subproject_id"))
+                })
+                .unwrap_or(false);
+
+            let sql = if has_subproj_col {
+                "SELECT id, label, chunk_count, code_chunk_count, indexed_at, file_path, content_hash, subproject_id FROM sources"
+            } else {
+                "SELECT id, label, chunk_count, code_chunk_count, indexed_at, file_path, content_hash, '.' FROM sources"
+            };
+            let mut src_stmt = legacy_conn.prepare(sql)?;
+            let src_rows: Vec<(i64, String, i64, i64, String, Option<String>, Option<String>, String)> = src_stmt
+                .query_map([], |r| {
+                    Ok((
+                        r.get(0)?,
+                        r.get(1)?,
+                        r.get(2)?,
+                        r.get(3)?,
+                        r.get(4)?,
+                        r.get(5)?,
+                        r.get(6)?,
+                        r.get::<_, Option<String>>(7)?.unwrap_or_else(|| ".".to_string()),
+                    ))
+                })?
+                .filter_map(Result::ok)
+                .collect();
+
+            let has_chunks_tbl: bool = legacy_conn
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='chunks')",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap_or(false);
+
+            for (old_id, label, chunk_cnt, code_cnt, indexed_at, file_path, content_hash, subproj) in src_rows {
+                let exists: Option<i64> = tx
+                    .query_row(
+                        "SELECT id FROM sources WHERE label = ?1 AND subproject_id = ?2 LIMIT 1",
+                        params![label, subproj],
+                        |r| r.get(0),
+                    )
+                    .optional()?;
+                if exists.is_some() {
+                    continue;
+                }
+                tx.execute(
+                    "INSERT INTO sources (label, chunk_count, code_chunk_count, indexed_at, file_path, content_hash, subproject_id)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                    params![label, chunk_cnt, code_cnt, indexed_at, file_path, content_hash, subproj],
+                )?;
+                let new_id = tx.last_insert_rowid().to_string();
+                migrated += 1;
+
+                if has_chunks_tbl {
+                    let old_id_str = old_id.to_string();
+                    let mut c_stmt = legacy_conn.prepare(
+                        "SELECT title, content, content_type, source_category, session_id, event_id, timestamp
+                         FROM chunks WHERE source_id = ?1",
+                    )?;
+                    let chunks_rows: Vec<(String, String, String, String, String, String, String)> = c_stmt
+                        .query_map(params![old_id_str], |r| {
+                            Ok((
+                                r.get::<_, Option<String>>(0)?.unwrap_or_default(),
+                                r.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                                r.get::<_, Option<String>>(2)?.unwrap_or_else(|| "prose".to_string()),
+                                r.get::<_, Option<String>>(3)?.unwrap_or_else(|| "content".to_string()),
+                                r.get::<_, Option<String>>(4)?.unwrap_or_default(),
+                                r.get::<_, Option<String>>(5)?.unwrap_or_default(),
+                                r.get::<_, Option<String>>(6)?.unwrap_or_default(),
+                            ))
+                        })?
+                        .filter_map(Result::ok)
+                        .collect();
+
+                    for (title, content, ctype, scategory, sid, eid, ts) in chunks_rows {
+                        tx.execute(
+                            "INSERT INTO chunks (title, content, source_id, content_type, source_category, session_id, event_id, timestamp)
+                             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                            params![title, content, new_id, ctype, scategory, sid, eid, ts],
+                        )?;
+                        if self.has_trigram {
+                            let _ = tx.execute(
+                                "INSERT INTO chunks_trigram (title, content, source_id, content_type, source_category, session_id, event_id, timestamp)
+                                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                                params![title, content, new_id, ctype, scategory, sid, eid, ts],
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        if legacy_conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='vocabulary')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false)
+        {
+            let mut v_stmt = legacy_conn.prepare("SELECT word FROM vocabulary")?;
+            for word in v_stmt.query_map([], |r| r.get::<_, String>(0))?.flatten() {
+                tx.execute("INSERT OR IGNORE INTO vocabulary (word) VALUES (?1)", params![word])?;
+            }
+        }
+
+        if legacy_conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false)
+        {
+            let mut m_stmt = legacy_conn.prepare("SELECT key, value FROM meta")?;
+            for pair in m_stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?.flatten() {
+                tx.execute("INSERT OR IGNORE INTO meta (key, value) VALUES (?1, ?2)", params![pair.0, pair.1])?;
+            }
+        }
+
+        if legacy_conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='events')",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(false)
+        {
+            let mut e_stmt = legacy_conn.prepare(
+                "SELECT session_id, worktree, agent, kind, tool, key, path, ok, exit_code, bytes, body, turn, sandbox_bytes, returned_bytes, created_at, accessed_at FROM events",
+            )?;
+            let ev_rows = e_stmt.query_map([], |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, String>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, Option<String>>(5)?,
+                    r.get::<_, Option<String>>(6)?,
+                    r.get::<_, Option<i64>>(7)?,
+                    r.get::<_, Option<i64>>(8)?,
+                    r.get::<_, Option<i64>>(9)?,
+                    r.get::<_, Option<String>>(10)?,
+                    r.get::<_, i64>(11)?,
+                    r.get::<_, i64>(12)?,
+                    r.get::<_, i64>(13)?,
+                    r.get::<_, i64>(14)?,
+                    r.get::<_, i64>(15)?,
+                ))
+            })?;
+            for ev in ev_rows.flatten() {
+                tx.execute(
+                    "INSERT OR IGNORE INTO events (session_id, worktree, agent, kind, tool, key, path, ok, exit_code, bytes, body, turn, sandbox_bytes, returned_bytes, created_at, accessed_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+                    params![ev.0, ev.1, ev.2, ev.3, ev.4, ev.5, ev.6, ev.7, ev.8, ev.9, ev.10, ev.11, ev.12, ev.13, ev.14, ev.15],
+                )?;
+            }
+        }
+
+        tx.commit()?;
+        Ok(migrated)
+    }
+}
+
+/// Non-destructive transactional migration from a legacy `context.db` into canonical `ctxmode.db`.
+/// Removes `legacy_db` and its `-wal`/`-shm` sidecars only after the SQLite transaction commits.
+pub fn migrate_legacy_ctxmode_db(target_db: &Path, legacy_db: &Path) -> Result<usize, rusqlite::Error> {
+    if !legacy_db.is_file() || target_db == legacy_db {
+        return Ok(0);
+    }
+    if let Ok(bytes) = std::fs::read(legacy_db) {
+        if !bytes.starts_with(b"SQLite format 3\0") {
+            if let Some(parent) = target_db.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            if !target_db.exists() {
+                let _ = std::fs::copy(legacy_db, target_db);
+            }
+            let _ = std::fs::remove_file(legacy_db);
+            return Ok(0);
+        }
+    }
+    let mut store = ContentStore::open(target_db)?;
+    let migrated = store.merge_from(legacy_db)?;
+    drop(store);
+    let _ = std::fs::remove_file(legacy_db);
+    for suffix in ["-wal", "-shm"] {
+        let sidecar = PathBuf::from(format!("{}{}", legacy_db.to_string_lossy(), suffix));
+        if sidecar.exists() {
+            let _ = std::fs::remove_file(sidecar);
+        }
+    }
+    Ok(migrated)
 }
 
 /// D-1330-RECALL-PROMPT-1 (#1330): Build post-compact recall query from the current prompt only.
@@ -1182,18 +1406,18 @@ pub fn build_recall_query(prompt: &str) -> String {
 }
 
 /// Resolves standard content store DB path for a given project or global config.
-/// Strictly enforces `<repo>/.toksi/context/context.db` per master consolidation plan.
-/// NEVER stores in `~/.toksi/context/`, NEVER outside `.git` roots, NEVER inside `.git/`.
+/// Strictly enforces `<repo>/.toksi/ctxmode/ctxmode.db` per master consolidation plan.
+/// NEVER stores in `~/.toksi/ctxmode/`, NEVER outside `.git` roots, NEVER inside `.git/`.
 pub fn resolve_content_store_path(project_dir: Option<&Path>) -> PathBuf {
     if let Ok(db_path) = super::store::resolve_context_db_path(project_dir) {
         return db_path;
     }
     if let Some(p) = project_dir {
-        p.join(".toksi").join("context").join("context.db")
+        p.join(".toksi").join("ctxmode").join("ctxmode.db")
     } else if let Ok(cwd) = std::env::current_dir() {
-        cwd.join(".toksi").join("context").join("context.db")
+        cwd.join(".toksi").join("ctxmode").join("ctxmode.db")
     } else {
-        PathBuf::from(".toksi/context/context.db")
+        PathBuf::from(".toksi/ctxmode/ctxmode.db")
     }
 }
 

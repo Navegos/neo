@@ -20,7 +20,7 @@ pub fn run_ctx_cli(args: &[String]) -> i32 {
         "mcp" => run_mcp_server(),
         "stats" => {
             let stats = super::stats::get_stats();
-            println!("Context-Mode Statistics:");
+            println!("CtxMode Statistics:");
             println!("  Tool calls:         {}", stats.calls.values().sum::<usize>());
             println!("  Bytes sandboxed:    {}", stats.bytes_sandboxed);
             println!("  Bytes indexed:      {}", stats.bytes_indexed);
@@ -32,7 +32,7 @@ pub fn run_ctx_cli(args: &[String]) -> i32 {
         "doctor" => {
             let runtimes = super::sandbox::detect_runtimes();
             let db_path = resolve_content_store_path(None);
-            println!("Context-Mode Doctor Diagnostics:");
+            println!("CtxMode Doctor Diagnostics:");
             println!("  Default shell:      {}", runtimes.shell);
             println!("  Python runtime:     {}", runtimes.python.as_deref().unwrap_or("none"));
             println!("  Node.js runtime:    {}", runtimes.node.as_deref().unwrap_or("none"));

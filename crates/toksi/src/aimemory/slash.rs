@@ -16,9 +16,10 @@ pub fn handle_slash_command(input: &str, root: Option<&Path>) -> String {
     let trimmed = input.trim();
     let parts: Vec<&str> = trimmed.split_whitespace().collect();
 
-    if parts.is_empty() || (parts[0] != "/ai-memory" && parts[0] != "/aimemory") {
-        return "Unknown command. Use `/ai-memory help` for available options.".to_string();
+    if parts.is_empty() || (parts[0] != "/aimemory" && parts[0] != "/ai-memory") {
+        return "Unknown command. Use `/aimemory help` for available options.".to_string();
     }
+    let deprecated = parts[0] == "/ai-memory";
 
     let sub = parts.get(1).copied().unwrap_or("help");
 
@@ -26,17 +27,17 @@ pub fn handle_slash_command(input: &str, root: Option<&Path>) -> String {
     let handoff = HandoffStore::open_default();
     let message = MessageStore::open_default();
 
-    match sub {
+    let body = match sub {
         "help" => {
-            "**ai-memory Slash Commands:**\n\
-             - `/ai-memory status` - Show wiki pages, active handoffs, and pending messages\n\
-             - `/ai-memory query <term>` - Search wiki pages and active handoffs\n\
-             - `/ai-memory list` - List all wiki concept pages\n\
-             - `/ai-memory handoffs` - List active multi-agent handoffs\n\
-             - `/ai-memory messages` - List pending cross-project messages\n\
-             - `/ai-memory brief [budget]` - Generate progressive disclosure briefing (L0/L1/L2)\n\
-             - `/ai-memory purge` - Purge wiki pages matching .gitignore\n\
-             - `/ai-memory help` - Show this help message"
+            "**aimemory Slash Commands:**\n\
+             - `/aimemory status` - Show wiki pages, active handoffs, and pending messages\n\
+             - `/aimemory query <term>` - Search wiki pages and active handoffs\n\
+             - `/aimemory list` - List all wiki concept pages\n\
+             - `/aimemory handoffs` - List active multi-agent handoffs\n\
+             - `/aimemory messages` - List pending cross-project messages\n\
+             - `/aimemory brief [budget]` - Generate progressive disclosure briefing (L0/L1/L2)\n\
+             - `/aimemory purge` - Purge wiki pages matching .gitignore\n\
+             - `/aimemory help` - Show this help message"
                 .to_string()
         }
         "status" => {
@@ -48,7 +49,7 @@ pub fn handle_slash_command(input: &str, root: Option<&Path>) -> String {
                 .unwrap_or(0);
 
             format!(
-                "**ai-memory Status & Storage:**\n\
+                "**aimemory Status & Storage:**\n\
                  - Wiki Root: `{}`\n\
                  - Handoffs Root: `{}`\n\
                  - Messages Root: `{}`\n\
@@ -65,7 +66,7 @@ pub fn handle_slash_command(input: &str, root: Option<&Path>) -> String {
         }
         "query" => {
             if parts.len() < 3 {
-                return "Usage: `/ai-memory query <term>`".to_string();
+                return "Usage: `/aimemory query <term>`".to_string();
             }
             let query = parts[2..].join(" ").to_lowercase();
             let mut out = format!("**Query Results for '{}':**\n", query);
@@ -167,6 +168,11 @@ pub fn handle_slash_command(input: &str, root: Option<&Path>) -> String {
                 Err(e) => format!("Error purging ignored pages: {e}"),
             }
         }
-        _ => "Unknown subcommand. Use `/ai-memory help` for available options.".to_string(),
+        _ => "Unknown subcommand. Use `/aimemory help` for available options.".to_string(),
+    };
+    if deprecated {
+        format!("[deprecated: `/ai-memory` is renamed to `/aimemory`]\n{body}")
+    } else {
+        body
     }
 }

@@ -185,7 +185,7 @@ fn test_phase8_mcp_command_wiring_uses_in_tree_toksi() {
         "dsh",
         "amp",
     ];
-    let tools = ["projectmem", "context-mode", "codegraph", "icm", "aimemory"];
+    let tools = ["projectmem", "ctxmode", "codegraph", "icm", "aimemory"];
 
     for agent in agents {
         for tool in tools {

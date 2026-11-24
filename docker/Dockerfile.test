@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+# project: neo
+# file: docker/Dockerfile.test
+
+FROM rust:1.88-slim-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    pkg-config \
+    libssl-dev \
+    git \
+    sqlite3 \
+    curl \
+    ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --gid 10001 toksi \
+ && useradd --uid 10001 --gid 10001 --create-home --shell /bin/bash toksi \
+ && mkdir -p /tmp/toksi-test-home /tmp/cargo-home \
+ && chown -R toksi:toksi /tmp/toksi-test-home /tmp/cargo-home
+
+ENV TOKSI_TEST=1 \
+    TOKSI_HOME=/tmp/toksi-test-home \
+    TOKSI_IPC_NS=docker-test \
+    CARGO_HOME=/tmp/cargo-home
+
+WORKDIR /workspace
+USER toksi
+
+CMD ["cargo", "test", "--workspace"]

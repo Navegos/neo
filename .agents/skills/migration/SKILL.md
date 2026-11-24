@@ -1,10 +1,12 @@
 ---
 name: migration
 description: "Route any change to stored data, its schema or an event type to the step that ships it safely: add a column, drop a column or table, rename a column, table or event, change a type, make a column required, add an index or unique constraint, backfill, copy data to a new place, move to object storage, a tenant or system migration, retire a legacy path. Says which step kind and mode to write, which skill holds the recipe, the expand/contract rule (no required stop), what the linters and guard tests refuse, how `pnpm task upgrade`, the ledger and the serving gate run it, how to test it and what an operator sees. Use when someone says 'add a column', 'add a field', 'add a table', 'drop a table', 'drop the column', 'rename a column', 'rename an event', 'rename the pipeline', 'change the payload', 'change the type', 'make it NOT NULL', 'add an index', 'backfill', 'data migration', 'write a migration', 'migrate the data', 'tenant migration', 'system migration', 'withMigrations', 'withUpcasts', 'upcast', 'is this a breaking migration', 'pnpm task upgrade', 'the gate refuses', 'behind this image', or a migration guard test named their file."
-user-invocable: true
-argument-hint: "<the change: a schema edit, an event rename, a backfill, a tenant move, a retirement>"
+metadata:
+  argument-hint: "<the change: a schema edit, an event rename, a backfill, a tenant move, a retirement>"
+  user-invocable: true
 ---
 
+<enforce>
 # Migrations: which step, under which rule
 
 Record: `dev/docs/ARCHITECTURE.md` §7 ("Migrations are not the api's job", "Upgrades run on deploy")
@@ -191,3 +193,4 @@ phase logs its start and its end with its time; each blocking step is named befo
 after. A runner waiting for the lease names the holder every 30 s. The task's last line names the UI's
 address from `BASE_HOST` and `pnpm task upgrade status`. A serving process logs its ledger check and
 the time it took.
+</enforce>

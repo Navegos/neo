@@ -1,6 +1,6 @@
 # Phase 19.1 — Mandatory `ctxmode` Tool Rename Everywhere (`context-mode` / `context` -> `ctxmode`)
 
-> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -55,3 +55,7 @@ Requirements:
 ## Verification Criteria
 - `rg -i "context-mode" crates/toksi/src/` returns `0` matches outside explicit legacy-migration/cleanup match arms.
 - `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `phase19_1_ctxmode_rename_verification` pass 100%.
+
+## Wave 20 (v7.0) Synchronization Addendum
+- Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).
+- Enforces `<toksi-siagent>` (`_worker siagent`, 22 Orchestrator Modes, 29 slash commands), decoupled 10-Tab UI, `~/.toksi/services/*.db`, `ctxmode`/`aimemory` renames, `docker/compose.test.yaml`, 11 AI/ML Pillars, Distributed Cluster Stack (`src/cluster/`), and OpenTelemetry Rust (`gen_ai.*`).

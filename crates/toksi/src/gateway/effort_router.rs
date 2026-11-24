@@ -58,6 +58,24 @@ impl EffortContextStrategy {
                 icm_summary_cache: true,
                 lossless_constraints_and_traces: true,
             },
+            EffortLevel::XHigh => Self {
+                effort,
+                scip_multi_hop: true,
+                blast_radius_depth: 4,
+                ast_top_k_slices: 36,
+                rtk_max_compaction: false,
+                icm_summary_cache: true,
+                lossless_constraints_and_traces: true,
+            },
+            EffortLevel::Max => Self {
+                effort,
+                scip_multi_hop: true,
+                blast_radius_depth: 6,
+                ast_top_k_slices: 64,
+                rtk_max_compaction: false,
+                icm_summary_cache: true,
+                lossless_constraints_and_traces: true,
+            },
         }
     }
 }

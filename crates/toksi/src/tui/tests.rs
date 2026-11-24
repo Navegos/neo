@@ -22,10 +22,13 @@ fn press_key(code: KeyCode) -> KeyEvent {
 fn test_app_initialization_and_tabs() {
     let app = App::new();
     assert_eq!(app.current_tab, 0);
-    assert_eq!(app.tab_names.len(), 9);
+    assert_eq!(app.tab_names.len(), 10);
     assert_eq!(app.tab_names[0], "Savings");
-    assert_eq!(app.tab_names[1], "The War Room");
+    assert_eq!(app.tab_names[1], "Activity Room");
+    assert_eq!(app.tab_names[2], "AI Agent Fleet");
+    assert_eq!(app.tab_names[3], "Quotas");
     assert_eq!(app.tab_names[8], "Keyring & Database");
+    assert_eq!(app.tab_names[9], "System Controls");
     assert!(!app.should_quit);
     assert_eq!(app.monitor.tokens_saved_lifetime, 0);
     assert!(app.monitor.waterfall.is_empty());
@@ -52,12 +55,15 @@ fn test_tab_navigation_keys() {
     app.handle_key(press_key(KeyCode::Char('9')));
     assert_eq!(app.current_tab, 8);
 
+    app.handle_key(press_key(KeyCode::Char('0')));
+    assert_eq!(app.current_tab, 9);
+
     app.handle_key(press_key(KeyCode::Char('1')));
     assert_eq!(app.current_tab, 0);
 
-    // Tab backwards wraps to 9th tab (index 8)
+    // Tab backwards wraps to 10th tab (index 9)
     app.handle_key(press_key(KeyCode::BackTab));
-    assert_eq!(app.current_tab, 8);
+    assert_eq!(app.current_tab, 9);
 }
 
 #[test]
@@ -71,7 +77,7 @@ fn test_quit_key() {
 #[test]
 fn test_memory_filter_and_search() {
     let mut app = App::new();
-    app.current_tab = 3; // Memory tab (Tab 4)
+    app.current_tab = 4; // Memory tab (Tab 5)
 
     let total = app.memory.items.len();
     assert!(total > 0);
@@ -95,7 +101,7 @@ fn test_memory_filter_and_search() {
 #[test]
 fn test_graph_symbol_filter() {
     let mut app = App::new();
-    app.current_tab = 4; // Graph tab (Tab 5)
+    app.current_tab = 5; // Graph tab (Tab 6)
 
     app.graph.search_query = "top".to_string();
     let filtered = app.graph.filtered_symbols();
@@ -149,24 +155,24 @@ fn test_mouse_tab_switching() {
 
     let area = Rect::new(0, 0, 140, 40);
 
-    // 140 / 9 = 15 cols per tab; col 25 -> tab 1; col 65 -> tab 4
+    // 140 / 10 = 14 cols per tab; col 20 -> tab 1; col 72 -> tab 5
     let mouse_tab2 = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
-        column: 25,
+        column: 20,
         row: 2,
         modifiers: KeyModifiers::NONE,
     };
     app.handle_mouse(mouse_tab2, area);
     assert_eq!(app.current_tab, 1);
 
-    let mouse_tab5 = MouseEvent {
+    let mouse_tab6 = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
-        column: 65,
+        column: 72,
         row: 2,
         modifiers: KeyModifiers::NONE,
     };
-    app.handle_mouse(mouse_tab5, area);
-    assert_eq!(app.current_tab, 4);
+    app.handle_mouse(mouse_tab6, area);
+    assert_eq!(app.current_tab, 5);
 }
 
 #[test]
@@ -196,8 +202,8 @@ fn test_mouse_action_buttons() {
     app.handle_mouse(btn_down_click, area);
     assert!(!app.monitor.proxy_up);
 
-    // Tab 3 Memory: Precheck button
-    app.current_tab = 3;
+    // Tab 4 Memory: Precheck button
+    app.current_tab = 4;
     let precheck_click = MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: 10,
@@ -221,7 +227,7 @@ fn test_mouse_action_buttons() {
 #[test]
 fn test_mouse_wheel_scroll() {
     let mut app = App::new();
-    app.current_tab = 6; // System Controls / Logs
+    app.current_tab = 9; // System Controls / Logs
     app.logs.follow = true;
     app.logs.scroll_offset = 0;
 
@@ -267,7 +273,7 @@ fn test_byok_tier_badges() {
 #[test]
 fn test_memory_heatmap_popup_and_gateway_refresh() {
     let mut app = App::new();
-    app.current_tab = 3; // Memory Decision DAG
+    app.current_tab = 4; // Memory Decision DAG
     if !app.memory.heatmap.is_empty() {
         app.handle_key(press_key(KeyCode::Char('h')));
         assert!(app.memory.heatmap_popup.is_some());
@@ -275,7 +281,7 @@ fn test_memory_heatmap_popup_and_gateway_refresh() {
         assert!(app.memory.heatmap_popup.is_none());
     }
 
-    app.current_tab = 7; // AI Gateway & Quotas
+    app.current_tab = 7; // AI Gateway
     app.handle_key(press_key(KeyCode::Char('m')));
     assert!(app.status_message.is_some());
 }

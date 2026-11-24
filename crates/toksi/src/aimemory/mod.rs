@@ -10,6 +10,7 @@
 pub mod cli;
 pub mod cognee_graph;
 pub mod embeddings;
+pub mod funes_recall;
 pub mod handoff;
 pub mod lance_store;
 pub mod letta_memgpt;
@@ -29,6 +30,7 @@ pub mod wire;
 pub use cli::*;
 pub use cognee_graph::*;
 pub use embeddings::*;
+pub use funes_recall::*;
 pub use handoff::*;
 pub use lance_store::*;
 pub use letta_memgpt::*;
@@ -55,18 +57,43 @@ pub fn resolve_aimemory_root_and_subproject(start: Option<&Path>) -> Result<(Pat
         .map_err(|e| e.to_string())
 }
 
+fn migrate_dir_non_destructive(src: &Path, dst: &Path) {
+    let Ok(entries) = std::fs::read_dir(src) else {
+        return;
+    };
+    let _ = std::fs::create_dir_all(dst);
+    for entry in entries.flatten() {
+        let s = entry.path();
+        let d = dst.join(entry.file_name());
+        if s.is_dir() {
+            migrate_dir_non_destructive(&s, &d);
+            let _ = std::fs::remove_dir(&s);
+        } else if !d.exists() && std::fs::copy(&s, &d).is_ok() {
+            let _ = std::fs::remove_file(&s);
+        }
+    }
+    let _ = std::fs::remove_dir(src);
+}
+
 pub fn default_aimemory_dir() -> PathBuf {
-    if let Ok((repo_root, _)) = resolve_aimemory_root_and_subproject(None) {
-        repo_root.join(".toksi").join("ai-memory")
+    let toksi_dir = if let Ok((repo_root, _)) = resolve_aimemory_root_and_subproject(None) {
+        repo_root.join(".toksi")
     } else if let Ok(root) = env::var("PROJECTMEM_ROOT") {
         if !root.trim().is_empty() {
-            PathBuf::from(root).join(".toksi").join("ai-memory")
+            PathBuf::from(root).join(".toksi")
         } else {
-            PathBuf::from(".toksi").join("ai-memory")
+            PathBuf::from(".toksi")
         }
     } else {
-        PathBuf::from(".toksi").join("ai-memory")
+        PathBuf::from(".toksi")
+    };
+
+    let target = toksi_dir.join("aimemory");
+    let legacy = toksi_dir.join("ai-memory");
+    if legacy.is_dir() {
+        migrate_dir_non_destructive(&legacy, &target);
     }
+    target
 }
 
 pub fn default_handoffs_dir() -> PathBuf {

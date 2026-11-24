@@ -298,14 +298,45 @@ fn test_16_slash_commands_and_direct_wire_and_runtime() {
     let v = acp.dispatch_serialized("sess-1", || 42);
     assert_eq!(v, 42);
 
-    // AgentRuntimeEngine run + swarm
-    let mut rt = AgentRuntimeEngine::new(PathBuf::from(tmp.path()), "toksi-test");
+    // AgentRuntimeEngine real HTTP dispatch + fail-closed when unreachable
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback mock");
+    let gw_addr = listener.local_addr().expect("mock addr");
+    let server_handle = std::thread::spawn(move || {
+        use std::io::{Read, Write};
+        for _ in 0..4 {
+            let Ok((mut stream, _)) = listener.accept() else {
+                break;
+            };
+            let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
+            let mut buf = [0u8; 4096];
+            let _ = stream.read(&mut buf);
+            let body = r#"{"id":"chatcmpl-test","choices":[{"message":{"role":"assistant","content":"real-siagent-gateway-reply"}}]}"#;
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            let _ = stream.write_all(resp.as_bytes());
+        }
+    });
+
+    let dead = std::net::TcpListener::bind("127.0.0.1:0").expect("bind ephemeral closed port");
+    let dead_addr = dead.local_addr().expect("closed port addr");
+    drop(dead);
+    let mut rt_unreachable = AgentRuntimeEngine::new(PathBuf::from(tmp.path()), "toksi-unreachable")
+        .with_gateway_url(format!("http://{dead_addr}/v1"));
+    assert!(rt_unreachable.run_single_shot("echo ok").is_err());
+
+    let mut rt = AgentRuntimeEngine::new(PathBuf::from(tmp.path()), "toksi-test")
+        .with_gateway_url(format!("http://{gw_addr}/v1"));
     let run_rep = rt.run_single_shot("echo ok").unwrap();
     assert!(run_rep.event_log_valid);
+    assert!(run_rep.output.contains("real-siagent-gateway-reply"));
     let tokio_rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
     let swarm_rep = tokio_rt.block_on(rt.run_swarm("analyze")).unwrap();
     assert!(swarm_rep.event_log_valid);
+    let _ = server_handle.join();
 }

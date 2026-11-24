@@ -45,7 +45,7 @@ struct CacheShape {
 }
 
 const CACHE_TTL_MS: i64 = 6 * 3600 * 1000;
-const TOOL_IDS: &[&str] = &["rtk", "codegraph", "context-mode", "toksi", "headroom"];
+const TOOL_IDS: &[&str] = &["rtk", "codegraph", "ctxmode", "toksi", "headroom"];
 
 pub fn version_cache_path() -> String {
     let h = home();
@@ -207,7 +207,7 @@ fn gather_versions_impl(force: bool) -> HashMap<String, VersionInfo> {
             },
         );
         out.insert(
-            "context-mode".to_string(),
+            "ctxmode".to_string(),
             VersionInfo {
                 installed: None,
                 latest: Some("1.0.169".to_string()),
@@ -262,11 +262,11 @@ fn gather_versions_impl(force: bool) -> HashMap<String, VersionInfo> {
     );
 
     out.insert(
-        "context-mode".to_string(),
+        "ctxmode".to_string(),
         VersionInfo {
             present: true,
             installed: in_tree_ver.clone(),
-            latest: latest.get("context-mode").cloned().flatten(),
+            latest: latest.get("ctxmode").cloned().flatten(),
             channel: "in-tree".to_string(),
         },
     );
@@ -311,7 +311,7 @@ pub fn latest_version_for(id: &str) -> Option<String> {
 pub fn installed_version_for(id: &str) -> Option<String> {
     match id {
         "rtk" => rtk_installed_version().or_else(|| Some(crate::util::version::toksi_version().to_string())),
-        "codegraph" | "context-mode" | "context" | "icm" | "aimemory" | "ai-memory" | "toksi" => {
+        "codegraph" | "ctxmode" | "context-mode" | "context" | "icm" | "aimemory" | "ai-memory" | "toksi" => {
             Some(crate::util::version::toksi_version().to_string())
         }
         "headroom" => headroom_installed_version(),
@@ -330,7 +330,7 @@ pub fn installed_path_for(id: &str) -> Option<String> {
                 toksi_persisted_abs()
             }
         }
-        "codegraph" | "context-mode" | "context" | "icm" | "aimemory" | "ai-memory" | "toksi" => {
+        "codegraph" | "ctxmode" | "context-mode" | "context" | "icm" | "aimemory" | "ai-memory" | "toksi" => {
             toksi_persisted_abs()
         }
         "projectmem" => {
@@ -361,7 +361,7 @@ fn fetch_latest_for(id: &str) -> Option<String> {
     match id {
         "rtk" => github_latest_release("Navegos/rtk").or_else(|| github_latest_release("rtk-ai/rtk")),
         "codegraph" => github_latest_release("Navegos/codegraph").or_else(|| github_latest_release("rtk-ai/rtk")),
-        "context-mode" => github_latest_release("Navegos/context-mode").or_else(|| github_latest_release("mksglu/context-mode")),
+        "ctxmode" | "context-mode" => github_latest_release("Navegos/ctxmode").or_else(|| github_latest_release("Navegos/context-mode")),
         "toksi" => github_latest_release("Navegos/toksi"),
         "headroom" => github_latest_release("Navegos/headroom").or_else(|| github_latest_release("headroomlabs-ai/headroom")),
         _ => None,

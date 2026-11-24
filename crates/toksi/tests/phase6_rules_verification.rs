@@ -367,11 +367,11 @@ fn test_phase6_skilldoctor_agentskills_catalog_and_universal_sync() {
         fs::create_dir_all(&mcp_dir).unwrap();
         fs::write(mcp_dir.join("instructions.md"), "# Context Tool\n").unwrap();
     }
-    let wired = wire_mcp_skills(mcp_ws.path(), &["context"]).unwrap();
+    let wired = wire_mcp_skills(mcp_ws.path(), &["ctxmode"]).unwrap();
     assert!(!wired.is_empty());
     for dir in [".gemini", ".copilot", ".claude", ".agents"] {
-        assert!(mcp_ws.path().join(dir).join("skills/context/SKILL.md").is_file());
-        assert!(mcp_ws.path().join(dir).join("skills/context/instructions.md").is_file());
+        assert!(mcp_ws.path().join(dir).join("skills/ctxmode/SKILL.md").is_file());
+        assert!(mcp_ws.path().join(dir).join("skills/ctxmode/instructions.md").is_file());
     }
 }
 

@@ -395,8 +395,9 @@ pub fn disallow_claude_mcp_tool(tool_id: &str) {
         None => return,
     };
     let mut wants: HashSet<String> = claude_mcp_permission_entries(tool_id).into_iter().collect();
-    if tool_id == "context" || tool_id == "context-mode" {
+    if matches!(tool_id, "ctxmode" | "context" | "context-mode") {
         wants.insert("mcp__context-mode__.*".into());
+        wants.insert("mcp__ctxmode__.*".into());
     }
     let mut kept = Vec::with_capacity(allow.len());
     let mut changed = false;

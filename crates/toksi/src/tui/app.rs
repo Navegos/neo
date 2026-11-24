@@ -359,7 +359,7 @@ pub struct SandboxState {
 
 pub struct App {
     pub current_tab: usize,
-    pub tab_names: [&'static str; 9],
+    pub tab_names: [&'static str; 10],
     pub should_quit: bool,
     pub cwd_display: String,
     pub status_message: Option<String>,
@@ -435,14 +435,15 @@ impl App {
             current_tab: 0,
             tab_names: [
                 "Savings",
-                "The War Room",
-                "AI Agent Fleet & Quotas",
+                "Activity Room",
+                "AI Agent Fleet",
+                "Quotas",
                 "Memory Decision DAG",
                 "CodeGraph Explorer",
                 "Sandbox Inspector",
-                "System Controls",
-                "AI Gateway & Quotas",
+                "AI Gateway",
                 "Keyring & Database",
+                "System Controls",
             ],
             should_quit: false,
             cwd_display: cwd,
@@ -1469,8 +1470,8 @@ impl App {
             return;
         }
 
-        // Handle search input modes in Tab 4 (Memory) and Tab 5 (CodeGraph)
-        if self.current_tab == 3 && self.memory.search_active {
+        // Handle search input modes in Tab 5 (Memory) and Tab 6 (CodeGraph)
+        if self.current_tab == 4 && self.memory.search_active {
             match key.code {
                 KeyCode::Esc | KeyCode::Enter => {
                     self.memory.search_active = false;
@@ -1488,7 +1489,7 @@ impl App {
             return;
         }
 
-        if self.current_tab == 4 && self.graph.search_active {
+        if self.current_tab == 5 && self.graph.search_active {
             match key.code {
                 KeyCode::Esc | KeyCode::Enter => {
                     self.graph.search_active = false;
@@ -1540,6 +1541,7 @@ impl App {
             KeyCode::Char('7') => { self.current_tab = 6; return; }
             KeyCode::Char('8') => { self.current_tab = 7; return; }
             KeyCode::Char('9') => { self.current_tab = 8; return; }
+            KeyCode::Char('0') => { self.current_tab = 9; return; }
             _ => {}
         }
 
@@ -1549,13 +1551,19 @@ impl App {
             1 => {
                 if matches!(key.code, KeyCode::Char('r')) {
                     self.refresh_monitor_stats();
-                    self.set_status("Refreshed War Room snapshot");
+                    self.set_status("Refreshed Activity Room snapshot");
                 }
             }
             2 => self.handle_agents_key(key),
-            3 => self.handle_memory_key(key),
-            4 => self.handle_graph_key(key),
-            5 => {
+            3 => {
+                if matches!(key.code, KeyCode::Char('r')) {
+                    self.reload_headroom();
+                    self.set_status("Refreshed Quotas & BYOK snapshot");
+                }
+            }
+            4 => self.handle_memory_key(key),
+            5 => self.handle_graph_key(key),
+            6 => {
                 if matches!(key.code, KeyCode::Char('f')) {
                     self.sandbox.fail_closed = !self.sandbox.fail_closed;
                     self.set_status(&format!(
@@ -1564,9 +1572,9 @@ impl App {
                     ));
                 }
             }
-            6 => self.handle_logs_key(key),
             7 => self.handle_headroom_key(key),
             8 => self.handle_governance_key(key),
+            9 => self.handle_logs_key(key),
             _ => {}
         }
     }
@@ -1839,7 +1847,7 @@ impl App {
                     if let Some(ref mut h) = self.memory.heatmap_popup {
                         h.scroll = h.scroll.saturating_add(3);
                     }
-                } else if self.current_tab == 6 {
+                } else if self.current_tab == 9 {
                     self.logs.follow = false;
                     self.logs.scroll_offset = self.logs.scroll_offset.saturating_add(3);
                 }
@@ -1857,7 +1865,7 @@ impl App {
                     if let Some(ref mut p) = self.memory.precheck_result {
                         p.scroll = p.scroll.saturating_sub(3);
                     }
-                } else if self.current_tab == 6 {
+                } else if self.current_tab == 9 {
                     self.logs.follow = false;
                     self.logs.scroll_offset = self.logs.scroll_offset.saturating_sub(3);
                 }
@@ -1960,7 +1968,7 @@ impl App {
                     }
                 }
             }
-            3 => {
+            4 => {
                 // Memory tab: Filter pills on row 4
                 if row == 4 {
                     if col < 14 {
@@ -1998,7 +2006,7 @@ impl App {
                     }
                 }
             }
-            4 => {
+            5 => {
                 // Graph tab: symbols table starts around row 8
                 if row >= 8 {
                     let clicked_index = (row - 8) as usize;
@@ -2022,7 +2030,7 @@ impl App {
                     }
                 }
             }
-            6 => {
+            9 => {
                 // System Controls / Logs tab: source pills on row 4
                 if row == 4 {
                     if col < 18 {
@@ -2095,7 +2103,7 @@ impl App {
                     self.set_status("Reloaded BYOK routes and provider statuses");
                 }
             }
-            5 => {
+            6 => {
                 // Sandbox Inspector
                 if col < 30 {
                     self.set_status("ContextMode sandbox health verified");
@@ -2107,7 +2115,7 @@ impl App {
                     ));
                 }
             }
-            3 => {
+            4 => {
                 // Memory: [Run Precheck] [Heatmap Detail] [Cycle Filter] [Search]
                 if col < 20 {
                     self.trigger_precheck();
@@ -2126,7 +2134,7 @@ impl App {
                     self.memory.search_active = true;
                 }
             }
-            4 => {
+            5 => {
                 // Graph: [Compute Blast] [Show/Hide Tree] [Reindex AST]
                 if col < 26 {
                     self.update_active_symbol_details();
@@ -2153,7 +2161,7 @@ impl App {
                     self.set_status("Refreshed Keyring & Database state");
                 }
             }
-            6 => {
+            9 => {
                 // System Controls & Logs: [Daemon Start/Stop] [Pause/Resume Follow] [Clear Buffer]
                 if col < 24 {
                     self.toggle_daemon();

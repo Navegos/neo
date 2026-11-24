@@ -355,24 +355,25 @@ pub fn handle_agents() -> serde_json::Value {
 
         let config_path = resolve_agent_config_path(&ag.id);
 
-        let (provider, model, quota_status) = match ag.id.as_str() {
-            "claude" => ("Anthropic", "claude-3-7-sonnet", "[BYOK]"),
-            "cursor" => ("OpenAI", "gpt-4o", "[BYOK]"),
-            "antigravity" => ("Gemini", "gemini-2.5-flash", "[OAUTH]"),
-            "opencode" | "opencode2" => ("DeepSeek", "deepseek-r1", "[BYOK]"),
-            "codex" => ("OpenAI", "o3-mini", "[OAUTH]"),
-            "copilot" => ("GitHub", "copilot-gpt4o", "[OAUTH]"),
-            "droid" => ("Anthropic", "claude-3-5-sonnet", "[BYOK]"),
-            "grok" => ("xAI", "grok-3", "[OAUTH]"),
-            "pi" => ("Inflection", "pi-3", "[BYOK]"),
-            "omp" => ("Groq", "llama-3.3-70b", "[BYOK]"),
-            "kilo" => ("Together", "deepseek-v3", "[BYOK]"),
-            "cline" => ("OpenRouter", "auto-router", "[BYOK]"),
-            "amp" => ("Fireworks", "qwen-2.5-coder", "[BYOK]"),
-            "kimi" => ("Moonshot", "kimi-moonshot-v1", "[BYOK]"),
-            "zcode" => ("Cerebras", "llama3.1-8b", "[BYOK]"),
-            "dsh" => ("Local", "ollama-qwen", "[LOCAL]"),
-            _ => ("Bifrost", "universal-gateway", "[BYOK]"),
+        let active_bindings = crate::db::open_default_db().ok().and_then(|db| {
+            let bindings = db.list_agent_profile_bindings().ok()?;
+            let profs = db.list_byok_profiles().ok()?;
+            bindings
+                .into_iter()
+                .find(|b| b.agent_id == ag.id && b.is_primary)
+                .and_then(|b| profs.into_iter().find(|p| p.id == b.byok_profile_id))
+        });
+        let (provider, model, quota_status) = if let Some(prof) = active_bindings {
+            let badge = match prof.auth_mode.as_str() {
+                "oauth" => "[OAUTH]",
+                "adc" => "[ADC]",
+                _ => "[BYOK]",
+            };
+            (prof.provider_id, prof.model_id, badge.to_string())
+        } else if is_wired {
+            ("Configured".to_string(), "toksi-routed".to_string(), "[WIRED]".to_string())
+        } else {
+            ("Unconfigured".to_string(), "none".to_string(), "[UNWIRED]".to_string())
         };
 
         let latency = LatencyBreakdown::default();
@@ -395,12 +396,12 @@ pub fn handle_agents() -> serde_json::Value {
             installed: detection.installed,
             in_path,
             wired: is_wired,
-            connected_provider: provider.to_string(),
-            active_model: model.to_string(),
+            connected_provider: provider,
+            active_model: model,
             latency_breakdown_ms: latency,
             tokens_saved_ground_truth: agent_saved,
             cost_saved_usd: agent_cost_saved,
-            paid_quota_status: quota_status.to_string(),
+            paid_quota_status: quota_status,
         };
 
         let wired_mode = if is_proxy_wired {
@@ -1476,6 +1477,7 @@ pub fn handle_byok_profile_upsert(payload: &[u8]) -> Result<serde_json::Value, S
         is_active: req.enabled.unwrap_or(true),
         created_at: now,
         updated_at: now,
+        ..Default::default()
     };
     db.upsert_byok_profile(&record).map_err(|e| e.to_string())?;
     Ok(json!({ "success": true, "id": id }))
@@ -1597,4 +1599,90 @@ pub fn handle_db_repair_legacy() -> serde_json::Value {
         "merged_toksi_dirs": merged_toksi,
         "merged_agent_dirs": merged_agents
     })
+}
+
+pub fn handle_supervisor_workers() -> serde_json::Value {
+    let Ok(db) = crate::db::open_default_db() else {
+        return json!({ "workers": [], "count": 0 });
+    };
+    let workers = db.list_supervisor_workers().unwrap_or_default();
+    let count = workers.len();
+    json!({
+        "workers": workers,
+        "count": count,
+        "ipc_namespace": crate::ipc::current_ipc_namespace(),
+    })
+}
+
+pub fn handle_activity_get() -> serde_json::Value {
+    let mut service_events = serde_json::Map::new();
+    for kind in crate::db::ServiceDbKind::ALL {
+        let count = crate::db::ServiceTelemetryDb::open(kind)
+            .and_then(|d| d.event_count())
+            .unwrap_or(0);
+        service_events.insert(kind.file_stem().to_string(), json!(count));
+    }
+    json!({
+        "service_events": serde_json::Value::Object(service_events),
+        "dual_agy_auth": crate::keyring::adc::inspect_dual_agy_auth(),
+        "ipc_namespace": crate::ipc::current_ipc_namespace(),
+    })
+}
+
+pub fn handle_orchestrator_modes_get() -> serde_json::Value {
+    let modes: Vec<serde_json::Value> = crate::agent_runtime::mode_router::ALL_ORCHESTRATOR_MODES
+        .iter()
+        .map(|m| {
+            let spec = crate::agent_runtime::mode_router::resolve_mode_spec(*m);
+            json!(spec)
+        })
+        .collect();
+    json!({
+        "count": modes.len(),
+        "domains": 7,
+        "modes": modes
+    })
+}
+
+#[derive(Deserialize)]
+pub struct OrchestratorModeUpdateReq {
+    pub mode_id: String,
+    pub primary_model: String,
+    pub fallback_model: Option<String>,
+    pub reasoning_effort: Option<String>,
+    pub temperature: Option<f64>,
+    pub top_p: Option<f64>,
+    pub top_k: Option<i64>,
+}
+
+pub fn handle_orchestrator_modes_put(payload: &[u8]) -> Result<serde_json::Value, String> {
+    let req: OrchestratorModeUpdateReq =
+        serde_json::from_slice(payload).map_err(|e| e.to_string())?;
+    let mode = crate::agent_runtime::mode_router::OrchestratorMode::from_str_loose(&req.mode_id)
+        .ok_or_else(|| format!("Unknown orchestrator mode '{}'", req.mode_id))?;
+    let def = mode.default_spec();
+    let rec = crate::db::OrchestratorModeRouteRecord {
+        mode_id: mode.as_str().to_string(),
+        domain: mode.domain().key().to_string(),
+        primary_model: req.primary_model,
+        fallback_model: req.fallback_model.unwrap_or(def.fallback_model),
+        reasoning_effort: req
+            .reasoning_effort
+            .unwrap_or_else(|| def.reasoning_effort.as_str().to_string()),
+        temperature: req.temperature.or(def.temperature),
+        top_p: req.top_p.or(def.top_p),
+        top_k: req.top_k.or_else(|| def.top_k.map(i64::from)),
+        updated_at: chrono::Utc::now().timestamp(),
+    };
+    let mut db = crate::db::open_default_db().map_err(|e| e.to_string())?;
+    db.upsert_orchestrator_mode_route(&rec)
+        .map_err(|e| e.to_string())?;
+    Ok(json!({ "success": true, "mode_id": rec.mode_id }))
+}
+
+pub fn handle_daemon_service_action(
+    name: &str,
+    action: &str,
+) -> Result<serde_json::Value, String> {
+    crate::commands::daemon::daemon_service_action(name, action)
 }

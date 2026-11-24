@@ -91,7 +91,7 @@ fn test_all_17_agent_mcp_adapters_and_commands() {
         );
 
         // Verify MCP command generation for tools
-        for tool in ["projectmem", "codegraph", "context-mode", "icm"] {
+        for tool in ["projectmem", "codegraph", "ctxmode", "icm"] {
             let cmd = mcp_command(agent_id, tool);
             assert!(
                 !cmd.is_empty(),
@@ -140,7 +140,7 @@ fn test_mcp_multiplexer_tools_registration() {
     register_tools();
     let tools = tool_ids();
 
-    let expected_tools = ["rtk", "caveman", "ponytail", "codegraph", "context-mode", "headroom", "projectmem"];
+    let expected_tools = ["rtk", "caveman", "ponytail", "codegraph", "ctxmode", "headroom", "projectmem"];
     for t in expected_tools {
         assert!(tools.contains(&t.to_string()), "Tool '{}' must be registered", t);
     }

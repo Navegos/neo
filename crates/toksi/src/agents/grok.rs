@@ -110,7 +110,7 @@ pub fn configure_grok_mcp(tool_id: &str) -> Result<(bool, String), String> {
         let quoted: Vec<String> = spawn.args.iter().map(|s| toml_quoted(s)).collect();
         block.set("args", &format!("[{}]", quoted.join(", ")));
     }
-    if tool_id == "context-mode" {
+    if matches!(tool_id, "ctxmode" | "context-mode" | "context") {
         block.set("env", "{ CONTEXT_MODE_PLATFORM = \"grok-cli\" }");
     }
     let next = upsert_block(&raw, &block, false);
@@ -164,8 +164,10 @@ fn grok_mcp_block_managed(tool_id: &str, body: &str) -> bool {
         .unwrap_or("")
         .to_ascii_lowercase();
     match tool_id {
-        "context-mode" => {
-            base_cmd.contains("context-mode")
+        "ctxmode" | "context-mode" | "context" => {
+            base_cmd.contains("ctxmode")
+                || base_cmd.contains("context-mode")
+                || (base_cmd.contains("toksi") && body.contains("ctxmode"))
                 || (base_cmd.contains("npx") && body.contains("\"context-mode\""))
         }
         "codegraph" => {
@@ -195,11 +197,16 @@ pub fn grok_context_mode_mcp_has() -> bool {
     let Some(raw) = paths::read_file_safe(&grok_config_file()) else {
         return false;
     };
-    let Some(body) = block_text(&raw, "mcp_servers.context-mode") else {
-        return false;
-    };
-    grok_mcp_block_managed("context-mode", &body)
-        && body.contains("CONTEXT_MODE_PLATFORM = \"grok-cli\"")
+    for key in ["mcp_servers.ctxmode", "mcp_servers.context-mode", "mcp_servers.context"] {
+        if let Some(body) = block_text(&raw, key) {
+            if grok_mcp_block_managed("ctxmode", &body)
+                && body.contains("CONTEXT_MODE_PLATFORM = \"grok-cli\"")
+            {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 pub fn grok_projectmem_mcp_has() -> bool {

@@ -269,10 +269,10 @@ fn cline_expected_command(tool_id: &str, command: &[String]) -> bool {
         return false;
     }
     match tool_id {
-        "context-mode" => {
+        "ctxmode" | "context-mode" | "context" => {
             command.len() >= 4
-                && command[2] == "--context-mode"
-                && kilo_context_server(&command[3..])
+                && (command[2] == "--context-mode" || (command[2] == "--tool" && command[3] == "ctxmode"))
+                && (kilo_context_server(&command[3..]) || (command.len() >= 5 && kilo_context_server(&command[4..])))
         }
         "codegraph" => {
             command.len() >= 7

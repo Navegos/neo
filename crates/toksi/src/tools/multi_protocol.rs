@@ -23,7 +23,7 @@ use crate::util::paths::normalize_path;
 
 pub const DEFAULT_PROTOCOL_BUS_PORT: u16 = crate::config::DEFAULT_PROTOCOL_BUS_PORT;
 pub const MAX_A2A_PAYLOAD_BYTES: usize = 1024 * 1024; // 1 MiB cap
-pub const CONSOLIDATED_VAULT_COUNT: usize = 295;
+pub const CONSOLIDATED_VAULT_COUNT: usize = 493;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -31,6 +31,8 @@ pub enum ProtocolKind {
     Mcp,
     A2a,
     Acp,
+    Anp,
+    Quic,
     Stdio,
     Sse,
     Http,
@@ -43,6 +45,8 @@ impl ProtocolKind {
             Self::Mcp => "mcp",
             Self::A2a => "a2a",
             Self::Acp => "acp",
+            Self::Anp => "anp",
+            Self::Quic => "quic",
             Self::Stdio => "stdio",
             Self::Sse => "sse",
             Self::Http => "http",
@@ -65,6 +69,8 @@ impl FromStr for ProtocolKind {
             "mcp" => Ok(Self::Mcp),
             "a2a" | "agent2agent" => Ok(Self::A2a),
             "acp" => Ok(Self::Acp),
+            "anp" | "agent-network-protocol" => Ok(Self::Anp),
+            "quic" | "http3" => Ok(Self::Quic),
             "stdio" => Ok(Self::Stdio),
             "sse" => Ok(Self::Sse),
             "http" | "rest" => Ok(Self::Http),
@@ -79,7 +85,7 @@ impl FromStr for ProtocolKind {
 pub enum ToolTarget {
     Rtk,
     Codegraph,
-    Context,
+    Ctxmode,
     Projectmem,
     Icm,
     Aimemory,
@@ -96,7 +102,7 @@ impl ToolTarget {
         match self {
             Self::Rtk => "rtk",
             Self::Codegraph => "codegraph",
-            Self::Context => "context",
+            Self::Ctxmode => "ctxmode",
             Self::Projectmem => "projectmem",
             Self::Icm => "icm",
             Self::Aimemory => "aimemory",
@@ -124,7 +130,7 @@ impl FromStr for ToolTarget {
         match low.as_str() {
             "rtk" => Ok(Self::Rtk),
             "codegraph" => Ok(Self::Codegraph),
-            "context" | "contextmode" | "context-mode" => Ok(Self::Context),
+            "ctxmode" | "ctx" | "context" | "contextmode" | "context-mode" => Ok(Self::Ctxmode),
             "projectmem" => Ok(Self::Projectmem),
             "icm" => Ok(Self::Icm),
             "aimemory" | "ai-memory" => Ok(Self::Aimemory),
@@ -283,6 +289,28 @@ impl UnifiedResponse {
             }
             ProtocolKind::Http => {
                 serde_json::to_string(&serde_json::json!({
+                    "status": self.status,
+                    "tool": self.tool.to_string(),
+                    "data": self.result,
+                    "text": self.raw_text
+                }))
+                .unwrap_or_else(|_| "{}".to_string())
+            }
+            ProtocolKind::Anp => {
+                serde_json::to_string(&serde_json::json!({
+                    "protocol": "anp",
+                    "version": "1.0",
+                    "status": self.status,
+                    "tool": self.tool.to_string(),
+                    "data": self.result,
+                    "text": self.raw_text
+                }))
+                .unwrap_or_else(|_| "{}".to_string())
+            }
+            ProtocolKind::Quic => {
+                serde_json::to_string(&serde_json::json!({
+                    "protocol": "quic",
+                    "transport": "datagram-stream",
                     "status": self.status,
                     "tool": self.tool.to_string(),
                     "data": self.result,
@@ -685,7 +713,7 @@ impl MultiProtocolDispatcher {
             let mut resp = match req.tool {
                 ToolTarget::Rtk => self.dispatch_rtk(req),
                 ToolTarget::Codegraph => self.dispatch_codegraph(req, &root),
-                ToolTarget::Context => self.dispatch_context(req, &root),
+                ToolTarget::Ctxmode => self.dispatch_context(req, &root),
                 ToolTarget::Projectmem => self.dispatch_projectmem(req, &root),
                 ToolTarget::Icm => self.dispatch_icm(req),
                 ToolTarget::Aimemory => self.dispatch_aimemory(req),
@@ -863,10 +891,11 @@ impl MultiProtocolDispatcher {
     fn dispatch_context(&self, req: &UnifiedRequest, root: &Path) -> UnifiedResponse {
         if req.action == "status" {
             let norm = normalize_path(&root.to_string_lossy());
-            let db_exists = root.join(".toksi").join("context").join("context.db").exists();
+            let db_exists = root.join(".toksi").join("ctxmode").join("ctxmode.db").exists()
+                || root.join(".toksi").join("context").join("context.db").exists();
             let res = serde_json::json!({
                 "status": "ok",
-                "tool": "context",
+                "tool": "ctxmode",
                 "workspace": norm,
                 "db_initialized": db_exists,
             });
@@ -931,6 +960,15 @@ impl MultiProtocolDispatcher {
     }
 
     fn dispatch_aimemory(&self, req: &UnifiedRequest) -> UnifiedResponse {
+        if req.action == "help" {
+            let text = crate::aimemory::slash::handle_slash_command("/aimemory help", None);
+            return UnifiedResponse::success(
+                req.protocol,
+                req.tool,
+                serde_json::json!({ "help": text }),
+                Some(text),
+            );
+        }
         let tool_name = if req.action.starts_with("memory_") {
             req.action.as_str()
         } else {
@@ -1495,6 +1533,8 @@ async fn serve_protocol_bus_connection(
             "/mcp" => ProtocolKind::Mcp,
             "/a2a" => ProtocolKind::A2a,
             "/acp" => ProtocolKind::Acp,
+            "/anp" => ProtocolKind::Anp,
+            "/quic" => ProtocolKind::Quic,
             "/stdio" => ProtocolKind::Stdio,
             _ => ProtocolKind::Http,
         };
@@ -1685,6 +1725,8 @@ mod tests {
         assert_eq!("mcp".parse::<ProtocolKind>().unwrap(), ProtocolKind::Mcp);
         assert_eq!("a2a".parse::<ProtocolKind>().unwrap(), ProtocolKind::A2a);
         assert_eq!("acp".parse::<ProtocolKind>().unwrap(), ProtocolKind::Acp);
+        assert_eq!("anp".parse::<ProtocolKind>().unwrap(), ProtocolKind::Anp);
+        assert_eq!("quic".parse::<ProtocolKind>().unwrap(), ProtocolKind::Quic);
         assert_eq!("stdio".parse::<ProtocolKind>().unwrap(), ProtocolKind::Stdio);
         assert_eq!("sse".parse::<ProtocolKind>().unwrap(), ProtocolKind::Sse);
         assert_eq!("http".parse::<ProtocolKind>().unwrap(), ProtocolKind::Http);
@@ -1696,7 +1738,8 @@ mod tests {
     fn test_tool_parsing() {
         assert_eq!("rtk".parse::<ToolTarget>().unwrap(), ToolTarget::Rtk);
         assert_eq!("codegraph".parse::<ToolTarget>().unwrap(), ToolTarget::Codegraph);
-        assert_eq!("context".parse::<ToolTarget>().unwrap(), ToolTarget::Context);
+        assert_eq!("ctxmode".parse::<ToolTarget>().unwrap(), ToolTarget::Ctxmode);
+        assert_eq!("context".parse::<ToolTarget>().unwrap(), ToolTarget::Ctxmode);
         assert_eq!("projectmem".parse::<ToolTarget>().unwrap(), ToolTarget::Projectmem);
         assert_eq!("icm".parse::<ToolTarget>().unwrap(), ToolTarget::Icm);
         assert_eq!("aimemory".parse::<ToolTarget>().unwrap(), ToolTarget::Aimemory);

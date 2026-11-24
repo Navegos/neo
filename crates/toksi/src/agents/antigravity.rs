@@ -28,8 +28,8 @@ use super::proxy_provider::{
 };
 
 pub const ANTIGRAVITY_CONTEXT_MODE_HOOK_COMMAND: &str =
-    "toksi context-hook antigravity-cli pretooluse";
-pub const ANTIGRAVITY_CONTEXT_GROUP: &str = "context";
+    "toksi ctxmode-hook antigravity-cli pretooluse";
+pub const ANTIGRAVITY_CONTEXT_GROUP: &str = "ctxmode";
 pub const ANTIGRAVITY_PROJECTMEM_GROUP: &str = "projectmem";
 pub const ANTIGRAVITY_IDE_ENDPOINT_KEY: &str = "jetski.cloudCodeUrl";
 pub const ANTIGRAVITY_PROXY_ENV_KEY: &str = "GOOGLE_GEMINI_BASE_URL";
@@ -303,7 +303,10 @@ pub fn has_antigravity_context_mode_hook() -> bool {
     };
     hook.get("command")
         .and_then(|v| v.as_str())
-        .is_some_and(|c| c.contains("context-hook antigravity-cli pretooluse"))
+        .is_some_and(|c| {
+            c.contains("ctxmode-hook antigravity-cli pretooluse")
+                || c.contains("context-hook antigravity-cli pretooluse")
+        })
 }
 
 pub fn install_antigravity_context_mode_hook() {
@@ -327,7 +330,7 @@ pub fn install_antigravity_context_mode_hook() {
         OrderedMap::new()
     };
 
-    let (resolved_cmd, _) = toksi_command_ok(&["context-hook", "antigravity-cli", "pretooluse"]);
+    let (resolved_cmd, _) = toksi_command_ok(&["ctxmode-hook", "antigravity-cli", "pretooluse"]);
     let hook_command = if resolved_cmd.is_empty() {
         ANTIGRAVITY_CONTEXT_MODE_HOOK_COMMAND.to_string()
     } else {
@@ -357,6 +360,7 @@ pub fn install_antigravity_context_mode_hook() {
 
     cfg.shift_remove("context-mode");
     cfg.shift_remove("toksi-context-mode");
+    cfg.shift_remove("context");
     cfg.insert(
         ANTIGRAVITY_CONTEXT_GROUP.to_string(),
         Value::Object(group),
@@ -377,11 +381,10 @@ pub fn remove_antigravity_context_mode_hook() {
         return;
     };
     let mut changed = cfg.shift_remove(ANTIGRAVITY_CONTEXT_GROUP).is_some();
-    if cfg.shift_remove("context-mode").is_some() {
-        changed = true;
-    }
-    if cfg.shift_remove("toksi-context-mode").is_some() {
-        changed = true;
+    for legacy in ["context", "context-mode", "toksi-context-mode"] {
+        if cfg.shift_remove(legacy).is_some() {
+            changed = true;
+        }
     }
     if changed {
         if cfg.is_empty() {
@@ -467,7 +470,7 @@ fn filter_context_mode_hook_entries(arr: &[Value]) -> Vec<Value> {
             h.as_object()
                 .and_then(|hm| hm.get("command"))
                 .and_then(|c| c.as_str())
-                .is_some_and(|s| s.contains("context-mode"))
+                .is_some_and(|s| s.contains("ctxmode-hook") || s.contains("context-mode"))
         });
         if !drop_entry {
             kept.push(e.clone());

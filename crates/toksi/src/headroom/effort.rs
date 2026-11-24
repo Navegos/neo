@@ -32,6 +32,8 @@ pub enum EffortLevel {
     #[default]
     Medium,
     High,
+    XHigh,
+    Max,
 }
 
 impl EffortLevel {
@@ -39,7 +41,9 @@ impl EffortLevel {
         match s.trim().to_ascii_lowercase().as_str() {
             "low" | "l" | "fast" | "minimal" => Some(Self::Low),
             "medium" | "med" | "m" | "balanced" | "default" => Some(Self::Medium),
-            "high" | "h" | "deep" | "max" => Some(Self::High),
+            "high" | "h" | "deep" => Some(Self::High),
+            "xhigh" | "xh" | "extra-high" | "extra_high" | "extrahigh" => Some(Self::XHigh),
+            "max" | "maximum" | "ultra" => Some(Self::Max),
             _ => None,
         }
     }
@@ -49,6 +53,8 @@ impl EffortLevel {
             Self::Low => "low",
             Self::Medium => "medium",
             Self::High => "high",
+            Self::XHigh => "xhigh",
+            Self::Max => "max",
         }
     }
 
@@ -57,6 +63,8 @@ impl EffortLevel {
             Self::Low => 160,
             Self::Medium => 400,
             Self::High => 800,
+            Self::XHigh => 1200,
+            Self::Max => 2000,
         }
     }
 
@@ -65,6 +73,8 @@ impl EffortLevel {
             Self::Low => 2,
             Self::Medium => 3,
             Self::High => 5,
+            Self::XHigh => 7,
+            Self::Max => 10,
         }
     }
 
@@ -73,6 +83,8 @@ impl EffortLevel {
             Self::Low => 1024,
             Self::Medium => 8192,
             Self::High => 32768,
+            Self::XHigh => 49152,
+            Self::Max => 65536,
         }
     }
 
@@ -81,6 +93,8 @@ impl EffortLevel {
             Self::Low => 1024,
             Self::Medium => 8192,
             Self::High => 24576,
+            Self::XHigh => 32768,
+            Self::Max => 65536,
         }
     }
 }
@@ -124,8 +138,12 @@ pub fn detect_effort_level(headers: &[(String, String)], payload: Option<&Value>
                 EffortLevel::Low
             } else if budget <= 16384 {
                 EffortLevel::Medium
-            } else {
+            } else if budget <= 40960 {
                 EffortLevel::High
+            } else if budget <= 57344 {
+                EffortLevel::XHigh
+            } else {
+                EffortLevel::Max
             };
         }
         if let Some(budget) = val
@@ -138,8 +156,12 @@ pub fn detect_effort_level(headers: &[(String, String)], payload: Option<&Value>
                 EffortLevel::Low
             } else if budget <= 12288 {
                 EffortLevel::Medium
-            } else {
+            } else if budget <= 28672 {
                 EffortLevel::High
+            } else if budget <= 49152 {
+                EffortLevel::XHigh
+            } else {
+                EffortLevel::Max
             };
         }
     }
@@ -153,6 +175,8 @@ pub struct EffortMetricsRegistry {
     low_requests: AtomicU64,
     medium_requests: AtomicU64,
     high_requests: AtomicU64,
+    xhigh_requests: AtomicU64,
+    max_requests: AtomicU64,
     total_bytes_saved: AtomicU64,
     total_tokens_saved: AtomicU64,
 }
@@ -163,6 +187,10 @@ pub struct EffortMetricsSnapshot {
     pub low_requests: u64,
     pub medium_requests: u64,
     pub high_requests: u64,
+    #[serde(default)]
+    pub xhigh_requests: u64,
+    #[serde(default)]
+    pub max_requests: u64,
     pub total_bytes_saved: u64,
     pub total_tokens_saved: u64,
 }
@@ -172,6 +200,8 @@ static EFFORT_METRICS: EffortMetricsRegistry = EffortMetricsRegistry {
     low_requests: AtomicU64::new(0),
     medium_requests: AtomicU64::new(0),
     high_requests: AtomicU64::new(0),
+    xhigh_requests: AtomicU64::new(0),
+    max_requests: AtomicU64::new(0),
     total_bytes_saved: AtomicU64::new(0),
     total_tokens_saved: AtomicU64::new(0),
 };
@@ -182,6 +212,8 @@ impl EffortMetricsRegistry {
             EffortLevel::Low => 0,
             EffortLevel::Medium => 1,
             EffortLevel::High => 2,
+            EffortLevel::XHigh => 3,
+            EffortLevel::Max => 4,
         };
         self.active_effort.store(code, Ordering::Relaxed);
     }
@@ -190,6 +222,8 @@ impl EffortMetricsRegistry {
         match self.active_effort.load(Ordering::Relaxed) {
             0 => EffortLevel::Low,
             2 => EffortLevel::High,
+            3 => EffortLevel::XHigh,
+            4 => EffortLevel::Max,
             _ => EffortLevel::Medium,
         }
     }
@@ -204,6 +238,12 @@ impl EffortMetricsRegistry {
             }
             EffortLevel::High => {
                 self.high_requests.fetch_add(1, Ordering::Relaxed);
+            }
+            EffortLevel::XHigh => {
+                self.xhigh_requests.fetch_add(1, Ordering::Relaxed);
+            }
+            EffortLevel::Max => {
+                self.max_requests.fetch_add(1, Ordering::Relaxed);
             }
         }
         if stats.bytes_saved > 0 {
@@ -222,6 +262,8 @@ impl EffortMetricsRegistry {
             low_requests: self.low_requests.load(Ordering::Relaxed),
             medium_requests: self.medium_requests.load(Ordering::Relaxed),
             high_requests: self.high_requests.load(Ordering::Relaxed),
+            xhigh_requests: self.xhigh_requests.load(Ordering::Relaxed),
+            max_requests: self.max_requests.load(Ordering::Relaxed),
             total_bytes_saved: self.total_bytes_saved.load(Ordering::Relaxed),
             total_tokens_saved: self.total_tokens_saved.load(Ordering::Relaxed),
         }
@@ -337,6 +379,8 @@ pub fn apply_effort_wire_translation(
             let raw_budget = effort.gemini_thinking_budget();
             let budget = if model.contains("gemini-2.5-pro") || path.contains("gemini-2.5-pro") {
                 raw_budget.clamp(128, 32768)
+            } else if model.contains("gemini-3") || model.contains("gemini-4") {
+                raw_budget.clamp(0, 65536)
             } else {
                 raw_budget.clamp(0, 24576)
             };
@@ -431,11 +475,15 @@ impl HeadroomEffortCompressor {
         }
 
         // Apply TokenEconomizer to unfrozen live-zone turns
+        let is_high_or_above = matches!(
+            effort,
+            EffortLevel::High | EffortLevel::XHigh | EffortLevel::Max
+        );
         let econ_opts = EconomizerOptions {
-            deduplicate_instructions: effort != EffortLevel::High,
+            deduplicate_instructions: !is_high_or_above,
             minify_whitespace: effort == EffortLevel::Low,
-            strip_redundant_comments: effort != EffortLevel::High,
-            prune_schema_verbose_descriptions: effort != EffortLevel::High,
+            strip_redundant_comments: !is_high_or_above,
+            prune_schema_verbose_descriptions: !is_high_or_above,
             loop_guard_threshold: effort.loop_guard_threshold(),
         };
         let mut economizer = TokenEconomizer::new(econ_opts);

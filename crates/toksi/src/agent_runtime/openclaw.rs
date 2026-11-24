@@ -85,7 +85,7 @@ impl Default for ToolLoopDetector {
             "hashline_edit",
             "codegraph_explore",
             "projectmem",
-            "context",
+            "ctxmode",
             "icm",
             "aimemory",
             "rtk",

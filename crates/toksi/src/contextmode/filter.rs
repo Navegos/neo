@@ -99,7 +99,7 @@ pub fn slice_lines(text: &str, max_lines: usize) -> String {
         out.push_str(line);
         out.push('\n');
     }
-    out.push_str(&format!("\n... [{} lines omitted by context-mode] ...\n\n", omitted));
+    out.push_str(&format!("\n... [{} lines omitted by ctxmode] ...\n\n", omitted));
     for (i, line) in tail.iter().enumerate() {
         out.push_str(line);
         if i + 1 < tail.len() {
@@ -133,6 +133,8 @@ pub fn effort_output_budget(effort: crate::headroom::effort::EffortLevel) -> (us
         crate::headroom::effort::EffortLevel::Low => (80, 1536),
         crate::headroom::effort::EffortLevel::Medium => (DEFAULT_MAX_LINES, EXEC_PREVIEW_BYTES),
         crate::headroom::effort::EffortLevel::High => (400, OUTPUT_CAP),
+        crate::headroom::effort::EffortLevel::XHigh => (600, OUTPUT_CAP * 2),
+        crate::headroom::effort::EffortLevel::Max => (1000, OUTPUT_CAP * 4),
     }
 }
 

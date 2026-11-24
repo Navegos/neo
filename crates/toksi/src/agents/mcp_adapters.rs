@@ -46,15 +46,17 @@ pub fn normalize_mcp_tool_id(tool_id: &str) -> &'static str {
         | "projectmem-context"
         | "pjm"
         | "pjm-mcp" => "projectmem",
-        "context"
+        "ctxmode"
+        | "context"
         | "context-mode"
         | "contextmode"
+        | "toksi-ctxmode"
         | "toksi-context"
         | "toksi-context-mode"
         | "tokless_context"
         | "tokless-context"
         | "tokless-context-mode"
-        | "ctx" => "context",
+        | "ctx" => "ctxmode",
         "codegraph"
         | "toksi-codegraph"
         | "toksi-codegraph-index"
@@ -587,19 +589,19 @@ fn build_mcp_request(agent_id: &str, tool_id: &str, opts: &[McpOption]) -> McpRe
 }
 
 fn codex_mcp_section(tool_id: &str) -> String {
-    if tool_id == "context-mode" {
-        "mcp_servers.context_mode".to_string()
-    } else {
-        format!("mcp_servers.{tool_id}")
-    }
+    let clean = normalize_mcp_tool_id(tool_id);
+    format!("mcp_servers.{clean}")
 }
 
 fn codex_mcp_block(raw: &str, tool_id: &str) -> Option<String> {
     if let Some(text) = crate::util::toml::block_text(raw, &codex_mcp_section(tool_id)) {
         return Some(text);
     }
-    if tool_id == "context-mode" {
-        return crate::util::toml::block_text(raw, "mcp_servers.context-mode");
+    let clean = normalize_mcp_tool_id(tool_id);
+    if clean == "ctxmode" {
+        return crate::util::toml::block_text(raw, "mcp_servers.context_mode")
+            .or_else(|| crate::util::toml::block_text(raw, "mcp_servers.context-mode"))
+            .or_else(|| crate::util::toml::block_text(raw, "mcp_servers.context"));
     }
     None
 }
@@ -693,8 +695,10 @@ fn codex_mcp_has(tool_id: &str, command: &[String]) -> bool {
 
 fn remove_codex_mcp_blocks(raw: &str, tool_id: &str) -> String {
     let mut next = crate::util::toml::remove_block(raw, &codex_mcp_section(tool_id));
-    if tool_id == "context-mode" {
+    if normalize_mcp_tool_id(tool_id) == "ctxmode" {
+        next = crate::util::toml::remove_block(&next, "mcp_servers.context_mode");
         next = crate::util::toml::remove_block(&next, "mcp_servers.context-mode");
+        next = crate::util::toml::remove_block(&next, "mcp_servers.context");
     }
     next
 }
@@ -1027,7 +1031,7 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
                 }
                 match normalize_mcp_tool_id(&req.tool_id) {
                     "codegraph" => grok_mcp_has("codegraph"),
-                    "context" => grok_context_mode_mcp_has(),
+                    "ctxmode" | "context" => grok_context_mode_mcp_has(),
                     "projectmem" => grok_projectmem_mcp_has(),
                     _ => false,
                 }
@@ -1137,7 +1141,7 @@ pub fn mcp_has(agent_id: &str, tool_id: &str, any_shape: bool) -> bool {
 
 pub const MANAGED_MCP_TOOLS: &[&str] = &[
     "codegraph",
-    "context",
+    "ctxmode",
     "projectmem",
     "icm",
     "aimemory",
@@ -1146,6 +1150,7 @@ pub const MANAGED_MCP_TOOLS: &[&str] = &[
 
 pub const AUDIT_MCP_TOOLS: &[&str] = &[
     "codegraph",
+    "ctxmode",
     "context",
     "projectmem",
     "icm",
@@ -1156,6 +1161,7 @@ pub const AUDIT_MCP_TOOLS: &[&str] = &[
     "ai_memory",
     "projectmem-context",
     "toksi-codegraph",
+    "toksi-ctxmode",
     "toksi-context",
     "toksi-context-mode",
     "toksi-projectmem",

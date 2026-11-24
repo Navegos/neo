@@ -18,7 +18,8 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::headroom::effort::HeadroomEffortCompressor;
+use crate::gateway::sampling::{apply_sampling_params_to_payload, SamplingParams};
+use crate::headroom::effort::{EffortLevel, HeadroomEffortCompressor};
 use crate::plugins::{global_hook_dispatcher, HookContext, HookEventName, HookOutcome};
 use crate::projectmem::plan_checkpoint::{
     load_plan_checkpoint, save_plan_checkpoint, CheckpointStatus, PlanCheckpoint,
@@ -30,7 +31,8 @@ use super::hermes::{
     check_run_budget_notice, evaluate_stop_gate, ContextEngine, ContextMessage, RunawayStreamWatch,
     StopGateVerdict, StreamWatchVerdict, StreamingContextScrubber, TurnFacadeMixin,
 };
-use super::mofa::{InterruptSignal, ParallelScheduler};
+use super::mode_router::{resolve_mode_spec, OrchestratorMode};
+use super::mofa::InterruptSignal;
 use super::openclaw::{AdvisorFork, LoopDetectionVerdict, ToolLoopDetector};
 use super::sandbox::{global_sandbox_manager, PermissionPolicy};
 use super::slash::global_slash_engine;
@@ -62,6 +64,9 @@ pub struct AgentRuntimeEngine {
     pub causal_bus: EventBus,
     pub headroom: HeadroomEffortCompressor,
     pub interrupt: InterruptSignal,
+    pub gateway_base_url: Option<String>,
+    pub active_mode: OrchestratorMode,
+    pub active_effort: EffortLevel,
 }
 
 impl AgentRuntimeEngine {
@@ -74,7 +79,7 @@ impl AgentRuntimeEngine {
             vec![
                 "rtk".to_string(),
                 "codegraph".to_string(),
-                "context".to_string(),
+                "ctxmode".to_string(),
                 "projectmem".to_string(),
                 "icm".to_string(),
                 "aimemory".to_string(),
@@ -101,6 +106,44 @@ impl AgentRuntimeEngine {
             causal_bus: EventBus::new(),
             headroom: HeadroomEffortCompressor::gateway_default(),
             interrupt: InterruptSignal::new(),
+            gateway_base_url: std::env::var("TOKSI_SIAGENT_GATEWAY_URL")
+                .ok()
+                .filter(|v| !v.trim().is_empty()),
+            active_mode: OrchestratorMode::WriteCodeBuild,
+            active_effort: EffortLevel::Medium,
+        }
+    }
+
+    pub fn with_gateway_url(mut self, base_url: impl Into<String>) -> Self {
+        let clean = base_url.into().trim().trim_end_matches('/').to_string();
+        if !clean.is_empty() {
+            self.gateway_base_url = Some(clean);
+        }
+        self
+    }
+
+    pub fn with_mode_and_effort(
+        mut self,
+        mode: OrchestratorMode,
+        effort: EffortLevel,
+    ) -> Self {
+        self.active_mode = mode;
+        self.active_effort = effort;
+        self
+    }
+
+    pub fn effective_chat_completions_url(&self) -> String {
+        let base = self.gateway_base_url.clone().unwrap_or_else(|| {
+            let ports = crate::config::resolved_ports();
+            format!("http://127.0.0.1:{}/v1", ports.ai_gateway)
+        });
+        let trimmed = base.trim_end_matches('/');
+        if trimmed.ends_with("/chat/completions") {
+            trimmed.to_string()
+        } else if trimmed.ends_with("/v1") {
+            format!("{trimmed}/chat/completions")
+        } else {
+            format!("{trimmed}/v1/chat/completions")
         }
     }
 
@@ -152,14 +195,35 @@ impl AgentRuntimeEngine {
         });
         let _cp_idx = self.pending_queue.checkpoint();
 
+        let mode_spec = resolve_mode_spec(self.active_mode);
         let mut payload = json!({
+            "model": mode_spec.primary_model,
+            "mode": mode_spec.mode_id,
             "messages": [
                 { "role": "user", "content": prompt }
             ]
         });
+        apply_sampling_params_to_payload(
+            "gateway",
+            &mode_spec.primary_model,
+            self.active_effort,
+            &SamplingParams {
+                temperature: mode_spec.temperature,
+                top_p: mode_spec.top_p,
+                top_k: mode_spec.top_k,
+            },
+            &mut payload,
+        );
+        let headers = vec![
+            (
+                "x-toksi-effort".to_string(),
+                self.active_effort.as_str().to_string(),
+            ),
+            ("x-toksi-mode".to_string(), mode_spec.mode_id.clone()),
+        ];
         let stats = self
             .headroom
-            .compress_json_payload("/v1/chat/completions", &[], &mut payload);
+            .compress_json_payload("/v1/chat/completions", &headers, &mut payload);
 
         let loop_verdict = self.loop_detector.record_call("projectmem", &json!({ "action": "status" }), None);
         if matches!(loop_verdict, LoopDetectionVerdict::CircuitBreaker { .. }) {
@@ -170,10 +234,9 @@ impl AgentRuntimeEngine {
             self.event_log.append("budget_notice", json!({ "notice": notice }));
         }
 
-        let scrubbed = self.scrubber.scrub(&format!(
-            "[toksi-siagent] Executed '{}' (compressed {} -> {} bytes via HeadroomEffortCompressor)",
-            prompt, stats.original_bytes, payload.to_string().len()
-        ));
+        let url = self.effective_chat_completions_url();
+        let raw_reply = self.dispatch_http_blocking(&url, &headers, &payload)?;
+        let scrubbed = self.scrubber.scrub(&raw_reply);
 
         if let StreamWatchVerdict::StopRunaway { reason, .. } = self.stream_watch.push_chunk(&scrubbed) {
             return Err(reason);
@@ -239,22 +302,78 @@ impl AgentRuntimeEngine {
 
     pub async fn run_swarm(&mut self, goal: &str) -> Result<RuntimeRunReport, String> {
         let analyzer = TaskAnalyzer;
-        let (plan, mut dag) = analyzer.analyze(goal, ProcessMode::Parallel);
+        let (plan, dag) = analyzer.analyze(goal, ProcessMode::Parallel);
         let root_seq = self
             .causal_bus
             .emit(None, "swarm_started", json!({ "goal": goal, "steps": plan.steps.len() }));
 
-        let scheduler = ParallelScheduler::default();
-        let completed = scheduler
-            .run_dag(&mut dag, &self.interrupt, |node| {
-                Ok(format!("[{}:{}] completed '{}'", node.agent_role, node.id, node.title))
-            })
-            .await?;
-
-        let joined: Vec<String> = completed
-            .into_iter()
-            .filter_map(|n| n.output)
-            .collect();
+        let waves = dag.waves()?;
+        let url = self.effective_chat_completions_url();
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .no_proxy()
+            .build()
+            .map_err(|e| format!("Failed building swarm HTTP client: {e}"))?;
+        let mode_spec = resolve_mode_spec(self.active_mode);
+        let mut joined = Vec::new();
+        for wave in waves {
+            for node in wave {
+                if self.interrupt.is_triggered() {
+                    return Err("Swarm interrupted cleanly".to_string());
+                }
+                let mut payload = json!({
+                    "model": mode_spec.primary_model,
+                    "mode": mode_spec.mode_id,
+                    "messages": [{
+                        "role": "user",
+                        "content": format!("[{}:{}] {}", node.agent_role, node.id, node.title)
+                    }]
+                });
+                apply_sampling_params_to_payload(
+                    "gateway",
+                    &mode_spec.primary_model,
+                    self.active_effort,
+                    &SamplingParams {
+                        temperature: mode_spec.temperature,
+                        top_p: mode_spec.top_p,
+                        top_k: mode_spec.top_k,
+                    },
+                    &mut payload,
+                );
+                let resp = client
+                    .post(&url)
+                    .header("x-toksi-effort", self.active_effort.as_str())
+                    .header("x-toksi-mode", &mode_spec.mode_id)
+                    .json(&payload)
+                    .send()
+                    .await
+                    .map_err(|e| {
+                        format!(
+                            "No live <toksi-siagent> gateway or BYOK provider reachable at {}: {}",
+                            url, e
+                        )
+                    })?;
+                if !resp.status().is_success() {
+                    return Err(format!(
+                        "<toksi-siagent> swarm node '{}' failed: HTTP {}",
+                        node.id,
+                        resp.status()
+                    ));
+                }
+                let body: serde_json::Value = resp
+                    .json()
+                    .await
+                    .map_err(|e| format!("Invalid gateway JSON on swarm node '{}': {e}", node.id))?;
+                let content = body
+                    .pointer("/choices/0/message/content")
+                    .and_then(|v| v.as_str())
+                    .map(ToString::to_string)
+                    .ok_or_else(|| {
+                        format!("Gateway response missing choices[0].message.content on '{}'", node.id)
+                    })?;
+                joined.push(self.scrubber.scrub(&content));
+            }
+        }
         let reflector = ReflectionAgent::default();
         let reflected = reflector.reflect(&joined.join("\n"), |_round, out, _| {
             (true, "Verified DAG wave outputs".to_string(), out.to_string())
@@ -357,5 +476,94 @@ impl AgentRuntimeEngine {
         } else {
             None
         }
+    }
+
+    fn dispatch_http_blocking(
+        &self,
+        url: &str,
+        headers: &[(String, String)],
+        payload: &serde_json::Value,
+    ) -> Result<String, String> {
+        if self.gateway_base_url.is_none()
+            && std::env::var("TOKSI_SIAGENT_GATEWAY_URL")
+                .map(|v| v.trim().is_empty())
+                .unwrap_or(true)
+        {
+            let ep = crate::ipc::WorkerRole::Siagent.ipc_endpoint();
+            if let Ok(frame) = crate::ipc::IpcFrame::json(
+                crate::ipc::IpcOpcode::SiagentPrompt,
+                0,
+                payload,
+            ) && let Ok(resp) = crate::ipc::client::send_frame_blocking(
+                &ep,
+                &frame,
+                Duration::from_secs(5),
+            ) && let Ok(v) = resp.payload_json()
+                && let Some(out) = v.get("output").and_then(|s| s.as_str())
+            {
+                return Ok(out.to_string());
+            }
+        }
+
+        let client = reqwest::blocking::Client::builder()
+            .connect_timeout(Duration::from_secs(2))
+            .timeout(Duration::from_secs(30))
+            .no_proxy()
+            .build()
+            .map_err(|e| format!("Failed building gateway HTTP client: {e}"))?;
+        let mut req = client.post(url).json(payload);
+        for (k, v) in headers {
+            req = req.header(k.as_str(), v.as_str());
+        }
+        let resp = req.send().map_err(|e| {
+            format!(
+                "No live <toksi-siagent> gateway or BYOK provider reachable at {}: {}",
+                url, e
+            )
+        })?;
+        if !resp.status().is_success() {
+            return Err(format!("Gateway HTTP {} at {}", resp.status(), url));
+        }
+        let val: serde_json::Value = resp
+            .json()
+            .map_err(|e| format!("Invalid gateway response JSON from {url}: {e}"))?;
+        val.pointer("/choices/0/message/content")
+            .and_then(|v| v.as_str())
+            .map(ToString::to_string)
+            .ok_or_else(|| format!("Gateway reply at {url} missing choices[0].message.content"))
+    }
+
+    /// Dispatches a prompt from `_worker siagent` IPC server to the live local AI Gateway.
+    /// Fails closed cleanly when no gateway or provider runtime is reachable.
+    pub fn dispatch_remote_siagent_prompt(&self, prompt: &str, mode: &str) -> Result<String, String> {
+        if prompt.trim().is_empty() {
+            return Err("Empty prompt passed to <toksi-siagent> worker".to_string());
+        }
+        let ports = crate::config::resolved_ports();
+        let gw_url = format!("http://127.0.0.1:{}/v1/chat/completions", ports.ai_gateway);
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(10))
+            .no_proxy()
+            .build()
+            .map_err(|e| format!("Failed building gateway HTTP client: {e}"))?;
+        let resp = client
+            .post(&gw_url)
+            .json(&serde_json::json!({
+                "model": "toksi-auto",
+                "mode": mode,
+                "messages": [{ "role": "user", "content": prompt }],
+            }))
+            .send()
+            .map_err(|e| format!("AI Gateway {gw_url} unreachable: {e}"))?;
+        if !resp.status().is_success() {
+            return Err(format!("AI Gateway returned HTTP {}", resp.status()));
+        }
+        let val: serde_json::Value = resp
+            .json()
+            .map_err(|e| format!("Invalid AI Gateway response JSON: {e}"))?;
+        val.pointer("/choices/0/message/content")
+            .and_then(|v| v.as_str())
+            .map(ToString::to_string)
+            .ok_or_else(|| "AI Gateway reply missing choices[0].message.content".to_string())
     }
 }

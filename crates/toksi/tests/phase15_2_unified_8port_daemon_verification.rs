@@ -89,7 +89,7 @@ fn test_phase15_2_daemon_plan_skips_unconfigured_agents() {
     assert!(plan.headroom_proxy);
     assert!(plan.protocol_bus);
     assert!(plan.ai_gateway);
-    assert!(plan.dashboard);
+    assert!(!plan.dashboard);
     assert!(!plan.grok_oauth_proxy);
     assert!(!plan.copilot_vscode_proxy);
     assert!(!plan.copilot_cli_proxy);
@@ -103,7 +103,7 @@ fn test_phase15_2_daemon_plan_skips_unconfigured_agents() {
     assert!(plan_all.protocol_bus);
     assert!(plan_all.byok_gateway);
     assert!(plan_all.ai_gateway);
-    assert!(plan_all.dashboard);
+    assert!(!plan_all.dashboard);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

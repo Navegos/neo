@@ -173,9 +173,10 @@ impl KillSwitch {
             "cli_bridges".to_string(),
         ];
 
-        // Best-effort stop of live proxy/bridge processes without panicking.
+        // Best-effort stop of live proxy/bridge processes and IPC workers without panicking.
         let _ = crate::headroom::proxy::stop_proxy();
         let _ = crate::tools::direct_wire::global_direct_wire_bus().clear_all();
+        let _ = crate::ipc::broadcast_kill_switch(reason);
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)

@@ -15,6 +15,12 @@ use serde::{Deserialize, Serialize};
 
 pub const SUPPORTED_EVAL_HARNESSES: &[&str] = &[
     "lm-evaluation-harness",
+    "lighteval",
+    "inspect_ai",
+    "promptfoo",
+    "deepeval",
+    "ragas",
+    "autofa",
     "sgl-eval",
     "genai-bench",
     "guidellm",
@@ -31,6 +37,45 @@ pub const SUPPORTED_EVAL_HARNESSES: &[&str] = &[
     "optimum-benchmark",
     "torchmetrics",
 ];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EvalHarnessKind {
+    LmEvalHarness,
+    Lighteval,
+    InspectAi,
+    Promptfoo,
+    DeepEval,
+    Ragas,
+    AutoFa,
+}
+
+impl EvalHarnessKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::LmEvalHarness => "lm-evaluation-harness",
+            Self::Lighteval => "lighteval",
+            Self::InspectAi => "inspect_ai",
+            Self::Promptfoo => "promptfoo",
+            Self::DeepEval => "deepeval",
+            Self::Ragas => "ragas",
+            Self::AutoFa => "autofa",
+        }
+    }
+
+    pub fn from_str_loose(s: &str) -> Option<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "lm-evaluation-harness" | "lm-eval" => Some(Self::LmEvalHarness),
+            "lighteval" => Some(Self::Lighteval),
+            "inspect_ai" | "inspect-ai" => Some(Self::InspectAi),
+            "promptfoo" => Some(Self::Promptfoo),
+            "deepeval" => Some(Self::DeepEval),
+            "ragas" => Some(Self::Ragas),
+            "autofa" => Some(Self::AutoFa),
+            _ => None,
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EvalRunSummary {

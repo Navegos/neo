@@ -1,6 +1,6 @@
 # Phase 06: Externalized Rules, `<skills>` Staging, `<enforce>` Guard & Skill Healing
 
-> **Status (Wave 19 / v6.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -79,3 +79,7 @@ Requirements:
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
 - **Wave 19 Reconciliation:** Marked `[PLAN-NEEDS-FIX]` in Wave 19: `<neo>/.agents/skills/` still holds `922` unadapted directories alongside `<neo>/agents/` (`28`) and `<neo>/rules/` (`24`). `PHASE_19_4` audits/cleans all foreign scripts/actions, grades vetted skills via `skilldoctor`/`agentskills`/`upskill`/`skill-scanner`, and syncs cleanly to `Navegos/skills`.
+
+## Wave 20 (v7.0) Synchronization Addendum
+- Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).
+- Enforces `<toksi-siagent>` (`_worker siagent`, 22 Orchestrator Modes, 29 slash commands), decoupled 10-Tab UI, `~/.toksi/services/*.db`, `ctxmode`/`aimemory` renames, `docker/compose.test.yaml`, 11 AI/ML Pillars, Distributed Cluster Stack (`src/cluster/`), and OpenTelemetry Rust (`gen_ai.*`).

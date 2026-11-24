@@ -327,11 +327,13 @@ pub fn is_toksi_managed_hook(fields: &[String]) -> bool {
             | "grok-hook"
             | "cursor-hook"
             | "index"
+            | "ctxmode-hook"
             | "ctx-hook"
             | "context-hook"
             | "context-mode-hook"
             | "icm-hook"
             | "aimemory-hook"
+            | "ai-memory-hook"
     )
 }
 
@@ -696,6 +698,7 @@ fn managed_hook_commands(agent_id: &str) -> Vec<String> {
             let hooks_dir = normalize_path(&p.hooks_dir);
             for name in [
                 "rtk.json",
+                "ctxmode.json",
                 "context.json",
                 "projectmem.json",
                 "codegraph.json",
@@ -712,6 +715,7 @@ fn managed_hook_commands(agent_id: &str) -> Vec<String> {
             if !root.is_empty() {
                 for name in [
                     "rtk.json",
+                    "ctxmode.json",
                     "context.json",
                     "projectmem.json",
                     "codegraph.json",

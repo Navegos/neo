@@ -374,16 +374,21 @@ pub fn rtk_stats(raw: &str) -> Vec<String> {
 }
 
 pub fn context_store_stats(project_dir: &str, home_dir: &str) -> String {
-    let mut roots = vec![Path::new(project_dir).join(".toksi").join("context")];
+    let mut roots = vec![
+        Path::new(project_dir).join(".toksi").join("ctxmode"),
+        Path::new(project_dir).join(".toksi").join("context"),
+    ];
     if is_win() {
         if let Ok(v) = std::env::var("APPDATA") {
             if !v.is_empty() {
+                roots.push(Path::new(&v).join("toksi").join("ctxmode"));
                 roots.push(Path::new(&v).join("toksi").join("context"));
                 roots.push(Path::new(&v).join("context-mode"));
             }
         }
     } else if let Ok(v) = std::env::var("XDG_DATA_HOME") {
         if !v.is_empty() {
+            roots.push(Path::new(&v).join("toksi").join("ctxmode"));
             roots.push(Path::new(&v).join("toksi").join("context"));
             roots.push(Path::new(&v).join("context-mode"));
         }
@@ -435,7 +440,7 @@ pub fn labelled_stats(tool: &str, out: &str) -> Vec<String> {
     match tool {
         "projectmem" => projectmem_stats(out),
         "codegraph" => codegraph_stats(out),
-        "context" | "context-mode" => vec![out.to_string()],
+        "ctxmode" | "context" | "context-mode" => vec![out.to_string()],
         "rtk" => rtk_stats(out),
         _ => vec!["unavailable".into()],
     }
@@ -443,14 +448,14 @@ pub fn labelled_stats(tool: &str, out: &str) -> Vec<String> {
 
 pub fn doctor_tool_stats(project_dir: &str, is_project: bool) -> HashMap<String, Vec<String>> {
     let mut stats = HashMap::new();
-    let tools = ["headroom", "projectmem", "rtk", "codegraph", "context"];
+    let tools = ["headroom", "projectmem", "rtk", "codegraph", "ctxmode"];
 
     for tool in tools {
         if tool == "headroom" {
             stats.insert(tool.to_string(), headroom_stats_summary());
             continue;
         }
-        if tool == "context" {
+        if tool == "ctxmode" {
             stats.insert(tool.to_string(), vec![context_store_stats(project_dir, &home())]);
             continue;
         }

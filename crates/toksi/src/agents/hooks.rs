@@ -28,7 +28,7 @@ pub use super::vscode::*;
 pub type CursorHookSnapshot = CursorProjectRulesHookSnapshot;
 
 /// Standardized uniform hook command syntax: `<tool>-hook <agent>`
-/// e.g. `codegraph-hook agy`, `projectmem-hook agy`, `context-hook agy`, `rtk-hook agy`
+/// e.g. `codegraph-hook agy`, `projectmem-hook agy`, `ctxmode-hook agy`, `rtk-hook agy`
 pub fn standard_hook_command(tool: &str, agent: &str) -> Vec<String> {
     let norm_tool = normalize_hook_tool_name(tool);
     let norm_agent = normalize_hook_agent_name(agent);
@@ -36,7 +36,7 @@ pub fn standard_hook_command(tool: &str, agent: &str) -> Vec<String> {
 }
 
 /// Normalizes tool names for hooks:
-/// e.g. `toksi-projectmem` -> `projectmem`, `toksi-context-mode` / `context-mode` -> `context`, `toksi-codegraph` -> `codegraph`
+/// e.g. `toksi-projectmem` -> `projectmem`, `toksi-context-mode` / `context-mode` / `context` -> `ctxmode`, `ai-memory` -> `aimemory`
 pub fn normalize_hook_tool_name(tool: &str) -> &'static str {
     match tool.trim().to_ascii_lowercase().as_str() {
         "projectmem"
@@ -45,15 +45,17 @@ pub fn normalize_hook_tool_name(tool: &str) -> &'static str {
         | "tokless_projectmem"
         | "projectmem-context"
         | "pjm" => "projectmem",
-        "context"
+        "ctxmode"
+        | "context"
         | "context-mode"
         | "contextmode"
+        | "toksi-ctxmode"
         | "toksi-context"
         | "toksi-context-mode"
         | "tokless-context"
         | "tokless_context"
         | "tokless-context-mode"
-        | "ctx" => "context",
+        | "ctx" => "ctxmode",
         "codegraph"
         | "toksi-codegraph"
         | "toksi-codegraph-index"
@@ -178,10 +180,11 @@ mod tests {
         assert_eq!(standard_hook_command("projectmem", "copilot"), vec!["projectmem-hook", "copilot"]);
         assert_eq!(standard_hook_command("projectmem", "copilot-cli"), vec!["projectmem-hook", "copilot-cli"]);
         assert_eq!(standard_hook_command("projectmem", "copilot-vscode"), vec!["projectmem-hook", "copilot-vscode"]);
-        assert_eq!(standard_hook_command("context-mode", "cursor"), vec!["context-hook", "cursor"]);
+        assert_eq!(standard_hook_command("context-mode", "cursor"), vec!["ctxmode-hook", "cursor"]);
         assert_eq!(standard_hook_command("toksi-rtk", "claude-cli"), vec!["rtk-hook", "claude-cli"]);
         assert_eq!(standard_hook_command("rtk", "claude-desktop"), vec!["rtk-hook", "claude-desktop"]);
-        assert_eq!(standard_hook_command("context", "openagents"), vec!["context-hook", "openagents"]);
+        assert_eq!(standard_hook_command("ctxmode", "openagents"), vec!["ctxmode-hook", "openagents"]);
+        assert_eq!(standard_hook_command("context", "openagents"), vec!["ctxmode-hook", "openagents"]);
     }
 
     #[test]
@@ -212,6 +215,8 @@ mod tests {
         assert_eq!(p, ".gemini/skills/codegraph");
 
         let p2 = agent_mcp_to_skills_path(".copilot", "context-mode");
-        assert_eq!(p2, ".copilot/skills/context");
+        assert_eq!(p2, ".copilot/skills/ctxmode");
+        let p3 = agent_mcp_to_skills_path(".copilot", "ctxmode");
+        assert_eq!(p3, ".copilot/skills/ctxmode");
     }
 }

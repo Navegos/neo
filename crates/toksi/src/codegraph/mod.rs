@@ -16,6 +16,7 @@ pub mod jcodemunch;
 pub mod kernel;
 pub mod mcp;
 pub mod openwiki;
+pub mod pmat;
 pub mod repomix;
 pub mod reranker;
 pub mod scip;

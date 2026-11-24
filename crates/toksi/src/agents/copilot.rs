@@ -226,6 +226,7 @@ pub fn install_copilot_context_mode_hook_safe() -> Result<(), String> {
     let p = paths::copilot_paths_resolved();
     paths::ensure_dir(&p.hooks_dir).map_err(|e| e.to_string())?;
     let _ = fs::remove_file(copilot_hooks_file("context-mode.json"));
+    let _ = fs::remove_file(copilot_hooks_file("context.json"));
 
     let (base_cmd, _) = toksi_command_ok(&[]);
     let bin = if base_cmd.is_empty() {
@@ -248,7 +249,7 @@ pub fn install_copilot_context_mode_hook_safe() -> Result<(), String> {
         h.insert("type".to_string(), Value::String("command".to_string()));
         h.insert(
             "command".to_string(),
-            Value::String(format!("{bin} context-hook copilot-cli {token}")),
+            Value::String(format!("{bin} ctxmode-hook copilot-cli {token}")),
         );
         hooks.insert(event.to_string(), Value::Array(vec![Value::Object(h)]));
     }
@@ -257,9 +258,9 @@ pub fn install_copilot_context_mode_hook_safe() -> Result<(), String> {
     root.insert("version".to_string(), Value::from(1));
     root.insert("hooks".to_string(), Value::Object(hooks));
     write_owned_copilot_hook(
-        &copilot_hooks_file("context.json"),
+        &copilot_hooks_file("ctxmode.json"),
         &stringify_json(&Value::Object(root)),
-        "context-hook copilot-cli",
+        "ctxmode-hook copilot-cli",
     )
 }
 
@@ -272,20 +273,27 @@ pub fn remove_copilot_context_mode_hook_safe() -> Result<(), String> {
         &copilot_hooks_file("context-mode.json"),
         "context-mode hook copilot-cli",
     );
-    remove_owned_copilot_hook(
+    let _ = remove_owned_copilot_hook(
         &copilot_hooks_file("context.json"),
         "context-hook copilot-cli",
+    );
+    remove_owned_copilot_hook(
+        &copilot_hooks_file("ctxmode.json"),
+        "ctxmode-hook copilot-cli",
     )
 }
 
 pub fn has_copilot_context_mode_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("context.json")) else {
+    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("ctxmode.json"))
+        .or_else(|| paths::read_file_safe(&copilot_hooks_file("context.json")))
+    else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
         return false;
     };
-    copilot_hook_owned(&cfg, "context-hook copilot-cli")
+    copilot_hook_owned(&cfg, "ctxmode-hook copilot-cli")
+        || copilot_hook_owned(&cfg, "context-hook copilot-cli")
 }
 
 pub fn install_copilot_ide_context_mode_hook() {
@@ -295,6 +303,7 @@ pub fn install_copilot_ide_context_mode_hook() {
 pub fn install_copilot_ide_context_mode_hook_safe() -> Result<(), String> {
     paths::ensure_dir(&copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
     let _ = fs::remove_file(copilot_ide_hooks_file("context-mode.json"));
+    let _ = fs::remove_file(copilot_ide_hooks_file("context.json"));
     let (base_cmd, _) = toksi_command_ok(&[]);
     let bin = if base_cmd.is_empty() {
         "toksi".to_string()
@@ -309,7 +318,7 @@ pub fn install_copilot_ide_context_mode_hook_safe() -> Result<(), String> {
         h.insert("type".to_string(), Value::String("command".to_string()));
         h.insert(
             "command".to_string(),
-            Value::String(format!("{bin} context-hook copilot-vscode {tok}")),
+            Value::String(format!("{bin} ctxmode-hook copilot-vscode {tok}")),
         );
         h.insert("timeout".to_string(), Value::from(10));
         hooks.insert((*ev).to_string(), Value::Array(vec![Value::Object(h)]));
@@ -318,9 +327,9 @@ pub fn install_copilot_ide_context_mode_hook_safe() -> Result<(), String> {
     root.insert("version".to_string(), Value::from(1));
     root.insert("hooks".to_string(), Value::Object(hooks));
     write_owned_copilot_hook(
-        &copilot_ide_hooks_file("context.json"),
+        &copilot_ide_hooks_file("ctxmode.json"),
         &stringify_json(&Value::Object(root)),
-        "context-hook copilot-vscode",
+        "ctxmode-hook copilot-vscode",
     )
 }
 
@@ -333,20 +342,27 @@ pub fn remove_copilot_ide_context_mode_hook_safe() -> Result<(), String> {
         &copilot_ide_hooks_file("context-mode.json"),
         "context-mode hook copilot-vscode",
     );
-    remove_owned_copilot_hook(
+    let _ = remove_owned_copilot_hook(
         &copilot_ide_hooks_file("context.json"),
         "context-hook copilot-vscode",
+    );
+    remove_owned_copilot_hook(
+        &copilot_ide_hooks_file("ctxmode.json"),
+        "ctxmode-hook copilot-vscode",
     )
 }
 
 pub fn has_copilot_ide_context_mode_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("context.json")) else {
+    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("ctxmode.json"))
+        .or_else(|| paths::read_file_safe(&copilot_ide_hooks_file("context.json")))
+    else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
         return false;
     };
-    copilot_hook_owned(&cfg, "context-hook copilot-vscode")
+    copilot_hook_owned(&cfg, "ctxmode-hook copilot-vscode")
+        || copilot_hook_owned(&cfg, "context-hook copilot-vscode")
 }
 
 fn copilot_rtk_hook_command() -> String {
@@ -722,7 +738,7 @@ fn copilot_hook_owned(cfg: &OrderedMap, marker: &str) -> bool {
     let mut expected: HashSet<&str> = HashSet::new();
     let mut expected_timeout: i64 = -1;
     match marker {
-        "context-hook copilot-cli" | "context-mode hook copilot-cli" => {
+        "ctxmode-hook copilot-cli" | "context-hook copilot-cli" | "context-mode hook copilot-cli" => {
             expected.extend([
                 "preToolUse",
                 "postToolUse",
@@ -732,7 +748,7 @@ fn copilot_hook_owned(cfg: &OrderedMap, marker: &str) -> bool {
                 "preCompact",
             ]);
         }
-        "context-hook copilot-vscode" | "context-mode hook copilot-vscode" => {
+        "ctxmode-hook copilot-vscode" | "context-hook copilot-vscode" | "context-mode hook copilot-vscode" => {
             expected.extend(["PreToolUse", "PostToolUse", "SessionStart", "Stop"]);
             expected_timeout = 10;
         }
@@ -814,7 +830,7 @@ fn copilot_hook_command_marker(cfg: &OrderedMap) -> String {
 
 fn copilot_hook_command_owned(command: &str, marker: &str) -> bool {
     match marker {
-        "context-hook copilot-cli" => [
+        "ctxmode-hook copilot-cli" | "context-hook copilot-cli" => [
             "pretooluse",
             "posttooluse",
             "sessionstart",
@@ -824,15 +840,21 @@ fn copilot_hook_command_owned(command: &str, marker: &str) -> bool {
         ]
         .iter()
         .any(|s| {
-            toksi_managed_command(command, &["context-hook", "copilot-cli", s])
+            toksi_managed_command(command, &["ctxmode-hook", "copilot-cli", s])
+                || has_exact_hook_suffix(command, "toksi ctxmode-hook copilot-cli", &[s])
+                || toksi_managed_command(command, &["context-hook", "copilot-cli", s])
                 || has_exact_hook_suffix(command, "toksi context-hook copilot-cli", &[s])
         }),
-        "context-hook copilot-vscode" => ["pretooluse", "posttooluse", "sessionstart", "stop"]
-            .iter()
-            .any(|s| {
-                toksi_managed_command(command, &["context-hook", "copilot-vscode", s])
-                    || has_exact_hook_suffix(command, "toksi context-hook copilot-vscode", &[s])
-            }),
+        "ctxmode-hook copilot-vscode" | "context-hook copilot-vscode" => {
+            ["pretooluse", "posttooluse", "sessionstart", "stop"]
+                .iter()
+                .any(|s| {
+                    toksi_managed_command(command, &["ctxmode-hook", "copilot-vscode", s])
+                        || has_exact_hook_suffix(command, "toksi ctxmode-hook copilot-vscode", &[s])
+                        || toksi_managed_command(command, &["context-hook", "copilot-vscode", s])
+                        || has_exact_hook_suffix(command, "toksi context-hook copilot-vscode", &[s])
+                })
+        }
         "context-mode hook copilot-cli" => has_exact_hook_suffix(
             command,
             marker,
@@ -1208,7 +1230,7 @@ fn copilot_mcp_desired(tool_id: &str, ide: bool) -> OrderedMap {
             Value::Array(vec![Value::String("*".to_string())]),
         );
     }
-    if tool_id == "context" || tool_id == "context-mode" {
+    if matches!(tool_id, "ctxmode" | "context" | "context-mode") {
         let mut env = OrderedMap::new();
         env.insert(
             "CONTEXT_MODE_PLATFORM".to_string(),
@@ -1329,7 +1351,8 @@ pub fn copilot_transaction_file_owned(path: &str) -> bool {
         .file_name()
         .and_then(|s| s.to_str())
         .unwrap_or("");
-    if base == "context.json"
+    if base == "ctxmode.json"
+        || base == "context.json"
         || base == "context-mode.json"
         || base == "codegraph.json"
         || base == "toksi-codegraph-index.json"
@@ -1342,6 +1365,8 @@ pub fn copilot_transaction_file_owned(path: &str) -> bool {
             return false;
         };
         for marker in [
+            "ctxmode-hook copilot-cli",
+            "ctxmode-hook copilot-vscode",
             "context-hook copilot-cli",
             "context-hook copilot-vscode",
             "context-mode hook copilot-cli",
