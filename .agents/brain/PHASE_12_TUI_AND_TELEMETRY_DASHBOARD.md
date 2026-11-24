@@ -1,6 +1,6 @@
 # Phase 12: TUI, Prometheus Telemetry & Web Dashboard
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -69,7 +69,7 @@ Requirements:
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
-- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).
+- **Wave 19–20 Reconciliation:** Synchronized to Wave 20 / v7.0 (`493` deep-researched vaults, `49` `.agents/brain/*.md` guides, dedicated `toksi _worker <role>` subprocesses, `ctxmode`/`aimemory` renames, `docker/Dockerfile.test` + `docker/compose.test.yaml`, separated `~/.toksi/services/*.db`, detached `:9100` **10-Tab** UI, `toksi cluster`, `src/telemetry/otel.rs`, and **29** slash commands).
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

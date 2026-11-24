@@ -1,6 +1,6 @@
 # Phase 17.4: Deep Vault Parity, 65/90+ Ecosystem & 22 Local Engines, & Hook/MCP Cleanup
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -63,8 +63,8 @@ Requirements:
 - Enforce `<enforce>` security delimiters, `defenseclaw` fail-closed hookguard + `skill-scanner` multi-engine/CEL scan, `skilldoctor` + `agentskills` YAML frontmatter healing + deduplication (`PHASE_18_2`), externalized `<skills>` staging (zero binary bloat), Toksi Unified Plugin System (`src/plugins/`) hook/MCP mounts, and OpenCode `.opencode/hooks.json` unification (`PHASE_18_5`) across all synced rule files, `SKILL.md` assets, plugins, and agent hook catalogs.
 
 ## Wave 19 (v6.0) Synchronization Addendum
-- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
-- **Wave 19 Reconciliation:** Legacy misroutes in `commands/{index,ctx,runmcp}.rs` repaired; `[PLAN-NEEDS-FIX]` tracks `PHASE_19_1` `ctxmode-hook` migration and `PHASE_19_2` subprocess Direct-Wire IPC.
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+- **Wave 19–20 Reconciliation:** Legacy misroutes in `commands/{index,ctx,runmcp}.rs` repaired; `PHASE_19_1` `ctxmode-hook` migration and `PHASE_19_2` subprocess Direct-Wire IPC completed.
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

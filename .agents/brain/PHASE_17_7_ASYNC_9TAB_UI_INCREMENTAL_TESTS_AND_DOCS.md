@@ -1,6 +1,6 @@
 # Phase 17.7: Async 9-Tab Mouse TUI, Live Web Cockpit (`:9100`), Incremental `.toksi/test-baseline.json` Harness, CLI `--help`, & Full Doc Sync
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -57,7 +57,7 @@ Requirements:
 - Second incremental test run with no source edits logs `[SKIP-UNCHANGED]` for all green suites; editing 1 file in a watched module re-triggers only the affected suite(s).
 
 ## Wave 19 (v6.0) Synchronization Addendum
-- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 - **Wave 19 Reconciliation:** `.toksi/test-baseline.json` tracks `35` suites; `PHASE_19_3` adds `docker/Dockerfile.test`, `toksi test --docker|--sandbox`, and `TOKSI_HOME`/`:0` isolation.
 
 ## Wave 20 (v7.0) Synchronization Addendum

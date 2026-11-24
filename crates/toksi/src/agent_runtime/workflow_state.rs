@@ -58,19 +58,30 @@ impl DurableWorkflowState {
         status: DurableStepStatus,
         idempotency_key: impl Into<String>,
         output_digest: impl Into<String>,
-    ) {
+    ) -> u64 {
+        let step_id = step_id.into();
+        let idempotency_key = idempotency_key.into();
+        if !idempotency_key.is_empty()
+            && let Some(existing) = self
+                .journal
+                .iter()
+                .find(|e| e.step_id == step_id && e.idempotency_key == idempotency_key)
+        {
+            return existing.seq;
+        }
         let seq = self.journal.len() as u64 + 1;
         if status == DurableStepStatus::Completed {
             self.current_step += 1;
         }
         self.journal.push(DurableJournalEntry {
             seq,
-            step_id: step_id.into(),
+            step_id,
             status,
-            idempotency_key: idempotency_key.into(),
+            idempotency_key,
             output_digest: output_digest.into(),
             timestamp_unix: chrono::Utc::now().timestamp(),
         });
+        seq
     }
 
     pub fn save_to_repo(&self, repo_root: &Path) -> Result<(), String> {

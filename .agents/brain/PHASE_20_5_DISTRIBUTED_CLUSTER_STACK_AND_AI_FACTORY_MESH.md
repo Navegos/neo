@@ -1,6 +1,6 @@
 # Phase 20.5 — Toksi Distributed Cluster Stack (`src/cluster/` & `toksi cluster` — 26 Sec 2.15 Vaults)
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 
 ## Ready-to-Run Chat Prompt
 ```text

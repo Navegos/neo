@@ -1,6 +1,6 @@
 # Phase 19.4 — Zero-Pollution Adapt-Only Repo Hygiene & `.agents/skills/` Cleanup
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text

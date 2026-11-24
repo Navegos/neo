@@ -1,6 +1,6 @@
 # Phase 13: End-to-End System Verification & Benchmarks
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -60,7 +60,7 @@ Requirements:
 - Pair with `PHASE_18_4`: assert zero stale `.projectmem/` pre-read refs, zero legacy `crates/tokless/*` paths in docs, all **43** `.agents/brain/*.md` files present (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_19_6`), **432** mandated vaults (`36` + `259` Wave 18 across Sections `2.1`–`2.10` incl. `opencode`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `OpenShell`, `E2B`, `opa`, `cedar`, `spire`, `Guardrails`, `llm-guard`, `temporal`, `restate`, `qdrant`, `cognee`, `graphiti`, `defenseclaw`, `skill-scanner`, `<advisory>`, `<skills>`), **35-component `<toksi-siagent>`**, zero embedded skills/rules inside `crates/toksi/`, 8-port daemon coverage (`:9098` Protocol Bus), **16** slash commands (`/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `src/plugins/` Unified Plugin System, `src/validator/`, `src/security/adr.rs`, `src/commands/guard.rs`, `plugins_registry` + zero-plaintext SQLite DDL, and clean incremental updates to `<repo>/.toksi/test-baseline.json`.
 
 ## Wave 19 (v6.0) Synchronization Addendum
-- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 - **Wave 19 Reconciliation:** Unit verification passes across `35` `.toksi/test-baseline.json` suites, while live-safe isolated container/sandbox full E2E verification moves to `PHASE_19_3` (`docker/Dockerfile.test`, `toksi test --docker|--sandbox`).
 
 ## Wave 20 (v7.0) Synchronization Addendum

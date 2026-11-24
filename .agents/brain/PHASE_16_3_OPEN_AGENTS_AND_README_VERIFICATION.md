@@ -1,6 +1,6 @@
 # Phase 16.3: Open Agents Directory Protocols & README Verification
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -66,7 +66,7 @@ Requirements:
 - Synchronize `crates/toksi/README.md`, `CONSOLIDATION_PLAN.md`, `PLAN.md`, and `.toksi/projectmem/*` across all **432 unique mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`.
 
 ## Wave 19 (v6.0) Synchronization Addendum
-- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 - **Wave 19 Reconciliation:** Wave 19 README/CLI documentation synced (`432` vaults, `43` brain guides); CLI expands from `16` baseline slash commands to `21` (`/ctxmode`, `/workforce`, `/spec`, `/train`, `/serve`, `/voice`) across `PHASE_19_1`, `19_5`, `19_6`.
 
 ## Wave 20 (v7.0) Synchronization Addendum

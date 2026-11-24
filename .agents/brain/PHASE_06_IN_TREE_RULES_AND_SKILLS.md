@@ -1,6 +1,6 @@
 # Phase 06: Externalized Rules, `<skills>` Staging, `<enforce>` Guard & Skill Healing
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -77,8 +77,8 @@ Requirements:
 - Audit every synced skill, plugin, and script against **`defenseclaw`** fail-closed hookguard/audit + **`skill-scanner`** multi-engine/CEL policy + **`opa`/`cedar`** Policy-as-Code + `research-securety-skills` and `sage` threat rules before activation (`toksi skills heal`, `toksi security scan-skills`, `toksi plugin scan`).
 
 ## Wave 19 (v6.0) Synchronization Addendum
-- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
-- **Wave 19 Reconciliation:** Marked `[PLAN-NEEDS-FIX]` in Wave 19: `<neo>/.agents/skills/` still holds `922` unadapted directories alongside `<neo>/agents/` (`28`) and `<neo>/rules/` (`24`). `PHASE_19_4` audits/cleans all foreign scripts/actions, grades vetted skills via `skilldoctor`/`agentskills`/`upskill`/`skill-scanner`, and syncs cleanly to `Navegos/skills`.
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+- **Wave 19–20 Reconciliation:** Remediated (`PHASE_19_4`): `<neo>/.agents/skills/` audited and cleaned alongside `<neo>/agents/` and `<neo>/rules/`; vetted skills graded via `skilldoctor`/`agentskills`/`upskill`/`skill-scanner` and synced cleanly to `Navegos/skills`.
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

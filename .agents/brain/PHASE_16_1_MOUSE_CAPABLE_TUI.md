@@ -1,6 +1,6 @@
 # Phase 16.1: High-Performance 9-Tab Async Mouse-Capable TUI
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -66,7 +66,7 @@ Requirements:
 - Tab 5 surfaces `skill-scanner` multi-engine/CEL policy findings (SARIF 2.1.0), built-in 41-language SAST/OSV findings (`src/security/`), `Navegos/advisory` O(1) prefix search + `publish-pr` status, and `skilldoctor`/`agentskills` YAML frontmatter healing status; Tab 6 surfaces 5-backend OS sandbox (`native` / `sandbox-runtime` / `OpenShell` / `E2B` / `sbx`), ADR interception & quarantine events (`adr.rs`), `CommandGuard` offensive-policy + bypass kill-switch audit log (`guard.rs`), `opa`/`cedar` Policy-as-Code + `spire` IAM attestation + `Guardrails`/`llm-guard` + `defenseclaw` fail-closed hookguard/`tool-chains.json`/`audit-evidence`, `<enforce>` violations, and `sage` threat blocks; Tab 7 exposes Interactive Plugin Manager (`src/plugins/`), External `<skills>` Sync Manager (`Navegos/skills` + user skills dir, `[repositories]`), Google Cloud ADC (`AGY_ADC_AUTH=true`) project/location & `/effort` controls; Tab 9 exposes `plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events` + `byok_profiles` DB export/import.
 
 ## Wave 19 (v6.0) Synchronization Addendum
-- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
 - **Wave 19 Reconciliation:** 9-tab Ratatui TUI rendered; Wave 19 extends async live telemetry panels for dedicated `_worker` subprocesses, `/workforce`, `/spec`, and `toksi train | serve | eval` (`PHASE_19_2`, `19_5`, `19_6`).
 
 ## Wave 20 (v7.0) Synchronization Addendum

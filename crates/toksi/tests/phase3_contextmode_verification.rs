@@ -154,6 +154,7 @@ fn test_phase3_fts5_chunking_and_bm25_search() {
 fn test_phase3_directory_indexing_and_traversal() {
     let tmp = tempdir().unwrap();
     let root = tmp.path();
+    fs::create_dir_all(root.join(".git")).unwrap();
 
     let docs_dir = root.join("docs");
     let src_dir = root.join("src");
@@ -168,7 +169,7 @@ fn test_phase3_directory_indexing_and_traversal() {
     let dir_res = store.index_directory(root, 100, 5, Some("my-workspace")).expect("index directory");
 
     assert_eq!(dir_res.files_indexed, 3);
-    let expected_root = root.canonicalize().unwrap().to_string_lossy().to_string();
+    let expected_root = toksi::util::paths::normalize_path(&root.canonicalize().unwrap().to_string_lossy());
     assert_eq!(dir_res.root, expected_root);
     assert!(!dir_res.capped);
 

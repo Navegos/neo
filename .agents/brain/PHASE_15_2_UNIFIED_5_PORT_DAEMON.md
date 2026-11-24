@@ -1,6 +1,6 @@
 # Phase 15.2: Unified 8-Port Daemon, `config.toml`, & Copilot Supervision
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -67,8 +67,8 @@ Requirements:
 - Ensure `CommandGuard` bypass kill-switch (`src/commands/guard.rs`) cleanly shuts down all 8 daemon ports (`:8787..:8790, :9098, :9099, :9100, :18787`), while ALL 7 inference/protocol ports enforce the shared `HeadroomEffortCompressor` across **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.
 
 ## Wave 19 (v6.0) Synchronization Addendum
-- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
-- **Wave 19 Reconciliation:** Marked `[PLAN-NEEDS-FIX]` in Wave 19: `src/commands/daemon.rs:491-588` still spawns in-process Tokio tasks/threads. `PHASE_19_2` splits all 8 network ports (`8787`–`8790`, `9098`, `9099`, `9100`, `18787`), `<toksi-siagent>`, and core tools into dedicated OS worker subprocesses (`toksi _worker <role>`) over Named Pipe / UDS IPC.
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+- **Wave 19–20 Reconciliation:** Remediated (`PHASE_19_2`/`20_2`): split network ports (`8787`–`8790`, `9098`, `9099`, `18787`), `<toksi-siagent>`, and core tools into dedicated `toksi _worker <role>` subprocesses over Named Pipe / UDS IPC with `:9100` detached from `daemon start`.
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

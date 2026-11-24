@@ -1,6 +1,6 @@
 # Phase 15.4: Multi-Protocol Architecture & Dynamic Ignore Purging
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -65,7 +65,7 @@ Requirements:
 - Publish `temporal`/`restate`/`langgraph` `plan_checkpoints` pause/resume events and static security findings on `:9098` streams.
 
 ## Wave 19 (v6.0) Synchronization Addendum
-- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 - **Wave 19 Reconciliation:** MCP/A2A/ACP/SSE protocol bus (`:9098`) active; `PHASE_19_5` adds **ANP (`did_wba`)** and **QUIC (`quinn`)** transport parity.
 
 ## Wave 20 (v7.0) Synchronization Addendum

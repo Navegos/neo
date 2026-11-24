@@ -398,8 +398,39 @@ fn test_phase7_gateway_proxy_orchestrator_end_to_end() {
     let port = listener.local_addr().expect("local addr").port();
     std::thread::spawn(move || {
         if let Ok((mut stream, _)) = listener.accept() {
-            let mut buf = [0u8; 4096];
-            let _ = stream.read(&mut buf);
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(2)));
+            let mut req_bytes = Vec::new();
+            let mut chunk = [0u8; 4096];
+            let mut header_end = None;
+            let mut content_len = 0usize;
+            loop {
+                match stream.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(n) => {
+                        req_bytes.extend_from_slice(&chunk[..n]);
+                        if header_end.is_none()
+                            && let Some(pos) = req_bytes.windows(4).position(|w| w == b"\r\n\r\n")
+                        {
+                            let end = pos + 4;
+                            header_end = Some(end);
+                            let headers_str = String::from_utf8_lossy(&req_bytes[..end]);
+                            for line in headers_str.lines() {
+                                if let Some((k, v)) = line.split_once(':')
+                                    && k.trim().eq_ignore_ascii_case("content-length")
+                                {
+                                    content_len = v.trim().parse::<usize>().unwrap_or(0);
+                                }
+                            }
+                        }
+                        if let Some(end) = header_end
+                            && req_bytes.len() >= end + content_len
+                        {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
             let body = r#"{"id":"msg-live-1","model":"claude-3-5-sonnet","content":[{"type":"text","text":"Response from gateway"}],"stop_reason":"end_turn","usage":{"input_tokens":18,"output_tokens":6}}"#;
             let resp = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -407,6 +438,11 @@ fn test_phase7_gateway_proxy_orchestrator_end_to_end() {
                 body
             );
             let _ = stream.write_all(resp.as_bytes());
+            let _ = stream.flush();
+            let _ = stream.shutdown(std::net::Shutdown::Write);
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(500)));
+            let mut drain = [0u8; 512];
+            while matches!(stream.read(&mut drain), Ok(n) if n > 0) {}
         }
     });
 

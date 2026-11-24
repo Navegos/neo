@@ -31,15 +31,14 @@ All listening ports are overridable via `~/.toksi/config.toml` (`[ports]` & `[su
 │ │ - Low/Med/High Effort Scale  │   │ - /v1/security/scan & Prometheus /metrics     │ │
 │ │ - 21 Target /... Commands    │   │ - AGY_ADC_AUTH=true Vertex (vertex_rust_sdk)  │ │
 │ └──────────────────────────────┘   │ - 65/90+ Ecosystem & 30+ Local/Rust Engines   │ │
-│ ┌─ _worker grok / copilot-* ───┐   └───────────────────────────────────────────────┘ │
-│ │ :8788 Grok OAuth Daemon      │   ┌─ _worker protocol-bus ────────────────────────┐ │
-│ │ :8789 Copilot VS Code        │   │ :9098 Unified Protocol Bus                    │ │
-│ │ :8790 Copilot CLI            │   │ - MCP/A2A/ACP/ANP (did_wba)/SSE/HTTP/QUIC     │ │
-│ └──────────────────────────────┘   │ - All 432 Vaults, <toksi-siagent> & State     │ │
-│ ┌─ _worker byok-gateway ───────┐   └───────────────────────────────────────────────┘ │
-│ │ :18787 BYOK & Vertex ADC     │   ┌─ _worker dashboard ───────────────────────────┐ │
-│ │ - Per-profile base_url/ADC   │   │ :9100 Detached Web Telemetry Cockpit          │ │
-│ │ - Headroom Effort Compress   │   │ - 9-Tab UI, tokview, Workers, Train & Security│ │
+│ ┌─ _worker grok / copilot-* ───┐   ┌─ _worker protocol-bus ────────────────────────┐ │
+│ │ :8788 Grok OAuth Daemon      │   │ :9098 Unified Protocol Bus                    │ │
+│ │ :8789 Copilot VS Code        │   │ - MCP/A2A/ACP/ANP (did_wba)/SSE/HTTP/QUIC     │ │
+│ │ :8790 Copilot CLI            │   │ - All 493 Vaults, <toksi-siagent> & State     │ │
+│ └──────────────────────────────┘   └───────────────────────────────────────────────┘ │
+│ ┌─ _worker byok-gateway ───────┐   ┌─ detached dashboard (`toksi dashboard`) ───────┐ │
+│ │ :18787 BYOK & Vertex ADC     │   │ :9100 Detached Web Telemetry Cockpit          │ │
+│ │ - Per-profile base_url/ADC   │   │ - 10-Tab UI, tokview, Workers, Cluster, OTel │ │
 │ └──────────────────────────────┘   └───────────────────────────────────────────────┘ │
 │                                                                                      │
 │ [ Named Pipe / UDS DirectWireBus (`src/ipc/`) -> Dedicated Subsystem Workers ]       │
@@ -72,7 +71,7 @@ All listening ports are overridable via `~/.toksi/config.toml` (`[ports]` & `[su
 ## 2. Core Disciplines, Security Governance & Workspace Isolation
 
 1. **Safe Rust (Edition 2024)**:
-   - Strict `#![deny(unsafe_code)]` at `crates/toksi/src/{lib,main}.rs` (`0` unsafe blocks across `456` `.rs` files); platform FFI and C-ABI grammar shims live isolated in `crates/toksi-sys` and `crates/toksi-grammars`.
+   - Strict `#![deny(unsafe_code)]` at `crates/toksi/src/{lib,main}.rs` (`0` unsafe blocks across `497` `src/**/*.rs` / `541` total `.rs` files); platform FFI and C-ABI grammar shims live isolated in `crates/toksi-sys` and `crates/toksi-grammars`.
    - Zero `.unwrap()`, `.expect()`, `panic!()`; must compile cleanly under `cargo clippy --workspace --all-targets -- -D warnings`.
 2. **Declarative Configuration (`~/.toksi/config.toml`) & SQLite Store (`~/.toksi/toksi.db`)**:
    - `~/.toksi/config.toml` configures `[repositories]` (`Navegos/advisory` & `Navegos/skills` checkouts + `~/.toksi/user-skills`), custom `[ports]`, `[supervisor]` (`worker_restart_max`, `ipc_transport`), `[testing]` (`default_mode`, `docker_image`), `[auth.gcp_adc]` (`AGY_ADC_AUTH=true`), `[optimization]`, `[security]` (`defenseclaw_fail_closed = true`, `skill_scanner_policy = "balanced"`, `kill_all_services_on_bypass = true`, `adr_enabled = true`, `zero_plaintext_blind_signatures = true`, `sandbox_backend = "auto"`), `[plugins]` (`plugin_dirs`, `enforce_security_scan = true`, `fail_closed_hooks = true`, `protocols`, `allow_agent_to_agent = true`), `[checkpoint]`, `default_agents`, custom API `base_url` endpoints, `direct_wire` defaults, and `[[byok.instances]]`.
@@ -115,9 +114,9 @@ All listening ports are overridable via `~/.toksi/config.toml` (`[ports]` & `[su
 
 ---
 
-## 4. Native Coding CLI (`toksi chat|run|exec|swarm|train|serve|eval`), Unified Plugins, Safe Resume & 21 Target Slash Commands
+## 4. Native Coding CLI (`toksi chat|run|exec|swarm|train|serve|eval|cluster`), Unified Plugins, Safe Resume & 29 Universal Slash Commands
 
-Launch the 35-component `<toksi-siagent>` directly as your standalone AI coding CLI, multi-agent workforce/spec orchestrator, or training/serving plane — wired out of the box ("off the back") via Named Pipe/UDS `DirectWireBus` and local endpoints (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`) across all **432** unique deep-researched vaults:
+Launch the 35-component `<toksi-siagent>` directly as your standalone AI coding CLI (`toksi _worker siagent`), multi-agent workforce/spec orchestrator, cluster operator, or training/serving plane — wired out of the box ("off the back") via Named Pipe/UDS `DirectWireBus` and local endpoints (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`) across all **493** unique deep-researched vaults:
 
 ```bash
 # Interactive coding session with 5-backend sandbox, OPA/Cedar/SPIRE/<enforce> guardrails & durable plan checkpoints
@@ -133,21 +132,21 @@ toksi skills sync && toksi plugin list
 toksi swarm "Audit all 45 language grammars and heal SKILL.md frontmatter"
 toksi agent resume [<plan_id>]
 
-# Model training, local serving, evals & live-safe Docker/sandbox isolated tests (Wave 19)
+# Model training, local serving, evals & live-safe Docker/Compose/sandbox isolated tests (Waves 19-20)
 toksi train --recipe unsloth-qlora && toksi serve --engine oxillama && toksi eval --suite lighteval
 toksi test --docker   # or: toksi test --sandbox (zero impact on live host services)
 ```
 
-**Target 21 Instant In-Chat Slash Commands** (`16` core live + `PHASE_19_1`/`19_5`/`19_6` expansions `< 5ms` non-blocking execution in `toksi chat` and hooked agents):
+**All 29 Instant In-Chat Slash Commands** (`< 5ms` non-blocking execution in `toksi chat` and hooked agents):
 - `/byok [filter]` -> select BYOK provider or Google ADC profile
 - `/model [filter]` -> select model discovered via zero-cost `/v1/models`
-- `/effort [low|medium|high]` -> set thinking budget & scale Headroom compression
+- `/effort [low|medium|high|xhigh|max]` -> set thinking budget & scale Headroom compression
 - `/byokmodel <byok> <model> [effort]` -> atomic profile binding update
-- `/projectmem ...`, `/ctxmode ...` *(Wave 19.1 rename from `/context`)*, `/codegraph ...`, `/icm ...`, `/ai-memory ...`, `/rtk ...`
-- `/security [scan [path]|scan-skills [path]|guardrails|audit-evidence|adr|rules|audit-skills]` -> run 45-lang SAST/OSV, blind signature scan, ADR audit, `skill-scanner`, `defenseclaw` + ATR + OpenAI guardrails, & `agentskills` YAML healer
+- `/projectmem ...`, `/ctxmode ...` *(renamed from `/context`)*, `/codegraph ...`, `/icm ...`, `/aimemory ...` *(renamed from `/ai-memory`)*, `/rtk ...`
+- `/security [scan [path]|scan-skills [path]|guardrails|audit-evidence|adr|rules|audit-skills]` -> run 45-lang SAST/OSV, blind signature scan, ADR audit, `skill-scanner`, `defenseclaw` + ATR + OpenAI guardrails + `PurpleLlama`, & `agentskills` YAML healer
 - `/advisory [search <q>|validate|prune-fp|build-shards|publish-pr|set-dir <path>]` -> query `Navegos/advisory` + 12 upstream DBs, `DisclosureGate`, & publish PRs
 - `/skills [sync|list|import <dir>|heal|grade|scan|push|set-dir <path>]` -> fetch vetted skills from `Navegos/skills` + user dir, grade/heal/eval via `skilldoctor` + `agentskills` + `upskill` (zero binary bloat)
-- `/sandbox [run|create|exec|ls|inspect|stop|rm|policy|secret]` -> launch & control 3-OS native / `sandbox-runtime` / `sbx` isolated sandboxes
+- `/sandbox [run|create|exec|ls|inspect|stop|rm|policy|secret]` -> launch & control 3-OS native / `sandbox-runtime` / `sbx` / Docker Compose isolated sandboxes
 - `/plugin [list|load <id>|unload <id>|reload <id>|info <id>|scan <path>|enable <id>|disable <id>]` -> manage Unified Plugins (`src/plugins/`) under mandatory `<enforce>` scan
 - `/resume [plan_id]` -> hydrate `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` and resume from last uncompleted step
 - `/workforce ...`, `/spec ...`, `/dataset ...` *(Wave 20.4)*, `/train ...`, `/eval ...`, `/compress ...` *(Wave 20.4)*, `/serve ...`, `/cluster ...` *(Wave 20.5)*, `/otel ...` *(Wave 20.6)*, `/voice ...`, `/mode ...`, `/sampling ...`, `/router ...` — completing all **29** universal `< 5ms` slash commands.
@@ -156,7 +155,7 @@ toksi test --docker   # or: toksi test --sandbox (zero impact on live host servi
 
 ---
 
-## 5. Ground-Truth Telemetry, `tokview` & Unified 9-Tab UI (TUI + Web Cockpit)
+## 5. Ground-Truth Telemetry, `tokview` & Unified 10-Tab UI (TUI + Web Cockpit)
 
 * **Zero Synthetic Metrics**: Idle sessions read strictly `0`. Tokens, `tokview` / Langfuse / LangWatch spans, per-effort costs, and quotas parse directly from live SSE/Responses streams and HTTP rate-limit headers.
 * **Exact 10-Tab Parity (`toksi tui`/`top` and detached `http://127.0.0.1:9100`, never auto-spawned on `daemon start` and zero UI CLI spawning)**:
@@ -238,29 +237,29 @@ toksi test --docker   # or: toksi test --sandbox (zero impact on live host servi
   - `toksi run` — Single-shot autonomous task execution with durable checkpoints
   - `toksi exec` — Execute task inside 5-backend isolated agent sandbox (`native`, `sandbox-runtime`, `OpenShell`, `E2B`, `sbx`)
   - `toksi swarm` — Multi-agent parallel workforce/swarm orchestrator (`OMA`, `swarms-rs`, `ChatDev`, `OpenSpec`)
-  - `toksi train` *(planned 19.6)* — External/subprocess model fine-tuning orchestration (`unsloth*`, `Automodel`, `nanotron`)
-  - `toksi serve` *(planned 19.6)* — Manage local pure-Rust/C++ serving engines (`oxillama`, `xinfer`, `Crane`, `paddler`, `llama-swap`, `triton`)
-  - `toksi eval` *(planned 19.6)* — Standardized model & guardrail benchmark evaluation (`lighteval`, `langwatch`)
+  - `toksi train` — External/subprocess model fine-tuning orchestration (`unsloth*`, `Automodel`, `nanotron`)
+  - `toksi serve` — Manage local pure-Rust/C++ serving engines (`oxillama`, `xinfer`, `Crane`, `paddler`, `llama-swap`, `triton`)
+  - `toksi eval` — Standardized model & guardrail benchmark evaluation (`lighteval`, `langwatch`, `deepeval`, `ragas`, `AutoFA`)
   - `toksi [init]` — Install + wire configured agents and tools (default; safe to re-run)
   - `toksi update` — Update Toksi CLI, inspect version diff, and upgrade tools
   - `toksi doctor` — Audit 18+ agents, consolidate `<repo>/.toksi/<tool>`, migrate `.context-mode/` -> `.toksi/ctxmode/`, fix regressions (`--fix`, `--workspace`)
   - `toksi gain` — Display ground-truth token savings & effort-tier `tokview` attribution
   - `toksi top` — Live interactive terminal monitor for proxies and active agent requests
-  - `toksi tui` — Full mouse-capable 9-tab async terminal control center
-  - `toksi dashboard` — Web telemetry cockpit on `:9100` (`start|stop|restart --port --open --agents`)
+  - `toksi tui` — Full mouse-capable 10-tab async terminal control center
+  - `toksi dashboard` — Detached Web telemetry cockpit on `:9100` (`start|stop|restart --port --open --agents`)
   - `toksi prime` — Generate unified context primer for AI agent sessions
-  - `toksi daemon` — Unified 8-port multi-process supervisor (`start|stop|restart|status --agents`) spawning `toksi _worker <role>` subprocesses
-  - `toksi _worker` *(internal supervisor child, planned 19.2)* — Run isolated port/agent/tool worker over Named Pipe / UDS IPC
+  - `toksi daemon` — Unified 8-port multi-process supervisor (`start|stop|restart|heal|status|dashboard|service <name> <action>`) spawning `toksi _worker <role>` subprocesses
+  - `toksi _worker` *(internal supervisor child)* — Run isolated port/agent/tool worker over Named Pipe / UDS IPC
   - `toksi proxy` — Manage streaming Headroom/Copilot/Grok proxies (`start|stop|restart|status --agents`)
   - `toksi config` — Manage `~/.toksi/config.toml` (`[repositories]`, `[supervisor]`, `[testing]`, `[plugins]`, `[security]`, `[ports]`, `[auth.gcp_adc]`)
   - `toksi byok` — Multi-instance `<byok, model, effort>` profiles & read-only `quota_windows` (zero paid-tier blocks)
   - `toksi auth` — OS Keyring & Google Cloud ADC (`AGY_ADC_AUTH=true`) manager: `status|get|set|delete|sync`
-  - `toksi db` — SQLite `~/.toksi/toksi.db` manager: `status|export|import|backup|restore`
-  - `toksi security` — `opa`/`cedar` Policy-as-Code, `spire` IAM, `Guardrails`/`llm-guard`/`openai-guardrails`/`ATR`/`model_spec`, ADR, 45-lang SAST & OSV/EPSS scanner
+  - `toksi db` — SQLite `~/.toksi/toksi.db` + separated `~/.toksi/services/*.db` manager: `status|export|import|backup|restore`
+  - `toksi security` — `opa`/`cedar` Policy-as-Code, `spire` IAM, `Guardrails`/`llm-guard`/`openai-guardrails`/`ATR`/`PurpleLlama`/`model_spec`, ADR, 45-lang SAST & OSV/EPSS scanner
   - `toksi compile-blind` — Zero-Plaintext Blind Signature Engine (`BLAKE3` + `sparse::DFA`)
   - `toksi advisory` — Native Git/PR Validator & 12-DB `UpstreamDeduplicator` for `Navegos/advisory`
-  - `toksi skills` — Externalized zero-bloat `<skills>` sync, `audit-neo` (`PHASE_19_4` 922-dir hygiene), `skilldoctor`, `agentskills` & `upskill`
-  - `toksi sandbox` — 5-backend isolated sandbox (`native|sandbox-runtime|OpenShell|E2B|sbx` CLI)
+  - `toksi skills` — Externalized zero-bloat `<skills>` sync, `audit-neo` (`PHASE_19_4` hygiene), `skilldoctor`, `agentskills` & `upskill`
+  - `toksi sandbox` — 5-backend isolated sandbox (`native|sandbox-runtime|OpenShell|E2B|sbx` CLI + `compose` + `sbxenv` Kit v3)
   - `toksi plugin` — Toksi Unified Plugin System (`<enforce>` scanned, 7 mount surfaces)
   - `toksi test` — Live-safe incremental BLAKE3 test runner (`--all`, `--force`, **`--docker`**, **`--sandbox`** via `.toksi/test-baseline.json`)
   - `toksi agent` — Agent directory lifecycle: `install|health|mismatch|upgrade|fix|restore|remove|edit|list|resume`
@@ -280,7 +279,7 @@ toksi test --docker   # or: toksi test --sandbox (zero impact on live host servi
   - `toksi disable` — Disable agent hooks and proxy routing without removing files
   - `toksi uninstall` — Remove everything Toksi ever touched, hooks, and environment variables
   - `toksi self-update` — In-place binary self-update to latest release
-  - **Architecture Guides (8-State Progress Taxonomy)**: **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_20_6`; all `48` phases `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]`) across all **493** mandated vaults.
+  - **Architecture Guides (8-State Progress Taxonomy)**: **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_20_6`; all `48` phases `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`/`[PLAN-FIXED]`) across all **493** mandated vaults.
 All **493** unique vaults (`294` + `138` + `61`) via **29 universal slash commands**, `toksi daemon heal|dashboard|service`, `toksi cluster`, and `compose.test.yaml` — live-safe test:
   ```bash
   toksi config show                                 # Inspect ~/.toksi/config.toml, [supervisor], [testing] & AGY_ADC_AUTH
@@ -291,13 +290,13 @@ All **493** unique vaults (`294` + `138` + `61`) via **29 universal slash comman
   toksi security scan|scan-skills|guardrails|audit-evidence|adr --format sarif # ADR + ATR + defenseclaw + skill-scanner + 45-lang SAST
   toksi compile-blind <input>                       # Keyed BLAKE3 + sparse::DFA zero-plaintext compiler
   toksi advisory search|validate|prune-fp|build-shards|publish-pr # Navegos/advisory 12-DB dedup & REST PR driver
-  toksi skills sync|audit-neo|heal|grade|scan|push  # External Navegos/skills + 922-dir hygiene + skilldoctor/upskill
+  toksi skills sync|audit-neo|heal|grade|scan|push  # External Navegos/skills + hygiene + skilldoctor/upskill
   toksi sandbox run|create|exec|ls|inspect|stop|rm|policy|secret # 3-OS native + sandbox-runtime + sbx parity
   toksi ctxmode search "query"                      # Query <repo>/.toksi/ctxmode/ FTS5 index (legacy .toksi/context auto-migrates)
   toksi test --docker                               # Run full live-safe container E2E test suite
   toksi agent resume [<plan_id>]                    # Resume paused .toksi/projectmem/plan_checkpoints/
   toksi doctor [--fix]                              # Audit PATH, direct-wire IPC, legacy dotdir/ctxmode merge
-  toksi tui | top                                   # 9-tab async mouse TUI
+  toksi tui | top                                   # 10-tab async mouse TUI
   ```
 
 ---
@@ -313,7 +312,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test -p toksi                               # Ephemeral TOKSI_HOME & :0 ports; honors .toksi/test-baseline.json
 toksi test --docker                               # Full isolated container E2E (never touches live host services)
 ```
-Supports `.toksi/test-baseline.json` (`35` suites) BLAKE3 incremental unchanged-suite skipping (`[SKIP-UNCHANGED] <suite>`, override with `--all`/`--force`) while always running `cargo check` and `cargo clippy -- -D warnings`.
+Supports `.toksi/test-baseline.json` (**43** suites) BLAKE3 incremental unchanged-suite skipping (`[SKIP-UNCHANGED] <suite>`, override with `--all`/`--force`) while always running `cargo check` and `cargo clippy -- -D warnings`.
 
 ---
 

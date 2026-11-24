@@ -1,6 +1,6 @@
 # Phase 16.2: Enterprise Web Telemetry Cockpit Dashboard
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -69,7 +69,7 @@ Requirements:
 - Mirror Wave 18 controls in `:9100` HTMX/Alpine Web Cockpit across all **432 mandated vaults** and **35-component `<toksi-siagent>`** (**43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized `<skills>` & `<advisory>`): live `tokview` + `phoenix` + `tokenspeed` + `vmon`/`cuda-rust` effort/token/GPU telemetry, `openwiki` interactive CodeGraph architecture diagrams, `temporal`/`restate`/`langgraph` `plan_checkpoints` pause/resume controls, `skill-scanner` CEL/SARIF + built-in 41-language static security findings + `Navegos/advisory` O(1) prefix search & `publish-pr` status (Tab 5), 5-backend OS sandbox (`native`/`sandbox-runtime`/`OpenShell`/`E2B`/`sbx`) + ADR quarantine events + `CommandGuard` kill-switch audit + `opa`/`cedar`/`spire`/`Guardrails`/`llm-guard`/`defenseclaw` fail-closed guardrails & `/api/security/audit-evidence` + `sage` threat alerts (Tab 6), Interactive Plugin Manager `/api/plugins` + External `<skills>` Sync Manager (`Navegos/skills` + user skills dir, zero binary embed) + `skilldoctor`/`agentskills` healer diff preview + Google Cloud ADC (`AGY_ADC_AUTH=true`) status badge (Tab 7), and `plugins_registry`/`blind_signatures`/`advisory_embargoes`/`adr_audit_events` SQLite DB export/import (Tab 9).
 
 ## Wave 19 (v6.0) Synchronization Addendum
-- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
 - **Wave 19 Reconciliation:** Detached `:9100` Web Cockpit active; Wave 19 extends `_worker` supervisor health/restart controls, workforce war-room views, and training/serving panels (`PHASE_19_2`, `19_5`, `19_6`).
 
 ## Wave 20 (v7.0) Synchronization Addendum

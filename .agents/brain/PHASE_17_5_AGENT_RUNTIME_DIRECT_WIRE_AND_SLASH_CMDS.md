@@ -1,6 +1,6 @@
 # Phase 17.5: Native `toksi` Coding CLI & Swarm (`src/agent_runtime/`), `DirectWireBus`, & 16 In-Chat Slash Commands
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NEEDS-FIX]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -70,7 +70,7 @@ Requirements:
 - Expose `:9098` Protocol Bus (`MCP` / `A2A` / `ACP` `agent-client-protocol` + `src/plugins/` mounts) and persist safe `temporal`/`restate`/`langgraph` plan checkpoints inside `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` across **35-component `<toksi-siagent>`** (**432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, `PHASE_18_1`–`PHASE_18_6`).
 
 ## Wave 19 (v6.0) Synchronization Addendum
-- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-NOT-DONE]`
+- **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 - **Wave 19 Reconciliation:** `16` core slash commands implemented on disk (`CORE_SLASH_COMMANDS.len() == 16` kept green during Wave 19 doc sync); `PHASE_19_1`/`19_5`/`19_6` expand runtime to `21` commands (`/ctxmode`, `/workforce`, `/spec`, `/train`, `/serve`, `/voice`).
 
 ## Wave 20 (v7.0) Synchronization Addendum

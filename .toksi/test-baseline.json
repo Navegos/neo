@@ -589,6 +589,149 @@
                 "--test",
                 "phase18_6_siagent_and_inference_stack_verification"
             ]
+        },
+        "phase19_1_ctxmode_rename_verification": {
+            "watched_paths": [
+                "crates/toksi/src/contextmode/",
+                "crates/toksi/src/aimemory/",
+                "crates/toksi/src/commands/ctx.rs",
+                "crates/toksi/tests/phase19_1_ctxmode_rename_verification.rs"
+            ],
+            "tree_blake3": "",
+            "last_passed_unix": 0,
+            "cargo_args": [
+                "test",
+                "-p",
+                "toksi",
+                "--test",
+                "phase19_1_ctxmode_rename_verification"
+            ]
+        },
+        "phase19_1_to_19_6_verification": {
+            "watched_paths": [
+                "crates/toksi/src/ipc/",
+                "crates/toksi/src/training/",
+                "crates/toksi/src/commands/test_runner.rs",
+                "docker/Dockerfile.test",
+                "crates/toksi/tests/phase19_1_to_19_6_verification.rs"
+            ],
+            "tree_blake3": "",
+            "last_passed_unix": 0,
+            "cargo_args": [
+                "test",
+                "-p",
+                "toksi",
+                "--test",
+                "phase19_1_to_19_6_verification"
+            ]
+        },
+        "phase19_2_multiprocess_supervisor_ipc_verification": {
+            "watched_paths": [
+                "crates/toksi/src/ipc/",
+                "crates/toksi/src/commands/daemon.rs",
+                "crates/toksi/src/commands/worker.rs",
+                "crates/toksi/tests/phase19_2_multiprocess_supervisor_ipc_verification.rs"
+            ],
+            "tree_blake3": "",
+            "last_passed_unix": 0,
+            "cargo_args": [
+                "test",
+                "-p",
+                "toksi",
+                "--test",
+                "phase19_2_multiprocess_supervisor_ipc_verification"
+            ]
+        },
+        "phase19_3_live_safe_test_isolation_verification": {
+            "watched_paths": [
+                "docker/Dockerfile.test",
+                "crates/toksi/src/commands/test_runner.rs",
+                "crates/toksi/src/db/",
+                "crates/toksi/tests/phase19_3_live_safe_test_isolation_verification.rs"
+            ],
+            "tree_blake3": "",
+            "last_passed_unix": 0,
+            "cargo_args": [
+                "test",
+                "-p",
+                "toksi",
+                "--test",
+                "phase19_3_live_safe_test_isolation_verification"
+            ]
+        },
+        "phase19_4_zero_pollution_hygiene_verification": {
+            "watched_paths": [
+                "crates/toksi/src/commands/skills.rs",
+                "crates/toksi/src/rules/",
+                "crates/toksi/tests/phase19_4_zero_pollution_hygiene_verification.rs"
+            ],
+            "tree_blake3": "",
+            "last_passed_unix": 0,
+            "cargo_args": [
+                "test",
+                "-p",
+                "toksi",
+                "--test",
+                "phase19_4_zero_pollution_hygiene_verification"
+            ]
+        },
+        "phase19_5_siagent_workforce_anp_security_verification": {
+            "watched_paths": [
+                "crates/toksi/src/agent_runtime/",
+                "crates/toksi/src/security/",
+                "crates/toksi/src/tools/multi_protocol.rs",
+                "crates/toksi/tests/phase19_5_siagent_workforce_anp_security_verification.rs"
+            ],
+            "tree_blake3": "",
+            "last_passed_unix": 0,
+            "cargo_args": [
+                "test",
+                "-p",
+                "toksi",
+                "--test",
+                "phase19_5_siagent_workforce_anp_security_verification"
+            ]
+        },
+        "phase19_6_training_serving_multimodal_verification": {
+            "watched_paths": [
+                "crates/toksi/src/training/",
+                "crates/toksi/src/gateway/",
+                "crates/toksi/src/commands/train.rs",
+                "crates/toksi/src/commands/serve.rs",
+                "crates/toksi/src/commands/eval.rs",
+                "crates/toksi/tests/phase19_6_training_serving_multimodal_verification.rs"
+            ],
+            "tree_blake3": "",
+            "last_passed_unix": 0,
+            "cargo_args": [
+                "test",
+                "-p",
+                "toksi",
+                "--test",
+                "phase19_6_training_serving_multimodal_verification"
+            ]
+        },
+        "phase20_1_to_20_6_verification": {
+            "watched_paths": [
+                "crates/toksi/src/agent_runtime/",
+                "crates/toksi/src/gateway/sampling.rs",
+                "crates/toksi/src/db/service_dbs.rs",
+                "crates/toksi/src/cluster/",
+                "crates/toksi/src/telemetry/otel.rs",
+                "crates/toksi/src/commands/cluster.rs",
+                "crates/toksi/src/commands/otel.rs",
+                "docker/compose.test.yaml",
+                "crates/toksi/tests/phase20_1_to_20_6_verification.rs"
+            ],
+            "tree_blake3": "",
+            "last_passed_unix": 0,
+            "cargo_args": [
+                "test",
+                "-p",
+                "toksi",
+                "--test",
+                "phase20_1_to_20_6_verification"
+            ]
         }
     }
 }
