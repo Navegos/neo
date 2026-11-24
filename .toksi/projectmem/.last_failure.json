@@ -1,6 +1,0 @@
-{
-  "command": "cargo test -p toksi --test phase19_1_to_19_6_verification --test phase20_1_to_20_6_verification --no-run",
-  "root_cause": "error[E0609]: no field `id` on type `WorkforceTask`",
-  "raw_output": "   Compiling toksi v3.0.13 (D:\\AI\\neo\\crates\\toksi)\nerror[E0609]: no field `id` on type `WorkforceTask`\n  --> crates\\toksi\\tests\\phase19_1_to_19_6_verification.rs:95:24\n   |\n95 |     assert_eq!(claimed.id, \"task-1\");\n   |                        ^^ unknown field\n   |\n   = note: available fields are: `task_id`, `role`, `description`, `status`, `assigned_worker` ... and 5 others\n\nerror[E0609]: no field `engine_id` on type `ServingProfile`\n   --> crates\\toksi\\tests\\phase19_1_to_19_6_verification.rs:174:20\n    |\n174 |     assert_eq!(srv.engine_id, \"oxillama\");\n    |                    ^^^^^^^^^ unknown field\n    |\nhelp: a field with a similar name exists\n    |\n174 -     assert_eq!(srv.engine_id, \"oxillama\");\n174 +     assert_eq!(srv.engine, \"oxillama\");\n    |\n\nFor more information about this error, try `rustc --explain E0609`.\nerror: could not compile `toksi` (test \"phase19_1_to_19_6_verification\") due to 2 previous errors\nwarning: build failed, waiting for other jobs to finish...\n",
-  "timestamp": "2026-11-24T12:53:58Z"
-}
