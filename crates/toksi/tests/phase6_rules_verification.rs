@@ -87,10 +87,11 @@ fn test_phase6_externalized_zero_bloat_staging_and_enforce() {
 
     // Specific content checks
     let principles = RuleKind::Principles;
-    assert!(principles.markdown().contains("Think Before Coding"));
-    assert!(principles.markdown().contains("Simplicity First"));
-    assert!(principles.markdown().contains("Surgical Changes"));
-    assert!(principles.markdown().contains("Goal-Driven Execution"));
+    assert!(principles.markdown().contains("Epistemic Rigor"));
+    assert!(principles.markdown().contains("First-Principles Simplicity"));
+    assert!(principles.markdown().contains("Surgical Mutation"));
+    assert!(principles.markdown().contains("Deterministic Tool Orchestration"));
+    assert!(principles.markdown().contains("Closed-Loop Verification"));
 
     let caveman = RuleKind::Caveman;
     assert!(caveman.markdown().contains("ASD-STE100"));

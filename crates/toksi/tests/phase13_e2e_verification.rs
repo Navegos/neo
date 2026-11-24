@@ -151,9 +151,9 @@ fn test_all_17_agent_proxy_specifications() {
 #[test]
 fn test_in_tree_rules_and_principles_embedding() {
     let principles = RuleKind::Principles.markdown();
-    assert!(principles.contains("Think Before Coding"));
-    assert!(principles.contains("Simplicity First"));
-    assert!(principles.contains("Surgical Changes"));
+    assert!(principles.contains("Epistemic Rigor"));
+    assert!(principles.contains("First-Principles Simplicity"));
+    assert!(principles.contains("Surgical Mutation"));
 
     let caveman = RuleKind::Caveman.markdown();
     assert!(caveman.contains("Caveman"));

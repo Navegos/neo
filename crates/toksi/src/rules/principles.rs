@@ -78,10 +78,11 @@ mod tests {
         assert!(!markdown().is_empty());
         assert!(!cursor_rule().is_empty());
         assert!(!skill_definition().is_empty());
-        assert!(markdown().contains("Think Before Coding"));
-        assert!(markdown().contains("Simplicity First"));
-        assert!(markdown().contains("Surgical Changes"));
-        assert!(markdown().contains("Goal-Driven Execution"));
+        assert!(markdown().contains("Epistemic Rigor"));
+        assert!(markdown().contains("First-Principles Simplicity"));
+        assert!(markdown().contains("Surgical Mutation"));
+        assert!(markdown().contains("Deterministic Tool Orchestration"));
+        assert!(markdown().contains("Closed-Loop Verification"));
         assert!(markdown().contains("<enforce>"));
         assert!(cursor_rule().starts_with("---\n"));
         assert!(cursor_rule().contains("alwaysApply: true"));

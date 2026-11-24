@@ -136,10 +136,15 @@ impl SkillsRepoConfig {
             .and_then(|raw| toml::from_str::<ConfigRepositoriesToml>(&raw).ok())
             .unwrap_or_default()
             .repositories;
+        Self::from_repositories_section(toml_cfg, neo_root)
+    }
 
+    fn from_repositories_section(toml_cfg: RepositoriesSection, neo_root: Option<PathBuf>) -> Self {
         let effective_neo = toml_cfg
             .neo_dir
             .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
             .map(|p| expand_tilde_path(p, neo_root.as_deref()))
             .or(neo_root);
 
@@ -156,6 +161,8 @@ impl SkillsRepoConfig {
         let stage_agents_dir = toml_cfg
             .stage_dir_outside_crates
             .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
             .map(|p| expand_tilde_path(p, effective_neo.as_deref()))
             .unwrap_or_else(|| {
                 effective_neo
@@ -172,6 +179,8 @@ impl SkillsRepoConfig {
         let skills_dir = toml_cfg
             .skills_dir
             .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
             .map(|p| expand_tilde_path(p, effective_neo.as_deref()))
             .unwrap_or_else(|| {
                 effective_neo
@@ -183,6 +192,8 @@ impl SkillsRepoConfig {
         let user_skills_dir = toml_cfg
             .user_skills_dir
             .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
             .map(|p| expand_tilde_path(p, effective_neo.as_deref()))
             .unwrap_or(default_user_skills);
 
@@ -334,7 +345,7 @@ pub fn read_agent_instructions_template() -> Option<String> {
 
 fn default_rule_fallback(id: &str) -> String {
     match id.trim().to_ascii_lowercase().as_str() {
-        "principles" => "# Principles\n\n<enforce>\nThink before coding, keep simplicity first, make surgical changes, and verify goal-driven execution.\n</enforce>\n".to_string(),
+        "principles" => "# Super Intelligence Agent Operating Principles\n\n<enforce>\nEpistemic Rigor, First-Principles Simplicity, Surgical Mutation, Deterministic Tool Orchestration, and Closed-Loop Verification.\n</enforce>\n".to_string(),
         "caveman" => "# Response Style (caveman)\n\n<enforce>\nRespond terse like smart caveman using ASD-STE100 rules. Drop filler, keep technical facts and negations exact.\n</enforce>\n".to_string(),
         "ponytail" => "# Build Discipline (ponytail)\n\n<enforce>\nFollow the Ladder: YAGNI, codebase reuse, stdlib/native, installed deps, one line, minimum complete code with runnable verification.\n</enforce>\n".to_string(),
         other => format!("# {}\n\n<enforce>\nRule `{}` staged externally.\n</enforce>\n", other, other),
@@ -811,5 +822,19 @@ mod tests {
         assert!(isolated.skills_dir.join("skills/investigate-first/SKILL.md").is_file());
         assert!(isolated.skills_dir.join("skills/caveman-explore/SKILL.md").is_file());
         Ok(())
+    }
+
+    #[test]
+    fn test_empty_repositories_fields_fall_back_to_detected_defaults() {
+        let parsed: ConfigRepositoriesToml = toml::from_str(
+            "[repositories]\nneo_dir = \"\"\nstage_dir_outside_crates = \"  \"\nskills_dir = \"\"\nuser_skills_dir = \"\"\n",
+        )
+        .expect("parse repositories table");
+        let cfg = SkillsRepoConfig::from_repositories_section(parsed.repositories, detect_neo_root());
+        assert!(cfg.neo_root.is_some());
+        assert!(cfg.stage_rules_dir.join("principles.md").is_file());
+        assert!(cfg.stage_agents_dir.join("skills/principles/SKILL.md").is_file());
+        assert!(!cfg.skills_dir.as_os_str().is_empty());
+        assert!(!cfg.user_skills_dir.as_os_str().is_empty());
     }
 }
