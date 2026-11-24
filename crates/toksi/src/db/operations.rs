@@ -1040,6 +1040,7 @@ impl ToksiConfigDb {
         let adr_audit_events = self.list_adr_audit_events()?;
         let supervisor_workers = self.list_supervisor_workers()?;
         let orchestrator_mode_routes = self.list_orchestrator_mode_routes()?;
+        let cluster_nodes = self.list_cluster_nodes()?;
 
         Ok(ToksiDbDump {
             version: 2,
@@ -1059,6 +1060,7 @@ impl ToksiConfigDb {
             adr_audit_events,
             supervisor_workers,
             orchestrator_mode_routes,
+            cluster_nodes,
         })
     }
 
@@ -1095,6 +1097,7 @@ impl ToksiConfigDb {
                  DELETE FROM advisory_embargoes;
                  DELETE FROM adr_audit_events;
                  DELETE FROM orchestrator_mode_routes;
+                 DELETE FROM cluster_nodes;
                  DELETE FROM gateway_configs;
                  DELETE FROM providers;",
             )?;
@@ -1369,6 +1372,25 @@ impl ToksiConfigDb {
             )?;
         }
 
+        for cn in &dump.cluster_nodes {
+            let sql = if overwrite {
+                r#"INSERT INTO cluster_nodes (node_id, backend, endpoint, gpu_model, gpu_count, vram_gb, health, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                   ON CONFLICT(node_id) DO UPDATE SET
+                       backend = excluded.backend, endpoint = excluded.endpoint,
+                       gpu_model = excluded.gpu_model, gpu_count = excluded.gpu_count,
+                       vram_gb = excluded.vram_gb, health = excluded.health,
+                       updated_at = excluded.updated_at"#
+            } else {
+                r#"INSERT OR IGNORE INTO cluster_nodes (node_id, backend, endpoint, gpu_model, gpu_count, vram_gb, health, updated_at)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"#
+            };
+            count += tx.execute(
+                sql,
+                params![cn.node_id, cn.backend, cn.endpoint, cn.gpu_model, cn.gpu_count, cn.vram_gb, cn.health, cn.updated_at],
+            )?;
+        }
+
         tx.commit()?;
         Ok(count)
     }
@@ -1580,6 +1602,63 @@ impl ToksiConfigDb {
         self.conn.execute(
             "DELETE FROM orchestrator_mode_routes WHERE mode_id = ?1",
             params![mode_id],
+        )
+    }
+
+    pub fn upsert_cluster_node(&mut self, node: &ClusterNodeRecord) -> Result<(), rusqlite::Error> {
+        self.conn.execute(
+            r#"INSERT INTO cluster_nodes (node_id, backend, endpoint, gpu_model, gpu_count, vram_gb, health, updated_at)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+               ON CONFLICT(node_id) DO UPDATE SET
+                   backend = excluded.backend,
+                   endpoint = excluded.endpoint,
+                   gpu_model = excluded.gpu_model,
+                   gpu_count = excluded.gpu_count,
+                   vram_gb = excluded.vram_gb,
+                   health = excluded.health,
+                   updated_at = excluded.updated_at"#,
+            params![
+                node.node_id,
+                node.backend,
+                node.endpoint,
+                node.gpu_model,
+                node.gpu_count,
+                node.vram_gb,
+                node.health,
+                node.updated_at
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_cluster_nodes(&self) -> Result<Vec<ClusterNodeRecord>, rusqlite::Error> {
+        let mut stmt = self.conn.prepare(
+            "SELECT node_id, backend, endpoint, gpu_model, gpu_count, vram_gb, health, updated_at
+             FROM cluster_nodes ORDER BY node_id ASC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok(ClusterNodeRecord {
+                node_id: row.get(0)?,
+                backend: row.get(1)?,
+                endpoint: row.get(2)?,
+                gpu_model: row.get(3)?,
+                gpu_count: row.get(4)?,
+                vram_gb: row.get(5)?,
+                health: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        })?;
+        let mut out = Vec::new();
+        for r in rows {
+            out.push(r?);
+        }
+        Ok(out)
+    }
+
+    pub fn delete_cluster_node(&mut self, node_id: &str) -> Result<usize, rusqlite::Error> {
+        self.conn.execute(
+            "DELETE FROM cluster_nodes WHERE node_id = ?1",
+            params![node_id],
         )
     }
 }

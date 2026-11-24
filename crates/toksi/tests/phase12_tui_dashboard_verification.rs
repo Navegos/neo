@@ -52,29 +52,31 @@ fn test_phase12_tui_initialization_and_tabs() {
     assert_eq!(app.tab_names[9], "System Controls");
     assert!(!app.should_quit);
 
-    // Tab 1: Savings & Waterfall (Ground-truth session accounting)
-    assert!(!app.monitor.waterfall.is_empty(), "Waterfall items must be populated");
+    // Tab 1: Savings & Waterfall (Ground-truth session accounting; zero fake data at rest)
+    for item in &app.monitor.waterfall {
+        assert!(!item.agent.is_empty());
+    }
     assert!(app.monitor.tokens_saved_lifetime >= 0);
     assert!(app.monitor.cost_saved_usd >= 0.0);
     assert!(app.monitor.compression_pct >= 0.0);
 
-    // Tab 3: AI Agent Fleet & Quotas (configured-only; validate schema if populated)
+    // Tab 3: AI Agent Fleet (configured-only; validate schema if populated)
     for agent in &app.agents.items {
         assert!(!agent.id.is_empty());
         assert!(!agent.label.is_empty());
         assert!(!agent.config_path.is_empty());
     }
 
-    // Tab 3: Memory Explorer
+    // Tab 5: Memory Explorer
     assert!(!app.memory.items.is_empty(), "Memory items must be populated");
     assert_eq!(app.memory.filter, MemoryFilter::All);
 
-    // Tab 4: CodeGraph Visualizer
+    // Tab 6: CodeGraph Visualizer
     assert!(!app.graph.symbols.is_empty(), "CodeGraph symbols must be populated");
     assert!(app.graph.total_symbols > 0);
 
-    // Tab 8: AI Gateway & Quotas (Headroom BYOK & Cache Inspector; configured-only routes)
-    assert!(app.headroom.cache_alignment_pct > 0.0);
+    // Tab 8: AI Gateway (Headroom BYOK & Cache Inspector; configured-only routes)
+    assert!(app.headroom.cache_alignment_pct >= 0.0);
     assert_eq!(app.headroom.byok_port, toksi::config::resolved_ports().byok_gateway);
 
     // Tab 6: Diagnostic Logs

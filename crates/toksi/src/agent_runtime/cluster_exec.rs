@@ -17,6 +17,9 @@ pub enum ClusterBackend {
     Osmo,
     SrtSlurm,
     Slurm,
+    Kubernetes,
+    LanPair,
+    Ssh,
     LocalFallback,
 }
 
@@ -52,6 +55,15 @@ pub fn render_cluster_submission(spec: &ClusterJobSpec, dry_run: bool) -> Result
             "workflow:\n  name: {}\n  resources:\n    gpu: {}\n  command: {}\n",
             spec.job_name, spec.gpus_per_node, spec.command
         ),
+        ClusterBackend::Kubernetes => format!(
+            "apiVersion: batch/v1\nkind: Job\nmetadata:\n  name: {}\nspec:\n  parallelism: {}\n  command: {}\n",
+            spec.job_name, spec.nodes.max(1), spec.command
+        ),
+        ClusterBackend::LanPair => format!(
+            "pair_job={{name={},gpus={},cmd={}}}",
+            spec.job_name, spec.gpus_per_node, spec.command
+        ),
+        ClusterBackend::Ssh => format!("ssh {} -- {}", spec.partition, spec.command),
         ClusterBackend::LocalFallback => spec.command.clone(),
     };
     Ok(ClusterJobSubmission {
@@ -60,4 +72,36 @@ pub fn render_cluster_submission(spec: &ClusterJobSpec, dry_run: bool) -> Result
         dry_run,
         rendered_script: rendered,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_render_cluster_submission_all_backends() {
+        for backend in [
+            ClusterBackend::Osmo,
+            ClusterBackend::Slurm,
+            ClusterBackend::Kubernetes,
+            ClusterBackend::LanPair,
+            ClusterBackend::Ssh,
+            ClusterBackend::LocalFallback,
+        ] {
+            let sub = render_cluster_submission(
+                &ClusterJobSpec {
+                    job_name: "wave20".into(),
+                    backend,
+                    nodes: 2,
+                    gpus_per_node: 4,
+                    partition: "gpu-host".into(),
+                    command: "toksi train".into(),
+                },
+                true,
+            )
+            .expect("render");
+            assert_eq!(sub.job_id, "job-wave20");
+            assert!(!sub.rendered_script.is_empty());
+        }
+    }
 }

@@ -336,6 +336,18 @@ pub fn handle_agents() -> serde_json::Value {
     let live_tokens_saved: u64 = collector.tokens_saved_total.read().map(|m| m.values().sum()).unwrap_or(0);
     let live_cost_saved = collector.cost_savings_usd_micros.load(std::sync::atomic::Ordering::Relaxed) as f64 / 1_000_000.0;
 
+    let proxy_up = crate::headroom::proxy::proxy_live_z_timeout(std::time::Duration::from_millis(200));
+    let (all_bindings, all_profs) = crate::db::shared_db()
+        .ok()
+        .and_then(|arc| {
+            let db = arc.lock().ok()?;
+            Some((
+                db.list_agent_profile_bindings().unwrap_or_default(),
+                db.list_byok_profiles().unwrap_or_default(),
+            ))
+        })
+        .unwrap_or_default();
+
     let mut rows = Vec::new();
     for ag in agent_manifests {
         let detection = ag.detect();
@@ -343,7 +355,7 @@ pub fn handle_agents() -> serde_json::Value {
         let is_proxy_wired = proxy_agent_wired(&ag.id);
         let is_wired = init_agent_fully_wired(&ag.id, &tools) || is_proxy_wired;
 
-        let port = if is_proxy_wired && proxy_running() {
+        let port = if is_proxy_wired && proxy_up {
             format!("{} -> Routed", proxy_port())
         } else if is_proxy_wired {
             format!("{} (stopped)", proxy_port())
@@ -355,14 +367,11 @@ pub fn handle_agents() -> serde_json::Value {
 
         let config_path = resolve_agent_config_path(&ag.id);
 
-        let active_bindings = crate::db::open_default_db().ok().and_then(|db| {
-            let bindings = db.list_agent_profile_bindings().ok()?;
-            let profs = db.list_byok_profiles().ok()?;
-            bindings
-                .into_iter()
-                .find(|b| b.agent_id == ag.id && b.is_primary)
-                .and_then(|b| profs.into_iter().find(|p| p.id == b.byok_profile_id))
-        });
+        let active_bindings = all_bindings
+            .iter()
+            .find(|b| b.agent_id == ag.id && b.is_primary)
+            .and_then(|b| all_profs.iter().find(|p| p.id == b.byok_profile_id))
+            .cloned();
         let (provider, model, quota_status) = if let Some(prof) = active_bindings {
             let badge = match prof.auth_mode.as_str() {
                 "oauth" => "[OAUTH]",
@@ -610,13 +619,12 @@ pub fn handle_codegraph() -> serde_json::Value {
     let mut total_files = 0usize;
     let mut total_edges = 0usize;
 
-    if let Ok(cg) = crate::codegraph::CodeGraph::open(&root) {
-        let stats = cg.cache.get_stats();
+    if let Ok(cache) = crate::codegraph::CodeGraph::open_cache_only(&root) {
+        let stats = cache.get_stats();
         total_symbols = stats.node_count;
         total_files = stats.file_count;
         total_edges = stats.edge_count;
-        let all_nodes = cg.cache.get_all_nodes();
-        for n in all_nodes.iter().take(100) {
+        for n in cache.get_nodes_limited(100) {
             symbols.push(json!({
                 "id": n.id,
                 "name": n.name,
@@ -1685,4 +1693,65 @@ pub fn handle_daemon_service_action(
     action: &str,
 ) -> Result<serde_json::Value, String> {
     crate::commands::daemon::daemon_service_action(name, action)
+}
+
+pub fn handle_cluster_status() -> serde_json::Value {
+    let tooling = crate::cluster::probe_k8s_tooling();
+    let topo = crate::db::shared_db()
+        .ok()
+        .and_then(|a| {
+            a.lock()
+                .ok()
+                .and_then(|d| crate::cluster::ClusterTopology::load_from_config_db(&d).ok())
+        })
+        .unwrap_or_default();
+    let readiness = crate::cluster::evaluate_nvcre_readiness(&topo.nodes);
+    json!({
+        "tooling": tooling,
+        "readiness": readiness,
+        "nodes_count": topo.nodes.len(),
+    })
+}
+
+pub fn handle_cluster_nodes() -> serde_json::Value {
+    let topo = crate::db::shared_db()
+        .ok()
+        .and_then(|a| {
+            a.lock()
+                .ok()
+                .and_then(|d| crate::cluster::ClusterTopology::load_from_config_db(&d).ok())
+        })
+        .unwrap_or_default();
+    json!({
+        "nodes": topo.nodes,
+        "count": topo.nodes.len(),
+    })
+}
+
+pub fn handle_cluster_readiness() -> serde_json::Value {
+    let topo = crate::db::shared_db()
+        .ok()
+        .and_then(|a| {
+            a.lock()
+                .ok()
+                .and_then(|d| crate::cluster::ClusterTopology::load_from_config_db(&d).ok())
+        })
+        .unwrap_or_default();
+    json!(crate::cluster::evaluate_nvcre_readiness(&topo.nodes))
+}
+
+pub fn handle_otel_status() -> serde_json::Value {
+    let db_path = crate::util::paths::normalize_path(
+        &crate::db::service_dbs::service_db_path(crate::db::service_dbs::ServiceDbKind::Otel)
+            .to_string_lossy(),
+    );
+    let span_count = crate::telemetry::otel::OtlpJsonExporter::span_count();
+    let recent_spans = crate::telemetry::otel::OtlpJsonExporter::recent_spans(10);
+    json!({
+        "service_db_path": db_path,
+        "span_count": span_count,
+        "recent_spans": recent_spans,
+        "gen_ai_semconv": "1.29",
+        "fail_open": true,
+    })
 }

@@ -305,6 +305,17 @@ pub struct CodeGraph {
 }
 
 impl CodeGraph {
+    pub fn open_cache_only(root: &Path) -> Result<SymbolCache, CodeGraphError> {
+        let abs_root = if root.is_absolute() {
+            root.to_path_buf()
+        } else {
+            std::env::current_dir()?.join(root)
+        };
+        let norm_root = PathBuf::from(crate::util::paths::normalize_path(&abs_root.to_string_lossy()));
+        let (_resolved_root, db_path) = try_resolve_root_and_db_path(&norm_root)?;
+        Ok(SymbolCache::open(&db_path)?)
+    }
+
     pub fn open(root: &Path) -> Result<Self, CodeGraphError> {
         let abs_root = if root.is_absolute() {
             root.to_path_buf()

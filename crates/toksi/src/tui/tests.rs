@@ -3,7 +3,7 @@
 // project: neo
 // file: crates/toksi/src/tui/tests.rs
 // created: 2026-10-30
-// lastModified: 2026-11-19
+// lastModified: 2026-11-24
 
 use super::app::*;
 use crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyEventState, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
@@ -20,7 +20,17 @@ fn press_key(code: KeyCode) -> KeyEvent {
 
 #[test]
 fn test_app_initialization_and_tabs() {
+    let saved_before: i64 = crate::telemetry::global_collector()
+        .tokens_saved_total
+        .read()
+        .map(|m| m.values().sum::<u64>() as i64)
+        .unwrap_or(0);
     let app = App::new();
+    let saved_after: i64 = crate::telemetry::global_collector()
+        .tokens_saved_total
+        .read()
+        .map(|m| m.values().sum::<u64>() as i64)
+        .unwrap_or(0);
     assert_eq!(app.current_tab, 0);
     assert_eq!(app.tab_names.len(), 10);
     assert_eq!(app.tab_names[0], "Savings");
@@ -30,8 +40,22 @@ fn test_app_initialization_and_tabs() {
     assert_eq!(app.tab_names[8], "Keyring & Database");
     assert_eq!(app.tab_names[9], "System Controls");
     assert!(!app.should_quit);
-    assert_eq!(app.monitor.tokens_saved_lifetime, 0);
-    assert!(app.monitor.waterfall.is_empty());
+    assert!(
+        app.monitor.tokens_saved_lifetime >= saved_before
+            && app.monitor.tokens_saved_lifetime <= saved_after,
+        "tokens_saved_lifetime {} outside ground-truth collector range [{}..={}]",
+        app.monitor.tokens_saved_lifetime,
+        saved_before,
+        saved_after
+    );
+    let has_sessions = !crate::telemetry::tokentracker::global_token_tracker()
+        .get_recent_sessions()
+        .is_empty();
+    if app.monitor.total_calls == 0 && !has_sessions {
+        assert!(app.monitor.waterfall.is_empty());
+    } else {
+        assert!(!app.monitor.waterfall.is_empty());
+    }
 }
 
 #[test]

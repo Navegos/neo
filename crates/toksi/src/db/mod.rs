@@ -70,12 +70,22 @@ pub fn migrate_legacy_db_into(db: &mut ToksiConfigDb) {
 }
 
 pub fn open_default_db() -> Result<ToksiConfigDb, rusqlite::Error> {
+    let test_isolated = std::env::var("TOKSI_TEST").as_deref() == Ok("1")
+        && std::env::var("TOKSI_DATA_DIR")
+            .map(|s| s.trim().is_empty())
+            .unwrap_or(true)
+        && std::env::var("TOKSI_HOME")
+            .map(|s| s.trim().is_empty())
+            .unwrap_or(true);
+    let temp_p = std::env::temp_dir().join(".toksi").join("toksi.db");
+    if test_isolated {
+        return ToksiConfigDb::open(&temp_p);
+    }
     let p = default_db_path();
     let mut db = match ToksiConfigDb::open(&p) {
         Ok(d) => d,
         Err(e) => {
             // In restricted test environments or sandbox, fall back to temp DB path
-            let temp_p = std::env::temp_dir().join(".toksi").join("toksi.db");
             if let Ok(temp_db) = ToksiConfigDb::open(&temp_p) {
                 temp_db
             } else {

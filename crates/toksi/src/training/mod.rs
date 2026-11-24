@@ -9,11 +9,21 @@
 
 #![deny(unsafe_code)]
 
+pub mod compress;
+pub mod dataset;
 pub mod quant;
 pub mod recipes;
 pub mod runner;
 pub mod serving;
 
+pub use compress::{
+    plan_bnb_quant, plan_kvpress, BnbQuantConfig, BnbQuantMethod, BnbQuantPlan, KvPressPlan,
+    KvPressPolicy,
+};
+pub use dataset::{
+    build_ontology_from_fields, inspect_dataset_manifest, liteparse_extract_chunks,
+    validate_dataset_manifest, DatasetFormat, DatasetManifest, OntologyEdge, OntologyGraph,
+};
 pub use quant::{verify_safetensors_header, QuantFormat, QuantPlan, SafetensorsHeaderInfo};
 pub use recipes::{
     build_training_recipe, render_recipe_yaml, TrainingBackend, TrainingMethod, TrainingRecipe,

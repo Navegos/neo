@@ -12,7 +12,9 @@
 use std::path::PathBuf;
 
 use crate::agent_runtime::sandbox::{
-    global_sandbox_manager, SandboxBackend, SkillsMountMode, SBX_BUILT_IN_AGENTS, SBX_VERBS,
+    build_sbx_cli_args, global_sandbox_manager, parse_compose_yaml, parse_sbx_kit_v3_yaml,
+    parse_sbxenv_yaml, validate_compose_spec, validate_sbx_kit_v3, validate_sbxenv,
+    SandboxBackend, SkillsMountMode, SBX_BUILT_IN_AGENTS, SBX_VERBS,
 };
 use crate::config::load_toksi_toml_config;
 
@@ -30,10 +32,148 @@ fn flag_val<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
     None
 }
 
+fn run_compose_subcommand(args: &[String]) -> i32 {
+    let action = args.first().map(String::as_str).unwrap_or("validate");
+    let file_path = flag_val(args, "--file")
+        .or_else(|| flag_val(args, "-f"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("docker/compose.test.yaml"));
+
+    match action {
+        "validate" => {
+            let Ok(raw) = std::fs::read_to_string(&file_path) else {
+                eprintln!("Compose file not found: {}", file_path.display());
+                return 1;
+            };
+            match parse_compose_yaml(&raw) {
+                Ok(spec) => match validate_compose_spec(&spec) {
+                    Ok(warnings) => {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&serde_json::json!({
+                                "valid": true,
+                                "services": spec.services.len(),
+                                "warnings": warnings,
+                            }))
+                            .unwrap_or_default()
+                        );
+                        0
+                    }
+                    Err(errors) => {
+                        eprintln!("Compose validation failed: {}", errors.join("; "));
+                        1
+                    }
+                },
+                Err(e) => {
+                    eprintln!("Compose parse error: {e}");
+                    1
+                }
+            }
+        }
+        "up" | "down" | "test" => {
+            if which::which("docker").is_err() {
+                eprintln!("'docker' binary not found in PATH; install Docker Desktop/Engine to run compose {action}.");
+                return 1;
+            }
+            let compose_str = file_path.to_string_lossy().to_string();
+            let mut cmd_args = vec!["compose".to_string(), "-f".to_string(), compose_str];
+            match action {
+                "up" => {
+                    cmd_args.push("up".to_string());
+                    cmd_args.push("-d".to_string());
+                }
+                "down" => {
+                    cmd_args.push("down".to_string());
+                    cmd_args.push("--remove-orphans".to_string());
+                }
+                _ => {
+                    cmd_args.push("run".to_string());
+                    cmd_args.push("--rm".to_string());
+                    cmd_args.push("toksi-test".to_string());
+                }
+            }
+            match std::process::Command::new("docker").args(&cmd_args).status() {
+                Ok(st) => st.code().unwrap_or(1),
+                Err(e) => {
+                    eprintln!("Failed executing docker compose {action}: {e}");
+                    1
+                }
+            }
+        }
+        other => {
+            eprintln!("Unknown compose action '{other}'. Expected: validate | up | down | test");
+            2
+        }
+    }
+}
+
+fn run_sbxenv_subcommand(args: &[String]) -> i32 {
+    let action = args.first().map(String::as_str).unwrap_or("validate");
+    let file_path = flag_val(args, "--file")
+        .or_else(|| flag_val(args, "-f"))
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("sbxenv.yaml"));
+
+    let Ok(raw) = std::fs::read_to_string(&file_path) else {
+        eprintln!("Manifest file not found: {}", file_path.display());
+        return 1;
+    };
+
+    if raw.contains("schemaVersion: \"3\"")
+        || raw.contains("schemaVersion: '3'")
+        || raw.contains("schemaVersion: 3")
+    {
+        match parse_sbx_kit_v3_yaml(&raw) {
+            Ok(kit) => match validate_sbx_kit_v3(&kit) {
+                Ok(()) => {
+                    println!("{}", serde_json::to_string_pretty(&kit).unwrap_or_default());
+                    0
+                }
+                Err(errs) => {
+                    eprintln!("Kit v3 validation failed: {}", errs.join("; "));
+                    1
+                }
+            },
+            Err(e) => {
+                eprintln!("Kit v3 parse error: {e}");
+                1
+            }
+        }
+    } else {
+        match parse_sbxenv_yaml(&raw) {
+            Ok(manifest) => match validate_sbxenv(&manifest) {
+                Ok(()) => {
+                    let cli_args = build_sbx_cli_args(&manifest, "run");
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&serde_json::json!({
+                            "valid": true,
+                            "action": action,
+                            "sbx_available": which::which("sbx").is_ok(),
+                            "sbx_args": cli_args,
+                        }))
+                        .unwrap_or_default()
+                    );
+                    0
+                }
+                Err(errs) => {
+                    eprintln!("sbxenv validation failed: {}", errs.join("; "));
+                    1
+                }
+            },
+            Err(e) => {
+                eprintln!("sbxenv parse error: {e}");
+                1
+            }
+        }
+    }
+}
+
 pub fn run_sandbox_cli(args: &[String]) -> i32 {
     if args.is_empty() || matches!(args[0].as_str(), "--help" | "-h" | "help") {
         println!(
             "Usage: toksi sandbox <verb> [args...]\n\
+             Subcommands: compose <validate|up|down|test> | sbxenv <validate|plan>\n\
              Verbs (29-verb sbx parity): {}\n\
              Agents: {}\n\
              Flags: --backend <auto|native|sandbox-runtime|openshell|e2b|sbx> --allow-network <pat> --skills <readonly|readwrite|off>",
@@ -44,6 +184,12 @@ pub fn run_sandbox_cli(args: &[String]) -> i32 {
     }
 
     let verb = args[0].as_str();
+    if verb == "compose" {
+        return run_compose_subcommand(args.get(1..).unwrap_or(&[]));
+    }
+    if verb == "sbxenv" {
+        return run_sbxenv_subcommand(args.get(1..).unwrap_or(&[]));
+    }
     if !SBX_VERBS.contains(&verb) {
         eprintln!("Unknown sandbox verb '{verb}'. Supported: {}", SBX_VERBS.join(", "));
         return 2;

@@ -21,9 +21,39 @@ pub use adc::{
 pub use envelope::{decode_base64, encode_base64, parse_credential_envelope, OAuthEnvelope};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use thiserror::Error;
 use zeroize::Zeroize;
+
+static OS_KEYRING_UNAVAILABLE: AtomicBool = AtomicBool::new(false);
+const OS_KEYRING_SLOW_FAIL_MS: u64 = 500;
+
+fn os_keyring_bypassed() -> bool {
+    if OS_KEYRING_UNAVAILABLE.load(Ordering::Relaxed) {
+        return true;
+    }
+    for var in ["TOKSI_KEYRING_VAULT_ONLY", "TOKSI_TEST"] {
+        if let Ok(v) = std::env::var(var)
+            && matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes")
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn try_os_read_windows(key: &str) -> Option<String> {
+    if os_keyring_bypassed() {
+        return None;
+    }
+    let start = Instant::now();
+    let res = os_windows::read_credential(key);
+    if res.is_none() && start.elapsed() >= Duration::from_millis(OS_KEYRING_SLOW_FAIL_MS) {
+        OS_KEYRING_UNAVAILABLE.store(true, Ordering::Relaxed);
+    }
+    res
+}
 
 #[derive(Debug, Error)]
 pub enum KeyringError {
@@ -71,11 +101,11 @@ pub fn current_backend_name() -> &'static str {
 }
 
 fn vault_path() -> std::path::PathBuf {
-    if let Ok(dir) = std::env::var("TOKSI_DATA_DIR") {
-        if !dir.trim().is_empty() {
-            return std::path::PathBuf::from(crate::util::paths::normalize_path(dir.trim()))
-                .join("vault.json");
-        }
+    if let Ok(dir) = std::env::var("TOKSI_DATA_DIR")
+        && !dir.trim().is_empty()
+    {
+        return std::path::PathBuf::from(crate::util::paths::normalize_path(dir.trim()))
+            .join("vault.json");
     }
     let h = crate::util::paths::home();
     if !h.is_empty() {
@@ -137,9 +167,11 @@ fn delete_from_vault(key: &str) -> bool {
 pub fn get_credential(service: &str, account: &str) -> Option<String> {
     let os_result = if cfg!(windows) {
         let combined = format!("{}:{}", service, account);
-        os_windows::read_credential(&combined)
-            .or_else(|| os_windows::read_credential(service))
-            .or_else(|| os_windows::read_credential(account))
+        try_os_read_windows(&combined)
+            .or_else(|| try_os_read_windows(service))
+            .or_else(|| try_os_read_windows(account))
+    } else if os_keyring_bypassed() {
+        None
     } else if cfg!(target_os = "macos") {
         os_macos::read_keychain(service, account)
     } else if cfg!(target_os = "linux") {
@@ -161,9 +193,16 @@ pub fn get_credential(service: &str, account: &str) -> Option<String> {
 
 pub fn set_credential(service: &str, account: &str, secret: &str) -> bool {
     let combined = format!("{}:{}", service, account);
-    let os_ok = if cfg!(windows) {
-        os_windows::write_credential(&combined, Some(account), secret)
-            || os_windows::write_credential(service, Some(account), secret)
+    let os_ok = if os_keyring_bypassed() {
+        false
+    } else if cfg!(windows) {
+        let start = Instant::now();
+        let ok = os_windows::write_credential(&combined, Some(account), secret)
+            || os_windows::write_credential(service, Some(account), secret);
+        if !ok && start.elapsed() >= Duration::from_millis(OS_KEYRING_SLOW_FAIL_MS) {
+            OS_KEYRING_UNAVAILABLE.store(true, Ordering::Relaxed);
+        }
+        ok
     } else if cfg!(target_os = "macos") {
         os_macos::write_keychain(service, account, secret)
     } else if cfg!(target_os = "linux") {
@@ -182,14 +221,20 @@ pub fn set_credential(service: &str, account: &str, secret: &str) -> bool {
 
 pub fn delete_credential(service: &str, account: &str) -> bool {
     let combined = format!("{}:{}", service, account);
-    if cfg!(windows) {
-        let _ = os_windows::delete_credential(&combined);
-        let _ = os_windows::delete_credential(service);
-        let _ = os_windows::delete_credential(account);
-    } else if cfg!(target_os = "macos") {
-        let _ = os_macos::delete_keychain(service, account);
-    } else if cfg!(target_os = "linux") {
-        let _ = os_linux::delete_secret_service(service, account);
+    if !os_keyring_bypassed() {
+        if cfg!(windows) {
+            let start = Instant::now();
+            let deleted = os_windows::delete_credential(&combined)
+                || os_windows::delete_credential(service)
+                || os_windows::delete_credential(account);
+            if !deleted && start.elapsed() >= Duration::from_millis(OS_KEYRING_SLOW_FAIL_MS) {
+                OS_KEYRING_UNAVAILABLE.store(true, Ordering::Relaxed);
+            }
+        } else if cfg!(target_os = "macos") {
+            let _ = os_macos::delete_keychain(service, account);
+        } else if cfg!(target_os = "linux") {
+            let _ = os_linux::delete_secret_service(service, account);
+        }
     }
     delete_from_vault(&combined);
     delete_from_vault(service);
@@ -274,18 +319,18 @@ fn configured_agent_set() -> HashSet<String> {
             _ => {}
         }
     }
-    if let Ok(arc) = crate::db::shared_db() {
-        if let Ok(db) = arc.lock() {
-            if let Ok(cfgs) = db.list_agent_configs() {
-                for c in cfgs {
-                    set.insert(c.agent_id.to_ascii_lowercase());
-                }
+    if let Ok(arc) = crate::db::shared_db()
+        && let Ok(db) = arc.lock()
+    {
+        if let Ok(cfgs) = db.list_agent_configs() {
+            for c in cfgs {
+                set.insert(c.agent_id.to_ascii_lowercase());
             }
-            if let Ok(profiles) = db.list_byok_profiles() {
-                for p in profiles {
-                    if p.is_active {
-                        set.insert(p.provider_id.to_ascii_lowercase());
-                    }
+        }
+        if let Ok(profiles) = db.list_byok_profiles() {
+            for p in profiles {
+                if p.is_active {
+                    set.insert(p.provider_id.to_ascii_lowercase());
                 }
             }
         }

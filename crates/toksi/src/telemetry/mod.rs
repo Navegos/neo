@@ -13,6 +13,7 @@ pub mod evals;
 pub mod gpu_monitor;
 pub mod guardrails;
 pub mod openinference;
+pub mod otel;
 pub mod perf_tuning;
 pub mod prometheus;
 pub mod tokentracker;

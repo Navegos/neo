@@ -324,6 +324,24 @@ impl SymbolCache {
         }
     }
 
+    fn row_to_symbol_node(r: &rusqlite::Row<'_>) -> rusqlite::Result<SymbolNode> {
+        Ok(SymbolNode {
+            id: r.get(0)?,
+            file_path: r.get(1)?,
+            name: r.get(2)?,
+            qualified_name: r.get(3)?,
+            kind: r.get(4)?,
+            visibility: r.get(5)?,
+            start_line: r.get(6)?,
+            end_line: r.get(7)?,
+            start_column: r.get(8)?,
+            end_column: r.get(9)?,
+            docstring: r.get(10)?,
+            signature: r.get(11)?,
+            return_type: r.get(12)?,
+        })
+    }
+
     pub fn get_all_nodes(&self) -> Vec<SymbolNode> {
         let mut stmt = match self.conn.prepare(
             "SELECT id, file_path, name, qualified_name, kind, visibility,
@@ -334,25 +352,50 @@ impl SymbolCache {
             Err(_) => return Vec::new(),
         };
 
-        let iter = stmt.query_map([], |r| {
-            Ok(SymbolNode {
-                id: r.get(0)?,
-                file_path: r.get(1)?,
-                name: r.get(2)?,
-                qualified_name: r.get(3)?,
-                kind: r.get(4)?,
-                visibility: r.get(5)?,
-                start_line: r.get(6)?,
-                end_line: r.get(7)?,
-                start_column: r.get(8)?,
-                end_column: r.get(9)?,
-                docstring: r.get(10)?,
-                signature: r.get(11)?,
-                return_type: r.get(12)?,
-            })
-        });
-
+        let iter = stmt.query_map([], Self::row_to_symbol_node);
         iter.into_iter().flat_map(|res| res.flatten()).collect()
+    }
+
+    pub fn get_nodes_limited(&self, limit: usize) -> Vec<SymbolNode> {
+        let mut stmt = match self.conn.prepare(
+            "SELECT id, file_path, name, qualified_name, kind, visibility,
+                    start_line, end_line, start_column, end_column, docstring, signature, return_type
+             FROM nodes
+             LIMIT ?1",
+        ) {
+            Ok(s) => s,
+            Err(_) => return Vec::new(),
+        };
+
+        let iter = stmt.query_map(rusqlite::params![limit.max(1) as i64], Self::row_to_symbol_node);
+        iter.into_iter().flat_map(|res| res.flatten()).collect()
+    }
+
+    pub fn get_neighbors_for_symbol(&self, symbol_id: &str, limit: usize) -> (Vec<SymbolNode>, Vec<SymbolNode>) {
+        let lim = limit.max(1) as i64;
+        let query_side = |sql: &str| -> Vec<SymbolNode> {
+            let mut stmt = match self.conn.prepare(sql) {
+                Ok(s) => s,
+                Err(_) => return Vec::new(),
+            };
+            let iter = stmt.query_map(rusqlite::params![symbol_id, lim], Self::row_to_symbol_node);
+            iter.into_iter().flat_map(|res| res.flatten()).collect()
+        };
+        let callers = query_side(
+            "SELECT n.id, n.file_path, n.name, n.qualified_name, n.kind, n.visibility,
+                    n.start_line, n.end_line, n.start_column, n.end_column, n.docstring, n.signature, n.return_type
+             FROM edges e INNER JOIN nodes n ON n.id = e.source_id
+             WHERE e.target_id = ?1
+             LIMIT ?2",
+        );
+        let callees = query_side(
+            "SELECT n.id, n.file_path, n.name, n.qualified_name, n.kind, n.visibility,
+                    n.start_line, n.end_line, n.start_column, n.end_column, n.docstring, n.signature, n.return_type
+             FROM edges e INNER JOIN nodes n ON n.id = e.target_id
+             WHERE e.source_id = ?1
+             LIMIT ?2",
+        );
+        (callers, callees)
     }
 
     pub fn get_all_edges(&self) -> Vec<SymbolEdge> {

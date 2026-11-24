@@ -601,3 +601,533 @@ pub fn global_sandbox_manager() -> Arc<SandboxManager> {
 fn _command_exists(cmd: &str) -> bool {
     Command::new(cmd).arg("--version").output().is_ok()
 }
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComposeServiceSpec {
+    pub name: String,
+    pub image: String,
+    pub dockerfile: String,
+    pub working_dir: String,
+    pub network_mode: String,
+    pub privileged: bool,
+    pub read_only: bool,
+    pub mem_limit: String,
+    pub cpus: String,
+    pub networks: Vec<String>,
+    pub environment: Vec<String>,
+    pub tmpfs: Vec<String>,
+    pub volumes: Vec<String>,
+    pub security_opt: Vec<String>,
+    pub command: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ComposeSpec {
+    pub services: Vec<ComposeServiceSpec>,
+    pub networks: Vec<String>,
+}
+
+fn clean_yaml_scalar(raw: &str) -> String {
+    raw.trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .trim()
+        .to_string()
+}
+
+fn parse_inline_yaml_list(raw: &str) -> Vec<String> {
+    let trimmed = raw.trim();
+    if let Some(inner) = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        return inner
+            .split(',')
+            .map(clean_yaml_scalar)
+            .filter(|s| !s.is_empty())
+            .collect();
+    }
+    let single = clean_yaml_scalar(trimmed);
+    if single.is_empty() {
+        Vec::new()
+    } else {
+        vec![single]
+    }
+}
+
+/// Pure-Rust YAML parser for `docker/compose.test.yaml` and Compose test stacks.
+pub fn parse_compose_yaml(raw: &str) -> Result<ComposeSpec, String> {
+    let mut spec = ComposeSpec::default();
+    let mut top_section = "";
+    let mut current_service: Option<ComposeServiceSpec> = None;
+    let mut service_list_key = "";
+
+    for line in raw.lines() {
+        if line.trim().is_empty() || line.trim_start().starts_with('#') {
+            continue;
+        }
+        let indent = line.len() - line.trim_start().len();
+        let trimmed = line.trim();
+
+        if indent == 0 {
+            if let Some(svc) = current_service.take() {
+                spec.services.push(svc);
+            }
+            service_list_key = "";
+            if trimmed.starts_with("services:") {
+                top_section = "services";
+            } else if trimmed.starts_with("networks:") {
+                top_section = "networks";
+            } else {
+                top_section = "";
+            }
+            continue;
+        }
+
+        if top_section == "networks" && indent == 2 {
+            let net = trimmed.trim_end_matches(':').trim().to_string();
+            if !net.is_empty() {
+                spec.networks.push(net);
+            }
+            continue;
+        }
+
+        if top_section != "services" {
+            continue;
+        }
+
+        if indent == 2 && trimmed.ends_with(':') {
+            if let Some(svc) = current_service.take() {
+                spec.services.push(svc);
+            }
+            service_list_key = "";
+            current_service = Some(ComposeServiceSpec {
+                name: trimmed.trim_end_matches(':').trim().to_string(),
+                ..Default::default()
+            });
+            continue;
+        }
+
+        let Some(ref mut svc) = current_service else {
+            continue;
+        };
+
+        if let Some(item_raw) = trimmed.strip_prefix("- ") {
+            let item = clean_yaml_scalar(item_raw);
+            match service_list_key {
+                "networks" => svc.networks.push(item),
+                "environment" => svc.environment.push(item),
+                "tmpfs" => svc.tmpfs.push(item),
+                "volumes" => svc.volumes.push(item),
+                "security_opt" => svc.security_opt.push(item),
+                "command" => svc.command.push(item),
+                _ => {}
+            }
+            continue;
+        }
+
+        if let Some((k, v)) = trimmed.split_once(':') {
+            let key = k.trim();
+            let val = v.trim();
+            service_list_key = "";
+            match key {
+                "image" => svc.image = clean_yaml_scalar(val),
+                "dockerfile" => svc.dockerfile = clean_yaml_scalar(val),
+                "working_dir" => svc.working_dir = clean_yaml_scalar(val),
+                "network_mode" => svc.network_mode = clean_yaml_scalar(val),
+                "privileged" => svc.privileged = clean_yaml_scalar(val).eq_ignore_ascii_case("true"),
+                "read_only" => svc.read_only = clean_yaml_scalar(val).eq_ignore_ascii_case("true"),
+                "mem_limit" => svc.mem_limit = clean_yaml_scalar(val),
+                "cpus" => svc.cpus = clean_yaml_scalar(val),
+                "command" if !val.is_empty() => svc.command = parse_inline_yaml_list(val),
+                "networks" | "environment" | "tmpfs" | "volumes" | "security_opt" | "command" => {
+                    if !val.is_empty() {
+                        let items = parse_inline_yaml_list(val);
+                        match key {
+                            "networks" => svc.networks.extend(items),
+                            "environment" => svc.environment.extend(items),
+                            "tmpfs" => svc.tmpfs.extend(items),
+                            "volumes" => svc.volumes.extend(items),
+                            "security_opt" => svc.security_opt.extend(items),
+                            "command" => svc.command.extend(items),
+                            _ => {}
+                        }
+                    } else {
+                        service_list_key = match key {
+                            "networks" => "networks",
+                            "environment" => "environment",
+                            "tmpfs" => "tmpfs",
+                            "volumes" => "volumes",
+                            "security_opt" => "security_opt",
+                            "command" => "command",
+                            _ => "",
+                        };
+                    }
+                }
+                _ => {
+                    if indent >= 6
+                        && service_list_key.is_empty()
+                        && key == "driver"
+                    {
+                        // Ignore nested subkeys like build.context.
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(svc) = current_service.take() {
+        spec.services.push(svc);
+    }
+    if spec.services.is_empty() {
+        return Err("Compose file defines no services".to_string());
+    }
+    Ok(spec)
+}
+
+fn check_target_against_ssrf(raw: &str) -> Result<(), String> {
+    let low = raw.trim().to_ascii_lowercase();
+    for meta in ["169.254.169.254", "100.100.100.200", "metadata.google.internal"] {
+        if low.contains(meta) {
+            return Err(format!("SSRF metadata target forbidden: '{meta}'"));
+        }
+    }
+    if low.contains("://") {
+        ssrf_guard(raw).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Validates a `ComposeSpec` against privileged containers, host network, unsafe mounts, and SSRF.
+pub fn validate_compose_spec(spec: &ComposeSpec) -> Result<Vec<String>, Vec<String>> {
+    let mut errors = Vec::new();
+    let mut warnings = Vec::new();
+
+    if spec.services.is_empty() {
+        errors.push("No services declared in ComposeSpec".to_string());
+    }
+
+    for svc in &spec.services {
+        if svc.name.is_empty() {
+            errors.push("Service name cannot be empty".to_string());
+        }
+        if svc.privileged {
+            errors.push(format!("Service '{}' sets forbidden privileged: true", svc.name));
+        }
+        if svc.network_mode.eq_ignore_ascii_case("host") {
+            errors.push(format!("Service '{}' sets forbidden network_mode: host", svc.name));
+        }
+        for vol in &svc.volumes {
+            let norm = normalize_path(vol).to_ascii_lowercase();
+            if norm.contains(".toksi") || norm.contains("docker.sock") || norm.contains(".ssh") {
+                errors.push(format!("Service '{}' mounts restricted host path '{}'", svc.name, vol));
+            }
+        }
+        for env_entry in &svc.environment {
+            if let Some((_, val)) = env_entry.split_once('=')
+                && let Err(e) = check_target_against_ssrf(val)
+            {
+                errors.push(format!("Service '{}' env '{}': {}", svc.name, env_entry, e));
+            }
+        }
+        if svc.mem_limit.trim().is_empty() {
+            warnings.push(format!("Service '{}' omits mem_limit", svc.name));
+        }
+        if !svc
+            .security_opt
+            .iter()
+            .any(|o| o.eq_ignore_ascii_case("no-new-privileges:true"))
+        {
+            warnings.push(format!("Service '{}' omits no-new-privileges:true", svc.name));
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(warnings)
+    } else {
+        Err(errors)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SbxEnvManifest {
+    pub schema_version: String,
+    pub agent: String,
+    pub workspace: String,
+    pub network_allow: Vec<String>,
+    pub env_passthrough: Vec<String>,
+    pub skills_mode: String,
+}
+
+/// Parses declarative `sbxenv.yaml` (`schemaVersion: "1"`) manifests.
+pub fn parse_sbxenv_yaml(raw: &str) -> Result<SbxEnvManifest, String> {
+    let mut out = SbxEnvManifest {
+        skills_mode: "readonly".to_string(),
+        ..Default::default()
+    };
+    let mut current_list = "";
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some(item_raw) = trimmed.strip_prefix("- ") {
+            let item = clean_yaml_scalar(item_raw);
+            match current_list {
+                "network_allow" => out.network_allow.push(item),
+                "env_passthrough" => out.env_passthrough.push(item),
+                _ => {}
+            }
+            continue;
+        }
+        if let Some((k, v)) = trimmed.split_once(':') {
+            let key = k.trim();
+            let val = v.trim();
+            current_list = "";
+            match key {
+                "schemaVersion" | "schema_version" => out.schema_version = clean_yaml_scalar(val),
+                "agent" => out.agent = clean_yaml_scalar(val),
+                "workspace" => out.workspace = clean_yaml_scalar(val),
+                "skills_mode" | "skills" => out.skills_mode = clean_yaml_scalar(val),
+                "network_allow" | "allow_network" => {
+                    if val.is_empty() {
+                        current_list = "network_allow";
+                    } else {
+                        out.network_allow.extend(parse_inline_yaml_list(val));
+                    }
+                }
+                "env_passthrough" | "env" => {
+                    if val.is_empty() {
+                        current_list = "env_passthrough";
+                    } else {
+                        out.env_passthrough.extend(parse_inline_yaml_list(val));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if out.schema_version.is_empty() {
+        return Err("sbxenv.yaml missing required 'schemaVersion'".to_string());
+    }
+    Ok(out)
+}
+
+/// Validates an `SbxEnvManifest` (`schemaVersion: "1"`) with fail-closed SSRF and mount checks.
+pub fn validate_sbxenv(m: &SbxEnvManifest) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
+    if m.schema_version != "1" {
+        errors.push(format!("Expected schemaVersion '1', got '{}'", m.schema_version));
+    }
+    if m.agent.trim().is_empty() {
+        errors.push("sbxenv requires non-empty agent".to_string());
+    }
+    let norm_ws = normalize_path(&m.workspace).to_ascii_lowercase();
+    if norm_ws.contains("..") || norm_ws.contains(".toksi") || norm_ws.contains("docker.sock") {
+        errors.push(format!("Unsafe workspace path '{}'", m.workspace));
+    }
+    for host in &m.network_allow {
+        if let Err(e) = check_target_against_ssrf(host) {
+            errors.push(format!("Blocked network_allow '{}': {}", host, e));
+        } else if let Err(e) = ssrf_guard(host) {
+            errors.push(format!("SSRF blocked network_allow '{}': {}", host, e));
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SbxKitV3Manifest {
+    pub schema_version: String,
+    pub name: String,
+    pub base_image: String,
+    pub agents: Vec<String>,
+    pub mcp_servers: Vec<String>,
+    pub policies: Vec<String>,
+    pub resources: HashMap<String, String>,
+}
+
+/// Parses declarative Kit v3 (`schemaVersion: "3"`) sandbox manifests.
+pub fn parse_sbx_kit_v3_yaml(raw: &str) -> Result<SbxKitV3Manifest, String> {
+    let mut out = SbxKitV3Manifest::default();
+    let mut section = "";
+
+    for line in raw.lines() {
+        if line.trim().is_empty() || line.trim_start().starts_with('#') {
+            continue;
+        }
+        let trimmed = line.trim();
+        if let Some(item_raw) = trimmed.strip_prefix("- ") {
+            let item = clean_yaml_scalar(item_raw);
+            match section {
+                "agents" => out.agents.push(item),
+                "mcp_servers" => out.mcp_servers.push(item),
+                "policies" => out.policies.push(item),
+                _ => {}
+            }
+            continue;
+        }
+        if let Some((k, v)) = trimmed.split_once(':') {
+            let key = k.trim();
+            let val = v.trim();
+            if section == "resources" && !val.is_empty() {
+                out.resources.insert(key.to_string(), clean_yaml_scalar(val));
+                continue;
+            }
+            section = "";
+            match key {
+                "schemaVersion" | "schema_version" => out.schema_version = clean_yaml_scalar(val),
+                "name" => out.name = clean_yaml_scalar(val),
+                "base_image" | "baseImage" => out.base_image = clean_yaml_scalar(val),
+                "agents" if val.is_empty() => section = "agents",
+                "agents" => out.agents.extend(parse_inline_yaml_list(val)),
+                "mcp_servers" | "mcp" if val.is_empty() => section = "mcp_servers",
+                "mcp_servers" | "mcp" => out.mcp_servers.extend(parse_inline_yaml_list(val)),
+                "policies" if val.is_empty() => section = "policies",
+                "policies" => out.policies.extend(parse_inline_yaml_list(val)),
+                "resources" if val.is_empty() => section = "resources",
+                _ => {}
+            }
+        }
+    }
+
+    if out.schema_version.is_empty() {
+        return Err("Kit v3 manifest missing required 'schemaVersion'".to_string());
+    }
+    Ok(out)
+}
+
+/// Validates an `SbxKitV3Manifest` (`schemaVersion: "3"`) with privilege and SSRF checks.
+pub fn validate_sbx_kit_v3(m: &SbxKitV3Manifest) -> Result<(), Vec<String>> {
+    let mut errors = Vec::new();
+    if m.schema_version != "3" {
+        errors.push(format!("Expected schemaVersion '3', got '{}'", m.schema_version));
+    }
+    if m.name.trim().is_empty() {
+        errors.push("Kit v3 requires non-empty 'name'".to_string());
+    }
+    if m.base_image.trim().is_empty() {
+        errors.push("Kit v3 requires non-empty 'base_image'".to_string());
+    }
+    for pol in &m.policies {
+        let low = pol.to_ascii_lowercase();
+        if low.contains("privileged") || low.contains("host-network") {
+            errors.push(format!("Kit v3 forbids unsafe policy '{pol}'"));
+        }
+        if let Err(e) = check_target_against_ssrf(pol) {
+            errors.push(format!("Kit v3 policy '{pol}': {e}"));
+        }
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+/// Builds deterministic `sbx` CLI argument vectors from an `SbxEnvManifest`.
+pub fn build_sbx_cli_args(manifest: &SbxEnvManifest, action: &str) -> Vec<String> {
+    let act = if action.trim().is_empty() {
+        "run"
+    } else {
+        action.trim()
+    };
+    let mut args = vec![act.to_string(), "--agent".to_string(), manifest.agent.clone()];
+    if !manifest.workspace.trim().is_empty() {
+        args.push("--workspace".to_string());
+        args.push(normalize_path(&manifest.workspace));
+    }
+    args.push("--skills".to_string());
+    args.push(manifest.skills_mode.clone());
+    for host in &manifest.network_allow {
+        args.push("--allow-network".to_string());
+        args.push(host.clone());
+    }
+    for env_name in &manifest.env_passthrough {
+        args.push("--env".to_string());
+        args.push(env_name.clone());
+    }
+    args
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compose_test_yaml_validates_cleanly() {
+        let compose_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docker/compose.test.yaml");
+        let raw = std::fs::read_to_string(&compose_path).expect("read docker/compose.test.yaml");
+        let spec = parse_compose_yaml(&raw).expect("parse compose.test.yaml");
+        assert_eq!(spec.services.len(), 1);
+        assert_eq!(spec.services[0].name, "toksi-test");
+        let warnings = validate_compose_spec(&spec).expect("compose.test.yaml must validate");
+        assert!(warnings.is_empty(), "Unexpected warnings: {warnings:?}");
+    }
+
+    #[test]
+    fn test_compose_rejects_privileged_ssrf_and_toksi_mount() {
+        let bad = r#"
+services:
+  evil:
+    image: alpine:3.20
+    privileged: true
+    network_mode: host
+    volumes:
+      - ~/.toksi:/root/.toksi
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - META=http://169.254.169.254/latest/meta-data
+"#;
+        let spec = parse_compose_yaml(bad).expect("parse bad compose");
+        let errs = validate_compose_spec(&spec).expect_err("must reject unsafe compose");
+        assert!(errs.len() >= 5, "Expected >= 5 errors, got {errs:?}");
+    }
+
+    #[test]
+    fn test_sbxenv_v1_and_kit_v3_and_cli_builder() {
+        let v1_raw = r#"
+schemaVersion: "1"
+agent: claude
+workspace: ./crates/toksi
+skills_mode: readonly
+network_allow:
+  - api.anthropic.com
+env_passthrough:
+  - TOKSI_TEST
+"#;
+        let env_m = parse_sbxenv_yaml(v1_raw).expect("parse sbxenv");
+        assert!(validate_sbxenv(&env_m).is_ok());
+        let args = build_sbx_cli_args(&env_m, "create");
+        assert!(args.starts_with(&["create".to_string(), "--agent".to_string(), "claude".to_string()]));
+
+        let bad_v1 = r#"
+schemaVersion: "1"
+agent: claude
+workspace: ../secret
+network_allow:
+  - 100.100.100.200
+"#;
+        let bad_env = parse_sbxenv_yaml(bad_v1).expect("parse bad sbxenv");
+        assert!(validate_sbxenv(&bad_env).is_err());
+
+        let v3_raw = r#"
+schemaVersion: "3"
+name: neo-kit
+base_image: rust:1.88-slim-bookworm
+agents: [claude, gemini]
+mcp_servers: [toksi]
+policies:
+  - read-only-skills
+resources:
+  memory: 2g
+  cpus: 2
+"#;
+        let v3 = parse_sbx_kit_v3_yaml(v3_raw).expect("parse kit v3");
+        assert!(validate_sbx_kit_v3(&v3).is_ok());
+        assert_eq!(v3.resources.get("memory").map(String::as_str), Some("2g"));
+    }
+}

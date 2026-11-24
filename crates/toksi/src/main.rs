@@ -173,8 +173,8 @@ fn help_text() -> String {
           -h, --help          Show this comprehensive usage help\n\n\
         {sec_disciplines}\n\
           * Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced; zero panics (.unwrap/.expect/panic! prohibited).\n\
-          * Architecture: 35-component <toksi-siagent> across 295 mandated vaults (37 .agents/brain/*.md guides PHASE_01..PHASE_18_6).\n\
-          * Bus & Attribution: direct-wired DirectWireBus (zero-hop) + effort-tier tokview attribution (Low/Medium/High).\n\
+          * Architecture: 35-component <toksi-siagent> across 493 mandated vaults (49 .agents/brain/*.md guides PHASE_01..PHASE_20_6).\n\
+          * Bus & Attribution: direct-wired DirectWireBus (zero-hop) + effort-tier tokview attribution (Low/Medium/High/XHigh/Max).\n\
           * Externalized Zero-Bloat: <skills> & <advisory> staged outside crates/toksi/ (<neo>/agents/ & <neo>/rules/).\n\
           * Zero Paid-Tier Restrictions: all enabled BYOK, ADC, OAuth, and CLI profiles route freely.\n\
           * Ground-Truth Token Accounting: real tokens parsed from live SSE streams; 0 when idle.\n\
@@ -533,6 +533,18 @@ fn run() -> i32 {
     }
     if args.len() >= 2 && args[1] == "eval" {
         return toksi::commands::run_eval_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "dataset" {
+        return toksi::commands::run_dataset_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "compress" {
+        return toksi::commands::run_compress_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "cluster" {
+        return toksi::commands::run_cluster_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "otel" {
+        return toksi::commands::run_otel_cli(&args[2..]);
     }
     if args.len() >= 2 && args[1] == "orchestrator" {
         return toksi::commands::run_orchestrator_cli(&args[2..]);

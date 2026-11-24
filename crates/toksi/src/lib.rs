@@ -24,6 +24,7 @@ pub mod contextmode;
 pub mod icm;
 pub mod aimemory;
 pub mod codegraph;
+pub mod cluster;
 pub mod rules;
 pub mod security;
 pub mod tui;

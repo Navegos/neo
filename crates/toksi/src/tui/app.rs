@@ -18,7 +18,7 @@ use ratatui::layout::Rect;
 use crate::agents::proxy_agent_wired;
 use crate::core::{list_agents, list_tools, RunOpts};
 use crate::headroom::byok_gateway::configured_byok_routes;
-use crate::headroom::proxy::{ensure_proxy_up, proxy_port, proxy_running, stop_proxy};
+use crate::headroom::proxy::{ensure_proxy_up, proxy_port, stop_proxy};
 use crate::commands::daemon::is_daemon_running;
 use crate::commands::init_agent_fully_wired;
 use crate::util::paths::{
@@ -733,7 +733,7 @@ impl App {
     }
 
     pub fn reload_services(&mut self) {
-        self.monitor.proxy_up = proxy_running();
+        self.monitor.proxy_up = crate::headroom::proxy::proxy_live_z_timeout(Duration::from_millis(200));
         self.monitor.daemon_up = is_daemon_running();
     }
 
@@ -741,6 +741,7 @@ impl App {
         let agent_manifests = list_agents();
         let tools = list_tools();
         let per_agent = self.snapshot_rx.borrow().per_agent_saved.clone();
+        let proxy_up = self.monitor.proxy_up;
 
         let mut rows = Vec::new();
         for ag in agent_manifests {
@@ -758,7 +759,7 @@ impl App {
                 "unwired".to_string()
             };
 
-            let port = if is_proxy_wired && proxy_running() {
+            let port = if is_proxy_wired && proxy_up {
                 format!("{} -> Direct", proxy_port())
             } else if is_proxy_wired {
                 format!("{} (stopped)", proxy_port())
@@ -1007,20 +1008,19 @@ impl App {
 
     pub fn reload_graph(&mut self) {
         let root = PathBuf::from(".");
-        if let Ok(cg) = crate::codegraph::CodeGraph::open(&root) {
-            let stats = cg.cache.get_stats();
+        if let Ok(cache) = crate::codegraph::CodeGraph::open_cache_only(&root) {
+            let stats = cache.get_stats();
             self.graph.total_symbols = stats.node_count;
             self.graph.total_files = stats.file_count;
 
-            let all_nodes = cg.cache.get_all_nodes();
-            self.graph.symbols = all_nodes
-                .iter()
-                .take(300)
+            let limited = cache.get_nodes_limited(300);
+            self.graph.symbols = limited
+                .into_iter()
                 .map(|n| SymbolRow {
-                    id: n.id.clone(),
-                    name: n.name.clone(),
-                    kind: n.kind.clone(),
-                    file: n.file_path.clone(),
+                    id: n.id,
+                    name: n.name,
+                    kind: n.kind,
+                    file: n.file_path,
                     line: n.start_line,
                 })
                 .collect();
@@ -1050,54 +1050,49 @@ impl App {
         let sel = self.graph.selected.min(self.graph.symbols.len().saturating_sub(1));
         let sym = &self.graph.symbols[sel];
 
-        // Query callers / callees / blast radius if CodeGraph cache exists
+        // Query callers / callees / bounded blast radius via cache without full graph hydrate
         let root = PathBuf::from(".");
-        if let Ok(cg) = crate::codegraph::CodeGraph::open(&root) {
-            let callers = cg.engine.get_callers(&sym.id);
+        if let Ok(cache) = crate::codegraph::CodeGraph::open_cache_only(&root) {
+            let (callers, callees) = cache.get_neighbors_for_symbol(&sym.id, 50);
             self.graph.active_callers = callers
-                .into_iter()
-                .map(|(node, _)| CallEdgeItem {
+                .iter()
+                .map(|node| CallEdgeItem {
                     name: node.name.clone(),
                     file: node.file_path.clone(),
                     line: node.start_line,
                 })
                 .collect();
 
-            let callees = cg.engine.get_callees(&sym.id);
             self.graph.active_callees = callees
-                .into_iter()
-                .map(|(node, _)| CallEdgeItem {
+                .iter()
+                .map(|node| CallEdgeItem {
                     name: node.name.clone(),
                     file: node.file_path.clone(),
                     line: node.start_line,
                 })
                 .collect();
 
-            if let Some(report) = cg.engine.compute_blast_radius(&sym.id, 3) {
+            if !callers.is_empty() || !callees.is_empty() {
                 let mut tree_items: Vec<BlastTreeItem> = Vec::new();
                 tree_items.push(BlastTreeItem {
-                    name: report.focal_name.clone(),
-                    file: report.focal_file.clone(),
+                    name: sym.name.clone(),
+                    file: sym.file.clone(),
                     depth: 0,
                 });
-                for up in &report.upstream_dependents {
+                let mut impacted_set = std::collections::BTreeSet::new();
+                impacted_set.insert(sym.file.clone());
+                for node in callers.iter().chain(callees.iter()) {
+                    impacted_set.insert(node.file_path.clone());
                     tree_items.push(BlastTreeItem {
-                        name: up.node.name.clone(),
-                        file: up.node.file_path.clone(),
-                        depth: up.depth,
-                    });
-                }
-                for down in &report.downstream_dependencies {
-                    tree_items.push(BlastTreeItem {
-                        name: down.node.name.clone(),
-                        file: down.node.file_path.clone(),
-                        depth: down.depth,
+                        name: node.name.clone(),
+                        file: node.file_path.clone(),
+                        depth: 1,
                     });
                 }
 
-                let total_impacted = report.upstream_dependents.len() + report.downstream_dependencies.len();
-                let affected_tests = report
-                    .affected_files
+                let total_impacted = callers.len() + callees.len();
+                let impacted_files: Vec<String> = impacted_set.into_iter().collect();
+                let affected_tests = impacted_files
                     .iter()
                     .filter(|f| f.contains("test"))
                     .cloned()
@@ -1105,8 +1100,8 @@ impl App {
 
                 self.graph.active_blast_radius = Some(BlastRadiusSummary {
                     total_impacted,
-                    max_depth: report.depth,
-                    impacted_files: report.affected_files,
+                    max_depth: 1,
+                    impacted_files,
                     affected_tests,
                     tree_items,
                 });

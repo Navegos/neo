@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 Navegos. @DevelVitorF. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
+# project: neo
+# file: docker/compose.test.yaml
+
+services:
+  toksi-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.test
+    image: toksi-test:local
+    working_dir: /workspace
+    networks:
+      - toksi-test-net
+    environment:
+      - TOKSI_TEST=1
+      - TOKSI_HOME=/tmp/toksi-test-home
+      - TOKSI_IPC_NS=compose-test
+      - CARGO_HOME=/tmp/cargo-home
+    tmpfs:
+      - /tmp/toksi-test-home:rw,noexec,nosuid,size=256m
+      - /tmp/cargo-home:rw,nosuid,size=512m
+    volumes:
+      - ..:/workspace:cached
+    mem_limit: 2g
+    cpus: "2.0"
+    read_only: false
+    security_opt:
+      - no-new-privileges:true
+    command: ["cargo", "test", "--workspace"]
+
+networks:
+  toksi-test-net:
+    driver: bridge

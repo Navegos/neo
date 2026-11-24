@@ -500,6 +500,7 @@ mod tests {
                 is_active: true,
                 created_at: 0,
                 updated_at: 0,
+                ..Default::default()
             },
             ByokProfileRecord {
                 id: "p2".to_string(),
@@ -518,6 +519,7 @@ mod tests {
                 is_active: true,
                 created_at: 0,
                 updated_at: 0,
+                ..Default::default()
             },
         ];
         let next = select_next_enabled_profile(&profiles, &["p1".to_string()]);

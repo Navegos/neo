@@ -96,6 +96,7 @@ pub struct SlashCommandEngine {
     state: RwLock<SlashSessionState>,
     workspace_root: RwLock<PathBuf>,
     db: Mutex<Option<ToksiConfigDb>>,
+    otel_db: Mutex<Option<crate::db::service_dbs::ServiceTelemetryDb>>,
     cached_skills_count: RwLock<Option<usize>>,
 }
 
@@ -111,8 +112,25 @@ impl SlashCommandEngine {
             state: RwLock::new(SlashSessionState::default()),
             workspace_root: RwLock::new(workspace_root),
             db: Mutex::new(None),
+            otel_db: Mutex::new(None),
             cached_skills_count: RwLock::new(None),
         }
+    }
+
+    fn otel_span_count(&self) -> usize {
+        use crate::db::service_dbs::{ServiceDbKind, ServiceTelemetryDb};
+        let Ok(mut guard) = self.otel_db.lock() else {
+            return 0;
+        };
+        if guard.is_none()
+            && let Ok(db) = ServiceTelemetryDb::open(ServiceDbKind::Otel)
+        {
+            *guard = Some(db);
+        }
+        guard
+            .as_ref()
+            .and_then(|d| d.event_count().ok())
+            .unwrap_or(0)
     }
 
     fn with_db<F, R>(&self, f: F) -> Result<R, String>
@@ -902,13 +920,83 @@ impl SlashCommandEngine {
         match cmd {
             "workforce" => format!("[/workforce] Role queues ready (arg={arg})."),
             "spec" => format!("[/spec] OpenSpec contract validator ready (arg={arg})."),
-            "dataset" => format!("[/dataset] Dataset ingestion & ontology contract ready (arg={arg})."),
+            "dataset" => {
+                let mut toks = arg.split_whitespace();
+                let sub = toks.next().unwrap_or("ontology");
+                if sub == "ontology" {
+                    let domain = toks.next().unwrap_or("toksi");
+                    let ont = crate::training::dataset::build_ontology_from_fields(
+                        domain,
+                        &["id", "prompt", "response"],
+                    );
+                    format!(
+                        "[/dataset ontology] domain={} entities={} edges={}",
+                        ont.domain,
+                        ont.entities.len(),
+                        ont.edges.len()
+                    )
+                } else {
+                    format!("[/dataset {sub}] Run `toksi dataset {arg}` to inspect/validate manifests.")
+                }
+            }
             "train" => format!("[/train] Training recipe planner ready (`toksi train {arg}`)."),
-            "eval" => format!("[/eval] Eval harnesses & AutoFA failure clustering ready (`toksi eval {arg}`)."),
-            "compress" => format!("[/compress] KV-cache & quantization planner ready (arg={arg})."),
+            "eval" => {
+                let s = crate::telemetry::evals::compute_eval_summary("deepeval", "active", 1, 1);
+                format!("[/eval] harness={} score={:.2} (`toksi eval {arg}`).", s.harness, s.score)
+            }
+            "compress" => {
+                let plan = crate::training::compress::plan_kvpress(
+                    crate::training::compress::KvPressPolicy::SnapKv,
+                    0.5,
+                    32768,
+                );
+                format!(
+                    "[/compress] kvpress={} retained={} saved={:.1}%",
+                    plan.policy.as_str(),
+                    plan.retained_tokens,
+                    plan.estimated_vram_saved_pct
+                )
+            }
             "serve" => format!("[/serve] Pure-Rust/multimodal local engine descriptors ready (`toksi serve {arg}`)."),
-            "cluster" => format!("[/cluster] Distributed cluster stack (Local/LanPair/K8s/Slurm) ready (`toksi cluster {arg}`)."),
-            "otel" => format!("[/otel] OpenTelemetry GenAI (`gen_ai.*`) OTLP exporter ready (arg={arg})."),
+            "cluster" => {
+                let tooling = crate::cluster::probe_k8s_tooling();
+                let nodes = self
+                    .with_db(|db| crate::cluster::ClusterTopology::load_from_config_db(db).ok())
+                    .ok()
+                    .flatten()
+                    .map(|t| t.nodes)
+                    .unwrap_or_default();
+                let readiness = crate::cluster::evaluate_nvcre_readiness(&nodes);
+                format!(
+                    "[/cluster {arg}] nodes={} healthy={} ready={} kubectl={} helm={}",
+                    readiness.total_nodes,
+                    readiness.healthy_nodes,
+                    readiness.ready,
+                    tooling.kubectl,
+                    tooling.helm
+                )
+            }
+            "otel" => {
+                if arg.starts_with("collector") {
+                    let yaml = crate::cluster::render_otel_collector_yaml(4318, 9464);
+                    format!(
+                        "[/otel collector] OpenTelemetry collector YAML generated ({} bytes, OTLP HTTP :4318).",
+                        yaml.len()
+                    )
+                } else {
+                    let count = self.otel_span_count();
+                    let db_path = crate::util::paths::normalize_path(
+                        &crate::db::service_dbs::service_db_path(
+                            crate::db::service_dbs::ServiceDbKind::Otel,
+                        )
+                        .to_string_lossy(),
+                    );
+                    format!(
+                        "[/otel {arg}] spans={} otel_db={} semconv=gen_ai.1.29 fail_open=true",
+                        count, db_path
+                    )
+                }
+            }
             "voice" => format!("[/voice] Whisper.cpp ASR endpoint ready at local audio bridge (arg={arg})."),
             _ => format!("[/{cmd}] Ready (arg={arg})."),
         }

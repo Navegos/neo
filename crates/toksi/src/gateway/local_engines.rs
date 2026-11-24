@@ -61,6 +61,7 @@ pub const SECTION_2_7_LOCAL_ENGINES: &[LocalEngineDescriptor] = &[
     LocalEngineDescriptor { id: "stable-diffusion.cpp", default_port: 8087, pure_rust: false, openai_compat: true },
     LocalEngineDescriptor { id: "triton-server", default_port: 8000, pure_rust: false, openai_compat: true },
     LocalEngineDescriptor { id: "deepspeed-mii", default_port: 8088, pure_rust: false, openai_compat: true },
+    LocalEngineDescriptor { id: "hyperflare-inference", default_port: 8090, pure_rust: true, openai_compat: true },
 ];
 
 /// Section 2.8 (48), Section 2.9 (41), and Section 2.10 (51) compute & serving vaults (140 total).
@@ -131,4 +132,41 @@ pub fn lookup_local_engine(id: &str) -> Option<&'static LocalEngineDescriptor> {
     SECTION_2_7_LOCAL_ENGINES
         .iter()
         .find(|e| e.id.to_ascii_lowercase() == low)
+}
+
+/// Wave 20 Section 2.15 (26), Section 2.16 (26), and Section 2.17 (9) vaults (61 total).
+pub const SECTION_2_15_TO_2_17_VAULTS: &[&str] = &[
+    // 2.15 Distributed Cluster, Kubernetes, Kubeflow & Spark (26)
+    "kubernetes", "minikube", "kompose", "kops", "helm", "autoscaler", "node-problem-detector",
+    "cluster-readiness-engine", "NVSentinel", "aicr", "knavigator", "AI-Factory-Operations-Agent",
+    "deepops", "kubeflow-hub", "kubeflow-pipelines", "kubeflow-trainer", "kubeflow-sdk",
+    "kubeflow-kale", "kubeflow-spark-operator", "kubeflow-dashboard", "kubeflow-notebooks",
+    "kubeflow-semantic-operator", "kubeflow-katib", "Run", "spark", "cudf-spark",
+    // 2.16 11-Pillar Datasets, Serving, Compression, RAG, Semantic Routing & IDEs (26)
+    "ossie", "ossie-converters", "auto-ontology", "structured-data-models", "Megatron-Energon",
+    "cuPhoton", "hyperflare-inference", "kvpress", "bitsandbytes", "Personal-AI-Router",
+    "semantic-router", "NeMo-Agent-Toolkit", "NeMo-Agent-Toolkit-UI", "NeMo-Relay-Plugins",
+    "elements", "llama_index", "llama-agents", "liteparse", "haystack", "prompt-ops", "llama",
+    "llama-models", "ogx", "ogx-client-go", "vscode", "aider",
+    // 2.17 Evals, PurpleLlama & OpenTelemetry (9)
+    "AutoFA", "deepeval", "ragas", "PurpleLlama", "opentelemetry-rust", "opentelemetry-collector",
+    "opentelemetry-operator", "opentelemetry-python", "opentelemetry-python-genai",
+];
+
+pub fn total_mandated_vault_count() -> usize {
+    crate::tools::multi_protocol::CONSOLIDATED_VAULT_COUNT
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_wave20_local_engines_and_493_vaults() {
+        let hf = lookup_local_engine("hyperflare-inference").expect("hyperflare-inference registered");
+        assert!(hf.pure_rust);
+        assert_eq!(hf.default_port, 8090);
+        assert_eq!(SECTION_2_15_TO_2_17_VAULTS.len(), 61);
+        assert_eq!(total_mandated_vault_count(), 493);
+    }
 }

@@ -30,6 +30,26 @@ pub struct RetrieverPipeline {
     rrf_k: f32,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HybridWorkflowStage {
+    LlamaIndex,
+    LlamaAgents,
+    Haystack,
+    NemoAgentToolkit,
+}
+
+impl HybridWorkflowStage {
+    pub const fn boost_factor(self) -> f32 {
+        match self {
+            Self::LlamaIndex => 1.05,
+            Self::LlamaAgents => 1.10,
+            Self::Haystack => 1.02,
+            Self::NemoAgentToolkit => 1.15,
+        }
+    }
+}
+
 impl RetrieverPipeline {
     pub fn new(tei: TeiClient) -> Self {
         Self { tei, rrf_k: 60.0 }
@@ -106,5 +126,44 @@ impl RetrieverPipeline {
         });
         scored.truncate(top_k);
         scored
+    }
+
+    pub fn retrieve_with_stages(
+        &self,
+        query: &str,
+        docs: &[(String, String, String)],
+        stage: HybridWorkflowStage,
+        top_k: usize,
+    ) -> Vec<RetrieverCandidate> {
+        let mut results = self.fuse_and_rerank(query, docs, top_k);
+        let boost = stage.boost_factor();
+        for item in &mut results {
+            item.rrf_score *= boost;
+        }
+        results
+    }
+
+    pub fn chunk_with_liteparse(text: &str, max_chars: usize) -> Vec<String> {
+        crate::training::dataset::liteparse_extract_chunks(text, max_chars)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::aimemory::embeddings::EmbeddingConfig;
+
+    #[test]
+    fn test_retriever_stages_and_liteparse_chunking() {
+        let tei = TeiClient::new(EmbeddingConfig::default());
+        let pipe = RetrieverPipeline::new(tei);
+        let docs = vec![
+            ("d1".into(), "src/a.rs".into(), "semantic router query cache".into()),
+            ("d2".into(), "src/b.rs".into(), "unrelated text block".into()),
+        ];
+        let hits = pipe.retrieve_with_stages("semantic router", &docs, HybridWorkflowStage::NemoAgentToolkit, 1);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].id, "d1");
+        assert!(!RetrieverPipeline::chunk_with_liteparse("a\n\nb", 64).is_empty());
     }
 }

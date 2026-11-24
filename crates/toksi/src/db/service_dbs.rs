@@ -87,8 +87,25 @@ pub struct ServiceTelemetryDb {
 
 impl ServiceTelemetryDb {
     pub fn open(kind: ServiceDbKind) -> Result<Self, rusqlite::Error> {
+        let test_isolated = std::env::var("TOKSI_TEST").as_deref() == Ok("1")
+            && std::env::var("TOKSI_DATA_DIR")
+                .map(|s| s.trim().is_empty())
+                .unwrap_or(true)
+            && std::env::var("TOKSI_HOME")
+                .map(|s| s.trim().is_empty())
+                .unwrap_or(true);
+        let temp_p = std::env::temp_dir()
+            .join(".toksi")
+            .join("services")
+            .join(format!("{}.db", kind.file_stem()));
+        if test_isolated {
+            return Self::open_at(kind, &temp_p);
+        }
         let p = service_db_path(kind);
-        Self::open_at(kind, &p)
+        match Self::open_at(kind, &p) {
+            Ok(db) => Ok(db),
+            Err(e) => Self::open_at(kind, &temp_p).or(Err(e)),
+        }
     }
 
     pub fn open_at(kind: ServiceDbKind, path: &Path) -> Result<Self, rusqlite::Error> {
@@ -98,9 +115,9 @@ impl ServiceTelemetryDb {
             let _ = std::fs::create_dir_all(parent);
         }
         let conn = Connection::open(path)?;
+        conn.pragma_update(None, "busy_timeout", 5000)?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         conn.pragma_update(None, "synchronous", "NORMAL")?;
-        conn.pragma_update(None, "busy_timeout", 5000)?;
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS service_telemetry_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -470,6 +470,9 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
         },
         ("GET", "/api/system/logs") => HttpResponse::ok_json(handle_system_logs()),
         ("GET", "/api/supervisor/workers") => HttpResponse::ok_json(handle_supervisor_workers()),
+        ("GET", "/api/cluster/status") => HttpResponse::ok_json(handle_cluster_status()),
+        ("GET", "/api/cluster/nodes") => HttpResponse::ok_json(handle_cluster_nodes()),
+        ("GET", "/api/cluster/readiness") => HttpResponse::ok_json(handle_cluster_readiness()),
         ("GET", "/api/activity") => HttpResponse::ok_json(handle_activity_get()),
         ("GET", "/api/orchestrator/modes") => HttpResponse::ok_json(handle_orchestrator_modes_get()),
         ("PUT", "/api/orchestrator/modes") => match handle_orchestrator_modes_put(&req.body) {
@@ -528,6 +531,7 @@ fn route_request(req: &HttpRequest) -> HttpResponse {
         ("GET", "/api/security/sandbox") => HttpResponse::ok_json(handle_security_sandbox()),
         ("GET", "/api/security/audit-evidence") => HttpResponse::ok_json(handle_security_audit_evidence()),
         ("GET", "/api/telemetry/spans") => HttpResponse::ok_json(handle_telemetry_spans()),
+        ("GET", "/api/otel/status") => HttpResponse::ok_json(handle_otel_status()),
 
         ("GET", "/api/db/status") => HttpResponse::ok_json(handle_db_status()),
         ("GET", "/api/db/table") => {

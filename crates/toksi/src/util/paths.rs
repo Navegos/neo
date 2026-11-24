@@ -130,6 +130,11 @@ pub fn home() -> String {
             }
         }
     }
+    if let Ok(h) = std::env::var("TOKSI_HOME")
+        && !h.trim().is_empty()
+    {
+        return normalize_path(&h);
+    }
     if IS_WIN {
         if let Some(dir) = dirs::home_dir() {
             let s = normalize_path(&dir.to_string_lossy());

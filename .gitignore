@@ -457,10 +457,10 @@ crates/*/.codegraph/
 crates/*/.toksi/codegraph/
 
 # Ignore .context
-.context/
-.toksi/context/
-crates/*/.context/
-crates/*/.toksi/context/
+.ctxmode/
+.toksi/ctxmode/
+crates/*/.ctxmode/
+crates/*/.toksi/ctxmode/
 
 # Ignore .rtk
 .rtk/

@@ -284,6 +284,79 @@ fn score_candidate(c: &RouteCandidate, policy: &RoutingPolicy) -> f64 {
         + tier_bonus
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SemanticRouteRule {
+    pub intent: String,
+    pub keywords: Vec<String>,
+    pub target_provider: ProviderId,
+    pub target_model: String,
+    pub preferred_effort: ReasoningEffort,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SemanticRouter {
+    pub rules: Vec<SemanticRouteRule>,
+}
+
+impl SemanticRouter {
+    pub fn new() -> Self {
+        Self { rules: Vec::new() }
+    }
+
+    pub fn with_default_rules() -> Self {
+        let mut r = Self::new();
+        r.add_rule(SemanticRouteRule {
+            intent: "architecture_reasoning".to_string(),
+            keywords: vec!["architecture".into(), "refactor".into(), "theorem".into(), "proof".into()],
+            target_provider: ProviderId::Anthropic,
+            target_model: "claude-sonnet-4".to_string(),
+            preferred_effort: ReasoningEffort::High,
+        });
+        r.add_rule(SemanticRouteRule {
+            intent: "fast_lookup".to_string(),
+            keywords: vec!["summarize".into(), "status".into(), "list".into(), "grep".into()],
+            target_provider: ProviderId::Gemini,
+            target_model: "gemini-2.5-flash".to_string(),
+            preferred_effort: ReasoningEffort::Low,
+        });
+        r
+    }
+
+    pub fn add_rule(&mut self, rule: SemanticRouteRule) {
+        self.rules.push(rule);
+    }
+
+    pub fn match_prompt(&self, prompt: &str) -> Option<&SemanticRouteRule> {
+        let low = prompt.to_ascii_lowercase();
+        self.rules.iter().find(|rule| {
+            rule.keywords
+                .iter()
+                .any(|kw| !kw.is_empty() && low.contains(&kw.to_ascii_lowercase()))
+        })
+    }
+}
+
+/// Deterministic `prompt-ops`-compatible prompt normalizer collapsing redundant whitespace and boilerplate.
+pub fn optimize_prompt_ops(prompt: &str) -> String {
+    let mut cleaned = prompt.trim().to_string();
+    for prefix in ["Please help me to ", "Could you please ", "Kindly "] {
+        if cleaned.starts_with(prefix) {
+            cleaned = cleaned[prefix.len()..].trim_start().to_string();
+        }
+    }
+    cleaned.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Selects a failover LAN `Personal-AI-Router` (`PAIR`) peer endpoint when cloud routes saturate.
+pub fn select_lan_pair_failover_endpoint(
+    mesh: &crate::cluster::LanPairMesh,
+    required_vram_gb: u32,
+    model: &str,
+) -> Option<String> {
+    mesh.select_best_peer(required_vram_gb, model)
+        .map(|p| p.endpoint.clone())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -318,5 +391,16 @@ mod tests {
         let ranked = router.route_ranked(&candidates, &RoutingPolicy::default(), Some(&breakers));
         assert_eq!(ranked.len(), 1);
         assert_eq!(ranked[0].candidate.provider, ProviderId::Anthropic);
+    }
+
+    #[test]
+    fn semantic_router_and_prompt_ops() {
+        let sr = SemanticRouter::with_default_rules();
+        let matched = sr.match_prompt("Refactor the gateway module architecture");
+        assert_eq!(matched.map(|r| r.intent.as_str()), Some("architecture_reasoning"));
+        assert_eq!(
+            optimize_prompt_ops("Could you please   summarize   the diff  "),
+            "summarize the diff"
+        );
     }
 }

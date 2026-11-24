@@ -252,6 +252,18 @@ pub struct OrchestratorModeRouteRecord {
     pub updated_at: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ClusterNodeRecord {
+    pub node_id: String,
+    pub backend: String,
+    pub endpoint: String,
+    pub gpu_model: String,
+    pub gpu_count: i64,
+    pub vram_gb: i64,
+    pub health: String,
+    pub updated_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ToksiDbDump {
     pub version: u32,
@@ -280,6 +292,8 @@ pub struct ToksiDbDump {
     pub supervisor_workers: Vec<SupervisorWorkerRecord>,
     #[serde(default)]
     pub orchestrator_mode_routes: Vec<OrchestratorModeRouteRecord>,
+    #[serde(default)]
+    pub cluster_nodes: Vec<ClusterNodeRecord>,
 }
 
 pub const SCHEMA_DDL: &str = r#"
@@ -459,6 +473,17 @@ CREATE TABLE IF NOT EXISTS orchestrator_mode_routes (
     temperature REAL,
     top_p REAL,
     top_k INTEGER,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS cluster_nodes (
+    node_id TEXT PRIMARY KEY,
+    backend TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    gpu_model TEXT NOT NULL DEFAULT '',
+    gpu_count INTEGER NOT NULL DEFAULT 0,
+    vram_gb INTEGER NOT NULL DEFAULT 0,
+    health TEXT NOT NULL DEFAULT 'healthy',
     updated_at INTEGER NOT NULL
 );
 "#;

@@ -11,6 +11,9 @@
 
 use std::path::Path;
 
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
 use super::{PluginCapability, PluginManifest};
 
 /// Parses a `plugin.toml`, `plugin.yaml`, or `openclaw.plugin.json` manifest from disk.
@@ -122,4 +125,64 @@ fn parse_simple_plugin_yaml(raw: &str) -> Result<PluginManifest, String> {
         protocols: vec!["mcp".to_string()],
         slash_commands: Vec::new(),
     })
+}
+
+/// `NeMo-Relay-Plugins` (`relay-plugin.toml`) verified relay manifest contract.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelayPluginManifest {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default = "default_relay_version")]
+    pub version: String,
+    #[serde(default)]
+    pub entrypoint: String,
+    #[serde(default)]
+    pub sha256: String,
+    #[serde(default)]
+    pub protocols: Vec<String>,
+}
+
+fn default_relay_version() -> String {
+    "0.1.0".to_string()
+}
+
+pub fn parse_relay_plugin_toml(raw: &str) -> Result<RelayPluginManifest, String> {
+    let m = toml::from_str::<RelayPluginManifest>(raw)
+        .map_err(|e| format!("Invalid relay-plugin.toml: {e}"))?;
+    if m.id.trim().is_empty() {
+        return Err("relay-plugin.toml requires non-empty 'id'".to_string());
+    }
+    Ok(m)
+}
+
+/// Constant-style lowercase SHA-256 hex verification for downloaded/staged plugin artifacts.
+pub fn verify_sha256_hex(payload: &[u8], expected_hex: &str) -> bool {
+    let clean = expected_hex.trim().to_ascii_lowercase();
+    if clean.len() != 64 || !clean.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return false;
+    }
+    let digest = Sha256::digest(payload);
+    hex::encode(digest) == clean
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_relay_plugin_toml_and_sha256() {
+        let payload = b"toksi-relay-plugin";
+        let sum = hex::encode(Sha256::digest(payload));
+        assert!(verify_sha256_hex(payload, &sum));
+        assert!(!verify_sha256_hex(payload, "deadbeef"));
+
+        let raw = format!(
+            "id = \"nemo.relay.tools\"\nname = \"NeMo Relay\"\nversion = \"1.2.0\"\nsha256 = \"{}\"\nprotocols = [\"mcp\", \"a2a\"]\n",
+            sum
+        );
+        let parsed = parse_relay_plugin_toml(&raw).expect("parse relay-plugin.toml");
+        assert_eq!(parsed.id, "nemo.relay.tools");
+        assert!(verify_sha256_hex(payload, &parsed.sha256));
+    }
 }
