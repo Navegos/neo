@@ -11,9 +11,45 @@
 #![deny(unsafe_code)]
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use crate::agent_runtime::AgentRuntimeEngine;
 use crate::util::colors::C;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DaemonConnectionMode {
+    DirectWireIpc,
+    NetworkGateway,
+    Standalone,
+}
+
+impl DaemonConnectionMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::DirectWireIpc => "direct-wire-ipc",
+            Self::NetworkGateway => "network-gateway",
+            Self::Standalone => "standalone",
+        }
+    }
+}
+
+/// Probes `WorkerRole::NetworkManager` DirectWire IPC first (150ms timeout),
+/// then checks the loopback gateway listener before falling back to standalone.
+pub fn detect_daemon_connection() -> DaemonConnectionMode {
+    let ep = crate::ipc::WorkerRole::NetworkManager.ipc_endpoint();
+    let ping = crate::ipc::IpcFrame::new(crate::ipc::IpcOpcode::Ping, 1, Vec::new());
+    if crate::ipc::client::send_frame_blocking(&ep, &ping, Duration::from_millis(150)).is_ok() {
+        return DaemonConnectionMode::DirectWireIpc;
+    }
+    let ports = crate::config::resolved_ports();
+    let addr = format!("127.0.0.1:{}", ports.ai_gateway);
+    if let Ok(sock) = addr.parse::<std::net::SocketAddr>()
+        && std::net::TcpStream::connect_timeout(&sock, Duration::from_millis(100)).is_ok()
+    {
+        return DaemonConnectionMode::NetworkGateway;
+    }
+    DaemonConnectionMode::Standalone
+}
 
 fn workspace_from_args(args: &[String]) -> (PathBuf, Vec<String>) {
     let mut root = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));

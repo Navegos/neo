@@ -31,15 +31,17 @@ pub struct WorkerLaunchArgs {
     pub role: WorkerRole,
     pub port_override: Option<u16>,
     pub pipe_override: Option<String>,
+    pub ipc_only: bool,
 }
 
 pub fn parse_worker_args(args: &[String]) -> Result<WorkerLaunchArgs, String> {
     let raw_role = args
         .first()
-        .ok_or_else(|| "Usage: toksi _worker <role> [--port <p>] [--pipe <id>]".to_string())?;
+        .ok_or_else(|| "Usage: toksi _worker <role> [--port <p>] [--pipe <id>] [--ipc-only]".to_string())?;
     let role: WorkerRole = raw_role.parse()?;
     let mut port_override = None;
     let mut pipe_override = None;
+    let mut ipc_only = false;
     let mut i = 1usize;
     while i < args.len() {
         match args[i].as_str() {
@@ -51,6 +53,10 @@ pub fn parse_worker_args(args: &[String]) -> Result<WorkerLaunchArgs, String> {
                 pipe_override = Some(args[i + 1].clone());
                 i += 2;
             }
+            "--ipc-only" => {
+                ipc_only = true;
+                i += 1;
+            }
             _ => {
                 i += 1;
             }
@@ -60,6 +66,7 @@ pub fn parse_worker_args(args: &[String]) -> Result<WorkerLaunchArgs, String> {
         role,
         port_override,
         pipe_override,
+        ipc_only,
     })
 }
 
@@ -130,32 +137,40 @@ pub fn run_worker_cli(args: &[String]) -> i32 {
         let mut gw_handle = None;
         let mut dash_handle = None;
 
+        let ipc_only = parsed.ipc_only;
         let service_task = match role {
-            WorkerRole::Port8787 => Some(tokio::spawn(async move {
+            WorkerRole::NetworkManager => {
+                let nm_rx = kill_tx.subscribe();
+                let plan = crate::commands::daemon::resolve_daemon_plan(None);
+                Some(tokio::spawn(async move {
+                    let _ = crate::ipc::network_manager::run_network_manager(plan, nm_rx).await;
+                }))
+            }
+            WorkerRole::Port8787 if !ipc_only => Some(tokio::spawn(async move {
                 let p = target_port.unwrap_or(8787);
                 let _ = crate::headroom::proxy::run_native_headroom_proxy(p).await;
             })),
-            WorkerRole::Port8788 => Some(tokio::spawn(async move {
+            WorkerRole::Port8788 if !ipc_only => Some(tokio::spawn(async move {
                 let p = target_port.unwrap_or(8788);
                 let _ = crate::headroom::grok_daemon::run_native_grok_proxy(p).await;
             })),
-            WorkerRole::Port8789 => Some(tokio::spawn(async move {
+            WorkerRole::Port8789 if !ipc_only => Some(tokio::spawn(async move {
                 let p = target_port.unwrap_or(8789);
                 let _ = crate::headroom::copilot_daemon::run_native_copilot_proxy(p, false).await;
             })),
-            WorkerRole::Port8790 => Some(tokio::spawn(async move {
+            WorkerRole::Port8790 if !ipc_only => Some(tokio::spawn(async move {
                 let p = target_port.unwrap_or(8790);
                 let _ = crate::headroom::copilot_daemon::run_native_copilot_proxy(p, true).await;
             })),
-            WorkerRole::Port9098 => Some(tokio::spawn(async move {
+            WorkerRole::Port9098 if !ipc_only => Some(tokio::spawn(async move {
                 let p = target_port.unwrap_or(9098);
                 let _ = crate::tools::multi_protocol::run_protocol_bus_server(p).await;
             })),
-            WorkerRole::Port18787 => Some(tokio::spawn(async move {
+            WorkerRole::Port18787 if !ipc_only => Some(tokio::spawn(async move {
                 let p = target_port.unwrap_or(18787);
                 let _ = crate::headroom::byok_gateway::run_byok_gateway_serve_on_port(p, true).await;
             })),
-            WorkerRole::Port9099 => {
+            WorkerRole::Port9099 if !ipc_only => {
                 let p = target_port.unwrap_or(9099);
                 if let Ok(h) = crate::gateway::server::spawn_isolated_gateway("127.0.0.1", p) {
                     gw_handle = Some(h);
@@ -169,7 +184,14 @@ pub fn run_worker_cli(args: &[String]) -> i32 {
                 }
                 None
             }
-            WorkerRole::Siagent
+            WorkerRole::Port8787
+            | WorkerRole::Port8788
+            | WorkerRole::Port8789
+            | WorkerRole::Port8790
+            | WorkerRole::Port9098
+            | WorkerRole::Port9099
+            | WorkerRole::Port18787
+            | WorkerRole::Siagent
             | WorkerRole::Codegraph
             | WorkerRole::Ctxmode
             | WorkerRole::Projectmem

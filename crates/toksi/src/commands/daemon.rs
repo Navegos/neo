@@ -207,7 +207,7 @@ pub fn daemon_help_text_for_test() -> String {
 
 pub fn plan_worker_roles(plan: &DaemonServicePlan) -> Vec<crate::ipc::WorkerRole> {
     use crate::ipc::WorkerRole;
-    let mut roles = Vec::new();
+    let mut roles = vec![WorkerRole::NetworkManager];
     if plan.headroom_proxy {
         roles.push(WorkerRole::Port8787);
     }
@@ -232,7 +232,6 @@ pub fn plan_worker_roles(plan: &DaemonServicePlan) -> Vec<crate::ipc::WorkerRole
     if plan.byok_gateway {
         roles.push(WorkerRole::Port18787);
     }
-    roles.push(WorkerRole::Siagent);
     roles.extend_from_slice(WorkerRole::TOOL_WORKERS);
     roles
 }
@@ -255,6 +254,18 @@ pub fn spawn_worker_subprocess(
     cmd.args(["_worker", role.as_str(), "--pipe", &endpoint]);
     if let Some(p) = port_override {
         cmd.args(["--port", &p.to_string()]);
+    }
+    if matches!(
+        role,
+        crate::ipc::WorkerRole::Port8787
+            | crate::ipc::WorkerRole::Port8788
+            | crate::ipc::WorkerRole::Port8789
+            | crate::ipc::WorkerRole::Port8790
+            | crate::ipc::WorkerRole::Port9098
+            | crate::ipc::WorkerRole::Port9099
+            | crate::ipc::WorkerRole::Port18787
+    ) {
+        cmd.arg("--ipc-only");
     }
     crate::env_injector::apply_env_to_command(&mut cmd);
     cmd.stdin(std::process::Stdio::null());

@@ -484,7 +484,11 @@ impl AgentRuntimeEngine {
         headers: &[(String, String)],
         payload: &serde_json::Value,
     ) -> Result<String, String> {
-        if self.gateway_base_url.is_none()
+        let delegate_ipc = std::env::var("TOKSI_SIAGENT_IPC_DELEGATE")
+            .map(|v| matches!(v.trim(), "1" | "true" | "yes"))
+            .unwrap_or(false);
+        if delegate_ipc
+            && self.gateway_base_url.is_none()
             && std::env::var("TOKSI_SIAGENT_GATEWAY_URL")
                 .map(|v| v.trim().is_empty())
                 .unwrap_or(true)
@@ -497,7 +501,7 @@ impl AgentRuntimeEngine {
             ) && let Ok(resp) = crate::ipc::client::send_frame_blocking(
                 &ep,
                 &frame,
-                Duration::from_secs(5),
+                Duration::from_millis(250),
             ) && let Ok(v) = resp.payload_json()
                 && let Some(out) = v.get("output").and_then(|s| s.as_str())
             {

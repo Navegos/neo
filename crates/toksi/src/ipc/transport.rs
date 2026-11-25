@@ -20,6 +20,7 @@ use crate::util::paths::{normalize_path, toksi_data_dir};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum WorkerRole {
+    NetworkManager,
     Port8787,
     Port8788,
     Port8789,
@@ -40,6 +41,7 @@ pub enum WorkerRole {
 
 impl WorkerRole {
     pub const ALL: &'static [WorkerRole] = &[
+        Self::NetworkManager,
         Self::Port8787,
         Self::Port8788,
         Self::Port8789,
@@ -81,6 +83,7 @@ impl WorkerRole {
 
     pub fn as_str(&self) -> &'static str {
         match self {
+            Self::NetworkManager => "network-manager",
             Self::Port8787 => "port-8787",
             Self::Port8788 => "port-8788",
             Self::Port8789 => "port-8789",
@@ -102,6 +105,7 @@ impl WorkerRole {
 
     pub fn default_port(&self) -> Option<u16> {
         match self {
+            Self::NetworkManager => None,
             Self::Port8787 => Some(8787),
             Self::Port8788 => Some(8788),
             Self::Port8789 => Some(8789),
@@ -130,6 +134,7 @@ impl FromStr for WorkerRole {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.trim().to_ascii_lowercase().as_str() {
+            "network-manager" | "network-service" | "netmgr" => Ok(Self::NetworkManager),
             "port-8787" | "headroom" | "headroom-proxy" => Ok(Self::Port8787),
             "port-8788" | "grok" | "grok-oauth" => Ok(Self::Port8788),
             "port-8789" | "copilot-vscode" => Ok(Self::Port8789),

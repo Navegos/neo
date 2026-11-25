@@ -93,10 +93,16 @@ impl IpcRequestHandler for DefaultWorkerIpcHandler {
             }
             IpcOpcode::SiagentPrompt => {
                 let req_json = frame.payload_json().unwrap_or_else(|_| serde_json::json!({}));
+                let fallback_msg_prompt = req_json
+                    .get("messages")
+                    .and_then(|v| v.as_array())
+                    .and_then(|arr| arr.iter().rev().find_map(|m| m.get("content").and_then(|c| c.as_str())))
+                    .unwrap_or("");
                 let prompt = req_json
                     .get("prompt")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("");
+                    .filter(|s| !s.trim().is_empty())
+                    .unwrap_or(fallback_msg_prompt);
                 let mode = req_json
                     .get("mode")
                     .and_then(|v| v.as_str())
@@ -119,6 +125,56 @@ impl IpcRequestHandler for DefaultWorkerIpcHandler {
                 };
                 IpcFrame::json(IpcOpcode::SiagentReply, corr, &resp)
                     .unwrap_or_else(|_| IpcFrame::new(IpcOpcode::SiagentReply, corr, Vec::new()))
+            }
+            IpcOpcode::NetworkForward => {
+                let req_json = frame.payload_json().unwrap_or_else(|_| serde_json::json!({}));
+                let method = req_json
+                    .get("method")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("GET");
+                let path = req_json
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("/");
+                let path_only = path.split('?').next().unwrap_or(path);
+                let reply = if path_only == "/livez" || path_only == "/healthz" || path_only == "/readyz" {
+                    serde_json::json!({
+                        "status_code": 200,
+                        "role": self.role.as_str(),
+                        "status": "ok",
+                        "method": method,
+                        "path": path_only,
+                    })
+                } else {
+                    let target = match self.role {
+                        WorkerRole::Port8787 => crate::tools::multi_protocol::ToolTarget::Headroom,
+                        WorkerRole::Codegraph => crate::tools::multi_protocol::ToolTarget::Codegraph,
+                        WorkerRole::Ctxmode => crate::tools::multi_protocol::ToolTarget::Ctxmode,
+                        WorkerRole::Projectmem => crate::tools::multi_protocol::ToolTarget::Projectmem,
+                        WorkerRole::Icm => crate::tools::multi_protocol::ToolTarget::Icm,
+                        WorkerRole::Aimemory => crate::tools::multi_protocol::ToolTarget::Aimemory,
+                        WorkerRole::Rtk => crate::tools::multi_protocol::ToolTarget::Rtk,
+                        WorkerRole::Security => crate::tools::multi_protocol::ToolTarget::Security,
+                        _ => crate::tools::multi_protocol::ToolTarget::Headroom,
+                    };
+                    let body_str = req_json.get("body").and_then(|v| v.as_str()).unwrap_or("");
+                    let body_val = serde_json::from_str::<serde_json::Value>(body_str)
+                        .unwrap_or_else(|_| serde_json::json!({ "raw_body": body_str, "path": path, "method": method }));
+                    let resp = crate::tools::direct_wire::global_direct_wire_bus().invoke_tool(
+                        "network-manager",
+                        target,
+                        path_only.trim_start_matches('/'),
+                        body_val,
+                        None,
+                    );
+                    serde_json::json!({
+                        "status_code": 200,
+                        "role": self.role.as_str(),
+                        "dispatched": resp,
+                    })
+                };
+                IpcFrame::json(IpcOpcode::NetworkReply, corr, &reply)
+                    .unwrap_or_else(|_| IpcFrame::new(IpcOpcode::NetworkReply, corr, Vec::new()))
             }
             _ => IpcFrame::new(IpcOpcode::Pong, corr, Vec::new()),
         }

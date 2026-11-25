@@ -35,6 +35,8 @@ pub enum IpcOpcode {
     GracefulDrain = 9,
     StatusQuery = 10,
     StatusReply = 11,
+    NetworkForward = 12,
+    NetworkReply = 13,
 }
 
 impl IpcOpcode {
@@ -51,6 +53,8 @@ impl IpcOpcode {
             9 => Ok(Self::GracefulDrain),
             10 => Ok(Self::StatusQuery),
             11 => Ok(Self::StatusReply),
+            12 => Ok(Self::NetworkForward),
+            13 => Ok(Self::NetworkReply),
             other => Err(format!("Unknown IPC opcode: {other}")),
         }
     }

@@ -41,7 +41,11 @@ fn test_wave19_1_to_19_3_renames_ipc_and_isolation() {
     assert_eq!("ai-memory".parse::<ToolTarget>().ok(), Some(ToolTarget::Aimemory));
 
     // 19.2 multi-process worker roles + TKSI IPC frame codec
-    assert_eq!(WorkerRole::ALL.len(), 16);
+    assert_eq!(WorkerRole::ALL.len(), 17);
+    assert_eq!(
+        "network-manager".parse::<WorkerRole>().ok(),
+        Some(WorkerRole::NetworkManager)
+    );
     assert_eq!("siagent".parse::<WorkerRole>().ok(), Some(WorkerRole::Siagent));
     let frame = IpcFrame::json(
         IpcOpcode::Ping,
