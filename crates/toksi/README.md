@@ -272,7 +272,7 @@ toksi test --docker   # or: toksi test --sandbox (zero impact on live host servi
   - **`toksi dataset | compress | otel`** *(Wave 20.4 / 20.6)* — Multimodal datasets (`Megatron-Energon`, `liteparse`), KV/quant compression (`kvpress`, `bitsandbytes`), & OpenTelemetry OTLP (`gen_ai.*`)
   - **`compose.test.yaml` + `Dockerfile.test` + `sbxenv.yaml`/Kit v3** *(Wave 19.3 / 20.3)* — Live-safe isolated container & sandbox testing (`toksi test --docker|--sandbox`)
   - **`toksi ide-bridge`** *(Wave 21.3)* — Standardized host wire bridge (`:9098` / DirectWire IPC) for 13 external IDE plugins (`vscode`, `visual-studio`, `jetbrains`, `android-studio`, `zed`, `xcode`, `eclipse`, `cursor`, `windsurf`, `apache-netbeans`, `kiro`, `qoder`, `lapce`)
-  - **Architecture Guides (8-State Progress Taxonomy)**: **55** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_21_6`; `48` Waves 1–20 phases `[PLAN-IMPLEMENTED]`/`[PLAN-FIXED]`, `6` Wave 21 phases `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]`) across all **495** vaults (`493` Wave 20 + `2` Wave 21 reconciled: `Zoo-Code`, `agent-orchestrator`).
+  - **Architecture Guides (8-State Progress Taxonomy)**: **55** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_21_6`; all `54` Waves 1–21 phases `[PLAN-IMPLEMENTED]`/`[PLAN-FIXED]`) across all **495** vaults (`493` Wave 20 + `2` Wave 21 reconciled: `Zoo-Code`, `agent-orchestrator`).
   - `toksi rtk` — Execute command with 100+ token-reduction filters and ANSI stripping
   - `toksi rules` — Sync externalized `<enforce>` Karpathy/Caveman v4/Ponytail guidelines
   - `toksi info` — Show installation details, paths, config locations, and database status

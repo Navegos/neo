@@ -63,6 +63,7 @@ fn test_phase8_all_17_agents_registered() {
         "dsh",
         "amp",
         "openagents",
+        "zoo-code",
     ];
 
     let registered = list_agents();

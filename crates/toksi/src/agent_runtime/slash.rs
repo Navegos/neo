@@ -799,6 +799,7 @@ impl SlashCommandEngine {
         match loaded {
             Ok(Some(cp)) => {
                 let preflight = validate_dirty_tree_and_plugins(Some(root), &cp);
+                let cross = super::orchestration_resume::prepare_cross_chat_resume(root, &cp.plan_id).ok();
                 let _ = crate::agent_runtime::acp::handle_acp_jsonrpc(
                     &json!({
                         "jsonrpc": "2.0",
@@ -810,6 +811,8 @@ impl SlashCommandEngine {
                             "next_step_title": preflight.next_step_title,
                             "verified_plugins": preflight.verified_plugins,
                             "missing_plugins": preflight.missing_plugins,
+                            "blake3_verified": cross.as_ref().map(|c| c.blake3_verified_files.len()).unwrap_or(0),
+                            "skipped_green_suites": cross.as_ref().map(|c| c.skipped_green_suites.len()).unwrap_or(0),
                         }
                     }),
                     EffortLevel::from_str_loose(&cp.active_effort).unwrap_or_default(),
@@ -819,7 +822,7 @@ impl SlashCommandEngine {
                     .as_deref()
                     .unwrap_or("done");
                 format!(
-                    "[/resume] Hydrated checkpoint '{}' ('{}'): completed={}/{}, next_step={} ('{}'), dirty_mismatches={}, verified_plugins={}, missing_plugins={}, status={:?}",
+                    "[/resume] Hydrated checkpoint '{}' ('{}'): completed={}/{}, next_step={} ('{}'), dirty_mismatches={}, verified_plugins={}, missing_plugins={}, blake3_verified={}, status={:?}",
                     cp.plan_id,
                     cp.title,
                     preflight.completed_count,
@@ -829,6 +832,7 @@ impl SlashCommandEngine {
                     preflight.dirty_mismatches.len(),
                     preflight.verified_plugins.len(),
                     preflight.missing_plugins.len(),
+                    cross.as_ref().map(|c| c.blake3_verified_files.len()).unwrap_or(0),
                     cp.status
                 )
             }

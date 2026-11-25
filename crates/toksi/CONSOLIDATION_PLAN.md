@@ -1266,12 +1266,12 @@ All **61 Wave 20 new & reconciled vaults** (`RESEARCHPLAN.md` Sections `2.15`–
 | **Phase 20.4** | **11-Pillar AI/ML Lifecycle & Wave 20 Vaults (`toksi dataset\|compress\|eval`)** | Integrated `liteparse`, `hyperflare-inference`, `NeMo-Relay-Plugins`, `kvpress`, `bitsandbytes`, `Megatron-Energon`, `ossie*`, `auto-ontology`, `semantic-router`, `AutoFA`, `deepeval`, `ragas`, `PurpleLlama`. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` | 11 AI/ML Pillars across 493 vaults. |
 | **Phase 20.5** | **Toksi Distributed Cluster Stack (`src/cluster/` & `toksi cluster`)** | Built `src/cluster/` unifying K8s/Minikube/Kompose/Kops/Helm/Autoscaler/NPD, NVCRE/`NVSentinel`/`aicr`/Knavigator/DeepOps, Kubeflow/`Run`, Spark/`cudf-spark`/`cuPhoton`, & PAIR LAN mesh. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` | Dual-mode Local + Cluster orchestration. |
 | **Phase 20.6** | **OpenTelemetry Native LLMOps (`opentelemetry-rust`) & 49-File 8-State Sync** | Embedded `opentelemetry-rust` OTLP + `gen_ai.*` spans (`~/.toksi/services/otel.db`), collector/operator CRDs, `phase19..20` verification & 49-file 8-state sync. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` | Native OTel observability & green 49-file sync. |
-| **Phase 21.1** | **Single `NetworkService` Network Manager & On-Demand `<toksi-siagent>`** | Consolidate daemon listening ports (`:8787..:18787`) into ONE `toksi _worker network-manager` process (preventing `os error 10048`) + remove `Siagent` from `daemon start`. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Zero-collision NetworkService + on-demand `<toksi-siagent>`. |
-| **Phase 21.2** | **Codex + Grok-Build Style `<toksi-siagent>` Chat TUI & Full CLI Bridge** | Replace `loop_engine.rs` `stdin` REPL with full Ratatui streaming Chat TUI executing all `toksi` commands & all 22 modes. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Modern interactive Codex/Grok-Build grade SI Agent Chat TUI. |
-| **Phase 21.3** | **External 13-IDE Plugin Host Protocol (`toksi ide-bridge`)** | Expose `:9098`/IPC host contract (`src/tools/ide_plugin_host.rs`) for 13 external IDEs built outside `crates/toksi/`. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Standardized host wire for 13 external IDEs. |
-| **Phase 21.4** | **`Zoo-Code`, `agent-orchestrator` & 11-Pillar Deep Integration (`495` Vaults)** | Reconcile `495` mandated vaults (`493` + `2`), wire Semble/DCG, git-worktree Kanban lanes & 11-pillar AI/ML adapters. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Full `495`-vault parity & 11-pillar execution depth. |
-| **Phase 21.5** | **Multi-Agent Orchestration Resilience & Cross-Chat Resume Engine** | Build `src/agent_runtime/orchestration_resume.rs` write-ahead journal, `worker_leases.json`, and 5-store atomic checkpoint flush. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Fault/429/quota-proof multi-agent cross-chat resume. |
-| **Phase 21.6** | **Wave 21 Verification Suite & 55-File 8-State Master Sync** | Verify `phase21_*` suites, update `.toksi/test-baseline.json`, and synchronize all 6 master docs + 55 `.agents/brain/*.md` guides. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]` | Full Wave 21 release gate & 55-file 8-state sync. |
+| **Phase 21.1** | **Single `NetworkService` Network Manager & On-Demand `<toksi-siagent>`** | Consolidated daemon listening ports (`:8787..:18787`) into ONE `toksi _worker network-manager` process (preventing `os error 10048`) + removed `Siagent` from `daemon start`. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` | Zero-collision NetworkService + on-demand `<toksi-siagent>`. |
+| **Phase 21.2** | **Codex + Grok-Build Style `<toksi-siagent>` Chat TUI & Full CLI Bridge** | Replaced `loop_engine.rs` `stdin` REPL with full Ratatui streaming Chat TUI (`src/agent_runtime/chat_ui.rs`) executing all `toksi` commands & all 22 modes. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` | Modern interactive Codex/Grok-Build grade SI Agent Chat TUI. |
+| **Phase 21.3** | **External 13-IDE Plugin Host Protocol (`toksi ide-bridge`)** | Exposed `:9098/ide/*`/IPC host contract (`src/tools/ide_plugin_host.rs`) for 13 external IDEs built outside `crates/toksi/`. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` | Standardized host wire for 13 external IDEs. |
+| **Phase 21.4** | **`Zoo-Code`, `agent-orchestrator` & 11-Pillar Deep Integration (`495` Vaults)** | Reconciled `495` mandated vaults (`493` + `2`), wired Semble/DCG, git-worktree Kanban lanes & 11-pillar AI/ML adapters (`ELEVEN_AIML_PILLARS`). | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` | Full `495`-vault parity & 11-pillar execution depth. |
+| **Phase 21.5** | **Multi-Agent Orchestration Resilience & Cross-Chat Resume Engine** | Built `src/agent_runtime/orchestration_resume.rs` write-ahead journal, `worker_leases.json`, and 5-store atomic checkpoint flush. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` | Fault/429/quota-proof multi-agent cross-chat resume. |
+| **Phase 21.6** | **Wave 21 Verification Suite & 55-File 8-State Master Sync** | Verified `phase21_*` suites, updated `.toksi/test-baseline.json`, and synchronized all 6 master docs + 55 `.agents/brain/*.md` guides. | `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` | Full Wave 21 release gate & 55-file 8-state sync. |
 
 ---
 
@@ -2482,7 +2482,7 @@ Execute Phase 20.6: Embed `opentelemetry-rust` OTLP + `gen_ai.*` semantic spans 
 
 ### Prompt: Phase 21.1 — Single `NetworkService` Network Manager (`_worker network-manager`) & On-Demand `<toksi-siagent>` Decoupling
 ```text
-Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-IMPLEMENTED]
 Read ALL 15 canonical files (RESEARCHPLAN.md, CONSOLIDATION_PLAN.md, PLAN.md, README.md, .toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md}, all 6 research files + router TOML) and .agents/brain/PHASE_21_1_NETWORK_SERVICE_MANAGER_AND_SIAGENT_DECOUPLING.md first.
 
 Execute Phase 21.1: Refactor daemon port binding into ONE dedicated `NetworkService` Network Manager process (`toksi _worker network-manager`) and decouple `<toksi-siagent>` from `toksi daemon start`.
@@ -2501,7 +2501,7 @@ Requirements:
 
 ### Prompt: Phase 21.2 — Codex CLI + Grok-Build CLI Grade `<toksi-siagent>` Chat TUI & Full CLI Bridge
 ```text
-Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-IMPLEMENTED]
 Read ALL 15 canonical files + .agents/brain/PHASE_21_2_CODEX_GROK_STYLE_SIAGENT_CHAT_TUI_AND_CLI_BRIDGE.md first.
 
 Execute Phase 21.2: Replace plain `stdin.read_line` REPL in `loop_engine.rs` with a Codex CLI (`inspect-vault/codex/codex-rs`) + Grok-Build CLI (`inspect-vault/grok-build`) grade interactive streaming `ratatui` Chat TUI executing all `toksi` commands.
@@ -2518,7 +2518,7 @@ Requirements:
 
 ### Prompt: Phase 21.3 — External 13-IDE Plugin Host Protocol (`toksi ide-bridge` / `:9098`)
 ```text
-Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-IMPLEMENTED]
 Read ALL 15 canonical files + .agents/brain/PHASE_21_3_EXTERNAL_13_IDE_PLUGIN_HOST_PROTOCOL.md first.
 
 Execute Phase 21.3: Standardize the external IDE plugin host wire protocol for plugins built separately outside `crates/toksi/` across 13 IDEs.
@@ -2536,7 +2536,7 @@ Requirements:
 
 ### Prompt: Phase 21.4 — `Zoo-Code`, `agent-orchestrator` & 11-Pillar AI/ML Deep Integration (`495` Mandated Vaults)
 ```text
-Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-IMPLEMENTED]
 Read ALL 15 canonical files + .agents/brain/PHASE_21_4_ZOOCODE_AGENT_ORCHESTRATOR_AND_11_PILLAR_DEEP_INTEGRATION.md first.
 
 Execute Phase 21.4: Reconcile `Zoo-Code` and `agent-orchestrator` into `crates/toksi/src/`, update vault count to `495`, and deepen 11-Pillar AI/ML adapters.
@@ -2556,7 +2556,7 @@ Requirements:
 
 ### Prompt: Phase 21.5 — Multi-Agent Orchestration Resilience, Fault/Quota Checkpoint & Cross-Chat Resume Engine
 ```text
-Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-IMPLEMENTED]
 Read ALL 15 canonical files + .agents/brain/PHASE_21_5_MULTI_AGENT_RESILIENCE_CHECKPOINT_AND_RESUME_ENGINE.md first.
 
 Execute Phase 21.5: Implement bulletproof multi-agent orchestration persistence, disjoint file leasing, and cross-chat resume across errors, network drops, HTTP 429s, and quota exhaustion.
@@ -2574,7 +2574,7 @@ Requirements:
 
 ### Prompt: Phase 21.6 — Wave 21 Integration Verification & 55-File 8-State Master Synchronization
 ```text
-Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-UNIMPLEMENTED]
+Status: [DEEP-RESEARCH-DONE] [PLAN-DONE] [PLAN-IMPLEMENTED]
 Read ALL 15 canonical files + .agents/brain/PHASE_21_6_WAVE21_VERIFICATION_AND_55FILE_8STATE_SYNC.md first.
 
 Execute Phase 21.6: Full Wave 21 E2E verification, `.toksi/test-baseline.json` refresh, and 55-file 8-state documentation synchronization.

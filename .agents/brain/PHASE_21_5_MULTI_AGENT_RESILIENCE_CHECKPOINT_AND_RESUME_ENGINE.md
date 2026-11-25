@@ -1,6 +1,6 @@
 # Phase 21.5 — Multi-Agent Orchestration Resilience, Fault/Quota Checkpoint & Cross-Chat Resume Engine
 
-> **Status (Wave 21 / v8.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]`
+> **Status (Wave 21 / v8.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 
 ## Ready-to-Run Chat Prompt
 ```text

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "hash_algorithm_note": "pure_rust_blake3",
-  "cargo_lock_blake3": "91520eaf2fa6e33a4e402ea798dad103f870b6d5fff1239fac5541a85dc305d2",
+  "cargo_lock_blake3": "a73bf422fa8f6a5fab348164ad40dc5c472084ae1a4572c1dd30ed1ca1415edc",
   "suites": {
     "antigravity_auth_verification": {
       "watched_paths": [
@@ -10,7 +10,7 @@
         "crates/toksi/tests/antigravity_auth_verification.rs"
       ],
       "tree_blake3": "51c42b0c7d1400933276f8e402ffa6a63c32b2730ee7c68fa6b8fc4e4854de2f",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -25,8 +25,8 @@
         "crates/toksi/src/",
         "crates/toksi/tests/benchmarks.rs"
       ],
-      "tree_blake3": "020907d270969e75662883d79a10ccc93ebd7a7a230a168d7bc1009e6b94f3d2",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "7c7b45758748e8818ee56512b57d699ff1408080c6cd89d745d689faabe46e28",
+      "last_passed_unix": 1795641270,
       "cargo_args": [
         "test",
         "-p",
@@ -41,8 +41,8 @@
         "crates/toksi/src/",
         "crates/toksi/tests/e2e_tests.rs"
       ],
-      "tree_blake3": "8646f5ca8b673426656001f1befcdf2badb4cc4e83baacc554170bbece9446e0",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "cb39084be3eb6397026eb082871c8d3c8ac9b4fdbfe115c89983d37133aba906",
+      "last_passed_unix": 1795641270,
       "cargo_args": [
         "test",
         "-p",
@@ -59,7 +59,7 @@
         "crates/toksi/tests/keyring_db_byok_verification.rs"
       ],
       "tree_blake3": "1fffe8b675b8076cf9392742dbc3f23ca989a3ee164c1b59d863fe9b24c07845",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -76,7 +76,7 @@
         "crates/toksi/tests/phase10_env_injector_verification.rs"
       ],
       "tree_blake3": "8f6f127a09ad8f5127061029639329bb8574d9180ac603df3cc19e2fafc464e3",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -92,8 +92,8 @@
         "crates/toksi/src/commands/init.rs",
         "crates/toksi/tests/phase11_doctor_self_healing_verification.rs"
       ],
-      "tree_blake3": "74f2b822a004ede7be164be0df8be1d7a529b920616275540e856065f5fadd78",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "88cacc08d7eecb8f8b66d5089364a94e41c8857f51cd44008a66bb1d770eb794",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -111,7 +111,7 @@
         "crates/toksi/tests/phase12_tui_dashboard_verification.rs"
       ],
       "tree_blake3": "86d735ce854d583b5fa96c274a813e55328b0903a42e823d1991a2539db4a0c2",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -126,8 +126,8 @@
         "crates/toksi/src/",
         "crates/toksi/tests/phase13_e2e_verification.rs"
       ],
-      "tree_blake3": "fca3c995d62ad68e0946e95eb6c293767b4e020169d5887132e5d67e54e9d487",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "91816541620c8eee6c460f88aac3091346aa3be15c16628dd04620a43e16b094",
+      "last_passed_unix": 1795641270,
       "cargo_args": [
         "test",
         "-p",
@@ -144,7 +144,7 @@
         "crates/toksi/tests/phase14_keyring_config_db_verification.rs"
       ],
       "tree_blake3": "39ea9a37ef1bc83d26e6c36b64ec980c57f77002d8a0b5168064f011919053ba",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -161,8 +161,8 @@
         "crates/toksi/src/agents/",
         "crates/toksi/tests/phase15_1_topology_and_standards_verification.rs"
       ],
-      "tree_blake3": "ac8af1d0668bc7bb690a9b44fcc7f1b134499b5d75c17a80a07fad7e110378b0",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "17730e7714bf92444eac28a283d10c54b66216e3414c85bfaa7c3d6c85861430",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -180,8 +180,8 @@
         "crates/toksi/src/headroom/",
         "crates/toksi/tests/phase15_2_unified_8port_daemon_verification.rs"
       ],
-      "tree_blake3": "d9f1d345edf29b298adcc60c760a192b5737222de04eb012254d09d479be21b0",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "e41128a1e5b759e2e0c51bc473ae26aaa5c12a1a747fa66181dd2a1f62f726ed",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -198,8 +198,8 @@
         "crates/toksi/src/tools/",
         "crates/toksi/tests/phase15_3_to_15_6_ecosystem_verification.rs"
       ],
-      "tree_blake3": "fd7a0fcf57a14abac90deeec7b0e2e0132b4d4b348c82dd103c28e90316ad79a",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "4fd6cf5534e1f0ab6b21836b16e59416dfe6b779d5f01bdfec29c83b93f6af4f",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -216,7 +216,7 @@
         "crates/toksi/tests/phase16_ui_and_open_agents_verification.rs"
       ],
       "tree_blake3": "fd4cb7054fcbdd1e20da5e04ad6b56704d9c8eca4860b68841db0d9f81245459",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -234,7 +234,7 @@
         "crates/toksi/tests/phase17_1_to_17_4_config_byok_treesitter_verification.rs"
       ],
       "tree_blake3": "d5ef9cb0b41a9896b1617f4dbadb0deae88b2008ece5092a9d1075991453d74f",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -249,8 +249,8 @@
         "crates/toksi/src/agent_runtime/",
         "crates/toksi/tests/phase17_5_agent_runtime_verification.rs"
       ],
-      "tree_blake3": "58365919b3c1bcfd7ab239e0fe1d74b21876351b7039830936fdce09e1cdf770",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "84016bc15b42048cb135553abc7bfd2de02ff92c9c9aa401eab0ed4cc7ad99c7",
+      "last_passed_unix": 1795641270,
       "cargo_args": [
         "test",
         "-p",
@@ -266,8 +266,8 @@
         "crates/toksi/src/telemetry/",
         "crates/toksi/tests/phase17_6_gateway_accounting_verification.rs"
       ],
-      "tree_blake3": "afb075b323275033bdf70a465b26f4f048e8a126018576de8ea29d638d55a269",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "84b0f21f4c1d79e782c718acd2a68f9656cbd271c929f25c7b99ccec58dbea2f",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -285,7 +285,7 @@
         "crates/toksi/tests/phase17_7_ui_parity_and_test_baseline_verification.rs"
       ],
       "tree_blake3": "f4e9062f73b38df17bd3d8b1f8219b8e52d7c28f80e3320b3a6b2df58e974182",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -302,8 +302,8 @@
         "crates/toksi/src/rules/",
         "crates/toksi/tests/phase18_1_to_18_6_siagent_and_vaults_verification.rs"
       ],
-      "tree_blake3": "e3fd34c80a0cf38e8ba71040438895ff16b3bcc9c182c61b335991f574e31904",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "fdd70e794eb56452bfdec1fd3c460e9fe159053212e493c006f14529561224d4",
+      "last_passed_unix": 1795641270,
       "cargo_args": [
         "test",
         "-p",
@@ -327,8 +327,8 @@
         "crates/toksi/src/validator/",
         "crates/toksi/tests/phase18_1_vault_synthesis_verification.rs"
       ],
-      "tree_blake3": "b6fa32d88e6859a1cebfd9d5ee1f9b18b794d9bf47f5a970a38119bcee046330",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "cc906be5e240c712fd4850a13fb0a16b259a3d650c5698a821a644b2dccca24f",
+      "last_passed_unix": 1795641270,
       "cargo_args": [
         "test",
         "-p",
@@ -352,7 +352,7 @@
         "crates/toksi/tests/phase18_2_security_and_skills_verification.rs"
       ],
       "tree_blake3": "b9cb46072133a4d127a050ea37f5c384516019e7e448f606fe8dfe237a5d7faa",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -375,8 +375,8 @@
         "crates/toksi/src/agent_runtime/graph_checkpoint.rs",
         "crates/toksi/tests/phase18_3_adc_effort_checkpoint_verification.rs"
       ],
-      "tree_blake3": "9544301b6aca0cb4297c75d6172913cc8c9d0ea2bf70a10a8115182685131507",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "5a6b46aecfe221e37dc96055acbb1755b74096e97d211ec103ae339f042e353a",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -393,8 +393,8 @@
         "crates/toksi/src/rules/cli.rs",
         "crates/toksi/tests/phase18_4_doc_and_checkpoint_hygiene.rs"
       ],
-      "tree_blake3": "783997548752cb0ad84f40446e2c331bc258c6b99dbf6504085affd8b9c93a92",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "5bc04fad12ab959f2f34c161af6bef5823ca20a97b6db444d65e3fe7bdab7d99",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -413,8 +413,8 @@
         "crates/toksi/src/config/mod.rs",
         "crates/toksi/tests/phase18_5_adr_sandbox_and_guard_verification.rs"
       ],
-      "tree_blake3": "0114bb723b1abbefaeb34347fead605832f1bf0b725505654e0a4d0c45406f37",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "3b2a547af4dd13717c47666e80d8ee82baca4666cc8e19fa9962c75a30911473",
+      "last_passed_unix": 1795641270,
       "cargo_args": [
         "test",
         "-p",
@@ -435,8 +435,8 @@
         "crates/toksi/src/tools/direct_wire.rs",
         "crates/toksi/tests/phase18_6_siagent_and_inference_stack_verification.rs"
       ],
-      "tree_blake3": "0c94624bb945e16e13e0005ddf762f998e8bca175ced0526b098f3758d890ea0",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "fff726c45a4c2c3c9d59825c61ca7c725d75b1f5ec527bb2bab982a2ae3c7b19",
+      "last_passed_unix": 1795641270,
       "cargo_args": [
         "test",
         "-p",
@@ -454,7 +454,7 @@
         "crates/toksi/tests/phase19_1_ctxmode_rename_verification.rs"
       ],
       "tree_blake3": "742a1f74a30a99edf6b3869e21912d206ec1401d29e001e968d8bbba4d99ef7c",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -472,8 +472,8 @@
         "docker/Dockerfile.test",
         "crates/toksi/tests/phase19_1_to_19_6_verification.rs"
       ],
-      "tree_blake3": "bb6d0e7b2c3c4d115665cf787bc03f1b2ecad43162742c959c3ebccdfadf6652",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "cebf99c76633e2d8ee6ed22bccc560a16fb70fc3afbaed3b83df868d54b34dc9",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -490,8 +490,8 @@
         "crates/toksi/src/commands/worker.rs",
         "crates/toksi/tests/phase19_2_multiprocess_supervisor_ipc_verification.rs"
       ],
-      "tree_blake3": "cac79aa9f648f996d506acdf8ce2ea6b34c36eb3d68a54f027d21278cb42aa75",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "fa95f48517bffedb27a5ef5e3035b3e5559864d39884e3785cccd0937101825a",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -509,7 +509,7 @@
         "crates/toksi/tests/phase19_3_live_safe_test_isolation_verification.rs"
       ],
       "tree_blake3": "430ec98f39f36fff013f1306698fb7932a346fb8c3d34d1b83837b915f9f6889",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -526,7 +526,7 @@
         "crates/toksi/tests/phase19_4_zero_pollution_hygiene_verification.rs"
       ],
       "tree_blake3": "11a1b920905fafba48df4bf091927177fdeb2b2bbbb01168c8339f21359fc1e3",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -543,8 +543,8 @@
         "crates/toksi/src/tools/multi_protocol.rs",
         "crates/toksi/tests/phase19_5_siagent_workforce_anp_security_verification.rs"
       ],
-      "tree_blake3": "6a98330df2b56e3b0eaa46a19e71e426883f9c501d93cbcf65f3701a985cc2ed",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "9524ab92b582ec183d999d4efa1dcc243b5a869e1dd5663b41c90cdc4b974023",
+      "last_passed_unix": 1795641270,
       "cargo_args": [
         "test",
         "-p",
@@ -563,8 +563,8 @@
         "crates/toksi/src/commands/eval.rs",
         "crates/toksi/tests/phase19_6_training_serving_multimodal_verification.rs"
       ],
-      "tree_blake3": "8bdbc1b8de28be69e05a1409f773fa2842882ac6a4aba80ee217f586a421554b",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "055a98b7b527378da0e552428315ef5c71dc9ec418a5e912e3222b9bfc535172",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -580,7 +580,7 @@
         "crates/toksi/tests/phase1_rtk_verification.rs"
       ],
       "tree_blake3": "956a99f5695e585fabc20812bd33ae1a87773e98f2f6e2342127260e9237682a",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -602,8 +602,8 @@
         "docker/compose.test.yaml",
         "crates/toksi/tests/phase20_1_to_20_6_verification.rs"
       ],
-      "tree_blake3": "776acd4d0ead0998a8f66d647dbac86fd9c7f39d5ed5176272ec0edd3a84e315",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "a9650b6dd951ca463b4b6642f367776afce12eff2b78e130a415944a73cfdeea",
+      "last_passed_unix": 1795641270,
       "cargo_args": [
         "test",
         "-p",
@@ -613,13 +613,39 @@
       ],
       "isolation": "ephemeral_tempdir"
     },
+    "phase21_1_to_21_6_verification": {
+      "watched_paths": [
+        "crates/toksi/src/ipc/",
+        "crates/toksi/src/agent_runtime/",
+        "crates/toksi/src/tools/ide_plugin_host.rs",
+        "crates/toksi/src/tools/multi_protocol.rs",
+        "crates/toksi/src/commands/ide_bridge.rs",
+        "crates/toksi/src/commands/daemon.rs",
+        "crates/toksi/src/commands/worker.rs",
+        "crates/toksi/src/commands/guard.rs",
+        "crates/toksi/src/agents/zoo_code.rs",
+        "crates/toksi/src/gateway/local_engines.rs",
+        "crates/toksi/src/projectmem/plan_checkpoint.rs",
+        "crates/toksi/tests/phase21_1_to_21_6_verification.rs"
+      ],
+      "tree_blake3": "518df4e2a0eff70d8785f05c01680b665d3d65f2426f77f33fa1f38e8d82bd00",
+      "last_passed_unix": 1795641270,
+      "cargo_args": [
+        "test",
+        "-p",
+        "toksi",
+        "--test",
+        "phase21_1_to_21_6_verification"
+      ],
+      "isolation": "ephemeral_tempdir"
+    },
     "phase2_projectmem_verification": {
       "watched_paths": [
         "crates/toksi/src/projectmem/",
         "crates/toksi/tests/phase2_projectmem_verification.rs"
       ],
-      "tree_blake3": "0ce076616e77a36957b6e4c4890148d4b2c39adb9a95dc9b8b3dbbe7f4fe5c28",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "13e22eee36b8931bbaf7bda7ac3d1032a603b294873da305fb965d2443bad645",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -635,7 +661,7 @@
         "crates/toksi/tests/phase3_contextmode_verification.rs"
       ],
       "tree_blake3": "082344718f5ffcf03c9a68536bcf5aa0ecf6e0cd853187f7f3ac6581a6ceb41a",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -652,7 +678,7 @@
         "crates/toksi/tests/phase4_icm_aimemory_verification.rs"
       ],
       "tree_blake3": "e91d4d016496a5d4d8fb0b191ca36a4b7e66cefa63bfe7a3a7b876d1ccd47e09",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -669,7 +695,7 @@
         "crates/toksi/tests/phase5_codegraph_verification.rs"
       ],
       "tree_blake3": "87349e50a561d12b9590025782dfaa52ac31f8f64fcd0ee7a957c8753b00b8cd",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -685,8 +711,8 @@
         "rules/",
         "crates/toksi/tests/phase6_rules_verification.rs"
       ],
-      "tree_blake3": "5a2dc814a611e0597004255d6e7da903bd1b1d3d93b8602b749f342135248b60",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "a6dc868612bc1625551ad76e076339f43cc2aa2124bd83ad12fb14e134dc2adc",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -701,8 +727,8 @@
         "crates/toksi/src/gateway/",
         "crates/toksi/tests/phase7_gateway_verification.rs"
       ],
-      "tree_blake3": "fa56d1b3c68d9ea22318510a2417ebecfca6dad570934fb33adbdf9b07e4120f",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "14338e56373d4257a594568b97113143fc2435fbaf8aced55515e32a94bad533",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -718,7 +744,7 @@
         "crates/toksi/tests/phase7_headroom_verification.rs"
       ],
       "tree_blake3": "5cdbacc6868b98e6fb812eaa4419cf4148b3804aa67d3b25b22e6c97bf6a6b8a",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -733,8 +759,8 @@
         "crates/toksi/src/",
         "crates/toksi/tests/phase7_system_verification.rs"
       ],
-      "tree_blake3": "bed7713a9007180beb274bd04cee31ffcfc163138e17327dc1599dd599aa416c",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "f029f2ca034a380fe67f68c4383c8420d71bd2e9d42d0deb2771ca05c0cb5084",
+      "last_passed_unix": 1795641270,
       "cargo_args": [
         "test",
         "-p",
@@ -749,8 +775,8 @@
         "crates/toksi/src/util/",
         "crates/toksi/tests/phase8_downloader_purge_verification.rs"
       ],
-      "tree_blake3": "9598911534a7a31feb9f9ad7c1ce97dd44f303c989fb204c438d57e57d0e5586",
-      "last_passed_unix": 1795542420,
+      "tree_blake3": "f652b0c07e72cf21df5d47a6db583f496cf8da0fe67009dd21f0e876d2596dc3",
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",
@@ -766,7 +792,7 @@
         "crates/toksi/tests/phase9_legacy_healing_verification.rs"
       ],
       "tree_blake3": "47d7a175c4a9e4b2d394afdf1d4c01c877bab8d3b247334a96d14fbfb79bf343",
-      "last_passed_unix": 1795542420,
+      "last_passed_unix": 1795635463,
       "cargo_args": [
         "test",
         "-p",

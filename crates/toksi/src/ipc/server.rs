@@ -137,6 +137,7 @@ impl IpcRequestHandler for DefaultWorkerIpcHandler {
                     .and_then(|v| v.as_str())
                     .unwrap_or("/");
                 let path_only = path.split('?').next().unwrap_or(path);
+                let body_str = req_json.get("body").and_then(|v| v.as_str()).unwrap_or("");
                 let reply = if path_only == "/livez" || path_only == "/healthz" || path_only == "/readyz" {
                     serde_json::json!({
                         "status_code": 200,
@@ -144,6 +145,18 @@ impl IpcRequestHandler for DefaultWorkerIpcHandler {
                         "status": "ok",
                         "method": method,
                         "path": path_only,
+                    })
+                } else if let Some((status_code, ide_body)) =
+                    crate::tools::ide_plugin_host::handle_ide_http_route(
+                        path_only,
+                        method,
+                        body_str.as_bytes(),
+                    )
+                {
+                    serde_json::json!({
+                        "status_code": status_code,
+                        "role": self.role.as_str(),
+                        "body": ide_body.to_string(),
                     })
                 } else {
                     let target = match self.role {
@@ -157,7 +170,6 @@ impl IpcRequestHandler for DefaultWorkerIpcHandler {
                         WorkerRole::Security => crate::tools::multi_protocol::ToolTarget::Security,
                         _ => crate::tools::multi_protocol::ToolTarget::Headroom,
                     };
-                    let body_str = req_json.get("body").and_then(|v| v.as_str()).unwrap_or("");
                     let body_val = serde_json::from_str::<serde_json::Value>(body_str)
                         .unwrap_or_else(|_| serde_json::json!({ "raw_body": body_str, "path": path, "method": method }));
                     let resp = crate::tools::direct_wire::global_direct_wire_bus().invoke_tool(

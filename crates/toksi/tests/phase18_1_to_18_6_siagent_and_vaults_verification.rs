@@ -20,7 +20,7 @@ fn test_phase18_37_brain_guides_and_zero_bloat_external_skills() {
         .flatten()
         .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("md"))
         .count();
-    assert_eq!(md_count, 49, "Expected 49 .agents/brain/*.md guides");
+    assert_eq!(md_count, 55, "Expected 55 .agents/brain/*.md guides");
 
     let cfg = SkillsRepoConfig::load();
     assert!(!cfg.skills_remote.is_empty());

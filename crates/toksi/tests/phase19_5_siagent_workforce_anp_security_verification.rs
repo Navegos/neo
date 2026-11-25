@@ -16,8 +16,8 @@ use toksi::security::{
 use toksi::tools::multi_protocol::{ProtocolKind, CONSOLIDATED_VAULT_COUNT};
 
 #[test]
-fn test_phase19_5_anp_quic_and_493_vaults() {
-    assert_eq!(CONSOLIDATED_VAULT_COUNT, 493);
+fn test_phase19_5_anp_quic_and_495_vaults() {
+    assert_eq!(CONSOLIDATED_VAULT_COUNT, 495);
     assert_eq!("anp".parse::<ProtocolKind>().unwrap(), ProtocolKind::Anp);
     assert_eq!("quic".parse::<ProtocolKind>().unwrap(), ProtocolKind::Quic);
     assert_eq!(ProtocolKind::Anp.as_str(), "anp");

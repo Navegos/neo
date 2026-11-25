@@ -36,6 +36,8 @@ pub const ORCHESTRATED_FRAMEWORKS: &[&str] = &[
     "hermes-webui",
     "temporal",
     "restate",
+    "Zoo-Code",
+    "agent-orchestrator",
 ];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

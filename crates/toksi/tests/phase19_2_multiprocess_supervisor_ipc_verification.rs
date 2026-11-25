@@ -36,13 +36,14 @@ fn test_phase19_2_ipc_binary_frame_encode_decode_and_checksum() {
 
 #[test]
 fn test_phase19_2_worker_roles_and_supervisor_db_crud() {
-    assert_eq!(WorkerRole::ALL.len(), 17);
+    assert_eq!(WorkerRole::ALL.len(), 18);
     assert_eq!(WorkerRole::PORT_WORKERS.len(), 8);
-    assert_eq!(WorkerRole::TOOL_WORKERS.len(), 7);
+    assert_eq!(WorkerRole::TOOL_WORKERS.len(), 8);
     assert_eq!(
         "network-manager".parse::<WorkerRole>().expect("network-manager"),
         WorkerRole::NetworkManager
     );
+    assert_eq!("cluster".parse::<WorkerRole>().expect("cluster"), WorkerRole::Cluster);
     assert_eq!("siagent".parse::<WorkerRole>().expect("siagent"), WorkerRole::Siagent);
     assert_eq!("port-8787".parse::<WorkerRole>().expect("8787"), WorkerRole::Port8787);
 

@@ -41,7 +41,7 @@ fn test_wave19_1_to_19_3_renames_ipc_and_isolation() {
     assert_eq!("ai-memory".parse::<ToolTarget>().ok(), Some(ToolTarget::Aimemory));
 
     // 19.2 multi-process worker roles + TKSI IPC frame codec
-    assert_eq!(WorkerRole::ALL.len(), 17);
+    assert_eq!(WorkerRole::ALL.len(), 18);
     assert_eq!(
         "network-manager".parse::<WorkerRole>().ok(),
         Some(WorkerRole::NetworkManager)
@@ -87,8 +87,8 @@ fn test_wave19_4_to_19_6_hygiene_si_stack_and_training_plane() {
     let clean = audit_neo_skills_hygiene(root, true, true).expect("hygiene audit");
     assert_eq!(clean.pruned_skills, vec!["foreign-temp"]);
 
-    // 19.5 493 vaults + ANP/QUIC + Workforce + OpenSpec + ATR + ModelSpec + PMAT + FunesRecall
-    assert_eq!(CONSOLIDATED_VAULT_COUNT, 493);
+    // 19.5 495 vaults (Wave 21 reconciled from 493) + ANP/QUIC + Workforce + OpenSpec + ATR + ModelSpec + PMAT + FunesRecall
+    assert_eq!(CONSOLIDATED_VAULT_COUNT, 495);
     assert_eq!("anp".parse::<ProtocolKind>().ok(), Some(ProtocolKind::Anp));
     assert_eq!("quic".parse::<ProtocolKind>().ok(), Some(ProtocolKind::Quic));
 

@@ -153,8 +153,13 @@ fn normalized_agent_instructions() -> &'static str {
     AGENT_INSTRUCTIONS_CACHE
         .get_or_init(|| {
             crate::rules::skills_repo::read_agent_instructions_template()
+                .map(|raw| raw.replace("\r\n", "\n"))
+                .filter(|body| {
+                    section_present(body, "principles")
+                        && section_present(body, "caveman")
+                        && section_present(body, "ponytail")
+                })
                 .unwrap_or_else(build_fallback_instructions)
-                .replace("\r\n", "\n")
         })
         .as_str()
 }

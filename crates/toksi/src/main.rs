@@ -113,8 +113,9 @@ fn help_text() -> String {
           {cmd_doctor}            Audit 18+ agents, consolidate <repo>/.toksi/<tool>, fix regressions (--fix, --workspace)\n\
           {cmd_gain}              Display ground-truth token savings & effort-tier tokview attribution\n\
           {cmd_top}               Live interactive terminal monitor for proxies and active agent requests\n\
-          {cmd_tui}               Full mouse-capable 9-tab async terminal control center\n\
-          {cmd_dashboard}         Web telemetry cockpit on :9100 (start|stop|restart --port --open --agents)\n\
+          {cmd_tui}               Full mouse-capable 10-tab async terminal control center\n\
+          {cmd_dashboard}         Web telemetry cockpit on :9100 (detached; start|stop|restart --port --open)\n\
+          {cmd_ide_bridge}        External 13-IDE plugin host bridge (--list | --ide <id> --transport <t>)\n\
           {cmd_prime}             Generate unified context primer for AI agent sessions\n\
           {cmd_daemon}            Unified 8-port supervisor (start|stop|restart|status --agents)\n\
           {cmd_proxy}             Manage streaming Headroom/Copilot/Grok proxies (start|stop|restart|status --agents)\n\
@@ -149,11 +150,13 @@ fn help_text() -> String {
           {p8790}           GitHub Copilot CLI Proxy (DEFAULT_COPILOT_CLI_PROXY_PORT)\n\
           {p9098}           Unified Protocol Bus (MCP, A2A v1.0, ACP v2.0, stdio, SSE, HTTP + Headroom)\n\
           {p9099}           Enterprise AI Gateway & Drop-in SDKs (/v1/chat/completions, /v1/messages, /v1/responses, /metrics)\n\
-          {p9100}           Web Telemetry & Control Dashboard Cockpit (detached 9-tab SPA + SSE)\n\
+          {p9100}           Web Telemetry & Control Dashboard Cockpit (detached 10-tab SPA + SSE)\n\
           {p18787}          BYOK Multi-Profile & Vertex ADC Gateway (AGY_ADC_AUTH=true + Headroom)\n\n\
         {sec_slash}\n\
-          /byok, /model, /effort, /byokmodel, /projectmem, /ctxmode, /codegraph, /icm,\n\
-          /aimemory, /rtk, /security, /advisory, /skills, /sandbox, /plugin, /resume\n\n\
+          /byok, /model, /effort, /byokmodel, /mode, /sampling, /router, /projectmem, /ctxmode,\n\
+          /codegraph, /icm, /aimemory, /rtk, /security, /advisory, /skills, /sandbox, /plugin,\n\
+          /resume, /workforce, /spec, /dataset, /train, /eval, /compress, /serve, /cluster,\n\
+          /otel, /voice\n\n\
         {sec_config}\n\
           ~/.toksi/config.toml : [ports], [repositories] (neo/advisory/skills), [plugins], [security], [auth.gcp_adc], [optimization]\n\
           ~/.toksi/toksi.db    : byok_profiles, quota_windows, plugins_registry, blind_signatures, advisory_embargoes, adr_audit_events\n\
@@ -173,7 +176,7 @@ fn help_text() -> String {
           -h, --help          Show this comprehensive usage help\n\n\
         {sec_disciplines}\n\
           * Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced; zero panics (.unwrap/.expect/panic! prohibited).\n\
-          * Architecture: 35-component <toksi-siagent> across 493 mandated vaults (49 .agents/brain/*.md guides PHASE_01..PHASE_20_6).\n\
+          * Architecture: 35-component <toksi-siagent> across 495 mandated vaults (55 .agents/brain/*.md guides PHASE_01..PHASE_21_6).\n\
           * Bus & Attribution: direct-wired DirectWireBus (zero-hop) + effort-tier tokview attribution (Low/Medium/High/XHigh/Max).\n\
           * Externalized Zero-Bloat: <skills> & <advisory> staged outside crates/toksi/ (<neo>/agents/ & <neo>/rules/).\n\
           * Zero Paid-Tier Restrictions: all enabled BYOK, ADC, OAuth, and CLI profiles route freely.\n\
@@ -194,6 +197,7 @@ fn help_text() -> String {
         cmd_top = cy("toksi top"),
         cmd_tui = cy("toksi tui"),
         cmd_dashboard = cy("toksi dashboard"),
+        cmd_ide_bridge = cy("toksi ide-bridge"),
         cmd_prime = cy("toksi prime"),
         cmd_daemon = cy("toksi daemon"),
         cmd_proxy = cy("toksi proxy"),
@@ -230,12 +234,12 @@ fn help_text() -> String {
         p9099 = yl("Port 9099"),
         p9100 = yl("Port 9100"),
         p18787 = yl("Port 18787"),
-        sec_slash = bd("16 Universal In-Chat Slash Commands (<5ms):"),
+        sec_slash = bd("29 Universal In-Chat Slash Commands (<5ms):"),
         sec_config = bd("Configuration & Storage Conventions:"),
         sec_agents = bd("Supported Agents (18+ & Category 1-5):"),
         sec_tools = bd("Managed Tools:"),
         sec_flags = bd("Flags & Options:"),
-        sec_disciplines = bd("Disciplinary Standards & Wave 18 (v5.2) Architecture:"),
+        sec_disciplines = bd("Disciplinary Standards & Wave 21 (v8.0) Architecture:"),
         footer = gr("Docs: https://github.com/Navegos/neo/#toksi")
     )
 }
@@ -548,6 +552,9 @@ fn run() -> i32 {
     }
     if args.len() >= 2 && args[1] == "orchestrator" {
         return toksi::commands::run_orchestrator_cli(&args[2..]);
+    }
+    if args.len() >= 2 && args[1] == "ide-bridge" {
+        return toksi::commands::run_ide_bridge_cli(&args[2..]);
     }
     if args.len() >= 2 && args[1] == "codegraph-hook" {
         return run_codegraph_index_hook();

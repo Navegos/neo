@@ -31,7 +31,7 @@ use toksi::tools::{
 };
 use toksi::util::env_path::check_executable_in_path;
 
-const ALL_AGENTS: [&str; 22] = [
+const ALL_AGENTS: [&str; 23] = [
     "claude",
     "cursor",
     "codex",
@@ -54,6 +54,7 @@ const ALL_AGENTS: [&str; 22] = [
     "dsh",
     "amp",
     "openagents",
+    "zoo-code",
 ];
 
 #[test]
@@ -63,7 +64,7 @@ fn test_phase11_all_22_agents_manifests_and_rules() {
     register_tools();
 
     let all_agents = list_agents();
-    assert_eq!(all_agents.len(), 22, "All 22 agent manifests must be registered");
+    assert_eq!(all_agents.len(), 23, "All 23 agent manifests must be registered");
 
     for agent_id in ALL_AGENTS {
         let manifest = get_agent(agent_id);

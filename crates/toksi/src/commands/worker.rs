@@ -198,7 +198,8 @@ pub fn run_worker_cli(args: &[String]) -> i32 {
             | WorkerRole::Icm
             | WorkerRole::Aimemory
             | WorkerRole::Rtk
-            | WorkerRole::Security => None,
+            | WorkerRole::Security
+            | WorkerRole::Cluster => None,
         };
 
         let mut shutdown_watch = kill_tx.subscribe();

@@ -11,6 +11,7 @@
 #![deny(unsafe_code)]
 
 pub mod acp;
+pub mod chat_ui;
 pub mod checkpoint;
 pub mod cluster_exec;
 pub mod codemode;
@@ -26,6 +27,7 @@ pub mod mofa;
 pub mod openclaw;
 pub mod openshell;
 pub mod openspec;
+pub mod orchestration_resume;
 pub mod orchestrator;
 pub mod patch;
 pub mod rl;
@@ -34,6 +36,7 @@ pub mod sandbox_e2b;
 pub mod scheduler;
 pub mod slash;
 pub mod state;
+pub mod swarm;
 pub mod unification;
 pub mod workforce;
 pub mod workflow_state;

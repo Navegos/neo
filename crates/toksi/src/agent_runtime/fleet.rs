@@ -49,4 +49,6 @@ pub const SECTION_2_5_RUNTIME_VAULTS: &[RuntimeVaultCapability] = &[
     RuntimeVaultCapability { vault_id: "loopwright", role: "yaml-loop-state-machine", wired_off_the_back: true },
     RuntimeVaultCapability { vault_id: "hermes-webui", role: "web-cockpit-session-ui", wired_off_the_back: true },
     RuntimeVaultCapability { vault_id: "agents-structures", role: "canonical-dotagents-layouts", wired_off_the_back: true },
+    RuntimeVaultCapability { vault_id: "Zoo-Code", role: "semble-dcg-roomodes-thought-sig", wired_off_the_back: true },
+    RuntimeVaultCapability { vault_id: "agent-orchestrator", role: "git-worktree-kanban-fleet-ci-routing", wired_off_the_back: true },
 ];

@@ -37,6 +37,7 @@ pub enum WorkerRole {
     Aimemory,
     Rtk,
     Security,
+    Cluster,
 }
 
 impl WorkerRole {
@@ -58,6 +59,7 @@ impl WorkerRole {
         Self::Aimemory,
         Self::Rtk,
         Self::Security,
+        Self::Cluster,
     ];
 
     pub const PORT_WORKERS: &'static [WorkerRole] = &[
@@ -79,6 +81,7 @@ impl WorkerRole {
         Self::Aimemory,
         Self::Rtk,
         Self::Security,
+        Self::Cluster,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -100,6 +103,7 @@ impl WorkerRole {
             Self::Aimemory => "aimemory",
             Self::Rtk => "rtk",
             Self::Security => "security",
+            Self::Cluster => "cluster",
         }
     }
 
@@ -151,6 +155,7 @@ impl FromStr for WorkerRole {
             "aimemory" | "ai-memory" => Ok(Self::Aimemory),
             "rtk" => Ok(Self::Rtk),
             "security" => Ok(Self::Security),
+            "cluster" => Ok(Self::Cluster),
             other => Err(format!("Unknown worker role: '{other}'")),
         }
     }

@@ -85,9 +85,33 @@ fn workspace_from_args(args: &[String]) -> (PathBuf, Vec<String>) {
 }
 
 pub fn run_chat_cli(args: &[String]) -> i32 {
-    let (root, _) = workspace_from_args(args);
+    let (root, rest) = workspace_from_args(args);
+    let mut force_plain = false;
+    let mut mode_override: Option<crate::agent_runtime::mode_router::OrchestratorMode> = None;
+    let mut i = 0usize;
+    while i < rest.len() {
+        match rest[i].as_str() {
+            "--plain" | "--no-tui" => {
+                force_plain = true;
+                i += 1;
+            }
+            "--mode" if i + 1 < rest.len() => {
+                mode_override = crate::agent_runtime::chat_ui::ChatUiState::resolve_mode_alias(&rest[i + 1]);
+                i += 2;
+            }
+            s if s.starts_with("--mode=") => {
+                let val = s.trim_start_matches("--mode=");
+                mode_override = crate::agent_runtime::chat_ui::ChatUiState::resolve_mode_alias(val);
+                i += 1;
+            }
+            _ => i += 1,
+        }
+    }
     let mut engine = AgentRuntimeEngine::new(root, "toksi-cli");
-    engine.run_chat_repl()
+    if let Some(m) = mode_override {
+        engine.active_mode = m;
+    }
+    engine.run_chat_repl_with_options(force_plain)
 }
 
 pub fn run_runtime_run_cli(args: &[String]) -> i32 {

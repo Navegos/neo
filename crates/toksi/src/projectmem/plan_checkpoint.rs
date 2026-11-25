@@ -130,6 +130,10 @@ pub struct PlanCheckpoint {
     #[serde(default)]
     pub active_model: String,
     #[serde(default)]
+    pub active_phase: String,
+    #[serde(default)]
+    pub active_byok_profile: String,
+    #[serde(default)]
     pub completed_steps: Vec<String>,
     #[serde(default)]
     pub pending_steps: Vec<String>,
@@ -139,6 +143,8 @@ pub struct PlanCheckpoint {
     pub active_plugins: Vec<String>,
     #[serde(default)]
     pub dirty_files_sha256: BTreeMap<String, String>,
+    #[serde(default)]
+    pub dirty_files_blake3: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sandbox_backend: Option<String>,
     #[serde(default)]
@@ -149,6 +155,8 @@ pub struct PlanCheckpoint {
     pub handoff_summary: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_error_reason: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub yield_reason: Option<YieldReason>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -169,16 +177,20 @@ impl PlanCheckpoint {
             total_steps: 0,
             active_effort: "Medium".to_string(),
             active_model: String::new(),
+            active_phase: String::new(),
+            active_byok_profile: String::new(),
             completed_steps: Vec::new(),
             pending_steps: Vec::new(),
             steps: Vec::new(),
             active_plugins: Vec::new(),
             dirty_files_sha256: BTreeMap::new(),
+            dirty_files_blake3: BTreeMap::new(),
             sandbox_backend: None,
             durable_journal_seq: 0,
             context_snapshot: None,
             handoff_summary: None,
             last_error: None,
+            last_error_reason: None,
             yield_reason: None,
             subproject_id: None,
             updated_at: utc_now_iso(),

@@ -34,6 +34,7 @@ pub mod proxy_protocol;
 pub mod proxy_provider;
 pub mod vscode;
 pub mod zcode;
+pub mod zoo_code;
 
 pub use amp::*;
 pub use antigravity::*;
@@ -62,6 +63,7 @@ pub use proxy_protocol::*;
 pub use proxy_provider::*;
 pub use vscode::*;
 pub use zcode::*;
+pub use zoo_code::*;
 
 use std::sync::Arc;
 use crate::core::{register_agent, AgentManifest};
@@ -156,6 +158,7 @@ pub fn register() {
     register_agent(dsh_manifest());
     register_agent(amp_manifest());
     register_agent(openagents_manifest());
+    register_agent(zoo_code_manifest());
 }
 
 #[cfg(test)]

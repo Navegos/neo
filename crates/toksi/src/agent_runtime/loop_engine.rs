@@ -11,7 +11,7 @@
 
 #![deny(unsafe_code)]
 
-use std::io::{self, BufRead, Write};
+use std::io::{self, BufRead, IsTerminal, Write};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -22,7 +22,7 @@ use crate::gateway::sampling::{apply_sampling_params_to_payload, SamplingParams}
 use crate::headroom::effort::{EffortLevel, HeadroomEffortCompressor};
 use crate::plugins::{global_hook_dispatcher, HookContext, HookEventName, HookOutcome};
 use crate::projectmem::plan_checkpoint::{
-    load_plan_checkpoint, save_plan_checkpoint, CheckpointStatus, PlanCheckpoint,
+    save_plan_checkpoint, CheckpointStatus, PlanCheckpoint,
 };
 use crate::tools::direct_wire::{global_direct_wire_bus, WireRegistrationMode};
 
@@ -407,19 +407,34 @@ impl AgentRuntimeEngine {
     }
 
     pub fn resume_plan(&mut self, plan_id: &str) -> Result<String, String> {
-        let cp = load_plan_checkpoint(Some(&self.workspace_root), plan_id)
-            .map_err(|e| format!("Failed to load checkpoint '{}': {}", plan_id, e))?;
+        let rep = super::orchestration_resume::prepare_cross_chat_resume(
+            &self.workspace_root,
+            plan_id,
+        )?;
         Ok(format!(
-            "Resumed plan '{}' ('{}'): skipped {} completed step(s), {} remaining ({:?}).",
-            cp.plan_id,
-            cp.title,
-            cp.completed_steps.len(),
-            cp.pending_steps.len(),
-            cp.pending_steps
+            "Resumed plan '{}' ('{}', phase='{}', byok='{}'): skipped {} completed step(s), next={:?} ({} total), blake3_verified={}, blake3_drifted={}, reaped_leases={}, skipped_green_suites={}.",
+            rep.plan_id,
+            rep.title,
+            rep.active_phase,
+            rep.active_byok_profile,
+            rep.completed_count,
+            rep.next_step_title,
+            rep.total_steps,
+            rep.blake3_verified_files.len(),
+            rep.blake3_drifted_files.len(),
+            rep.reaped_stale_workers.len(),
+            rep.skipped_green_suites.len(),
         ))
     }
 
     pub fn run_chat_repl(&mut self) -> i32 {
+        self.run_chat_repl_with_options(false)
+    }
+
+    pub fn run_chat_repl_with_options(&mut self, force_plain: bool) -> i32 {
+        if !force_plain && io::stdin().is_terminal() && io::stdout().is_terminal() {
+            return super::chat_ui::run_interactive_chat_tui(self);
+        }
         println!(
             "toksi <toksi-siagent> interactive chat (session={}). Type /exit or Ctrl+D to quit.",
             self.session_id
@@ -439,6 +454,15 @@ impl AgentRuntimeEngine {
                     }
                     if trimmed == "/exit" || trimmed == "/quit" {
                         break;
+                    }
+                    if let Some(cli_res) =
+                        super::chat_ui::execute_in_chat_cli_command(&self.workspace_root, trimmed)
+                    {
+                        match cli_res {
+                            Ok(out) => println!("{}", out),
+                            Err(e) => eprintln!("CLI Error: {}", e),
+                        }
+                        continue;
                     }
                     if let Some(slash_out) = self.try_slash(trimmed) {
                         println!("{}", slash_out);

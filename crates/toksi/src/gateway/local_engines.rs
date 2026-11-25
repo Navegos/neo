@@ -153,6 +153,114 @@ pub const SECTION_2_15_TO_2_17_VAULTS: &[&str] = &[
     "opentelemetry-operator", "opentelemetry-python", "opentelemetry-python-genai",
 ];
 
+/// Wave 21 reconciled vaults (`Zoo-Code`, `agent-orchestrator`), bringing total mandated vaults to 495.
+pub const WAVE21_RECONCILED_VAULTS: &[&str] = &["Zoo-Code", "agent-orchestrator"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AiMlPillar {
+    Datasets,
+    Tokenizers,
+    ModelArchitecture,
+    ModelTraining,
+    PostTrainingAlignment,
+    Evaluation,
+    CompressionOptimization,
+    Inference,
+    RetrievalOrchestration,
+    Serving,
+    ObservabilityGuardrails,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct AiMlPillarDescriptor {
+    pub pillar: AiMlPillar,
+    pub name: &'static str,
+    pub rust_module: &'static str,
+    pub cli_command: &'static str,
+    pub key_vaults: &'static [&'static str],
+}
+
+pub const ELEVEN_AIML_PILLARS: &[AiMlPillarDescriptor] = &[
+    AiMlPillarDescriptor {
+        pillar: AiMlPillar::Datasets,
+        name: "Datasets",
+        rust_module: "crates/toksi/src/training/",
+        cli_command: "toksi dataset",
+        key_vaults: &["datasets", "Megatron-Energon", "Curator", "ossie", "structured-data-models"],
+    },
+    AiMlPillarDescriptor {
+        pillar: AiMlPillar::Tokenizers,
+        name: "Tokenizers",
+        rust_module: "crates/toksi/src/headroom/tokenizer.rs",
+        cli_command: "toksi headroom",
+        key_vaults: &["tokenizers", "llguidance", "tiktoken"],
+    },
+    AiMlPillarDescriptor {
+        pillar: AiMlPillar::ModelArchitecture,
+        name: "Model Architecture",
+        rust_module: "crates/toksi/src/training/",
+        cli_command: "toksi train",
+        key_vaults: &["transformers", "flash-attention", "FlashMLA", "DeepGEMM"],
+    },
+    AiMlPillarDescriptor {
+        pillar: AiMlPillar::ModelTraining,
+        name: "Model Training (Pretraining)",
+        rust_module: "crates/toksi/src/training/",
+        cli_command: "toksi train",
+        key_vaults: &["torchtitan", "nanotron", "Megatron-LM", "DeepSpeed", "kubeflow-trainer"],
+    },
+    AiMlPillarDescriptor {
+        pillar: AiMlPillar::PostTrainingAlignment,
+        name: "Post-Training & Alignment",
+        rust_module: "crates/toksi/src/training/",
+        cli_command: "toksi train",
+        key_vaults: &["trl", "peft", "unsloth", "Automodel", "Gym"],
+    },
+    AiMlPillarDescriptor {
+        pillar: AiMlPillar::Evaluation,
+        name: "Evaluation (Evals)",
+        rust_module: "crates/toksi/src/telemetry/evals.rs",
+        cli_command: "toksi eval",
+        key_vaults: &["lm-evaluation-harness", "deepeval", "ragas", "lighteval", "AutoFA"],
+    },
+    AiMlPillarDescriptor {
+        pillar: AiMlPillar::CompressionOptimization,
+        name: "Compression & Optimization",
+        rust_module: "crates/toksi/src/commands/compress.rs",
+        cli_command: "toksi compress",
+        key_vaults: &["llm-compressor", "kvpress", "bitsandbytes", "Olive", "onnxruntime"],
+    },
+    AiMlPillarDescriptor {
+        pillar: AiMlPillar::Inference,
+        name: "Inference",
+        rust_module: "crates/toksi/src/gateway/local_engines.rs",
+        cli_command: "toksi gateway",
+        key_vaults: &["vllm", "sglang", "hyperflare-inference", "mistral.rs", "candle", "oxillama"],
+    },
+    AiMlPillarDescriptor {
+        pillar: AiMlPillar::RetrievalOrchestration,
+        name: "Retrieval & Orchestration",
+        rust_module: "crates/toksi/src/agent_runtime/",
+        cli_command: "toksi orchestrator",
+        key_vaults: &["Zoo-Code", "agent-orchestrator", "llama_index", "haystack", "semantic-router", "liteparse"],
+    },
+    AiMlPillarDescriptor {
+        pillar: AiMlPillar::Serving,
+        name: "Serving",
+        rust_module: "crates/toksi/src/cluster/",
+        cli_command: "toksi serve",
+        key_vaults: &["triton", "NeMo-Relay-Plugins", "Personal-AI-Router", "paddler", "llama-swap"],
+    },
+    AiMlPillarDescriptor {
+        pillar: AiMlPillar::ObservabilityGuardrails,
+        name: "Observability & Guardrails (LLMOps)",
+        rust_module: "crates/toksi/src/telemetry/otel.rs",
+        cli_command: "toksi otel",
+        key_vaults: &["opentelemetry-rust", "PurpleLlama", "defenseclaw", "skill-scanner", "langfuse"],
+    },
+];
+
 pub fn total_mandated_vault_count() -> usize {
     crate::tools::multi_protocol::CONSOLIDATED_VAULT_COUNT
 }
@@ -162,11 +270,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_wave20_local_engines_and_493_vaults() {
+    fn test_wave21_local_engines_pillars_and_495_vaults() {
         let hf = lookup_local_engine("hyperflare-inference").expect("hyperflare-inference registered");
         assert!(hf.pure_rust);
         assert_eq!(hf.default_port, 8090);
         assert_eq!(SECTION_2_15_TO_2_17_VAULTS.len(), 61);
-        assert_eq!(total_mandated_vault_count(), 493);
+        assert_eq!(WAVE21_RECONCILED_VAULTS.len(), 2);
+        assert_eq!(ELEVEN_AIML_PILLARS.len(), 11);
+        assert_eq!(total_mandated_vault_count(), 495);
     }
 }

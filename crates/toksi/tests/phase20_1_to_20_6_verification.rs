@@ -219,7 +219,7 @@ fn test_phase20_4_eleven_ai_ml_pillars_and_61_wave20_vaults() {
 
     assert!(lookup_local_engine("hyperflare-inference").is_some());
     assert_eq!(SECTION_2_15_TO_2_17_VAULTS.len(), 61);
-    assert_eq!(total_mandated_vault_count(), 493);
+    assert_eq!(total_mandated_vault_count(), 495);
 }
 
 #[test]

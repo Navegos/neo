@@ -23,7 +23,7 @@ use crate::util::paths::normalize_path;
 
 pub const DEFAULT_PROTOCOL_BUS_PORT: u16 = crate::config::DEFAULT_PROTOCOL_BUS_PORT;
 pub const MAX_A2A_PAYLOAD_BYTES: usize = 1024 * 1024; // 1 MiB cap
-pub const CONSOLIDATED_VAULT_COUNT: usize = 493;
+pub const CONSOLIDATED_VAULT_COUNT: usize = 495;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -1527,6 +1527,29 @@ async fn serve_protocol_bus_connection(
                 }
             }
             return Ok(());
+        }
+
+        if let Some((status_code, resp_val)) =
+            crate::tools::ide_plugin_host::handle_ide_http_route(&path, &req.method, &req.body)
+        {
+            let bytes = serde_json::to_vec(&resp_val).unwrap_or_default();
+            let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
+            if is_close_requested {
+                headers.push(("Connection".to_string(), "close".to_string()));
+            }
+            crate::headroom::byok_gateway::write_http_response(
+                &mut stream,
+                status_code,
+                crate::headroom::byok_gateway::status_reason(status_code),
+                &headers,
+                &bytes,
+            )
+            .await?;
+            if is_close_requested {
+                let _ = stream.shutdown().await;
+                break;
+            }
+            continue;
         }
 
         let default_proto = match path.as_str() {

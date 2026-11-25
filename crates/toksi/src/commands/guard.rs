@@ -44,6 +44,7 @@ pub enum OffensiveCategory {
     DenialOfService,
     PrivilegeEscalationOrFirewallTamper,
     PolicyBypassAttempt,
+    DestructiveCommandGuard,
 }
 
 pub const PROHIBITED_OFFENSIVE_BINARIES: &[&str] = &[
@@ -113,6 +114,22 @@ const BYPASS_PATTERNS: &[&str] = &[
     "kill_all_services_on_bypass=false",
     "disable_command_guard = true",
     "disable_command_guard=true",
+];
+
+const DCG_DESTRUCTIVE_PATTERNS: &[&str] = &[
+    "rm -rf /",
+    "rm -rf /*",
+    "rm -rf ~",
+    "rm -fr /",
+    "git push --force",
+    "git push -f",
+    "git reset --hard",
+    "git clean -fdx",
+    "drop database",
+    "drop table",
+    "truncate table",
+    "del /f /s /q",
+    "remove-item -recurse -force",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -296,8 +313,31 @@ impl CommandGuard {
             };
         }
 
+        for pat in DCG_DESTRUCTIVE_PATTERNS {
+            if matches_dcg_pattern(&lower, pat) {
+                return GuardDecision::Deny {
+                    category: OffensiveCategory::DestructiveCommandGuard,
+                    matched: (*pat).to_string(),
+                    reason: format!(
+                        "Destructive Command Guard (DCG) blocked '{pat}' prior to execution"
+                    ),
+                };
+            }
+        }
+
         GuardDecision::Allow
     }
+}
+
+fn matches_dcg_pattern(lower: &str, pat: &str) -> bool {
+    if pat == "rm -rf /" || pat == "rm -fr /" {
+        return lower.split_whitespace().collect::<Vec<_>>().windows(3).any(|w| {
+            w[0] == "rm"
+                && (w[1] == "-rf" || w[1] == "-fr")
+                && (w[2] == "/" || w[2] == "/*" || w[2].starts_with("/;"))
+        });
+    }
+    lower.contains(pat)
 }
 
 fn detect_bypass_attempt(lower: &str) -> Option<&'static str> {
