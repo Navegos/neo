@@ -41,7 +41,7 @@ Requirements:
    - Remove early return for `/byok/` in `headroom/proxy.rs:619-631` so all configured BYOK providers go through Headroom compression and telemetry accounting.
    - Upgrade `gateway/semantic_cache.rs` to Chroma HNSW/USearch/SPANN ANN + `foyer` disk spill and wire live `store()` / `lookup_semantic()` calls inside `headroom/proxy.rs`.
 5. Verification:
-   - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi` across **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor` (`Chroma`/`Lance`/`Qdrant` + `tokenizers`), zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
+   - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, targeted `cargo test -p toksi` across **495 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor` (`Chroma`/`Lance`/`Qdrant` + `tokenizers`), zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
 ```
 
 ---
@@ -60,7 +60,7 @@ See `RESEARCHPLAN.md` Section 13.4 for exact `byok_profiles`, `agent_profile_bin
 
 ## Wave 18 (v5.2) Synchronization Addendum
 - Extend `byok_profiles` table schema with `auth_mode`, `gcp_project`, and `gcp_location` (`us-central1` default) for `AGY_ADC_AUTH=true` Vertex routing (`PHASE_18_3`), and persist Unified Plugin descriptors/scan verdicts in `plugins_registry` (`PHASE_18_2`), zero-plaintext signatures/embargoes in `blind_signatures` & `advisory_embargoes` (`PHASE_18_2`), and ADR/kill-switch events in `adr_audit_events` (`PHASE_18_5`).
-- Wire `Low` / `Medium` / `High` thinking-effort aggressiveness (`tokenizers` exact BPE + `Chroma`/`Lance`/`Qdrant` ANN + `Guardrails`/`llm-guard` + `<enforce>`) across all 7 entrypoints (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`) and cross-provider reasoning budget translation (`reasoning_effort`, `thinking.budget_tokens`, `generationConfig.thinkingConfig.thinkingBudget`) for **35-component `<toksi-siagent>`** across **432 mandated vaults** and **43** `.agents/brain/*.md` guides.
+- Wire `Low` / `Medium` / `High` thinking-effort aggressiveness (`tokenizers` exact BPE + `Chroma`/`Lance`/`Qdrant` ANN + `Guardrails`/`llm-guard` + `<enforce>`) across all 7 entrypoints (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`) and cross-provider reasoning budget translation (`reasoning_effort`, `thinking.budget_tokens`, `generationConfig.thinkingConfig.thinkingBudget`) for **35-component `<toksi-siagent>`** across **495 mandated vaults** and **43** `.agents/brain/*.md` guides.
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`

@@ -34,7 +34,7 @@ Requirements:
    - Open Knowledge Format (OKF v0.2) markdown wiki store inside `<repo>/.toksi/ai-memory/`.
    - Claim-once multi-agent handoff state machine with atomic file lock transitions (`pending` -> `claimed` -> `completed`).
    - Progressive disclosure packer: Tiered L0 (TOC), L1 (Abstracts), L2 (Full markdown bodies) based on Headroom context budget.
-3. Prepare integration hooks for shared 7-entrypoint `HeadroomEffortCompressor` (`crates/toksi/src/headroom/adaptive_mem.rs`, `effort.rs`) and **35-component `<toksi-siagent>`** (`cognee`/`graphiti`/`qdrant`/`lance`/`milvus`/`letta`/`text-embeddings-inference`/`NeMo-Retriever` hybrid RAG across **432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
+3. Prepare integration hooks for shared 7-entrypoint `HeadroomEffortCompressor` (`crates/toksi/src/headroom/adaptive_mem.rs`, `effort.rs`) and **35-component `<toksi-siagent>`** (`cognee`/`graphiti`/`qdrant`/`lance`/`milvus`/`letta`/`text-embeddings-inference`/`NeMo-Retriever` hybrid RAG across **495 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 4. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 

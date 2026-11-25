@@ -1,4 +1,4 @@
-# Phase 17.7: Async 9-Tab Mouse TUI, Live Web Cockpit (`:9100`), Incremental `.toksi/test-baseline.json` Harness, CLI `--help`, & Full Doc Sync
+# Phase 17.7: Async 10-Tab Mouse TUI (PHASE_20_2 Upgraded), Live Web Cockpit (`:9100`), Incremental `.toksi/test-baseline.json` Harness, CLI `--help`, & Full Doc Sync
 
 > **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 
@@ -6,7 +6,7 @@
 ```text
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 11 & 13.5–13.6), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_7_ASYNC_9TAB_UI_INCREMENTAL_TESTS_AND_DOCS.md first.
 
-Execute Phase 17.7: Final 9-Tab UI Parity, Incremental Test Engine, & Complete Documentation Verification.
+Execute Phase 17.7: Final 10-Tab UI Parity (PHASE_20_2 Upgraded), Incremental Test Engine, & Complete Documentation Verification.
 Targets:
   - crates/toksi/src/tui/{mod.rs, app.rs, views/*, widgets/*}
   - crates/toksi/src/dashboard/{mod.rs, api.rs, state.rs, sse.rs, assets/{index.html, style.css, app.js}}
@@ -30,7 +30,7 @@ Disciplinary & Portability Requirements:
 4. Never Weaken Tests: Incremental test skipping ONLY bypasses already-confirmed passing suites when their `Cargo.lock` + `watched_paths` BLAKE3 tree hash is unchanged; `--all`/`--force` re-runs everything cleanly.
 
 Requirements:
-1. Finalize Async 9-Tab Mouse TUI (`src/tui/`) & Futuristic Web Cockpit (`src/dashboard/`):
+1. Finalize Async 10-Tab Mouse TUI (PHASE_20_2 Upgraded) (`src/tui/`) & Futuristic Web Cockpit (`src/dashboard/`):
    - Configured-only visibility in `Savings`, `AI Gateway & Quotas`, and `Keyring & Database` (`0` metrics when idle).
    - `AI Agent Fleet & Quotas` lists all supported Toksi & 65/90+ adapters, greys out binaries missing from `PATH` with remediation hints, provides `Direct-Wire`/`Config-Wire`/`Unwire` actions, and displays read-only plan + `hour|day|week|month|year` quota gauges.
    - `Memory Decision DAG`: wire `GET /api/memory/dag`, clickable `.heatmap-cell` modal drilldown (`GET /api/memory/heatmap/:cell_id` showing `issue_id`, `file:line`, attempts, resolution/retry actions), and monorepo subproject filter.
@@ -41,7 +41,7 @@ Requirements:
    - `Keyring & Database`: configured-only Keyring (`gemini:antigravity` normalized), live key editor, SQLite table browser (`byok_profiles`, `plugins_registry`, `blind_signatures`, `advisory_embargoes`, `adr_audit_events`), working `Export` (`POST /api/db/export`), `Import` (`POST /api/db/import` with `overwrite`), Backup/Restore, legacy nested `<repo>` repair.
 2. Ship `.toksi/test-baseline.json` Incremental Test Skip Harness + Integration Suites `phase14`–`phase18_5`:
    - Recompute BLAKE3 over `Cargo.lock` + suite `watched_paths`; print `[SKIP-UNCHANGED] <suite>` for clean untouched suites while running dirty/failed suites and always running `cargo check --workspace` & `cargo clippy --workspace --all-targets -- -D warnings`.
-   - Add integration suites covering `phase14`–`phase18_6` across all **432 mandated vaults** and **35-component `<toksi-siagent>`** (**43** `.agents/brain/*.md` guides, config TOML incl. `[repositories]`/`[plugins]`/`[security]`, free BYOK, multi-profile `<byok, model, effort>`, `plugins_registry`/`blind_signatures`/`advisory_embargoes`/`adr_audit_events`, Keyring `gemini:antigravity` & `AGY_ADC_AUTH=true`, `live_zone` + `/byok/` Headroom + effort scaling across all 7 entrypoints, 41+ Tree-sitter & repo-only isolation, `TokenEconomizer`/`agent-opt`/`ctx-hook`/`runmcp`, `DirectWireBus` + **16** slash cmds incl. `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`, Zero-Plaintext Blind Engine + Validator PRs + ADR + 5-backend Sandbox + `CommandGuard` kill-switch, `opa`/`cedar`/`spire`/`Guardrails`/`llm-guard`, `temporal`/`restate`/`langgraph`, `Qdrant`/`Cognee`/`Graphiti`, local/Rust/cluster inference `mistral.rs`/`candle`/`ollama`/`vllm`/`sglang`/`vmon`/`cuda-rust`, gateway/ConnectRPC/reconnect, 9-tab API/SSE, `<enforce>`/`skilldoctor`/`agentskills` healer/41-lang SAST, and `.toksi/projectmem/plan_checkpoints/`).
+   - Add integration suites covering `phase14`–`phase18_6` across all **495 mandated vaults** and **35-component `<toksi-siagent>`** (**43** `.agents/brain/*.md` guides, config TOML incl. `[repositories]`/`[plugins]`/`[security]`, free BYOK, multi-profile `<byok, model, effort>`, `plugins_registry`/`blind_signatures`/`advisory_embargoes`/`adr_audit_events`, Keyring `gemini:antigravity` & `AGY_ADC_AUTH=true`, `live_zone` + `/byok/` Headroom + effort scaling across all 7 entrypoints, 41+ Tree-sitter & repo-only isolation, `TokenEconomizer`/`agent-opt`/`ctx-hook`/`runmcp`, `DirectWireBus` + **16** slash cmds incl. `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`, Zero-Plaintext Blind Engine + Validator PRs + ADR + 5-backend Sandbox + `CommandGuard` kill-switch, `opa`/`cedar`/`spire`/`Guardrails`/`llm-guard`, `temporal`/`restate`/`langgraph`, `Qdrant`/`Cognee`/`Graphiti`, local/Rust/cluster inference `mistral.rs`/`candle`/`ollama`/`vllm`/`sglang`/`vmon`/`cuda-rust`, gateway/ConnectRPC/reconnect, 9-tab API/SSE, `<enforce>`/`skilldoctor`/`agentskills` healer/41-lang SAST, and `.toksi/projectmem/plan_checkpoints/`).
 3. Finalize `main.rs` `--help` & `crates/toksi/README.md`, then execute final full build + clippy + tests.
 4. Verification:
    - Run `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `cargo test -p toksi` (and verify subsequent incremental run logs `[SKIP-UNCHANGED]`).

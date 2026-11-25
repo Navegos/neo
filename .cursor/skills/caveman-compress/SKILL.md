@@ -5,6 +5,7 @@ description: >
   to save input tokens, keeping a readable backup. Trigger: /caveman-compress.
 ---
 
+<enforce>
 # Caveman Compress
 
 Compress natural language memory files (`CLAUDE.md`, todos, preferences) into terse caveman prose while keeping an out-of-tree human-readable backup.
@@ -20,3 +21,4 @@ Compress natural language memory files (`CLAUDE.md`, todos, preferences) into te
 - **Remove**: articles (`a`, `an`, `the`), filler (`just`, `really`, `basically`, `actually`, `simply`), pleasantries, hedging, connective fluff.
 - **Preserve EXACTLY**: fenced and indented code blocks, inline code, URLs, file paths, commands, technical terms, proper nouns, dates, versions, numeric values, env vars, headings, list hierarchy, tables, YAML frontmatter.
 - **Compress**: short active-voice bullets, imperative instructions, merge redundant bullets, keep one illustrative example.
+</enforce>

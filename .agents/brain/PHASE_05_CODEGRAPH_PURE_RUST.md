@@ -29,7 +29,7 @@ Requirements:
 5. Incremental AST symbol cache in `<repo>/.toksi/codegraph/symbols.db`.
 6. Serve `codegraph_explore`, `codegraph_impact`, and `codegraph_symbol` via in-process multi-protocol server (`MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`, `DirectWireBus`).
 7. Connect to `crates/toksi/src/projectmem/` to auto-resolve `location: "file:line"` coordinates to AST symbol names.
-8. Expose the native CLI command `toksi graph ...` wired out of the box into **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, **432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
+8. Expose the native CLI command `toksi graph ...` wired out of the box into **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, **495 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 9. Ensure 0 compiler warnings and targeted `cargo test` pass.
 ```
 

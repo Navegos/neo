@@ -32,7 +32,7 @@ Requirements:
 2. Incremental Test Skip Policy (`.toksi/test-baseline.json`):
    - Compute BLAKE3 digest over `Cargo.lock` + each suite's `watched_paths`; log `[SKIP-UNCHANGED] <suite>` for already-confirmed passing suites whose code paths and dependencies are unmodified (`--all`/`--force` runs everything). Never strip or weaken assertions!
    - Always run `cargo check --workspace` and `cargo clippy --workspace --all-targets -- -D warnings`.
-3. Verify token reduction & latency benchmarks (`>30%` savings, `<10 µs` proxy overhead, `<5ms` slash/TUI latency) across **35-component `<toksi-siagent>`** (**432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized zero-bloat `<skills>` & `<advisory>`).
+3. Verify token reduction & latency benchmarks (`>30%` savings, `<10 µs` proxy overhead, `<5ms` slash/TUI latency) across **35-component `<toksi-siagent>`** (**495 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized zero-bloat `<skills>` & `<advisory>`).
 4. Ensure 100% relevant test pass rate with 0 compiler warnings.
 ```
 

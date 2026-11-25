@@ -5,6 +5,7 @@ description: >
   One-shot report, changes nothing. Trigger: /ponytail-debt.
 ---
 
+<enforce>
 Collect every deliberate deferral (`shortcut:` or older `ponytail:` comment) into a debt ledger. One-shot report; change nothing.
 
 ## Scan & Output
@@ -13,3 +14,4 @@ Collect every deliberate deferral (`shortcut:` or older `ponytail:` comment) int
 - Format per file: `<file>:<line>, <what was simplified>. ceiling: <limit>. upgrade: <trigger>.`
 - Tag missing upgrade paths with `no-trigger`.
 - End with `<N> markers, <M> with no trigger.` or `No shortcut debt. Clean ledger.`
+</enforce>

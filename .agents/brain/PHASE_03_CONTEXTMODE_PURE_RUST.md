@@ -29,7 +29,7 @@ Requirements:
    - `policy/` + `journal/` + `compaction/` (fix `commands/ctx.rs:417-434` `run_ctx_hook` passthrough `0` stub by dispatching real pre/post tool policies, session event journal, and pre-compact snapshot!)
    - `mcp.rs` (multi-protocol `ctx_*` MCP suite: `ctx_execute`, `ctx_execute_file`, `ctx_batch_execute`, `ctx_index`, `ctx_search`, `ctx_fetch_and_index`, plus `/context` slash command dispatch).
 2. Pipe all sandbox stdout/stderr directly through `crates/toksi/src/rtk/` filters in-memory.
-3. Multi-Protocol Support: Expose `context` tools over `MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`, and `DirectWireBus` for **35-component `<toksi-siagent>`** (routing through the shared 7-entrypoint `HeadroomEffortCompressor`, across **432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
+3. Multi-Protocol Support: Expose `context` tools over `MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`, and `DirectWireBus` for **35-component `<toksi-siagent>`** (routing through the shared 7-entrypoint `HeadroomEffortCompressor`, across **495 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, and externalized zero-bloat `<skills>` & `<advisory>`).
 4. Expose the native CLI command `toksi ctx ...`.
 5. Ensure zero Node.js runtime dependency, 0 compiler warnings, and targeted `cargo test` pass.
 ```
@@ -56,7 +56,7 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Integrate `NeMo-text-processing` WFST text normalization (`src/contextmode/text_norm.rs`), `sage` domain allowlisting, `adr.rs` + `sandbox.rs` isolation, and shared 7-entrypoint `HeadroomEffortCompressor` output budgets (`Low`/`Medium`/`High`) across `<toksi-siagent>` (35 components, 432 mandated vaults, 43 `.agents/brain/*.md` guides, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, externalized `<skills>` & `<advisory>`).
+- Integrate `NeMo-text-processing` WFST text normalization (`src/contextmode/text_norm.rs`), `sage` domain allowlisting, `adr.rs` + `sandbox.rs` isolation, and shared 7-entrypoint `HeadroomEffortCompressor` output budgets (`Low`/`Medium`/`High`) across `<toksi-siagent>` (35 components, 495 mandated vaults, 43 `.agents/brain/*.md` guides, canonical `<repo>/.toksi/projectmem/`, zero paid-tier restrictions, externalized `<skills>` & `<advisory>`).
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`

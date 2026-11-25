@@ -42,7 +42,7 @@ Requirements:
    - Guarantee complete socket buffer and thread isolation between Port `9099` (LLM streaming inference) and Port `9100` (browser web cockpit).
 4. Environment Teardown:
    - Cleanly uninject all proxy environment variables on daemon exit or `SIGINT`/`SIGTERM`.
-   - Unify **35-component `<toksi-siagent>`** out of the box ("off the back") via `DirectWireBus` and `:8787`/`:9098`/`:9099`/`:18787` across all **432 mandated vaults**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`, and canonical `<repo>/.toksi/projectmem/`.
+   - Unify **35-component `<toksi-siagent>`** out of the box ("off the back") via `DirectWireBus` and `:8787`/`:9098`/`:9099`/`:18787` across all **495 mandated vaults**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`, and canonical `<repo>/.toksi/projectmem/`.
 5. Verification:
    - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```
@@ -64,7 +64,7 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Ensure `CommandGuard` bypass kill-switch (`src/commands/guard.rs`) cleanly shuts down all 8 daemon ports (`:8787..:8790, :9098, :9099, :9100, :18787`), while ALL 7 inference/protocol ports enforce the shared `HeadroomEffortCompressor` across **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.
+- Ensure `CommandGuard` bypass kill-switch (`src/commands/guard.rs`) cleanly shuts down all 8 daemon ports (`:8787..:8790, :9098, :9099, :9100, :18787`), while ALL 7 inference/protocol ports enforce the shared `HeadroomEffortCompressor` across **495 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`

@@ -28,7 +28,7 @@ Requirements:
    - `crates/toksi/src/headroom/` (pre-filtering tool outputs)
 3. Expose the native CLI command `toksi rtk <command...>`, including `toksi rtk gain`, `toksi rtk discover`, `toksi rtk learn`.
 4. Implement standard tool hook syntax: `rtk-hook <agent>` (e.g., `rtk-hook agy`, `rtk-hook antigravity-cli`, `rtk-hook copilot`, `rtk-hook cursor`). Purge legacy aliases such as `rtk hook cursor` (`main.rs:340`).
-5. Ensure 100% functional parity across the **295-vault** ecosystem and **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor` across `:8787`–`:8790`, `:9098`, `:9099`, `:18787`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`, and canonical `<repo>/.toksi/projectmem/` across all 43 `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`), zero external binary spawns, 0 compiler warnings, and targeted `cargo test -p toksi` pass (or `.toksi/test-baseline.json` skip if unchanged).
+5. Ensure 100% functional parity across the **495-vault** ecosystem and **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor` across `:8787`–`:8790`, `:9098`, `:9099`, `:18787`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`, and canonical `<repo>/.toksi/projectmem/` across all 43 `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`), zero external binary spawns, 0 compiler warnings, and targeted `cargo test -p toksi` pass (or `.toksi/test-baseline.json` skip if unchanged).
 ```
 
 ---

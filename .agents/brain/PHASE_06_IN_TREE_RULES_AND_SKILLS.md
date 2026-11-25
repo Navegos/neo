@@ -48,7 +48,7 @@ Requirements:
    - `.grok/` (Grok: `hooks/*.json`, `skills/`, `rules/`)
    Plus auto-merge nested subfolder `.toksi/` / `.<agent>/` dirs into root `<repo>/` cleanly.
 4. Support skill wiring from MCP settings: map `.gemini/mcp`, `.copilot/mcp`, `.claude/mcp`, `.agents/mcp` to `skills/<tool>`.
-5. Ensure 0 compiler warnings and targeted `cargo test` pass across the **295-vault** externalized `<skills>` / `<advisory>` 3-repo architecture, **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/` across **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`).
+5. Ensure 0 compiler warnings and targeted `cargo test` pass across the **495-vault** externalized `<skills>` / `<advisory>` 3-repo architecture, **35-component `<toksi-siagent>`** (`DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/` across **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`).
 ```
 
 ---
@@ -72,7 +72,7 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Enforce `<enforce>...</enforce>` wrapping on all staged rule blocks, script hooks, externalized `<skills>` assets (`huggingface-skills`, `openai-skills`, `langchain-skills`, `mofa-skills`, `NeMo-Skills`, `NVIDIA-skills`, `agent-skills`, `openagent-skills`, `openclaw-agent-skills` — zero binary bloat inside `crates/toksi/`), and **Toksi Unified Plugin System (`src/plugins/`)** mounts across all **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/` (`PHASE_18_2`).
+- Enforce `<enforce>...</enforce>` wrapping on all staged rule blocks, script hooks, externalized `<skills>` assets (`huggingface-skills`, `openai-skills`, `langchain-skills`, `mofa-skills`, `NeMo-Skills`, `NVIDIA-skills`, `agent-skills`, `openagent-skills`, `openclaw-agent-skills` — zero binary bloat inside `crates/toksi/`), and **Toksi Unified Plugin System (`src/plugins/`)** mounts across all **495 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/` (`PHASE_18_2`).
 - Integrate pure-Rust `skilldoctor` grading/fixing + `SkillSpector` + `SkillEvaluator` + `agentskills` YAML frontmatter validator & auto-healer (`src/rules/skill_validator.rs`) plus semantic trigger deduplication (`src/rules/skills_catalog.rs`).
 - Audit every synced skill, plugin, and script against **`defenseclaw`** fail-closed hookguard/audit + **`skill-scanner`** multi-engine/CEL policy + **`opa`/`cedar`** Policy-as-Code + `research-securety-skills` and `sage` threat rules before activation (`toksi skills heal`, `toksi security scan-skills`, `toksi plugin scan`).
 

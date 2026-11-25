@@ -5,6 +5,7 @@ description: >
   "write a commit", "commit message", /commit or /caveman-commit.
 ---
 
+<enforce>
 Write commit messages terse and exact. Conventional Commits format. No fluff. Why over what.
 
 ## Rules
@@ -25,3 +26,4 @@ Write commit messages terse and exact. Conventional Commits format. No fluff. Wh
 ## Auto-Clarity & Boundaries
 
 Always include full body for breaking changes, security fixes, data migrations, or reverts. Only generates the commit message as a paste-ready code block; does not run `git commit` or stage files.
+</enforce>

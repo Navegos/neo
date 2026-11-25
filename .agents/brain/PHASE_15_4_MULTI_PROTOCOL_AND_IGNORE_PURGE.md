@@ -60,7 +60,7 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Bind `:9098` as the dedicated Protocol Bus port (`MCP` stdio/SSE/HTTP, `A2A` v1.0, and `ACP` Agent Client Protocol from `inspect-vault/agent-client-protocol`) alongside `:8787..:8790`, `:9099`, `:9100`, and `:18787` (`PHASE_18_1`), serving all **432 mandated vaults** and **35-component `<toksi-siagent>`** (**43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`).
+- Bind `:9098` as the dedicated Protocol Bus port (`MCP` stdio/SSE/HTTP, `A2A` v1.0, and `ACP` Agent Client Protocol from `inspect-vault/agent-client-protocol`) alongside `:8787..:8790`, `:9099`, `:9100`, and `:18787` (`PHASE_18_1`), serving all **495 mandated vaults** and **35-component `<toksi-siagent>`** (**43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`).
 - Mount Unified Plugin System (`src/plugins/hooks.rs`) protocol endpoints (`MCP`, `A2A`, `ACP`, `stdio`, `SSE`, `HTTP` on `:9098`), `DirectWireBus` wire hooks (Categories 1–3), and `agent_to_agent` messaging under `opa`/`cedar`, `spire`, `defenseclaw` fail-closed hookguard & `skill-scanner` `<enforce>` verification (`PHASE_18_2` / `PHASE_18_6`).
 - Publish `temporal`/`restate`/`langgraph` `plan_checkpoints` pause/resume events and static security findings on `:9098` streams.
 

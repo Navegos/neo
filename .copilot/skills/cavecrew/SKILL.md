@@ -5,6 +5,7 @@ description: >
   `cavecrew-reviewer`) answering in ultracave voice so main context lasts longer.
 ---
 
+<enforce>
 # Cavecrew
 
 Three ultracave subagent presets whose returned results use strict compact contracts:
@@ -16,3 +17,4 @@ Three ultracave subagent presets whose returned results use strict compact contr
 ## Auto-Clarity & Safety
 
 Verify absence claims (`No match.`, `No issues.`) with one targeted check before acting. Drop to plain prose for security warnings and irreversible-action confirmations.
+</enforce>

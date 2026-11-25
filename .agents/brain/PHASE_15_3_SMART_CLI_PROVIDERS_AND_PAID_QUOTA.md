@@ -35,7 +35,7 @@ Requirements:
    - Delete `FreeTierDisqualified` / `ACTIVE_PAID_PROVIDERS` gatekeeping.
    - Populate `quota_windows` (`hour|day|week|month|year`) & model capabilities via zero-cost `/v1/models` and response rate-limit headers (`x-ratelimit-*`, `anthropic-ratelimit-*`).
 4. Bifrost BYOK Provider Integration:
-   - Implement `gateway/providers/aggregators/bifrost.rs` with health probes, failover routing, custom `base_url` override support, and real `LoadBalancer` (`olla`, `RouteLLM`, `Switchyard`, `mofa-engine` 7-D) dispatch for **35-component `<toksi-siagent>`** across **432 mandated vaults**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), shared 7-entrypoint `HeadroomEffortCompressor`, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
+   - Implement `gateway/providers/aggregators/bifrost.rs` with health probes, failover routing, custom `base_url` override support, and real `LoadBalancer` (`olla`, `RouteLLM`, `Switchyard`, `mofa-engine` 7-D) dispatch for **35-component `<toksi-siagent>`** across **495 mandated vaults**, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), shared 7-entrypoint `HeadroomEffortCompressor`, canonical `<repo>/.toksi/projectmem/`, and externalized zero-bloat `<skills>` & `<advisory>`.
 5. Verification:
    - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and targeted `cargo test -p toksi`.
 ```
@@ -56,7 +56,7 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Include `AGY_ADC_AUTH=true` Vertex ADC profiles (`src/keyring/adc.rs`), `26` local/Rust inference engines (`mistral.rs`, `candle`, `ollama`, `llama.cpp`, `vllm`, `sglang`, `dynamo`, `frontend-crates`), and `RouteLLM`/`olla` routing across **432 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.
+- Include `AGY_ADC_AUTH=true` Vertex ADC profiles (`src/keyring/adc.rs`), `26` local/Rust inference engines (`mistral.rs`, `candle`, `ollama`, `llama.cpp`, `vllm`, `sglang`, `dynamo`, `frontend-crates`), and `RouteLLM`/`olla` routing across **495 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`.
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`

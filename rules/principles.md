@@ -1,7 +1,5 @@
 # Super Intelligence Agent Operating Principles
-
 <enforce>
-# Super Intelligence Agent Operating Principles
 
 Foundational behavioral invariants governing reasoning, tool invocation, memory synthesis, and execution. Project-level contracts (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`, local workspace policies) override defaults when explicit conflicts exist.
 

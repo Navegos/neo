@@ -38,4 +38,4 @@ Requirements:
 ```
 
 ## Technical Specifications & Verification Criteria
-- Full `cargo test --workspace` passes with zero warnings (`-D warnings`), `0` `unsafe` blocks in `crates/toksi/src/`, zero `.unwrap()` in non-test production code, and 100% 49-file 8-state documentation parity.
+- Full `cargo test --workspace` passes with zero warnings (`-D warnings`), `0` `unsafe` blocks in `crates/toksi/src/`, zero `.unwrap()` in non-test production code, and 100% 55-file 8-state documentation parity.

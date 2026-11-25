@@ -67,7 +67,7 @@ Requirements:
 
 ## Wave 18 (v5.2) Synchronization Addendum
 - Expand `< 5ms` universal slash commands to **16**: `/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume` (plus plugin-registered `/plugin:*` mounts via `src/plugins/slash_router.rs`).
-- Expose `:9098` Protocol Bus (`MCP` / `A2A` / `ACP` `agent-client-protocol` + `src/plugins/` mounts) and persist safe `temporal`/`restate`/`langgraph` plan checkpoints inside `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` across **35-component `<toksi-siagent>`** (**432 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, `PHASE_18_1`–`PHASE_18_6`).
+- Expose `:9098` Protocol Bus (`MCP` / `A2A` / `ACP` `agent-client-protocol` + `src/plugins/` mounts) and persist safe `temporal`/`restate`/`langgraph` plan checkpoints inside `<repo>/.toksi/projectmem/plan_checkpoints/<plan_id>.json` across **35-component `<toksi-siagent>`** (**495 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, `PHASE_18_1`–`PHASE_18_6`).
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`

@@ -5,6 +5,7 @@ description: >
   Trigger: /caveman-help or "caveman help".
 ---
 
+<enforce>
 # Caveman Help
 
 One-shot reference card: do not change mode, write flag files, or persist state.
@@ -29,3 +30,4 @@ One-shot reference card: do not change mode, write flag files, or persist state.
 
 - Deactivate: `"stop caveman"` or `"normal mode"`.
 - Default mode resolution: `CAVEMAN_DEFAULT_MODE` env var > repo/user config > `caveman` (legacy aliases: `lite|full -> caveman`, `ultra -> ultracave`, `wenyan* -> megacave`, `off|manual`).
+</enforce>

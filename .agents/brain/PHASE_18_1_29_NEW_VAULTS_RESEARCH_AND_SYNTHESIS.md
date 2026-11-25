@@ -1,4 +1,4 @@
-# Phase 18.1 — 259 New & Companion Wave 18 Vaults Research & Synthesis (Total 295 Mandated Vaults)
+# Phase 18.1 — 259 New & Companion Wave 18 Vaults Research & Synthesis (Wave 18 Foundation -> 495 Wave 21 Mandated Vaults)
 
 > **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
 
@@ -31,7 +31,7 @@ Your goals in Rust (`crates/toksi`):
 
 ## Technical Specifications & Details
 
-### 1. Authoritative Inventory of All 259 Wave 18 New & Companion Vaults (`36 Prior + 259 Wave 18 = 295 Mandated Vaults`)
+### 1. Authoritative Inventory of All 259 Wave 18 New & Companion Vaults (`36 Prior + 259 Wave 18 = 295 Wave 18 -> 495 Wave 21 Mandated Vaults`)
 1. **Sections 2.1–2.4 Core Proxy/Routing/Telemetry, 41-Lang CodeGraph/Embeddings, Graph/Vector Memory, & Protocols (`45` total; `28` Wave 18 additions + `17` Waves 1–17):**
    - `tokview`, `RouteLLM` (`router`/`semantic-router`), `phoenix`, `olla`, `tokenspeed`, `tokenizers`, `text-embeddings-inference`, `NeMo-Retriever`, `NeMo-text-processing`, `lance`, `openwiki`, `cognee`, `graphiti`, `qdrant`, `milvus`, `letta`, `langchain-mongodb`, `agent-client-protocol`, `python-genai`, `python-aiplatform`, `modelcontextprotocol-servers`, `mcp-framework`, `langchain-litellm` (plus cross-listed `router` / `Switchyard` / `Curator`).
 2. **Section 2.5 Coding CLI Runtimes, Durable Workflows, Multi-Agent Orchestration & Structures (`41` total; `28` Wave 18 additions + `13` Waves 1–17):**
