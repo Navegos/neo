@@ -5,7 +5,7 @@
 ## Ready-to-Run Chat Prompt
 
 ```text
-Execute Phase 18.4 of the Toksi Unified Consolidation Plan (Repository-Wide Documentation Integrity across all 43 `.agents/brain/*.md` guides, `<repo>/.toksi/projectmem/` Repair across 295 Mandated Vaults & 35-Component `<toksi-siagent>`, and End-to-End Verification Gate).
+Execute Phase 18.4 of the Toksi Unified Consolidation Plan (Repository-Wide Documentation Integrity across all 43 `.agents/brain/*.md` guides, `<repo>/.toksi/projectmem/` Repair across 495 Mandated Vaults & 35-Component `<toksi-siagent>`, and End-to-End Verification Gate).
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, and .agents/brain/PHASE_18_4_LEGACY_PROJECTMEM_REPAIR_AND_MASTER_DOC_SYNC.md first.
 
 Your goals in Rust (`crates/toksi`) & Repo Verification:
@@ -15,7 +15,7 @@ Your goals in Rust (`crates/toksi`) & Repo Verification:
 2. Automated Documentation Hygiene Test (`crates/toksi/tests/phase18_4_doc_and_checkpoint_hygiene.rs`):
    - Assert exact count and completeness of `.agents/brain/INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_19_6` (**37 files**).
    - Assert every `PHASE_*.md` chat prompt pre-reads `.toksi/projectmem/plan.md`, `.toksi/projectmem/PROJECT_MAP.md`, `.toksi/projectmem/summary.md`.
-   - Assert `crates/toksi/README.md`, `PLAN.md`, `CONSOLIDATION_PLAN.md`, `research/RESEARCHPLAN.md`, and `.toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md}` match current codebase module names (zero phantom `crates/tokless/*` paths), 3-repository topology (`<neo>`, `<advisory>`, `<skills>` with zero binary bloat), 8-port topology (`:8787..:8790, :9098, :9099, :9100, :18787`), universal 7-entrypoint `HeadroomEffortCompressor` pass (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`), **35-component `<toksi-siagent>`** out-of-the-box `DirectWireBus` bindings across all gateways/Protocol Bus/432 vaults, **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), Unified Plugin System (`src/plugins/`, `plugins_registry`), Zero-Plaintext Blind Engine + `validator/` + `adr.rs` + `sandbox.rs` (5 backends) + `guard.rs` kill-switch + `opa`/`cedar`/`spire` + `Guardrails`/`llm-guard` + `defenseclaw` + `skill-scanner`, and all **495** mandated vaults.
+   - Assert `crates/toksi/README.md`, `PLAN.md`, `CONSOLIDATION_PLAN.md`, `research/RESEARCHPLAN.md`, and `.toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md}` match current codebase module names (zero phantom `crates/tokless/*` paths), 3-repository topology (`<neo>`, `<advisory>`, `<skills>` with zero binary bloat), 8-port topology (`:8787..:8790, :9098, :9099, :9100, :18787`), universal 7-entrypoint `HeadroomEffortCompressor` pass (`:8787`–`:8790`, `:9098`, `:9099`, `:18787`), **35-component `<toksi-siagent>`** out-of-the-box `DirectWireBus` bindings across all gateways/Protocol Bus/495 vaults, **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), Unified Plugin System (`src/plugins/`, `plugins_registry`), Zero-Plaintext Blind Engine + `validator/` + `adr.rs` + `sandbox.rs` (5 backends) + `guard.rs` kill-switch + `opa`/`cedar`/`spire` + `Guardrails`/`llm-guard` + `defenseclaw` + `skill-scanner`, and all **495** mandated vaults.
 3. Run Full Workspace Verification Gate & Update `.toksi/test-baseline.json`:
    - `cargo check --workspace`
    - `cargo clippy --workspace --all-targets -- -D warnings`
@@ -42,7 +42,7 @@ Your goals in Rust (`crates/toksi`) & Repo Verification:
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
-- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).
+- **Wave 21 Reconciliation:** Synchronized to Wave 21 / v8.0 (495 deep-researched vaults [493 Wave 20 + 2 Wave 21], 55 .agents/brain/*.md guides, NetworkService manager, Codex/Grok Chat TUI, 13-IDE host, Multi-Agent Resume, and 8-state progress badges).
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

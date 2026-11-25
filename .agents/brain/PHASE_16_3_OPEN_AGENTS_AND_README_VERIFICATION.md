@@ -40,7 +40,7 @@ Requirements:
    - `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`) reference & `toksi daemon|proxy|dashboard start|stop|restart --agents` CLI control.
    - Native `toksi chat|run|exec|swarm|plugin|security|advisory|skills|sandbox|compile-blind|agent resume` coding CLI (`src/agent_runtime/`), `DirectWireBus` (`direct-wired`), and all **16** in-chat slash commands (`/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`).
    - 65/90+ Categories 1–5 + 26 local/Rust inference engines, multi-instance `<byok, model, effort>` routing, **zero paid-tier restrictions**, read-only quota windows, and mandatory Headroom BYOK optimization.
-   - 41+ Tree-sitter languages, strict `<repo>/.toksi/<tool>` repo-only storage, monorepo subproject partitioning, `.gitignore`/`.ignore` dynamic purge, and 9-tab TUI/Web parity.
+   - 41+ Tree-sitter languages, strict `<repo>/.toksi/<tool>` repo-only storage, monorepo subproject partitioning, `.gitignore`/`.ignore` dynamic purge, and 10-Tab TUI/Web parity.
    - Complete CLI command reference (`--help` matched 1:1) and `.toksi/test-baseline.json` incremental verification guide.
 3. Verification:
    - Run `cargo check -p toksi`, `cargo clippy -p toksi --all-targets -- -D warnings`, and incremental `.toksi/test-baseline.json` `cargo test` ensuring 0 warnings and 100% pass rate.
@@ -67,7 +67,7 @@ Requirements:
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
-- **Wave 19 Reconciliation:** Wave 19 README/CLI documentation synced (`432` vaults, `43` brain guides); CLI expands from `16` baseline slash commands to `21` (`/ctxmode`, `/workforce`, `/spec`, `/train`, `/serve`, `/voice`) across `PHASE_19_1`, `19_5`, `19_6`.
+- **Wave 19 Reconciliation:** Wave 19 README/CLI documentation synced (`495` vaults, `43` brain guides); CLI expands from `16` baseline slash commands to `21` (`/ctxmode`, `/workforce`, `/spec`, `/train`, `/serve`, `/voice`) across `PHASE_19_1`, `19_5`, `19_6`.
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

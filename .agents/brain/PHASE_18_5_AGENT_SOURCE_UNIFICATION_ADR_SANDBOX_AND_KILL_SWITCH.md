@@ -5,7 +5,7 @@
 ## Ready-to-Run Chat Prompt
 
 ```text
-Implement Phase 18.5 of the Toksi Unified Consolidation Plan (Cross-Agent Source Unification into 35-Component `<toksi-siagent>`, Agent Detection & Response ADR Layer, 5-Backend Isolated Agent Sandbox across 295 Mandated Vaults & 43 `.agents/brain/*.md` guides, and Offensive-Security CommandGuard + Bypass Kill-Switch).
+Implement Phase 18.5 of the Toksi Unified Consolidation Plan (Cross-Agent Source Unification into 35-Component `<toksi-siagent>`, Agent Detection & Response ADR Layer, 5-Backend Isolated Agent Sandbox across 495 Mandated Vaults & 43 `.agents/brain/*.md` guides, and Offensive-Security CommandGuard + Bypass Kill-Switch).
 Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 1–3, 5, 12–13), crates/toksi/research/docker_sandboxes_sbx_cli_reference.md, crates/toksi/research/open_security_standards_zero_plaintext_blind_signature_engine_native_git_pr_validator.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, and .agents/brain/PHASE_18_5_AGENT_SOURCE_UNIFICATION_ADR_SANDBOX_AND_KILL_SWITCH.md first.
 
 Your goals in Rust (`crates/toksi`):
@@ -64,7 +64,7 @@ Your goals in Rust (`crates/toksi`):
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
-- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).
+- **Wave 21 Reconciliation:** Synchronized to Wave 21 / v8.0 (495 deep-researched vaults [493 Wave 20 + 2 Wave 21], 55 .agents/brain/*.md guides, NetworkService manager, Codex/Grok Chat TUI, 13-IDE host, Multi-Agent Resume, and 8-state progress badges).
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

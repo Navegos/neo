@@ -55,11 +55,11 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Upgrade `"dockerfile"`, `"vue"`, and `"scss"` from fallback alias grammars (`tree_sitter_bash`, `tree_sitter_html`, `tree_sitter_css` in `langs.rs:99–103`) to dedicated grammars in `crates/toksi-grammars`; integrate `openwiki.rs`, `bpe.rs` (`tokenizers`), `embeddings.rs` (`text-embeddings-inference`), `reranker.rs` (`NeMo-Retriever`), `Codewhale` diff context, and `security/polyglot.rs` 41-language SAST across `<toksi-siagent>` (`35` components, `432` mandated vaults, `43` `.agents/brain/*.md` guides, canonical `<repo>/.toksi/projectmem/`).
+- Upgrade `"dockerfile"`, `"vue"`, and `"scss"` from fallback alias grammars (`tree_sitter_bash`, `tree_sitter_html`, `tree_sitter_css` in `langs.rs:99–103`) to dedicated grammars in `crates/toksi-grammars`; integrate `openwiki.rs`, `bpe.rs` (`tokenizers`), `embeddings.rs` (`text-embeddings-inference`), `reranker.rs` (`NeMo-Retriever`), `Codewhale` diff context, and `security/polyglot.rs` 41-language SAST across `<toksi-siagent>` (`35` components, `495` mandated vaults, `43` `.agents/brain/*.md` guides, canonical `<repo>/.toksi/projectmem/`).
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
-- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).
+- **Wave 21 Reconciliation:** Synchronized to Wave 21 / v8.0 (495 deep-researched vaults [493 Wave 20 + 2 Wave 21], 55 .agents/brain/*.md guides, NetworkService manager, Codex/Grok Chat TUI, 13-IDE host, Multi-Agent Resume, and 8-state progress badges).
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

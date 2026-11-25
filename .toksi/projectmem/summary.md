@@ -4,7 +4,7 @@ _Synchronized Wave 21 / v8.0 across the **3-repository ecosystem** (`<neo>` `Nav
 
 ## Current Status
 - Deep-researched all **495 vaults** (`[DEEP-RESEARCH-DONE]`) across Sections `2.1`–`2.17` (`493` Wave 20 + `Zoo-Code` + `agent-orchestrator`).
-- Waves 1–20 (`PHASE_01`..`PHASE_20_6`, `48` phases) are `[PLAN-IMPLEMENTED]`/`[PLAN-FIXED]` across `497` `src/**/*.rs` (`541` total `.rs` files in `crates/toksi`, `0` unsafe blocks under `#![deny(unsafe_code)]`) and `43` integration test suites tracked in `.toksi/test-baseline.json`.
+- Waves 1–20 (`PHASE_01`..`PHASE_20_6`, `48` phases) are `[PLAN-IMPLEMENTED]`/`[PLAN-FIXED]` across `497` `src/**/*.rs` (`541` total `.rs` files in `crates/toksi`, `0` unsafe blocks under `#![deny(unsafe_code)]`) and `43` integration test suites tracked in `.toksi/test-baseline.json`: `ctxmode` & `aimemory` renames, `toksi _worker <role>` subprocesses + Named Pipe/UDS `src/ipc/`, `docker/Dockerfile.test` + `docker/compose.test.yaml` + `sbxenv.yaml`/Kit v3, `<neo>/.agents/skills/` hygiene cleanup, 22 modes, 5 efforts, sampling matrix, decoupled 10-Tab UI, `~/.toksi/services/*.db`, 11-pillar AI/ML vaults, `src/cluster/` (`toksi cluster`), and `src/telemetry/otel.rs`.
 - **Wave 21 (`PHASE_21_1`..`PHASE_21_6`) Planned (`[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-UNIMPLEMENTED]`):**
   1. `PHASE_21_1`: Single dedicated `toksi _worker network-manager` (`NetworkService` owning daemon listening ports to prevent `os error 10048`) + decoupling `<toksi-siagent>` from `daemon start` into an on-demand process.
   2. `PHASE_21_2`: Codex + Grok-Build grade streaming `ratatui` Chat TUI (`src/agent_runtime/chat_ui.rs`) executing all `toksi` CLI commands and 22 Orchestrator Modes.

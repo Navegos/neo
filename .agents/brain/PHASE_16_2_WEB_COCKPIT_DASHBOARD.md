@@ -27,14 +27,14 @@ Disciplinary & Portability Requirements:
    - Port 9100: Dedicated strictly to Web Dashboard Cockpit.
    - Non-blocking background execution: `toksi dashboard` runs in the background without locking the terminal window.
    - Zero socket and thread contention with LLM inference streams on Port 9099.
-4. Futuristic Cyberpunk Glassmorphic UI (Exact 9 Tabs): `Savings`, `The War Room`, `AI Agent Fleet & Quotas`, `Memory Decision DAG`, `CodeGraph Explorer`, `Sandbox Inspector`, `System Controls`, `AI Gateway & Quotas`, `Keyring & Database`.
+4. Futuristic Cyberpunk Glassmorphic UI (Exact 10 tabs): `Savings`, `The War Room`, `AI Agent Fleet & Quotas`, `Memory Decision DAG`, `CodeGraph Explorer`, `Sandbox Inspector`, `System Controls`, `AI Gateway & Quotas`, `Keyring & Database`.
 5. Authentic Telemetry & Zero Synthetic Stubs: Delete fake waterfall ratios (`0.38/0.42/0.20`), hardcoded `68.0%`, fake agent latencies, `50/50`/`0.0005` gateway stubs, fake `1428 KB` vacuum savings, fake `:8788 BYOK` label, fake 6-symbol CodeGraph list, fake heatmap vec, and `[PAID]`/`[DISQUALIFIED-FREE]` badges.
 
 Requirements:
 1. Isolated Background Web Cockpit on Port `9100` (or `~/.toksi/config.toml` `[ports].dashboard`):
    - Detached background execution by default via `toksi dashboard start|stop|restart` (`--foreground` stays attached; `--open` launches browser).
    - Single-page application assets (HTML/CSS/JS) embedded at compile-time via `include_str!`.
-2. Full Interactive Telemetry & Control Capabilities Across All 9 Tabs:
+2. Full Interactive Telemetry & Control Capabilities Across All 10 tabs:
    - **`Savings`**: Configured-only agents & `<byok, model, effort>` individual + overall token/USD savings (`0` at rest) and per-tool attribution (`rtk`, `headroom`, `mcp_pruner`, `ccr`, `cache_align`, `context`, `economizer`).
    - **`The War Room`**: Live per-agent tool activity, real 429 backoff/failover cascade state, `ArcSwap` reconnect watchdog logs.
    - **`AI Agent Fleet & Quotas`**: All supported agents across CLIs/IDEs (65/90+ catalog); grey out binaries missing from `PATH` with remediation hint; one-click `Direct-Wire`/`Config-Wire`/`Unwire`; read-only plan & `hour|day|week|month|year` quota gauges (zero paywall blocks).

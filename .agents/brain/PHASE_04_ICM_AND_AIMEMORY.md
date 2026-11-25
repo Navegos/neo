@@ -60,11 +60,11 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Extend `<repo>/.toksi/ai-memory/` with `lance_store.rs`, `qdrant_store.rs`, `cognee_graph.rs`, `temporal_graph.rs` (`graphiti`), `letta_memgpt.rs`, `milvus_adapter.rs`, `mongo_bridge.rs`, `embeddings.rs` (`text-embeddings-inference`), and `retriever.rs` (`NeMo-Retriever`) for `<toksi-siagent>` (`35` components, `432` mandated vaults, `43` `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, externalized `<skills>` & `<advisory>`).
+- Extend `<repo>/.toksi/ai-memory/` with `lance_store.rs`, `qdrant_store.rs`, `cognee_graph.rs`, `temporal_graph.rs` (`graphiti`), `letta_memgpt.rs`, `milvus_adapter.rs`, `mongo_bridge.rs`, `embeddings.rs` (`text-embeddings-inference`), and `retriever.rs` (`NeMo-Retriever`) for `<toksi-siagent>` (`35` components, `495` mandated vaults, `43` `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, externalized `<skills>` & `<advisory>`).
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
-- **Wave 19 Reconciliation:** Synchronized to Wave 19 / v6.0 (`432` deep-researched vaults, `43` `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, dedicated `toksi _worker <role>` subprocesses, `ctxmode` rename, `docker/Dockerfile.test` live-safe isolation, `922`-dir `.agents/skills/` hygiene, and `21` target slash commands).
+- **Wave 21 Reconciliation:** Synchronized to Wave 21 / v8.0 (495 deep-researched vaults [493 Wave 20 + 2 Wave 21], 55 .agents/brain/*.md guides, NetworkService manager, Codex/Grok Chat TUI, 13-IDE host, Multi-Agent Resume, and 8-state progress badges).
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).
