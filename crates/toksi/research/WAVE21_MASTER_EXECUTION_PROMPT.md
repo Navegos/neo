@@ -16,14 +16,14 @@ Read ALL canonical architecture, research, memory, and brain files FIRST:
 12. `crates/toksi/research/open_security_standards_zero_plaintext_blind_signature_engine_native_git_pr_validator.md`
 13. `crates/toksi/research/toksi-siagent_Super_Intelligence_SI_Agent_Orchestrator_Mode_to_Architecture_Mapping.md`
 14. `crates/toksi/research/toksi-siagent_Complete_LLM_Router_&_Model_Gateway_Configuration.toml`
-15. `.agents/brain/INDEX_AND_EXECUTION_GUIDE.md` and the active `.agents/brain/PHASE_*.md` files (Wave 21: `PHASE_21_1` through `PHASE_21_6`).
+15. `.agents/brain/INDEX_AND_EXECUTION_GUIDE.md` and the active `.agents/brain/PHASE_*.md` files (Wave 1: `PHASE_1` through `PHASE_21_6`).
 
 ## Step 2: Mandatory Multi-Agent Fault-Recovery & Cross-Chat Resume Check
 Before dispatching any work or editing any Rust files:
 1. Inspect `.toksi/projectmem/plan.md`, `.toksi/projectmem/summary.md`, `.toksi/projectmem/plan_checkpoints/`, `.toksi/projectmem/orchestration_journal.jsonl` (if present), `git status --short`, and `.toksi/test-baseline.json`.
 2. Identify which phases are already `[PLAN-IMPLEMENTED]`/`[PLAN-FIXED]` versus `[PLAN-UNIMPLEMENTED]`, and detect any uncommitted or interrupted work left by an earlier chat due to runtime errors, network disconnects, HTTP 429s, or model quota limits.
 3. Do NOT re-run integration test suites already recorded green in `.toksi/test-baseline.json` when their `watched_paths` and `Cargo.lock` BLAKE3 hashes are unchanged.
-4. Resume strictly from the first uncompleted Wave 21 phase/step (`PHASE_21_1`..`PHASE_21_6`) without redoing already verified completed work.
+4. Resume strictly from the first uncompleted Wave 1 phase/step (`PHASE_1`..`PHASE_21_6`) without redoing already verified completed work.
 
 ## Step 3: Multi-Agent Orchestration Safety Rules (Zero Lost Work Across Crashes/Network/Quotas)
 When orchestrating subagents or parallel workers:
@@ -31,8 +31,8 @@ When orchestrating subagents or parallel workers:
 - Persist progress atomically into `.toksi/projectmem/plan.md`, `.toksi/projectmem/summary.md`, and `.toksi/projectmem/plan_checkpoints/<plan_id>.json` after every completed step or phase.
 - If ANY error, network disconnect, rate limit (`HTTP 429`), or quota exhaustion threatens completion, immediately flush current progress across `.toksi/projectmem/{plan.md,summary.md,events.jsonl,plan_checkpoints/}` plus `icm`/`aimemory`/`ctxmode`/`codegraph` and report the exact resumed step + dirty files so the next chat continues seamlessly.
 
-## Step 4: Implementation Scope (Wave 21 / v8.0 across `crates/toksi`)
-Execute the remaining `[MISSING-DEEP-RESEARCH], [PLAN-NOT-DONE], [PLAN-UNIMPLEMENTED], [PLAN-NEEDS-FIX], (research for incomplete code or converted code not full implemented, toksi tools siagent or services with no full code implementation, stubs incomplete implementation)` phases in dependency order under Edition 2024 `#![deny(unsafe_code)]`, `cargo clippy --workspace --all-targets -- -D warnings`, zero `.unwrap()`, forward-slash `/` paths, `<enforce>` security, and zero non-embedded skill/IDE bloat:
+## Step 4: Implementation Scope (Wave 1 to 21 / v8.0 across `crates/toksi`)
+Execute the remaining `[MISSING-DEEP-RESEARCH], [PLAN-NOT-DONE], [PLAN-UNIMPLEMENTED], [PLAN-NEEDS-FIX], (research for incomplete code or converted code not full implemented, toksi tools siagent or services with no full code implementation, stubs incomplete implementation), incomplete Waves and plan Phases` phases in dependency order under Edition 2024 `#![deny(unsafe_code)]`, `cargo clippy --workspace --all-targets -- -D warnings`, zero `.unwrap()`, forward-slash `/` paths, `<enforce>` security, and zero non-embedded skill/IDE bloat:
 - **Phase 1 (`PHASE_01_RTK_FILTER_ENGINE.md`)**: Port RTK's 100+ pure-Rust command output filters, zero-allocation ANSI stripper, TEE raw failure recovery, SQLite `toksi rtk gain`/`discover`/`learn` tracker, `/rtk` slash dispatch, and `rtk-hook <agent>` wiring into `src/rtk/` with strict `<repo>/.toksi/rtk/` scoping.
 - **Phase 2 (`PHASE_02_PROJECTMEM_PURE_RUST.md`)**: Implement pure-Rust append-only JSONL ledger (`events.jsonl`), derived `summary.md`, safe cross-platform file locking (`std::fs::File::lock()` / `fs2` with zero `unsafe`), monorepo `subproject_id` tagging, and strict `<repo>/.toksi/projectmem/` isolation in `src/projectmem/`.
 - **Phase 3 (`PHASE_03_CONTEXTMODE_PURE_RUST.md`)**: Port the SQLite FTS5 BM25 sandbox analyzer, session compaction journals, PATH-validated execution engine, and dynamic `.gitignore`/`.ignore` awareness into `src/contextmode/` under `<repo>/.toksi/ctxmode/` (renamed from `context-mode` in `PHASE_19_1`).

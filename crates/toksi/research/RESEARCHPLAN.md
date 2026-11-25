@@ -2202,7 +2202,7 @@ All planning, synchronization, and research updates **MUST live inside `<repo>`*
 2. `crates/toksi/PLAN.md` — concise phase execution tracker covering Waves 1–20.
 3. `<repo>/.toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md}` — via `projectmem` writers + direct updates (zero stale `.projectmem/` pre-read paths).
 4. `crates/toksi/README.md` & CLI `--help` output — comprehensive technical documentation across all commands (`daemon`, `_worker`, `proxy`, `dashboard`, `agent`, `orchestrator`, `ctxmode`, `aimemory`, `plugin`, `byok`, `security`, `compile-blind`, `advisory`, `skills`, `sandbox`, `dataset`, `compress`, `train`, `serve`, `eval`, `cluster`, `otel`, `test`, `config`, `db`, `tui`, `init`), `config.toml`, 65/91 ecosystem connectors, `.agents`/vendor structures, multi-protocol bus (`MCP`/`A2A`/`ACP`/`ANP`/`stdio`/`SSE`/`HTTP`/`QUIC`), 35-component `<toksi-siagent>` + 22 Orchestrator Modes, 11 AI/ML pillars, Distributed Cluster Stack, ADR/Sandbox/Zero-Plaintext security tools, and troubleshooting.
-5. **All 49 `.agents/brain/*.md` Files (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_20_6`):**
+5. **All 49 `.agents/brain/*.md` Files (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_21_6`):**
 
 #### Existing Legacy, Wave 15–19 Files Requiring Wave 20 Reconciliation (`Lines 636–650`)
 - `INDEX_AND_EXECUTION_GUIDE.md` *(update to Wave 20 / v7.0, 493 vaults, 49 brain files, `ctxmode` + `aimemory`, 22 Orchestrator Modes, Cluster Stack, 8-state progress legend)*
@@ -2346,13 +2346,13 @@ flowchart LR
 > 12. `crates/toksi/research/open_security_standards_zero_plaintext_blind_signature_engine_native_git_pr_validator.md`
 > 13. `crates/toksi/research/toksi-siagent_Super_Intelligence_SI_Agent_Orchestrator_Mode_to_Architecture_Mapping.md`
 > 14. `crates/toksi/research/toksi-siagent_Complete_LLM_Router_&_Model_Gateway_Configuration.toml`
-> 15. `.agents/brain/INDEX_AND_EXECUTION_GUIDE.md` and the active `.agents/brain/PHASE_*.md` files (currently Wave 21: `PHASE_21_1`..`PHASE_21_6`).
+> 15. `.agents/brain/INDEX_AND_EXECUTION_GUIDE.md` and the active `.agents/brain/PHASE_*.md` files (currently Wave 1 to 21: `PHASE_1`..`PHASE_21_6`).
 >
 > **Mandatory Multi-Agent Resume & Fault-Recovery Protocol (Execute First on Every New/Resumed Chat):**
 > 1. Inspect `.toksi/projectmem/plan.md`, `.toksi/projectmem/summary.md`, `.toksi/projectmem/plan_checkpoints/`, `git status --short`, and `.toksi/test-baseline.json` to identify completed phases, active worker leases, and any interrupted/dirty files from an error, network disconnect, or quota/rate-limit stop.
 > 2. Never re-run suites already recorded green in `.toksi/test-baseline.json` when their `watched_paths` BLAKE3 hashes are unchanged.
 > 3. When orchestrating parallel subagents/workers, assign **strictly disjoint file ownership**, emit an atomic checkpoint to `.toksi/projectmem/{plan.md,summary.md,plan_checkpoints/}` before/after each phase, and flush remaining step state immediately if any worker hits network loss, HTTP 429, or quota exhaustion so the next chat resumes seamlessly from the exact uncompleted step.
-> 4. Implement Wave 21 (`PHASE_21_1`..`PHASE_21_6`) across all **495** mandated vaults (`493` Wave 20 + `Zoo-Code` + `agent-orchestrator`), 11 AI/ML Pillars, Distributed Cluster Stack, single dedicated `NetworkService` Network Manager (`os error 10048` fix), on-demand `<toksi-siagent>` Codex/Grok-Build Chat TUI, 13-IDE plugin host protocol, and Multi-Agent Resilience Engine under `#![deny(unsafe_code)]`, `-D warnings`, forward-slash `/` paths, and `<enforce>`, then update all 6 canonical plan files + all **55** `.agents/brain/*.md` 8-state badges before finishing.
+> 4. Implement Wave 21 (`PHASE_1_1`..`PHASE_21_6`) across all **495** mandated vaults (`493` Wave 20 + `Zoo-Code` + `agent-orchestrator`), 11 AI/ML Pillars, Distributed Cluster Stack, single dedicated `NetworkService` Network Manager (`os error 10048` fix), on-demand `<toksi-siagent>` Codex/Grok-Build Chat TUI, 13-IDE plugin host protocol, and Multi-Agent Resilience Engine under `#![deny(unsafe_code)]`, `-D warnings`, forward-slash `/` paths, and `<enforce>`, then update all 6 canonical plan files + all **55** `.agents/brain/*.md` 8-state badges before finishing.
 
 ---
 
