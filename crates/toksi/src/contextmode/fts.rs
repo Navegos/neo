@@ -1194,8 +1194,9 @@ impl ContentStore {
             } else {
                 "SELECT id, label, chunk_count, code_chunk_count, indexed_at, file_path, content_hash, '.' FROM sources"
             };
+            type LegacySourceRow = (i64, String, i64, i64, String, Option<String>, Option<String>, String);
             let mut src_stmt = legacy_conn.prepare(sql)?;
-            let src_rows: Vec<(i64, String, i64, i64, String, Option<String>, Option<String>, String)> = src_stmt
+            let src_rows: Vec<LegacySourceRow> = src_stmt
                 .query_map([], |r| {
                     Ok((
                         r.get(0)?,
@@ -1356,8 +1357,8 @@ pub fn migrate_legacy_ctxmode_db(target_db: &Path, legacy_db: &Path) -> Result<u
     if !legacy_db.is_file() || target_db == legacy_db {
         return Ok(0);
     }
-    if let Ok(bytes) = std::fs::read(legacy_db) {
-        if !bytes.starts_with(b"SQLite format 3\0") {
+    if let Ok(bytes) = std::fs::read(legacy_db)
+        && !bytes.starts_with(b"SQLite format 3\0") {
             if let Some(parent) = target_db.parent() {
                 let _ = std::fs::create_dir_all(parent);
             }
@@ -1367,7 +1368,6 @@ pub fn migrate_legacy_ctxmode_db(target_db: &Path, legacy_db: &Path) -> Result<u
             let _ = std::fs::remove_file(legacy_db);
             return Ok(0);
         }
-    }
     let mut store = ContentStore::open(target_db)?;
     let migrated = store.merge_from(legacy_db)?;
     drop(store);

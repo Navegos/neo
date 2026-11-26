@@ -188,26 +188,22 @@ impl Router {
                 if policy.required_tools && !c.supports_tools {
                     return false;
                 }
-                if let Some(max_lat) = policy.max_latency_ms {
-                    if c.latency_ms > max_lat as f64 {
+                if let Some(max_lat) = policy.max_latency_ms
+                    && c.latency_ms > max_lat as f64 {
                         return false;
                     }
-                }
-                if let Some(budget) = policy.budget_bytes {
-                    if c.estimated_memory_bytes > budget {
+                if let Some(budget) = policy.budget_bytes
+                    && c.estimated_memory_bytes > budget {
                         return false;
                     }
-                }
-                if let Some(reg) = breakers {
-                    if reg.is_open(c.provider) {
+                if let Some(reg) = breakers
+                    && reg.is_open(c.provider) {
                         return false;
                     }
-                }
-                if let Some(ref gate) = policy.quality_gate {
-                    if !gate.passes_candidate(c) {
+                if let Some(ref gate) = policy.quality_gate
+                    && !gate.passes_candidate(c) {
                         return false;
                     }
-                }
                 true
             })
             .map(|c| {

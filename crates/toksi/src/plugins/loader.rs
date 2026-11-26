@@ -54,15 +54,14 @@ pub fn discover_plugin_manifests(plugin_dirs: &[PathBuf]) -> Vec<DiscoveredManif
             }
             for fname in MANIFEST_NAMES {
                 let candidate = p.join(fname);
-                if candidate.is_file() {
-                    if let Ok(manifest) = parse_manifest_file(&candidate) {
+                if candidate.is_file()
+                    && let Ok(manifest) = parse_manifest_file(&candidate) {
                         found.push(DiscoveredManifest {
                             manifest,
                             manifest_path: normalize_path(&candidate.to_string_lossy()),
                         });
                         break;
                     }
-                }
             }
         }
     }

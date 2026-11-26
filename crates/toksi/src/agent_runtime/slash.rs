@@ -68,6 +68,60 @@ pub const CORE_SLASH_COMMANDS: [&str; 29] = [
     "/voice",
 ];
 
+static PROBE_CACHE: OnceLock<Mutex<std::collections::HashMap<String, (Instant, String)>>> =
+    OnceLock::new();
+
+fn cached_path_probes(cache_key: &str, bins: &[(&str, &str)]) -> String {
+    let cache = PROBE_CACHE.get_or_init(|| Mutex::new(std::collections::HashMap::new()));
+    if let Ok(guard) = cache.lock()
+        && let Some((ts, cached)) = guard.get(cache_key)
+        && ts.elapsed() < std::time::Duration::from_secs(30)
+    {
+        return cached.clone();
+    }
+    let mut found = vec![false; bins.len()];
+    if let Some(paths) = std::env::var_os("PATH").or_else(|| std::env::var_os("Path")) {
+        for dir in std::env::split_paths(&paths) {
+            if !dir.is_dir() {
+                continue;
+            }
+            for (idx, (_, bin)) in bins.iter().enumerate() {
+                if found[idx] {
+                    continue;
+                }
+                let trimmed = bin.trim();
+                if dir.join(trimmed).is_file() {
+                    found[idx] = true;
+                    continue;
+                }
+                #[cfg(windows)]
+                {
+                    let low = trimmed.to_ascii_lowercase();
+                    if (!low.ends_with(".exe") && dir.join(format!("{trimmed}.exe")).is_file())
+                        || (!low.ends_with(".cmd") && dir.join(format!("{trimmed}.cmd")).is_file())
+                        || (!low.ends_with(".bat") && dir.join(format!("{trimmed}.bat")).is_file())
+                    {
+                        found[idx] = true;
+                    }
+                }
+            }
+            if found.iter().all(|&f| f) {
+                break;
+            }
+        }
+    }
+    let rendered = bins
+        .iter()
+        .enumerate()
+        .map(|(i, (label, _))| format!("{label}={}", found[i]))
+        .collect::<Vec<_>>()
+        .join(", ");
+    if let Ok(mut guard) = cache.lock() {
+        guard.insert(cache_key.to_string(), (Instant::now(), rendered.clone()));
+    }
+    rendered
+}
+
 fn now_epoch() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -303,11 +357,10 @@ impl SlashCommandEngine {
         if providers.is_empty() {
             "[/byok] No active BYOK providers configured in ~/.toksi/toksi.db.".to_string()
         } else {
-            if let Ok(mut st) = self.state.write() {
-                if st.active_byok.is_none() {
+            if let Ok(mut st) = self.state.write()
+                && st.active_byok.is_none() {
                     st.active_byok = providers.first().cloned();
                 }
-            }
             format!("[/byok] Configured BYOK providers: {}", providers.join(", "))
         }
     }
@@ -513,7 +566,7 @@ impl SlashCommandEngine {
         if let Some(raw) = resp.raw_text {
             raw
         } else {
-            serde_json::to_string_pretty(&resp.result).unwrap_or_else(|_| resp.status)
+            serde_json::to_string_pretty(&resp.result).unwrap_or(resp.status)
         }
     }
 
@@ -652,11 +705,10 @@ impl SlashCommandEngine {
                 }
             }
             _ => {
-                if let Ok(g) = self.cached_skills_count.read() {
-                    if let Some(count) = *g {
+                if let Ok(g) = self.cached_skills_count.read()
+                    && let Some(count) = *g {
                         return format!("[/skills list] {} vetted skill(s) discovered.", count);
                     }
-                }
                 let cfg = SkillsRepoConfig::load();
                 match discover_vetted_catalog(&cfg) {
                     Ok(cat) => {
@@ -920,49 +972,500 @@ impl SlashCommandEngine {
     }
 
     fn handle_wave20_command(&self, cmd: &str, args: &str) -> String {
-        let arg = if args.trim().is_empty() { "status" } else { args.trim() };
+        static WORKFORCE: OnceLock<Mutex<crate::agent_runtime::workforce::WorkforceCoordinator>> =
+            OnceLock::new();
+        let arg = args.trim();
+        let root = self
+            .workspace_root
+            .read()
+            .map(|g| g.clone())
+            .unwrap_or_else(|_| PathBuf::from("."));
+
         match cmd {
-            "workforce" => format!("[/workforce] Role queues ready (arg={arg})."),
-            "spec" => format!("[/spec] OpenSpec contract validator ready (arg={arg})."),
-            "dataset" => {
+            "workforce" => {
+                use crate::agent_runtime::workforce::{WorkTaskStatus, WorkforceCoordinator};
+                let store = WORKFORCE.get_or_init(|| Mutex::new(WorkforceCoordinator::new()));
+                let mut wf = store.lock().unwrap_or_else(|e| e.into_inner());
                 let mut toks = arg.split_whitespace();
-                let sub = toks.next().unwrap_or("ontology");
-                if sub == "ontology" {
-                    let domain = toks.next().unwrap_or("toksi");
-                    let ont = crate::training::dataset::build_ontology_from_fields(
-                        domain,
-                        &["id", "prompt", "response"],
-                    );
-                    format!(
-                        "[/dataset ontology] domain={} entities={} edges={}",
-                        ont.domain,
-                        ont.entities.len(),
-                        ont.edges.len()
-                    )
-                } else {
-                    format!("[/dataset {sub}] Run `toksi dataset {arg}` to inspect/validate manifests.")
+                let sub = toks.next().unwrap_or("status");
+                match sub {
+                    "register" => {
+                        let Some(wid) = toks.next() else {
+                            return "[/workforce] Usage: /workforce register <worker_id> <role> [agent_id]"
+                                .to_string();
+                        };
+                        let role = toks.next().unwrap_or("general");
+                        let agent_id = toks.next().unwrap_or(wid);
+                        wf.register_worker(wid, role, agent_id);
+                        format!("[/workforce] Registered worker={wid} role={role} agent={agent_id}")
+                    }
+                    "submit" => {
+                        let (Some(tid), Some(role)) = (toks.next(), toks.next()) else {
+                            return "[/workforce] Usage: /workforce submit <task_id> <role> <description>"
+                                .to_string();
+                        };
+                        let desc = toks.collect::<Vec<_>>().join(" ");
+                        let desc = if desc.is_empty() {
+                            format!("task {tid}")
+                        } else {
+                            desc
+                        };
+                        wf.submit_task(tid, role, &desc, 2);
+                        format!("[/workforce] Queued task={tid} role={role}")
+                    }
+                    "claim" => {
+                        let Some(wid) = toks.next() else {
+                            return "[/workforce] Usage: /workforce claim <worker_id>".to_string();
+                        };
+                        match wf.claim_next_for_worker(wid) {
+                            Some(t) => format!(
+                                "[/workforce] Worker {wid} claimed task={} role={} attempt={}",
+                                t.task_id, t.role, t.attempts
+                            ),
+                            None => format!("[/workforce] No claimable task for worker={wid}"),
+                        }
+                    }
+                    "complete" => {
+                        let Some(tid) = toks.next() else {
+                            return "[/workforce] Usage: /workforce complete <task_id> [output]"
+                                .to_string();
+                        };
+                        let out = toks.collect::<Vec<_>>().join(" ");
+                        match wf.complete_task(tid, &out) {
+                            Ok(()) => format!("[/workforce] Completed task={tid}"),
+                            Err(e) => format!("[/workforce] Error: {e}"),
+                        }
+                    }
+                    "fail" => {
+                        let Some(tid) = toks.next() else {
+                            return "[/workforce] Usage: /workforce fail <task_id> [reason]"
+                                .to_string();
+                        };
+                        let err_msg = toks.collect::<Vec<_>>().join(" ");
+                        match wf.fail_task(tid, &err_msg) {
+                            Ok(st) => format!("[/workforce] Task {tid} -> status={st:?}"),
+                            Err(e) => format!("[/workforce] Error: {e}"),
+                        }
+                    }
+                    _ => {
+                        let tasks = wf.tasks();
+                        let queued = tasks.iter().filter(|t| t.status == WorkTaskStatus::Queued).count();
+                        let running = tasks.iter().filter(|t| t.status == WorkTaskStatus::Running).count();
+                        let done = tasks.iter().filter(|t| t.status == WorkTaskStatus::Completed).count();
+                        let failed = tasks.iter().filter(|t| t.status == WorkTaskStatus::Failed).count();
+                        format!(
+                            "[/workforce] tasks={} (queued={}, running={}, completed={}, failed={})",
+                            tasks.len(),
+                            queued,
+                            running,
+                            done,
+                            failed
+                        )
+                    }
                 }
             }
-            "train" => format!("[/train] Training recipe planner ready (`toksi train {arg}`)."),
+            "spec" => {
+                use crate::agent_runtime::openspec::{SpecContract, SpecLifecycle};
+                let specs_dir = root.join(".toksi").join("projectmem").join("specs");
+                let mut toks = arg.split_whitespace();
+                let sub = toks.next().unwrap_or("list");
+                match sub {
+                    "create" => {
+                        let Some(id) = toks.next() else {
+                            return "[/spec] Usage: /spec create <id> <goal> [| criterion1;criterion2]"
+                                .to_string();
+                        };
+                        let rest = toks.collect::<Vec<_>>().join(" ");
+                        let (goal, criteria_raw) = rest
+                            .split_once('|')
+                            .map(|(g, c)| (g.trim(), c.trim()))
+                            .unwrap_or((rest.trim(), ""));
+                        let criteria: Vec<String> = if criteria_raw.is_empty() {
+                            Vec::new()
+                        } else {
+                            criteria_raw
+                                .split(';')
+                                .map(|s| s.trim().to_string())
+                                .filter(|s| !s.is_empty())
+                                .collect()
+                        };
+                        let contract = SpecContract::new(id, goal, criteria, Vec::new());
+                        if let Err(e) = contract.validate() {
+                            return format!("[/spec] Validation rejected: {e}");
+                        }
+                        if let Err(e) = std::fs::create_dir_all(&specs_dir) {
+                            return format!("[/spec] Failed creating specs dir: {e}");
+                        }
+                        let file_path = specs_dir.join(format!("{id}.json"));
+                        let body = serde_json::to_string_pretty(&contract).unwrap_or_default();
+                        match std::fs::write(&file_path, body) {
+                            Ok(()) => format!(
+                                "[/spec] Created contract id={id} lifecycle={:?} path={}",
+                                contract.lifecycle,
+                                normalize_path(&file_path.to_string_lossy())
+                            ),
+                            Err(e) => format!("[/spec] Failed writing spec: {e}"),
+                        }
+                    }
+                    "validate" | "show" => {
+                        let Some(id) = toks.next() else {
+                            return "[/spec] Usage: /spec validate <id>".to_string();
+                        };
+                        let file_path = specs_dir.join(format!("{id}.json"));
+                        let Ok(raw) = std::fs::read_to_string(&file_path) else {
+                            return format!("[/spec] Contract '{id}' not found.");
+                        };
+                        match serde_json::from_str::<SpecContract>(&raw) {
+                            Ok(c) => match c.validate() {
+                                Ok(()) => format!(
+                                    "[/spec] id={} lifecycle={:?} criteria={} files={} valid=true",
+                                    c.id,
+                                    c.lifecycle,
+                                    c.acceptance_criteria.len(),
+                                    c.files.len()
+                                ),
+                                Err(e) => format!("[/spec] id={} invalid: {e}", c.id),
+                            },
+                            Err(e) => format!("[/spec] Corrupt contract JSON: {e}"),
+                        }
+                    }
+                    "transition" => {
+                        let (Some(id), Some(stage_raw)) = (toks.next(), toks.next()) else {
+                            return "[/spec] Usage: /spec transition <id> <reviewed|approved|executing|verified>"
+                                .to_string();
+                        };
+                        let next = match stage_raw.to_ascii_lowercase().as_str() {
+                            "reviewed" => SpecLifecycle::Reviewed,
+                            "approved" => SpecLifecycle::Approved,
+                            "executing" => SpecLifecycle::Executing,
+                            "verified" => SpecLifecycle::Verified,
+                            _ => return format!("[/spec] Unknown lifecycle stage '{stage_raw}'"),
+                        };
+                        let file_path = specs_dir.join(format!("{id}.json"));
+                        let Ok(raw) = std::fs::read_to_string(&file_path) else {
+                            return format!("[/spec] Contract '{id}' not found.");
+                        };
+                        let Ok(mut c) = serde_json::from_str::<SpecContract>(&raw) else {
+                            return format!("[/spec] Failed parsing '{id}.json'");
+                        };
+                        if let Err(e) = c.transition_to(next) {
+                            return format!("[/spec] {e}");
+                        }
+                        let body = serde_json::to_string_pretty(&c).unwrap_or_default();
+                        match std::fs::write(&file_path, body) {
+                            Ok(()) => format!("[/spec] id={id} transitioned -> {:?}", c.lifecycle),
+                            Err(e) => format!("[/spec] Failed saving spec: {e}"),
+                        }
+                    }
+                    _ => {
+                        let mut contracts = Vec::new();
+                        if let Ok(rd) = std::fs::read_dir(&specs_dir) {
+                            for entry in rd.flatten() {
+                                if entry.path().extension().and_then(|e| e.to_str()) == Some("json")
+                                    && let Ok(raw) = std::fs::read_to_string(entry.path())
+                                    && let Ok(c) = serde_json::from_str::<SpecContract>(&raw)
+                                {
+                                    contracts.push(format!("{}:{:?}", c.id, c.lifecycle));
+                                }
+                            }
+                        }
+                        contracts.sort();
+                        format!(
+                            "[/spec] specs_dir={} count={} items=[{}]",
+                            normalize_path(&specs_dir.to_string_lossy()),
+                            contracts.len(),
+                            contracts.join(", ")
+                        )
+                    }
+                }
+            }
+            "dataset" => {
+                use crate::training::dataset::{
+                    build_ontology_from_fields, inspect_dataset_manifest, liteparse_extract_chunks,
+                    validate_dataset_manifest,
+                };
+                let mut toks = arg.split_whitespace();
+                let sub = toks.next().unwrap_or("status");
+                match sub {
+                    "ontology" => {
+                        let domain = toks.next().unwrap_or("toksi");
+                        let fields_arg = toks.next().unwrap_or("id,prompt,response");
+                        let fields: Vec<&str> =
+                            fields_arg.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+                        let ont = build_ontology_from_fields(domain, &fields);
+                        format!(
+                            "[/dataset ontology] domain={} entities={} edges={}",
+                            ont.domain,
+                            ont.entities.len(),
+                            ont.edges.len()
+                        )
+                    }
+                    "inspect" | "validate" => {
+                        let Some(path_str) = toks.next() else {
+                            return format!("[/dataset {sub}] Usage: /dataset {sub} <path>");
+                        };
+                        let resolved = if Path::new(path_str).is_absolute() {
+                            PathBuf::from(path_str)
+                        } else {
+                            root.join(path_str)
+                        };
+                        match inspect_dataset_manifest(&resolved) {
+                            Ok(m) => {
+                                let valid = validate_dataset_manifest(&m);
+                                format!(
+                                    "[/dataset {sub}] name={} format={} samples={} fields={:?} valid={}",
+                                    m.name,
+                                    m.format.as_str(),
+                                    m.num_samples,
+                                    m.schema_fields,
+                                    valid.is_ok()
+                                )
+                            }
+                            Err(e) => format!("[/dataset {sub}] Error: {e}"),
+                        }
+                    }
+                    "chunk" => {
+                        let Some(path_str) = toks.next() else {
+                            return "[/dataset chunk] Usage: /dataset chunk <path> [max_chars]"
+                                .to_string();
+                        };
+                        let cap = toks.next().and_then(|s| s.parse::<usize>().ok()).unwrap_or(512);
+                        let resolved = if Path::new(path_str).is_absolute() {
+                            PathBuf::from(path_str)
+                        } else {
+                            root.join(path_str)
+                        };
+                        match std::fs::read_to_string(&resolved) {
+                            Ok(txt) => {
+                                let chunks = liteparse_extract_chunks(&txt, cap);
+                                format!(
+                                    "[/dataset chunk] path={} chunks={} max_chars={}",
+                                    normalize_path(&resolved.to_string_lossy()),
+                                    chunks.len(),
+                                    cap
+                                )
+                            }
+                            Err(e) => format!("[/dataset chunk] Error: {e}"),
+                        }
+                    }
+                    _ => "[/dataset] formats=[jsonl,parquet,webdataset,energon_shard,structured_schema,ossie_document] actions=[inspect,validate,chunk,ontology]".to_string(),
+                }
+            }
+            "train" => {
+                use crate::training::{
+                    build_training_recipe, plan_training_job, quant::{build_quant_plan, QuantFormat},
+                    verify_safetensors_header, TrainingBackend, TrainingMethod,
+                };
+                let mut toks = arg.split_whitespace();
+                let sub = toks.next().unwrap_or("status");
+                match sub {
+                    "recipe" | "plan" => {
+                        let b_str = toks.next().unwrap_or("unsloth");
+                        let m_str = toks.next().unwrap_or("qlora");
+                        let model = toks.next().unwrap_or("Qwen/Qwen2.5-Coder-7B");
+                        let dataset = toks.next().unwrap_or("data/train.jsonl");
+                        let eff_str = toks.next().unwrap_or("high");
+                        let Some(backend) = TrainingBackend::from_str_loose(b_str) else {
+                            return format!("[/train] Unknown backend '{b_str}'");
+                        };
+                        let Some(method) = TrainingMethod::from_str_loose(m_str) else {
+                            return format!("[/train] Unknown method '{m_str}'");
+                        };
+                        let effort = EffortLevel::from_str_loose(eff_str).unwrap_or(EffortLevel::High);
+                        match build_training_recipe(backend, method, model, dataset, effort) {
+                            Ok(recipe) => {
+                                let plan = plan_training_job(&recipe, true);
+                                format!(
+                                    "[/train {sub}] backend={} method={} binary={} available={} rank={} steps={} lr={:.6}",
+                                    plan.backend.as_str(),
+                                    recipe.method.as_str(),
+                                    plan.binary,
+                                    plan.binary_available,
+                                    recipe.lora_rank,
+                                    recipe.max_steps,
+                                    recipe.learning_rate
+                                )
+                            }
+                            Err(e) => format!("[/train] Error: {e}"),
+                        }
+                    }
+                    "quant-plan" => {
+                        let fmt_str = toks.next().unwrap_or("gguf-q4_k_m");
+                        let model = toks.next().unwrap_or("Qwen/Qwen2.5-Coder-7B");
+                        let out = toks.next().unwrap_or("dist/model.gguf");
+                        let Some(fmt) = QuantFormat::from_str_loose(fmt_str) else {
+                            return format!("[/train] Unknown quant format '{fmt_str}'");
+                        };
+                        let qp = build_quant_plan(fmt, model, out);
+                        format!(
+                            "[/train quant-plan] format={} ratio={:.2}x out={}",
+                            qp.format.as_str(),
+                            qp.estimated_compression_ratio,
+                            qp.output_path
+                        )
+                    }
+                    "verify-safetensors" => {
+                        let Some(path_str) = toks.next() else {
+                            return "[/train verify-safetensors] Usage: /train verify-safetensors <path>"
+                                .to_string();
+                        };
+                        let resolved = if Path::new(path_str).is_absolute() {
+                            PathBuf::from(path_str)
+                        } else {
+                            root.join(path_str)
+                        };
+                        match std::fs::read(&resolved) {
+                            Ok(bytes) => match verify_safetensors_header(&bytes) {
+                                Ok(info) => format!(
+                                    "[/train verify-safetensors] valid=true header_len={} tensors={}",
+                                    info.header_len, info.tensor_count
+                                ),
+                                Err(e) => format!("[/train verify-safetensors] rejected: {e}"),
+                            },
+                            Err(e) => format!("[/train verify-safetensors] read error: {e}"),
+                        }
+                    }
+                    _ => {
+                        let probes = cached_path_probes(
+                            "train",
+                            &[
+                                ("axolotl", TrainingBackend::Axolotl.cli_binary()),
+                                ("llama-factory", TrainingBackend::LlamaFactory.cli_binary()),
+                                ("torchtune", TrainingBackend::Torchtune.cli_binary()),
+                                ("trl", TrainingBackend::Trl.cli_binary()),
+                                ("torchrun", TrainingBackend::MegatronBridge.cli_binary()),
+                                ("python3", TrainingBackend::Unsloth.cli_binary()),
+                            ],
+                        );
+                        format!("[/train] backends=8 path_probes=[{probes}]")
+                    }
+                }
+            }
             "eval" => {
-                let s = crate::telemetry::evals::compute_eval_summary("deepeval", "active", 1, 1);
-                format!("[/eval] harness={} score={:.2} (`toksi eval {arg}`).", s.harness, s.score)
+                use crate::telemetry::evals::{
+                    compute_eval_summary, AutoFaFailureClusterer, SUPPORTED_EVAL_HARNESSES,
+                };
+                let mut toks = arg.split_whitespace();
+                let sub = toks.next().unwrap_or("list");
+                match sub {
+                    "summary" => {
+                        let harness = toks.next().unwrap_or("deepeval");
+                        let model = toks.next().unwrap_or("active");
+                        let total = toks.next().and_then(|s| s.parse::<usize>().ok()).unwrap_or(0);
+                        let passed = toks.next().and_then(|s| s.parse::<usize>().ok()).unwrap_or(0);
+                        let s = compute_eval_summary(harness, model, total, passed);
+                        format!(
+                            "[/eval summary] harness={} model={} passed={}/{} score={:.3}",
+                            s.harness, s.model_id, s.passed_cases, s.total_cases, s.score
+                        )
+                    }
+                    "cluster" => {
+                        let rest = toks.collect::<Vec<_>>().join(" ");
+                        let pairs: Vec<(String, String)> = rest
+                            .split(';')
+                            .filter_map(|item| item.split_once('='))
+                            .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+                            .collect();
+                        let refs: Vec<(&str, &str)> =
+                            pairs.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+                        let clusters = AutoFaFailureClusterer::cluster_failures(&refs);
+                        format!("[/eval cluster] input={} clusters={}", refs.len(), clusters.len())
+                    }
+                    _ => format!(
+                        "[/eval] harnesses={} list=[{}]",
+                        SUPPORTED_EVAL_HARNESSES.len(),
+                        SUPPORTED_EVAL_HARNESSES.join(", ")
+                    ),
+                }
             }
             "compress" => {
-                let plan = crate::training::compress::plan_kvpress(
-                    crate::training::compress::KvPressPolicy::SnapKv,
-                    0.5,
-                    32768,
+                use crate::training::compress::{
+                    plan_bnb_quant, plan_kvpress, BnbQuantConfig, BnbQuantMethod, KvPressPolicy,
+                };
+                let mut toks = arg.split_whitespace();
+                let sub = toks.next().unwrap_or("kvpress");
+                if sub.eq_ignore_ascii_case("bnb") {
+                    let method_raw = toks.next().unwrap_or("nf4");
+                    let model = toks.next().unwrap_or("Qwen/Qwen2.5-Coder-7B");
+                    let params_b = toks.next().and_then(|s| s.parse::<f64>().ok()).unwrap_or(7.0);
+                    let method = match method_raw.to_ascii_lowercase().as_str() {
+                        "fp4" => BnbQuantMethod::Fp4,
+                        "int8" | "int8llm" => BnbQuantMethod::Int8Llm,
+                        _ => BnbQuantMethod::Nf4,
+                    };
+                    let cfg = BnbQuantConfig {
+                        method,
+                        ..BnbQuantConfig::default()
+                    };
+                    let plan = plan_bnb_quant(model, params_b, &cfg);
+                    return format!(
+                        "[/compress bnb] model={} method={:?} params={}B est_vram_gb={:.2}",
+                        plan.model_id, plan.method, plan.params_billions, plan.estimated_vram_gb
+                    );
+                }
+                let policy_str = if sub.eq_ignore_ascii_case("kvpress") {
+                    toks.next().unwrap_or("snapkv")
+                } else {
+                    sub
+                };
+                let policy = KvPressPolicy::from_str_loose(policy_str).unwrap_or(KvPressPolicy::SnapKv);
+                let ratio = toks.next().and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.5);
+                let ctx_len = toks.next().and_then(|s| s.parse::<usize>().ok()).unwrap_or(32768);
+                let plan = plan_kvpress(policy, ratio, ctx_len);
+                let snap = crate::telemetry::collector::snapshot_from_collector(
+                    crate::telemetry::global_collector(),
                 );
                 format!(
-                    "[/compress] kvpress={} retained={} saved={:.1}%",
+                    "[/compress] kvpress={} retained={}/{} saved={:.1}% runtime_tokens_saved(headroom={},rtk={},ctxmode={},economizer={})",
                     plan.policy.as_str(),
                     plan.retained_tokens,
-                    plan.estimated_vram_saved_pct
+                    plan.context_len,
+                    plan.estimated_vram_saved_pct,
+                    snap.headroom_tokens_saved,
+                    snap.rtk_tokens_saved,
+                    snap.ctxmode_tokens_saved,
+                    snap.economizer_tokens_saved
                 )
             }
-            "serve" => format!("[/serve] Pure-Rust/multimodal local engine descriptors ready (`toksi serve {arg}`)."),
+            "serve" => {
+                use crate::gateway::local_engines::SECTION_2_7_LOCAL_ENGINES;
+                use crate::training::build_serving_profile;
+                let mut toks = arg.split_whitespace();
+                let sub = toks.next().unwrap_or("list");
+                if sub == "profile" {
+                    let engine = toks.next().unwrap_or("ollama");
+                    let model = toks.next().unwrap_or("qwen2.5-coder:7b");
+                    let eff = toks
+                        .next()
+                        .and_then(EffortLevel::from_str_loose)
+                        .unwrap_or(EffortLevel::Medium);
+                    match build_serving_profile(engine, model, eff) {
+                        Ok(p) => format!(
+                            "[/serve profile] engine={} port={} modality={} pure_rust={} endpoint={}",
+                            p.engine, p.port, p.modality, p.pure_rust, p.endpoint_url
+                        ),
+                        Err(e) => format!("[/serve profile] Error: {e}"),
+                    }
+                } else {
+                    let pure_rust_count =
+                        SECTION_2_7_LOCAL_ENGINES.iter().filter(|e| e.pure_rust).count();
+                    let probes = cached_path_probes(
+                        "serve",
+                        &[
+                            ("ollama", "ollama"),
+                            ("llama-server", "llama-server"),
+                            ("vllm", "vllm"),
+                        ],
+                    );
+                    format!(
+                        "[/serve] engines={} (pure_rust={}) path_probes=[{probes}]",
+                        SECTION_2_7_LOCAL_ENGINES.len(),
+                        pure_rust_count
+                    )
+                }
+            }
             "cluster" => {
+                let sub = if arg.is_empty() { "status" } else { arg };
                 let tooling = crate::cluster::probe_k8s_tooling();
                 let nodes = self
                     .with_db(|db| crate::cluster::ClusterTopology::load_from_config_db(db).ok())
@@ -972,7 +1475,7 @@ impl SlashCommandEngine {
                     .unwrap_or_default();
                 let readiness = crate::cluster::evaluate_nvcre_readiness(&nodes);
                 format!(
-                    "[/cluster {arg}] nodes={} healthy={} ready={} kubectl={} helm={}",
+                    "[/cluster {sub}] nodes={} healthy={} ready={} kubectl={} helm={}",
                     readiness.total_nodes,
                     readiness.healthy_nodes,
                     readiness.ready,
@@ -981,7 +1484,8 @@ impl SlashCommandEngine {
                 )
             }
             "otel" => {
-                if arg.starts_with("collector") {
+                let sub = if arg.is_empty() { "status" } else { arg };
+                if sub.starts_with("collector") {
                     let yaml = crate::cluster::render_otel_collector_yaml(4318, 9464);
                     format!(
                         "[/otel collector] OpenTelemetry collector YAML generated ({} bytes, OTLP HTTP :4318).",
@@ -996,13 +1500,39 @@ impl SlashCommandEngine {
                         .to_string_lossy(),
                     );
                     format!(
-                        "[/otel {arg}] spans={} otel_db={} semconv=gen_ai.1.29 fail_open=true",
+                        "[/otel {sub}] spans={} otel_db={} semconv=gen_ai.1.29 fail_open=true",
                         count, db_path
                     )
                 }
             }
-            "voice" => format!("[/voice] Whisper.cpp ASR endpoint ready at local audio bridge (arg={arg})."),
-            _ => format!("[/{cmd}] Ready (arg={arg})."),
+            "voice" => {
+                use crate::training::build_serving_profile;
+                let model = if arg.is_empty() || arg == "status" {
+                    "whisper-large-v3-turbo"
+                } else {
+                    arg
+                };
+                let probes = cached_path_probes(
+                    "voice",
+                    &[
+                        ("whisper-cli", "whisper-cli"),
+                        ("whisper-server", "whisper-server"),
+                        ("ffmpeg", "ffmpeg"),
+                    ],
+                );
+                let profile = build_serving_profile("whisper.cpp", model, EffortLevel::Low);
+                let endpoint = profile
+                    .as_ref()
+                    .map(|p| p.endpoint_url.as_str())
+                    .unwrap_or("http://127.0.0.1:8086/v1");
+                format!(
+                    "[/voice] engine=whisper.cpp endpoint={endpoint} model={model} path_probes=[{probes}]"
+                )
+            }
+            _ => {
+                let sub = if arg.is_empty() { "status" } else { arg };
+                format!("[/{cmd}] Unknown command (arg={sub}).")
+            }
         }
     }
 }

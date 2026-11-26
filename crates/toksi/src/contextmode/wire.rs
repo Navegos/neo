@@ -46,6 +46,7 @@ impl DirectWireBus {
         self.sender.subscribe()
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn broadcast(&self, msg: WireMessage) -> Result<usize, broadcast::error::SendError<WireMessage>> {
         self.sender.send(msg)
     }

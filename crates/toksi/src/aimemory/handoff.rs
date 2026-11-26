@@ -327,15 +327,12 @@ impl HandoffStore {
         let entries = fs::read_dir(&self.base_dir).map_err(|e| e.to_string())?;
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                if let Ok(content) = fs::read_to_string(&path) {
-                    if let Ok(handoff) = serde_json::from_str::<Handoff>(&content) {
-                        if handoff.state == HandoffState::Offered || handoff.state == HandoffState::Claimed {
+            if path.extension().and_then(|s| s.to_str()) == Some("json")
+                && let Ok(content) = fs::read_to_string(&path)
+                    && let Ok(handoff) = serde_json::from_str::<Handoff>(&content)
+                        && (handoff.state == HandoffState::Offered || handoff.state == HandoffState::Claimed) {
                             list.push(handoff);
                         }
-                    }
-                }
-            }
         }
 
         list.sort_by(|a, b| b.created_at.cmp(&a.created_at));

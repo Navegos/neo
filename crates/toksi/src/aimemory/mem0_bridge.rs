@@ -115,7 +115,7 @@ impl Mem0BridgeEngine {
             confidence: confidence.clamp(0.0, 1.0),
             created_at_ms: now,
             updated_at_ms: now,
-            source_ref: source_ref.map(|s| normalize_path(s)),
+            source_ref: source_ref.map(normalize_path),
         };
 
         let mut lock = self.facts.write().map_err(|_| Mem0Error::LockPoisoned)?;
@@ -131,11 +131,10 @@ impl Mem0BridgeEngine {
         let mut results: Vec<EntityFact> = lock
             .values()
             .filter(|f| {
-                if let Some(cat) = category {
-                    if f.category != cat {
+                if let Some(cat) = category
+                    && f.category != cat {
                         return false;
                     }
-                }
                 if q_lower.is_empty() {
                     return true;
                 }
@@ -145,7 +144,7 @@ impl Mem0BridgeEngine {
             .cloned()
             .collect();
 
-        results.sort_by(|a, b| b.updated_at_ms.cmp(&a.updated_at_ms));
+        results.sort_by_key(|a| std::cmp::Reverse(a.updated_at_ms));
         Ok(results)
     }
 

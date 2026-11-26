@@ -207,36 +207,30 @@ pub fn resolve_location_symbol(root: &std::path::Path, file_path: &str, line: u3
 
     for i in (start_idx..=target_idx).rev() {
         let l = lines[i].trim();
-        if let Some(caps) = re_fn_rs.captures(l) {
-            if let Some(m) = caps.get(1) {
+        if let Some(caps) = re_fn_rs.captures(l)
+            && let Some(m) = caps.get(1) {
                 return Some(m.as_str().to_string());
             }
-        }
-        if let Some(caps) = re_struct_rs.captures(l) {
-            if let Some(m) = caps.get(1) {
+        if let Some(caps) = re_struct_rs.captures(l)
+            && let Some(m) = caps.get(1) {
                 return Some(m.as_str().to_string());
             }
-        }
-        if let Some(caps) = re_fn_py.captures(l) {
-            if let Some(m) = caps.get(1) {
+        if let Some(caps) = re_fn_py.captures(l)
+            && let Some(m) = caps.get(1) {
                 return Some(m.as_str().to_string());
             }
-        }
-        if let Some(caps) = re_class_py.captures(l) {
-            if let Some(m) = caps.get(1) {
+        if let Some(caps) = re_class_py.captures(l)
+            && let Some(m) = caps.get(1) {
                 return Some(m.as_str().to_string());
             }
-        }
-        if let Some(caps) = re_fn_ts.captures(l) {
-            if let Some(m) = caps.get(1) {
+        if let Some(caps) = re_fn_ts.captures(l)
+            && let Some(m) = caps.get(1) {
                 return Some(m.as_str().to_string());
             }
-        }
-        if let Some(caps) = re_class_ts.captures(l) {
-            if let Some(m) = caps.get(1) {
+        if let Some(caps) = re_class_ts.captures(l)
+            && let Some(m) = caps.get(1) {
                 return Some(m.as_str().to_string());
             }
-        }
     }
 
     None
@@ -321,32 +315,29 @@ impl Event {
             )));
         }
 
-        if let Some(ref o) = self.outcome {
-            if !VALID_OUTCOMES.contains(&o.as_str()) {
+        if let Some(ref o) = self.outcome
+            && !VALID_OUTCOMES.contains(&o.as_str()) {
                 return Err(ProjectMemError::Validation(format!(
                     "Unsupported outcome: '{}'",
                     o
                 )));
             }
-        }
 
-        if let Some(ref s) = self.capture_source {
-            if !VALID_CAPTURE_SOURCES.contains(&s.as_str()) {
+        if let Some(ref s) = self.capture_source
+            && !VALID_CAPTURE_SOURCES.contains(&s.as_str()) {
                 return Err(ProjectMemError::Validation(format!(
                     "Unsupported capture source: '{}'",
                     s
                 )));
             }
-        }
 
-        if let Some(ref c) = self.capture_confidence {
-            if !VALID_CONFIDENCE_LEVELS.contains(&c.as_str()) {
+        if let Some(ref c) = self.capture_confidence
+            && !VALID_CONFIDENCE_LEVELS.contains(&c.as_str()) {
                 return Err(ProjectMemError::Validation(format!(
                     "Unsupported confidence level: '{}'",
                     c
                 )));
             }
-        }
 
         if self.summary.trim().is_empty() {
             return Err(ProjectMemError::Validation(
@@ -359,7 +350,7 @@ impl Event {
 
     pub fn issue(summary: &str, location: Option<&str>) -> Self {
         let mut ev = Self::new("issue", summary);
-        ev.location = location.map(|s| normalize_path(s));
+        ev.location = location.map(normalize_path);
         ev
     }
 
@@ -373,7 +364,7 @@ impl Event {
         let mut ev = Self::new("attempt", summary);
         ev.outcome = Some(outcome.to_string());
         ev.issue_id = issue_id.map(|s| s.to_string());
-        ev.location = location.map(|s| normalize_path(s));
+        ev.location = location.map(normalize_path);
         ev.command = command.map(|s| s.to_string());
         ev
     }
@@ -381,20 +372,20 @@ impl Event {
     pub fn fix(summary: &str, issue_id: Option<&str>, location: Option<&str>) -> Self {
         let mut ev = Self::new("fix", summary);
         ev.issue_id = issue_id.map(|s| s.to_string());
-        ev.location = location.map(|s| normalize_path(s));
+        ev.location = location.map(normalize_path);
         ev
     }
 
     pub fn decision(summary: &str, location: Option<&str>, supersedes: Option<&str>) -> Self {
         let mut ev = Self::new("decision", summary);
-        ev.location = location.map(|s| normalize_path(s));
+        ev.location = location.map(normalize_path);
         ev.supersedes = supersedes.map(|s| s.to_string());
         ev
     }
 
     pub fn note(summary: &str, location: Option<&str>) -> Self {
         let mut ev = Self::new("note", summary);
-        ev.location = location.map(|s| normalize_path(s));
+        ev.location = location.map(normalize_path);
         ev
     }
 }

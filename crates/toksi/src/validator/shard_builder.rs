@@ -41,7 +41,7 @@ fn write_paired_index(dir: &Path, title: &str, items: &[String]) -> Result<(), S
     let json_val = json!({ "title": title, "entries": items });
     let json_str = serde_json::to_string_pretty(&json_val)
         .map_err(|e| format!("Failed to serialize index.json: {e}"))?;
-    write_file_atomic(&dir.join("index.json"), &json_str)
+    write_file_atomic(dir.join("index.json"), &json_str)
         .map_err(|e| format!("Failed to write index.json: {e}"))?;
 
     let list_html: String = items
@@ -52,7 +52,7 @@ fn write_paired_index(dir: &Path, title: &str, items: &[String]) -> Result<(), S
     let html = format!(
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>{title}</title></head><body><h1>{title}</h1><ul>{list_html}</ul></body></html>"
     );
-    write_file_atomic(&dir.join("index.html"), &html)
+    write_file_atomic(dir.join("index.html"), &html)
         .map_err(|e| format!("Failed to write index.html: {e}"))?;
     Ok(())
 }
@@ -62,7 +62,7 @@ pub fn build_three_tree_shards(
     advisory_root: &Path,
     rows: &[CompactAdvisoryRow],
 ) -> Result<ShardBuildReport, String> {
-    write_file_atomic(&advisory_root.join(".nojekyll"), "")
+    write_file_atomic(advisory_root.join(".nojekyll"), "")
         .map_err(|e| format!("Failed to write .nojekyll: {e}"))?;
     write_paired_index(
         advisory_root,
@@ -112,7 +112,7 @@ pub fn build_three_tree_shards(
             write_paired_index(&id_dir, &row.id, &[format!("{}.json", row.id)])?;
             let adv_json = serde_json::to_string_pretty(row)
                 .map_err(|e| format!("Failed to serialize advisory row: {e}"))?;
-            write_file_atomic(&id_dir.join(format!("{}.json", row.id)), &adv_json)
+            write_file_atomic(id_dir.join(format!("{}.json", row.id)), &adv_json)
                 .map_err(|e| format!("Failed to write advisory JSON: {e}"))?;
             id_dirs.push(format!("{}/", row.id));
             advisories_written += 1;
@@ -141,7 +141,7 @@ pub fn build_three_tree_shards(
             let page_name = format!("page-{:03}.json", page_idx + 1);
             let page_json = serde_json::to_string_pretty(&chunk)
                 .map_err(|e| format!("Failed to serialize domain page: {e}"))?;
-            write_file_atomic(&dom_year_dir.join(&page_name), &page_json)
+            write_file_atomic(dom_year_dir.join(&page_name), &page_json)
                 .map_err(|e| format!("Failed to write domain page: {e}"))?;
             page_files.push(page_name);
             domain_pages_written += 1;
@@ -161,7 +161,7 @@ pub fn build_three_tree_shards(
         let fname = format!("{prefix}.json");
         let body = serde_json::to_string_pretty(&entries)
             .map_err(|e| format!("Failed to serialize lookup shard: {e}"))?;
-        write_file_atomic(&dir.join(&fname), &body)
+        write_file_atomic(dir.join(&fname), &body)
             .map_err(|e| format!("Failed to write lookup shard: {e}"))?;
         write_paired_index(&dir, &format!("lookup/{kind}/{year}"), &[fname])?;
         lookup_shards_written += 1;

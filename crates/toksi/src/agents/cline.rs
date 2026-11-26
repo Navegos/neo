@@ -302,8 +302,10 @@ fn cline_state_read() -> Result<(HashMap<String, Vec<String>>, bool), String> {
     Ok((state, exists))
 }
 
-fn cline_state_read_raw() -> Result<(HashMap<String, Vec<String>>, bool, String), String> {
-    let Some(raw) = paths::read_file_safe(&cline_state_path()) else {
+type ClineStateRaw = (HashMap<String, Vec<String>>, bool, String);
+
+fn cline_state_read_raw() -> Result<ClineStateRaw, String> {
+    let Some(raw) = paths::read_file_safe(cline_state_path()) else {
         return Ok((HashMap::new(), false, String::new()));
     };
     let state: HashMap<String, Vec<String>> = serde_json::from_str(&raw).map_err(|e| {
@@ -820,7 +822,7 @@ fn remove_cline_proxy_locked() -> bool {
     if !cline_managed_values(&existing) {
         return false;
     }
-    let Some(state_raw) = paths::read_file_safe(&cline_provider_state_file()) else {
+    let Some(state_raw) = paths::read_file_safe(cline_provider_state_file()) else {
         return false;
     };
     if !cline_state_owns_current(&state_raw, &existing) {
@@ -870,7 +872,7 @@ fn remove_cline_proxy_locked() -> bool {
 }
 
 pub fn cline_proxy_wired() -> bool {
-    let Some(raw) = paths::read_file_safe(&cline_providers_file()) else {
+    let Some(raw) = paths::read_file_safe(cline_providers_file()) else {
         return false;
     };
     let Ok(cfg) = cline_provider_config(&raw) else {

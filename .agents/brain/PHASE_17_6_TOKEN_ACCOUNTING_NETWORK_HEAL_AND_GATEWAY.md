@@ -1,10 +1,10 @@
 # Phase 17.6: Ground-Truth SSE Accounting, Gateway Real Dispatch (`:9099` / `:8789` / `:8790` / `:18787`), Network Heal, & ConnectRPC
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 13.3–13.5), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_6_TOKEN_ACCOUNTING_NETWORK_HEAL_AND_GATEWAY.md first.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 13.3â€“13.5), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_6_TOKEN_ACCOUNTING_NETWORK_HEAL_AND_GATEWAY.md first.
 
 Execute Phase 17.6: Ground-Truth SSE Accounting, Gateway Real Dispatch, OS Reconnect Watchdog, & ConnectRPC Passthrough.
 Sources:
@@ -30,7 +30,7 @@ Requirements:
    - `gateway/server.rs:259-371` & `aggregators/mod.rs`: Replace `"AI Gateway operational"` static text and `50/50`/`0.0005` stubs with real `LoadBalancer` dispatch, `cascade` failover, and `mofa-engine` deterministic 7-D `Router::route_ranked` (`DataClass::Confidential` local-engine pinning, `CircuitBreakerRegistry`, `QualityGate`).
    - `gateway/proxy.rs:106-148, 207-210, 324-327`: Invoke full shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, `mcp_pruner`, `chroma`/`lance`) in `process_request` and `dispatch_with_cascade_async` (replacing align+prune-only processing); remove `provider.default_endpoint()` hardcoding so custom user `base_url`s from `config.toml`/`byok_profiles` are always honored; implement `/v1/responses` and `/v1/embeddings` alongside `/v1/chat/completions`, `/v1/messages`, `/v1beta/models/*`.
    - `headroom/copilot_daemon.rs` & `headroom/byok_gateway.rs`: Replace `"copilot proxy ready"` & `"wrap"` stubs on `:8789` (VS Code) and `:8790` (CLI) with authentic OAuth token refresh, Headroom tail compression, and SSE upstream streaming; route all enabled `:18787` BYOK & Vertex ADC requests through `HeadroomEffortCompressor` (`Low`/`Medium`/`High`).
-   - `commands/daemon.rs`: Supervise `:18787` (`byok_gateway.rs`) alongside `:8787` (Headroom), `:8788` (Grok OAuth — explicitly separate from BYOK), `:8789`/`:8790` (Copilot), `:9098` (Protocol Bus w/ `HeadroomEffortCompressor`), `:9099` (Gateway), and `:9100` (Cockpit).
+   - `commands/daemon.rs`: Supervise `:18787` (`byok_gateway.rs`) alongside `:8787` (Headroom), `:8788` (Grok OAuth â€” explicitly separate from BYOK), `:8789`/`:8790` (Copilot), `:9098` (Protocol Bus w/ `HeadroomEffortCompressor`), `:9099` (Gateway), and `:9100` (Cockpit).
 2. Authentic SSE Usage & Rate-Limit Extraction (`telemetry/{tokentracker,collector}.rs`):
    - Parse streaming OpenAI/Responses/Anthropic (`cache_creation_input_tokens`, `cache_read_input_tokens`), OpenAI reasoning tokens, and Gemini (`candidatesTokenCount`) live without buffering entire responses.
    - Parse `x-ratelimit-*` and `anthropic-ratelimit-*` headers into `quota_windows` (`hour|day|week|month|year`), updating live TUI/Web snapshots cleanly.

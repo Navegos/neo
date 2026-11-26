@@ -1,6 +1,6 @@
 # Phase 15.2: Unified 8-Port Daemon, `config.toml`, & Copilot Supervision
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -20,13 +20,13 @@ Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly (move `SetConsoleCtrlHandler`/`libc::signal` to `tokio::signal`/`ctrlc` & Win32 Registry/Broadcast to `crates/toksi-sys`). Zero compiler warnings (`RUSTFLAGS="-D warnings"`).
 2. Zero Panics Policy: Strictly prohibit `.unwrap()`, `.expect()`, `panic!()`. Use `thiserror` for domain errors and `anyhow::Result` with `.context()` in CLI.
 3. Unified 8-Port Isolation Guarantee (all overridable via `~/.toksi/config.toml` `[ports]`, adding `:9098` Protocol Bus in Wave 18):
-   - Port `8787`: Streaming Headroom Proxy (`headroom/proxy.rs` — Antigravity, Claude, Codex, Cursor, BYOKs)
-   - Port `8788`: Grok OAuth Daemon (`grok_daemon.rs` — NOT BYOK!)
+   - Port `8787`: Streaming Headroom Proxy (`headroom/proxy.rs` â€” Antigravity, Claude, Codex, Cursor, BYOKs)
+   - Port `8788`: Grok OAuth Daemon (`grok_daemon.rs` â€” NOT BYOK!)
    - Port `8789`: GitHub Copilot VS Code Proxy (`DEFAULT_COPILOT_PROXY_PORT`)
    - Port `8790`: GitHub Copilot CLI Proxy (`DEFAULT_COPILOT_CLI_PROXY_PORT`)
    - Port `9098`: Unified Protocol Bus (`MCP`, `A2A` v1.0, `ACP`, `stdio`/`SSE`/`HTTP`, shared `HeadroomEffortCompressor` payload compression, Unified Plugin System endpoints under `<enforce>`, `plan_checkpoints`, & security events)
-   - Port `18787`: BYOK Multi-Profile & Vertex ADC Gateway (`byok_gateway.rs` — supervised by daemon, routed through shared `HeadroomEffortCompressor` `Low`/`Medium`/`High`)
-   - Port `9099`: Enterprise AI Gateway & Drop-in SDKs + `/metrics` (Dedicated inference thread pool, <10 µs latency overhead, executing full `HeadroomEffortCompressor` `Low`/`Medium`/`High` before cache/failover)
+   - Port `18787`: BYOK Multi-Profile & Vertex ADC Gateway (`byok_gateway.rs` â€” supervised by daemon, routed through shared `HeadroomEffortCompressor` `Low`/`Medium`/`High`)
+   - Port `9099`: Enterprise AI Gateway & Drop-in SDKs + `/metrics` (Dedicated inference thread pool, <10 Âµs latency overhead, executing full `HeadroomEffortCompressor` `Low`/`Medium`/`High` before cache/failover)
    - Port `9100`: Detached Web Dashboard Cockpit (Isolated non-blocking background service, zero TCP backpressure on inference)
 4. Non-Destructive Environment Lifecycle: Clean teardown of Windows `HKCU\Environment` variables (`WM_SETTINGCHANGE` broadcast) and Unix session env on daemon shutdown (never inject `CLOUD_CODE_URL`).
 
@@ -68,7 +68,7 @@ Requirements:
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
-- **Wave 19–20 Reconciliation:** Remediated (`PHASE_19_2`/`20_2`): split network ports (`8787`–`8790`, `9098`, `9099`, `18787`), `<toksi-siagent>`, and core tools into dedicated `toksi _worker <role>` subprocesses over Named Pipe / UDS IPC with `:9100` detached from `daemon start`.
+- **Wave 19â€“20 Reconciliation:** Remediated (`PHASE_19_2`/`20_2`): split network ports (`8787`â€“`8790`, `9098`, `9099`, `18787`), `<toksi-siagent>`, and core tools into dedicated `toksi _worker <role>` subprocesses over Named Pipe / UDS IPC with `:9100` detached from `daemon start`.
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

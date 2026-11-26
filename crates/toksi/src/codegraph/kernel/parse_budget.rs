@@ -50,7 +50,7 @@ pub fn parse(parser: &mut Parser, source: &str) -> Result<Tree, String> {
     };
     let bytes = source.as_bytes();
     let len = bytes.len();
-    let mut read = |i: usize, _: Point| (i < len).then(|| &bytes[i..]).unwrap_or_default();
+    let mut read = |i: usize, _: Point| if i < len { &bytes[i..] } else { Default::default() };
     let mut cancel = |_: &ParseState| Instant::now() >= deadline;
     let tree = parser.parse_with_options(
         &mut read,

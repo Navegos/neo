@@ -38,12 +38,21 @@ pub fn write_if_missing(p: &str, content: &str, dry_run: bool) -> bool {
 }
 
 pub fn get_or_create_map<'a>(parent: &'a mut OrderedMap, key: &str) -> &'a mut OrderedMap {
-    if !matches!(parent.get(key), Some(Value::Object(_))) {
-        parent.insert(key.to_string(), Value::Object(OrderedMap::new()));
+    let val = parent
+        .entry(key.to_string())
+        .or_insert_with(|| Value::Object(OrderedMap::new()));
+    if !val.is_object() {
+        *val = Value::Object(OrderedMap::new());
     }
-    match parent.get_mut(key) {
-        Some(Value::Object(m)) => m,
-        _ => unreachable!(),
+    match val {
+        Value::Object(m) => m,
+        // Reset unconditionally to Value::Object directly above.
+        _ => loop {
+            *val = Value::Object(OrderedMap::new());
+            if let Value::Object(m) = val {
+                break m;
+            }
+        },
     }
 }
 
@@ -344,14 +353,13 @@ pub fn has_codex_mcp_entry(name: &str, _expected: Option<&McpSpawn>) -> bool {
         let block = &rest[..end];
         for line in block.lines() {
             let t = line.trim();
-            if let Some((k, v)) = t.split_once('=') {
-                if k.trim() == "command" {
+            if let Some((k, v)) = t.split_once('=')
+                && k.trim() == "command" {
                     let cmd = v.trim().trim_matches('"').trim_matches('\'');
                     if is_legacy_mcp_runner_str(cmd) || !is_toksi_mcp_command_str(cmd) {
                         return false;
                     }
                 }
-            }
         }
     }
     true
@@ -492,18 +500,18 @@ pub fn sync_copilot_ide_instructions_safe() -> Result<(), String> {
 
 pub fn pi_mcp_adapter_ready() -> bool {
     let p = pi_mcp_path();
-    exists(&p) || exists(&pi_agent_dir_resolved())
+    exists(&p) || exists(pi_agent_dir_resolved())
 }
 
 pub fn pi_ensure_mcp_adapter(_dry_run: bool) -> bool {
-    let _ = ensure_dir(&pi_agent_dir_resolved());
+    let _ = ensure_dir(pi_agent_dir_resolved());
     true
 }
 
 pub fn pi_remove_mcp_adapter() {
     let p = pi_mcp_path();
-    if let Some(raw) = read_file_safe(&p) {
-        if let Some(Value::Object(cfg)) = try_parse_jsonc(&raw) {
+    if let Some(raw) = read_file_safe(&p)
+        && let Some(Value::Object(cfg)) = try_parse_jsonc(&raw) {
             let empty = match cfg.get("mcpServers") {
                 Some(Value::Object(s)) => s.is_empty(),
                 None => true,
@@ -513,7 +521,6 @@ pub fn pi_remove_mcp_adapter() {
                 let _ = fs::remove_file(&p);
             }
         }
-    }
 }
 
 // --- Codex Perm Hook & CodeGraph Index Hook ---
@@ -590,11 +597,10 @@ pub fn remove_cursor_codegraph_permissions() -> bool {
         return true;
     }
     let mut cfg = load_ordered(&p);
-    if let Some(Value::Object(perms)) = cfg.get_mut("permissions") {
-        if let Some(Value::Array(allow)) = perms.get_mut("allow") {
+    if let Some(Value::Object(perms)) = cfg.get_mut("permissions")
+        && let Some(Value::Array(allow)) = perms.get_mut("allow") {
             allow.retain(|v| v.as_str() != Some("Mcp(codegraph:*)"));
         }
-    }
     write_file_atomic(&p, &stringify_json(&Value::Object(cfg))).is_ok()
 }
 
@@ -760,23 +766,20 @@ pub fn upsert_hook_group_in_hooks_obj(
     let hooks_obj = get_or_create_map(&mut cfg, "hooks");
     let mut groups = get_arr(hooks_obj, event);
     groups.retain(|g| {
-        if let Value::Object(gm) = g {
-            if let Some(Value::Array(ha)) = gm.get("hooks") {
+        if let Value::Object(gm) = g
+            && let Some(Value::Array(ha)) = gm.get("hooks") {
                 for h in ha {
-                    if let Value::Object(hm) = h {
-                        if let Some(Value::String(c)) = hm.get("command") {
-                            if c == cmd || (cmd.contains("projectmem-hook") && c.contains("projectmem-hook"))
+                    if let Value::Object(hm) = h
+                        && let Some(Value::String(c)) = hm.get("command")
+                            && (c == cmd || (cmd.contains("projectmem-hook") && c.contains("projectmem-hook"))
                                 || ((cmd.contains("codegraph-hook") || cmd.contains("--codegraph-hook"))
                                     && (c.contains("codegraph-hook") || c.contains("--codegraph-hook")))
-                                || (cmd.contains("codex-perm") && c.contains("codex-perm"))
+                                || (cmd.contains("codex-perm") && c.contains("codex-perm")))
                             {
                                 return false;
                             }
-                        }
-                    }
                 }
             }
-        }
         true
     });
 
@@ -806,19 +809,16 @@ pub fn remove_hook_group_in_hooks_obj(path: &str, event: &str, needle: &str) {
         if let Some(Value::Array(groups)) = hooks_obj.get_mut(event) {
             let before = groups.len();
             groups.retain(|g| {
-                if let Value::Object(gm) = g {
-                    if let Some(Value::Array(ha)) = gm.get("hooks") {
+                if let Value::Object(gm) = g
+                    && let Some(Value::Array(ha)) = gm.get("hooks") {
                         for h in ha {
-                            if let Value::Object(hm) = h {
-                                if let Some(Value::String(c)) = hm.get("command") {
-                                    if c.contains(needle) {
+                            if let Value::Object(hm) = h
+                                && let Some(Value::String(c)) = hm.get("command")
+                                    && c.contains(needle) {
                                         return false;
                                     }
-                                }
-                            }
                         }
                     }
-                }
                 true
             });
             let after = groups.len();

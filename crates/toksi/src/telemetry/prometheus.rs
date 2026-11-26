@@ -288,8 +288,8 @@ pub async fn run_prometheus_server(port: u16) -> Result<(), Box<dyn std::error::
         let (mut stream, _) = listener.accept().await?;
         tokio::spawn(async move {
             let mut buf = [0u8; 1024];
-            if let Ok(n) = stream.read(&mut buf).await {
-                if n > 0 {
+            if let Ok(n) = stream.read(&mut buf).await
+                && n > 0 {
                     let req_str = String::from_utf8_lossy(&buf[..n]);
                     if req_str.starts_with("GET /metrics") {
                         let body = render_metrics();
@@ -317,7 +317,6 @@ pub async fn run_prometheus_server(port: u16) -> Result<(), Box<dyn std::error::
                         let _ = stream.write_all(resp.as_bytes()).await;
                     }
                 }
-            }
         });
     }
 }

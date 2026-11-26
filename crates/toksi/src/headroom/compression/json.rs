@@ -128,8 +128,8 @@ pub fn prune_embedded_json(text: &str, config: &JsonPrunerConfig) -> String {
 
     while idx < bytes.len() {
         let b = bytes[idx];
-        if (b == b'{' || b == b'[') && (idx == 0 || bytes[idx - 1] == b' ' || bytes[idx - 1] == b'\n' || bytes[idx - 1] == b'`') {
-            if let Some(end) = match_json_span(text, idx) {
+        if (b == b'{' || b == b'[') && (idx == 0 || bytes[idx - 1] == b' ' || bytes[idx - 1] == b'\n' || bytes[idx - 1] == b'`')
+            && let Some(end) = match_json_span(text, idx) {
                 let candidate = &text[idx..end];
                 if let Ok(mut val) = serde_json::from_str::<Value>(candidate) {
                     prune_value(&mut val, config);
@@ -140,7 +140,6 @@ pub fn prune_embedded_json(text: &str, config: &JsonPrunerConfig) -> String {
                     }
                 }
             }
-        }
 
         out.push(bytes[idx] as char);
         idx += 1;
@@ -179,8 +178,10 @@ mod tests {
     #[test]
     fn test_truncate_repetitive_arrays() {
         let input = r#"{"items": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}"#;
-        let mut cfg = JsonPrunerConfig::default();
-        cfg.max_array_items = 3;
+        let cfg = JsonPrunerConfig {
+            max_array_items: 3,
+            ..Default::default()
+        };
 
         let res = prune_json(input, &cfg);
         assert!(res.contains(r#""items":[1,2,3,"[... 7 items omitted by toksi]"]"#));

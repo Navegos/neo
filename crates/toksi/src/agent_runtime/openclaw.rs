@@ -181,8 +181,8 @@ impl ToolLoopDetector {
         }
 
         // 4. Known poll no progress
-        if self.poll_tools.contains(&norm_tool) {
-            if let Some(ref rh) = result_hash {
+        if self.poll_tools.contains(&norm_tool)
+            && let Some(ref rh) = result_hash {
                 let same_poll_result = self
                     .history
                     .iter()
@@ -203,7 +203,6 @@ impl ToolLoopDetector {
                     };
                 }
             }
-        }
 
         // 1. Generic repeat (identical tool + args hash)
         let exact_repeats = self
@@ -334,7 +333,7 @@ impl AdvisorFork {
         if !matches!(loop_verdict, LoopDetectionVerdict::Ok) {
             return true;
         }
-        turn > 0 && turn % self.interval_turns.max(1) == 0
+        turn > 0 && turn.is_multiple_of(self.interval_turns.max(1))
     }
 
     pub fn advise(&mut self, turn: u64, goal: &str, loop_verdict: &LoopDetectionVerdict) -> AdvisorAdvice {

@@ -90,8 +90,8 @@ pub fn verify_file_codesig(path: &Path, expected_blake3: Option<&str>) -> Result
     let bytes = std::fs::read(path)
         .map_err(|e| format!("codesig failed to read '{}': {e}", path.display()))?;
     let actual = blake3_hex(&bytes);
-    if let Some(exp) = expected_blake3 {
-        if !actual.eq_ignore_ascii_case(exp.trim()) {
+    if let Some(exp) = expected_blake3
+        && !actual.eq_ignore_ascii_case(exp.trim()) {
             return Err(format!(
                 "codesig mismatch for '{}': expected {}, got {}",
                 path.display(),
@@ -99,7 +99,6 @@ pub fn verify_file_codesig(path: &Path, expected_blake3: Option<&str>) -> Result
                 actual
             ));
         }
-    }
     Ok(CodeSigRecord {
         path: crate::util::paths::normalize_path(&path.to_string_lossy()),
         blake3_hex: actual,

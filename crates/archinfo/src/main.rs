@@ -158,10 +158,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let target_is_simulator = match cli.target_is_simulator.as_deref() {
-        Some(s) => match s.trim().to_ascii_lowercase().as_str() {
-            "yes" | "true" | "1" => true,
-            _ => false,
-        },
+        Some(s) => matches!(s.trim().to_ascii_lowercase().as_str(), "yes" | "true" | "1"),
         None => false,
     };
 
@@ -215,25 +212,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     flags.push(format!("-target-feature +{}", ext));
                 }
             }
-            if let Some(ref vlen) = report.target_clang_vlen {
-                if !vlen.is_empty() {
+            if let Some(ref vlen) = report.target_clang_vlen
+                && !vlen.is_empty() {
                     flags.push(vlen.clone());
                 }
-            }
-            if let Some(ref cuda_sm) = report.cuda_sm_arch {
-                if !cuda_sm.is_empty() {
+            if let Some(ref cuda_sm) = report.cuda_sm_arch
+                && !cuda_sm.is_empty() {
                     for sm in cuda_sm.split(';') {
                         flags.push(format!("--cuda-gpu-arch={}", sm));
                     }
                 }
-            }
-            if let Some(ref rocm_gfx) = report.rocm_gfx_arch {
-                if !rocm_gfx.is_empty() {
+            if let Some(ref rocm_gfx) = report.rocm_gfx_arch
+                && !rocm_gfx.is_empty() {
                     for gfx in rocm_gfx.split(';') {
                         flags.push(format!("--offload-arch={}", gfx));
                     }
                 }
-            }
             println!("{}", flags.join(" "));
         }
         "msvc" => {
@@ -254,11 +248,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     flags.push("/arch:AVX2".to_string());
                 }
-                if let Some(ref vlen) = report.target_msvc_vlen {
-                    if !vlen.is_empty() {
+                if let Some(ref vlen) = report.target_msvc_vlen
+                    && !vlen.is_empty() {
                         flags.push(vlen.clone());
                     }
-                }
             }
             println!("{}", flags.join(" "));
         }

@@ -39,8 +39,8 @@ pub async fn probe_local_node_health(node_id: &str, base_url: &str) -> NodeHealt
         .unwrap_or_else(|_| reqwest::Client::new());
     let trimmed = base_url.trim_end_matches('/');
     let models_url = format!("{trimmed}/v1/models");
-    if let Ok(resp) = client.get(&models_url).send().await {
-        if resp.status().is_success() {
+    if let Ok(resp) = client.get(&models_url).send().await
+        && resp.status().is_success() {
             let count = resp
                 .json::<Value>()
                 .await
@@ -54,7 +54,6 @@ pub async fn probe_local_node_health(node_id: &str, base_url: &str) -> NodeHealt
                 models_discovered: count,
             };
         }
-    }
     NodeHealthStatus {
         node_id: node_id.to_string(),
         endpoint: trimmed.to_string(),

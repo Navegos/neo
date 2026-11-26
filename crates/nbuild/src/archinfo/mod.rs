@@ -5,7 +5,16 @@
 // created: 2026-10-14
 // lastModified: 2026-10-14
 
-#![allow(non_camel_case_types, non_snake_case, dead_code, unused_imports)]
+#![allow(
+    non_camel_case_types,
+    non_snake_case,
+    dead_code,
+    unused_imports,
+    clippy::field_reassign_with_default,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::not_unsafe_ptr_arg_deref
+)]
 
 pub mod arch;
 pub mod json_output;

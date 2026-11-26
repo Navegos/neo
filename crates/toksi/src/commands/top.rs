@@ -77,7 +77,7 @@ fn render_frame() {
                 buf.push_str(&format!("  {}\n", row.trim()));
             }
         }
-        buf.push_str("\n");
+        buf.push('\n');
     } else {
         buf.push_str("  Headroom statistics unavailable.\n\n");
     }
@@ -87,7 +87,7 @@ fn render_frame() {
         for row in pm_rows {
             buf.push_str(&format!("  {}\n", row.trim()));
         }
-        buf.push_str("\n");
+        buf.push('\n');
     }
 
     // Detected Agents
@@ -111,7 +111,7 @@ fn render_frame() {
         }
     }
 
-    buf.push_str("\n");
+    buf.push('\n');
     buf.push_str(&format!(
         "{}\n",
         C.dim("Keys: [q] Quit   [r] Refresh   [u] Proxy Up   [d] Proxy Down")

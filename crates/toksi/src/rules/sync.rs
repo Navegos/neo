@@ -494,22 +494,20 @@ fn parse_agents_from_toml(path: &Path, out: &mut BTreeSet<&'static str>) {
     for key in ["agents", "selected_agents", "configured_agents"] {
         if let Some(arr) = val.get(key).and_then(|v| v.as_array()) {
             for item in arr {
-                if let Some(s) = item.as_str() {
-                    if let Some(id) = normalize_harness_id(s) {
+                if let Some(s) = item.as_str()
+                    && let Some(id) = normalize_harness_id(s) {
                         out.insert(id);
                     }
-                }
             }
         }
     }
     if let Some(tbl) = val.get("agents").and_then(|v| v.as_table()) {
         for (k, v) in tbl {
             let enabled = v.as_bool().unwrap_or(true);
-            if enabled {
-                if let Some(id) = normalize_harness_id(k) {
+            if enabled
+                && let Some(id) = normalize_harness_id(k) {
                     out.insert(id);
                 }
-            }
         }
     }
 }
@@ -558,11 +556,10 @@ fn resolve_target_harnesses(
         for raw in explicit {
             let canonical = normalize_harness_id(raw)
                 .ok_or_else(|| RulesError::InvalidAgent(raw.clone()))?;
-            if seen.insert(canonical) {
-                if let Some(spec) = find_harness(canonical) {
+            if seen.insert(canonical)
+                && let Some(spec) = find_harness(canonical) {
                     specs.push(spec);
                 }
-            }
         }
         return Ok(specs);
     }
@@ -588,12 +585,11 @@ fn ensure_json_file_merged(
     file_path: &Path,
     defaults: &Value,
 ) {
-    if let Some(parent) = file_path.parent() {
-        if let Err(e) = fs::create_dir_all(parent) {
+    if let Some(parent) = file_path.parent()
+        && let Err(e) = fs::create_dir_all(parent) {
             report.record_error(format!("{}: {}", normalize_path(&parent.to_string_lossy()), e));
             return;
         }
-    }
 
     let mut current = if file_path.exists() {
         match fs::read_to_string(file_path) {
@@ -648,12 +644,11 @@ fn merge_json_missing(dst: &mut Value, defaults: &Value) {
 }
 
 fn ensure_file_if_missing(report: &mut SyncReport, file_path: &Path, content: &str) {
-    if let Some(parent) = file_path.parent() {
-        if let Err(e) = fs::create_dir_all(parent) {
+    if let Some(parent) = file_path.parent()
+        && let Err(e) = fs::create_dir_all(parent) {
             report.record_error(format!("{}: {}", normalize_path(&parent.to_string_lossy()), e));
             return;
         }
-    }
     if file_path.exists() {
         report.record_up_to_date(file_path);
         return;
@@ -869,8 +864,8 @@ fn sync_harness(
     }
 
     // Existing markdown convention files directly inside base agent dir
-    if (comp.rules || comp.instructions) && agent_dir.exists() {
-        if let Ok(entries) = fs::read_dir(&agent_dir) {
+    if (comp.rules || comp.instructions) && agent_dir.exists()
+        && let Ok(entries) = fs::read_dir(&agent_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_file() {
@@ -881,7 +876,6 @@ fn sync_harness(
                 }
             }
         }
-    }
 
     // Skills component
     if comp.skills {
@@ -914,8 +908,8 @@ fn sync_harness_rules_and_instructions(
     report: &mut SyncReport,
 ) {
     // Workspace root markdown files when workspace scope
-    if scope == SyncScope::Workspace {
-        if let Some(root_file) = spec.root_instruction_file {
+    if scope == SyncScope::Workspace
+        && let Some(root_file) = spec.root_instruction_file {
             let target = base_dir.join(root_file);
             let res = match spec.id {
                 "claude" => patch_claude_md(base_dir, rules),
@@ -932,7 +926,6 @@ fn sync_harness_rules_and_instructions(
                 Err(e) => report.record_error(format!("{}: {}", root_file, e)),
             }
         }
-    }
 
     match spec.id {
         "claude" => {
@@ -1122,8 +1115,8 @@ fn sync_harness_skills(
         Err(e) => report.record_error(format!("{}/skills: {}", spec.primary_dir, e)),
     }
 
-    if let Some(sec) = spec.secondary_dir {
-        if spec.id == "copilot" {
+    if let Some(sec) = spec.secondary_dir
+        && spec.id == "copilot" {
             match install_vetted_skills_into_agent_dir(&base_dir.join(sec), rules) {
                 Ok(paths) => {
                     for p in paths {
@@ -1133,7 +1126,6 @@ fn sync_harness_skills(
                 Err(e) => report.record_error(format!("{}/skills: {}", sec, e)),
             }
         }
-    }
 }
 
 fn sync_harness_configs(
@@ -1253,8 +1245,8 @@ pub fn sync_workspace_rules_with_options(
     }
 
     // 3. Scan existing matching convention files at root when rules/instructions enabled.
-    if (opts.components.rules || opts.components.instructions) && root.exists() {
-        if let Ok(entries) = fs::read_dir(&root) {
+    if (opts.components.rules || opts.components.instructions) && root.exists()
+        && let Ok(entries) = fs::read_dir(&root) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_file() {
@@ -1265,7 +1257,6 @@ pub fn sync_workspace_rules_with_options(
                 }
             }
         }
-    }
 
     // 4. Sync each configured/selected harness according to component gates.
     let mut wired_dirs: Vec<&'static str> = Vec::new();

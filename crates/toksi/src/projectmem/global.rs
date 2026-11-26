@@ -176,11 +176,10 @@ pub fn promotable_cache_path() -> PathBuf {
 }
 
 pub fn registry_path() -> PathBuf {
-    if let Ok(home) = env::var("PROJECTMEM_HOME") {
-        if !home.trim().is_empty() {
+    if let Ok(home) = env::var("PROJECTMEM_HOME")
+        && !home.trim().is_empty() {
             return PathBuf::from(home.trim()).join(PROJECTS_FILE);
         }
-    }
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
     let toksi_reg = home.join(".toksi").join(PROJECTS_FILE);
     let legacy_reg = home.join(".projectmem").join(PROJECTS_FILE);
@@ -485,14 +484,12 @@ pub fn prune_entries(older_than_days: i64, confidence: Option<&str>) -> usize {
     let filtered_p: Vec<GlobalPattern> = patterns
         .into_iter()
         .filter(|p| {
-            if let Ok(ts) = DateTime::parse_from_rfc3339(&p.created) {
-                if ts.with_timezone(&Utc) < cutoff {
-                    if confidence.is_none() || confidence == Some(p.confidence.as_str()) {
+            if let Ok(ts) = DateTime::parse_from_rfc3339(&p.created)
+                && ts.with_timezone(&Utc) < cutoff
+                    && (confidence.is_none() || confidence == Some(p.confidence.as_str())) {
                         removed += 1;
                         return false;
                     }
-                }
-            }
             true
         })
         .collect();
@@ -505,12 +502,11 @@ pub fn prune_entries(older_than_days: i64, confidence: Option<&str>) -> usize {
     let filtered_g: Vec<GlobalGotcha> = gotchas
         .into_iter()
         .filter(|g| {
-            if let Ok(ts) = DateTime::parse_from_rfc3339(&g.discovered) {
-                if ts.with_timezone(&Utc) < cutoff {
+            if let Ok(ts) = DateTime::parse_from_rfc3339(&g.discovered)
+                && ts.with_timezone(&Utc) < cutoff {
                     removed += 1;
                     return false;
                 }
-            }
             true
         })
         .collect();
@@ -524,19 +520,16 @@ pub fn prune_entries(older_than_days: i64, confidence: Option<&str>) -> usize {
 pub fn load_promotable_set() -> HashSet<String> {
     let mut set: HashSet<String> = PROMOTABLE_SEED.iter().map(|s| s.to_string()).collect();
     let cache_path = promotable_cache_path();
-    if cache_path.exists() {
-        if let Ok(content) = fs::read_to_string(&cache_path) {
-            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
-                if let Some(arr) = val.get("libraries").and_then(|v| v.as_array()) {
+    if cache_path.exists()
+        && let Ok(content) = fs::read_to_string(&cache_path)
+            && let Ok(val) = serde_json::from_str::<serde_json::Value>(&content)
+                && let Some(arr) = val.get("libraries").and_then(|v| v.as_array()) {
                     for item in arr {
                         if let Some(s) = item.as_str() {
                             set.insert(s.to_lowercase());
                         }
                     }
                 }
-            }
-        }
-    }
     set
 }
 
@@ -591,14 +584,13 @@ pub fn detect_stack(root: &Path) -> DetectedStack {
                     in_deps = false;
                     continue;
                 }
-                if in_deps && trimmed.contains('=') {
-                    if let Some(name) = trimmed.split('=').next() {
+                if in_deps && trimmed.contains('=')
+                    && let Some(name) = trimmed.split('=').next() {
                         let dep = name.trim().to_lowercase();
                         if !dep.is_empty() {
                             libraries.insert(dep);
                         }
                     }
-                }
             }
         }
     }
@@ -608,8 +600,8 @@ pub fn detect_stack(root: &Path) -> DetectedStack {
     if pkg.is_file() {
         tags.insert("javascript".to_string());
         manifest_files.push("package.json".to_string());
-        if let Ok(content) = fs::read_to_string(&pkg) {
-            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
+        if let Ok(content) = fs::read_to_string(&pkg)
+            && let Ok(val) = serde_json::from_str::<serde_json::Value>(&content) {
                 for key in ["dependencies", "devDependencies"] {
                     if let Some(obj) = val.get(key).and_then(|v| v.as_object()) {
                         for dep in obj.keys() {
@@ -632,7 +624,6 @@ pub fn detect_stack(root: &Path) -> DetectedStack {
                     }
                 }
             }
-        }
     }
 
     // tsconfig.json
@@ -690,7 +681,7 @@ pub fn detect_stack(root: &Path) -> DetectedStack {
                 if trimmed.starts_with("require ") {
                     let parts: Vec<&str> = trimmed.split_whitespace().collect();
                     if parts.len() >= 2 {
-                        let lib = parts[1].split('/').last().unwrap_or("").to_lowercase();
+                        let lib = parts[1].split('/').next_back().unwrap_or("").to_lowercase();
                         if !lib.is_empty() {
                             libraries.insert(lib);
                         }
@@ -797,11 +788,10 @@ pub fn auto_promote_event(
     let mut matched_libs = Vec::new();
     for lib in &promotable {
         let pattern = format!(r"\b{}\b", regex::escape(lib));
-        if let Ok(re) = Regex::new(&pattern) {
-            if re.is_match(&summary_lower) {
+        if let Ok(re) = Regex::new(&pattern)
+            && re.is_match(&summary_lower) {
                 matched_libs.push(lib.clone());
             }
-        }
     }
 
     if matched_libs.is_empty() {
@@ -950,12 +940,11 @@ pub fn import_all(data: &GlobalExport, merge: bool) -> (usize, usize) {
     for p in &data.patterns {
         if !existing_p_ids.contains(&p.id) {
             let path = patterns_path();
-            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path) {
-                if let Ok(line) = serde_json::to_string(p) {
+            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path)
+                && let Ok(line) = serde_json::to_string(p) {
                     let _ = writeln!(f, "{}", line);
                     new_p += 1;
                 }
-            }
         }
     }
 
@@ -963,12 +952,11 @@ pub fn import_all(data: &GlobalExport, merge: bool) -> (usize, usize) {
     for g in &data.gotchas {
         if !existing_g_ids.contains(&g.id) {
             let path = gotchas_path();
-            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path) {
-                if let Ok(line) = serde_json::to_string(g) {
+            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path)
+                && let Ok(line) = serde_json::to_string(g) {
                     let _ = writeln!(f, "{}", line);
                     new_g += 1;
                 }
-            }
         }
     }
 

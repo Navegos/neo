@@ -256,17 +256,11 @@ impl SwarmHITLGate {
 }
 
 /// Wave-by-wave parallel scheduler for `SubtaskDAG`.
+#[derive(Default)]
 pub struct ParallelScheduler {
     pub hitl_gate: SwarmHITLGate,
 }
 
-impl Default for ParallelScheduler {
-    fn default() -> Self {
-        Self {
-            hitl_gate: SwarmHITLGate::default(),
-        }
-    }
-}
 
 impl ParallelScheduler {
     pub async fn run_dag<F>(

@@ -42,9 +42,10 @@ pub fn lookup_pricing(model: &str) -> ModelPricing {
         ModelPricing::new(8.00, 40.00, 0.20)
     } else if lower.contains("claude-mythos-5-1") || lower.contains("claude-mythos-5.1") {
         ModelPricing::new(10.00, 50.00, 0.25)
-    } else if lower.contains("claude-mythos-5") || lower.contains("claude-fable-5") {
-        ModelPricing::new(10.00, 50.00, 1.00)
-    } else if lower.contains("claude-opus-5-fast") {
+    } else if lower.contains("claude-mythos-5")
+        || lower.contains("claude-fable-5")
+        || lower.contains("claude-opus-5-fast")
+    {
         ModelPricing::new(10.00, 50.00, 1.00)
     } else if lower.contains("claude-opus-5") || lower.contains("claude-opus-4-6") {
         ModelPricing::new(5.00, 25.00, 0.50)

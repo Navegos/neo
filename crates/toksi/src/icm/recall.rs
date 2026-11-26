@@ -70,23 +70,20 @@ pub fn recall_memories(store: &mut IcmStore, opts: &RecallOptions) -> IcmResult<
     let mut current_tokens = 0;
 
     for hit in hits {
-        if let Some(ref t) = opts.topic {
-            if !hit.memory.topic.eq_ignore_ascii_case(t) {
+        if let Some(ref t) = opts.topic
+            && !hit.memory.topic.eq_ignore_ascii_case(t) {
                 continue;
             }
-        }
-        if let Some(min_w) = opts.min_weight {
-            if hit.memory.weight < min_w {
+        if let Some(min_w) = opts.min_weight
+            && hit.memory.weight < min_w {
                 continue;
             }
-        }
 
         let tokens = estimate_tokens(&hit.memory.summary);
-        if let Some(budget) = opts.max_tokens {
-            if current_tokens + tokens > budget && !filtered.is_empty() {
+        if let Some(budget) = opts.max_tokens
+            && current_tokens + tokens > budget && !filtered.is_empty() {
                 break;
             }
-        }
 
         current_tokens += tokens;
         let mem_id = hit.memory.id.clone();
@@ -113,7 +110,7 @@ pub fn recall_memories(store: &mut IcmStore, opts: &RecallOptions) -> IcmResult<
 
 pub fn estimate_tokens(text: &str) -> usize {
     // Zero-LLM deterministic token estimator (~4 chars per token)
-    (text.len() + 3) / 4
+    text.len().div_ceil(4)
 }
 
 /// Headroom budgeting hook: recalls top memories and active facts as TieredEntry items

@@ -177,15 +177,14 @@ pub fn extract_query_anchors(query: &str) -> Vec<String> {
         if tok.is_empty() {
             continue;
         }
-        if let Some(num) = tok.strip_prefix('#') {
-            if !num.is_empty() && num.chars().all(|c| c.is_ascii_digit()) {
+        if let Some(num) = tok.strip_prefix('#')
+            && !num.is_empty() && num.chars().all(|c| c.is_ascii_digit()) {
                 let num_str = num.to_string();
                 if !anchors.contains(&num_str) {
                     anchors.push(num_str);
                 }
                 continue;
             }
-        }
         let low = tok.to_ascii_lowercase();
         let all_digits = low.len() >= 2 && low.chars().all(|c| c.is_ascii_digit());
         let has_email_or_host = low.contains('@') || (low.contains('.') && low.len() >= 5);
@@ -216,16 +215,14 @@ pub fn item_matches_anchors(item: &Value, anchors: &[String]) -> bool {
 
 fn is_anomaly_item(item: &Value) -> bool {
     if let Some(obj) = item.as_object() {
-        if let Some(status) = obj.get("status").and_then(|v| v.as_u64()) {
-            if status >= 400 {
+        if let Some(status) = obj.get("status").and_then(|v| v.as_u64())
+            && status >= 400 {
                 return true;
             }
-        }
-        if let Some(code) = obj.get("exit_code").or_else(|| obj.get("code")).and_then(|v| v.as_i64()) {
-            if code != 0 {
+        if let Some(code) = obj.get("exit_code").or_else(|| obj.get("code")).and_then(|v| v.as_i64())
+            && code != 0 {
                 return true;
             }
-        }
     }
     let text = item.to_string().to_ascii_lowercase();
     text.contains("error")

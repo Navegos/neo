@@ -280,7 +280,7 @@ impl Riscv64CPUFeatures {
     /// Constructs features from a '+' delimited extension string
     pub fn from_extensions_str(ext_str: &str) -> Self {
         let mut f = Self::default();
-        for token in ext_str.split(|c| c == '+' || c == ',' || c == ' ').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        for token in ext_str.split(['+', ',', ' ']).map(|s| s.trim()).filter(|s| !s.is_empty()) {
             if let Ok(isa) = token.parse::<Riscv64ISA>() {
                 f.set_feature(isa, true);
             }

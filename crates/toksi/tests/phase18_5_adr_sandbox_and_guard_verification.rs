@@ -49,9 +49,9 @@ fn test_phase18_5_cross_agent_unification_and_opencode_hooks() {
         "/custom-tool",
     ]);
     assert_eq!(rejected.len(), 3);
-    assert!(canonical.contains(&"/custom-tool".to_string()));
+    assert!(canonical.iter().any(|i: &String| i == "/custom-tool"));
     for c in CORE_SLASH_COMMANDS {
-        assert!(canonical.contains(&c.to_string()));
+        assert!(canonical.iter().any(|i: &String| i == c));
     }
 
     let report = build_unified_source_report(&["/opencode_model"]);
@@ -88,12 +88,14 @@ fn test_phase18_5_multi_backend_sandbox_and_sbx_parity() {
     assert_eq!(SandboxBackend::from_str_loose("sbx"), SandboxBackend::Sbx);
 
     let ws = Path::new("d:/AI/neo");
-    let mut pol = PermissionPolicy::default();
-    pol.skills_mode = SkillsMountMode::ReadOnly;
+    let pol = PermissionPolicy {
+        skills_mode: SkillsMountMode::ReadOnly,
+        ..Default::default()
+    };
     let sbpl = build_macos_sbpl_profile(ws, &pol);
     assert!(sbpl.contains("(deny default)"));
     let bwrap = build_linux_bwrap_args(ws, &pol, "echo", &["ok".to_string()]);
-    assert!(bwrap.contains(&"--unshare-net".to_string()));
+    assert!(bwrap.iter().any(|i| i == "--unshare-net"));
 
     let proxy = DomainFilterProxy::default();
     assert!(proxy.is_host_allowed("api.openai.com"));

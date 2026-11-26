@@ -1,6 +1,6 @@
-# Phase 19.6 — Model Training, Quantization, Pure-Rust/Multimodal Serving Plane & 43-File 8-State Sync (47 Vaults)
+# Phase 19.6 â€” Model Training, Quantization, Pure-Rust/Multimodal Serving Plane & 43-File 8-State Sync (47 Vaults)
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -22,11 +22,11 @@ Sources (all verified `[DEEP-RESEARCH-DONE]` in RESEARCHPLAN.md Sections 2.10 & 
   - Pure-Rust & Local Serving (6): `oxillama` (`0.1.4`, 11 crates), `xinfer` (`0.14.7`), `Crane` (`26.9.0`, `crane-core`/`crane-serve`), `paddler` (`5.0.0`, 35 crates), `llama-swap` (Go 1.27.3), `llguidance` (`10` crates `parser::earley`/`toktrie`)
   - Weights, Compute & Multimodal (6 + `livekit*`): `safetensors` (`0.9.0-dev.0`), `ggml`, `whisper.cpp`, `whisper`, `stable-diffusion.cpp`, `cudarc` (`0.19.10`), `livekit`, `livekit-agents`, `livekit-cli`, `moly-ai`
   - Triton & DeepSpeed (4): `server`, `core` (`tritonserver` KServe v2), `DeepSpeed-MII`, `DeepSpeed-Kernels`
-  - Training & Fine-Tuning (13): `unsloth`, `unsloth-studio`, `Automodel` (`nemo-automodel` DTensor SPMD), `nanotron`, `Emerging-Optimizers` (`Shampoo`/`SOAP`/`Muon`), `torchtune` (archived 2025 — recipe ref ONLY), `torchdata`, `torchvision`, `torchcodec`, `torchinfer` (`aot_tensor`), `torchrec`, `torchaudio`, `torchignite`
+  - Training & Fine-Tuning (13): `unsloth`, `unsloth-studio`, `Automodel` (`nemo-automodel` DTensor SPMD), `nanotron`, `Emerging-Optimizers` (`Shampoo`/`SOAP`/`Muon`), `torchtune` (archived 2025 â€” recipe ref ONLY), `torchdata`, `torchvision`, `torchcodec`, `torchinfer` (`aot_tensor`), `torchrec`, `torchaudio`, `torchignite`
   - ONNX, Compression, GPU Vector/Vision & Sim (12 + `xla`): `onnx`, `optimizer` (`onnxoptimizer`), `ir-py` (`onnx-ir`), `onnxmltools`, `onnx-tensorrt`, `Olive`, `intel-neural-compressor`, `digestai`, `sentence-transformers`, `cuvs`, `CV-CUDA`, `warp` (`warp-lang`), `xla` (OpenXLA)
   - Evals & MLOps (5): `lighteval`, `langwatch`, `wandb` (`parquet-rust-wrapper`), `clearml`, `clearml-agent`
 Targets:
-  - crates/toksi/src/training/{mod.rs,recipes.rs,runner.rs,quant.rs} (NEW — zero binary bloat, `PATH`-verified subprocess orchestration)
+  - crates/toksi/src/training/{mod.rs,recipes.rs,runner.rs,quant.rs} (NEW â€” zero binary bloat, `PATH`-verified subprocess orchestration)
   - crates/toksi/src/gateway/providers/local/{oxillama.rs,xinfer.rs,crane.rs,paddler.rs,llama_swap.rs,whisper_cpp.rs,sd_cpp.rs,triton_server.rs,deepspeed_mii.rs}
   - crates/toksi/src/agent_runtime/{tools_schema.rs,slash.rs} (wire `/train`, `/serve`, `/voice` completing all **21** slash commands!)
   - crates/toksi/src/security/binary_audit.rs (`safetensors` pickle-free header verification)
@@ -44,7 +44,7 @@ Requirements:
 2. Unified Training, Quantization & Eval Plane (`toksi train`, `toksi eval`, `/train`):
    - Generate reproducible recipes & launch isolated `PATH`-checked external jobs (never bundling Python/CUDA inside `toksi`) across `unsloth`, `Automodel`, `nanotron`, `Emerging-Optimizers`, `Olive`, `intel-neural-compressor`, `onnx`/`onnx-tensorrt`, `clearml-agent`, and historical `torchtune` recipe templates (marked archived).
    - Integrate `lighteval`, `langwatch`, `wandb` (`parquet-rust-wrapper`), and `digestai` footprint/quant-sensitivity reports into `telemetry/evals.rs`.
-3. Complete **21** Unified Slash Commands (`CORE_SLASH_COMMANDS` updated to 21 in `src/agent_runtime/slash.rs` — migrating `/context` -> `/ctxmode` and adding `/workforce`, `/spec`, `/train`, `/serve`, `/voice` with `< 5ms` dispatch).
+3. Complete **21** Unified Slash Commands (`CORE_SLASH_COMMANDS` updated to 21 in `src/agent_runtime/slash.rs` â€” migrating `/context` -> `/ctxmode` and adding `/workforce`, `/spec`, `/train`, `/serve`, `/voice` with `< 5ms` dispatch).
 4. Synchronize ALL 6 canonical plan destinations (`RESEARCHPLAN.md`, `CONSOLIDATION_PLAN.md`, `PLAN.md`, `README.md`, `.toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md}`, plus all 43 `.agents/brain/*.md` guides) with truthful **8-State Progress Taxonomy** tags (`[PLAN-IMPLEMENTED]`/`[PLAN-FIXED]`).
 5. Update `.toksi/test-baseline.json`; verify with `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test -p toksi --test phase19_6_training_serving_multimodal_verification`, and full `.agents/brain/` 43-file hygiene checks.
 ```
@@ -54,10 +54,10 @@ Requirements:
 ## Technical Specifications & Details
 
 ### 1. Verified Crate & Upstream Constraints
-- **`oxillama@0.1.4`:** 11 workspace crates (`oxillama-gguf`, `oxillama-quant`, `oxillama-arch`, `oxillama-runtime`, `oxillama-server`, `oxillama-bench`, `oxillama-py`, `oxillama-wasm`) — zero C/C++/Fortran dependencies.
+- **`oxillama@0.1.4`:** 11 workspace crates (`oxillama-gguf`, `oxillama-quant`, `oxillama-arch`, `oxillama-runtime`, `oxillama-server`, `oxillama-bench`, `oxillama-py`, `oxillama-wasm`) â€” zero C/C++/Fortran dependencies.
 - **`Crane@26.9.0`:** `crane-core` (`generation`, `models`, `quantized`, `onnx`, `autotokenizer`) + `crane-serve` (`openai_api`, `sglang_api`, `reasoning`, `tools`).
 - **`paddler@5.0.0`:** 35 crates including `paddler_balancer` (`agent_controller_pool`, `agent_controller_slot_guard`).
-- **`torchtune`:** Archived upstream in 2025 — treat strictly as historical YAML recipe reference, never as a live runtime dependency.
+- **`torchtune`:** Archived upstream in 2025 â€” treat strictly as historical YAML recipe reference, never as a live runtime dependency.
 
 ## Verification Criteria
 - `cargo check --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, and `phase19_6_training_serving_multimodal_verification` pass 100%.

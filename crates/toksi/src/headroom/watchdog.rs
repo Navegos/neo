@@ -204,19 +204,16 @@ pub fn cleanup_supervised_process(
                 first_err = Some(e.into());
             }
         }
-        if let Err(e) = c.wait() {
-            if first_err.is_none() {
+        if let Err(e) = c.wait()
+            && first_err.is_none() {
                 first_err = Some(e.into());
             }
-        }
     }
-    if !pid_file.is_empty() {
-        if let Err(e) = remove_supervised_records(pid_file) {
-            if first_err.is_none() {
+    if !pid_file.is_empty()
+        && let Err(e) = remove_supervised_records(pid_file)
+            && first_err.is_none() {
                 first_err = Some(e);
             }
-        }
-    }
     if let Some(err) = first_err {
         return Err(err);
     }
@@ -247,20 +244,16 @@ pub fn remove_supervised_records(
     let supervised_path = proxy_supervised_file();
     let supervised_exists = read_file_safe(&supervised_path).is_some();
     let mut first_err: Option<Box<dyn std::error::Error + Send + Sync>> = None;
-    if pid_exists {
-        if let Err(e) = std::fs::remove_file(pid_file) {
-            if e.kind() != std::io::ErrorKind::NotFound {
+    if pid_exists
+        && let Err(e) = std::fs::remove_file(pid_file)
+            && e.kind() != std::io::ErrorKind::NotFound {
                 first_err = Some(e.into());
             }
-        }
-    }
-    if supervised_exists {
-        if let Err(e) = std::fs::remove_file(&supervised_path) {
-            if e.kind() != std::io::ErrorKind::NotFound && first_err.is_none() {
+    if supervised_exists
+        && let Err(e) = std::fs::remove_file(&supervised_path)
+            && e.kind() != std::io::ErrorKind::NotFound && first_err.is_none() {
                 first_err = Some(e.into());
             }
-        }
-    }
     if let Some(err) = first_err {
         return Err(err);
     }

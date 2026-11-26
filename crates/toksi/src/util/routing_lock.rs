@@ -32,14 +32,12 @@ pub fn acquire_routing_file_lock(path: impl AsRef<Path>) -> Result<FileLockGuard
     let pid_path = path.with_extension("pid");
 
     // Fast-path: check if existing lock owner PID is dead and clean up stale lock
-    if let Ok(content) = std::fs::read_to_string(&pid_path) {
-        if let Ok(pid) = content.trim().parse::<u32>() {
-            if pid > 0 && pid != std::process::id() && !crate::agents::proxy_provider::proxy_process_alive(pid) {
+    if let Ok(content) = std::fs::read_to_string(&pid_path)
+        && let Ok(pid) = content.trim().parse::<u32>()
+            && pid > 0 && pid != std::process::id() && !crate::agents::proxy_provider::proxy_process_alive(pid) {
                 let _ = std::fs::remove_file(&pid_path);
                 let _ = std::fs::remove_file(path);
             }
-        }
-    }
 
     let file = std::fs::OpenOptions::new()
         .read(true)

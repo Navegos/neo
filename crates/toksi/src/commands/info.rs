@@ -21,7 +21,7 @@ pub fn run_info() -> i32 {
 
     let (rec, exact) = install_info();
     tree_top("Toksi");
-    tree_leaf(&format!("{}{}", paint_key(&pad_end("version", 10)), C.bold(&paint_ver(&toksi_version()))));
+    tree_leaf(&format!("{}{}", paint_key(&pad_end("version", 10)), C.bold(&paint_ver(toksi_version()))));
     tree_leaf(&format!("{}{}", paint_key(&pad_end("binary", 10)), paint_path(&tilde_path(&toksi_abs()))));
     tree_leaf(&format!("{}{}", paint_key(&pad_end("install", 10)), format_install_method(&rec, exact)));
     tree_leaf(&format!("{}{}", paint_key(&pad_end("platform", 10)), C.blue(&format!("{}/{}", env::consts::OS, env::consts::ARCH))));

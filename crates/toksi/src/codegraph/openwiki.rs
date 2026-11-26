@@ -40,7 +40,7 @@ pub fn synthesize_openwiki_markdown(
     out.push_str("```mermaid\nflowchart TD\n");
 
     let mut rendered = 0usize;
-    for (_file, pairs) in &by_file {
+    for pairs in by_file.values() {
         for (caller, callee) in pairs {
             if rendered >= 80 {
                 break;

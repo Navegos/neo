@@ -320,8 +320,8 @@ pub fn migrate_legacy_mem_dir(legacy: &Path, target: &Path) -> Result<()> {
 
     let src_issues = legacy.join(ISSUES_DIR);
     let dst_issues = target.join(ISSUES_DIR);
-    if src_issues.is_dir() {
-        if let Ok(entries) = fs::read_dir(src_issues) {
+    if src_issues.is_dir()
+        && let Ok(entries) = fs::read_dir(src_issues) {
             for entry in entries.flatten() {
                 let p = entry.path();
                 if p.is_file() {
@@ -332,7 +332,6 @@ pub fn migrate_legacy_mem_dir(legacy: &Path, target: &Path) -> Result<()> {
                 }
             }
         }
-    }
 
     Ok(())
 }
@@ -365,15 +364,14 @@ pub fn sync_to_legacy_mem_dir(source: &Path, legacy: &Path) -> Result<()> {
 pub fn extract_instructions_version(content: &str) -> u32 {
     for line in content.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with("<!--") && trimmed.contains("projectmem-instructions:") {
-            if let Some(pos) = trimmed.find("projectmem-instructions:") {
+        if trimmed.starts_with("<!--") && trimmed.contains("projectmem-instructions:")
+            && let Some(pos) = trimmed.find("projectmem-instructions:") {
                 let rest = &trimmed[pos + "projectmem-instructions:".len()..];
                 let num_str: String = rest.chars().filter(|c| c.is_ascii_digit()).collect();
                 if let Ok(v) = num_str.parse::<u32>() {
                     return v;
                 }
             }
-        }
     }
     0
 }
@@ -571,7 +569,7 @@ pub fn ensure_gitignore_entry(root: &Path) {
         Err(_) => return,
     };
 
-    let _ = write!(file, "{}{}\n", prefix, to_add.join("\n"));
+    let _ = writeln!(file, "{}{}", prefix, to_add.join("\n"));
 }
 
 pub fn read_events(root: Option<&Path>) -> Result<Vec<Event>> {
@@ -631,7 +629,7 @@ pub fn append_event(event: &mut Event, root: Option<&Path>) -> Result<()> {
     let file = OpenOptions::new()
         .create(true)
         .read(true)
-        .write(true)
+        
         .append(true)
         .open(&p)?;
 
@@ -644,19 +642,16 @@ pub fn append_event(event: &mut Event, root: Option<&Path>) -> Result<()> {
     // If root .projectmem also exists, mirror event for backwards compatibility
     let repo_root = find_repo_root(root);
     let legacy_events = repo_root.join(LEGACY_MEM_DIR).join(EVENTS_FILE);
-    if legacy_events.exists() && legacy_events != p {
-        if let Ok(file_leg) = OpenOptions::new()
+    if legacy_events.exists() && legacy_events != p
+        && let Ok(file_leg) = OpenOptions::new()
             .read(true)
-            .write(true)
+            
             .append(true)
             .open(&legacy_events)
-        {
-            if let Ok(mut lock_leg) = FileLock::acquire_exclusive(file_leg) {
+            && let Ok(mut lock_leg) = FileLock::acquire_exclusive(file_leg) {
                 let _ = writeln!(lock_leg.file_mut(), "{}", json);
                 let _ = lock_leg.file_mut().flush();
             }
-        }
-    }
 
     // Auto-promote library mentions
     if (event.event_type == "attempt" || event.event_type == "decision" || event.event_type == "note")
@@ -695,16 +690,14 @@ pub fn atomic_write_file(path: &Path, content: &str) -> Result<()> {
 pub fn next_issue_id(events: &[Event]) -> String {
     let mut max_id: u32 = 0;
     for e in events {
-        if e.event_type == "issue" {
-            if let Some(ref iid) = e.issue_id {
+        if e.event_type == "issue"
+            && let Some(ref iid) = e.issue_id {
                 let digits: String = iid.chars().filter(|c| c.is_ascii_digit()).collect();
-                if let Ok(num) = digits.parse::<u32>() {
-                    if num > max_id {
+                if let Ok(num) = digits.parse::<u32>()
+                    && num > max_id {
                         max_id = num;
                     }
-                }
             }
-        }
     }
     format!("{:04}", max_id + 1)
 }
@@ -717,13 +710,11 @@ pub fn current_issue_id(events: &[Event]) -> Option<String> {
         .collect();
 
     for e in events.iter().rev() {
-        if e.event_type == "issue" {
-            if let Some(ref iid) = e.issue_id {
-                if !closed.contains(iid) {
+        if e.event_type == "issue"
+            && let Some(ref iid) = e.issue_id
+                && !closed.contains(iid) {
                     return Some(iid.clone());
                 }
-            }
-        }
     }
     None
 }
@@ -802,18 +793,15 @@ pub fn latest_open_issue_within(events: &[Event], minutes: i64) -> Option<String
     let cutoff = chrono::Utc::now() - chrono::Duration::minutes(minutes);
 
     for e in events.iter().rev() {
-        if e.event_type == "issue" {
-            if let Some(ref iid) = e.issue_id {
-                if !closed.contains(iid) {
-                    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&e.timestamp) {
-                        if dt.with_timezone(&chrono::Utc) >= cutoff {
+        if e.event_type == "issue"
+            && let Some(ref iid) = e.issue_id
+                && !closed.contains(iid) {
+                    if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(&e.timestamp)
+                        && dt.with_timezone(&chrono::Utc) >= cutoff {
                             return Some(iid.clone());
                         }
-                    }
                     return None;
                 }
-            }
-        }
     }
     None
 }
@@ -823,15 +811,14 @@ pub fn derive_subproject_id(
     target: Option<&Path>,
     location: Option<&str>,
 ) -> Option<String> {
-    if let Some(loc) = location {
-        if let Some(file) = super::schema::location_to_file(Some(loc)) {
+    if let Some(loc) = location
+        && let Some(file) = super::schema::location_to_file(Some(loc)) {
             let norm = crate::util::paths::normalize_path(&file);
             let parts: Vec<&str> = norm.split('/').filter(|p| !p.is_empty()).collect();
             if parts.len() >= 2 && (parts[0] == "crates" || parts[0] == "packages" || parts[0] == "apps") {
                 return Some(format!("{}/{}", parts[0], parts[1]));
             }
         }
-    }
     if let Some(t) = target {
         let root_canon = repo_root.canonicalize().unwrap_or_else(|_| repo_root.to_path_buf());
         let target_canon = t.canonicalize().unwrap_or_else(|_| t.to_path_buf());
@@ -911,12 +898,11 @@ pub fn consolidate_nested_mem_dirs(repo_root: &Path) -> Result<usize> {
             }
             if name == ".toksi" {
                 let sub_pm = p.join("projectmem");
-                if sub_pm.is_dir() {
-                    if let Ok(rel) = dir.strip_prefix(repo_root) {
+                if sub_pm.is_dir()
+                    && let Ok(rel) = dir.strip_prefix(repo_root) {
                         let sub_id = crate::util::paths::normalize_path(&rel.to_string_lossy());
                         nested_dirs.push((sub_pm, sub_id));
                     }
-                }
                 continue;
             }
             stack.push(p);
@@ -931,15 +917,15 @@ pub fn consolidate_nested_mem_dirs(repo_root: &Path) -> Result<usize> {
     let file = OpenOptions::new()
         .create(true)
         .read(true)
-        .write(true)
+        
         .append(true)
         .open(&root_events_path)?;
     let mut lock = FileLock::acquire_exclusive(file)?;
 
     for (nested, sub_id) in nested_dirs {
         let ev_file = nested.join(EVENTS_FILE);
-        if ev_file.is_file() {
-            if let Ok(f) = File::open(&ev_file) {
+        if ev_file.is_file()
+            && let Ok(f) = File::open(&ev_file) {
                 let reader = BufReader::new(f);
                 for line in reader.lines().map_while(|l| l.ok()) {
                     let trimmed = line.trim();
@@ -961,7 +947,6 @@ pub fn consolidate_nested_mem_dirs(repo_root: &Path) -> Result<usize> {
                     }
                 }
             }
-        }
         // Merge plan_checkpoints/, issues/, memory.db, and missing markdown/config files
         for subdir in ["plan_checkpoints", ISSUES_DIR] {
             let src_sub = nested.join(subdir);

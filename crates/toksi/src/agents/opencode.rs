@@ -146,8 +146,8 @@ pub struct OpenCodeSkip {
 
 pub fn opencode_desktop_paths() -> Vec<String> {
     if cfg!(windows) {
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            if !local.is_empty() {
+        if let Ok(local) = std::env::var("LOCALAPPDATA")
+            && !local.is_empty() {
                 return vec![Path::new(&local)
                     .join("Programs")
                     .join("OpenCode")
@@ -155,7 +155,6 @@ pub fn opencode_desktop_paths() -> Vec<String> {
                     .to_string_lossy()
                     .into_owned()];
             }
-        }
         Vec::new()
     } else if cfg!(target_os = "macos") {
         vec!["/Applications/OpenCode.app".to_string()]
@@ -203,20 +202,18 @@ pub fn opencode_known_bin_dirs() -> Vec<String> {
     ];
     for name in ["opencode", "opencode2"] {
         let p = paths::find_binary::<&str>(name, &[]);
-        if !p.is_empty() {
-            if let Some(parent) = Path::new(&p).parent() {
+        if !p.is_empty()
+            && let Some(parent) = Path::new(&p).parent() {
                 dirs.push(parent.to_string_lossy().to_string());
             }
-        }
     }
     dirs.push(Path::new(&paths::home()).join(".local").join("bin").to_string_lossy().to_string());
     if paths::IS_WIN {
         dirs.push(Path::new(&paths::home()).join("scoop").join("shims").to_string_lossy().to_string());
-        if let Ok(pd) = std::env::var("ProgramData") {
-            if !pd.is_empty() {
+        if let Ok(pd) = std::env::var("ProgramData")
+            && !pd.is_empty() {
                 dirs.push(Path::new(&pd).join("chocolatey").join("bin").to_string_lossy().to_string());
             }
-        }
     }
     dirs
 }
@@ -234,13 +231,10 @@ pub fn open_code_major_version(bin: &str) -> i32 {
         std::sync::LazyLock::new(|| regex::Regex::new(r"(?:^|\s)v?(\d+)\.").ok());
     if let Some(re) = VERSION_RE.as_ref()
         && let Some(caps) = re.captures(text.trim())
-    {
-        if let Some(m) = caps.get(1) {
-            if let Ok(major) = m.as_str().parse::<i32>() {
+        && let Some(m) = caps.get(1)
+            && let Ok(major) = m.as_str().parse::<i32>() {
                 return major;
             }
-        }
-    }
     0
 }
 
@@ -2693,7 +2687,7 @@ pub fn remove_open_code_proxy_v2() -> bool {
     if open_code_v2_shares_v1_config() {
         if let Err(err) = with_proxy_route_stash_lock(|| {
             let v1_removed = remove_open_code_proxy_locked();
-            let v2_removed = if paths::exists(&byok_stash_path_for("opencode2")) {
+            let v2_removed = if paths::exists(byok_stash_path_for("opencode2")) {
                 remove_open_code_proxy_v2_locked()
             } else {
                 false

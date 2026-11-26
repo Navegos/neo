@@ -1,6 +1,6 @@
-# Phase 19.2 — Dedicated Multi-Process Supervisor (`toksi _worker <role>`) & Direct-Wire IPC
+# Phase 19.2 â€” Dedicated Multi-Process Supervisor (`toksi _worker <role>`) & Direct-Wire IPC
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text

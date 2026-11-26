@@ -75,7 +75,7 @@ impl VcpkgManager {
         // 4. Check system PATH via which
         if let Ok(exe) = which::which(exe_name) {
             let root = if let Some(parent) = exe.parent() {
-                if parent.file_name().map_or(false, |n| n == "bin") {
+                if parent.file_name().is_some_and(|n| n == "bin") {
                     parent.parent().unwrap_or(parent).to_path_buf()
                 } else {
                     parent.to_path_buf()
@@ -192,7 +192,7 @@ impl VcpkgManager {
                         let path = entry.path();
                         if path.is_file() {
                             let file_name = entry.file_name();
-                            let is_exe = path.extension().map_or(false, |e| e == "exe") || cfg!(unix);
+                            let is_exe = path.extension().is_some_and(|e| e == "exe") || cfg!(unix);
                             if is_exe {
                                 fs::copy(&path, target_bin.join(&file_name))?;
                                 deployed_count += 1;
@@ -343,6 +343,12 @@ impl VcpkgManager {
             }
         }
         None
+    }
+}
+
+impl Default for VcpkgManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -190,6 +190,6 @@ pub fn leading_prose(body: &str) -> Option<String> {
 }
 
 pub fn estimate_tokens(text: &str) -> usize {
-    (text.len() + 3) / 4
+    text.len().div_ceil(4)
 }
 

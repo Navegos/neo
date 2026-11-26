@@ -1,6 +1,6 @@
 # Phase 06: Externalized Rules, `<skills>` Staging, `<enforce>` Guard & Skill Healing
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -37,7 +37,7 @@ Requirements:
    - `ponytail` (lazy senior developer build discipline ladder + mode variants, companion skills, and statusline telemetry)
 2. Implement `src/rules/skills_repo.rs` + `src/rules/skill_validator.rs` + `src/rules/skills_catalog.rs`:
    - Fetch/sync official vetted skills from `Navegos/skills` (`[repositories].skills_dir` / `skills_pages_url`) + optional `[repositories].user_skills_dir`.
-   - Run `skilldoctor` deterministic 0–100 / A–F grading + byte-exact body-preserving `--fix` frontmatter repair + `agentskills/skills-ref` YAML validation & unknown-key migration to `metadata:` + trigger collision deduplication + `skill-scanner`/`defenseclaw` `<enforce>` vetting before installation.
+   - Run `skilldoctor` deterministic 0â€“100 / Aâ€“F grading + byte-exact body-preserving `--fix` frontmatter repair + `agentskills/skills-ref` YAML validation & unknown-key migration to `metadata:` + trigger collision deduplication + `skill-scanner`/`defenseclaw` `<enforce>` vetting before installation.
 3. Implement universal synchronizer in `crates/toksi/src/rules/sync.rs` strictly for **user-configured/selected** agents across `18+` built-in harnesses and open conventions (`agents-structures/` parity) with **granular component toggles** (`hooks`, `mcp`, `skills`, `rules`, `instructions`, `configs`):
    - `.agents/` (OpenAgents: `agents.md`, `system-prompt.md`, `skills/`, `.agents/mcp`)
    - `.gemini/` (Antigravity: `GEMINI.md`, `settings.json`, `commands/*.toml`, `rules/`, `skills/`)
@@ -72,13 +72,13 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Enforce `<enforce>...</enforce>` wrapping on all staged rule blocks, script hooks, externalized `<skills>` assets (`huggingface-skills`, `openai-skills`, `langchain-skills`, `mofa-skills`, `NeMo-Skills`, `NVIDIA-skills`, `agent-skills`, `openagent-skills`, `openclaw-agent-skills` — zero binary bloat inside `crates/toksi/`), and **Toksi Unified Plugin System (`src/plugins/`)** mounts across all **495 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/` (`PHASE_18_2`).
+- Enforce `<enforce>...</enforce>` wrapping on all staged rule blocks, script hooks, externalized `<skills>` assets (`huggingface-skills`, `openai-skills`, `langchain-skills`, `mofa-skills`, `NeMo-Skills`, `NVIDIA-skills`, `agent-skills`, `openagent-skills`, `openclaw-agent-skills` â€” zero binary bloat inside `crates/toksi/`), and **Toksi Unified Plugin System (`src/plugins/`)** mounts across all **495 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, and canonical `<repo>/.toksi/projectmem/` (`PHASE_18_2`).
 - Integrate pure-Rust `skilldoctor` grading/fixing + `SkillSpector` + `SkillEvaluator` + `agentskills` YAML frontmatter validator & auto-healer (`src/rules/skill_validator.rs`) plus semantic trigger deduplication (`src/rules/skills_catalog.rs`).
 - Audit every synced skill, plugin, and script against **`defenseclaw`** fail-closed hookguard/audit + **`skill-scanner`** multi-engine/CEL policy + **`opa`/`cedar`** Policy-as-Code + `research-securety-skills` and `sage` threat rules before activation (`toksi skills heal`, `toksi security scan-skills`, `toksi plugin scan`).
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
-- **Wave 19–20 Reconciliation:** Remediated (`PHASE_19_4`): `<neo>/.agents/skills/` audited and cleaned alongside `<neo>/agents/` and `<neo>/rules/`; vetted skills graded via `skilldoctor`/`agentskills`/`upskill`/`skill-scanner` and synced cleanly to `Navegos/skills`.
+- **Wave 19â€“20 Reconciliation:** Remediated (`PHASE_19_4`): `<neo>/.agents/skills/` audited and cleaned alongside `<neo>/agents/` and `<neo>/rules/`; vetted skills graded via `skilldoctor`/`agentskills`/`upskill`/`skill-scanner` and synced cleanly to `Navegos/skills`.
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

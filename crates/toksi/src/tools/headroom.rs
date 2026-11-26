@@ -82,22 +82,19 @@ pub fn headroom_wire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
             }
             return Err(msg.into());
         }
-        if !autostart_before {
-            if let Err(err) = enable_proxy_autostart() {
-                if !err.to_string().contains(ERR_PROXY_AUTOSTART_UNAVAILABLE) {
+        if !autostart_before
+            && let Err(err) = enable_proxy_autostart()
+                && !err.to_string().contains(ERR_PROXY_AUTOSTART_UNAVAILABLE) {
                     let mut msg = err.to_string();
-                    if !was_running {
-                        if let Err(stop_err) = stop_proxy() {
+                    if !was_running
+                        && let Err(stop_err) = stop_proxy() {
                             msg = format!("{}; proxy rollback: {}", msg, stop_err);
                         }
-                    }
                     if let Err(r_err) = restore_runtime() {
                         msg = format!("{}; {}", msg, r_err);
                     }
                     return Err(msg.into());
                 }
-            }
-        }
     }
 
     let was_wired = proxy_agent_wired(agent);
@@ -152,15 +149,14 @@ pub fn headroom_wire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
         }
         return Err(msg.into());
     }
-    if !proxy_routing_preference_set() {
-        if let Err(err) = set_proxy_routing_enabled(true) {
+    if !proxy_routing_preference_set()
+        && let Err(err) = set_proxy_routing_enabled(true) {
             let mut msg = format!("headroom proxy preference: {}", err);
             if let Some(rb) = rollback() {
                 msg = format!("{}; {}", msg, rb);
             }
             return Err(msg.into());
         }
-    }
     if !headroom_verify(agent) {
         let mut msg = format!("{} proxy wiring verification failed", agent);
         if let Some(rb) = rollback() {
@@ -225,7 +221,7 @@ pub fn build_headroom() -> ToolManifest {
     tool.homepage = "https://github.com/headroomlabs-ai/headroom".into();
     tool.install_hint = "Native embedded in toksi proxy engine.".into();
     tool.channel = Channel::Binary;
-    tool.install = Some(Arc::new(|opts| headroom_ensure_installed(opts)));
+    tool.install = Some(Arc::new(headroom_ensure_installed));
 
     let agents = [
         "claude",

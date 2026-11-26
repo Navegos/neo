@@ -367,6 +367,7 @@ impl<'a> DistroInstaller<'a> {
         if let Ok(m) = fs::metadata(path) {
             let mut p = m.permissions();
             if p.readonly() {
+                #[allow(clippy::permissions_set_readonly_false)]
                 p.set_readonly(false);
                 let _ = fs::set_permissions(path, p);
             }

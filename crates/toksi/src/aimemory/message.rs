@@ -164,23 +164,19 @@ impl MessageStore {
         let entries = fs::read_dir(&self.base_dir).map_err(|e| e.to_string())?;
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().and_then(|s| s.to_str()) == Some("json") {
-                if let Ok(content) = fs::read_to_string(&path) {
-                    if let Ok(msg) = serde_json::from_str::<Message>(&content) {
-                        if let Some(ref rp) = recipient_project {
-                            if &msg.recipient_project != rp && &msg.recipient_project != "any" {
+            if path.extension().and_then(|s| s.to_str()) == Some("json")
+                && let Ok(content) = fs::read_to_string(&path)
+                    && let Ok(msg) = serde_json::from_str::<Message>(&content) {
+                        if let Some(ref rp) = recipient_project
+                            && &msg.recipient_project != rp && &msg.recipient_project != "any" {
                                 continue;
                             }
-                        }
-                        if let Some(st) = state {
-                            if msg.state != st {
+                        if let Some(st) = state
+                            && msg.state != st {
                                 continue;
                             }
-                        }
                         list.push(msg);
                     }
-                }
-            }
         }
 
         list.sort_by(|a, b| a.created_at.cmp(&b.created_at));

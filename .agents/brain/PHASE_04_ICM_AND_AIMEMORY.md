@@ -1,6 +1,6 @@
 # Phase 04: ICM & ai-memory Integration
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -20,7 +20,7 @@ Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly in `crates/toksi`. Zero compiler warnings (`RUSTFLAGS="-D warnings"`).
 2. Zero Panics Policy: Strictly prohibit `.unwrap()`, `.expect()`, `panic!()`. Use `thiserror` for domain errors.
 3. Universal Forward-Slash (`/`) Standard: Use `normalize_path()` for all wiki pages, file coordinates, and DB paths.
-4. Strict `<repo>/.toksi/` Repo-Only Consolidation: Store workspace `icm` SQLite DB strictly inside `<repo>/.toksi/icm/memory.db` and `ai-memory` wiki/handoffs strictly inside `<repo>/.toksi/ai-memory/wiki/` — NEVER in user home (`~/.toksi/icm` / `~/.toksi/ai-memory`), NEVER outside a `.git` repository root, NEVER inside `<repo>/.git/` or subfolder crates; purge entries matching `.gitignore`/`.ignore` dynamically and track monorepo `subproject_id`.
+4. Strict `<repo>/.toksi/` Repo-Only Consolidation: Store workspace `icm` SQLite DB strictly inside `<repo>/.toksi/icm/memory.db` and `ai-memory` wiki/handoffs strictly inside `<repo>/.toksi/ai-memory/wiki/` â€” NEVER in user home (`~/.toksi/icm` / `~/.toksi/ai-memory`), NEVER outside a `.git` repository root, NEVER inside `<repo>/.git/` or subfolder crates; purge entries matching `.gitignore`/`.ignore` dynamically and track monorepo `subproject_id`.
 5. Multi-Protocol & Fix `runmcp` Dispatch: Expose `icm` and `aimemory` tools over `MCP`, `A2A` v1.0, `ACP` v2.0, `stdio`, `SSE`, `HTTP`, and `DirectWireBus`. Fix `commands/runmcp.rs:167-174` so `aimemory`/`ai-memory`/`handoff` route to `aimemory::mcp`, NOT `icm::mcp`!
 6. Standardized Naming: Tool identifiers are `icm` and `ai-memory` (`aimemory`). Hook syntax is `icm-hook <agent>` and `ai-memory-hook <agent>`. Slash commands are `/icm` and `/ai-memory`.
 

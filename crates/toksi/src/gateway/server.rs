@@ -201,262 +201,155 @@ async fn handle_gateway_connection(
 
         let (path, _, _) = split_uri_path_and_query(&req.raw_uri);
 
-        // CORS preflight
-        if req.method == "OPTIONS" {
-            let cors_headers = vec![
-                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ("Access-Control-Allow-Methods".to_string(), "GET, POST, OPTIONS".to_string()),
-                ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
-            ];
-            write_http_response(&mut stream, 204, "No Content", &cors_headers, b"").await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // 1. Health / Liveness
-        if path == "/healthz" || path == "/livez" || path == "/readyz" {
-            let body = json!({
-                "service": "ai-gateway",
-                "status": "ok",
-                "port": port
-            });
-            let bytes = serde_json::to_vec(&body).unwrap_or_default();
-            write_http_response(
+        // Streaming SSE paths require chunked TCP streaming directly on the socket
+        if ((path == "/v1/chat/completions" || path == "/v1/messages") && req.method == "POST")
+            && is_stream_requested(&req.body)
+        {
+            let (default_provider, default_session) = if path == "/v1/messages" {
+                (crate::gateway::providers::ProviderId::Anthropic, "gateway-anthropic")
+            } else {
+                (crate::gateway::providers::ProviderId::OpenAI, "gateway-default")
+            };
+            stream_gateway_request(
                 &mut stream,
-                200,
-                "OK",
-                &[
-                    ("Content-Type".to_string(), "application/json".to_string()),
-                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ],
-                &bytes,
-            ).await?;
+                &req,
+                &orchestrator,
+                default_provider,
+                default_session,
+            )
+            .await?;
             if is_close_requested {
                 break;
             }
             continue;
         }
 
-        // 2. Native Prometheus metrics exposition
-        if path == "/metrics" {
-            let metrics_body = crate::telemetry::render_metrics();
-            write_http_response(
-                &mut stream,
-                200,
-                "OK",
-                &[
-                    ("Content-Type".to_string(), "text/plain; version=0.0.4; charset=utf-8".to_string()),
-                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ],
-                metrics_body.as_bytes(),
-            ).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // 3. Drop-in OpenAI endpoint: /v1/chat/completions
-        if path == "/v1/chat/completions" && req.method == "POST" {
-            if is_stream_requested(&req.body) {
-                stream_gateway_request(
-                    &mut stream,
-                    &req,
-                    &orchestrator,
-                    crate::gateway::providers::ProviderId::OpenAI,
-                    "gateway-default",
-                ).await?;
-                if is_close_requested {
-                    break;
-                }
-                continue;
-            }
-            let (status, response) = handle_openai_chat_completions(&req, &orchestrator).await;
-            let status_text = if status < 400 { "OK" } else { "Bad Gateway" };
-            write_http_response(
-                &mut stream,
-                status,
-                status_text,
-                &[
-                    ("Content-Type".to_string(), "application/json".to_string()),
-                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ],
-                &response,
-            ).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // 3b. Drop-in OpenAI Responses API: /v1/responses
-        if path == "/v1/responses" && req.method == "POST" {
-            let (status, response) = handle_openai_responses(&req, &orchestrator).await;
-            let status_text = if status < 400 { "OK" } else { "Bad Gateway" };
-            write_http_response(
-                &mut stream,
-                status,
-                status_text,
-                &[
-                    ("Content-Type".to_string(), "application/json".to_string()),
-                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ],
-                &response,
-            ).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // 3c. Drop-in OpenAI Embeddings API: /v1/embeddings
-        if path == "/v1/embeddings" && req.method == "POST" {
-            let (status, response) = handle_openai_embeddings(&req, &orchestrator).await;
-            let status_text = if status < 400 { "OK" } else { "Bad Gateway" };
-            write_http_response(
-                &mut stream,
-                status,
-                status_text,
-                &[
-                    ("Content-Type".to_string(), "application/json".to_string()),
-                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ],
-                &response,
-            ).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // 3d. Zero-cost model catalog endpoint: /v1/models
-        if path == "/v1/models" && req.method == "GET" {
-            let response = handle_models_list();
-            write_http_response(
-                &mut stream,
-                200,
-                "OK",
-                &[
-                    ("Content-Type".to_string(), "application/json".to_string()),
-                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ],
-                &response,
-            ).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // 3e. Static code & blind-signature security scan endpoint: /v1/security/scan
-        if path == "/v1/security/scan" && req.method == "POST" {
-            let body_val: serde_json::Value =
-                serde_json::from_slice(&req.body).unwrap_or(serde_json::Value::Null);
-            let target = body_val
-                .get("path")
-                .and_then(|v| v.as_str())
-                .unwrap_or(".");
-            let summary = crate::security::analyzer::scan_path_security(
-                std::path::Path::new(target),
-                None,
-            );
-            let response = serde_json::to_vec(&summary).unwrap_or_else(|_| b"{}".to_vec());
-            write_http_response(
-                &mut stream,
-                200,
-                "OK",
-                &[
-                    ("Content-Type".to_string(), "application/json".to_string()),
-                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ],
-                &response,
-            ).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // 4. Drop-in Anthropic endpoint: /v1/messages
-        if path == "/v1/messages" && req.method == "POST" {
-            if is_stream_requested(&req.body) {
-                stream_gateway_request(
-                    &mut stream,
-                    &req,
-                    &orchestrator,
-                    crate::gateway::providers::ProviderId::Anthropic,
-                    "gateway-anthropic",
-                ).await?;
-                if is_close_requested {
-                    break;
-                }
-                continue;
-            }
-            let (status, response) = handle_anthropic_messages(&req, &orchestrator).await;
-            let status_text = if status < 400 { "OK" } else { "Bad Gateway" };
-            write_http_response(
-                &mut stream,
-                status,
-                status_text,
-                &[
-                    ("Content-Type".to_string(), "application/json".to_string()),
-                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ],
-                &response,
-            ).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // 5. Drop-in Gemini endpoints: /v1beta/models or /v1beta/models/*
-        if path.starts_with("/v1beta/models") {
-            let (status, response) = handle_gemini_models(&path, &req, &orchestrator).await;
-            let status_text = if status < 400 { "OK" } else { "Bad Gateway" };
-            write_http_response(
-                &mut stream,
-                status,
-                status_text,
-                &[
-                    ("Content-Type".to_string(), "application/json".to_string()),
-                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ],
-                &response,
-            ).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // Fallback: 404 Not Found
-        let not_found = json!({
-            "error": {
-                "message": format!("Route not found: {} {}", req.method, path),
-                "type": "invalid_request_error",
-                "code": "route_not_found"
-            }
-        });
-        let bytes = serde_json::to_vec(&not_found).unwrap_or_default();
-        write_http_response(
-            &mut stream,
-            404,
-            "Not Found",
-            &[
-                ("Content-Type".to_string(), "application/json".to_string()),
-                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-            ],
-            &bytes,
-        ).await?;
+        let (status, headers, response) =
+            dispatch_gateway_http_parsed(port, &orchestrator, &req).await;
+        let status_text = crate::headroom::byok_gateway::status_reason(status);
+        write_http_response(&mut stream, status, status_text, &headers, &response).await?;
 
         if is_close_requested {
             break;
         }
     }
     Ok(())
+}
+
+pub async fn dispatch_gateway_http_request(
+    port: u16,
+    orchestrator: &Arc<GatewayProxyOrchestrator>,
+    method: &str,
+    raw_uri: &str,
+    headers: &[(String, String)],
+    body: &[u8],
+) -> (u16, Vec<(String, String)>, Vec<u8>) {
+    let req = ParsedHttpRequest {
+        method: method.to_string(),
+        raw_uri: raw_uri.to_string(),
+        headers: headers.to_vec(),
+        body: body.to_vec(),
+    };
+    dispatch_gateway_http_parsed(port, orchestrator, &req).await
+}
+
+async fn dispatch_gateway_http_parsed(
+    port: u16,
+    orchestrator: &Arc<GatewayProxyOrchestrator>,
+    req: &ParsedHttpRequest,
+) -> (u16, Vec<(String, String)>, Vec<u8>) {
+    let (path, _, _) = split_uri_path_and_query(&req.raw_uri);
+    let json_cors = vec![
+        ("Content-Type".to_string(), "application/json".to_string()),
+        ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+    ];
+
+    if req.method == "OPTIONS" {
+        return (
+            204,
+            vec![
+                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+                (
+                    "Access-Control-Allow-Methods".to_string(),
+                    "GET, POST, OPTIONS".to_string(),
+                ),
+                ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
+            ],
+            Vec::new(),
+        );
+    }
+
+    if path == "/healthz" || path == "/livez" || path == "/readyz" {
+        let body = json!({
+            "service": "ai-gateway",
+            "status": "ok",
+            "port": port
+        });
+        return (200, json_cors, serde_json::to_vec(&body).unwrap_or_default());
+    }
+
+    if path == "/metrics" {
+        let metrics_body = crate::telemetry::render_metrics();
+        return (
+            200,
+            vec![
+                (
+                    "Content-Type".to_string(),
+                    "text/plain; version=0.0.4; charset=utf-8".to_string(),
+                ),
+                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+            ],
+            metrics_body.into_bytes(),
+        );
+    }
+
+    if path == "/v1/chat/completions" && req.method == "POST" {
+        let (status, response) = handle_openai_chat_completions(req, orchestrator).await;
+        return (status, json_cors, response);
+    }
+
+    if path == "/v1/responses" && req.method == "POST" {
+        let (status, response) = handle_openai_responses(req, orchestrator).await;
+        return (status, json_cors, response);
+    }
+
+    if path == "/v1/embeddings" && req.method == "POST" {
+        let (status, response) = handle_openai_embeddings(req, orchestrator).await;
+        return (status, json_cors, response);
+    }
+
+    if path == "/v1/models" && req.method == "GET" {
+        return (200, json_cors, handle_models_list());
+    }
+
+    if path == "/v1/security/scan" && req.method == "POST" {
+        let body_val: serde_json::Value =
+            serde_json::from_slice(&req.body).unwrap_or(serde_json::Value::Null);
+        let target = body_val.get("path").and_then(|v| v.as_str()).unwrap_or(".");
+        let summary =
+            crate::security::analyzer::scan_path_security(std::path::Path::new(target), None);
+        let response = serde_json::to_vec(&summary).unwrap_or_else(|_| b"{}".to_vec());
+        return (200, json_cors, response);
+    }
+
+    if path == "/v1/messages" && req.method == "POST" {
+        let (status, response) = handle_anthropic_messages(req, orchestrator).await;
+        return (status, json_cors, response);
+    }
+
+    if path.starts_with("/v1beta/models") {
+        let (status, response) = handle_gemini_models(&path, req, orchestrator).await;
+        return (status, json_cors, response);
+    }
+
+    let not_found = json!({
+        "error": {
+            "message": format!("Route not found: {} {}", req.method, path),
+            "type": "invalid_request_error",
+            "code": "route_not_found"
+        }
+    });
+    (404, json_cors, serde_json::to_vec(&not_found).unwrap_or_default())
 }
 
 fn header_value<'a>(req: &'a ParsedHttpRequest, name: &str) -> Option<&'a str> {

@@ -11,43 +11,35 @@ use crate::keyring::get_agent_token;
 
 pub fn read_codex_session() -> Option<String> {
     // 1. Check OS Keyring first
-    if let Some(mut env) = get_agent_token("codex") {
-        if !env.is_expired(30) && !env.access_token.is_empty() {
+    if let Some(mut env) = get_agent_token("codex")
+        && !env.is_expired(30) && !env.access_token.is_empty() {
             return Some(env.take_access_token());
         }
-    }
-    if let Some(mut env) = get_agent_token("openai") {
-        if !env.is_expired(30) && !env.access_token.is_empty() {
+    if let Some(mut env) = get_agent_token("openai")
+        && !env.is_expired(30) && !env.access_token.is_empty() {
             return Some(env.take_access_token());
         }
-    }
 
     // 2. Check local ~/.codex/auth.json
     if let Some(home) = dirs::home_dir() {
         let auth_path = home.join(".codex").join("auth.json");
-        if auth_path.exists() {
-            if let Ok(raw) = std::fs::read_to_string(auth_path) {
-                if let Ok(val) = serde_json::from_str::<Value>(&raw) {
-                    if let Some(s) = val.get("tokens")
+        if auth_path.exists()
+            && let Ok(raw) = std::fs::read_to_string(auth_path)
+                && let Ok(val) = serde_json::from_str::<Value>(&raw)
+                    && let Some(s) = val.get("tokens")
                         .and_then(|t| t.get("access_token").or_else(|| t.get("id_token")))
                         .and_then(Value::as_str)
                         .or_else(|| val.get("api_key").and_then(Value::as_str))
-                    {
-                        if !s.is_empty() {
+                        && !s.is_empty() {
                             return Some(s.to_string());
                         }
-                    }
-                }
-            }
-        }
     }
 
     // 3. Fallback: OPENAI_API_KEY environment variable
-    if let Ok(k) = std::env::var("OPENAI_API_KEY") {
-        if !k.trim().is_empty() {
+    if let Ok(k) = std::env::var("OPENAI_API_KEY")
+        && !k.trim().is_empty() {
             return Some(k.trim().to_string());
         }
-    }
 
     None
 }

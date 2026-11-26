@@ -119,12 +119,17 @@ pub fn process_sandbox_output(cmd: Option<&str>, raw_output: &str, max_lines: us
     let rtk_filtered = filter_and_pipe_rtk(cmd, &scrubbed);
     let line_sliced = slice_lines(&rtk_filtered, max_lines);
 
-    if line_sliced.len() <= max_bytes {
+    let final_out = if line_sliced.len() <= max_bytes {
         line_sliced
     } else {
         let prefix = byte_safe_prefix(&line_sliced, max_bytes.saturating_sub(64));
-        format!("{}\n\n... [truncated at {} bytes by context-mode]", prefix, max_bytes)
+        format!("{}\n\n... [truncated at {} bytes by ctxmode]", prefix, max_bytes)
+    };
+    let bytes_saved = raw_output.len().saturating_sub(final_out.len()) as u64;
+    if bytes_saved >= 4 {
+        crate::telemetry::global_collector().record_layer_savings("ctxmode", bytes_saved / 4);
     }
+    final_out
 }
 
 /// Output budget `(max_lines, max_bytes)` scaled by `HeadroomEffortCompressor` `EffortLevel`.

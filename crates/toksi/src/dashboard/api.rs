@@ -100,15 +100,18 @@ pub fn handle_waterfall() -> serde_json::Value {
     let caveman_saved = snap.caveman_tokens_saved;
     let mcp_pruned_count = collector.headroom_mcp_pruned_tools_total.load(std::sync::atomic::Ordering::Relaxed);
     let mcp_pruner_saved = mcp_pruned_count.saturating_mul(350);
-    let ccr_saved = 0u64;
+    let ccr_saved = snap.ccr_tokens_saved;
     let cache_align_saved = snap.cached_tokens;
-    let context_saved = 0u64;
-    let economizer_saved = 0u64;
+    let context_saved = snap.ctxmode_tokens_saved;
+    let economizer_saved = snap.economizer_tokens_saved;
     let layer_sum = rtk_saved
         .saturating_add(hr_saved)
         .saturating_add(caveman_saved)
         .saturating_add(mcp_pruner_saved)
-        .saturating_add(cache_align_saved);
+        .saturating_add(ccr_saved)
+        .saturating_add(cache_align_saved)
+        .saturating_add(context_saved)
+        .saturating_add(economizer_saved);
 
     let pct_of = |part: u64| -> f64 {
         if layer_sum > 0 {
@@ -206,7 +209,7 @@ pub fn handle_waterfall() -> serde_json::Value {
                 "saved": cache_align_saved
             },
             "context": {
-                "name": "Context-Mode FTS5 Sandbox",
+                "name": "CtxMode FTS5 Sandbox",
                 "share": pct_of(context_saved),
                 "saved": context_saved
             },

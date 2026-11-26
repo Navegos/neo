@@ -222,12 +222,11 @@ pub fn compress_code(source: &str, lang: CodeLanguage, config: &CodeCompressorCo
                 // If comment removal introduced syntax errors, fallback to original
                 if tree.root_node().has_error() {
                     let orig_tree = parser.parse(source, None);
-                    if let Some(orig) = orig_tree {
-                        if !orig.root_node().has_error() {
+                    if let Some(orig) = orig_tree
+                        && !orig.root_node().has_error() {
                             // The original was valid, so fallback to normalized original
                             return normalize_blank_lines(source, config.max_blank_lines);
                         }
-                    }
                 }
             }
         }

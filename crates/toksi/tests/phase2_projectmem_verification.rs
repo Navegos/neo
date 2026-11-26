@@ -182,10 +182,10 @@ fn test_phase2_global_cross_project_memory() {
     .unwrap();
 
     let stack = global::detect_stack(&proj);
-    assert!(stack.tags.contains(&"rust".to_string()));
-    assert!(stack.tags.contains(&"axum".to_string()));
-    assert!(stack.libraries.contains(&"axum".to_string()));
-    assert!(stack.libraries.contains(&"tokio".to_string()));
+    assert!(stack.tags.iter().any(|i| i == "rust"));
+    assert!(stack.tags.iter().any(|i| i == "axum"));
+    assert!(stack.libraries.iter().any(|i| i == "axum"));
+    assert!(stack.libraries.iter().any(|i| i == "tokio"));
 
     // 2. Auto-promote cross-project gotcha
     let promoted = global::auto_promote_event(

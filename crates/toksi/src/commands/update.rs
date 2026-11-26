@@ -32,8 +32,8 @@ pub fn resync_instruction_wiring() {
             } else {
                 has_owner(&agent.id, &tool.id)
             };
-            if wired {
-                if let Some(ref wire_fn) = tool.wire_for.get(&agent.id) {
+            if wired
+                && let Some(wire_fn) = tool.wire_for.get(&agent.id) {
                     let ro = RunOpts {
                         dry_run: false,
                         agent: agent.id.clone(),
@@ -42,7 +42,6 @@ pub fn resync_instruction_wiring() {
                     let _ = wire_fn(&ro);
                     any = true;
                 }
-            }
         }
         if any {
             ensure_instruction_separators(&agent.id);

@@ -136,8 +136,8 @@ pub fn is_marker_free_native_shape(path: &str, parsed: &Value) -> bool {
         return true;
     }
 
-    if let Some(messages) = parsed.get("messages").and_then(Value::as_array) {
-        if !messages.is_empty()
+    if let Some(messages) = parsed.get("messages").and_then(Value::as_array)
+        && !messages.is_empty()
             && messages.iter().all(|m| {
                 let role = m.get("role").and_then(Value::as_str).unwrap_or("");
                 let role_ok = role == "user" || role == "assistant";
@@ -168,7 +168,6 @@ pub fn is_marker_free_native_shape(path: &str, parsed: &Value) -> bool {
                 return true;
             }
         }
-    }
     false
 }
 
@@ -194,27 +193,24 @@ pub fn compress_request_body_with_store(path: &str, body: &[u8], store: &dyn Ccr
         Some(store)
     };
 
-    if path.contains("messages") || parsed.get("messages").is_some() {
-        if let Some(rewritten) =
+    if (path.contains("messages") || parsed.get("messages").is_some())
+        && let Some(rewritten) =
             compress_field_array_live_zone(body, "messages", frozen_count, &query, ccr_opt)
         {
             return rewritten;
         }
-    }
-    if path.contains("responses") || parsed.get("input").is_some() {
-        if let Some(rewritten) =
+    if (path.contains("responses") || parsed.get("input").is_some())
+        && let Some(rewritten) =
             compress_field_array_live_zone(body, "input", frozen_count, &query, ccr_opt)
         {
             return rewritten;
         }
-    }
-    if parsed.get("contents").is_some() {
-        if let Some(rewritten) =
+    if parsed.get("contents").is_some()
+        && let Some(rewritten) =
             compress_field_array_live_zone(body, "contents", frozen_count, &query, ccr_opt)
         {
             return rewritten;
         }
-    }
     body.to_vec()
 }
 
@@ -260,11 +256,10 @@ fn compress_field_array_live_zone(
         }
         let start = start_ptr - base_ptr;
         let end = end_ptr - base_ptr;
-        if let Some(replacement) = compress_single_turn_raw(raw_item.get(), query, store) {
-            if replacement.len() < slice.len() {
+        if let Some(replacement) = compress_single_turn_raw(raw_item.get(), query, store)
+            && replacement.len() < slice.len() {
                 edits.push((start, end, replacement));
             }
-        }
     }
 
     if edits.is_empty() {
@@ -296,12 +291,11 @@ fn compress_single_turn_raw(
 
     if let Some(obj) = val.as_object_mut() {
         // String content (OpenAI chat / Anthropic simple content)
-        if let Some(Value::String(s)) = obj.get_mut("content") {
-            if let Some(c) = compress_text_block_with_query(s, query, store) {
+        if let Some(Value::String(s)) = obj.get_mut("content")
+            && let Some(c) = compress_text_block_with_query(s, query, store) {
                 *s = c;
                 changed = true;
             }
-        }
         // Array of content blocks (Anthropic blocks & Bedrock Converse blocks)
         if let Some(Value::Array(blocks)) = obj.get_mut("content") {
             for blk in blocks {
@@ -320,21 +314,19 @@ fn compress_single_turn_raw(
                 if is_protected_part {
                     continue;
                 }
-                if let Some(Value::String(s)) = part.get_mut("text") {
-                    if let Some(c) = compress_text_block_with_query(s, query, store) {
+                if let Some(Value::String(s)) = part.get_mut("text")
+                    && let Some(c) = compress_text_block_with_query(s, query, store) {
                         *s = c;
                         changed = true;
                     }
-                }
             }
         }
         // Responses output string inside input item
-        if let Some(Value::String(s)) = obj.get_mut("output") {
-            if let Some(c) = compress_text_block_with_query(s, query, store) {
+        if let Some(Value::String(s)) = obj.get_mut("output")
+            && let Some(c) = compress_text_block_with_query(s, query, store) {
                 *s = c;
                 changed = true;
             }
-        }
     }
 
     if changed {
@@ -361,12 +353,11 @@ fn compress_block_object(blk: &mut Value, query: &str, store: Option<&dyn CcrSto
     }
     let mut changed = false;
     for field in ["text", "content"] {
-        if let Some(Value::String(s)) = obj.get_mut(field) {
-            if let Some(c) = compress_text_block_with_query(s, query, store) {
+        if let Some(Value::String(s)) = obj.get_mut(field)
+            && let Some(c) = compress_text_block_with_query(s, query, store) {
                 *s = c;
                 changed = true;
             }
-        }
     }
     // Anthropic `tool_result` with array `content` sub-blocks
     if let Some(Value::Array(inner_blocks)) = obj.get_mut("content") {
@@ -377,15 +368,14 @@ fn compress_block_object(blk: &mut Value, query: &str, store: Option<&dyn CcrSto
         }
     }
     // Bedrock Converse `toolResult.content` inner array
-    if let Some(Value::Object(tool_res)) = obj.get_mut("toolResult") {
-        if let Some(Value::Array(inner_blocks)) = tool_res.get_mut("content") {
+    if let Some(Value::Object(tool_res)) = obj.get_mut("toolResult")
+        && let Some(Value::Array(inner_blocks)) = tool_res.get_mut("content") {
             for inner in inner_blocks {
                 if compress_block_object(inner, query, store) {
                     changed = true;
                 }
             }
         }
-    }
     changed
 }
 
@@ -403,27 +393,21 @@ pub fn compress_text_block_with_query(
     }
     let trimmed = raw.trim();
 
-    if trimmed.starts_with('[') && trimmed.ends_with(']') {
-        if let Some(crushed) = SmartCrusher::default().compress_json_str_with_query(trimmed, query, store) {
-            if crushed.len() < raw.len() {
+    if trimmed.starts_with('[') && trimmed.ends_with(']')
+        && let Some(crushed) = SmartCrusher::default().compress_json_str_with_query(trimmed, query, store)
+            && crushed.len() < raw.len() {
                 return Some(crushed);
             }
-        }
-    }
-    if DiffCompressor::looks_like_unified_diff(trimmed) {
-        if let Some(diff) = DiffCompressor::default().compress(trimmed, store) {
-            if diff.len() < raw.len() {
+    if DiffCompressor::looks_like_unified_diff(trimmed)
+        && let Some(diff) = DiffCompressor::default().compress(trimmed, store)
+            && diff.len() < raw.len() {
                 return Some(diff);
             }
-        }
-    }
-    if SearchCompressor::looks_like_search_output(trimmed) {
-        if let Some(search) = SearchCompressor::default().compress(trimmed, query, store) {
-            if search.len() < raw.len() {
+    if SearchCompressor::looks_like_search_output(trimmed)
+        && let Some(search) = SearchCompressor::default().compress(trimmed, query, store)
+            && search.len() < raw.len() {
                 return Some(search);
             }
-        }
-    }
 
     let rtk_pre = if !query.is_empty() && crate::rtk::can_filter(query) {
         Some(crate::rtk::compress_tool_output(query, raw))

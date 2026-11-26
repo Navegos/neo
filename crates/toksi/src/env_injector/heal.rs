@@ -393,12 +393,10 @@ fn heal_from_state_json(raw: &str, dry_run: bool, report: &mut HealingReport) {
 
     if !bin_str.is_empty() {
         let bin_path = norm_path_buf(Path::new(bin_str));
-        if is_toksi_shim_or_sidecar(&bin_path) || is_hijacked_symlink_or_junction(&bin_path) {
-            if dry_run {
-                report.removed_shims.push(bin_path);
-            } else if remove_shim_or_link(&bin_path).is_ok() {
-                report.removed_shims.push(bin_path);
-            }
+        if (is_toksi_shim_or_sidecar(&bin_path) || is_hijacked_symlink_or_junction(&bin_path))
+            && (dry_run || remove_shim_or_link(&bin_path).is_ok())
+        {
+            report.removed_shims.push(bin_path);
         }
     }
 }
@@ -962,7 +960,7 @@ mod tests {
         fs::write(&state_grok, "{}")?;
 
         // Run healer
-        let report = heal_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
+        let report = heal_legacy_hijacks_in(std::slice::from_ref(&bin_dir), std::slice::from_ref(&data_dir));
 
         assert!(report.errors.is_empty(), "errors: {:?}", report.errors);
         assert_eq!(report.restored_binaries.len(), 2);
@@ -1005,7 +1003,7 @@ mod tests {
         let legit_content = "@IF EXIST \"%~dp0\\node.exe\" (\r\n  \"%~dp0\\node.exe\" \"%~dp0\\node_modules\\agy\\bin.js\" %*\r\n)\r\n";
         fs::write(&legit_agy, legit_content)?;
 
-        let report = heal_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
+        let report = heal_legacy_hijacks_in(std::slice::from_ref(&bin_dir), std::slice::from_ref(&data_dir));
         assert!(report.is_clean());
         assert!(legit_agy.exists(), "Legitimate agy.cmd must not be deleted!");
 
@@ -1030,7 +1028,7 @@ mod tests {
         let ide_state = data_dir.join("antigravity-ide-proxy.json");
         fs::write(&ide_state, "{}")?;
 
-        let report = heal_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
+        let report = heal_legacy_hijacks_in(std::slice::from_ref(&bin_dir), std::slice::from_ref(&data_dir));
         assert!(report.errors.is_empty(), "errors: {:?}", report.errors);
         assert_eq!(report.restored_binaries.len(), 1);
         assert_eq!(report.removed_state_files.len(), 1);

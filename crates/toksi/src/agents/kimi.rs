@@ -193,13 +193,11 @@ pub fn discover_kimi_byok() -> Vec<KimiBYOK> {
         let Some(a) = got.get_mut(&id) else {
             continue;
         };
-        if a.base.is_empty() {
-            if let Some(s) = stashed.get(&id) {
-                if !s.base_url.is_empty() {
+        if a.base.is_empty()
+            && let Some(s) = stashed.get(&id)
+                && !s.base_url.is_empty() {
                     a.base = s.base_url.clone();
                 }
-            }
-        }
         if a.base.is_empty() || a.key.is_empty() || a.proto.is_empty() {
             continue;
         }
@@ -254,13 +252,12 @@ fn kimi_set_base_url(raw: &str, id: &str, base: &str) -> (String, bool) {
     let Some(re) = KIMI_RE_BASE_URL.as_ref() else {
         return (raw.to_string(), false);
     };
-    if let Some(m) = re.captures(block) {
-        if let (Some(whole), Some(prefix)) = (m.get(0), m.get(1).map(|m| m.as_str())) {
+    if let Some(m) = re.captures(block)
+        && let (Some(whole), Some(prefix)) = (m.get(0), m.get(1).map(|m| m.as_str())) {
             let new_block = format!("{}{}{}{}", &block[..whole.start()], prefix, toml_quoted(base), &block[whole.end()..]);
             let next = format!("{}{}{}", &raw[..p.start], new_block, &raw[p.end..]);
             return (next, true);
         }
-    }
     (raw.to_string(), false)
 }
 
@@ -280,8 +277,8 @@ pub fn kimi_custom_header_value(raw: &str, id: &str, key: &str) -> Option<String
 
     if let Some(p) = kimi_find_provider(raw, id) {
         let block = &raw[p.start..p.end];
-        if let Some(caps) = re_inline.captures(block) {
-            if let Some(inner) = caps.get(2).map(|m| m.as_str()) {
+        if let Some(caps) = re_inline.captures(block)
+            && let Some(inner) = caps.get(2).map(|m| m.as_str()) {
                 for m in re_pair.captures_iter(inner) {
                     let k = m.get(1).or_else(|| m.get(2)).map(|x| x.as_str()).unwrap_or("");
                     let v = m.get(3).or_else(|| m.get(4)).map(|x| x.as_str()).unwrap_or("");
@@ -290,7 +287,6 @@ pub fn kimi_custom_header_value(raw: &str, id: &str, key: &str) -> Option<String
                     }
                 }
             }
-        }
     }
 
     let re_sub = kimi_sub_custom_re(id)?;
@@ -320,9 +316,9 @@ pub fn kimi_set_custom_header(raw: &str, id: &str, key: &str, value: &str) -> (S
         None => return (raw.to_string(), false),
     };
     let block = &raw[p.start..p.end];
-    if let (Some(re_inline), Some(re_pair)) = (KIMI_RE_INLINE.as_ref(), KIMI_RE_PAIR.as_ref()) {
-        if let Some(caps) = re_inline.captures(block) {
-            if let (Some(whole), Some(indent), Some(inner)) = (
+    if let (Some(re_inline), Some(re_pair)) = (KIMI_RE_INLINE.as_ref(), KIMI_RE_PAIR.as_ref())
+        && let Some(caps) = re_inline.captures(block)
+            && let (Some(whole), Some(indent), Some(inner)) = (
                 caps.get(0),
                 caps.get(1).map(|m| m.as_str()),
                 caps.get(2).map(|m| m.as_str()),
@@ -347,15 +343,13 @@ pub fn kimi_set_custom_header(raw: &str, id: &str, key: &str, value: &str) -> (S
                 let new_block = format!("{}{}{}", &block[..whole.start()], line, &block[whole.end()..]);
                 return (format!("{}{}{}", &raw[..p.start], new_block, &raw[p.end..]), true);
             }
-        }
-    }
 
     if let (Some(re_sub), Some(re_next), Some(line_re)) = (
         kimi_sub_custom_re(id),
         KIMI_RE_NEXT.as_ref(),
         kimi_header_line_re(key),
-    ) {
-        if let Some(m) = re_sub.find(raw) {
+    )
+        && let Some(m) = re_sub.find(raw) {
             let after = &raw[m.end()..];
             let end = match re_next.find(after) {
                 Some(nm) => m.end() + nm.start(),
@@ -371,7 +365,6 @@ pub fn kimi_set_custom_header(raw: &str, id: &str, key: &str, value: &str) -> (S
             };
             return (format!("{}{}{}", &raw[..m.start()], new_sub, &raw[end..]), true);
         }
-    }
 
     let sub = format!("\n[providers.{}.custom_headers]\n{} = {}\n", toml_quoted(id), key, toml_quoted(value));
     (format!("{}{}{}", &raw[..p.end], sub, &raw[p.end..]), true)
@@ -383,9 +376,9 @@ fn kimi_drop_custom_header(raw: &str, id: &str, key: &str) -> (String, bool) {
         None => return (raw.to_string(), false),
     };
     let block = &raw[p.start..p.end];
-    if let (Some(re_inline), Some(re_pair)) = (KIMI_RE_INLINE.as_ref(), KIMI_RE_PAIR.as_ref()) {
-        if let Some(caps) = re_inline.captures(block) {
-            if let (Some(whole), Some(indent), Some(inner)) = (
+    if let (Some(re_inline), Some(re_pair)) = (KIMI_RE_INLINE.as_ref(), KIMI_RE_PAIR.as_ref())
+        && let Some(caps) = re_inline.captures(block)
+            && let (Some(whole), Some(indent), Some(inner)) = (
                 caps.get(0),
                 caps.get(1).map(|m| m.as_str()),
                 caps.get(2).map(|m| m.as_str()),
@@ -413,15 +406,13 @@ fn kimi_drop_custom_header(raw: &str, id: &str, key: &str) -> (String, bool) {
                 let new_block = format!("{}{}{}", &block[..whole.start()], line, &block[whole.end()..]);
                 return (format!("{}{}{}", &raw[..p.start], new_block, &raw[p.end..]), true);
             }
-        }
-    }
 
     if let (Some(re_sub), Some(re_next), Some(line_re)) = (
         kimi_sub_custom_re(id),
         KIMI_RE_NEXT.as_ref(),
         kimi_header_line_re(key),
-    ) {
-        if let Some(m) = re_sub.find(raw) {
+    )
+        && let Some(m) = re_sub.find(raw) {
             let after = &raw[m.end()..];
             let end = match re_next.find(after) {
                 Some(nm) => m.end() + nm.start(),
@@ -434,19 +425,17 @@ fn kimi_drop_custom_header(raw: &str, id: &str, key: &str) -> (String, bool) {
                     line_end += 1;
                 }
                 let new_sub = format!("{}{}", &sub[..lm.start()], &sub[line_end..]);
-                if let Some(nl) = new_sub.find('\n') {
-                    if new_sub[nl + 1..].trim().is_empty() {
+                if let Some(nl) = new_sub.find('\n')
+                    && new_sub[nl + 1..].trim().is_empty() {
                         let mut start = m.start();
                         if start > 0 && raw.as_bytes()[start - 1] == b'\n' {
                             start -= 1;
                         }
                         return (format!("{}{}", &raw[..start], &raw[end..]), true);
                     }
-                }
                 return (format!("{}{}{}", &raw[..m.start()], new_sub, &raw[end..]), true);
             }
         }
-    }
     (raw.to_string(), false)
 }
 
@@ -494,7 +483,7 @@ pub fn configure_kimi_proxy_locked() -> (bool, String) {
     }
 
     let mut stash = load_proxy_route_stash_locked("kimi");
-    let stash_raw = read_file_safe(&proxy_route_stash_path("kimi"));
+    let stash_raw = read_file_safe(proxy_route_stash_path("kimi"));
     let stash_exists = stash_raw.is_some();
     let mut route_changes: Vec<ByokRouteRollback> = Vec::new();
 

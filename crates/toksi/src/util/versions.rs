@@ -65,13 +65,12 @@ pub fn load_cache() -> (Option<HashMap<String, VersionInfo>>, bool) {
     if p.is_empty() {
         return (None, false);
     }
-    if let Ok(raw) = std::fs::read_to_string(p) {
-        if let Ok(obj) = serde_json::from_str::<CacheShape>(&raw) {
+    if let Ok(raw) = std::fs::read_to_string(p)
+        && let Ok(obj) = serde_json::from_str::<CacheShape>(&raw) {
             let now = chrono::Utc::now().timestamp_millis();
             let fresh = (now - obj.ts) <= CACHE_TTL_MS;
             return (Some(obj.map), fresh);
         }
-    }
     (None, false)
 }
 

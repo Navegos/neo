@@ -178,6 +178,10 @@ impl CcrStore for InMemoryCcrStore {
         }
 
         let seq = self.next_seq.fetch_add(1, Ordering::Relaxed);
+        let saved_tokens = (payload.len() as u64) / 4;
+        if saved_tokens > 0 {
+            crate::telemetry::global_collector().record_layer_savings("ccr", saved_tokens);
+        }
         map.insert(
             hash.to_string(),
             MemEntry {

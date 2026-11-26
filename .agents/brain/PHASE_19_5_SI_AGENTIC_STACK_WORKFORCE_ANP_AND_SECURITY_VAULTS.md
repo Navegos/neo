@@ -1,6 +1,6 @@
-# Phase 19.5 — Wave 19 SI Agentic Stack, Workforce, `ANP` & Security/Systems Vaults Consolidation (91 Vaults)
+# Phase 19.5 â€” Wave 19 SI Agentic Stack, Workforce, `ANP` & Security/Systems Vaults Consolidation (91 Vaults)
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -39,7 +39,7 @@ Requirements:
 2. Protocol, Systems, Storage & Cloud SDK Hardening (Group A/B):
    - Add **Agent Network Protocol (`ANP`)** (`DID-WBA` `ANP_MESSAGE_SERVICE_TYPE`/`VM_KEY_AUTH`/`VM_KEY_E2EE_AGREEMENT`) + `quinn` QUIC transport on `:9098`.
    - Integrate `vertex_rust_sdk` pure-Rust Vertex AI client (`auth`, `cache`, `claude`, `media`), `pingora-pool` connection pooling, `lancedb` + `arrow-rs` columnar vector tables, `funes` high-precision agent recall, `pmat` TDG complexity scoring, `tiktoken` BPE exact counting, `hf-hub` pure-Rust model fetch, `bridge-mcp` SSH whitelist/blacklist + secret redaction, and `coach` vector drill chaos checks + `depyler` contract verification invariants.
-3. ATR, OpenAI Guardrails, Model Spec & Skill Distillation (`<enforce>` — Group D):
+3. ATR, OpenAI Guardrails, Model Spec & Skill Distillation (`<enforce>` â€” Group D):
    - Implement `atr_engine.rs` supporting **ATR `SPEC.md` v1.0.1** rules compiled strictly zero-plaintext via `blind_compiler.rs` (zero plaintext patterns on disk/RAM).
    - Port `openai-guardrails-python` tripwires (`competitors`, `hallucination_detection`, PII, moderation, jailbreak, URL/tool policy) + `model_spec` instruction hierarchy (`System > Developer > User > Tool`) into `reflection.rs` / `guardrails.rs`.
    - Integrate `upskill` skill evaluation benchmarks into `toksi skills eval` before pushing audited `qdrant-skills`/`crewAIInc-skills`/`Essential-Hermes-Skills` (minus unsafe `reverse-skill` parts) to `Navegos/skills`.

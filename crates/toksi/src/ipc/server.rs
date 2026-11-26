@@ -8,7 +8,7 @@
 
 #![deny(unsafe_code)]
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::watch;
@@ -18,16 +18,30 @@ use super::transport::WorkerRole;
 
 pub trait IpcRequestHandler: Send + Sync {
     fn handle(&self, frame: IpcFrame) -> IpcFrame;
+
+    fn handle_async<'a>(
+        &'a self,
+        frame: IpcFrame,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = IpcFrame> + Send + 'a>> {
+        Box::pin(std::future::ready(self.handle(frame)))
+    }
 }
 
 pub struct DefaultWorkerIpcHandler {
     role: WorkerRole,
     kill_tx: watch::Sender<bool>,
+    gateway_orch: OnceLock<Arc<crate::gateway::proxy::GatewayProxyOrchestrator>>,
+    protocol_bus: OnceLock<Arc<crate::tools::multi_protocol::MultiProtocolDispatcher>>,
 }
 
 impl DefaultWorkerIpcHandler {
     pub fn new(role: WorkerRole, kill_tx: watch::Sender<bool>) -> Self {
-        Self { role, kill_tx }
+        Self {
+            role,
+            kill_tx,
+            gateway_orch: OnceLock::new(),
+            protocol_bus: OnceLock::new(),
+        }
     }
 }
 
@@ -191,6 +205,171 @@ impl IpcRequestHandler for DefaultWorkerIpcHandler {
             _ => IpcFrame::new(IpcOpcode::Pong, corr, Vec::new()),
         }
     }
+
+    fn handle_async<'a>(
+        &'a self,
+        frame: IpcFrame,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = IpcFrame> + Send + 'a>> {
+        Box::pin(async move {
+            if frame.opcode != IpcOpcode::NetworkForward {
+                return self.handle(frame);
+            }
+            let corr = frame.correlation_id;
+            let req_json = frame.payload_json().unwrap_or_else(|_| serde_json::json!({}));
+            let method = req_json
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("GET")
+                .to_string();
+            let raw_uri = req_json
+                .get("path")
+                .and_then(|v| v.as_str())
+                .unwrap_or("/")
+                .to_string();
+            let headers: Vec<(String, String)> = req_json
+                .get("headers")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|item| {
+                            let pair = item.as_array()?;
+                            let k = pair.first()?.as_str()?.to_string();
+                            let v = pair.get(1)?.as_str()?.to_string();
+                            Some((k, v))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let body_bytes: Vec<u8> = if let Some(arr) = req_json.get("body_bytes").and_then(|v| v.as_array()) {
+                arr.iter()
+                    .filter_map(|b| b.as_u64().and_then(|n| u8::try_from(n).ok()))
+                    .collect()
+            } else {
+                req_json
+                    .get("body")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .as_bytes()
+                    .to_vec()
+            };
+
+            type HttpForwardResp = (u16, Vec<(String, String)>, Vec<u8>);
+            let port = self.role.default_port().unwrap_or(0);
+            let http_resp: Option<HttpForwardResp> = match self.role {
+                WorkerRole::Port9099 => {
+                    let orch = Arc::clone(self.gateway_orch.get_or_init(|| {
+                        Arc::new(crate::gateway::proxy::GatewayProxyOrchestrator::new())
+                    }));
+                    Some(
+                        crate::gateway::server::dispatch_gateway_http_request(
+                            if port == 0 { 9099 } else { port },
+                            &orch,
+                            &method,
+                            &raw_uri,
+                            &headers,
+                            &body_bytes,
+                        )
+                        .await,
+                    )
+                }
+                WorkerRole::Port9098 => {
+                    let bus = Arc::clone(self.protocol_bus.get_or_init(|| {
+                        Arc::new(crate::tools::multi_protocol::MultiProtocolDispatcher::new(None))
+                    }));
+                    Some(
+                        crate::tools::multi_protocol::dispatch_protocol_bus_http_request(
+                            if port == 0 { 9098 } else { port },
+                            &bus,
+                            &method,
+                            &raw_uri,
+                            &headers,
+                            &body_bytes,
+                        )
+                        .await,
+                    )
+                }
+                WorkerRole::Port18787 => Some(
+                    crate::headroom::byok_gateway::handle_byok_gateway_request(
+                        &method,
+                        &raw_uri,
+                        &headers,
+                        &body_bytes,
+                        None,
+                    )
+                    .await,
+                ),
+                WorkerRole::Port8787 => Some(
+                    crate::headroom::proxy::dispatch_headroom_proxy_http_request(
+                        &method,
+                        &raw_uri,
+                        &headers,
+                        &body_bytes,
+                    )
+                    .await,
+                ),
+                WorkerRole::Port8788 => Some(
+                    crate::headroom::grok_daemon::dispatch_grok_proxy_http_request(
+                        if port == 0 { 8788 } else { port },
+                        &method,
+                        &raw_uri,
+                        &headers,
+                        &body_bytes,
+                    )
+                    .await,
+                ),
+                WorkerRole::Port8789 => Some(
+                    crate::headroom::copilot_daemon::dispatch_copilot_proxy_http_request(
+                        if port == 0 { 8789 } else { port },
+                        "copilot-vscode",
+                        false,
+                        &method,
+                        &raw_uri,
+                        &headers,
+                        &body_bytes,
+                    )
+                    .await,
+                ),
+                WorkerRole::Port8790 => Some(
+                    crate::headroom::copilot_daemon::dispatch_copilot_proxy_http_request(
+                        if port == 0 { 8790 } else { port },
+                        "copilot-cli",
+                        true,
+                        &method,
+                        &raw_uri,
+                        &headers,
+                        &body_bytes,
+                    )
+                    .await,
+                ),
+                _ => None,
+            };
+
+            let Some((status_code, resp_headers, resp_body)) = http_resp else {
+                return self.handle(frame);
+            };
+
+            let body_utf8 = std::str::from_utf8(&resp_body).ok().map(str::to_string);
+            let reply = if let Some(text) = body_utf8 {
+                serde_json::json!({
+                    "status_code": status_code,
+                    "role": self.role.as_str(),
+                    "headers": resp_headers,
+                    "body": text,
+                })
+            } else {
+                let lossy = String::from_utf8_lossy(&resp_body).to_string();
+                serde_json::json!({
+                    "status_code": status_code,
+                    "role": self.role.as_str(),
+                    "headers": resp_headers,
+                    "body": lossy,
+                    "body_bytes": resp_body,
+                })
+            };
+            IpcFrame::json(IpcOpcode::NetworkReply, corr, &reply)
+                .unwrap_or_else(|_| IpcFrame::new(IpcOpcode::NetworkReply, corr, Vec::new()))
+        })
+    }
 }
 
 async fn handle_stream<S, H>(mut stream: S, handler: Arc<H>)
@@ -199,7 +378,7 @@ where
     H: IpcRequestHandler + ?Sized,
 {
     if let Ok(req) = IpcFrame::read_from(&mut stream).await {
-        let reply = handler.handle(req);
+        let reply = handler.handle_async(req).await;
         let _ = reply.write_to(&mut stream).await;
     }
 }

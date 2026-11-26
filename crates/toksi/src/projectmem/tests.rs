@@ -576,9 +576,9 @@ fn test_global_memory_crud_and_auto_promote() {
     std::fs::create_dir_all(&proj_dir).unwrap();
     std::fs::write(proj_dir.join("Cargo.toml"), "[package]\nname = \"foo\"\n[dependencies]\ntokio = \"1.0\"\nserde = \"1.0\"\n").unwrap();
     let detected = detect_stack(&proj_dir);
-    assert!(detected.tags.contains(&"rust".to_string()));
-    assert!(detected.libraries.contains(&"tokio".to_string()));
-    assert!(detected.libraries.contains(&"serde".to_string()));
+    assert!(detected.tags.iter().any(|i| i == "rust"));
+    assert!(detected.libraries.iter().any(|i| i == "tokio"));
+    assert!(detected.libraries.iter().any(|i| i == "serde"));
 
     // 5. Auto-promotion on attempt failure
     let promoted = auto_promote_event(

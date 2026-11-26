@@ -41,11 +41,10 @@ pub fn detect_sdk_protocol(path: &str) -> Option<SdkProtocol> {
 pub fn responses_to_chat_completions(body: &Value) -> Value {
     let model = body.get("model").and_then(Value::as_str).unwrap_or("gpt-4o");
     let mut messages: Vec<Value> = Vec::new();
-    if let Some(instructions) = body.get("instructions").and_then(Value::as_str) {
-        if !instructions.trim().is_empty() {
+    if let Some(instructions) = body.get("instructions").and_then(Value::as_str)
+        && !instructions.trim().is_empty() {
             messages.push(serde_json::json!({"role": "system", "content": instructions}));
         }
-    }
     match body.get("input") {
         Some(Value::String(s)) => {
             messages.push(serde_json::json!({"role": "user", "content": s}));
@@ -171,8 +170,8 @@ pub fn chat_to_responses_json(resp: &Value, fallback_model: &str) -> Value {
     {
         for tc in tool_calls {
             let call_id = tc.get("id").and_then(Value::as_str).unwrap_or("");
-            if tc.get("type").and_then(Value::as_str) == Some("custom") {
-                if let Some(custom) = tc.get("custom") {
+            if tc.get("type").and_then(Value::as_str) == Some("custom")
+                && let Some(custom) = tc.get("custom") {
                     output_items.push(serde_json::json!({
                         "type": "custom_tool_call",
                         "call_id": call_id,
@@ -181,7 +180,6 @@ pub fn chat_to_responses_json(resp: &Value, fallback_model: &str) -> Value {
                     }));
                     continue;
                 }
-            }
             if let Some(func) = tc.get("function") {
                 output_items.push(serde_json::json!({
                     "type": "function_call",

@@ -177,7 +177,8 @@ pub fn antigravity_hooks_files() -> Vec<String> {
 pub fn antigravity_legacy_mcp_files() -> Vec<String> {
     let gemini = Path::new(&paths::home()).join(".gemini");
     let mut files = Vec::new();
-    for variant in ["antigravity-desktop"] {
+    {
+        let variant = "antigravity-desktop";
         let d = gemini.join(variant);
         if paths::exists(&d) {
             files.push(d.join("mcp_config.json").to_string_lossy().into_owned());
@@ -275,7 +276,7 @@ pub fn antigravity_hooks_file() -> String {
 }
 
 pub fn has_antigravity_context_mode_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&antigravity_hooks_file()) else {
+    let Some(raw) = paths::read_file_safe(antigravity_hooks_file()) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -624,7 +625,7 @@ fn antigravity_rtk_group_managed(value: &Value) -> bool {
 }
 
 pub fn has_antigravity_rtk_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&antigravity_hooks_file()) else {
+    let Some(raw) = paths::read_file_safe(antigravity_hooks_file()) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -674,7 +675,7 @@ pub fn remove_antigravity_codegraph_tool_defs() {
 }
 
 pub fn has_antigravity_codegraph_index_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&antigravity_hooks_file()) else {
+    let Some(raw) = paths::read_file_safe(antigravity_hooks_file()) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -988,11 +989,10 @@ pub fn configure_antigravity_mcp(tool_id: &str) -> (bool, String) {
             all_configured = false;
             continue;
         };
-        if let Some(existing) = servers.get(tool_id) {
-            if json_equal(existing, &entry_val) {
+        if let Some(existing) = servers.get(tool_id)
+            && json_equal(existing, &entry_val) {
                 continue;
             }
-        }
         servers.insert(tool_id.to_string(), entry_val);
         let next = stringify_json(&Value::Object(cfg));
         if next != raw {
@@ -1346,7 +1346,7 @@ pub fn install_antigravity_projectmem_hook() -> bool {
 }
 
 pub fn has_antigravity_projectmem_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&antigravity_hooks_file()) else {
+    let Some(raw) = paths::read_file_safe(antigravity_hooks_file()) else {
         return false;
     };
     raw.contains(&format!("\"{ANTIGRAVITY_PROJECTMEM_GROUP}\""))
@@ -1520,7 +1520,7 @@ fn configure_antigravity_ide() -> Result<bool, String> {
         value: old_serde,
     })
     .map_err(|e| e.to_string())?;
-    paths::write_file(&antigravity_ide_state_file(), &state).map_err(|e| e.to_string())?;
+    paths::write_file(antigravity_ide_state_file(), &state).map_err(|e| e.to_string())?;
     cfg.insert(
         ANTIGRAVITY_IDE_ENDPOINT_KEY.to_string(),
         Value::String(antigravity_url()),
@@ -1533,7 +1533,7 @@ fn configure_antigravity_ide() -> Result<bool, String> {
 }
 
 fn read_antigravity_ide_state() -> Option<AntigravityIDEProxyState> {
-    let raw = paths::read_file_safe(&antigravity_ide_state_file())?;
+    let raw = paths::read_file_safe(antigravity_ide_state_file())?;
     let state: AntigravityIDEProxyState = serde_json::from_str(&raw).ok()?;
     for candidate in antigravity_ide_settings_candidates() {
         if Path::new(&state.path) == Path::new(&candidate) {
@@ -1582,23 +1582,18 @@ fn remove_antigravity_ide() -> bool {
 }
 
 pub fn antigravity_ide_proxy_wired() -> bool {
-    if let Some(state) = read_antigravity_ide_state() {
-        if let Some(raw) = paths::read_file_safe(&state.path) {
-            if let Some(cfg) = try_parse_jsonc(&raw) {
-                if cfg.get(ANTIGRAVITY_IDE_ENDPOINT_KEY).and_then(|v| v.as_str()) == Some(antigravity_url().as_str()) {
+    if let Some(state) = read_antigravity_ide_state()
+        && let Some(raw) = paths::read_file_safe(&state.path)
+            && let Some(cfg) = try_parse_jsonc(&raw)
+                && cfg.get(ANTIGRAVITY_IDE_ENDPOINT_KEY).and_then(|v| v.as_str()) == Some(antigravity_url().as_str()) {
                     return true;
                 }
-            }
-        }
-    }
     // Also check active settings file directly if state record is missing
-    if let Some(path) = antigravity_ide_settings_file() {
-        if let Some(raw) = paths::read_file_safe(&path) {
-            if let Some(cfg) = try_parse_jsonc(&raw) {
+    if let Some(path) = antigravity_ide_settings_file()
+        && let Some(raw) = paths::read_file_safe(&path)
+            && let Some(cfg) = try_parse_jsonc(&raw) {
                 return cfg.get(ANTIGRAVITY_IDE_ENDPOINT_KEY).and_then(|v| v.as_str()) == Some(antigravity_url().as_str());
             }
-        }
-    }
     false
 }
 
@@ -1845,11 +1840,10 @@ fn antigravity_windows_user_env_compatible() -> bool {
     let u = antigravity_url();
     #[cfg(windows)]
     {
-        if let Some(cur) = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_PROXY_ENV_KEY) {
-            if !cur.is_empty() && cur != u {
+        if let Some(cur) = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_PROXY_ENV_KEY)
+            && !cur.is_empty() && cur != u {
                 return false;
             }
-        }
     }
     true
 }
@@ -1864,13 +1858,11 @@ fn antigravity_write_windows_user_env() -> (bool, bool) {
         let mut changed = false;
         let mut mask: u32 = 0;
         let old_marker = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_WINDOWS_MARKER);
-        if let Some(ref m) = old_marker {
-            if let Some(caps) = regex::Regex::new(r"(?:^|,)proxy=(\d+)").ok().and_then(|re| re.captures(m)) {
-                if let Some(m_val) = caps.get(1) {
+        if let Some(ref m) = old_marker
+            && let Some(caps) = regex::Regex::new(r"(?:^|,)proxy=(\d+)").ok().and_then(|re| re.captures(m))
+                && let Some(m_val) = caps.get(1) {
                     mask = m_val.as_str().parse().unwrap_or(0);
                 }
-            }
-        }
 
         let cur = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_PROXY_ENV_KEY);
         if cur.as_deref() != Some(&u) {
@@ -1914,23 +1906,20 @@ fn antigravity_clear_windows_user_env() -> bool {
         };
 
         let mut mask: u32 = 0;
-        if let Some(caps) = regex::Regex::new(r"^proxy=(\d+)$").ok().and_then(|re| re.captures(&marker)) {
-            if let Some(m_val) = caps.get(1) {
+        if let Some(caps) = regex::Regex::new(r"^proxy=(\d+)$").ok().and_then(|re| re.captures(&marker))
+            && let Some(m_val) = caps.get(1) {
                 mask = m_val.as_str().parse().unwrap_or(0);
             }
-        }
 
         let mut changed = false;
         let keys = [(ANTIGRAVITY_PROXY_ENV_KEY, 1u32), (ANTIGRAVITY_CLOUD_CODE_KEY, 2u32)];
         for (key, bit) in keys {
-            if (mask & bit) != 0 || key == ANTIGRAVITY_CLOUD_CODE_KEY {
-                if let Some(cur) = crate::env_injector::windows::get_env_reg_value(key) {
-                    if cur == u || key == ANTIGRAVITY_CLOUD_CODE_KEY {
+            if ((mask & bit) != 0 || key == ANTIGRAVITY_CLOUD_CODE_KEY)
+                && let Some(cur) = crate::env_injector::windows::get_env_reg_value(key)
+                    && (cur == u || key == ANTIGRAVITY_CLOUD_CODE_KEY) {
                         let _ = crate::env_injector::windows::delete_env_reg_value(key);
                         changed = true;
                     }
-                }
-            }
         }
 
         let _ = crate::env_injector::windows::delete_env_reg_value(ANTIGRAVITY_WINDOWS_MARKER);
@@ -2049,13 +2038,12 @@ pub fn remove_antigravity_proxy() -> bool {
 pub fn antigravity_proxy_wired() -> bool {
     let url = antigravity_url();
     let mut env_ok = false;
-    if let Some(raw) = paths::read_file_safe(&antigravity_env_file()) {
-        if antigravity_env_value(&raw, ANTIGRAVITY_PROXY_ENV_KEY) == url
-            || antigravity_env_value(&raw, "GEMINI_API_BASE_URL") == url
+    if let Some(raw) = paths::read_file_safe(antigravity_env_file())
+        && (antigravity_env_value(&raw, ANTIGRAVITY_PROXY_ENV_KEY) == url
+            || antigravity_env_value(&raw, "GEMINI_API_BASE_URL") == url)
         {
             env_ok = true;
         }
-    }
     #[cfg(windows)]
     if !env_ok {
         let p1 = crate::env_injector::windows::get_env_reg_value(ANTIGRAVITY_PROXY_ENV_KEY);
@@ -2094,10 +2082,7 @@ pub fn antigravity_proxy_session_ready() -> bool {
 }
 
 fn remove_file_if_exists(path: &str) -> bool {
-    if paths::exists(path) && paths::remove_file_retry(path).is_err() {
-        return false;
-    }
-    true
+    !(paths::exists(path) && paths::remove_file_retry(path).is_err())
 }
 
 // --- antigravity_shim.go ---
@@ -2112,8 +2097,8 @@ fn antigravity_bin_file() -> String {
     for dir in &dirs {
         let bin = Path::new(dir).join(name).to_string_lossy().into_owned();
         if paths::exists(&bin)
-            || paths::exists(&antigravity_real_bin_in(dir))
-            || paths::exists(&antigravity_vendor_bin_in(dir))
+            || paths::exists(antigravity_real_bin_in(dir))
+            || paths::exists(antigravity_vendor_bin_in(dir))
         {
             return bin;
         }
@@ -2216,12 +2201,11 @@ fn remove_antigravity_shim() -> bool {
 
     // Delete shim wrapper if it exists and matches Toksi pattern
     if paths::is_win() {
-        if let Some(raw) = paths::read_file_safe(&bin) {
-            if looks_like_antigravity_shim(&raw) {
+        if let Some(raw) = paths::read_file_safe(&bin)
+            && looks_like_antigravity_shim(&raw) {
                 let _ = paths::remove_file_retry(&bin);
                 changed = true;
             }
-        }
         // Restore real binary to vendor (agy.exe)
         if paths::exists(&real) {
             if paths::exists(&vendor) {
@@ -2232,12 +2216,11 @@ fn remove_antigravity_shim() -> bool {
             }
         }
     } else {
-        if let Ok((raw, _)) = read_antigravity_launcher(&bin) {
-            if looks_like_antigravity_shim(&raw) {
+        if let Ok((raw, _)) = read_antigravity_launcher(&bin)
+            && looks_like_antigravity_shim(&raw) {
                 let _ = paths::remove_file_retry(&bin);
                 changed = true;
             }
-        }
         if paths::exists(&real) {
             if paths::exists(&bin) {
                 let _ = paths::remove_file_retry(&bin);
@@ -2248,7 +2231,7 @@ fn remove_antigravity_shim() -> bool {
         }
     }
 
-    if paths::exists(&antigravity_shim_state_file()) {
+    if paths::exists(antigravity_shim_state_file()) {
         let _ = paths::remove_file_retry(antigravity_shim_state_file());
         changed = true;
     }

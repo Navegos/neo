@@ -37,11 +37,10 @@ impl ProviderApiKey {
 
     pub fn is_available(&self) -> bool {
         if self.key_up == 0 {
-            if let Some(until) = self.cooldown_until {
-                if Instant::now() >= until {
+            if let Some(until) = self.cooldown_until
+                && Instant::now() >= until {
                     return true;
                 }
-            }
             return false;
         }
         true
@@ -95,14 +94,12 @@ impl KeyPoolManager {
 
         // Check if any cooldowns have expired
         for k in list.iter_mut() {
-            if k.key_up == 0 {
-                if let Some(until) = k.cooldown_until {
-                    if Instant::now() >= until {
+            if k.key_up == 0
+                && let Some(until) = k.cooldown_until
+                    && Instant::now() >= until {
                         k.key_up = 1;
                         k.cooldown_until = None;
                     }
-                }
-            }
         }
 
         // Collect indices of available keys
@@ -127,14 +124,13 @@ impl KeyPoolManager {
 
     pub fn record_result(&self, provider: ProviderId, key: &str, failure: Option<FailureClass>, cooldown_hint: Option<Duration>) {
         let mut pools = self.pools.write().unwrap_or_else(|e| e.into_inner());
-        if let Some(list) = pools.get_mut(&provider) {
-            if let Some(k) = list.iter_mut().find(|item| item.key == key) {
+        if let Some(list) = pools.get_mut(&provider)
+            && let Some(k) = list.iter_mut().find(|item| item.key == key) {
                 if let Some(f) = failure {
                     k.mark_failure(f, cooldown_hint);
                 } else {
                     k.mark_success();
                 }
             }
-        }
     }
 }

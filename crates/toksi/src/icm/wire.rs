@@ -52,6 +52,7 @@ impl DirectWireBus {
         self.sender.subscribe()
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn broadcast(&self, msg: WireMessage) -> Result<usize, broadcast::error::SendError<WireMessage>> {
         self.sender.send(msg)
     }
@@ -59,13 +60,11 @@ impl DirectWireBus {
     /// Dispatch direct in-process tool call without IPC or network overhead.
     pub fn dispatch(&self, action: &str, payload: &Value) -> Value {
         let mut store_guard = self.store.lock().unwrap_or_else(|p| p.into_inner());
-        if store_guard.is_none() {
-            if let Ok(path) = resolve_icm_db_path_from(self.project_root.as_deref()) {
-                if let Ok(store) = IcmStore::open(path) {
+        if store_guard.is_none()
+            && let Ok(path) = resolve_icm_db_path_from(self.project_root.as_deref())
+                && let Ok(store) = IcmStore::open(path) {
                     *store_guard = Some(store);
                 }
-            }
-        }
 
         let result = if let Some(ref mut store) = *store_guard {
             let (res_str, is_err) = super::mcp::handle_tool_call(store, action, payload);

@@ -71,11 +71,7 @@ impl ProgressInner {
             elapsed_str(self.start.elapsed())
         );
         let cur_width = visible_len(&line);
-        let pad = if self.last_width > cur_width {
-            self.last_width - cur_width
-        } else {
-            0
-        };
+        let pad = self.last_width.saturating_sub(cur_width);
         self.last_width = cur_width;
         print!("\r\x1b[2K{}{}", line, " ".repeat(pad));
         let _ = io::stdout().flush();
@@ -189,7 +185,7 @@ impl Progress {
 
     pub fn start(&self, _total: usize) {
         let should_spin = {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
             inner.rows = 0;
             inner.stopped = false;
             if !inner.title.is_empty() && !quiet() {
@@ -219,7 +215,7 @@ impl Progress {
                 let Some(arc) = weak.upgrade() else {
                     return;
                 };
-                let mut inner = arc.lock().unwrap();
+                let mut inner = arc.lock().unwrap_or_else(|e| e.into_inner());
                 if inner.stopped {
                     return;
                 }
@@ -233,7 +229,7 @@ impl Progress {
     }
 
     pub fn begin(&self, label: &str) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         inner.current = label.to_string();
         inner.phase.clear();
         inner.frac = 0.0;
@@ -246,7 +242,7 @@ impl Progress {
     }
 
     pub fn step(&self, phase: &str, frac: f64) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let clamped = frac.clamp(0.0, 1.0);
         inner.phase = phase.to_string();
         inner.frac = clamped;
@@ -269,7 +265,7 @@ impl Progress {
     }
 
     pub fn complete(&self, note: &str) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         inner.active = false;
         inner.clear_line();
         if !quiet() {
@@ -293,7 +289,7 @@ impl Progress {
     }
 
     pub fn fail(&self, reason: &str) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         inner.active = false;
         inner.clear_line();
         if !quiet() {
@@ -311,7 +307,7 @@ impl Progress {
     }
 
     pub fn skip(&self, note: &str) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         inner.active = false;
         inner.clear_line();
         if !quiet() {
@@ -330,7 +326,7 @@ impl Progress {
 
     pub fn done(&self, summary: &str) {
         let (tree_style, tty, tree_root, rows, title) = {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
             inner.stopped = true;
             inner.active = false;
             inner.clear_line();

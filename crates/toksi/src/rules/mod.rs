@@ -163,6 +163,7 @@ impl RuleKind {
     }
 
     /// Parses a rule kind from its identifier string.
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_ascii_lowercase().trim() {
             "principles" | "karpathy" | "karpathy-guidelines" => Some(RuleKind::Principles),
@@ -348,7 +349,7 @@ pub fn inject_rule_into_content(content: &str, rule: RuleKind) -> String {
     let norm = normalize_newlines(content);
     let (preamble, mut existing_rules) = parse_content_sections(&norm);
 
-    if !existing_rules.iter().any(|&r| r == rule) {
+    if !existing_rules.contains(&rule) {
         existing_rules.push(rule);
     }
 
@@ -450,11 +451,10 @@ fn resolve_target_file(target: impl AsRef<Path>, default_filename: &str) -> Path
 
 /// Atomically writes content to a file, creating parent directories if needed.
 fn safe_write_file(path: &Path, content: &str) -> Result<(), DynError> {
-    if let Some(parent) = path.parent() {
-        if !parent.as_os_str().is_empty() {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent)?;
         }
-    }
     fs::write(path, content)?;
     Ok(())
 }
@@ -946,8 +946,8 @@ pub fn inspect_agent_rules(dir: impl AsRef<Path>) -> Vec<ConfigRuleStatus> {
 
     let check_file = |rel_path: &str| -> Option<ConfigRuleStatus> {
         let fpath = p.join(rel_path);
-        if fpath.exists() {
-            if let Ok(content) = fs::read_to_string(&fpath) {
+        if fpath.exists()
+            && let Ok(content) = fs::read_to_string(&fpath) {
                 let present: Vec<RuleKind> = RuleKind::all()
                     .iter()
                     .copied()
@@ -958,7 +958,6 @@ pub fn inspect_agent_rules(dir: impl AsRef<Path>) -> Vec<ConfigRuleStatus> {
                     present_rules: present,
                 });
             }
-        }
         None
     };
 

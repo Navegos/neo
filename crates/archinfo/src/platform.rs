@@ -156,7 +156,7 @@ impl CudaArch {
     /// Parses a string with potentially multi-value CUDA architectures separated by ';', ',', or '+'
     pub fn parse_multivalue(s: &str) -> Result<Vec<CudaArch>, String> {
         let mut list = Vec::new();
-        for token in s.split(|c| c == ';' || c == ',' || c == '+').map(|t| t.trim()).filter(|t| !t.is_empty()) {
+        for token in s.split([';', ',', '+']).map(|t| t.trim()).filter(|t| !t.is_empty()) {
             let clean = token.trim_matches(|c| c == '(' || c == ')' || c == '[' || c == ']');
             let arch = clean.parse::<CudaArch>()?;
             if !list.contains(&arch) {
@@ -516,7 +516,7 @@ impl RocmArch {
     /// Parses a string with potentially multi-value ROCm architectures separated by ';', ',', or '+'
     pub fn parse_multivalue(s: &str) -> Result<Vec<RocmArch>, String> {
         let mut list = Vec::new();
-        for token in s.split(|c| c == ';' || c == ',' || c == '+').map(|t| t.trim()).filter(|t| !t.is_empty()) {
+        for token in s.split([';', ',', '+']).map(|t| t.trim()).filter(|t| !t.is_empty()) {
             let clean = token.trim_matches(|c| c == '(' || c == ')' || c == '[' || c == ']');
             let arch = clean.parse::<RocmArch>()?;
             if !list.contains(&arch) {
@@ -693,7 +693,7 @@ impl XpuArch {
     /// Parses a string with potentially multi-value Intel XPU architectures separated by ';', ',', or '+'
     pub fn parse_multivalue(s: &str) -> Result<Vec<XpuArch>, String> {
         let mut list = Vec::new();
-        for token in s.split(|c| c == ';' || c == ',' || c == '+').map(|t| t.trim()).filter(|t| !t.is_empty()) {
+        for token in s.split([';', ',', '+']).map(|t| t.trim()).filter(|t| !t.is_empty()) {
             let clean = token.trim_matches(|c| c == '(' || c == ')' || c == '[' || c == ']');
             let arch = clean.parse::<XpuArch>()?;
             if !list.contains(&arch) {
@@ -829,7 +829,7 @@ impl AppleGpuFamily {
     /// Parses a string with potentially multi-value Intel Metal architectures separated by ';', ',', or '+'
     pub fn parse_multivalue(s: &str) -> Result<Vec<AppleGpuFamily>, String> {
         let mut list = Vec::new();
-        for token in s.split(|c| c == ';' || c == ',' || c == '+').map(|t| t.trim()).filter(|t| !t.is_empty()) {
+        for token in s.split([';', ',', '+']).map(|t| t.trim()).filter(|t| !t.is_empty()) {
             let clean = token.trim_matches(|c| c == '(' || c == ')' || c == '[' || c == ']');
             let arch = clean.parse::<AppleGpuFamily>()?;
             if !list.contains(&arch) {
@@ -908,7 +908,7 @@ impl MetalVersion {
     /// Parses a string into MetalVersion
     pub fn parse_multivalue(s: &str) -> Result<Vec<MetalVersion>, String> {
         let mut list = Vec::new();
-        for token in s.split(|c| c == ';' || c == ',' || c == '+').map(|t| t.trim()).filter(|t| !t.is_empty()) {
+        for token in s.split([';', ',', '+']).map(|t| t.trim()).filter(|t| !t.is_empty()) {
             let clean = token.trim_matches(|c| c == '(' || c == ')' || c == '[' || c == ']');
             let arch = clean.parse::<MetalVersion>()?;
             if !list.contains(&arch) {
@@ -1063,7 +1063,7 @@ impl GPUArch {
     /// Parses a string with potentially multi-value GPU architectures separated by ';', ',', or '+'
     pub fn parse_multivalue(s: &str) -> Result<Vec<GPUArch>, String> {
         let mut list = Vec::new();
-        for token in s.split(|c| c == ';' || c == ',' || c == '+').map(|t| t.trim()).filter(|t| !t.is_empty()) {
+        for token in s.split([';', ',', '+']).map(|t| t.trim()).filter(|t| !t.is_empty()) {
             let clean = token.trim_matches(|c| c == '(' || c == ')' || c == '[' || c == ']');
             let arch = clean.parse::<GPUArch>()?;
             if !list.contains(&arch) {

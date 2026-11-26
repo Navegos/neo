@@ -38,7 +38,7 @@ pub fn clip_record(text: &str) -> String {
         Some(idx) => &head[..idx],
         None => head,
     };
-    let trimmed = clipped_head.trim_end_matches(|c| c == ' ' || c == ',' || c == ';' || c == ':');
+    let trimmed = clipped_head.trim_end_matches([' ', ',', ';', ':']);
     format!("{}...", trimmed)
 }
 
@@ -117,8 +117,8 @@ pub fn extract_project_purpose_from_readme(root: Option<&Path>) -> Option<String
 
     for name in ["README.md", "readme.md", "README.txt", "README"] {
         let p = root_path.join(name);
-        if p.exists() {
-            if let Ok(content) = fs::read_to_string(&p) {
+        if p.exists()
+            && let Ok(content) = fs::read_to_string(&p) {
                 for line in content.lines() {
                     let trimmed = line.trim();
                     if trimmed.is_empty()
@@ -134,7 +134,6 @@ pub fn extract_project_purpose_from_readme(root: Option<&Path>) -> Option<String
                     return Some(snippet);
                 }
             }
-        }
     }
     None
 }
@@ -259,23 +258,20 @@ pub fn collect_files(events: &[Event]) -> Vec<String> {
                 files.push(norm);
             }
         }
-        if let Some(ref loc) = e.location {
-            if let Some(f) = super::schema::location_to_file(Some(loc)) {
+        if let Some(ref loc) = e.location
+            && let Some(f) = super::schema::location_to_file(Some(loc)) {
                 let norm = normalize_path(&f);
                 if !seen.contains(&norm) {
                     seen.insert(norm.clone());
                     files.push(norm);
                 }
             }
-        }
     }
     files
 }
 
 pub fn build_summary(events: &[Event], project_name: &str, purpose: Option<&str>) -> String {
-    let default_purpose = format!(
-        "Replace this placeholder with a concise description of what this project does, who it serves, and the main technologies."
-    );
+    let default_purpose = "Replace this placeholder with a concise description of what this project does, who it serves, and the main technologies.".to_string();
     let purpose = purpose.unwrap_or(&default_purpose);
 
     let issue_groups = group_issue_events(events);
@@ -294,8 +290,8 @@ pub fn build_summary(events: &[Event], project_name: &str, purpose: Option<&str>
         }
     }
 
-    open_issues.sort_by(|a, b| issue_sort_key(&b.0).cmp(&issue_sort_key(&a.0)));
-    fixed_issues.sort_by(|a, b| issue_sort_key(&b.0).cmp(&issue_sort_key(&a.0)));
+    open_issues.sort_by_key(|a| std::cmp::Reverse(issue_sort_key(&a.0)));
+    fixed_issues.sort_by_key(|a| std::cmp::Reverse(issue_sort_key(&a.0)));
 
     let mut issue_sections = Vec::new();
     for (id, issue, evs, fix) in open_issues.iter().take(OPEN_IN_FULL) {
@@ -433,9 +429,7 @@ pub fn build_summary_for_root(events: &[Event], root: Option<&Path>) -> String {
         .as_deref()
         .and_then(extract_project_purpose);
 
-    let default_purpose = format!(
-        "Replace this placeholder with a concise description of what this project does, who it serves, and the main technologies."
-    );
+    let default_purpose = "Replace this placeholder with a concise description of what this project does, who it serves, and the main technologies.".to_string();
 
     let purpose = map_purpose
         .or(readme_purpose)

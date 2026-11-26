@@ -25,7 +25,7 @@ pub fn selection_path() -> String {
 }
 
 pub fn load_selection() -> Option<SelectionStore> {
-    let raw = read_file_safe(&selection_path())?;
+    let raw = read_file_safe(selection_path())?;
     let store: SelectionStore = serde_json::from_str(&raw).ok()?;
     if store.mode != "full" && store.mode != "selected" {
         return None;
@@ -41,10 +41,10 @@ pub fn save_selection(mode: &str, tools: &[String]) -> std::io::Result<()> {
         mode: mode.to_string(),
         tools: tools.to_vec(),
     };
-    let data = serde_json::to_string_pretty(&store).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let data = serde_json::to_string_pretty(&store).map_err(std::io::Error::other)?;
     let dir = toksi_data_dir();
     ensure_dir(&dir)?;
-    write_file(&selection_path(), &data)
+    write_file(selection_path(), &data)
 }
 
 pub fn is_tool_selected(tool_id: &str) -> bool {

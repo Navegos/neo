@@ -95,18 +95,16 @@ pub fn anonymize_pii_format_preserving(text: &str) -> (String, Vec<String>) {
         LazyLock::new(|| Regex::new(r"\b(?:\d{1,3}\.){3}\d{1,3}\b").ok());
 
     let (mut out, mut fired) = redact(text);
-    if let Some(re) = EMAIL_RE.as_ref() {
-        if re.is_match(&out) {
+    if let Some(re) = EMAIL_RE.as_ref()
+        && re.is_match(&out) {
             fired.push("pii_email".to_string());
             out = re.replace_all(&out, "anon@redacted.local").to_string();
         }
-    }
-    if let Some(re) = IPV4_RE.as_ref() {
-        if re.is_match(&out) {
+    if let Some(re) = IPV4_RE.as_ref()
+        && re.is_match(&out) {
             fired.push("pii_ipv4".to_string());
             out = re.replace_all(&out, "0.0.0.0").to_string();
         }
-    }
     (out, fired)
 }
 

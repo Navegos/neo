@@ -166,19 +166,16 @@ pub fn is_agy_adc_auth_enabled() -> bool {
     if cfg.auth.gcp_adc.agy_adc_auth || !cfg.auth.gcp_adc.gcp_project.trim().is_empty() {
         return true;
     }
-    if let Some(settings_path) = vscode_settings_path() {
-        if let Ok(raw) = std::fs::read_to_string(&settings_path) {
-            if let Ok(val) = serde_json::from_str::<Value>(&raw) {
-                if val
+    if let Some(settings_path) = vscode_settings_path()
+        && let Ok(raw) = std::fs::read_to_string(&settings_path)
+            && let Ok(val) = serde_json::from_str::<Value>(&raw)
+                && val
                     .get("agy.adcAuth")
                     .and_then(Value::as_bool)
                     .unwrap_or(false)
                 {
                     return true;
                 }
-            }
-        }
-    }
     false
 }
 
@@ -260,10 +257,10 @@ pub fn read_vscode_gcp_settings() -> (Option<String>, String) {
         }
     }
 
-    if project.is_none() || location.is_none() {
-        if let Some(settings_path) = vscode_settings_path() {
-            if let Ok(raw) = std::fs::read_to_string(&settings_path) {
-                if let Ok(val) = serde_json::from_str::<Value>(&raw) {
+    if (project.is_none() || location.is_none())
+        && let Some(settings_path) = vscode_settings_path()
+            && let Ok(raw) = std::fs::read_to_string(&settings_path)
+                && let Ok(val) = serde_json::from_str::<Value>(&raw) {
                     if project.is_none() {
                         project = val
                             .get("gcp.project")
@@ -279,9 +276,6 @@ pub fn read_vscode_gcp_settings() -> (Option<String>, String) {
                             .filter(|s| !s.is_empty());
                     }
                 }
-            }
-        }
-    }
 
     (
         project,
@@ -580,11 +574,10 @@ pub fn inspect_adc_status() -> AdcStatus {
         .filter(|p| p.is_file())
         .and_then(|p| parse_adc_credentials_file(p).ok());
 
-    if gcp_project.is_none() {
-        if let Some(hint) = parsed_cred.as_ref().and_then(|c| c.project_hint()) {
+    if gcp_project.is_none()
+        && let Some(hint) = parsed_cred.as_ref().and_then(|c| c.project_hint()) {
             gcp_project = Some(hint.to_string());
         }
-    }
 
     let adc_present = parsed_cred.is_some();
     let credential_kind = parsed_cred.map(|c| c.kind_label().to_string());

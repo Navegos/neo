@@ -211,7 +211,7 @@ fn truncate_str(s: &str, limit: usize) -> String {
         s.to_string()
     } else {
         let mut out: String = s.chars().take(limit).collect();
-        out.push_str("…");
+        out.push('…');
         out
     }
 }
@@ -522,8 +522,8 @@ pub fn projectmem_remove_session_push(agent: &str) {
         }
         "antigravity" | "antigravity-cli" | "antigravity-ide" => {
             let p = Path::new(&home()).join(".gemini").join("config").join("hooks.json").to_string_lossy().to_string();
-            if let Some(raw) = read_file_safe(&p) {
-                if let Some(Value::Object(mut cfg)) = try_parse_jsonc(&raw) {
+            if let Some(raw) = read_file_safe(&p)
+                && let Some(Value::Object(mut cfg)) = try_parse_jsonc(&raw) {
                     let removed = cfg.remove("projectmem").is_some()
                         | cfg.remove("projectmem-context").is_some();
                     if removed {
@@ -534,7 +534,6 @@ pub fn projectmem_remove_session_push(agent: &str) {
                         }
                     }
                 }
-            }
         }
         "copilot" | "copilot-cli" | "copilot-vscode" => {
             let hooks_dir = std::path::PathBuf::from(copilot_paths_resolved().hooks_dir);
@@ -864,7 +863,7 @@ pub fn build_projectmem() -> ToolManifest {
     tool.homepage = "https://github.com/Navegos/projectmem".into();
     tool.install_hint = "Native embedded in toksi (toksi mem)".into();
     tool.channel = Channel::Binary;
-    tool.install = Some(Arc::new(|opts| projectmem_ensure_installed(opts)));
+    tool.install = Some(Arc::new(projectmem_ensure_installed));
     tool.index_ready = Some(Arc::new(|| {
         let cwd = env::current_dir()
             .map(|p| p.to_string_lossy().to_string())
@@ -875,7 +874,7 @@ pub fn build_projectmem() -> ToolManifest {
         }
         exists(Path::new(&root).join(".toksi").join("projectmem").join("summary.md"))
     }));
-    tool.index_project = Some(Arc::new(|dir, opts| projectmem_index_project(dir, opts)));
+    tool.index_project = Some(Arc::new(projectmem_index_project));
 
     let agents = [
         "claude", "opencode", "opencode2", "codex", "antigravity", "copilot", "droid", "grok",

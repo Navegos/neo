@@ -194,9 +194,8 @@ fn test_phase18_3_effort_router_translation_and_slash_latency() {
         detect_effort_level(&[], Some(&json!({"reasoning_effort": "low"}))),
         EffortLevel::Low
     );
-    assert_eq!(
-        EffortContextStrategy::for_effort(EffortLevel::Low).rtk_max_compaction,
-        true
+    assert!(
+        EffortContextStrategy::for_effort(EffortLevel::Low).rtk_max_compaction
     );
 
     // Slash /effort < 5ms switching & live telemetry registry

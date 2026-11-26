@@ -54,8 +54,8 @@ impl SafePlanCheckpointer {
             .map(|p| format!("{}@{}", p.manifest.id, p.manifest.version))
             .collect();
 
-        if let Ok(db) = crate::db::open_default_db() {
-            if let Ok(rows) = db.list_plugins() {
+        if let Ok(db) = crate::db::open_default_db()
+            && let Ok(rows) = db.list_plugins() {
                 for r in rows {
                     if r.is_enabled {
                         let tag = format!("{}@{}", r.id, r.version);
@@ -65,7 +65,6 @@ impl SafePlanCheckpointer {
                     }
                 }
             }
-        }
         self.checkpoint.active_plugins = plugins;
 
         for rel_or_abs in touched_files {

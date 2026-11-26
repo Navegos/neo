@@ -1,6 +1,6 @@
-# Phase 19.3 — Live-Safe Sandboxed & Docker Test Isolation
+# Phase 19.3 â€” Live-Safe Sandboxed & Docker Test Isolation
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -19,7 +19,7 @@ Plus .agents/brain/PHASE_19_3_LIVE_SAFE_SANDBOXED_AND_DOCKER_TEST_ISOLATION.md.
 
 Execute Phase 19.3: Live-Safe Sandboxed & Docker Test Isolation (RESEARCHPLAN.txt:584).
 Targets:
-  - docker/Dockerfile.test (NEW — clean reproducible Rust + test toolchain container)
+  - docker/Dockerfile.test (NEW â€” clean reproducible Rust + test toolchain container)
   - docker/docker-compose.test.yml (NEW)
   - crates/toksi/src/commands/test_runner.rs (add `--docker`, `--sandbox`, ephemeral env isolation, & live-daemon guard)
   - crates/toksi/src/config/mod.rs (`[testing]` section: `live_safe_isolation`, `sandbox_backend`, `test_image`)
@@ -28,9 +28,9 @@ Targets:
   - crates/toksi/tests/phase19_3_live_safe_test_isolation_verification.rs (NEW)
 
 Requirements:
-1. Tier 1 — Ephemeral In-Process & Temp-Root Isolation:
+1. Tier 1 â€” Ephemeral In-Process & Temp-Root Isolation:
    - Guarantee every unit & integration test overrides `TOKSI_HOME` to a unique `tempfile::TempDir`, binds HTTP/IPC endpoints strictly to `127.0.0.1:0` and unique test pipe/socket IDs, disables `HKCU\Environment` & OS Keyring mutations (`--no-env-inject` / mock keyring store), and NEVER stops, kills, or mutates live running host `toksi` services, `~/.toksi/toksi.db`, or live ports `8787..18787`.
-2. Tier 2 — Containerized / Sandboxed Daemon Test Runner (`docker/Dockerfile.test` & `toksi test --docker|--sandbox`):
+2. Tier 2 â€” Containerized / Sandboxed Daemon Test Runner (`docker/Dockerfile.test` & `toksi test --docker|--sandbox`):
    - Author `docker/Dockerfile.test` with pinned Rust toolchain, `git`, `sqlite3`, `curl`, and optional polyglot test fixtures (zero raw vault bash/CI bloat).
    - Extend `src/commands/test_runner.rs` so `toksi test` checks `docker`/`sbx` availability in `PATH` (following "Test & Inform PATH"), runs `"isolation": "docker_sandbox"` suites (`phase15_2`, `e2e_tests`, `phase19_2`, hook/daemon/env tests) inside isolated containers or `sbx`/3-OS native sandboxes, and streams structured pass/fail results.
 3. Preserve `.toksi/test-baseline.json` BLAKE3 incremental skipping (`[SKIP-UNCHANGED]`) without ever relaxing or skipping assertions inside modified suites (`--all` / `--force` runs full suite).

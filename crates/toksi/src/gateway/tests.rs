@@ -5,6 +5,7 @@
 // created: 2026-11-06
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use std::collections::HashMap;
     use serde_json::json;

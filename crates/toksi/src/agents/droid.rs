@@ -104,9 +104,9 @@ pub fn droid_known_bin_dirs() -> Vec<String> {
             .to_string_lossy()
             .to_string(),
     ];
-    if IS_WIN {
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            if !local.is_empty() {
+    if IS_WIN
+        && let Ok(local) = std::env::var("LOCALAPPDATA")
+            && !local.is_empty() {
                 dirs.push(
                     Path::new(&local)
                         .join("factory")
@@ -115,15 +115,13 @@ pub fn droid_known_bin_dirs() -> Vec<String> {
                         .to_string(),
                 );
             }
-        }
-    }
     dirs
 }
 
 pub fn droid_desktop_paths() -> Vec<String> {
     if IS_WIN {
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            if !local.is_empty() {
+        if let Ok(local) = std::env::var("LOCALAPPDATA")
+            && !local.is_empty() {
                 return vec![
                     Path::new(&local)
                         .join("Programs")
@@ -133,7 +131,6 @@ pub fn droid_desktop_paths() -> Vec<String> {
                         .to_string(),
                 ];
             }
-        }
         return Vec::new();
     }
     if std::env::consts::OS == "macos" {
@@ -487,12 +484,11 @@ fn droid_remove_hook_group(cfg: &mut Value, event: &str, matcher: &str, managed_
         let Some(mut gm) = g.as_object().cloned() else {
             return;
         };
-        if let Some(mv) = gm.get("matcher") {
-            if mv.as_str() != Some(matcher) {
+        if let Some(mv) = gm.get("matcher")
+            && mv.as_str() != Some(matcher) {
                 kept.push(Value::Object(gm));
                 continue;
             }
-        }
         let Some(ha) = gm.get("hooks").and_then(|v| v.as_array()).cloned() else {
             return;
         };
@@ -541,11 +537,9 @@ fn droid_has_hook(event: &str, cmd_substring: &str) -> bool {
                 .as_object()
                 .and_then(|hm| hm.get("command"))
                 .and_then(|c| c.as_str())
-            {
-                if cs.contains(cmd_substring) {
+                && cs.contains(cmd_substring) {
                     return true;
                 }
-            }
         }
     }
     false
@@ -823,10 +817,7 @@ fn is_absolute_http(u: &str) -> bool {
     if parsed.scheme() != "http" && parsed.scheme() != "https" {
         return false;
     }
-    match parsed.host_str() {
-        Some(h) if !h.is_empty() => true,
-        _ => false,
-    }
+    matches!(parsed.host_str(), Some(h) if !h.is_empty())
 }
 
 fn same_proxy_base(a: &str, b: &str) -> bool {
@@ -876,14 +867,12 @@ where
                 return res;
             }
             Err(_) => {
-                if let Ok(meta) = fs::metadata(&lock_path) {
-                    if let Ok(modified) = meta.modified() {
-                        if modified.elapsed().unwrap_or_default() > Duration::from_secs(10) {
+                if let Ok(meta) = fs::metadata(&lock_path)
+                    && let Ok(modified) = meta.modified()
+                        && modified.elapsed().unwrap_or_default() > Duration::from_secs(10) {
                             let _ = fs::remove_file(&lock_path);
                             continue;
                         }
-                    }
-                }
                 if Instant::now() >= deadline {
                     return Err(format!("timed out acquiring {}", lock_path));
                 }
@@ -989,13 +978,12 @@ fn register_byok_route(
 
 fn rollback_byok_route(agent: &str, id: &str, previous: Option<&BYOKRoute>) -> Result<(), String> {
     let namespaced_id = format!("{}:{}", agent, id);
-    if let Some(prev) = previous {
-        if !prev.id.is_empty() {
+    if let Some(prev) = previous
+        && !prev.id.is_empty() {
             return upsert_byok_route(&namespaced_id, &prev.protocol, &prev.upstream)
                 .map(|_| ())
                 .map_err(|e| e.to_string());
         }
-    }
     util_delete_byok_route(&namespaced_id).map_err(|e| e.to_string())
 }
 
@@ -1084,17 +1072,15 @@ fn droid_native_routes(
         };
         let upstream = normalized_headroom_upstream(&base, "openai-completions");
         let mut endpoint = proxy_endpoint_for("droid");
-        if droid_gateway_base(&base) {
-            if let Some(route) = read_byok_route(&format!("droid:{}", id)) {
-                if headers.get("X-Toksi-Route").and_then(|v| v.as_str())
+        if droid_gateway_base(&base)
+            && let Some(route) = read_byok_route(&format!("droid:{}", id))
+                && headers.get("X-Toksi-Route").and_then(|v| v.as_str())
                     == Some(&byok_route_header(&route))
                 {
                     routed.insert(id);
                     found = true;
                     continue;
                 }
-            }
-        }
         if let Some(current) = headers.get(HEADROOM_BASE_URL_HEADER) {
             let Some(current_str) = current.as_str() else {
                 continue;
@@ -1350,11 +1336,10 @@ fn remove_droid_proxy_locked() -> bool {
                 continue;
             };
             let Some((id, base, mut headers)) = droid_model_route(model) else {
-                if let Some(model_id) = model.get("model").and_then(|v| v.as_str()) {
-                    if let Some(entry) = stash.get(model_id) {
+                if let Some(model_id) = model.get("model").and_then(|v| v.as_str())
+                    && let Some(entry) = stash.get(model_id) {
                         remaining.insert(model_id.to_string(), entry.clone());
                     }
-                }
                 continue;
             };
             let Some(entry) = stash.get(&id) else {
@@ -1372,12 +1357,11 @@ fn remove_droid_proxy_locked() -> bool {
                 remaining.insert(id, entry.clone());
                 continue;
             }
-            if let Some(val) = headers.get(HEADROOM_BASE_URL_HEADER) {
-                if val.as_str() != Some(&entry.upstream) {
+            if let Some(val) = headers.get(HEADROOM_BASE_URL_HEADER)
+                && val.as_str() != Some(&entry.upstream) {
                     remaining.insert(id, entry.clone());
                     continue;
                 }
-            }
             model.insert("baseUrl".to_string(), Value::String(entry.base_url.clone()));
             if entry.had_header {
                 headers.insert(

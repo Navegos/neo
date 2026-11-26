@@ -2303,7 +2303,7 @@ fn test_msvc_arch_vlen_platforms_ignored_and_empty_in_json() {
 
     for (p, a) in msvc_platforms {
         let report = ArchFeaturesReport::from_target(p, a).unwrap();
-        assert!(report.target_msvc_arch.as_ref().map_or(false, |s| !s.is_empty()));
+        assert!(report.target_msvc_arch.as_ref().is_some_and(|s| !s.is_empty()));
         let json = report.to_json().unwrap();
         assert!(!json.contains("\"target_msvc_arch\": \"\""));
     }

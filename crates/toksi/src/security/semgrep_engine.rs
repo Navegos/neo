@@ -84,8 +84,8 @@ pub fn scan_source_ast(
 
     if let Some(grammar) = grammar_for(canon) {
         let mut parser = Parser::new();
-        if parser.set_language(&grammar).is_ok() {
-            if let Some(tree) = parser.parse(source, None) {
+        if parser.set_language(&grammar).is_ok()
+            && let Some(tree) = parser.parse(source, None) {
                 for rule in BUILTIN_AST_RULES {
                     if !rule.languages.contains(&canon) {
                         continue;
@@ -111,7 +111,6 @@ pub fn scan_source_ast(
                     }
                 }
             }
-        }
     }
 
     // Cross-language sink fallback for all 45 languages (SQLi, shell pipe, hardcoded root Dockerfile)

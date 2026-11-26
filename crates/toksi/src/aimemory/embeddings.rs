@@ -80,13 +80,10 @@ impl TeiClient {
             .json(&serde_json::json!({ "inputs": inputs }))
             .send()
             .await
-        {
-            if resp.status().is_success() {
-                if let Ok(parsed) = resp.json::<Vec<Vec<f32>>>().await {
+            && resp.status().is_success()
+                && let Ok(parsed) = resp.json::<Vec<Vec<f32>>>().await {
                     return parsed;
                 }
-            }
-        }
         inputs.iter().map(|t| self.embed_local(t)).collect()
     }
 
@@ -99,13 +96,10 @@ impl TeiClient {
             .json(&serde_json::json!({ "query": query, "texts": texts }))
             .send()
             .await
-        {
-            if resp.status().is_success() {
-                if let Ok(parsed) = resp.json::<Vec<RerankScore>>().await {
+            && resp.status().is_success()
+                && let Ok(parsed) = resp.json::<Vec<RerankScore>>().await {
                     return parsed;
                 }
-            }
-        }
         let q_terms: Vec<String> = query
             .split_whitespace()
             .map(|s| s.to_ascii_lowercase())

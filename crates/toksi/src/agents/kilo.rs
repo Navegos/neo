@@ -295,8 +295,10 @@ fn kilo_state_read() -> Result<(HashMap<String, Vec<String>>, bool), String> {
     Ok((state, exists))
 }
 
-fn kilo_state_read_raw() -> Result<(HashMap<String, Vec<String>>, bool, String), String> {
-    let Some(raw) = paths::read_file_safe(&kilo_state_path()) else {
+type KiloStateRaw = (HashMap<String, Vec<String>>, bool, String);
+
+fn kilo_state_read_raw() -> Result<KiloStateRaw, String> {
+    let Some(raw) = paths::read_file_safe(kilo_state_path()) else {
         return Ok((HashMap::new(), false, String::new()));
     };
     let state: HashMap<String, Vec<String>> = serde_json::from_str(&raw).map_err(|e| {
@@ -497,7 +499,7 @@ pub fn kilo_transport_plugin_target() -> String {
 }
 
 pub fn kilo_transport_plugin_wired() -> bool {
-    paths::read_file_safe(&kilo_transport_plugin_target())
+    paths::read_file_safe(kilo_transport_plugin_target())
         .is_some_and(|raw| raw.trim() == TOKSI_OPENCODE_BYOK_PLUGIN.trim())
 }
 
@@ -786,7 +788,7 @@ fn remove_kilo_proxy_locked() -> bool {
             let Some(entry) = stash.get(&id) else {
                 continue;
             };
-            if let Some(orig_val) = serde_json::from_slice::<Value>(&entry.original).ok() {
+            if let Ok(orig_val) = serde_json::from_slice::<Value>(&entry.original) {
                 pm.insert(id.clone(), orig_val);
                 changed = true;
             } else if let Some(m) = pm.get_mut(&id).and_then(|v| v.as_object_mut()) {

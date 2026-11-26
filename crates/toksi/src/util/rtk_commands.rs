@@ -13,7 +13,9 @@ use crate::util::exec::resolve_rtk_bin;
 use crate::util::paths::which;
 
 pub fn rtk_commands_from_help(help: &str) -> Vec<String> {
-    let re = Regex::new(r"^[a-z][a-z0-9-]*$").unwrap();
+    let Ok(re) = Regex::new(r"^[a-z][a-z0-9-]*$") else {
+        return Vec::new();
+    };
     let mut commands = BTreeSet::new();
     let mut in_commands = false;
 

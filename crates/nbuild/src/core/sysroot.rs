@@ -101,7 +101,7 @@ impl<'a> SysrootManager<'a> {
                 let file_path = entry.path();
                 let dest_file = target_bin_dir.join(&file_name);
 
-                let is_dll = file_path.extension().map_or(false, |ext| ext == "dll");
+                let is_dll = file_path.extension().is_some_and(|ext| ext == "dll");
 
                 match LinkEngine::link_file(&file_path, &dest_file, true)? {
                     LinkStatus::Conflict(msg) => {

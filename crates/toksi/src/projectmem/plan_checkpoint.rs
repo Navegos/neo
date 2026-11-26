@@ -24,22 +24,21 @@ pub const PLAN_CHECKPOINTS_DIR: &str = "plan_checkpoints";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CheckpointStatus {
     Active,
+    #[default]
     Paused,
     Completed,
     Failed,
 }
 
-impl Default for CheckpointStatus {
-    fn default() -> Self {
-        Self::Paused
-    }
-}
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CheckpointStepStatus {
+    #[default]
     Pending,
     Running,
     Completed,
@@ -47,11 +46,6 @@ pub enum CheckpointStepStatus {
     Failed,
 }
 
-impl Default for CheckpointStepStatus {
-    fn default() -> Self {
-        Self::Pending
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FileDigestRecord {
@@ -298,13 +292,11 @@ pub fn list_plan_checkpoints(root: Option<&Path>) -> Result<Vec<PlanCheckpoint>>
     let mut list = Vec::new();
     for entry in fs::read_dir(&dir)?.flatten() {
         let p = entry.path();
-        if p.is_file() && p.extension().and_then(|e| e.to_str()) == Some("json") {
-            if let Ok(raw) = fs::read_to_string(&p) {
-                if let Ok(cp) = serde_json::from_str::<PlanCheckpoint>(&raw) {
+        if p.is_file() && p.extension().and_then(|e| e.to_str()) == Some("json")
+            && let Ok(raw) = fs::read_to_string(&p)
+                && let Ok(cp) = serde_json::from_str::<PlanCheckpoint>(&raw) {
                     list.push(cp);
                 }
-            }
-        }
     }
     list.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     Ok(list)
@@ -398,7 +390,7 @@ pub fn append_checkpoint_event(
     if !events_file.exists() {
         let _ = fs::OpenOptions::new()
             .create(true)
-            .write(true)
+            
             .append(true)
             .open(&events_file)?;
     }

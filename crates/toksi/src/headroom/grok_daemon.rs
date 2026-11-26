@@ -483,6 +483,70 @@ pub fn resolve_grok_upstream_url(path: &str) -> String {
     }
 }
 
+pub async fn dispatch_grok_proxy_http_request(
+    port: u16,
+    method: &str,
+    raw_uri: &str,
+    headers: &[(String, String)],
+    body: &[u8],
+) -> (u16, Vec<(String, String)>, Vec<u8>) {
+    let (path, _, query) = super::byok_gateway::split_uri_path_and_query(raw_uri);
+
+    if method.eq_ignore_ascii_case("OPTIONS") {
+        let cors_headers = vec![
+            ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+            ("Access-Control-Allow-Methods".to_string(), "GET, POST, OPTIONS".to_string()),
+            ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
+        ];
+        return (204, cors_headers, Vec::new());
+    }
+
+    if path == "/livez" || path == "/healthz" || path == "/readyz" {
+        let resp_body = format!(
+            r#"{{"service":"headroom-proxy","subservice":"grok-oauth","port":{},"status":"ok"}}"#,
+            port
+        );
+        return (
+            200,
+            vec![("Content-Type".to_string(), "application/json".to_string())],
+            resp_body.into_bytes(),
+        );
+    }
+
+    if path == "/metrics" {
+        let metrics = crate::telemetry::render_metrics();
+        return (
+            200,
+            vec![(
+                "Content-Type".to_string(),
+                "text/plain; version=0.0.4; charset=utf-8".to_string(),
+            )],
+            metrics.into_bytes(),
+        );
+    }
+
+    let upstream_base = resolve_grok_upstream_url(&path);
+    let req_body = if method.eq_ignore_ascii_case("POST")
+        && !body.is_empty()
+        && !super::byok_gateway::is_proto_or_connect_request(&path, headers)
+    {
+        let (compressed, _) = super::effort::HeadroomEffortCompressor::default()
+            .compress_http_request(&path, headers, body);
+        compressed
+    } else {
+        body.to_vec()
+    };
+    super::byok_gateway::forward_to_byok_target(
+        &upstream_base,
+        method,
+        &path,
+        Some(&query),
+        headers,
+        &req_body,
+    )
+    .await
+}
+
 async fn serve_grok_connection(
     mut stream: tokio::net::TcpStream,
     port: u16,
@@ -498,48 +562,24 @@ async fn serve_grok_connection(
         });
         let (path, _, query) = super::byok_gateway::split_uri_path_and_query(&req.raw_uri);
 
-        if req.method.eq_ignore_ascii_case("OPTIONS") {
-            let cors_headers = vec![
-                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ("Access-Control-Allow-Methods".to_string(), "GET, POST, OPTIONS".to_string()),
-                ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
-            ];
-            super::byok_gateway::write_http_response(
-                &mut stream,
-                204,
-                "No Content",
-                &cors_headers,
-                b"",
+        if req.method.eq_ignore_ascii_case("OPTIONS") || path == "/livez" || path == "/healthz" || path == "/readyz" || path == "/metrics" {
+            let (status, mut hdrs, resp_body) = dispatch_grok_proxy_http_request(
+                port,
+                &req.method,
+                &req.raw_uri,
+                &req.headers,
+                &req.body,
             )
-            .await?;
+            .await;
             if is_close_requested {
-                let _ = stream.shutdown().await;
-                break;
+                hdrs.push(("Connection".to_string(), "close".to_string()));
             }
-            continue;
-        }
-
-        if path == "/livez" || path == "/healthz" || path == "/readyz" {
-            let body = format!(
-                r#"{{"service":"headroom-proxy","subservice":"grok-oauth","port":{},"status":"ok"}}"#,
-                port
-            );
-            let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
-            if is_close_requested {
-                headers.push(("Connection".to_string(), "close".to_string()));
-            }
-            super::byok_gateway::write_http_response(&mut stream, 200, "OK", &headers, body.as_bytes()).await?;
-        } else if path == "/metrics" {
-            let metrics = crate::telemetry::render_metrics();
             super::byok_gateway::write_http_response(
                 &mut stream,
-                200,
-                "OK",
-                &[(
-                    "Content-Type".to_string(),
-                    "text/plain; version=0.0.4; charset=utf-8".to_string(),
-                )],
-                metrics.as_bytes(),
+                status,
+                super::byok_gateway::status_reason(status),
+                &hdrs,
+                &resp_body,
             )
             .await?;
         } else {

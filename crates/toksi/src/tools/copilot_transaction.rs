@@ -118,11 +118,10 @@ pub fn reject_copilot_symlink_path(path: &str) -> Result<(), String> {
         if matches!(comp, Component::Prefix(_) | Component::RootDir) {
             continue;
         }
-        if let Ok(meta) = fs::symlink_metadata(&acc) {
-            if meta.file_type().is_symlink() {
+        if let Ok(meta) = fs::symlink_metadata(&acc)
+            && meta.file_type().is_symlink() {
                 return Err(format!("refusing to follow symlink in copilot path: {}", acc.display()));
             }
-        }
     }
     Ok(())
 }
@@ -141,20 +140,16 @@ pub fn restore_copilot_snapshot(snapshots: &[CopilotFileSnapshot]) -> Result<(),
                 let _ = ensure_dir(parent);
             }
             let content = String::from_utf8_lossy(&snap.data);
-            if let Err(e) = write_file_atomic(&snap.path, &content) {
-                if first_err.is_none() {
+            if let Err(e) = write_file_atomic(&snap.path, &content)
+                && first_err.is_none() {
                     first_err = Some(e.to_string());
                 }
-            }
-        } else if Path::new(&snap.path).exists() {
-            if copilot_transaction_file_owned(&snap.path) || snap.path.ends_with(".json") || snap.path.ends_with(".md") {
-                if let Err(e) = fs::remove_file(&snap.path) {
-                    if first_err.is_none() {
+        } else if Path::new(&snap.path).exists()
+            && (copilot_transaction_file_owned(&snap.path) || snap.path.ends_with(".json") || snap.path.ends_with(".md"))
+                && let Err(e) = fs::remove_file(&snap.path)
+                    && first_err.is_none() {
                         first_err = Some(e.to_string());
                     }
-                }
-            }
-        }
     }
     if let Some(err) = first_err {
         Err(err)

@@ -120,11 +120,10 @@ fn is_ours_for_event(entry: &Value, event: &str) -> bool {
         let Some(hm) = h.as_object() else {
             continue;
         };
-        if let Some(s) = hm.get("command").and_then(|v| v.as_str()) {
-            if s.starts_with(&prefix) || s.starts_with(&legacy_prefix) || s.starts_with(alt_prefix) || s.contains("context-mode") {
+        if let Some(s) = hm.get("command").and_then(|v| v.as_str())
+            && (s.starts_with(&prefix) || s.starts_with(&legacy_prefix) || s.starts_with(alt_prefix) || s.contains("context-mode")) {
                 return true;
             }
-        }
     }
     false
 }
@@ -249,11 +248,10 @@ pub fn ctx_verify_opencode() -> bool {
     };
     if let Some(Value::Array(arr)) = cfg.get("plugin") {
         for p in arr {
-            if let Some(s) = p.as_str() {
-                if plugin_is_context_mode(s) {
+            if let Some(s) = p.as_str()
+                && plugin_is_context_mode(s) {
                     return false;
                 }
-            }
         }
     }
     let spawn = pick_mcp_spawn("ctxmode", &[]);
@@ -272,11 +270,10 @@ pub fn ctx_verify_opencode_v2() -> bool {
     };
     if let Some(Value::Array(arr)) = cfg.get("plugin") {
         for p in arr {
-            if let Some(s) = p.as_str() {
-                if plugin_is_context_mode(s) {
+            if let Some(s) = p.as_str()
+                && plugin_is_context_mode(s) {
                     return false;
                 }
-            }
         }
     }
     let spawn = pick_mcp_spawn("ctxmode", &[]);
@@ -404,22 +401,20 @@ pub fn ctx_wired_any_opencode() -> bool {
     };
     if let Some(Value::Array(arr)) = cfg.get("plugin") {
         for p in arr {
-            if let Some(s) = p.as_str() {
-                if plugin_is_context_mode(s) {
+            if let Some(s) = p.as_str()
+                && plugin_is_context_mode(s) {
                     return true;
                 }
-            }
         }
     }
     if let Some(Value::Object(mm)) = cfg.get("mcp") {
         if mm.contains_key("ctxmode") || mm.contains_key("context-mode") {
             return true;
         }
-        if let Some(Value::Object(sm)) = mm.get("servers") {
-            if sm.contains_key("ctxmode") || sm.contains_key("context-mode") {
+        if let Some(Value::Object(sm)) = mm.get("servers")
+            && (sm.contains_key("ctxmode") || sm.contains_key("context-mode")) {
                 return true;
             }
-        }
     }
     false
 }
@@ -433,11 +428,10 @@ pub fn ctx_wired_any_opencode_v2() -> bool {
     };
     if let Some(Value::Array(arr)) = cfg.get("plugin") {
         for p in arr {
-            if let Some(s) = p.as_str() {
-                if plugin_is_context_mode(s) {
+            if let Some(s) = p.as_str()
+                && plugin_is_context_mode(s) {
                     return true;
                 }
-            }
         }
     }
     if let Some(Value::Object(mm)) = cfg.get("mcp") {
@@ -714,11 +708,10 @@ pub fn ctx_unwire(agent: &str, opts: &RunOpts) -> Result<bool, DynError> {
             remove_owner("antigravity", "ctxmode");
             if let Ok(cwd) = std::env::current_dir() {
                 let dest = cwd.join("GEMINI.md");
-                if let Some(raw) = read_file_safe(dest.to_string_lossy().as_ref()) {
-                    if raw.contains(CTX_GEMINI_MARKER) || raw.contains("context-mode — MANDATORY routing rules") {
+                if let Some(raw) = read_file_safe(dest.to_string_lossy().as_ref())
+                    && (raw.contains(CTX_GEMINI_MARKER) || raw.contains("context-mode — MANDATORY routing rules")) {
                         let _ = fs::remove_file(dest);
                     }
-                }
             }
             Ok(true)
         }
@@ -802,7 +795,7 @@ pub fn build_context_mode() -> ToolManifest {
     tool.channel = Channel::Binary;
     tool.needs_node = false;
     tool.min_node_major = 0;
-    tool.install = Some(Arc::new(|opts| ctx_ensure_installed(opts)));
+    tool.install = Some(Arc::new(ctx_ensure_installed));
 
     let agents = [
         "claude",

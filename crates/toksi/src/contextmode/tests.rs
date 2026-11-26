@@ -6,6 +6,7 @@
 // lastModified: 2026-11-05
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use std::path::Path;
     use serde_json::json;

@@ -124,11 +124,10 @@ pub fn configure_amp_mcp(tool_id: &str) -> (bool, String) {
     entry.insert("disabled".to_string(), Value::Bool(false));
 
     let entry_val = Value::Object(entry);
-    if let Some(old) = servers.get(tool_id) {
-        if stringify_json(old) == stringify_json(&entry_val) {
+    if let Some(old) = servers.get(tool_id)
+        && stringify_json(old) == stringify_json(&entry_val) {
             return (false, p.config);
         }
-    }
     servers.insert(tool_id.to_string(), entry_val);
     let next = stringify_json(&Value::Object(cfg));
     if next == raw {
@@ -287,11 +286,10 @@ pub fn is_legacy_mcp_entry(v: &Value) -> bool {
             }
             Value::Array(arr) => {
                 for item in arr {
-                    if let Some(s) = item.as_str() {
-                        if is_legacy_mcp_runner_str(s) || s.to_ascii_lowercase().contains("toksi-codegraph-init.js") {
+                    if let Some(s) = item.as_str()
+                        && (is_legacy_mcp_runner_str(s) || s.to_ascii_lowercase().contains("toksi-codegraph-init.js")) {
                             return true;
                         }
-                    }
                 }
             }
             _ => {}
@@ -365,15 +363,14 @@ impl McpAdapter for GenericJsonMcpAdapter {
                 changed: false,
             };
         };
-        if let Some(current) = servers.get(&req.tool_id) {
-            if !toksi_mcp_entry(current) && !is_legacy_mcp_entry(current) {
+        if let Some(current) = servers.get(&req.tool_id)
+            && !toksi_mcp_entry(current) && !is_legacy_mcp_entry(current) {
                 return McpReply {
                     file: path,
                     err: Some(format!("mcp {}: foreign entry present; refusing to overwrite", req.tool_id)),
                     changed: false,
                 };
             }
-        }
         let mut entry = OrderedMap::new();
         let cmd0 = req.command.first().cloned().unwrap_or_default();
         let args_val: Vec<Value> = req.command.iter().skip(1).map(|s| Value::String(s.clone())).collect();
@@ -540,7 +537,7 @@ impl McpAdapter for DshMcpAdapter {
 
     fn has_mcp(&self, tool_id: &str, opts: &[McpOption]) -> bool {
         let req = build_mcp_request("dsh", tool_id, opts);
-        let raw = match read_file_safe(&dsh_patch_file()) {
+        let raw = match read_file_safe(dsh_patch_file()) {
             Some(r) => r,
             None => return false,
         };
@@ -667,11 +664,10 @@ fn parse_codex_mcp_block(text: &str) -> (String, Vec<String>) {
                 }
             }
             "args" => {
-                if val.starts_with('[') && val.ends_with(']') {
-                    if let Ok(parsed) = serde_json::from_str::<Vec<String>>(val) {
+                if val.starts_with('[') && val.ends_with(']')
+                    && let Ok(parsed) = serde_json::from_str::<Vec<String>>(val) {
                         args = parsed;
                     }
-                }
             }
             _ => {}
         }
@@ -704,7 +700,7 @@ fn remove_codex_mcp_blocks(raw: &str, tool_id: &str) -> String {
 }
 
 fn grok_mcp_present(tool_id: &str) -> bool {
-    let Some(raw) = read_file_safe(&grok_config_file()) else {
+    let Some(raw) = read_file_safe(grok_config_file()) else {
         return false;
     };
     let Some(body) = crate::util::toml::block_text(&raw, &format!("mcp_servers.{tool_id}")) else {
@@ -884,7 +880,7 @@ pub fn mcp_adapter_for(id: &str) -> Option<Arc<dyn McpAdapter>> {
                 McpReply { changed, file, err: None }
             }),
             remove: Arc::new(|req| {
-                let _ = remove_antigravity_mcp(&req.tool_id);
+                remove_antigravity_mcp(&req.tool_id);
                 McpReply { changed: true, file: String::new(), err: None }
             }),
             has: Arc::new(|req| {
@@ -1260,14 +1256,13 @@ pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
                     if let Some(block) = crate::util::toml::block_text(&raw, &header) {
                         for line in block.lines() {
                             let t = line.trim();
-                            if let Some((k, v)) = t.split_once('=') {
-                                if k.trim() == "command" {
+                            if let Some((k, v)) = t.split_once('=')
+                                && k.trim() == "command" {
                                     let cmd = v.trim().trim_matches('"').trim_matches('\'');
                                     if is_legacy_mcp_runner_str(cmd) || (!is_toksi_mcp_command_str(cmd) && !cmd.is_empty()) {
                                         issues.push(format!("{}: legacy or non-toksi runner ({})", tool, cmd));
                                     }
                                 }
-                            }
                         }
                     }
                 }
@@ -1281,14 +1276,13 @@ pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
                     if let Some(block) = crate::util::toml::block_text(&raw, &header) {
                         for line in block.lines() {
                             let t = line.trim();
-                            if let Some((k, v)) = t.split_once('=') {
-                                if k.trim() == "command" {
+                            if let Some((k, v)) = t.split_once('=')
+                                && k.trim() == "command" {
                                     let cmd = v.trim().trim_matches('"').trim_matches('\'');
                                     if is_legacy_mcp_runner_str(cmd) || (!is_toksi_mcp_command_str(cmd) && !cmd.is_empty()) {
                                         issues.push(format!("{}: legacy or non-toksi runner ({})", tool, cmd));
                                     }
                                 }
-                            }
                         }
                     }
                 }
@@ -1308,19 +1302,16 @@ pub fn audit_agent_legacy_mcp(agent_id: &str) -> Vec<String> {
         _ => {
             let json_files = agent_mcp_json_files(agent_id);
             for (path, key) in json_files {
-                if let Some(raw) = read_file_safe(&path) {
-                    if let Some(cfg) = try_parse_jsonc(&raw) {
-                        if let Some(servers) = nested_child_ref(&cfg, &key) {
+                if let Some(raw) = read_file_safe(&path)
+                    && let Some(cfg) = try_parse_jsonc(&raw)
+                        && let Some(servers) = nested_child_ref(&cfg, &key) {
                             for &tool in AUDIT_MCP_TOOLS {
-                                if let Some(v) = servers.get(tool) {
-                                    if is_legacy_mcp_entry(v) || (!toksi_mcp_entry(v) && !v.is_null()) {
+                                if let Some(v) = servers.get(tool)
+                                    && (is_legacy_mcp_entry(v) || (!toksi_mcp_entry(v) && !v.is_null())) {
                                         issues.push(format!("{}: legacy or non-toksi runner in {}", tool, crate::commands::doctor_probe::short_path(&path)));
                                     }
-                                }
                             }
                         }
-                    }
-                }
             }
         }
     }
@@ -1346,12 +1337,11 @@ pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
                             || block.contains("toksi-codegraph-init.js")
                             || block.contains("pjm-mcp")
                             || block.lines().any(|l| {
-                                if let Some((k, v)) = l.trim().split_once('=') {
-                                    if k.trim() == "command" {
+                                if let Some((k, v)) = l.trim().split_once('=')
+                                    && k.trim() == "command" {
                                         let cmd = v.trim().trim_matches('"').trim_matches('\'');
                                         return is_legacy_mcp_runner_str(cmd) || (!is_toksi_mcp_command_str(cmd) && !cmd.is_empty());
                                     }
-                                }
                                 false
                             });
                         if is_legacy {
@@ -1381,12 +1371,11 @@ pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
                             || block.contains("toksi-codegraph-init.js")
                             || block.contains("pjm-mcp")
                             || block.lines().any(|l| {
-                                if let Some((k, v)) = l.trim().split_once('=') {
-                                    if k.trim() == "command" {
+                                if let Some((k, v)) = l.trim().split_once('=')
+                                    && k.trim() == "command" {
                                         let cmd = v.trim().trim_matches('"').trim_matches('\'');
                                         return is_legacy_mcp_runner_str(cmd) || (!is_toksi_mcp_command_str(cmd) && !cmd.is_empty());
                                     }
-                                }
                                 false
                             });
                         if is_legacy {
@@ -1423,25 +1412,23 @@ pub fn purge_legacy_mcp_runners(agent_id: &str) -> Vec<String> {
         _ => {
             let json_files = agent_mcp_json_files(agent_id);
             for (path, key) in json_files {
-                if let Some(raw) = read_file_safe(&path) {
-                    if let Some(mut cfg) = try_parse_jsonc(&raw) {
+                if let Some(raw) = read_file_safe(&path)
+                    && let Some(mut cfg) = try_parse_jsonc(&raw) {
                         let mut changed = false;
                         if let Some(servers) = nested_child(&mut cfg, &key, false) {
                             for &tool in AUDIT_MCP_TOOLS {
-                                if let Some(v) = servers.get(tool) {
-                                    if is_legacy_mcp_entry(v) || (!toksi_mcp_entry(v) && !v.is_null()) {
+                                if let Some(v) = servers.get(tool)
+                                    && (is_legacy_mcp_entry(v) || (!toksi_mcp_entry(v) && !v.is_null())) {
                                         servers.remove(tool);
                                         changed = true;
                                         purged.push(format!("{}: {}", agent_id, tool));
                                     }
-                                }
                             }
                         }
                         if changed {
                             let _ = write_file(&path, &stringify_json(&Value::Object(cfg)));
                         }
                     }
-                }
             }
         }
     }

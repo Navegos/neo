@@ -97,32 +97,29 @@ pub fn default_aimemory_dir() -> PathBuf {
 }
 
 pub fn default_handoffs_dir() -> PathBuf {
-    if let Ok(p) = env::var("TOKSI_HANDOFF_DIR") {
-        if !p.trim().is_empty() {
+    if let Ok(p) = env::var("TOKSI_HANDOFF_DIR")
+        && !p.trim().is_empty() {
             let norm = crate::util::paths::normalize_path(&p);
             return PathBuf::from(norm);
         }
-    }
     default_aimemory_dir().join("handoffs")
 }
 
 pub fn default_wiki_dir() -> PathBuf {
-    if let Ok(p) = env::var("TOKSI_WIKI_DIR") {
-        if !p.trim().is_empty() {
+    if let Ok(p) = env::var("TOKSI_WIKI_DIR")
+        && !p.trim().is_empty() {
             let norm = crate::util::paths::normalize_path(&p);
             return PathBuf::from(norm);
         }
-    }
     default_aimemory_dir().join("wiki")
 }
 
 pub fn default_messages_dir() -> PathBuf {
-    if let Ok(p) = env::var("TOKSI_MESSAGES_DIR") {
-        if !p.trim().is_empty() {
+    if let Ok(p) = env::var("TOKSI_MESSAGES_DIR")
+        && !p.trim().is_empty() {
             let norm = crate::util::paths::normalize_path(&p);
             return PathBuf::from(norm);
         }
-    }
     default_aimemory_dir().join("messages")
 }
 

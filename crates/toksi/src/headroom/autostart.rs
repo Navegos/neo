@@ -313,13 +313,12 @@ fn disable_proxy_autostart_darwin() -> Result<(), Box<dyn std::error::Error + Se
         return Ok(());
     }
     bootout_proxy_agent()?;
-    if let Err(err) = std::fs::remove_file(&path) {
-        if err.kind() != std::io::ErrorKind::NotFound {
+    if let Err(err) = std::fs::remove_file(&path)
+        && err.kind() != std::io::ErrorKind::NotFound {
             let _ = write_file(&path, &raw);
             let _ = run_launchctl(&["bootstrap", &launchctl_domain(), &path]);
             return Err(err.into());
         }
-    }
     Ok(())
 }
 
@@ -736,12 +735,11 @@ fn disable_proxy_autostart_linux() -> Result<(), Box<dyn std::error::Error + Sen
         rollback();
         return Err(format!("disable {} failed", PROXY_AUTOSTART_UNIT).into());
     }
-    if let Err(err) = std::fs::remove_file(&path) {
-        if err.kind() != std::io::ErrorKind::NotFound {
+    if let Err(err) = std::fs::remove_file(&path)
+        && err.kind() != std::io::ErrorKind::NotFound {
             rollback();
             return Err(err.into());
         }
-    }
     let reload_st = Command::new("systemctl")
         .args(["--user", "daemon-reload"])
         .status();
@@ -796,21 +794,21 @@ pub struct ScheduledTask {
 fn decode_xml_bytes(raw: &[u8]) -> String {
     if raw.len() >= 2 && raw[0] == 0xFF && raw[1] == 0xFE {
         let u16s: Vec<u16> = raw[2..]
-            .chunks_exact(2)
+            .as_chunks::<2>().0.iter()
             .map(|c| u16::from_le_bytes([c[0], c[1]]))
             .collect();
         return String::from_utf16_lossy(&u16s);
     }
     if raw.len() >= 2 && raw[0] == 0xFE && raw[1] == 0xFF {
         let u16s: Vec<u16> = raw[2..]
-            .chunks_exact(2)
+            .as_chunks::<2>().0.iter()
             .map(|c| u16::from_be_bytes([c[0], c[1]]))
             .collect();
         return String::from_utf16_lossy(&u16s);
     }
     if raw.len() >= 4 && raw[1] == 0 && raw[3] == 0 {
         let u16s: Vec<u16> = raw
-            .chunks_exact(2)
+            .as_chunks::<2>().0.iter()
             .map(|c| u16::from_le_bytes([c[0], c[1]]))
             .collect();
         return String::from_utf16_lossy(&u16s);
@@ -1098,12 +1096,11 @@ fn enable_proxy_autostart_windows() -> Result<(), Box<dyn std::error::Error + Se
 
     request_proxy_stop().map_err(|e| -> Box<dyn std::error::Error + Send + Sync> { format!("proxy stop request: {}", e).into() })?;
 
-    if old_task_running {
-        if let Err(err) = end_proxy_autostart_task() {
+    if old_task_running
+        && let Err(err) = end_proxy_autostart_task() {
             let _ = clear_proxy_stop_request();
             return Err(format!("end {}: {}", PROXY_AUTOSTART_TASK, err).into());
         }
-    }
     let old_task_ended = !old_task.is_empty();
 
     let tr = format!("\"{}\" __proxy-watch", bin);

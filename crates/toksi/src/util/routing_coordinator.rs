@@ -87,12 +87,12 @@ impl RoutingCoordinator {
                             return;
                         }
                         let current_leases: Vec<RoutingLease> = {
-                            let guard = heartbeat_leases.read().unwrap();
+                            let guard = heartbeat_leases.read().unwrap_or_else(|e| e.into_inner());
                             guard.values().cloned().collect()
                         };
                         match renew_routing_ownership(&heartbeat_nonce, &heartbeat_owner, ttl, Some(&current_leases)) {
                             Ok(renewed) => {
-                                let mut guard = heartbeat_leases.write().unwrap();
+                                let mut guard = heartbeat_leases.write().unwrap_or_else(|e| e.into_inner());
                                 for l in renewed {
                                     guard.insert(l.lane_id.clone(), l);
                                 }
@@ -120,7 +120,7 @@ impl RoutingCoordinator {
     }
 
     pub fn current(&self) -> Option<RoutingSnapshot> {
-        let guard = self.snapshot.read().unwrap();
+        let guard = self.snapshot.read().unwrap_or_else(|e| e.into_inner());
         guard.clone()
     }
 
@@ -137,11 +137,11 @@ impl RoutingCoordinator {
         }
         super::routing_store::publish_routing_state(state.clone(), &self.nonce, &self.owner)?;
         {
-            let mut l_guard = self.leases.write().unwrap();
+            let mut l_guard = self.leases.write().unwrap_or_else(|e| e.into_inner());
             l_guard.retain(|_, v| v.generation == state.generation);
         }
         {
-            let mut s_guard = self.snapshot.write().unwrap();
+            let mut s_guard = self.snapshot.write().unwrap_or_else(|e| e.into_inner());
             *s_guard = Some(snap);
         }
         Ok(())
@@ -158,7 +158,7 @@ impl RoutingCoordinator {
         if selection.generation != snap.generation() {
             return Err("routing lease is stale".into());
         }
-        let guard = self.leases.read().unwrap();
+        let guard = self.leases.read().unwrap_or_else(|e| e.into_inner());
         let lease = guard
             .get(&selection.lane_id)
             .ok_or("routing lease is unavailable")?;
@@ -192,7 +192,7 @@ impl RoutingCoordinator {
     ) -> Result<RouteSelection, Box<dyn std::error::Error + Send + Sync>> {
         let snap = self.current().ok_or("routing snapshot unavailable")?;
         let mut selection = snap.resolve_request(request, |sel| {
-            let guard = self.leases.read().unwrap();
+            let guard = self.leases.read().unwrap_or_else(|e| e.into_inner());
             if let Some(lease) = guard.get(&sel.lane_id) {
                 lease.coordinator_nonce == self.nonce
                     && lease.generation == sel.generation
@@ -203,7 +203,7 @@ impl RoutingCoordinator {
             }
         })?;
         {
-            let guard = self.leases.read().unwrap();
+            let guard = self.leases.read().unwrap_or_else(|e| e.into_inner());
             if let Some(lease) = guard.get(&selection.lane_id) {
                 selection.lease_nonce = lease.lease_nonce.clone();
             }
@@ -225,7 +225,7 @@ impl RoutingCoordinator {
         }
         let lease =
             create_routing_lease(state, lane, self.lease_ttl, &self.nonce, &self.owner)?;
-        let mut guard = self.leases.write().unwrap();
+        let mut guard = self.leases.write().unwrap_or_else(|e| e.into_inner());
         let should_insert = match guard.get(&lease.lane_id) {
             Some(existing) => lease_expires_after(&lease, existing),
             None => true,
@@ -244,7 +244,7 @@ impl RoutingCoordinator {
             return Err("coordinator is fenced".into());
         }
         {
-            let guard = self.leases.read().unwrap();
+            let guard = self.leases.read().unwrap_or_else(|e| e.into_inner());
             match guard.get(&lease.lane_id) {
                 Some(owned)
                     if same_routing_lease(owned, lease)
@@ -260,7 +260,7 @@ impl RoutingCoordinator {
         )?;
         for current in renewed {
             if current.lane_id == lease.lane_id {
-                let mut guard = self.leases.write().unwrap();
+                let mut guard = self.leases.write().unwrap_or_else(|e| e.into_inner());
                 let should_insert = match guard.get(&lease.lane_id) {
                     Some(existing) => lease_expires_after(&current, existing),
                     None => true,
@@ -282,7 +282,7 @@ impl RoutingCoordinator {
             return Err("coordinator is fenced".into());
         }
         {
-            let guard = self.leases.read().unwrap();
+            let guard = self.leases.read().unwrap_or_else(|e| e.into_inner());
             match guard.get(&lease.lane_id) {
                 Some(owned)
                     if same_routing_lease(owned, lease)
@@ -291,7 +291,7 @@ impl RoutingCoordinator {
             }
         }
         release_routing_lease(lease, &self.nonce, &self.owner)?;
-        let mut guard = self.leases.write().unwrap();
+        let mut guard = self.leases.write().unwrap_or_else(|e| e.into_inner());
         guard.remove(&lease.lane_id);
         Ok(())
     }
@@ -300,7 +300,7 @@ impl RoutingCoordinator {
         self.active.store(false, Ordering::Relaxed);
         let _ = self.shutdown_tx.send(true);
         let current_leases: Vec<RoutingLease> = {
-            let mut guard = self.leases.write().unwrap();
+            let mut guard = self.leases.write().unwrap_or_else(|e| e.into_inner());
             let list = guard.values().cloned().collect();
             guard.clear();
             list

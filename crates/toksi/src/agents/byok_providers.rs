@@ -83,12 +83,11 @@ pub fn byok_providers_for(id: &str) -> Vec<BYOKProvider> {
         }
 
         for file in &files {
-            if let Some(content) = texts.get(file) {
-                if strip_urls(content).contains(&key) {
+            if let Some(content) = texts.get(file)
+                && strip_urls(content).contains(&key) {
                     provider.file = file.clone();
                     break;
                 }
-            }
         }
 
         provider.stale = provider.file.is_empty();

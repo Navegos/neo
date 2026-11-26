@@ -215,7 +215,7 @@ fn test_phase7_cache_alignment_to_1024_tokens() {
 
     let tokens = estimate_tokens(&aligned);
     assert!(
-        tokens >= CACHE_ALIGNMENT_TOKEN_BLOCK && tokens <= CACHE_ALIGNMENT_TOKEN_BLOCK + 10,
+        (CACHE_ALIGNMENT_TOKEN_BLOCK..=CACHE_ALIGNMENT_TOKEN_BLOCK + 10).contains(&tokens),
         "Aligned tokens must match 1,024-token boundary (got: {})",
         tokens
     );
@@ -323,20 +323,25 @@ fn test_phase7_adaptive_memory_governor_thresholds() {
 
 #[test]
 fn test_phase7_adaptive_memory_brief_injection() {
-    // Memory entries collection from projectmem, aimemory, and ICM
+    // Memory entries collection from projectmem, aimemory, and ICM (no synthetic dummy fallback)
     let entries = collect_memory_entries();
-    assert!(!entries.is_empty(), "Memory collection must find entries or fallback");
+    let has_entries = !entries.is_empty();
 
-    // High headroom generates L2 brief
+    // High headroom scales to L2; critical headroom scales to L0
     let (brief_l2, tier_l2) = build_adaptive_memory_brief(5_000, 200_000);
     assert_eq!(tier_l2, DisclosureTier::L2);
-    assert!(brief_l2.contains("<!-- toksi:adaptive-mem-governor"));
-    assert!(brief_l2.contains("tier=L2"));
 
-    // Critical headroom generates L0 brief
     let (brief_l0, tier_l0) = build_adaptive_memory_brief(185_000, 200_000);
     assert_eq!(tier_l0, DisclosureTier::L0);
-    assert!(brief_l0.contains("tier=L0"));
+
+    if has_entries {
+        assert!(brief_l2.contains("<!-- toksi:adaptive-mem-governor"));
+        assert!(brief_l2.contains("tier=L2"));
+        assert!(brief_l0.contains("tier=L0"));
+    } else {
+        assert!(brief_l2.is_empty());
+        assert!(brief_l0.is_empty());
+    }
 
     // Payload injection into Anthropic request
     let mut payload = json!({
@@ -348,10 +353,12 @@ fn test_phase7_adaptive_memory_brief_injection() {
     });
 
     let injected = inject_adaptive_memory(&mut payload);
-    assert!(injected);
+    assert_eq!(injected, has_entries);
     let system_str = payload["system"].as_str().unwrap();
-    assert!(system_str.contains("toksi:adaptive-mem-governor"));
     assert!(system_str.contains("Base developer instructions"));
+    if has_entries {
+        assert!(system_str.contains("toksi:adaptive-mem-governor"));
+    }
 }
 
 // ============================================================================

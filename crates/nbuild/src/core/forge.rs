@@ -283,7 +283,7 @@ impl RemoteRelease {
             candidates.push((asset, score));
         }
 
-        candidates.sort_by(|a, b| b.1.cmp(&a.1));
+        candidates.sort_by_key(|a| std::cmp::Reverse(a.1));
         candidates.first().map(|(asset, _)| *asset)
     }
 }
@@ -311,22 +311,19 @@ impl ForgeClient {
         let mut req = self.client.get(releases_url);
 
         if releases_url.contains("api.github.com") {
-            if let Ok(token) = env::var("GITHUB_TOKEN").or_else(|_| env::var("GH_TOKEN")) {
-                if let Ok(val) = HeaderValue::from_str(&format!("Bearer {}", token.trim())) {
+            if let Ok(token) = env::var("GITHUB_TOKEN").or_else(|_| env::var("GH_TOKEN"))
+                && let Ok(val) = HeaderValue::from_str(&format!("Bearer {}", token.trim())) {
                     req = req.header(AUTHORIZATION, val);
                 }
-            }
         } else if releases_url.contains("gitlab.com") {
             if let Ok(token) = env::var("GITLAB_TOKEN").or_else(|_| env::var("GL_TOKEN")) {
                 req = req.header("PRIVATE-TOKEN", token.trim());
             }
-        } else if releases_url.contains("codeberg.org") {
-            if let Ok(token) = env::var("CODEBERG_TOKEN").or_else(|_| env::var("GITEA_TOKEN")) {
-                if let Ok(val) = HeaderValue::from_str(&format!("token {}", token.trim())) {
+        } else if releases_url.contains("codeberg.org")
+            && let Ok(token) = env::var("CODEBERG_TOKEN").or_else(|_| env::var("GITEA_TOKEN"))
+                && let Ok(val) = HeaderValue::from_str(&format!("token {}", token.trim())) {
                     req = req.header(AUTHORIZATION, val);
                 }
-            }
-        }
 
         let resp = req.send().with_context(|| format!("Releases API request failed for {releases_url}"))?;
         if !resp.status().is_success() {
@@ -369,11 +366,10 @@ impl ForgeClient {
         let url = format!("https://api.github.com/repos/{clean_repo}/releases/latest");
         let mut req = self.client.get(&url);
 
-        if let Ok(token) = env::var("GITHUB_TOKEN").or_else(|_| env::var("GH_TOKEN")) {
-            if let Ok(val) = HeaderValue::from_str(&format!("Bearer {}", token.trim())) {
+        if let Ok(token) = env::var("GITHUB_TOKEN").or_else(|_| env::var("GH_TOKEN"))
+            && let Ok(val) = HeaderValue::from_str(&format!("Bearer {}", token.trim())) {
                 req = req.header(AUTHORIZATION, val);
             }
-        }
 
         let resp = req.send().with_context(|| format!("GitHub API request failed for {url}"))?;
         if !resp.status().is_success() {
@@ -446,11 +442,10 @@ impl ForgeClient {
         let url = format!("https://codeberg.org/api/v1/repos/{clean_repo}/releases/latest");
         let mut req = self.client.get(&url);
 
-        if let Ok(token) = env::var("CODEBERG_TOKEN").or_else(|_| env::var("GITEA_TOKEN")) {
-            if let Ok(val) = HeaderValue::from_str(&format!("token {}", token.trim())) {
+        if let Ok(token) = env::var("CODEBERG_TOKEN").or_else(|_| env::var("GITEA_TOKEN"))
+            && let Ok(val) = HeaderValue::from_str(&format!("token {}", token.trim())) {
                 req = req.header(AUTHORIZATION, val);
             }
-        }
 
         let resp = req.send().with_context(|| format!("Codeberg API request failed for {url}"))?;
         if !resp.status().is_success() {
@@ -467,11 +462,10 @@ impl ForgeClient {
         let url = format!("https://api.bitbucket.org/2.0/repositories/{clean_repo}/downloads");
         let mut req = self.client.get(&url);
 
-        if let Ok(token) = env::var("BITBUCKET_TOKEN") {
-            if let Ok(val) = HeaderValue::from_str(&format!("Bearer {}", token.trim())) {
+        if let Ok(token) = env::var("BITBUCKET_TOKEN")
+            && let Ok(val) = HeaderValue::from_str(&format!("Bearer {}", token.trim())) {
                 req = req.header(AUTHORIZATION, val);
             }
-        }
 
         let resp = req.send().with_context(|| format!("Bitbucket API request failed for {url}"))?;
         if !resp.status().is_success() {

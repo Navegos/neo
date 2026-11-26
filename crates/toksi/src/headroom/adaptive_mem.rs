@@ -67,8 +67,8 @@ pub fn collect_memory_entries() -> Vec<TieredEntry> {
     } else {
         Path::new(".projectmem").join("events.jsonl")
     };
-    if events_path.exists() {
-        if let Ok(content) = std::fs::read_to_string(&events_path) {
+    if events_path.exists()
+        && let Ok(content) = std::fs::read_to_string(&events_path) {
             let mut gotcha_count = 0;
             let mut decision_count = 0;
 
@@ -100,7 +100,6 @@ pub fn collect_memory_entries() -> Vec<TieredEntry> {
                 }
             }
         }
-    }
 
     // 2. Check summary.md if present (.toksi/projectmem or .projectmem)
     let summary_file = if Path::new(".toksi/projectmem/summary.md").exists() {
@@ -108,8 +107,8 @@ pub fn collect_memory_entries() -> Vec<TieredEntry> {
     } else {
         Path::new(".projectmem").join("summary.md")
     };
-    if summary_file.exists() {
-        if let Ok(content) = std::fs::read_to_string(&summary_file) {
+    if summary_file.exists()
+        && let Ok(content) = std::fs::read_to_string(&summary_file) {
             let first_para = content.lines().take(6).collect::<Vec<&str>>().join("\n");
             entries.push(TieredEntry {
                 key: "project_summary".to_string(),
@@ -119,7 +118,6 @@ pub fn collect_memory_entries() -> Vec<TieredEntry> {
                 full_content: content,
             });
         }
-    }
 
     // 3. Check active multi-agent handoffs from aimemory
     let handoffs_dir = crate::aimemory::default_handoffs_dir();
@@ -150,14 +148,13 @@ pub fn collect_memory_entries() -> Vec<TieredEntry> {
 
     // 4. Check facts and top memories from ICM SQLite store (.toksi/memory.db) via headroom hook
     let icm_db_path = crate::icm::resolve_icm_db_path();
-    if icm_db_path.exists() {
-        if let Ok(mut icm_store) = crate::icm::IcmStore::open(&icm_db_path) {
+    if icm_db_path.exists()
+        && let Ok(mut icm_store) = crate::icm::IcmStore::open(&icm_db_path) {
             let icm_entries = crate::icm::recall_tiered_entries(&mut icm_store, None, 5);
             for e in icm_entries {
                 entries.push(e);
             }
         }
-    }
 
     // 5. Check wiki pages from aimemory
     let wiki_dir = crate::aimemory::default_wiki_dir();
@@ -166,17 +163,6 @@ pub fn collect_memory_entries() -> Vec<TieredEntry> {
         for w in wiki_entries.into_iter().take(3) {
             entries.push(w);
         }
-    }
-
-    // 6. Fallback dummy entry if project has no memories yet
-    if entries.is_empty() {
-        entries.push(TieredEntry {
-            key: "toksi_governor".to_string(),
-            title: "Toksi Native Memory Governor".to_string(),
-            abstract_text: Some("Zero token waste active. Progressive disclosure tier in effect.".to_string()),
-            summary_text: Some("Toksi dynamic memory governor manages token budget across turns.".to_string()),
-            full_content: "Toksi dynamic memory governor manages token budget across turns without LLM summarization overhead.".to_string(),
-        });
     }
 
     entries
@@ -188,6 +174,9 @@ pub fn build_adaptive_memory_brief(current_tokens: usize, max_context: usize) ->
     let (tier, budget) = select_tier_for_headroom(headroom);
 
     let entries = collect_memory_entries();
+    if entries.is_empty() {
+        return (String::new(), tier);
+    }
     let packed = TieredPacker::pack_tier(&entries, tier, budget);
 
     let mut out = String::new();
@@ -222,6 +211,9 @@ pub fn inject_adaptive_memory(body: &mut Value) -> bool {
     let max_context = model_context_limit(&model_str);
 
     let (memory_brief, _) = build_adaptive_memory_brief(current_tokens, max_context);
+    if memory_brief.trim().is_empty() {
+        return false;
+    }
 
     // Anthropic injection (into `system`)
     if map.contains_key("messages") && (map.contains_key("system") || model_str.contains("claude")) {
@@ -253,14 +245,12 @@ pub fn inject_adaptive_memory(body: &mut Value) -> bool {
     if let Some(Value::Array(messages)) = map.get_mut("messages") {
         if let Some(first_msg) = messages.first_mut() {
             let role = first_msg.get("role").and_then(|v| v.as_str()).unwrap_or("");
-            if role == "system" || role == "developer" {
-                if let Some(content) = first_msg.get_mut("content") {
-                    if let Value::String(s) = content {
+            if (role == "system" || role == "developer")
+                && let Some(content) = first_msg.get_mut("content")
+                    && let Value::String(s) = content {
                         *s = format!("{}\n\n{}", memory_brief.trim(), s);
                         return true;
                     }
-                }
-            }
         }
 
         // Insert new system message at position 0
@@ -313,12 +303,15 @@ mod tests {
             ]
         });
 
+        let has_entries = !collect_memory_entries().is_empty();
         let injected = inject_adaptive_memory(&mut req);
-        assert!(injected);
+        assert_eq!(injected, has_entries);
 
-        let msgs = req["messages"].as_array().unwrap();
-        assert_eq!(msgs[0]["role"], "system");
-        let content = msgs[0]["content"].as_str().unwrap();
-        assert!(content.contains("toksi:adaptive-mem-governor"));
+        if has_entries {
+            let msgs = req["messages"].as_array().unwrap();
+            assert_eq!(msgs[0]["role"], "system");
+            let content = msgs[0]["content"].as_str().unwrap();
+            assert!(content.contains("toksi:adaptive-mem-governor"));
+        }
     }
 }

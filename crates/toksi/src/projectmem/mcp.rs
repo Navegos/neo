@@ -51,38 +51,34 @@ pub fn resolve_project_root(project_arg: Option<&str>) -> Result<PathBuf> {
 }
 
 pub fn tool_get_instructions(root: &Path) -> String {
-    if let Ok(p) = ai_instructions_path(Some(root)) {
-        if p.exists() {
+    if let Ok(p) = ai_instructions_path(Some(root))
+        && p.exists() {
             return fs::read_to_string(p).unwrap_or_else(|_| "Failed to read instructions.".into());
         }
-    }
     "No instructions found. Run `toksi mem init` first.".to_string()
 }
 
 pub fn tool_get_summary(root: &Path) -> String {
-    if let Ok(p) = summary_path(Some(root)) {
-        if p.exists() {
+    if let Ok(p) = summary_path(Some(root))
+        && p.exists() {
             return fs::read_to_string(p).unwrap_or_else(|_| "Failed to read summary.".into());
         }
-    }
     "No summary found. Run `toksi mem init` first.".to_string()
 }
 
 pub fn tool_get_project_map(root: &Path) -> String {
-    if let Ok(p) = project_map_path(Some(root)) {
-        if p.exists() {
+    if let Ok(p) = project_map_path(Some(root))
+        && p.exists() {
             return fs::read_to_string(p).unwrap_or_else(|_| "Failed to read project map.".into());
         }
-    }
     "No project map found.".to_string()
 }
 
 pub fn tool_get_plan(root: &Path) -> String {
-    if let Ok(p) = plan_path(Some(root)) {
-        if p.exists() {
+    if let Ok(p) = plan_path(Some(root))
+        && p.exists() {
             return fs::read_to_string(p).unwrap_or_else(|_| "Failed to read plan.".into());
         }
-    }
     "No plan found.".to_string()
 }
 
@@ -125,11 +121,10 @@ pub fn tool_get_issue(root: &Path, issue_id: &str) -> String {
         Some(w) => w,
         None => return format!("No issue found with ID {}.", issue_id),
     };
-    if let Ok(re_id) = regex::Regex::new(r"^[\w-]+$") {
-        if !re_id.is_match(&wanted) {
+    if let Ok(re_id) = regex::Regex::new(r"^[\w-]+$")
+        && !re_id.is_match(&wanted) {
             return format!("No issue found with ID {}.", issue_id);
         }
-    }
     if let Ok(entries) = fs::read_dir(&idir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
@@ -296,13 +291,11 @@ pub fn tool_heatmap(root: &Path) -> String {
 fn resolve_location_symbol(root: &Path, raw_loc: Option<&str>) -> Option<String> {
     let loc = raw_loc?;
     let norm = normalize_path(loc);
-    if let Some((file, line_str)) = norm.rsplit_once(':') {
-        if let Ok(line) = line_str.parse::<u32>() {
-            if let Some(sym) = crate::codegraph::resolve_coordinate(root, file, line) {
+    if let Some((file, line_str)) = norm.rsplit_once(':')
+        && let Ok(line) = line_str.parse::<u32>()
+            && let Some(sym) = crate::codegraph::resolve_coordinate(root, file, line) {
                 return Some(format!("{} ({})", norm, sym));
             }
-        }
-    }
     Some(norm)
 }
 
@@ -335,15 +328,14 @@ pub fn tool_record_attempt(
     let events = read_events(Some(root))?;
     let mut target_issue_id: Option<String> = None;
 
-    if let Some(arg) = issue_id_arg {
-        if let Some(norm) = normalize_issue_id(Some(arg)) {
+    if let Some(arg) = issue_id_arg
+        && let Some(norm) = normalize_issue_id(Some(arg)) {
             if issue_exists(&events, &norm) {
                 target_issue_id = Some(norm);
             } else {
                 return Err(super::error::ProjectMemError::NotFound(format!("Issue #{} was not found.", arg)));
             }
         }
-    }
 
     if target_issue_id.is_none() {
         target_issue_id = active_issue_marker(&events, Some(root))
@@ -439,11 +431,10 @@ pub fn tool_record_fix(
 
     append_event(&mut event, Some(root))?;
 
-    if let Some(active) = active_issue_marker(&events, Some(root)) {
-        if active == target_issue_id {
+    if let Some(active) = active_issue_marker(&events, Some(root))
+        && active == target_issue_id {
             clear_current_issue(Some(root));
         }
-    }
 
     let _ = regenerate_summary(Some(root));
     let proj_name = root.file_name().and_then(|s| s.to_str()).unwrap_or("project");
@@ -944,12 +935,11 @@ pub fn run_mcp_server_with_root(default_root: Option<&str>) -> i32 {
 
         let resp = handle_mcp_message_with_root(&req, default_root);
 
-        if let Some(r) = resp {
-            if let Ok(serialized) = serde_json::to_string(&r) {
+        if let Some(r) = resp
+            && let Ok(serialized) = serde_json::to_string(&r) {
                 let _ = writeln!(writer, "{}", serialized);
                 let _ = writer.flush();
             }
-        }
 
         line.clear();
     }

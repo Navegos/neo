@@ -48,22 +48,20 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
             let repo_root = find_project_dir(&cwd.to_string_lossy());
             if looks_like_project(&repo_root) {
                 let root_path = std::path::Path::new(&repo_root);
-                if let Ok(merged) = crate::commands::doctor::consolidate_nested_toksi_dirs(root_path) {
-                    if merged > 0 {
+                if let Ok(merged) = crate::commands::doctor::consolidate_nested_toksi_dirs(root_path)
+                    && merged > 0 {
                         L.info(&format!(
                             "Consolidated {} nested .toksi directory/directories into root workspace .toksi",
                             merged
                         ));
                     }
-                }
-                if let Ok(merged_agents) = crate::commands::doctor::consolidate_nested_agent_dirs(root_path) {
-                    if merged_agents > 0 {
+                if let Ok(merged_agents) = crate::commands::doctor::consolidate_nested_agent_dirs(root_path)
+                    && merged_agents > 0 {
                         L.info(&format!(
                             "Consolidated {} nested agent config directory/directories into workspace root",
                             merged_agents
                         ));
                     }
-                }
             }
         }
         let _ = crate::util::env_path::validate_binaries_with_notice(
@@ -294,7 +292,7 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
             if failed_tools.contains_key(&tool.id) {
                 continue;
             }
-            if let Some(ref wire_fn) = tool.wire_for.get(agent_id) {
+            if let Some(wire_fn) = tool.wire_for.get(agent_id) {
                 let ro = RunOpts {
                     dry_run: opts.dry_run,
                     agent: agent_id.to_string(),
@@ -322,7 +320,7 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
         if let Some(ref err) = wire_err {
             if !opts.dry_run {
                 for t in newly_wired.into_iter().rev() {
-                    if let Some(ref unwire_fn) = t.unwire_for.get(agent_id) {
+                    if let Some(unwire_fn) = t.unwire_for.get(agent_id) {
                         let ro = RunOpts {
                             dry_run: false,
                             agent: agent_id.to_string(),
@@ -341,8 +339,8 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
                 ensure_instruction_separators(agent_id);
                 let all_tools_ref = list_tools();
                 for t in &all_tools_ref {
-                    if !tools.iter().any(|st| st.id == t.id) && !t.instruction_only {
-                        if let Some(ref unwire_fn) = t.unwire_for.get(agent_id) {
+                    if !tools.iter().any(|st| st.id == t.id) && !t.instruction_only
+                        && let Some(unwire_fn) = t.unwire_for.get(agent_id) {
                             let ro = RunOpts {
                                 dry_run: false,
                                 agent: agent_id.to_string(),
@@ -350,7 +348,6 @@ pub fn run_init(mut opts: InitOptions) -> i32 {
                             };
                             let _ = unwire_fn(&ro);
                         }
-                    }
                 }
             }
             (agent_id.to_string(), label, wired_any, None)
@@ -438,11 +435,10 @@ pub fn save_selection_if_needed(mode: &str, tools: &[Arc<ToolManifest>], dry_run
 
 pub fn init_agent_fully_wired(agent_id: &str, tools: &[Arc<ToolManifest>]) -> bool {
     for tool in tools {
-        if let Some(ref verify_fn) = tool.verify_for.get(agent_id) {
-            if verify_fn() == Some(false) {
+        if let Some(verify_fn) = tool.verify_for.get(agent_id)
+            && verify_fn() == Some(false) {
                 return false;
             }
-        }
     }
     true
 }

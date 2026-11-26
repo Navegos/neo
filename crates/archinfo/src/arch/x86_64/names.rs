@@ -595,13 +595,10 @@ impl MSVCX64VLen {
                     ""
                 }
             }
-            MinimumCpuArchitectureX64::AVX10_1 | MinimumCpuArchitectureX64::AVX10_2 => {
-                if vl == CpuArchitectureVectorLength::VL512 {
+            MinimumCpuArchitectureX64::AVX10_1 | MinimumCpuArchitectureX64::AVX10_2
+                if vl == CpuArchitectureVectorLength::VL512 => {
                     "/vlen=512"
-                } else {
-                    ""
                 }
-            }
             _ => "",
         }
     }

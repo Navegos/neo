@@ -13,12 +13,14 @@ pub use mcp::*;
 
 pub type DynError = Box<dyn std::error::Error + Send + Sync>;
 
+pub type ProgressReportFn = Arc<dyn Fn(&str, f64) + Send + Sync>;
+
 #[derive(Clone, Default)]
 pub struct RunOpts {
     pub dry_run: bool,
     pub upgrade: bool,
     pub agent: String,
-    pub report: Option<Arc<dyn Fn(&str, f64) + Send + Sync>>,
+    pub report: Option<ProgressReportFn>,
 }
 
 impl RunOpts {
@@ -144,23 +146,21 @@ fn with_registry<F, R>(f: F) -> R
 where
     F: FnOnce(&mut RegistryState) -> R,
 {
-    let mut guard = REGISTRY.write().expect("registry write lock");
-    if guard.is_none() {
-        *guard = Some(RegistryState {
-            agent_list: Vec::new(),
-            tool_list: Vec::new(),
-            agent_by_id: HashMap::new(),
-            tool_by_id: HashMap::new(),
-        });
-    }
-    f(guard.as_mut().unwrap())
+    let mut guard = REGISTRY.write().unwrap_or_else(|e| e.into_inner());
+    let state = guard.get_or_insert_with(|| RegistryState {
+        agent_list: Vec::new(),
+        tool_list: Vec::new(),
+        agent_by_id: HashMap::new(),
+        tool_by_id: HashMap::new(),
+    });
+    f(state)
 }
 
 fn read_registry<F, R>(f: F) -> R
 where
     F: FnOnce(&RegistryState) -> R,
 {
-    let guard = REGISTRY.read().expect("registry read lock");
+    let guard = REGISTRY.read().unwrap_or_else(|e| e.into_inner());
     if let Some(ref state) = *guard {
         f(state)
     } else {

@@ -1428,74 +1428,6 @@ async fn serve_protocol_bus_connection(
         });
         let (path, _, _) = crate::headroom::byok_gateway::split_uri_path_and_query(&req.raw_uri);
 
-        if req.method.eq_ignore_ascii_case("OPTIONS") {
-            let headers = vec![
-                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ("Access-Control-Allow-Methods".to_string(), "GET, POST, OPTIONS".to_string()),
-                ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
-            ];
-            crate::headroom::byok_gateway::write_http_response(
-                &mut stream,
-                204,
-                "No Content",
-                &headers,
-                b"",
-            )
-            .await?;
-            if is_close_requested {
-                let _ = stream.shutdown().await;
-                break;
-            }
-            continue;
-        }
-
-        if path == "/livez" || path == "/healthz" || path == "/readyz" {
-            let body = serde_json::json!({
-                "service": "toksi-protocol-bus",
-                "port": port,
-                "status": "ok",
-                "protocols": ["mcp", "a2a", "acp", "stdio", "sse", "http", "directwire"]
-            });
-            let bytes = serde_json::to_vec(&body).unwrap_or_default();
-            let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
-            if is_close_requested {
-                headers.push(("Connection".to_string(), "close".to_string()));
-            }
-            crate::headroom::byok_gateway::write_http_response(
-                &mut stream,
-                200,
-                "OK",
-                &headers,
-                &bytes,
-            )
-            .await?;
-            if is_close_requested {
-                let _ = stream.shutdown().await;
-                break;
-            }
-            continue;
-        }
-
-        if path == "/metrics" {
-            let metrics = crate::telemetry::render_metrics();
-            crate::headroom::byok_gateway::write_http_response(
-                &mut stream,
-                200,
-                "OK",
-                &[(
-                    "Content-Type".to_string(),
-                    "text/plain; version=0.0.4; charset=utf-8".to_string(),
-                )],
-                metrics.as_bytes(),
-            )
-            .await?;
-            if is_close_requested {
-                let _ = stream.shutdown().await;
-                break;
-            }
-            continue;
-        }
-
         if path == "/sse" || path == "/events" {
             let head = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\nAccess-Control-Allow-Origin: *\r\n\r\nevent: ready\ndata: {\"service\":\"toksi-protocol-bus\",\"status\":\"ok\"}\n\n";
             stream.write_all(head.as_bytes()).await?;
@@ -1529,205 +1461,24 @@ async fn serve_protocol_bus_connection(
             return Ok(());
         }
 
-        if let Some((status_code, resp_val)) =
-            crate::tools::ide_plugin_host::handle_ide_http_route(&path, &req.method, &req.body)
-        {
-            let bytes = serde_json::to_vec(&resp_val).unwrap_or_default();
-            let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
-            if is_close_requested {
-                headers.push(("Connection".to_string(), "close".to_string()));
-            }
-            crate::headroom::byok_gateway::write_http_response(
-                &mut stream,
-                status_code,
-                crate::headroom::byok_gateway::status_reason(status_code),
-                &headers,
-                &bytes,
-            )
-            .await?;
-            if is_close_requested {
-                let _ = stream.shutdown().await;
-                break;
-            }
-            continue;
-        }
-
-        let default_proto = match path.as_str() {
-            "/mcp" => ProtocolKind::Mcp,
-            "/a2a" => ProtocolKind::A2a,
-            "/acp" => ProtocolKind::Acp,
-            "/anp" => ProtocolKind::Anp,
-            "/quic" => ProtocolKind::Quic,
-            "/stdio" => ProtocolKind::Stdio,
-            _ => ProtocolKind::Http,
-        };
-
-        if default_proto == ProtocolKind::A2a {
-            let auth_header = req
-                .headers
-                .iter()
-                .find(|(k, _)| k.eq_ignore_ascii_case("authorization"))
-                .map(|(_, v)| v.as_str())
-                .map(str::to_string);
-            let body_bytes = req.body.clone();
-            let disp_clone = Arc::clone(&dispatcher);
-            let (status_code, json_resp) = tokio::task::spawn_blocking(move || {
-                disp_clone
-                    .a2a_store()
-                    .handle_jsonrpc(&body_bytes, auth_header.as_deref(), &disp_clone)
-            })
-            .await
-            .unwrap_or_else(|e| {
-                (
-                    500,
-                    serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "id": Value::Null,
-                        "error": { "code": -32603, "message": format!("A2A task failed: {e}") }
-                    }),
-                )
-            });
-            let reason = match status_code {
-                200 => "OK",
-                400 => "Bad Request",
-                401 => "Unauthorized",
-                413 => "Payload Too Large",
-                _ => "Internal Server Error",
-            };
-            let bytes = serde_json::to_vec(&json_resp).unwrap_or_default();
-            let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
-            if is_close_requested {
-                headers.push(("Connection".to_string(), "close".to_string()));
-            }
-            crate::headroom::byok_gateway::write_http_response(
-                &mut stream,
-                status_code,
-                reason,
-                &headers,
-                &bytes,
-            )
-            .await?;
-            if is_close_requested {
-                let _ = stream.shutdown().await;
-                break;
-            }
-            continue;
-        }
-
-        if default_proto == ProtocolKind::Acp {
-            if let Ok(raw_val) = serde_json::from_slice::<Value>(&req.body) {
-                let method = raw_val.get("method").and_then(Value::as_str).unwrap_or("");
-                if matches!(
-                    method,
-                    "initialize" | "session/new" | "session/prompt" | "session/cancel"
-                ) {
-                    let effort = crate::headroom::effort::detect_effort_level(
-                        &req.headers,
-                        Some(&raw_val),
-                    );
-                    let resp = crate::agent_runtime::acp::handle_acp_jsonrpc(&raw_val, effort);
-                    let bytes = serde_json::to_vec(&resp).unwrap_or_default();
-                    let mut headers =
-                        vec![("Content-Type".to_string(), "application/json".to_string())];
-                    if is_close_requested {
-                        headers.push(("Connection".to_string(), "close".to_string()));
-                    }
-                    crate::headroom::byok_gateway::write_http_response(
-                        &mut stream,
-                        200,
-                        "OK",
-                        &headers,
-                        &bytes,
-                    )
-                    .await?;
-                    if is_close_requested {
-                        let _ = stream.shutdown().await;
-                        break;
-                    }
-                    continue;
-                }
-            }
-        }
-
-        let mut body_val: Value = match serde_json::from_slice(&req.body) {
-            Ok(v) => v,
-            Err(e) => {
-                let err = serde_json::json!({ "error": format!("Invalid JSON payload: {}", e) });
-                let bytes = serde_json::to_vec(&err).unwrap_or_default();
-                crate::headroom::byok_gateway::write_http_response(
-                    &mut stream,
-                    400,
-                    "Bad Request",
-                    &[("Content-Type".to_string(), "application/json".to_string())],
-                    &bytes,
-                )
-                .await?;
-                if is_close_requested {
-                    let _ = stream.shutdown().await;
-                    break;
-                }
-                continue;
-            }
-        };
-
-        // Shared HeadroomEffortCompressor pass across Protocol Bus payloads
-        let _stats = crate::headroom::effort::HeadroomEffortCompressor::default()
-            .compress_json_payload(&path, &req.headers, &mut body_val);
-
-        let unified_req = if let Ok(r) = serde_json::from_value::<UnifiedRequest>(body_val.clone()) {
-            r
-        } else {
-            let proto = body_val
-                .get("protocol")
-                .and_then(Value::as_str)
-                .and_then(|s| s.parse::<ProtocolKind>().ok())
-                .unwrap_or(default_proto);
-            let tool = body_val
-                .get("tool")
-                .and_then(Value::as_str)
-                .and_then(|s| s.parse::<ToolTarget>().ok())
-                .unwrap_or(ToolTarget::Headroom);
-            let action = body_val
-                .get("action")
-                .or_else(|| body_val.get("method"))
-                .and_then(Value::as_str)
-                .unwrap_or("status")
-                .to_string();
-            let payload = body_val
-                .get("payload")
-                .or_else(|| body_val.get("params"))
-                .cloned()
-                .unwrap_or(body_val);
-            UnifiedRequest::new(proto, tool, action, payload)
-        };
-
-        let disp_clone = Arc::clone(&dispatcher);
-        let resp = tokio::task::spawn_blocking(move || disp_clone.dispatch(&unified_req))
-            .await
-            .unwrap_or_else(|e| {
-                UnifiedResponse::error(
-                    default_proto,
-                    ToolTarget::Headroom,
-                    format!("Protocol bus task failed: {}", e),
-                )
-            });
-
-        let ctype = if resp.protocol == ProtocolKind::Sse {
-            "text/event-stream"
-        } else {
-            "application/json"
-        };
-        let frame = resp.format_protocol_frame();
-        let mut headers = vec![("Content-Type".to_string(), ctype.to_string())];
-        if is_close_requested {
+        let (status_code, mut headers, bytes) = dispatch_protocol_bus_http_request(
+            port,
+            &dispatcher,
+            &req.method,
+            &req.raw_uri,
+            &req.headers,
+            &req.body,
+        )
+        .await;
+        if is_close_requested && !headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("connection")) {
             headers.push(("Connection".to_string(), "close".to_string()));
         }
         crate::headroom::byok_gateway::write_http_response(
             &mut stream,
-            200,
-            "OK",
+            status_code,
+            crate::headroom::byok_gateway::status_reason(status_code),
             &headers,
-            frame.as_bytes(),
+            &bytes,
         )
         .await?;
 
@@ -1737,6 +1488,204 @@ async fn serve_protocol_bus_connection(
         }
     }
     Ok(())
+}
+
+pub async fn dispatch_protocol_bus_http_request(
+    port: u16,
+    dispatcher: &Arc<MultiProtocolDispatcher>,
+    method: &str,
+    raw_uri: &str,
+    headers: &[(String, String)],
+    body: &[u8],
+) -> (u16, Vec<(String, String)>, Vec<u8>) {
+    let (path, _, _) = crate::headroom::byok_gateway::split_uri_path_and_query(raw_uri);
+
+    if method.eq_ignore_ascii_case("OPTIONS") {
+        return (
+            204,
+            vec![
+                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+                (
+                    "Access-Control-Allow-Methods".to_string(),
+                    "GET, POST, OPTIONS".to_string(),
+                ),
+                ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
+            ],
+            Vec::new(),
+        );
+    }
+
+    if path == "/livez" || path == "/healthz" || path == "/readyz" {
+        let val = serde_json::json!({
+            "service": "toksi-protocol-bus",
+            "port": port,
+            "status": "ok",
+            "protocols": ["mcp", "a2a", "acp", "stdio", "sse", "http", "directwire"]
+        });
+        return (
+            200,
+            vec![("Content-Type".to_string(), "application/json".to_string())],
+            serde_json::to_vec(&val).unwrap_or_default(),
+        );
+    }
+
+    if path == "/metrics" {
+        let metrics = crate::telemetry::render_metrics();
+        return (
+            200,
+            vec![(
+                "Content-Type".to_string(),
+                "text/plain; version=0.0.4; charset=utf-8".to_string(),
+            )],
+            metrics.into_bytes(),
+        );
+    }
+
+    if path == "/sse" || path == "/events" {
+        return (
+            200,
+            vec![
+                ("Content-Type".to_string(), "text/event-stream".to_string()),
+                ("Cache-Control".to_string(), "no-cache".to_string()),
+            ],
+            b"event: ready\ndata: {\"service\":\"toksi-protocol-bus\",\"status\":\"ok\"}\n\n"
+                .to_vec(),
+        );
+    }
+
+    if let Some((status_code, resp_val)) =
+        crate::tools::ide_plugin_host::handle_ide_http_route(&path, method, body)
+    {
+        return (
+            status_code,
+            vec![("Content-Type".to_string(), "application/json".to_string())],
+            serde_json::to_vec(&resp_val).unwrap_or_default(),
+        );
+    }
+
+    let default_proto = match path.as_str() {
+        "/mcp" => ProtocolKind::Mcp,
+        "/a2a" => ProtocolKind::A2a,
+        "/acp" => ProtocolKind::Acp,
+        "/anp" => ProtocolKind::Anp,
+        "/quic" => ProtocolKind::Quic,
+        "/stdio" => ProtocolKind::Stdio,
+        _ => ProtocolKind::Http,
+    };
+
+    if default_proto == ProtocolKind::A2a {
+        let auth_header = headers
+            .iter()
+            .find(|(k, _)| k.eq_ignore_ascii_case("authorization"))
+            .map(|(_, v)| v.as_str())
+            .map(str::to_string);
+        let body_bytes = body.to_vec();
+        let disp_clone = Arc::clone(dispatcher);
+        let (status_code, json_resp) = tokio::task::spawn_blocking(move || {
+            disp_clone
+                .a2a_store()
+                .handle_jsonrpc(&body_bytes, auth_header.as_deref(), &disp_clone)
+        })
+        .await
+        .unwrap_or_else(|e| {
+            (
+                500,
+                serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": Value::Null,
+                    "error": { "code": -32603, "message": format!("A2A task failed: {e}") }
+                }),
+            )
+        });
+        return (
+            status_code,
+            vec![("Content-Type".to_string(), "application/json".to_string())],
+            serde_json::to_vec(&json_resp).unwrap_or_default(),
+        );
+    }
+
+    if default_proto == ProtocolKind::Acp
+        && let Ok(raw_val) = serde_json::from_slice::<Value>(body)
+    {
+        let acp_method = raw_val.get("method").and_then(Value::as_str).unwrap_or("");
+        if matches!(
+            acp_method,
+            "initialize" | "session/new" | "session/prompt" | "session/cancel"
+        ) {
+            let effort = crate::headroom::effort::detect_effort_level(headers, Some(&raw_val));
+            let resp = crate::agent_runtime::acp::handle_acp_jsonrpc(&raw_val, effort);
+            return (
+                200,
+                vec![("Content-Type".to_string(), "application/json".to_string())],
+                serde_json::to_vec(&resp).unwrap_or_default(),
+            );
+        }
+    }
+
+    let mut body_val: Value = match serde_json::from_slice(body) {
+        Ok(v) => v,
+        Err(e) => {
+            let err = serde_json::json!({ "error": format!("Invalid JSON payload: {}", e) });
+            return (
+                400,
+                vec![("Content-Type".to_string(), "application/json".to_string())],
+                serde_json::to_vec(&err).unwrap_or_default(),
+            );
+        }
+    };
+
+    let _stats = crate::headroom::effort::HeadroomEffortCompressor::default()
+        .compress_json_payload(&path, headers, &mut body_val);
+
+    let unified_req = if let Ok(r) = serde_json::from_value::<UnifiedRequest>(body_val.clone()) {
+        r
+    } else {
+        let proto = body_val
+            .get("protocol")
+            .and_then(Value::as_str)
+            .and_then(|s| s.parse::<ProtocolKind>().ok())
+            .unwrap_or(default_proto);
+        let tool = body_val
+            .get("tool")
+            .and_then(Value::as_str)
+            .and_then(|s| s.parse::<ToolTarget>().ok())
+            .unwrap_or(ToolTarget::Headroom);
+        let action = body_val
+            .get("action")
+            .or_else(|| body_val.get("method"))
+            .and_then(Value::as_str)
+            .unwrap_or("status")
+            .to_string();
+        let payload = body_val
+            .get("payload")
+            .or_else(|| body_val.get("params"))
+            .cloned()
+            .unwrap_or(body_val);
+        UnifiedRequest::new(proto, tool, action, payload)
+    };
+
+    let disp_clone = Arc::clone(dispatcher);
+    let resp = tokio::task::spawn_blocking(move || disp_clone.dispatch(&unified_req))
+        .await
+        .unwrap_or_else(|e| {
+            UnifiedResponse::error(
+                default_proto,
+                ToolTarget::Headroom,
+                format!("Protocol bus task failed: {}", e),
+            )
+        });
+
+    let ctype = if resp.protocol == ProtocolKind::Sse {
+        "text/event-stream"
+    } else {
+        "application/json"
+    };
+    let frame = resp.format_protocol_frame();
+    (
+        200,
+        vec![("Content-Type".to_string(), ctype.to_string())],
+        frame.into_bytes(),
+    )
 }
 
 #[cfg(test)]

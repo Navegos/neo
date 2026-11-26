@@ -218,7 +218,7 @@ fn test_phase11_scan_legacy_hijacks_dry_run() {
     fs::write(&state_file, b"{}").unwrap();
 
     // 1. Scan (dry-run): must find all 3 items WITHOUT modifying or deleting them
-    let scan_report = scan_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
+    let scan_report = scan_legacy_hijacks_in(std::slice::from_ref(&bin_dir), std::slice::from_ref(&data_dir));
     assert!(!scan_report.is_clean());
     assert_eq!(scan_report.restored_binaries.len(), 1);
     assert_eq!(scan_report.removed_shims.len(), 1);
@@ -230,7 +230,7 @@ fn test_phase11_scan_legacy_hijacks_dry_run() {
     assert!(state_file.exists(), "dry run must not delete state file");
 
     // 2. Heal: must restore real binary and delete shim/state
-    let heal_report = heal_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
+    let heal_report = heal_legacy_hijacks_in(std::slice::from_ref(&bin_dir), std::slice::from_ref(&data_dir));
     assert_eq!(heal_report.total_healed(), 3);
     assert!(!real_bin.exists(), ".real binary should be renamed to canonical");
     assert!(!shim.exists(), "shim should be deleted");
@@ -247,7 +247,7 @@ fn test_phase11_scan_legacy_hijacks_dry_run() {
 #[test]
 fn test_phase11_doctor_runs_cleanly() {
     let _lock = PHASE11_LOCK.lock().unwrap();
-    let _ = toksi_sys::process::set_process_env("TOKSI_TEST", "1");
+    toksi_sys::process::set_process_env("TOKSI_TEST", "1");
     let temp_home = std::env::temp_dir().join("toksi_p11_doctor_isolated_home");
     let _ = fs::remove_dir_all(&temp_home);
     let _ = fs::create_dir_all(&temp_home);
@@ -272,7 +272,7 @@ fn test_phase11_doctor_runs_cleanly() {
 #[test]
 fn test_phase11_self_healing_mcp_hooks_config_and_workspace_opt_in() {
     let _lock = PHASE11_LOCK.lock().unwrap();
-    let _ = toksi_sys::process::set_process_env("TOKSI_TEST", "1");
+    toksi_sys::process::set_process_env("TOKSI_TEST", "1");
     let temp_root = tempfile::tempdir().unwrap();
     let fake_home = temp_root.path().join("home");
     let workspace = temp_root.path().join("repo");

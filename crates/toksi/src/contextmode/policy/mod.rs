@@ -135,8 +135,8 @@ pub fn decide(
     }
 
     // 4. Read check
-    if canonical == "Read" || tool.name == "read_file" || tool.name == "view" {
-        if let Some(ref file_str) = tool.file_path {
+    if (canonical == "Read" || tool.name == "read_file" || tool.name == "view")
+        && let Some(ref file_str) = tool.file_path {
             let p = Path::new(file_str);
             let abs = if p.is_absolute() {
                 p.to_path_buf()
@@ -149,8 +149,8 @@ pub fn decide(
                 return Decision::Allow;
             }
 
-            if let Ok(meta) = std::fs::metadata(&abs) {
-                if meta.is_file() && meta.len() as usize > OUTPUT_CAP {
+            if let Ok(meta) = std::fs::metadata(&abs)
+                && meta.is_file() && meta.len() as usize > OUTPUT_CAP {
                     let inside = is_inside_root(&abs, project_root);
                     let reason = read_deny_message(&abs.to_string_lossy(), meta.len() as usize, inside, "");
                     return Decision::Deny {
@@ -158,20 +158,17 @@ pub fn decide(
                         rewritten: None,
                     };
                 }
-            }
         }
-    }
 
     Decision::Allow
 }
 
 fn is_never_denied_host(url_str: &str) -> bool {
-    if let Ok(parsed) = url::Url::parse(url_str) {
-        if let Some(host) = parsed.host_str() {
+    if let Ok(parsed) = url::Url::parse(url_str)
+        && let Some(host) = parsed.host_str() {
             let h = host.to_lowercase();
             return h == "localhost" || h == "127.0.0.1" || h.ends_with(".local");
         }
-    }
     false
 }
 

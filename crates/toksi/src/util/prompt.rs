@@ -287,11 +287,10 @@ fn select_one_line(question: &str, options: &[SelectOption], selected: usize) ->
 
     let mut line = String::new();
     let _ = io::stdin().lock().read_line(&mut line);
-    if let Ok(n) = line.trim().parse::<usize>() {
-        if n >= 1 && n <= options.len() {
+    if let Ok(n) = line.trim().parse::<usize>()
+        && n >= 1 && n <= options.len() {
             return options[n - 1].value.clone();
         }
-    }
     options[selected].value.clone()
 }
 
@@ -428,10 +427,7 @@ pub fn multi_select(question: &str, options: &[MultiSelectOption]) -> Vec<String
     render(&items, cursor, &mut first_render);
     let mut stdin = io::stdin();
 
-    loop {
-        let Some(ch) = read_byte(&mut stdin) else {
-            break;
-        };
+    while let Some(ch) = read_byte(&mut stdin) {
         match ch {
             3 => prompt_exit(restore.take()),
             26 => {
@@ -594,11 +590,10 @@ pub fn parse_line_selection(
     }
     let mut out = Vec::new();
     for (i, it) in items.iter().enumerate() {
-        if let Some(&num) = num_by_idx.get(i) {
-            if num > 0 && want.contains(&num) {
+        if let Some(&num) = num_by_idx.get(i)
+            && num > 0 && want.contains(&num) {
                 out.push(it.value.clone());
             }
-        }
     }
     out
 }

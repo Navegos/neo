@@ -28,11 +28,10 @@ use std::path::{Path, PathBuf};
 pub fn get_default_output_dir() -> PathBuf {
     #[cfg(target_os = "windows")]
     {
-        if let Ok(appdata) = std::env::var("APPDATA") {
-            if !appdata.trim().is_empty() {
+        if let Ok(appdata) = std::env::var("APPDATA")
+            && !appdata.trim().is_empty() {
                 return PathBuf::from(appdata).join("ArchInfo");
             }
-        }
         if let Ok(userprofile) = std::env::var("USERPROFILE") {
             let docs = PathBuf::from(&userprofile).join("Documents").join("ArchInfo");
             let docs_parent = PathBuf::from(&userprofile).join("Documents");
@@ -81,7 +80,7 @@ pub fn get_default_output_dir() -> PathBuf {
 }
 
 fn parse_extension_tokens(s: &str) -> Vec<&str> {
-    s.split(|c| c == '+' || c == ',' || c == ' ')
+    s.split(['+', ',', ' '])
         .map(|t| t.trim())
         .filter(|t| !t.is_empty())
         .collect()
@@ -192,7 +191,7 @@ fn parse_freebsd_os_version(s: &str) -> Result<String, String> {
         let minor: u32 = parts[1]
             .parse()
             .map_err(|_| format!("Invalid FreeBSD minor version: '{}'", parts[1]))?;
-        if major < 13 || major > 15 || (major == 15 && minor > 3) {
+        if !(13..=15).contains(&major) || (major == 15 && minor > 3) {
             return Err(format!(
                 "FreeBSD OS version {}.{} is out of supported range (13.0 to 15.3 or 13.0.0 to 15.3.9)",
                 major, minor
@@ -955,10 +954,7 @@ pub fn is_metal_version_os_compatible(
     version: MetalVersion,
     os_level_str: Option<&str>,
 ) -> bool {
-    let (major, minor) = match os_level_str.and_then(parse_os_version) {
-        Some(v) => v,
-        None => (26, 0),
-    };
+    let (major, minor) = os_level_str.and_then(parse_os_version).unwrap_or((26, 0));
 
     match version {
         MetalVersion::LegacyMetal => match platform.resolve() {
@@ -2004,8 +2000,8 @@ impl ArchFeaturesReport {
                     (f, target_str, min_e)
                 };
 
-                let active_disabled: Vec<X64ISA>;
-                if is_generic {
+                
+                let active_disabled: Vec<X64ISA> = if is_generic {
                     for &isa in &enabled_isas {
                         if !disabled_isas.contains(&isa) {
                             feat.set_feature(isa, true);
@@ -2014,7 +2010,7 @@ impl ArchFeaturesReport {
                     for &isa in &disabled_isas {
                         feat.set_feature(isa, false);
                     }
-                    active_disabled = disabled_isas;
+                    disabled_isas
                 } else {
                     if !enabled_isas.is_empty() || !disabled_isas.is_empty() {
                         eprintln!(
@@ -2022,8 +2018,8 @@ impl ArchFeaturesReport {
                             target_cpu_name
                         );
                     }
-                    active_disabled = Vec::new();
-                }
+                    Vec::new()
+                };
 
                 let extensions = if !is_generic && target_x64 != TargetCpuArchitectureX64::Native {
                     let e = x86_64::ClangTargetCpuArchitectureX64ISANames::name(target_x64);
@@ -2322,8 +2318,8 @@ impl ArchFeaturesReport {
 
                 let mut feat = Riscv64CPUFeatures::from_target(target_riscv);
 
-                let active_disabled: Vec<Riscv64ISA>;
-                if is_generic {
+                
+                let active_disabled: Vec<Riscv64ISA> = if is_generic {
                     for &isa in &enabled_isas {
                         if !disabled_isas.contains(&isa) {
                             feat.set_feature(isa, true);
@@ -2332,7 +2328,7 @@ impl ArchFeaturesReport {
                     for &isa in &disabled_isas {
                         feat.set_feature(isa, false);
                     }
-                    active_disabled = disabled_isas;
+                    disabled_isas
                 } else {
                     if !enabled_isas.is_empty() || !disabled_isas.is_empty() {
                         eprintln!(
@@ -2340,8 +2336,8 @@ impl ArchFeaturesReport {
                             target_cpu_name
                         );
                     }
-                    active_disabled = Vec::new();
-                }
+                    Vec::new()
+                };
 
                 let extensions = if !is_generic && target_riscv != TargetCpuArchitectureRiscv64::Native {
                     let ext = riscv64::ClangTargetCpuArchitectureRiscv64ISANames::name(target_riscv);
@@ -2687,12 +2683,11 @@ impl ArchFeaturesReport {
 
     /// Writes report to a file, automatically creating parent directories if needed
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
-        let json = self.to_json().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-        if let Some(parent) = path.as_ref().parent() {
-            if !parent.as_os_str().is_empty() {
+        let json = self.to_json().map_err(std::io::Error::other)?;
+        if let Some(parent) = path.as_ref().parent()
+            && !parent.as_os_str().is_empty() {
                 fs::create_dir_all(parent)?;
             }
-        }
         let mut file = File::create(path)?;
         file.write_all(json.as_bytes())?;
         Ok(())
@@ -2711,11 +2706,10 @@ impl PlatformArchMatrixReport {
         let mut matrix = Vec::new();
         for &platform in Platform::all() {
             for &arch in Arch::all() {
-                if platform.is_arch_compatible(arch) {
-                    if let Ok(report) = ArchFeaturesReport::from_target(platform, arch) {
+                if platform.is_arch_compatible(arch)
+                    && let Ok(report) = ArchFeaturesReport::from_target(platform, arch) {
                         matrix.push(report);
                     }
-                }
             }
         }
         Self { matrix }
@@ -2742,12 +2736,11 @@ impl PlatformArchMatrixReport {
     }
 
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> std::io::Result<()> {
-        let json = self.to_json().map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-        if let Some(parent) = path.as_ref().parent() {
-            if !parent.as_os_str().is_empty() {
+        let json = self.to_json().map_err(std::io::Error::other)?;
+        if let Some(parent) = path.as_ref().parent()
+            && !parent.as_os_str().is_empty() {
                 fs::create_dir_all(parent)?;
             }
-        }
         let mut file = File::create(path)?;
         file.write_all(json.as_bytes())?;
         Ok(())

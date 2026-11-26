@@ -108,7 +108,12 @@ fn test_phase15_2_daemon_plan_skips_unconfigured_agents() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_phase15_2_copilot_real_sse_proxying_and_livez() {
-    let _lock = RUNTIME_OVERRIDE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard_async = tokio::sync::Mutex::new(());
+    let _g = _guard_async.lock().await;
+    {
+        let _lock = RUNTIME_OVERRIDE_TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        clear_runtime_overrides();
+    }
     let upstream_listener = TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind mock copilot upstream");

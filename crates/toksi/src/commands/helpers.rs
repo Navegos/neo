@@ -52,11 +52,10 @@ pub fn tool_version_note(tool: &ToolManifest) -> String {
 }
 
 pub fn tool_version_outdated(info: Option<&VersionInfo>) -> bool {
-    if let Some(info) = info {
-        if let (Some(inst), Some(lat)) = (&info.installed, &info.latest) {
+    if let Some(info) = info
+        && let (Some(inst), Some(lat)) = (&info.installed, &info.latest) {
             return semver_compare(inst, lat) < 0;
         }
-    }
     false
 }
 

@@ -75,8 +75,8 @@ pub fn has_env_proxy_for_url(parsed: &Url) -> bool {
         return false;
     }
 
-    if let Ok(no_proxy) = std::env::var("NO_PROXY").or_else(|_| std::env::var("no_proxy")) {
-        if let Some(host) = parsed.host_str() {
+    if let Ok(no_proxy) = std::env::var("NO_PROXY").or_else(|_| std::env::var("no_proxy"))
+        && let Some(host) = parsed.host_str() {
             let host_lower = host.to_ascii_lowercase();
             for entry in no_proxy.split(',').map(|s| s.trim().to_ascii_lowercase()) {
                 if entry.is_empty() {
@@ -91,7 +91,6 @@ pub fn has_env_proxy_for_url(parsed: &Url) -> bool {
                 }
             }
         }
-    }
     true
 }
 
@@ -399,8 +398,7 @@ impl WebFetcher {
         if !force
             && effective_ttl > 0
             && let Some(meta) = store.get_source_meta(&cache_key)
-        {
-                if let Ok(parsed_time) = chrono::DateTime::parse_from_rfc3339(&format!("{}Z", meta.indexed_at.replace(' ', "T"))) {
+                && let Ok(parsed_time) = chrono::DateTime::parse_from_rfc3339(&format!("{}Z", meta.indexed_at.replace(' ', "T"))) {
                     let now = chrono::Utc::now();
                     let age_ms = (now - parsed_time.to_utc()).num_milliseconds();
                     if age_ms >= 0 && (age_ms as u64) < effective_ttl {
@@ -425,7 +423,6 @@ impl WebFetcher {
                     };
                 }
             }
-        }
 
         record_cache_miss();
 
@@ -543,8 +540,7 @@ impl WebFetcher {
             if !force
                 && effective_ttl > 0
                 && let Some(meta) = store.get_source_meta(&cache_key)
-            {
-                    if let Ok(parsed_time) = chrono::DateTime::parse_from_rfc3339(&format!("{}Z", meta.indexed_at.replace(' ', "T"))) {
+                    && let Ok(parsed_time) = chrono::DateTime::parse_from_rfc3339(&format!("{}Z", meta.indexed_at.replace(' ', "T"))) {
                         let now = chrono::Utc::now();
                         let age_ms = (now - parsed_time.to_utc()).num_milliseconds();
                         if age_ms >= 0 && (age_ms as u64) < effective_ttl {
@@ -567,7 +563,6 @@ impl WebFetcher {
                         });
                     }
                 }
-            }
 
             if let Some(cached) = cached_outcome {
                 results.push(Some(cached));
@@ -707,8 +702,7 @@ impl WebFetcher {
         if !force
             && effective_ttl > 0
             && let Some(meta) = store.get_source_meta(&cache_key)
-        {
-                if let Ok(parsed_time) = chrono::DateTime::parse_from_rfc3339(&format!("{}Z", meta.indexed_at.replace(' ', "T"))) {
+                && let Ok(parsed_time) = chrono::DateTime::parse_from_rfc3339(&format!("{}Z", meta.indexed_at.replace(' ', "T"))) {
                     let now = chrono::Utc::now();
                     let age_ms = (now - parsed_time.to_utc()).num_milliseconds();
                     if age_ms >= 0 && (age_ms as u64) < effective_ttl {
@@ -733,7 +727,6 @@ impl WebFetcher {
                     };
                 }
             }
-        }
 
         record_cache_miss();
 

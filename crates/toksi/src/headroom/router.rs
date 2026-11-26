@@ -15,10 +15,12 @@ use crate::util::routing_plan::{
 
 pub const ROUTER_ROUTE_HEADER: &str = "X-Toksi-Route";
 
+type RouteOwnershipPredicate = Arc<dyn Fn(&RouteSelection) -> bool + Send + Sync>;
+
 pub struct Router {
     coordinator: Option<Arc<RoutingCoordinator>>,
     snapshot: Option<RoutingSnapshot>,
-    owned: Option<Arc<dyn Fn(&RouteSelection) -> bool + Send + Sync>>,
+    owned: Option<RouteOwnershipPredicate>,
 }
 
 impl Router {
@@ -146,15 +148,14 @@ impl Router {
             );
         };
 
-        if let Some(ref coord) = self.coordinator {
-            if coord.authorize(&selection).is_err() {
+        if let Some(ref coord) = self.coordinator
+            && coord.authorize(&selection).is_err() {
                 return (
                     502,
                     vec![("Content-Type".to_string(), "text/plain; charset=utf-8".to_string())],
                     b"route lease unavailable\n".to_vec(),
                 );
             }
-        }
 
         let target_url = format!("http://{}{}", selection.listener, path);
         let Ok(client) = reqwest::Client::builder()

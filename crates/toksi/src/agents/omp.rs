@@ -258,8 +258,8 @@ pub fn omp_yaml_scan(raw: &str) -> OmpYamlScan {
             });
             continue;
         }
-        if let Some(cur) = current.as_mut() {
-            if indent >= 4
+        if let Some(cur) = current.as_mut()
+            && indent >= 4
                 && let Some((k, v)) = trimmed.split_once(':')
             {
                 let key = k.trim();
@@ -275,7 +275,6 @@ pub fn omp_yaml_scan(raw: &str) -> OmpYamlScan {
                     _ => {}
                 }
             }
-        }
     }
     if let Some(mut cur) = current.take() {
         cur.end_line = lines.len();

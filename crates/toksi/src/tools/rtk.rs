@@ -761,11 +761,10 @@ pub fn amp_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
     let p = amp_rtk_plugin_path();
     let quoted_exe = stringify_json(&Value::String(exe));
     let want = AMP_RTK_PLUGIN.replace("%TOKSI%", &quoted_exe);
-    if let Some(raw) = read_file_safe(&p) {
-        if raw != want && !raw.starts_with("// toksi-rtk") {
+    if let Some(raw) = read_file_safe(&p)
+        && raw != want && !raw.starts_with("// toksi-rtk") {
             return Ok(false);
         }
-    }
     if let Some(parent) = Path::new(&p).parent() {
         ensure_dir(parent)?;
     }
@@ -805,7 +804,7 @@ fn zcode_rtk_hook_managed(hook: &OrderedMap) -> bool {
     if arr.len() != 2 {
         return false;
     }
-    let a = arr.get(0).and_then(|v| v.as_str());
+    let a = arr.first().and_then(|v| v.as_str());
     let b = arr.get(1).and_then(|v| v.as_str());
     let (Some(cmd_str), true) = (cmd, a == Some("rtk-hook") && b == Some("zcode")) else {
         return false;
@@ -862,8 +861,8 @@ pub fn zcode_wire_rtk(opts: &RunOpts) -> Result<bool, DynError> {
             }
             if let Some(Value::Array(hook_arr)) = group.get_mut("hooks") {
                 for hook_val in hook_arr.iter_mut() {
-                    if let Value::Object(hook) = hook_val {
-                        if zcode_rtk_hook_managed(hook) {
+                    if let Value::Object(hook) = hook_val
+                        && zcode_rtk_hook_managed(hook) {
                             hook.insert("type".to_string(), Value::String("process".to_string()));
                             hook.insert("command".to_string(), Value::String(exe.clone()));
                             hook.insert(
@@ -877,7 +876,6 @@ pub fn zcode_wire_rtk(opts: &RunOpts) -> Result<bool, DynError> {
                             hook.insert("timeoutMs".to_string(), Value::Number(10000.into()));
                             managed = true;
                         }
-                    }
                 }
             }
         }
@@ -990,16 +988,14 @@ pub fn zcode_rtk_verify() -> bool {
             }
             if let Some(Value::Array(hook_arr)) = g.get("hooks") {
                 for hook in hook_arr {
-                    if let Value::Object(h) = hook {
-                        if let Some(Value::Array(args)) = h.get("args") {
-                            if args.len() == 2
+                    if let Value::Object(h) = hook
+                        && let Some(Value::Array(args)) = h.get("args")
+                            && args.len() == 2
                                 && args[0].as_str() == Some("rtk-hook")
                                 && args[1].as_str() == Some("zcode")
                             {
                                 return true;
                             }
-                        }
-                    }
                 }
             }
         }
@@ -1055,9 +1051,8 @@ pub fn override_claude_rtk_hook(cmd: &str) -> Result<(), DynError> {
     if !matches!(cfg.get("hooks"), Some(Value::Object(_))) {
         cfg.insert("hooks".into(), Value::Object(OrderedMap::new()));
     }
-    let hooks = match cfg.get_mut("hooks") {
-        Some(Value::Object(m)) => m,
-        _ => unreachable!(),
+    let Some(Value::Object(hooks)) = cfg.get_mut("hooks") else {
+        return Err("failed to initialize hooks object in Claude settings".into());
     };
 
     let existing = match hooks.get("PreToolUse") {
@@ -1101,8 +1096,8 @@ fn claude_rtk_wire(opts: &RunOpts) -> Result<bool, DynError> {
 
 fn claude_rtk_unwire(_opts: &RunOpts) -> Result<bool, DynError> {
     let cp = claude_code_paths();
-    if let Some(raw) = read_file_safe(&cp.settings) {
-        if let Some(Value::Object(mut cfg)) = try_parse_jsonc(&raw) {
+    if let Some(raw) = read_file_safe(&cp.settings)
+        && let Some(Value::Object(mut cfg)) = try_parse_jsonc(&raw) {
             if let Some(Value::Object(hooks)) = cfg.get_mut("hooks") {
                 if let Some(Value::Array(pre)) = hooks.get("PreToolUse").cloned() {
                     let filtered = remove_claude_rtk_hook_group(pre);
@@ -1118,7 +1113,6 @@ fn claude_rtk_unwire(_opts: &RunOpts) -> Result<bool, DynError> {
             }
             let _ = write_file_atomic(&cp.settings, &stringify_json(&Value::Object(cfg)));
         }
-    }
     disallow_claude_bash_pattern("Bash(rtk *)");
     let _ = remove_owner("claude", "rtk");
     Ok(true)
@@ -1130,18 +1124,18 @@ pub fn build_rtk() -> ToolManifest {
     tool.homepage = "https://github.com/Navegos/rtk".into();
     tool.install_hint = "Prebuilt binary from GitHub releases (no Rust required).".into();
     tool.channel = Channel::GitHub;
-    tool.install = Some(Arc::new(move |opts| rtk_ensure_installed(opts)));
+    tool.install = Some(Arc::new(rtk_ensure_installed));
 
     // Claude
-    tool.wire_for.insert("claude".into(), Arc::new(|opts| claude_rtk_wire(opts)));
-    tool.unwire_for.insert("claude".into(), Arc::new(|opts| claude_rtk_unwire(opts)));
+    tool.wire_for.insert("claude".into(), Arc::new(claude_rtk_wire));
+    tool.unwire_for.insert("claude".into(), Arc::new(claude_rtk_unwire));
     tool.verify_for.insert(
         "claude".into(),
         Arc::new(|| Some(claude_rtk_hook_managed())),
     );
 
     // OpenCode
-    tool.wire_for.insert("opencode".into(), Arc::new(|opts| opencode_rtk_wire(opts)));
+    tool.wire_for.insert("opencode".into(), Arc::new(opencode_rtk_wire));
     tool.unwire_for.insert(
         "opencode".into(),
         Arc::new(|opts| {
@@ -1163,8 +1157,8 @@ pub fn build_rtk() -> ToolManifest {
     );
 
     // OpenCode v2
-    tool.wire_for.insert("opencode2".into(), Arc::new(|opts| opencode_rtk_v2_wire(opts)));
-    tool.unwire_for.insert("opencode2".into(), Arc::new(|opts| opencode_rtk_v2_unwire(opts)));
+    tool.wire_for.insert("opencode2".into(), Arc::new(opencode_rtk_v2_wire));
+    tool.unwire_for.insert("opencode2".into(), Arc::new(opencode_rtk_v2_unwire));
     tool.verify_for.insert(
         "opencode2".into(),
         Arc::new(|| Some(opencode_rtk_v2_plugin_valid())),
@@ -1332,7 +1326,7 @@ pub fn build_rtk() -> ToolManifest {
     );
 
     // Pi
-    tool.wire_for.insert("pi".into(), Arc::new(|opts| pi_rtk_wire(opts)));
+    tool.wire_for.insert("pi".into(), Arc::new(pi_rtk_wire));
     tool.unwire_for.insert(
         "pi".into(),
         Arc::new(|opts| {
@@ -1382,13 +1376,13 @@ pub fn build_rtk() -> ToolManifest {
     );
 
     // Kilo
-    tool.wire_for.insert("kilo".into(), Arc::new(|opts| kilo_rtk_wire(opts)));
-    tool.unwire_for.insert("kilo".into(), Arc::new(|opts| kilo_rtk_unwire(opts)));
+    tool.wire_for.insert("kilo".into(), Arc::new(kilo_rtk_wire));
+    tool.unwire_for.insert("kilo".into(), Arc::new(kilo_rtk_unwire));
     tool.verify_for.insert("kilo".into(), Arc::new(|| Some(kilo_rtk_verify())));
 
     // Cline
-    tool.wire_for.insert("cline".into(), Arc::new(|opts| cline_rtk_wire(opts)));
-    tool.unwire_for.insert("cline".into(), Arc::new(|opts| cline_rtk_unwire(opts)));
+    tool.wire_for.insert("cline".into(), Arc::new(cline_rtk_wire));
+    tool.unwire_for.insert("cline".into(), Arc::new(cline_rtk_unwire));
     tool.verify_for.insert("cline".into(), Arc::new(|| Some(cline_rtk_verify())));
 
     // Grok
@@ -1466,7 +1460,7 @@ pub fn build_rtk() -> ToolManifest {
     );
 
     // ZCode
-    tool.wire_for.insert("zcode".into(), Arc::new(|opts| zcode_wire_rtk(opts)));
+    tool.wire_for.insert("zcode".into(), Arc::new(zcode_wire_rtk));
     tool.unwire_for.insert("zcode".into(), Arc::new(|_opts| zcode_unwire_rtk()));
     tool.verify_for.insert("zcode".into(), Arc::new(|| Some(zcode_rtk_verify())));
 

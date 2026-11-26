@@ -139,10 +139,10 @@ pub fn restore_windows_reg_snapshot(
 
     overlay_restore_or_clear(&overlay_originals, MANAGED_PROXY_KEYS);
 
-    if !restored_or_purged.contains(&TOKSI_OWNED_MARKER.to_string()) {
+    if !restored_or_purged.iter().any(|i: &String| i == TOKSI_OWNED_MARKER) {
         restored_or_purged.push(TOKSI_OWNED_MARKER.to_string());
     }
-    if !restored_or_purged.contains(&TOKSI_OWNED_KEYS.to_string()) {
+    if !restored_or_purged.iter().any(|i: &String| i == TOKSI_OWNED_KEYS) {
         restored_or_purged.push(TOKSI_OWNED_KEYS.to_string());
     }
 
@@ -270,10 +270,10 @@ pub fn teardown_windows_env() -> Result<Vec<String>, EnvInjectorError> {
         let key_refs: Vec<&str> = keys.iter().map(String::as_str).collect();
         overlay_restore_or_clear(&[], &key_refs);
 
-        if !purged.contains(&TOKSI_OWNED_MARKER.to_string()) {
+        if !purged.iter().any(|i: &String| i == TOKSI_OWNED_MARKER) {
             purged.push(TOKSI_OWNED_MARKER.to_string());
         }
-        if !purged.contains(&TOKSI_OWNED_KEYS.to_string()) {
+        if !purged.iter().any(|i: &String| i == TOKSI_OWNED_KEYS) {
             purged.push(TOKSI_OWNED_KEYS.to_string());
         }
 

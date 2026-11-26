@@ -159,19 +159,16 @@ fn is_auto_index_cmd(cmd: &str) -> bool {
 
 pub fn groups_contain_auto_index(groups: &[Value]) -> bool {
     for g in groups {
-        if let Value::Object(gm) = g {
-            if let Some(Value::Array(hooks)) = gm.get("hooks") {
+        if let Value::Object(gm) = g
+            && let Some(Value::Array(hooks)) = gm.get("hooks") {
                 for h in hooks {
-                    if let Value::Object(hm) = h {
-                        if let Some(Value::String(cmd)) = hm.get("command") {
-                            if is_auto_index_cmd(cmd) {
+                    if let Value::Object(hm) = h
+                        && let Some(Value::String(cmd)) = hm.get("command")
+                            && is_auto_index_cmd(cmd) {
                                 return true;
                             }
-                        }
-                    }
                 }
             }
-        }
     }
     false
 }

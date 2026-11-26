@@ -176,14 +176,13 @@ pub fn build_caveman() -> ToolManifest {
                 } else {
                     None
                 };
-                if let Some(path) = target {
-                    if let Some(raw) = read_file_safe(path.to_string_lossy().as_ref()) {
+                if let Some(path) = target
+                    && let Some(raw) = read_file_safe(path.to_string_lossy().as_ref()) {
                         let expected = cursor_project_rule_content("caveman");
                         if !expected.is_empty() && raw.replace("\r\n", "\n") == expected.replace("\r\n", "\n") {
                             return Some(true);
                         }
                     }
-                }
             }
             Some(false)
         }),

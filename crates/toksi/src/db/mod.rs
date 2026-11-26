@@ -23,11 +23,10 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 
 pub fn default_db_path() -> PathBuf {
-    if let Ok(dir) = std::env::var("TOKSI_DATA_DIR") {
-        if !dir.trim().is_empty() {
+    if let Ok(dir) = std::env::var("TOKSI_DATA_DIR")
+        && !dir.trim().is_empty() {
             return PathBuf::from(crate::util::paths::normalize_path(dir.trim())).join("toksi.db");
         }
-    }
     let h = crate::util::paths::home();
     if !h.is_empty() {
         let norm_h = crate::util::paths::normalize_path(&h);

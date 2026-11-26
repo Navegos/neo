@@ -60,14 +60,13 @@ impl TurnFacadeMixin {
 
     pub fn acquire_lease(&mut self, owner: &str, turn_index: u64) -> Result<TurnLease, String> {
         let now = now_ms();
-        if let Some(ref existing) = self.active_lease {
-            if existing.expires_at_ms > now && existing.owner != owner {
+        if let Some(ref existing) = self.active_lease
+            && existing.expires_at_ms > now && existing.owner != owner {
                 return Err(format!(
                     "Turn lease '{}' still held by '{}' until {}",
                     existing.lease_id, existing.owner, existing.expires_at_ms
                 ));
             }
-        }
         let lease = TurnLease {
             lease_id: format!("lease-{}-{}", turn_index, now),
             owner: owner.to_string(),
@@ -164,16 +163,14 @@ impl RunawayStreamWatch {
             hasher.update(fragment.as_bytes());
             let hash: String = hasher.finalize().iter().map(|b| format!("{:02x}", b)).collect();
 
-            if self.window.len() >= REPEAT_WINDOW {
-                if let Some(old) = self.window.pop_front() {
-                    if let Some(c) = self.counts.get_mut(&old) {
+            if self.window.len() >= REPEAT_WINDOW
+                && let Some(old) = self.window.pop_front()
+                    && let Some(c) = self.counts.get_mut(&old) {
                         *c = c.saturating_sub(1);
                         if *c == 0 {
                             self.counts.remove(&old);
                         }
                     }
-                }
-            }
 
             let count = self.counts.entry(hash.clone()).or_insert(0);
             *count += 1;

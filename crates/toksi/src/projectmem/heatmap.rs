@@ -137,11 +137,10 @@ pub fn calculate_score(events: &[Event], since_days: Option<i64>) -> ScoreResult
     let filtered: Vec<&Event> = events
         .iter()
         .filter(|e| {
-            if let Some(c) = cutoff {
-                if let Ok(dt) = DateTime::parse_from_rfc3339(&e.timestamp) {
+            if let Some(c) = cutoff
+                && let Ok(dt) = DateTime::parse_from_rfc3339(&e.timestamp) {
                     return dt.with_timezone(&Utc) >= c;
                 }
-            }
             true
         })
         .collect();
@@ -316,13 +315,11 @@ pub fn generate_file_drilldown(events: &[Event], file_path: &str) -> FileDrilldo
                 break;
             }
         }
-        if !matches {
-            if let Some(loc_f) = location_to_file(e.location.as_deref()) {
-                if normalize_path(&loc_f) == norm_target {
+        if !matches
+            && let Some(loc_f) = location_to_file(e.location.as_deref())
+                && normalize_path(&loc_f) == norm_target {
                     matches = true;
                 }
-            }
-        }
         if !matches && e.summary.contains(&norm_target) {
             matches = true;
         }
@@ -330,10 +327,7 @@ pub fn generate_file_drilldown(events: &[Event], file_path: &str) -> FileDrilldo
         if matches {
             drilldown.total_events += 1;
             match e.event_type.as_str() {
-                "attempt" => match e.outcome.as_deref() {
-                    Some("failed") => drilldown.failed_attempts += 1,
-                    _ => {}
-                },
+                "attempt" => if let Some("failed") = e.outcome.as_deref() { drilldown.failed_attempts += 1; },
                 "issue" => {
                     if let Some(ref iid) = e.issue_id {
                         if open_issue_ids.contains(iid) {

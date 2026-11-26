@@ -77,7 +77,7 @@ fn test_all_17_agent_manifests_and_lifecycle() {
 
     for agent_id in ALL_17_AGENTS {
         assert!(
-            registered_ids.contains(&agent_id.to_string()),
+            registered_ids.iter().any(|i| i == agent_id),
             "Agent '{}' must be registered in agent_ids()",
             agent_id
         );
@@ -131,7 +131,7 @@ fn test_all_17_agent_proxy_specifications() {
     let proxy_ids = proxy_agent_ids();
     for agent_id in ALL_17_AGENTS {
         assert!(
-            proxy_ids.contains(&agent_id.to_string()),
+            proxy_ids.iter().any(|i| i == agent_id),
             "Agent '{}' must be included in proxy_agent_ids()",
             agent_id
         );
@@ -226,7 +226,7 @@ fn test_streaming_proxy_compression_pipeline() {
     let aligned = align_to_1024_tokens(prompt);
     assert!(aligned.contains("<!-- toksi:cache-align pad_tokens="));
     let est = estimate_tokens(&aligned);
-    assert!(est >= 1024 && est <= 1030);
+    assert!((1024..=1030).contains(&est));
 
     // 2. Anthropic auto ephemeral cache control placement
     let mut payload = json!({
@@ -256,7 +256,7 @@ fn test_in_process_mcp_multiplexer_live_simulated_requests() {
     register_tools();
     let tools = tool_ids();
     for t in ["rtk", "codegraph", "ctxmode", "headroom", "projectmem"] {
-        assert!(tools.contains(&t.to_string()));
+        assert!(tools.iter().any(|i| i == t));
     }
 
     // 1. projectmem in-process JSON-RPC simulation
@@ -397,7 +397,7 @@ fn test_non_destructive_environment_injection_and_clean_teardown() {
     std::fs::write(&shim, b"@echo off\r\nrem toksi:antigravity-cli-proxy\r\n").unwrap();
 
     // Verify scan detects without modifying
-    let scan = scan_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
+    let scan = scan_legacy_hijacks_in(std::slice::from_ref(&bin_dir), std::slice::from_ref(&data_dir));
     assert!(!scan.is_clean());
     assert_eq!(scan.restored_binaries.len(), 1);
     assert_eq!(scan.removed_shims.len(), 1);
@@ -409,7 +409,7 @@ fn test_non_destructive_environment_injection_and_clean_teardown() {
     // 3. Inject proxy environment variables non-destructively without modifying any binaries
     let injected = inject_proxy_env().expect("Environment injection must succeed");
     assert!(!injected.is_empty(), "Injected keys must not be empty");
-    assert!(injected.contains(&"TOKSI_OWNED".to_string()));
+    assert!(injected.iter().any(|i| i == "TOKSI_OWNED"));
     assert_eq!(
         toksi::env_injector::effective_env_var("TOKSI_OWNED").as_deref(),
         Some("1"),
@@ -419,7 +419,7 @@ fn test_non_destructive_environment_injection_and_clean_teardown() {
     // 4. Teardown proxy environment cleanly
     let purged = teardown_proxy_env().expect("Environment teardown must succeed");
     assert!(!purged.is_empty(), "Purged keys must not be empty");
-    assert!(purged.contains(&"TOKSI_OWNED".to_string()));
+    assert!(purged.iter().any(|i| i == "TOKSI_OWNED"));
     assert!(
         toksi::env_injector::effective_env_var("TOKSI_OWNED").is_none(),
         "TOKSI_OWNED must be removed after teardown"
@@ -599,7 +599,7 @@ pub fn compute_sum_of_squares(values: &[f64]) -> f64 {
         total_raw_tokens, total_reduced_tokens, overall_reduction_pct
     );
     assert!(
-        overall_reduction_pct >= 40.0 && overall_reduction_pct <= 95.0,
+        (40.0..=95.0).contains(&overall_reduction_pct),
         "Overall savings must be in target 40-80%+ range, got: {:.1}%",
         overall_reduction_pct
     );

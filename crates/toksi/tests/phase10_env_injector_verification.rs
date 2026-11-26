@@ -26,12 +26,12 @@ fn test_phase10_env_injection_and_teardown_cycle() {
         Err(e) => panic!("environment injection should succeed: {}", e),
     };
     assert!(!injected.is_empty(), "should report injected keys");
-    assert!(injected.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
+    assert!(injected.iter().any(|i: &String| i == "GOOGLE_GEMINI_BASE_URL"));
     assert!(
-        !injected.contains(&"CLOUD_CODE_URL".to_string()),
+        !injected.iter().any(|i: &String| i == "CLOUD_CODE_URL"),
         "CLOUD_CODE_URL must not be injected (bypass auth)"
     );
-    assert!(injected.contains(&"TOKSI_OWNED".to_string()));
+    assert!(injected.iter().any(|i: &String| i == "TOKSI_OWNED"));
 
     assert_eq!(effective_env_var("TOKSI_OWNED").as_deref(), Some("1"));
 
@@ -46,8 +46,8 @@ fn test_phase10_env_injection_and_teardown_cycle() {
         Err(e) => panic!("environment teardown should succeed: {}", e),
     };
     assert!(!purged.is_empty(), "should report purged keys");
-    assert!(purged.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
-    assert!(purged.contains(&"TOKSI_OWNED".to_string()));
+    assert!(purged.iter().any(|i: &String| i == "GOOGLE_GEMINI_BASE_URL"));
+    assert!(purged.iter().any(|i: &String| i == "TOKSI_OWNED"));
 
     assert!(effective_env_var("TOKSI_OWNED").is_none());
 }
@@ -145,7 +145,7 @@ fn test_phase10_unix_dropin_and_vars() {
         Ok(keys) => keys,
         Err(e) => panic!("unix inject should succeed: {}", e),
     };
-    assert!(injected.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
+    assert!(injected.iter().any(|i: &String| i == "GOOGLE_GEMINI_BASE_URL"));
     assert_eq!(
         effective_env_var("GOOGLE_GEMINI_BASE_URL").as_deref(),
         Some("http://127.0.0.1:8787")
@@ -161,7 +161,7 @@ fn test_phase10_unix_dropin_and_vars() {
         Ok(keys) => keys,
         Err(e) => panic!("unix teardown should succeed: {}", e),
     };
-    assert!(purged.contains(&"GOOGLE_GEMINI_BASE_URL".to_string()));
+    assert!(purged.iter().any(|i: &String| i == "GOOGLE_GEMINI_BASE_URL"));
     assert!(effective_env_var("GOOGLE_GEMINI_BASE_URL").is_none());
     assert!(!conf_path.exists());
 

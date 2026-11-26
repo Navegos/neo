@@ -105,10 +105,10 @@ pub fn configure_grok_mcp(tool_id: &str) -> Result<(bool, String), String> {
     };
     let header = format!("mcp_servers.{tool_id}");
     let mut block = TomlBlock::new(&header);
-    block.set("command", &toml_quoted(&spawn.command));
+    block.set("command", toml_quoted(&spawn.command));
     if !spawn.args.is_empty() {
         let quoted: Vec<String> = spawn.args.iter().map(|s| toml_quoted(s)).collect();
-        block.set("args", &format!("[{}]", quoted.join(", ")));
+        block.set("args", format!("[{}]", quoted.join(", ")));
     }
     if matches!(tool_id, "ctxmode" | "context-mode" | "context") {
         block.set("env", "{ CONTEXT_MODE_PLATFORM = \"grok-cli\" }");
@@ -189,28 +189,27 @@ fn grok_mcp_block_managed(tool_id: &str, body: &str) -> bool {
 }
 
 pub fn grok_mcp_has(tool_id: &str) -> bool {
-    paths::read_file_safe(&grok_config_file())
+    paths::read_file_safe(grok_config_file())
         .is_some_and(|raw| has_block(&raw, &format!("mcp_servers.{tool_id}")))
 }
 
 pub fn grok_context_mode_mcp_has() -> bool {
-    let Some(raw) = paths::read_file_safe(&grok_config_file()) else {
+    let Some(raw) = paths::read_file_safe(grok_config_file()) else {
         return false;
     };
     for key in ["mcp_servers.ctxmode", "mcp_servers.context-mode", "mcp_servers.context"] {
-        if let Some(body) = block_text(&raw, key) {
-            if grok_mcp_block_managed("ctxmode", &body)
+        if let Some(body) = block_text(&raw, key)
+            && grok_mcp_block_managed("ctxmode", &body)
                 && body.contains("CONTEXT_MODE_PLATFORM = \"grok-cli\"")
             {
                 return true;
             }
-        }
     }
     false
 }
 
 pub fn grok_projectmem_mcp_has() -> bool {
-    let Some(raw) = paths::read_file_safe(&grok_config_file()) else {
+    let Some(raw) = paths::read_file_safe(grok_config_file()) else {
         return false;
     };
     let Some(body) = block_text(&raw, "mcp_servers.projectmem") else {
@@ -363,7 +362,7 @@ fn grok_hooks_set(key: &str, command: &str, pred: fn(&str) -> bool) -> Result<()
     list.retain(|item| !pred(item));
     list.push(command.to_string());
     let mut block = TomlBlock::new("hooks");
-    block.set(key, &format_toml_string_array(&list));
+    block.set(key, format_toml_string_array(&list));
     let next = upsert_block(&raw, &block, true);
     if next != raw {
         paths::write_file_atomic(&p, &next).map_err(|e| e.to_string())?;
@@ -389,7 +388,7 @@ fn grok_hooks_remove(key: &str, pred: fn(&str) -> bool) -> Result<(), String> {
         return Ok(());
     }
     let mut block = TomlBlock::new("hooks");
-    block.set(key, &format_toml_string_array(&list));
+    block.set(key, format_toml_string_array(&list));
     let next = upsert_block(&raw, &block, true);
     if next != raw {
         paths::write_file_atomic(&p, &next).map_err(|e| e.to_string())?;
@@ -398,7 +397,7 @@ fn grok_hooks_remove(key: &str, pred: fn(&str) -> bool) -> Result<(), String> {
 }
 
 fn grok_hooks_has(key: &str, pred: fn(&str) -> bool) -> bool {
-    let Some(raw) = paths::read_file_safe(&grok_config_file()) else {
+    let Some(raw) = paths::read_file_safe(grok_config_file()) else {
         return false;
     };
     let cur_field = toml_block_field(&raw, "hooks", key);
@@ -519,12 +518,11 @@ pub fn remove_grok_shim_checked() -> Result<bool, String> {
     let mut changed = false;
 
     if paths::is_win() {
-        if let Some(raw) = paths::read_file_safe(&bin) {
-            if looks_like_grok_shim(&raw) {
+        if let Some(raw) = paths::read_file_safe(&bin)
+            && looks_like_grok_shim(&raw) {
                 let _ = fs::remove_file(&bin);
                 changed = true;
             }
-        }
         if paths::exists(&real) {
             if paths::exists(&bin) {
                 let _ = fs::remove_file(&bin);
@@ -534,12 +532,11 @@ pub fn remove_grok_shim_checked() -> Result<bool, String> {
             }
         }
     } else {
-        if let Ok((raw, script)) = read_grok_launcher(&bin) {
-            if script && looks_like_grok_shim(&raw) {
+        if let Ok((raw, script)) = read_grok_launcher(&bin)
+            && script && looks_like_grok_shim(&raw) {
                 let _ = fs::remove_file(&bin);
                 changed = true;
             }
-        }
         if paths::exists(&real) {
             if paths::exists(&bin) {
                 let _ = fs::remove_file(&bin);
@@ -550,7 +547,7 @@ pub fn remove_grok_shim_checked() -> Result<bool, String> {
         }
     }
 
-    if paths::exists(&grok_shim_state_file()) {
+    if paths::exists(grok_shim_state_file()) {
         let _ = fs::remove_file(grok_shim_state_file());
         changed = true;
     }
@@ -647,7 +644,7 @@ fn configure_grok_byok_locked(
     let route_token = route_token_hdr
         .split_once(':')
         .map(|(_, v)| v.trim().to_string())
-        .unwrap_or_else(|| proxy_wire_key());
+        .unwrap_or_else(proxy_wire_key);
 
     let stash_path = proxy_route_stash_path("grok");
     let prev_stash_raw = paths::read_file_safe(&stash_path);
@@ -655,9 +652,9 @@ fn configure_grok_byok_locked(
 
     let mut block = TomlBlock::new("api");
     let endpoint = proxy_endpoint_for_api("openai-completions");
-    block.set("base_url", &toml_quoted(&endpoint));
+    block.set("base_url", toml_quoted(&endpoint));
     if !had_key {
-        block.set("api_key", &toml_quoted(&route_token));
+        block.set("api_key", toml_quoted(&route_token));
     }
     let next = upsert_block(raw, &block, true);
 
@@ -736,7 +733,7 @@ fn remove_grok_proxy_locked() -> Result<bool, String> {
         String::from_utf8_lossy(&entry.original).into_owned()
     } else {
         let mut block = TomlBlock::new("api");
-        block.set("base_url", &toml_quoted(&entry.base_url));
+        block.set("base_url", toml_quoted(&entry.base_url));
         upsert_block(&raw, &block, true)
     };
     paths::write_file_atomic(&cfg_path, &restored).map_err(|e| e.to_string())?;
@@ -754,7 +751,7 @@ pub fn grok_proxy_wired() -> bool {
     if grok_shim_wired() {
         return true;
     }
-    let Some(raw) = paths::read_file_safe(&grok_config_file()) else {
+    let Some(raw) = paths::read_file_safe(grok_config_file()) else {
         return false;
     };
     let stash = load_proxy_route_stash("grok");

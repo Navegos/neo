@@ -214,7 +214,7 @@ pub fn compute_sum_of_squares(values: &[f64]) -> f64 {
     let overall_savings = ((total_raw - total_reduced) as f64 / total_raw as f64) * 100.0;
 
     assert!(
-        overall_savings >= 30.0 && overall_savings <= 95.0,
+        (30.0..=95.0).contains(&overall_savings),
         "Overall token savings must be in 30-70%+ range, got: {:.2}%",
         overall_savings
     );

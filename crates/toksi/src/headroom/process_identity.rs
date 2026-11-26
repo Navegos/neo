@@ -97,7 +97,7 @@ pub fn identify_process(
     }
     #[cfg(target_os = "windows")]
     {
-        return identify_process_windows(pid);
+        identify_process_windows(pid)
     }
     #[cfg(target_os = "linux")]
     {
@@ -259,7 +259,7 @@ pub fn darwin_proc_args(data: &[u8]) -> Option<(String, Vec<String>)> {
         return None;
     }
     let argc = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
-    if argc < 1 || argc > (1 << 16) || argc > data.len() - 4 {
+    if !(1..=(1 << 16)).contains(&argc) || argc > data.len() - 4 {
         return None;
     }
     let mut rest = &data[4..];
@@ -362,12 +362,12 @@ pub fn kill_process(pid: u32) -> Result<(), Box<dyn std::error::Error + Send + S
         if status.status.success() || process_gone(pid) {
             return Ok(());
         }
-        return Err(format!(
+        Err(format!(
             "failed to terminate pid {}: {}",
             pid,
             String::from_utf8_lossy(&status.stderr).trim()
         )
-        .into());
+        .into())
     }
     #[cfg(unix)]
     {
@@ -405,7 +405,7 @@ pub fn process_gone(pid: u32) -> bool {
         };
         let stdout = String::from_utf8_lossy(&out.stdout);
         let pid_token = format!("\"{}\"", pid);
-        return !stdout.lines().any(|line| line.contains(&pid_token));
+        !stdout.lines().any(|line| line.contains(&pid_token))
     }
     #[cfg(target_os = "linux")]
     {

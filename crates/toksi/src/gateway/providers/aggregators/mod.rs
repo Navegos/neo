@@ -54,11 +54,10 @@ impl ProviderClient for AggregatorProvider {
 
     fn format_request(&self, req: &UnifiedRequest) -> Value {
         let mut messages = req.messages.clone();
-        if let Some(ref sys) = req.system {
-            if !sys.is_empty() && !messages.iter().any(|m| m.get("role").and_then(Value::as_str) == Some("system")) {
+        if let Some(ref sys) = req.system
+            && !sys.is_empty() && !messages.iter().any(|m| m.get("role").and_then(Value::as_str) == Some("system")) {
                 messages.insert(0, json!({ "role": "system", "content": sys }));
             }
-        }
         let mut body = json!({
             "model": req.model,
             "messages": messages,

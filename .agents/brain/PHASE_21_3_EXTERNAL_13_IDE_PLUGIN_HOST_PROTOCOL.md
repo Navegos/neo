@@ -1,6 +1,6 @@
-# Phase 21.3 — External 13-IDE Plugin Host Protocol (`toksi ide-bridge` / `:9098`)
+# Phase 21.3 â€” External 13-IDE Plugin Host Protocol (`toksi ide-bridge` / `:9098`)
 
-> **Status (Wave 21 / v8.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 21 / v8.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text

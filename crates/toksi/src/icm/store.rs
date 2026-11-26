@@ -75,15 +75,13 @@ pub fn find_repo_root_and_subproject(start: Option<&Path>) -> Result<(PathBuf, S
     let repo_root = match found_repo {
         Some(r) => {
             // Prohibit bare home directory masquerading as repository
-            if let Some(home) = dirs::home_dir() {
-                if let Ok(canon_home) = home.canonicalize() {
-                    if canon_home == r {
+            if let Some(home) = dirs::home_dir()
+                && let Ok(canon_home) = home.canonicalize()
+                    && canon_home == r {
                         return Err(IcmError::RepoNotFound(
                             "Storage in user home root '~' is strictly prohibited; memory must live in a project repository.".to_string(),
                         ));
                     }
-                }
-            }
             r
         }
         None => {
@@ -1262,7 +1260,7 @@ impl IcmStore {
         // Simple zero-LLM keyword extraction from uppercase words or identifiers
         let keywords: Vec<String> = content
             .split_whitespace()
-            .filter(|w| w.len() >= 4 && (w.contains('_') || w.contains('-') || w.chars().next().map_or(false, |c| c.is_uppercase())))
+            .filter(|w| w.len() >= 4 && (w.contains('_') || w.contains('-') || w.chars().next().is_some_and(|c| c.is_uppercase())))
             .take(6)
             .map(|s| s.trim_matches(|c: char| !c.is_alphanumeric() && c != '_' && c != '-').to_string())
             .filter(|s| !s.is_empty())

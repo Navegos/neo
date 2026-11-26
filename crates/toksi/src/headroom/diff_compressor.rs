@@ -110,13 +110,12 @@ impl DiffCompressor {
             out.push(format!("... [{} more files omitted]", total_files - self.config.max_files));
         }
 
-        if let Some(ccr) = store {
-            if out.len() * 10 < lines.len() * 8 {
+        if let Some(ccr) = store
+            && out.len() * 10 < lines.len() * 8 {
                 let key = compute_key(input.as_bytes());
                 ccr.put(&key, input);
                 out.push(format!("[Full diff stored: headroom_retrieve({})]", marker_for(&key)));
             }
-        }
 
         let compressed = out.join("\n");
         if compressed.len() < input.len() {
@@ -307,13 +306,12 @@ pub fn reduce_hunk_context(hunk: &[String], max_ctx: usize) -> Vec<String> {
         }
     }
     let last_nonempty = body.iter().rposition(|l| !l.is_empty());
-    if let (Some(sig_idx), Some(last_idx)) = (signature, last_nonempty) {
-        if sig_idx <= last_idx {
+    if let (Some(sig_idx), Some(last_idx)) = (signature, last_nonempty)
+        && sig_idx <= last_idx {
             for i in sig_idx..=last_idx {
                 keep.insert(i);
             }
         }
-    }
 
     // If nothing was dropped from the body, return the original hunk byte-for-byte.
     let kept_in_body = keep.range(..body_len).count();

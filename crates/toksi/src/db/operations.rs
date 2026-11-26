@@ -1704,14 +1704,13 @@ pub fn merge_memory_db_with_subproject(
         }
         std::fs::copy(source_path, target_path)
             .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-        if !clean_sub.is_empty() && clean_sub != "." {
-            if let Ok(conn) = Connection::open(target_path) {
+        if !clean_sub.is_empty() && clean_sub != "."
+            && let Ok(conn) = Connection::open(target_path) {
                 let _ = conn.execute(
                     "UPDATE memories SET subproject_id = ?1 WHERE subproject_id = '' OR subproject_id = '.'",
                     params![clean_sub],
                 );
             }
-        }
         return Ok(1);
     }
     let target_conn = Connection::open(target_path)?;

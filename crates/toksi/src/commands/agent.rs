@@ -153,12 +153,11 @@ fn handle_health(args: &[String]) -> i32 {
         }
     }
 
-    if json_output {
-        if let Ok(json_str) = serde_json::to_string_pretty(&reports) {
+    if json_output
+        && let Ok(json_str) = serde_json::to_string_pretty(&reports) {
             println!("{}", json_str);
             return 0;
         }
-    }
 
     println!("{}", C.bold("Agent Configuration Health Audit:"));
     for rep in reports {
@@ -204,12 +203,11 @@ fn handle_mismatch(args: &[String]) -> i32 {
         }
     }
 
-    if json_output {
-        if let Ok(json_str) = serde_json::to_string_pretty(&reports) {
+    if json_output
+        && let Ok(json_str) = serde_json::to_string_pretty(&reports) {
             println!("{}", json_str);
             return 0;
         }
-    }
 
     println!("{}", C.bold("Agent Configuration Mismatch Analysis:"));
     for rep in reports {

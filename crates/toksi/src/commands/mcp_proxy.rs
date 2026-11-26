@@ -169,7 +169,7 @@ impl<W: Write> McpLockedWriter<W> {
     }
 
     fn write_mcp_message(&self, framing: McpFraming, message: &[u8]) -> io::Result<()> {
-        let mut guard = self.writer.lock().unwrap();
+        let mut guard = self.writer.lock().unwrap_or_else(|e| e.into_inner());
         write_mcp_message_unlocked(&mut *guard, framing, message)
     }
 }
@@ -253,7 +253,7 @@ pub fn canonical_mcp_number(mut number: &str) -> Option<String> {
     }
     let mut exponent = 0i64;
     let mut num_str = number.to_string();
-    if let Some(idx) = num_str.find(|c| c == 'e' || c == 'E') {
+    if let Some(idx) = num_str.find(['e', 'E']) {
         let exp: i64 = num_str[idx + 1..].parse().ok()?;
         exponent = exp;
         num_str.truncate(idx);
@@ -284,7 +284,7 @@ pub fn mcp_tool_denied_response(id: Option<&Value>, name: &str) -> Vec<u8> {
             "message": format!("tool \"{}\" is not available", name)
         }
     });
-    serde_json::to_vec(&resp).unwrap()
+    serde_json::to_vec(&resp).unwrap_or_default()
 }
 
 pub fn mcp_invalid_request_response() -> Vec<u8> {
@@ -301,7 +301,7 @@ pub fn mcp_parse_error_response(id: Option<&Value>) -> Vec<u8> {
             "message": "Parse error"
         }
     });
-    serde_json::to_vec(&resp).unwrap()
+    serde_json::to_vec(&resp).unwrap_or_default()
 }
 
 struct StaticUniverse {
@@ -362,7 +362,7 @@ pub fn build_hidden_tool_names(
         }
     }
     let mut hidden: Vec<String> = set.into_iter().collect();
-    hidden.sort_by(|a, b| b.len().cmp(&a.len()));
+    hidden.sort_by_key(|a| std::cmp::Reverse(a.len()));
     hidden
 }
 
@@ -380,14 +380,12 @@ pub fn scrub_json_strings(node: &Value, re: &Regex, own_name: &str) -> Value {
         Value::Object(map) => {
             let mut out = serde_json::Map::new();
             for (key, val) in map {
-                if key == "name" {
-                    if let Value::String(s) = val {
-                        if s == own_name {
+                if key == "name"
+                    && let Value::String(s) = val
+                        && s == own_name {
                             out.insert(key.clone(), val.clone());
                             continue;
                         }
-                    }
-                }
                 let clean_key = re.replace_all(key, "").to_string();
                 out.insert(clean_key, scrub_json_strings(val, re, own_name));
             }
@@ -505,11 +503,10 @@ fn run_bounded_mcp_proxy(child: &mut Child, allowed: &[&str], is_projectmem: boo
                     let id_val = map.get("id");
                     let method = map.get("method").and_then(|m| m.as_str());
 
-                    if let Some(id) = id_val.and_then(canonical_mcp_id) {
-                        if method == Some("initialize") {
-                            ids_in.write().unwrap().init_ids.insert(id);
+                    if let Some(id) = id_val.and_then(canonical_mcp_id)
+                        && method == Some("initialize") {
+                            ids_in.write().unwrap_or_else(|e| e.into_inner()).init_ids.insert(id);
                         }
-                    }
 
                     if method == Some("tools/call") {
                         let tool_name = map.get("params")
@@ -556,24 +553,19 @@ fn run_bounded_mcp_proxy(child: &mut Child, allowed: &[&str], is_projectmem: boo
             Err(_) => break,
         };
 
-        if message.windows(8).any(|w| w == b"\"result\"") {
-            if let Ok(Value::Object(map)) = serde_json::from_slice::<Value>(&message) {
-                if let Some(result) = map.get("result") {
+        if message.windows(8).any(|w| w == b"\"result\"")
+            && let Ok(Value::Object(map)) = serde_json::from_slice::<Value>(&message)
+                && let Some(result) = map.get("result") {
                     if result.get("tools").is_some() {
                         message = filter_mcp_tools_response(&message, &allowed_refs);
                     }
-                    if is_projectmem {
-                        if let Some(id) = map.get("id").and_then(canonical_mcp_id) {
-                            if ids_out.read().unwrap().init_ids.contains(&id) {
-                                if let Some(rewritten) = rewrite_mcp_instructions(&message, PROJECTMEM_MCP_INSTRUCTIONS) {
+                    if is_projectmem
+                        && let Some(id) = map.get("id").and_then(canonical_mcp_id)
+                            && ids_out.read().unwrap_or_else(|e| e.into_inner()).init_ids.contains(&id)
+                                && let Some(rewritten) = rewrite_mcp_instructions(&message, PROJECTMEM_MCP_INSTRUCTIONS) {
                                     message = rewritten;
                                 }
-                            }
-                        }
-                    }
                 }
-            }
-        }
 
         if out_for_out.write_mcp_message(framing, &message).is_err() {
             break;

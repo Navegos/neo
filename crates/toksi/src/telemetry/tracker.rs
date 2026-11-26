@@ -104,7 +104,7 @@ impl RequestTracker {
 
     pub fn finish(self) -> LatencyRecord {
         let total = self.start_time.elapsed();
-        let transport = self.transport_duration.unwrap_or_else(|| total);
+        let transport = self.transport_duration.unwrap_or(total);
         let upstream = self.upstream_duration.unwrap_or_default();
 
         LatencyRecord {

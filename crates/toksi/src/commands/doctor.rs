@@ -90,13 +90,12 @@ fn merge_directory_recursive(src: &std::path::Path, dst: &std::path::Path) {
             if fname_str == "events.jsonl" && dst_path.exists() {
                 merge_events_jsonl(&src_path, &dst_path);
                 let _ = std::fs::remove_file(&src_path);
-            } else if !dst_path.exists() {
-                if std::fs::rename(&src_path, &dst_path).is_err()
+            } else if !dst_path.exists()
+                && std::fs::rename(&src_path, &dst_path).is_err()
                     && std::fs::copy(&src_path, &dst_path).is_ok()
                 {
                     let _ = std::fs::remove_file(&src_path);
                 }
-            }
         }
     }
 }
@@ -783,24 +782,22 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
             ));
         }
         if let Some(ref ws) = ws_opt {
-            if let Ok(merged) = consolidate_nested_toksi_dirs(ws) {
-                if merged > 0 {
+            if let Ok(merged) = consolidate_nested_toksi_dirs(ws)
+                && merged > 0 {
                     L.raw(&format!(
                         "  {} Consolidated {} nested .toksi directory/directories into root workspace .toksi",
                         C.green(Sym::CHECK),
                         merged
                     ));
                 }
-            }
-            if let Ok(merged_agents) = consolidate_nested_agent_dirs(ws) {
-                if merged_agents > 0 {
+            if let Ok(merged_agents) = consolidate_nested_agent_dirs(ws)
+                && merged_agents > 0 {
                     L.raw(&format!(
                         "  {} Consolidated {} nested agent config directory/directories into workspace root",
                         C.green(Sym::CHECK),
                         merged_agents
                     ));
                 }
-            }
         }
         let healing = crate::env_injector::heal_legacy_hijacks();
         if !healing.is_clean() {
@@ -841,9 +838,9 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
             }
         }
 
-        if let Some(ref ws) = ws_opt {
-            if let Ok(report) = crate::rules::sync_workspace_rules(ws, crate::rules::RuleKind::all()) {
-                if !report.updated_files.is_empty() {
+        if let Some(ref ws) = ws_opt
+            && let Ok(report) = crate::rules::sync_workspace_rules(ws, crate::rules::RuleKind::all())
+                && !report.updated_files.is_empty() {
                     L.raw(&format!(
                         "  {} Synced in-tree rules across {} workspace file(s)",
                         C.green(Sym::CHECK),
@@ -851,10 +848,8 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
                     ));
                     fixed_count += report.updated_files.len();
                 }
-            }
-        }
-        if let Ok(report) = crate::rules::sync_global_rules(crate::rules::RuleKind::all()) {
-            if !report.updated_files.is_empty() {
+        if let Ok(report) = crate::rules::sync_global_rules(crate::rules::RuleKind::all())
+            && !report.updated_files.is_empty() {
                 L.raw(&format!(
                     "  {} Synced in-tree rules across {} global config file(s)",
                     C.green(Sym::CHECK),
@@ -862,7 +857,6 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
                 ));
                 fixed_count += report.updated_files.len();
             }
-        }
 
         for agent in &all_agents {
             let detected = agent.detect().installed;
@@ -881,13 +875,12 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
                 fixed_count += purged.len();
             }
             if agent.id == "openagents" {
-                if user_dir.exists() {
-                    if let Ok(scaffolded) =
+                if user_dir.exists()
+                    && let Ok(scaffolded) =
                         crate::agents::open_agents::scaffold_open_agents_structure(&user_dir)
                     {
                         fixed_count += scaffolded.len();
                     }
-                }
                 let _ = crate::agents::verify_direct_wire_bus(ws_opt.as_deref());
             }
         }
@@ -955,7 +948,7 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
                     if !is_tool_selected(&t.id) {
                         continue;
                     }
-                    if let Some(ref verify) = t.verify_for.get(&agent.id) {
+                    if let Some(verify) = t.verify_for.get(&agent.id) {
                         let ok = verify().unwrap_or(false);
                         let mark = if ok { C.green(Sym::CHECK) } else { C.red("x") };
                         tool_rows.push(format!("  {} {}", mark, t.label));
@@ -1085,7 +1078,7 @@ pub fn run_doctor_with_options(opts: DoctorOptions) -> i32 {
     let home_leak_warnings = audit_home_workspace_leakage();
     if !cli_warnings.is_empty() || !home_leak_warnings.is_empty() {
         tree_corner("PATH & Topology Validation");
-        for w in cli_warnings.into_iter().chain(home_leak_warnings.into_iter()) {
+        for w in cli_warnings.into_iter().chain(home_leak_warnings) {
             for line in w.lines() {
                 tree_leaf(&C.yellow(line));
             }
@@ -1179,15 +1172,14 @@ fn doctor_proxy_ports(reports: &[AgentReport]) -> Vec<String> {
     ));
 
     // SQLite config database status
-    if let Ok(db) = crate::db::open_default_db() {
-        if let Ok(stats) = db.stats() {
+    if let Ok(db) = crate::db::open_default_db()
+        && let Ok(stats) = db.stats() {
             ports.push(format!(
                 "{} Config DB (SQLite WAL) — {}",
                 C.green(Sym::CHECK),
                 C.green(&format!("{} routes, {} providers", stats.routes_count, stats.providers_count))
             ));
         }
-    }
 
     for r in reports {
         if (r.id == "copilot" || r.id == "copilot-cli" || r.id == "copilot-vscode")
@@ -1218,11 +1210,10 @@ fn doctor_missing_tools(tools: &[std::sync::Arc<ToolManifest>], agent_id: &str) 
         if !is_tool_selected(&tool.id) {
             continue;
         }
-        if let Some(ref verify) = tool.verify_for.get(agent_id) {
-            if let Some(false) = verify() {
+        if let Some(verify) = tool.verify_for.get(agent_id)
+            && let Some(false) = verify() {
                 missing.push(tool.label.clone());
             }
-        }
     }
     missing
 }

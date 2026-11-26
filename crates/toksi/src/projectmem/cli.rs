@@ -230,8 +230,8 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
             };
 
             let mut issue_id: Option<String> = None;
-            if let Some(arg) = issue_arg {
-                if let Some(norm) = normalize_issue_id(Some(&arg)) {
+            if let Some(arg) = issue_arg
+                && let Some(norm) = normalize_issue_id(Some(&arg)) {
                     if issue_exists(&events, &norm) {
                         issue_id = Some(norm);
                     } else {
@@ -239,7 +239,6 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
                         return 1;
                     }
                 }
-            }
 
             if issue_id.is_none() {
                 issue_id = active_issue_marker(&events, None)
@@ -366,11 +365,10 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
                 return 1;
             }
 
-            if let Some(active) = active_issue_marker(&events, None) {
-                if active == issue_id {
+            if let Some(active) = active_issue_marker(&events, None)
+                && active == issue_id {
                     clear_current_issue(None);
                 }
-            }
 
             let _ = regenerate_summary(None);
             println!("Fixed issue #{}", issue_id);
@@ -848,21 +846,19 @@ pub fn run_mem_cli(args: &[String]) -> i32 {
                     let gotchas = super::global::read_gotchas();
                     println!("=== Library Gotchas ({}) ===", gotchas.len());
                     for g in gotchas {
-                        if let Some(ref l) = lib_filter {
-                            if !g.library.contains(l) {
+                        if let Some(ref l) = lib_filter
+                            && !g.library.contains(l) {
                                 continue;
                             }
-                        }
                         println!("  [{}] {} ({})", g.library, g.gotcha, g.id);
                     }
                     let patterns = super::global::read_patterns();
                     println!("=== Cross-Project Patterns ({}) ===", patterns.len());
                     for p in patterns {
-                        if let Some(ref t) = tag_filter {
-                            if !p.tags.iter().any(|item| item.to_lowercase().contains(t)) {
+                        if let Some(ref t) = tag_filter
+                            && !p.tags.iter().any(|item| item.to_lowercase().contains(t)) {
                                 continue;
                             }
-                        }
                         println!("  {} ({})", p.pattern, p.id);
                     }
                     0

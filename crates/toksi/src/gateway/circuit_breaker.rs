@@ -59,8 +59,8 @@ impl CircuitBreaker {
         let mut map = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
         let state = map.entry(session_id.to_string()).or_default();
 
-        if let Some((ref last_name, ref last_args)) = state.last_tool_call {
-            if last_name == tool_name && last_args == &args_str {
+        if let Some((ref last_name, ref last_args)) = state.last_tool_call
+            && last_name == tool_name && last_args == &args_str {
                 state.tool_repeat_count += 1;
                 if state.tool_repeat_count >= self.max_tool_repeats {
                     return Err(CircuitBreakerReason::RepeatingToolCallLoop {
@@ -70,7 +70,6 @@ impl CircuitBreaker {
                 }
                 return Ok(());
             }
-        }
 
         state.last_tool_call = Some((tool_name.to_string(), args_str));
         state.tool_repeat_count = 1;
@@ -81,8 +80,8 @@ impl CircuitBreaker {
         let mut map = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
         let state = map.entry(session_id.to_string()).or_default();
 
-        if let Some(ref last_err) = state.last_error {
-            if last_err == error_msg {
+        if let Some(ref last_err) = state.last_error
+            && last_err == error_msg {
                 state.error_repeat_count += 1;
                 if state.error_repeat_count >= self.max_error_repeats {
                     return Err(CircuitBreakerReason::RepeatedErrorLoop {
@@ -92,7 +91,6 @@ impl CircuitBreaker {
                 }
                 return Ok(());
             }
-        }
 
         state.last_error = Some(error_msg.to_string());
         state.error_repeat_count = 1;

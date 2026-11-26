@@ -284,8 +284,8 @@ pub fn remove_copilot_context_mode_hook_safe() -> Result<(), String> {
 }
 
 pub fn has_copilot_context_mode_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("ctxmode.json"))
-        .or_else(|| paths::read_file_safe(&copilot_hooks_file("context.json")))
+    let Some(raw) = paths::read_file_safe(copilot_hooks_file("ctxmode.json"))
+        .or_else(|| paths::read_file_safe(copilot_hooks_file("context.json")))
     else {
         return false;
     };
@@ -301,7 +301,7 @@ pub fn install_copilot_ide_context_mode_hook() {
 }
 
 pub fn install_copilot_ide_context_mode_hook_safe() -> Result<(), String> {
-    paths::ensure_dir(&copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
+    paths::ensure_dir(copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
     let _ = fs::remove_file(copilot_ide_hooks_file("context-mode.json"));
     let _ = fs::remove_file(copilot_ide_hooks_file("context.json"));
     let (base_cmd, _) = toksi_command_ok(&[]);
@@ -353,8 +353,8 @@ pub fn remove_copilot_ide_context_mode_hook_safe() -> Result<(), String> {
 }
 
 pub fn has_copilot_ide_context_mode_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("ctxmode.json"))
-        .or_else(|| paths::read_file_safe(&copilot_ide_hooks_file("context.json")))
+    let Some(raw) = paths::read_file_safe(copilot_ide_hooks_file("ctxmode.json"))
+        .or_else(|| paths::read_file_safe(copilot_ide_hooks_file("context.json")))
     else {
         return false;
     };
@@ -421,7 +421,7 @@ pub fn install_copilot_ide_rtk_hook() {
 }
 
 pub fn install_copilot_ide_rtk_hook_safe() -> Result<(), String> {
-    paths::ensure_dir(&copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
+    paths::ensure_dir(copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
     let _ = fs::remove_file(copilot_ide_hooks_file("toksi-rtk.json"));
     let cmd = copilot_rtk_hook_command();
     let mut entry = OrderedMap::new();
@@ -463,7 +463,7 @@ pub fn remove_copilot_ide_rtk_hook_safe() -> Result<(), String> {
 }
 
 pub fn has_copilot_ide_rtk_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("rtk.json")) else {
+    let Some(raw) = paths::read_file_safe(copilot_ide_hooks_file("rtk.json")) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -612,7 +612,7 @@ pub fn install_copilot_ide_codegraph_index_hook() {
 }
 
 pub fn install_copilot_ide_codegraph_index_hook_safe() -> Result<(), String> {
-    paths::ensure_dir(&copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
+    paths::ensure_dir(copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
     let cmd = toksi_command(&["codegraph-hook", "copilot", "--vscode"]);
     if cmd.is_empty() {
         return Err(ERR_NO_STABLE_TOKSI.to_string());
@@ -911,7 +911,7 @@ pub fn remove_copilot_ide_codegraph_index_hook_safe() -> Result<(), String> {
 }
 
 pub fn has_copilot_ide_codegraph_index_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("codegraph.json"))
+    let Some(raw) = paths::read_file_safe(copilot_ide_hooks_file("codegraph.json"))
     else {
         return false;
     };
@@ -922,7 +922,7 @@ pub fn has_copilot_ide_codegraph_index_hook() -> bool {
 }
 
 pub fn has_copilot_codegraph_index_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("codegraph.json"))
+    let Some(raw) = paths::read_file_safe(copilot_hooks_file("codegraph.json"))
     else {
         return false;
     };
@@ -975,7 +975,7 @@ pub fn remove_copilot_projectmem_hook_safe() -> Result<(), String> {
 }
 
 pub fn has_copilot_projectmem_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("projectmem.json")) else {
+    let Some(raw) = paths::read_file_safe(copilot_hooks_file("projectmem.json")) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -986,7 +986,7 @@ pub fn has_copilot_projectmem_hook() -> bool {
 }
 
 pub fn install_copilot_ide_projectmem_hook_safe() -> Result<(), String> {
-    paths::ensure_dir(&copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
+    paths::ensure_dir(copilot_ide_hooks_dir()).map_err(|e| e.to_string())?;
     let _ = fs::remove_file(copilot_ide_hooks_file("projectmem-context.json"));
     let _ = fs::remove_file(copilot_ide_hooks_file("toksi-projectmem.json"));
     let projectmem_cmd = toksi_command(&["projectmem-hook", "copilot"]);
@@ -1030,7 +1030,7 @@ pub fn remove_copilot_ide_projectmem_hook_safe() -> Result<(), String> {
 }
 
 pub fn has_copilot_ide_projectmem_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_ide_hooks_file("projectmem.json")) else {
+    let Some(raw) = paths::read_file_safe(copilot_ide_hooks_file("projectmem.json")) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -1041,7 +1041,7 @@ pub fn has_copilot_ide_projectmem_hook() -> bool {
 }
 
 pub fn has_copilot_rtk_hook() -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_hooks_file("rtk.json")) else {
+    let Some(raw) = paths::read_file_safe(copilot_hooks_file("rtk.json")) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -1334,7 +1334,7 @@ pub fn copilot_projectmem_mcp_bounded(ide: bool) -> bool {
 }
 
 pub fn copilot_ide_mcp_has(tool_id: &str) -> bool {
-    let Some(raw) = paths::read_file_safe(&copilot_ide_mcp_file()) else {
+    let Some(raw) = paths::read_file_safe(copilot_ide_mcp_file()) else {
         return false;
     };
     let Some(cfg) = try_parse_jsonc(&raw) else {
@@ -1568,7 +1568,7 @@ fn copilot_shim_owned(raw: &str) -> bool {
     if raw == copilot_shim_text() {
         return true;
     }
-    let Some(digest) = paths::read_file_safe(&copilot_shim_digest_path()) else {
+    let Some(digest) = paths::read_file_safe(copilot_shim_digest_path()) else {
         return false;
     };
     digest.trim() == copilot_stash_marker(raw).trim()
@@ -1611,7 +1611,7 @@ fn save_copilot_provider_config() -> Result<(), String> {
         model,
     };
     let b = serde_json::to_string(&cfg).map_err(|e| e.to_string())?;
-    paths::ensure_dir(&paths::toksi_data_dir()).map_err(|e| e.to_string())?;
+    paths::ensure_dir(paths::toksi_data_dir()).map_err(|e| e.to_string())?;
     let cfg_path = copilot_config_path();
     if let Some(raw) = paths::read_file_safe(&cfg_path) {
         let valid = serde_json::from_str::<CopilotProviderConfig>(&raw)
@@ -1627,7 +1627,7 @@ fn save_copilot_provider_config() -> Result<(), String> {
 }
 
 fn load_copilot_provider_config() -> Option<CopilotProviderConfig> {
-    let raw = paths::read_file_safe(&copilot_config_path())?;
+    let raw = paths::read_file_safe(copilot_config_path())?;
     let cfg: CopilotProviderConfig = serde_json::from_str(&raw).ok()?;
     if cfg.managed_by != "toksi" || cfg.base_url.is_empty() {
         return None;
@@ -1660,13 +1660,11 @@ fn remove_copilot_shim() -> bool {
     }
 
     // 3. If wrapper shim still exists, remove it
-    if let Some(raw) = paths::read_file_safe(&path) {
-        if copilot_shim_owned(&raw) || raw.contains("toksi:copilot-shim") {
-            if fs::remove_file(&path).is_ok() {
+    if let Some(raw) = paths::read_file_safe(&path)
+        && (copilot_shim_owned(&raw) || raw.contains("toksi:copilot-shim"))
+            && fs::remove_file(&path).is_ok() {
                 changed = true;
             }
-        }
-    }
 
     changed
 }
@@ -1718,7 +1716,7 @@ fn real_copilot_path(shim: &str, env: &HashMap<String, String>) -> String {
             if let (true, Some(real), Some(marker)) = (
                 is_reg,
                 paths::read_file_safe(&stashed),
-                paths::read_file_safe(&copilot_stash_marker_path()),
+                paths::read_file_safe(copilot_stash_marker_path()),
             ) && marker.trim() == copilot_stash_marker(&real).trim()
             {
                 return stashed;
@@ -2287,9 +2285,7 @@ fn configure_copilot_cli_proxy_safe() -> Result<(bool, String), String> {
     let _ = install_copilot_shim();
     let mut changed = false;
     let old_cfg = load_copilot_provider_config();
-    if let Err(err) = save_copilot_provider_config() {
-        return Err(err);
-    }
+    save_copilot_provider_config()?;
     let new_cfg = load_copilot_provider_config();
     if old_cfg != new_cfg {
         changed = true;
@@ -2527,11 +2523,11 @@ fn copilot_proxy_rollback_owned(path: &str) -> bool {
         return raw.trim() == copilot_stash_marker(&copilot_shim_text()).trim();
     }
     if path == copilot_stashed_path() {
-        return paths::read_file_safe(&copilot_stash_marker_path())
+        return paths::read_file_safe(copilot_stash_marker_path())
             .is_some_and(|m| m.trim() == copilot_stash_marker(&raw).trim());
     }
     if path == copilot_stash_marker_path() {
-        return paths::read_file_safe(&copilot_stashed_path())
+        return paths::read_file_safe(copilot_stashed_path())
             .is_some_and(|stashed| raw.trim() == copilot_stash_marker(&stashed).trim());
     }
     if path == copilot_config_path() {
@@ -2602,7 +2598,7 @@ fn remove_copilot_proxy_locked() -> bool {
         }
         return false;
     }
-    if let Some(raw) = paths::read_file_safe(&copilot_config_path())
+    if let Some(raw) = paths::read_file_safe(copilot_config_path())
         && let Ok(cfg) = serde_json::from_str::<CopilotProviderConfig>(&raw)
         && cfg.managed_by == "toksi"
         && fs::remove_file(copilot_config_path()).is_err()
@@ -2624,7 +2620,7 @@ pub fn copilot_cli_proxy_wired() -> bool {
 }
 
 pub fn copilot_vscode_proxy_wired() -> bool {
-    paths::read_file_safe(&copilot_vscode_settings_file()).is_some_and(|settings| {
+    paths::read_file_safe(copilot_vscode_settings_file()).is_some_and(|settings| {
         copilot_vscode_current_managed(&settings) || copilot_vscode_legacy_managed(&settings)
     })
 }
@@ -2679,7 +2675,7 @@ fn detect_copilot_cli_proxy() -> (ProxyState, String) {
             ),
         );
     }
-    if let Some(raw) = paths::read_file_safe(&copilot_config_path()) {
+    if let Some(raw) = paths::read_file_safe(copilot_config_path()) {
         let valid = serde_json::from_str::<CopilotProviderConfig>(&raw)
             .ok()
             .is_some_and(|cfg| cfg.managed_by == "toksi");

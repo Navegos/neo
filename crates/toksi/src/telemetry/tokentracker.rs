@@ -1046,8 +1046,8 @@ pub fn query_provider_quota_free(provider: &str, api_key: Option<&str>) -> Provi
     };
 
     let mut req = client.get(free_endpoint);
-    if let Some(key) = api_key {
-        if !key.is_empty() {
+    if let Some(key) = api_key
+        && !key.is_empty() {
             if provider.eq_ignore_ascii_case("anthropic") {
                 req = req.header("x-api-key", key);
                 req = req.header("anthropic-version", "2023-06-01");
@@ -1058,7 +1058,6 @@ pub fn query_provider_quota_free(provider: &str, api_key: Option<&str>) -> Provi
                 req = req.header("Authorization", format!("Bearer {}", key));
             }
         }
-    }
 
     match req.send() {
         Ok(resp) => {
@@ -1192,8 +1191,8 @@ pub async fn query_provider_quota_free_async(provider: &str, api_key: Option<&st
     };
 
     let mut req = client.get(free_endpoint);
-    if let Some(key) = api_key {
-        if !key.is_empty() {
+    if let Some(key) = api_key
+        && !key.is_empty() {
             if provider.eq_ignore_ascii_case("anthropic") {
                 req = req.header("x-api-key", key);
                 req = req.header("anthropic-version", "2023-06-01");
@@ -1204,7 +1203,6 @@ pub async fn query_provider_quota_free_async(provider: &str, api_key: Option<&st
                 req = req.header("Authorization", format!("Bearer {}", key));
             }
         }
-    }
 
     match req.send().await {
         Ok(resp) => {

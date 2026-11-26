@@ -168,11 +168,10 @@ pub fn proxy_agent_applicable(id: &str) -> bool {
     if proxy_agent_wired(id) {
         return true;
     }
-    if let Some(agent) = get_agent(id) {
-        if let Some(ref detect) = agent.detect {
+    if let Some(agent) = get_agent(id)
+        && let Some(ref detect) = agent.detect {
             return detect().installed;
         }
-    }
     false
 }
 

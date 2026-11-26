@@ -52,7 +52,7 @@ fn test_antigravity_binary_unhijack_and_healing() {
     assert!(state_file.exists());
 
     // Execute healing
-    let report = heal_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
+    let report = heal_legacy_hijacks_in(std::slice::from_ref(&bin_dir), std::slice::from_ref(&data_dir));
 
     assert!(!report.is_clean());
     assert_eq!(report.errors.len(), 0);
@@ -98,7 +98,7 @@ fn test_grok_binary_unhijack_and_healing() {
     .unwrap();
     fs::write(&state_grok, r#"{"bin":"grok.cmd","real":"grok.real.exe"}"#).unwrap();
 
-    let report = heal_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
+    let report = heal_legacy_hijacks_in(std::slice::from_ref(&bin_dir), std::slice::from_ref(&data_dir));
 
     assert!(!report.is_clean());
     assert_eq!(report.errors.len(), 0);
@@ -141,7 +141,7 @@ fn test_copilot_binary_unhijack_and_sidecar_purge() {
     fs::write(&marker_sidecar, "toksi-marker-val").unwrap();
     fs::write(&state_file, "{}").unwrap();
 
-    let report = heal_legacy_hijacks_in(&[bin_dir.clone()], &[data_dir.clone()]);
+    let report = heal_legacy_hijacks_in(std::slice::from_ref(&bin_dir), std::slice::from_ref(&data_dir));
 
     assert!(!report.is_clean());
     assert_eq!(report.errors.len(), 0);
@@ -194,7 +194,7 @@ fn test_shim_detection_predicates() {
 
 #[test]
 fn test_doctor_fix_invocation() {
-    let _ = toksi_sys::process::set_process_env("TOKSI_TEST", "1");
+    toksi_sys::process::set_process_env("TOKSI_TEST", "1");
     let temp_home = make_temp_dir("doctor-home");
     toksi::util::set_home_override(temp_home.to_string_lossy().to_string());
     // Calling run_doctor with fix=true must succeed with exit code 0

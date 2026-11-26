@@ -63,8 +63,7 @@ fn parse_args(argv: &[String]) -> ParsedArgs {
     let mut i = 0;
     while i < argv.len() {
         let a = &argv[i];
-        if a.starts_with("--") {
-            let key = &a[2..];
+        if let Some(key) = a.strip_prefix("--") {
             if let Some(eq) = key.find('=') {
                 p.flags.insert(key[..eq].to_string(), key[eq + 1..].to_string());
             } else if i + 1 < argv.len() && !argv[i + 1].starts_with('-') {
@@ -75,17 +74,19 @@ fn parse_args(argv: &[String]) -> ParsedArgs {
             } else {
                 p.bools.insert(key.to_string(), true);
             }
-        } else if a.starts_with("-j") {
-            if a.len() > 2 {
-                p.flags.insert("jobs".to_string(), a[2..].to_string());
+        } else if let Some(jobs_val) = a.strip_prefix("-j") {
+            if !jobs_val.is_empty() {
+                p.flags.insert("jobs".to_string(), jobs_val.to_string());
             } else if i + 1 < argv.len() && !argv[i + 1].starts_with('-') {
                 p.flags.insert("jobs".to_string(), argv[i + 1].clone());
                 i += 1;
             } else {
                 p.bools.insert("parallel".to_string(), true);
             }
-        } else if a.starts_with('-') && a.len() == 2 {
-            p.bools.insert(a[1..].to_string(), true);
+        } else if let Some(flag_ch) = a.strip_prefix('-')
+            && flag_ch.len() == 1
+        {
+            p.bools.insert(flag_ch.to_string(), true);
         } else if p.cmd.is_empty() {
             p.cmd = a.clone();
         }
@@ -396,9 +397,9 @@ fn run() -> i32 {
     }
     if is_session_boot_arg(&args[1..]) {
         if args.len() >= 4 && args[1] == "codegraph-hook" && args[2] == "copilot" && args[3] == "--vscode" {
-            let _ = ensure_copilot_proxy_up();
+            ensure_copilot_proxy_up();
         } else {
-            let _ = ensure_proxy_up();
+            ensure_proxy_up();
         }
     }
 

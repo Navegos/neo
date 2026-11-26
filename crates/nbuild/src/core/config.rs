@@ -35,11 +35,10 @@ impl NeoConfig {
         let mut cfg = Self::default();
 
         // 1. Check TOOLCHAINS_DIR environment variable
-        if let Ok(val) = env::var("TOOLCHAINS_DIR") {
-            if !val.trim().is_empty() {
+        if let Ok(val) = env::var("TOOLCHAINS_DIR")
+            && !val.trim().is_empty() {
                 cfg.toolchains_dir = PathBuf::from(val.trim());
             }
-        }
 
         cfg
     }

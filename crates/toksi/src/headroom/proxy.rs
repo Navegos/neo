@@ -318,8 +318,8 @@ pub fn proxy_args_for_urls(
 }
 
 pub fn proxy_args_from_runtime(port: u16) -> Vec<String> {
-    if let Some(st) = read_proxy_runtime() {
-        if !st.anthropic_api_url.trim().is_empty() && !st.openai_api_url.trim().is_empty() {
+    if let Some(st) = read_proxy_runtime()
+        && !st.anthropic_api_url.trim().is_empty() && !st.openai_api_url.trim().is_empty() {
             return proxy_args_for_urls(
                 port,
                 &st.anthropic_api_url,
@@ -328,16 +328,14 @@ pub fn proxy_args_from_runtime(port: u16) -> Vec<String> {
                 &st.cloudcode_api_url,
             );
         }
-    }
     proxy_args(port)
 }
 
 pub fn proxy_port_from_runtime() -> u16 {
-    if let Some(st) = read_proxy_runtime() {
-        if st.port > 0 {
+    if let Some(st) = read_proxy_runtime()
+        && st.port > 0 {
             return st.port;
         }
-    }
     proxy_port()
 }
 
@@ -754,6 +752,310 @@ pub async fn run_native_headroom_proxy(port: u16) -> Result<(), Box<dyn std::err
     Ok(())
 }
 
+enum PreparedHeadroomRoute {
+    Immediate((u16, Vec<(String, String)>, Vec<u8>)),
+    Forward {
+        target_base: String,
+        path: String,
+        query: String,
+    },
+}
+
+async fn prepare_headroom_proxy_route(
+    req: &mut super::byok_gateway::ParsedHttpRequest,
+) -> PreparedHeadroomRoute {
+    let (path, _, query) = super::byok_gateway::split_uri_path_and_query(&req.raw_uri);
+
+    if path == "/livez" || path == "/healthz" || path == "/readyz" {
+        return PreparedHeadroomRoute::Immediate((
+            200,
+            vec![("Content-Type".to_string(), "application/json".to_string())],
+            br#"{"service":"headroom-proxy","status":"ok"}"#.to_vec(),
+        ));
+    }
+
+    if path == "/metrics" {
+        let metrics_body = crate::telemetry::render_metrics();
+        return PreparedHeadroomRoute::Immediate((
+            200,
+            vec![
+                (
+                    "Content-Type".to_string(),
+                    "text/plain; version=0.0.4; charset=utf-8".to_string(),
+                ),
+                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+            ],
+            metrics_body.into_bytes(),
+        ));
+    }
+
+    if req.method.eq_ignore_ascii_case("OPTIONS") {
+        let headers = vec![
+            ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+            (
+                "Access-Control-Allow-Methods".to_string(),
+                "GET, POST, PUT, DELETE, OPTIONS".to_string(),
+            ),
+            ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
+            ("Access-Control-Max-Age".to_string(), "86400".to_string()),
+        ];
+        return PreparedHeadroomRoute::Immediate((204, headers, Vec::new()));
+    }
+
+    let override_base_url =
+        match validate_headroom_base_url_override_async(req.headers.clone()).await {
+            Ok(url_opt) => url_opt,
+            Err(err_msg) => {
+                let err_json = serde_json::json!({
+                    "error": {
+                        "type": "invalid_request_error",
+                        "message": err_msg
+                    }
+                });
+                return PreparedHeadroomRoute::Immediate((
+                    400,
+                    vec![("Content-Type".to_string(), "application/json".to_string())],
+                    serde_json::to_vec(&err_json).unwrap_or_default(),
+                ));
+            }
+        };
+
+    let is_connect_proto = super::byok_gateway::is_proto_or_connect_request(&path, &req.headers);
+
+    if !is_connect_proto && req.method.eq_ignore_ascii_case("POST") && !req.body.is_empty() {
+        let is_llm_path = path.starts_with("/v1/messages")
+            || path.starts_with("/byok/")
+            || path.contains(":generateContent")
+            || path.contains(":streamGenerateContent")
+            || path.contains(":generateCode")
+            || path.contains(":streamGenerateCode")
+            || path.contains(":generateMessage")
+            || path.contains(":streamGenerateMessage")
+            || path.ends_with("/chat/completions")
+            || path.ends_with("/completions")
+            || path.ends_with("/responses")
+            || path.ends_with("/converse");
+
+        if is_llm_path
+            && let Ok(json_val) = serde_json::from_slice::<serde_json::Value>(&req.body)
+        {
+            if let Some((ctype, payload)) = try_intercept_chat_slash(&path, &json_val) {
+                return PreparedHeadroomRoute::Immediate((
+                    200,
+                    vec![
+                        ("Content-Type".to_string(), ctype),
+                        ("X-Toksi-Slash".to_string(), "HIT".to_string()),
+                    ],
+                    payload.into_bytes(),
+                ));
+            }
+            let has_prompt_body = json_val.get("messages").is_some()
+                || json_val.get("contents").is_some()
+                || json_val.get("input").is_some();
+            if has_prompt_body {
+                let prov_label = if path.contains("messages") {
+                    "anthropic"
+                } else if path.contains("gemini") || path.contains("Content") {
+                    "gemini"
+                } else {
+                    "openai"
+                };
+                let prompt_str = json_val.to_string();
+                if let Some(cached) = crate::gateway::semantic_cache::global_semantic_cache()
+                    .lookup_or_semantic(prov_label, &prompt_str)
+                {
+                    let ctype = if path.contains("stream") {
+                        "text/event-stream".to_string()
+                    } else {
+                        "application/json".to_string()
+                    };
+                    let payload = if path.contains("stream") {
+                        format!("data: {}\n\ndata: [DONE]\n\n", cached)
+                    } else {
+                        cached
+                    };
+                    return PreparedHeadroomRoute::Immediate((
+                        200,
+                        vec![
+                            ("Content-Type".to_string(), ctype),
+                            ("X-Toksi-Cache".to_string(), "HIT".to_string()),
+                        ],
+                        payload.into_bytes(),
+                    ));
+                }
+                let (compressed, stats) = super::effort::HeadroomEffortCompressor::default()
+                    .compress_http_request(&path, &req.headers, &req.body);
+                if compressed.len() < req.body.len() || stats.mcp_tools_pruned > 0 {
+                    crate::telemetry::collector::try_send_telemetry_event(
+                        crate::telemetry::collector::TelemetryEvent::HeadroomOptimization {
+                            raw_bytes: stats.original_bytes,
+                            compressed_bytes: stats.compressed_bytes,
+                            pruned_tools: stats.mcp_tools_pruned,
+                        },
+                    );
+                }
+                if compressed.len() < req.body.len() {
+                    crate::util::logger::L.debug(&format!(
+                        "[HEADROOM] effort={} compressed {} bytes -> {} bytes",
+                        stats.effort.as_str(),
+                        req.body.len(),
+                        compressed.len(),
+                    ));
+                    req.body = compressed;
+                }
+            }
+        }
+    }
+
+    let has_byok_header = req
+        .headers
+        .iter()
+        .any(|(k, _)| k.eq_ignore_ascii_case(super::byok_gateway::BYOK_ROUTE_HEADER));
+    if has_byok_header || path.starts_with("/byok/") {
+        let resp = super::byok_gateway::handle_byok_gateway_request(
+            &req.method,
+            &req.raw_uri,
+            &req.headers,
+            &req.body,
+            None,
+        )
+        .await;
+        return PreparedHeadroomRoute::Immediate(resp);
+    }
+
+    let (anthropic_url, openai_url) = real_upstream_urls();
+    let (gemini_url_raw, cloudcode_url_raw) = proxy_upstream_gemini_urls();
+    let gemini_url = if gemini_url_raw.is_empty() {
+        "https://generativelanguage.googleapis.com".to_string()
+    } else {
+        gemini_url_raw
+    };
+    let cloudcode_url = if cloudcode_url_raw.is_empty() {
+        "https://cloudcode-pa.googleapis.com".to_string()
+    } else {
+        cloudcode_url_raw
+    };
+    let aicode_url = proxy_upstream_aicode_url();
+    let oauth_url = "https://oauth2.googleapis.com".to_string();
+    let sts_url = "https://sts.googleapis.com".to_string();
+
+    let is_google_request = path.starts_with("/v1internal")
+        || path.starts_with("/v1alpha")
+        || path.starts_with("/v1beta")
+        || path.starts_with("/v1main")
+        || path.starts_with("/v1/projects")
+        || path.starts_with("/v1/models")
+        || path.starts_with("/google.")
+        || path.starts_with("/jetski.")
+        || path.starts_with("/exa.")
+        || path.contains("cloudcode")
+        || path.contains("cloud.code")
+        || path.contains("aicode")
+        || path.contains("jetski")
+        || path.contains("gemini")
+        || path.contains("LoadCodeAssist")
+        || path.contains("GetLoadCodeAssist")
+        || path.contains("FetchLicenses")
+        || path.contains("FetchUserInfo")
+        || path.contains("GetUserInfo")
+        || path.contains("FetchQuotaStatus")
+        || path.contains("RetrieveUserQuota")
+        || path.contains("FetchAvailableModels")
+        || path.contains("CountTokens")
+        || path.contains(":generateCode")
+        || path.contains(":streamGenerateCode")
+        || path.contains(":loadCodeContext")
+        || path.contains(":loadMetadata")
+        || path.contains(":generateMessage")
+        || path.contains(":streamGenerateMessage")
+        || path.contains(":generateContent")
+        || path.contains(":streamGenerateContent")
+        || req.headers.iter().any(|(k, v)| {
+            let k_low = k.to_ascii_lowercase();
+            k_low.starts_with("x-goog-")
+                || k_low.starts_with("x-aicode-")
+                || k_low == "connect-protocol-version"
+                || (k_low == "content-type"
+                    && (v.contains("grpc") || v.contains("connect") || v.contains("proto")))
+                || (k_low == "authorization" && v.contains("ya29."))
+        });
+
+    let target_base = if let Some(explicit) = override_base_url {
+        explicit
+    } else if is_google_request {
+        if path.starts_with("/google.gca.aicode")
+            || path.starts_with("/v1main")
+            || path.contains("aicode")
+            || path.contains("FetchLicenses")
+            || path.contains("FetchQuotaStatus")
+        {
+            aicode_url
+        } else if path.starts_with("/oauth2") || path.starts_with("/token") {
+            oauth_url
+        } else if path.starts_with("/sts") {
+            sts_url
+        } else if path.starts_with("/v1beta")
+            || path.starts_with("/v1/models")
+            || (path.contains("gemini")
+                && !path.contains("cloudcode")
+                && !path.contains("cloud.code")
+                && !path.contains("jetski"))
+        {
+            gemini_url
+        } else {
+            cloudcode_url
+        }
+    } else if path.starts_with("/v1/messages")
+        || req
+            .headers
+            .iter()
+            .any(|(k, _)| k.eq_ignore_ascii_case("anthropic-version"))
+    {
+        anthropic_url
+    } else {
+        openai_url
+    };
+
+    PreparedHeadroomRoute::Forward {
+        target_base,
+        path,
+        query,
+    }
+}
+
+pub async fn dispatch_headroom_proxy_http_request(
+    method: &str,
+    raw_uri: &str,
+    headers: &[(String, String)],
+    body: &[u8],
+) -> (u16, Vec<(String, String)>, Vec<u8>) {
+    let mut req = super::byok_gateway::ParsedHttpRequest {
+        method: method.to_string(),
+        raw_uri: raw_uri.to_string(),
+        headers: headers.to_vec(),
+        body: body.to_vec(),
+    };
+    match prepare_headroom_proxy_route(&mut req).await {
+        PreparedHeadroomRoute::Immediate(resp) => resp,
+        PreparedHeadroomRoute::Forward {
+            target_base,
+            path,
+            query,
+        } => {
+            crate::util::logger::L.info(&format!("[PROXY-IPC] {} {} -> {}", req.method, path, target_base));
+            super::byok_gateway::forward_to_byok_target(
+                &target_base,
+                &req.method,
+                &path,
+                Some(&query),
+                &req.headers,
+                &req.body,
+            )
+            .await
+        }
+    }
+}
+
 async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loop {
         let Some(mut req) = super::byok_gateway::read_http_request(&mut stream).await? else {
@@ -764,301 +1066,38 @@ async fn serve_headroom_connection(mut stream: tokio::net::TcpStream) -> Result<
             k.eq_ignore_ascii_case("connection") && v.eq_ignore_ascii_case("close")
         });
 
-        let (path, _, query) = super::byok_gateway::split_uri_path_and_query(&req.raw_uri);
-
-        // Health/live checks
-        if path == "/livez" || path == "/healthz" || path == "/readyz" {
-            let body = br#"{"service":"headroom-proxy","status":"ok"}"#;
-            super::byok_gateway::write_http_response(&mut stream, 200, "OK", &[("Content-Type".to_string(), "application/json".to_string())], body).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // Native Prometheus metrics exposition
-        if path == "/metrics" {
-            let metrics_body = crate::telemetry::render_metrics();
-            super::byok_gateway::write_http_response(
-                &mut stream,
-                200,
-                "OK",
-                &[
-                    ("Content-Type".to_string(), "text/plain; version=0.0.4; charset=utf-8".to_string()),
-                    ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ],
-                metrics_body.as_bytes(),
-            ).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // CORS preflight
-        if req.method.eq_ignore_ascii_case("OPTIONS") {
-            let headers = vec![
-                ("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ("Access-Control-Allow-Methods".to_string(), "GET, POST, PUT, DELETE, OPTIONS".to_string()),
-                ("Access-Control-Allow-Headers".to_string(), "*".to_string()),
-                ("Access-Control-Max-Age".to_string(), "86400".to_string()),
-            ];
-            super::byok_gateway::write_http_response(&mut stream, 204, "No Content", &headers, &[]).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // Guard `x-headroom-base-url` override off the event loop (reject private/unsafe URLs with 400)
-        let override_base_url = match validate_headroom_base_url_override_async(req.headers.clone()).await {
-            Ok(url_opt) => url_opt,
-            Err(err_msg) => {
-                let err_json = serde_json::json!({
-                    "error": {
-                        "type": "invalid_request_error",
-                        "message": err_msg
-                    }
-                });
-                let err_bytes = serde_json::to_vec(&err_json).unwrap_or_default();
+        match prepare_headroom_proxy_route(&mut req).await {
+            PreparedHeadroomRoute::Immediate((status, headers, body)) => {
                 super::byok_gateway::write_http_response(
                     &mut stream,
-                    400,
-                    "Bad Request",
-                    &[("Content-Type".to_string(), "application/json".to_string())],
-                    &err_bytes,
-                ).await?;
-                if is_close_requested {
+                    status,
+                    super::byok_gateway::status_reason(status),
+                    &headers,
+                    &body,
+                )
+                .await?;
+            }
+            PreparedHeadroomRoute::Forward {
+                target_base,
+                path,
+                query,
+            } => {
+                crate::util::logger::L.info(&format!("[PROXY] {} {} -> {}", req.method, path, target_base));
+                if let Err(e) = super::byok_gateway::forward_streaming_to_byok_target(
+                    &target_base,
+                    &req.method,
+                    &path,
+                    Some(&query),
+                    &req.headers,
+                    &req.body,
+                    &mut stream,
+                )
+                .await
+                {
+                    L.debug(&format!("forward_streaming error: {}", e));
                     break;
                 }
-                continue;
             }
-        };
-
-        // Explicit ConnectRPC / protobuf / gRPC passthrough (#0033 / #0034): never rewrite body
-        let is_connect_proto = super::byok_gateway::is_proto_or_connect_request(&path, &req.headers);
-
-        // Mandatory HeadroomEffortCompressor across ALL traffic (standard + /byok/) except ConnectRPC
-        let mut cache_hit_resp: Option<(String, String)> = None;
-        if !is_connect_proto && req.method.eq_ignore_ascii_case("POST") && !req.body.is_empty() {
-            let is_llm_path = path.starts_with("/v1/messages")
-                || path.starts_with("/byok/")
-                || path.contains(":generateContent")
-                || path.contains(":streamGenerateContent")
-                || path.contains(":generateCode")
-                || path.contains(":streamGenerateCode")
-                || path.contains(":generateMessage")
-                || path.contains(":streamGenerateMessage")
-                || path.ends_with("/chat/completions")
-                || path.ends_with("/completions")
-                || path.ends_with("/responses")
-                || path.ends_with("/converse");
-
-            if is_llm_path {
-                if let Ok(json_val) = serde_json::from_slice::<serde_json::Value>(&req.body) {
-                    if let Some((ctype, payload)) = try_intercept_chat_slash(&path, &json_val) {
-                        let headers = vec![
-                            ("Content-Type".to_string(), ctype),
-                            ("X-Toksi-Slash".to_string(), "HIT".to_string()),
-                        ];
-                        super::byok_gateway::write_http_response(
-                            &mut stream,
-                            200,
-                            "OK",
-                            &headers,
-                            payload.as_bytes(),
-                        )
-                        .await?;
-                        if is_close_requested {
-                            break;
-                        }
-                        continue;
-                    }
-                    let has_prompt_body = json_val.get("messages").is_some()
-                        || json_val.get("contents").is_some()
-                        || json_val.get("input").is_some();
-                    if has_prompt_body {
-                        let prov_label = if path.contains("messages") {
-                            "anthropic"
-                        } else if path.contains("gemini") || path.contains("Content") {
-                            "gemini"
-                        } else {
-                            "openai"
-                        };
-                        let prompt_str = json_val.to_string();
-                        if let Some(cached) = crate::gateway::semantic_cache::global_semantic_cache()
-                            .lookup_or_semantic(prov_label, &prompt_str)
-                        {
-                            let ctype = if path.contains("stream") {
-                                "text/event-stream".to_string()
-                            } else {
-                                "application/json".to_string()
-                            };
-                            let payload = if path.contains("stream") {
-                                format!("data: {}\n\ndata: [DONE]\n\n", cached)
-                            } else {
-                                cached
-                            };
-                            cache_hit_resp = Some((ctype, payload));
-                        } else {
-                            let (compressed, stats) = super::effort::HeadroomEffortCompressor::default()
-                                .compress_http_request(&path, &req.headers, &req.body);
-                            if compressed.len() < req.body.len() || stats.mcp_tools_pruned > 0 {
-                                crate::telemetry::collector::try_send_telemetry_event(
-                                    crate::telemetry::collector::TelemetryEvent::HeadroomOptimization {
-                                        raw_bytes: stats.original_bytes,
-                                        compressed_bytes: stats.compressed_bytes,
-                                        pruned_tools: stats.mcp_tools_pruned,
-                                    },
-                                );
-                            }
-                            if compressed.len() < req.body.len() {
-                                crate::util::logger::L.debug(&format!(
-                                    "[HEADROOM] effort={} compressed {} bytes -> {} bytes",
-                                    stats.effort.as_str(),
-                                    req.body.len(),
-                                    compressed.len(),
-                                ));
-                                req.body = compressed;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if let Some((ctype, payload)) = cache_hit_resp {
-            let headers = vec![
-                ("Content-Type".to_string(), ctype),
-                ("X-Toksi-Cache".to_string(), "HIT".to_string()),
-            ];
-            super::byok_gateway::write_http_response(&mut stream, 200, "OK", &headers, payload.as_bytes()).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // Check BYOK routing header or path (AFTER Headroom pass!)
-        let has_byok_header = req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case(super::byok_gateway::BYOK_ROUTE_HEADER));
-        if has_byok_header || path.starts_with("/byok/") {
-            let (status, headers, body) = super::byok_gateway::handle_byok_gateway_request(
-                &req.method,
-                &req.raw_uri,
-                &req.headers,
-                &req.body,
-                None,
-            ).await;
-            super::byok_gateway::write_http_response(&mut stream, status, super::byok_gateway::status_reason(status), &headers, &body).await?;
-            if is_close_requested {
-                break;
-            }
-            continue;
-        }
-
-        // Identify target URL based on route
-        let (anthropic_url, openai_url) = real_upstream_urls();
-        let (gemini_url_raw, cloudcode_url_raw) = proxy_upstream_gemini_urls();
-        let gemini_url = if gemini_url_raw.is_empty() {
-            "https://generativelanguage.googleapis.com".to_string()
-        } else {
-            gemini_url_raw
-        };
-        let cloudcode_url = if cloudcode_url_raw.is_empty() {
-            "https://cloudcode-pa.googleapis.com".to_string()
-        } else {
-            cloudcode_url_raw
-        };
-        let aicode_url = proxy_upstream_aicode_url();
-        let oauth_url = "https://oauth2.googleapis.com".to_string();
-        let sts_url = "https://sts.googleapis.com".to_string();
-
-        let is_google_request = path.starts_with("/v1internal")
-            || path.starts_with("/v1alpha")
-            || path.starts_with("/v1beta")
-            || path.starts_with("/v1main")
-            || path.starts_with("/v1/projects")
-            || path.starts_with("/v1/models")
-            || path.starts_with("/google.")
-            || path.starts_with("/jetski.")
-            || path.starts_with("/exa.")
-            || path.contains("cloudcode")
-            || path.contains("cloud.code")
-            || path.contains("aicode")
-            || path.contains("jetski")
-            || path.contains("gemini")
-            || path.contains("LoadCodeAssist")
-            || path.contains("GetLoadCodeAssist")
-            || path.contains("FetchLicenses")
-            || path.contains("FetchUserInfo")
-            || path.contains("GetUserInfo")
-            || path.contains("FetchQuotaStatus")
-            || path.contains("RetrieveUserQuota")
-            || path.contains("FetchAvailableModels")
-            || path.contains("CountTokens")
-            || path.contains(":generateCode")
-            || path.contains(":streamGenerateCode")
-            || path.contains(":loadCodeContext")
-            || path.contains(":loadMetadata")
-            || path.contains(":generateMessage")
-            || path.contains(":streamGenerateMessage")
-            || path.contains(":generateContent")
-            || path.contains(":streamGenerateContent")
-            || req.headers.iter().any(|(k, v)| {
-                let k_low = k.to_ascii_lowercase();
-                k_low.starts_with("x-goog-")
-                    || k_low.starts_with("x-aicode-")
-                    || k_low == "connect-protocol-version"
-                    || (k_low == "content-type" && (v.contains("grpc") || v.contains("connect") || v.contains("proto")))
-                    || (k_low == "authorization" && v.contains("ya29."))
-            });
-
-        let target_base = if let Some(explicit) = override_base_url {
-            explicit
-        } else if is_google_request {
-            if path.starts_with("/google.gca.aicode")
-                || path.starts_with("/v1main")
-                || path.contains("aicode")
-                || path.contains("FetchLicenses")
-                || path.contains("FetchQuotaStatus")
-            {
-                aicode_url
-            } else if path.starts_with("/oauth2") || path.starts_with("/token") {
-                oauth_url
-            } else if path.starts_with("/sts") {
-                sts_url
-            } else if path.starts_with("/v1beta")
-                || path.starts_with("/v1/models")
-                || (path.contains("gemini")
-                    && !path.contains("cloudcode")
-                    && !path.contains("cloud.code")
-                    && !path.contains("jetski"))
-            {
-                gemini_url
-            } else {
-                cloudcode_url
-            }
-        } else if path.starts_with("/v1/messages") || req.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("anthropic-version")) {
-            anthropic_url
-        } else {
-            openai_url
-        };
-
-        crate::util::logger::L.info(&format!("[PROXY] {} {} -> {}", req.method, path, target_base));
-
-        // Forward to upstream target (streaming if SSE / ndjson, buffered otherwise;
-        // ConnectRPC & LLM bodies already processed cleanly above)
-        if let Err(e) = super::byok_gateway::forward_streaming_to_byok_target(
-            &target_base,
-            &req.method,
-            &path,
-            Some(&query),
-            &req.headers,
-            &req.body,
-            &mut stream,
-        ).await {
-            L.debug(&format!("forward_streaming error: {}", e));
-            break;
         }
 
         if is_close_requested {
@@ -1169,20 +1208,16 @@ fn clear_proxy_state_with_runtime_if_unchanged(
                 .into(),
         );
     }
-    if pid_raw.is_some() {
-        if let Err(e) = std::fs::remove_file(pid_file) {
-            if e.kind() != std::io::ErrorKind::NotFound {
+    if pid_raw.is_some()
+        && let Err(e) = std::fs::remove_file(pid_file)
+            && e.kind() != std::io::ErrorKind::NotFound {
                 return Err(e.into());
             }
-        }
-    }
-    if supervised_raw.is_some() {
-        if let Err(e) = std::fs::remove_file(&supervised_path) {
-            if e.kind() != std::io::ErrorKind::NotFound {
+    if supervised_raw.is_some()
+        && let Err(e) = std::fs::remove_file(&supervised_path)
+            && e.kind() != std::io::ErrorKind::NotFound {
                 return Err(e.into());
             }
-        }
-    }
     if clear_runtime {
         clear_proxy_runtime()?;
     }
@@ -1244,11 +1279,10 @@ impl ProxyLockGuard {
 
 impl Drop for ProxyLockGuard {
     fn drop(&mut self) {
-        if let Ok(content) = std::fs::read_to_string(&self.path) {
-            if content == self.token {
+        if let Ok(content) = std::fs::read_to_string(&self.path)
+            && content == self.token {
                 let _ = std::fs::remove_file(&self.path);
             }
-        }
     }
 }
 
@@ -1294,19 +1328,16 @@ fn acquire_proxy_lock(
                 });
             }
             Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
-                if let Ok(meta) = std::fs::metadata(path) {
-                    if let Ok(modified) = meta.modified() {
-                        if let Ok(age) = SystemTime::now().duration_since(modified) {
-                            if age > PROXY_START_LOCK_STALE {
+                if let Ok(meta) = std::fs::metadata(path)
+                    && let Ok(modified) = meta.modified()
+                        && let Ok(age) = SystemTime::now().duration_since(modified)
+                            && age > PROXY_START_LOCK_STALE {
                                 let stale = format!("{}.stale.{}", path, nanos);
                                 if std::fs::rename(path, &stale).is_ok() {
                                     let _ = std::fs::remove_file(&stale);
                                     continue;
                                 }
                             }
-                        }
-                    }
-                }
                 if Instant::now() >= deadline {
                     return Err("timed out waiting for another proxy start to finish".into());
                 }
@@ -1377,21 +1408,16 @@ pub fn proxy_allowed_base_urls_match_recorded() -> bool {
 
 pub fn proxy_owned_process_live() -> bool {
     let (pid_file, _) = proxy_files();
-    if let Some(raw) = read_file_safe(&pid_file) {
-        if let Ok(record) = serde_json::from_str::<ProxyOwnership>(&raw) {
-            if record.pid > 0
+    if let Some(raw) = read_file_safe(&pid_file)
+        && let Ok(record) = serde_json::from_str::<ProxyOwnership>(&raw)
+            && record.pid > 0
                 && !record.executable.is_empty()
                 && !record.args.is_empty()
                 && !record.start_fingerprint.is_empty()
-            {
-                if let Ok(identity) = identify_process(record.pid) {
-                    if identity.matches_record(&record) {
+                && let Ok(identity) = identify_process(record.pid)
+                    && identity.matches_record(&record) {
                         return true;
                     }
-                }
-            }
-        }
-    }
     let Some(raw) = read_file_safe(proxy_supervised_file()) else {
         return false;
     };
@@ -1545,8 +1571,8 @@ fn start_proxy_locked() -> Result<(), Box<dyn std::error::Error + Send + Sync>> 
 
     let deadline = Instant::now() + PROXY_READY_TIMEOUT;
     while Instant::now() < deadline {
-        if let Ok(current) = identify_process(pid) {
-            if proxy_live_z_timeout(PROXY_PROBE_TIMEOUT)
+        if let Ok(current) = identify_process(pid)
+            && proxy_live_z_timeout(PROXY_PROBE_TIMEOUT)
                 && current.equal(&identity)
                 && current.matches(&bin, &args)
             {
@@ -1561,7 +1587,6 @@ fn start_proxy_locked() -> Result<(), Box<dyn std::error::Error + Send + Sync>> 
                 L.ok("headroom proxy ready");
                 return Ok(());
             }
-        }
         std::thread::sleep(PROXY_POLL_INTERVAL);
     }
 
@@ -1711,15 +1736,14 @@ fn stop_headroom_daemon_with_runtime(
                 if read_file_safe(&pid_file).as_deref() != Some(raw.as_str()) {
                     return Err("proxy ownership record changed during stale cleanup — refusing to remove replacement record".into());
                 }
-                if let Err(err) = std::fs::remove_file(&pid_file) {
-                    if err.kind() != std::io::ErrorKind::NotFound {
+                if let Err(err) = std::fs::remove_file(&pid_file)
+                    && err.kind() != std::io::ErrorKind::NotFound {
                         return Err(format!(
                             "remove stale proxy ownership record {}: {}",
                             pid_file, err
                         )
                         .into());
                     }
-                }
                 if clear_runtime {
                     clear_proxy_runtime()?;
                 }
@@ -1760,15 +1784,14 @@ fn stop_headroom_daemon_with_runtime(
                     if read_file_safe(&pid_file).as_deref() != Some(raw.as_str()) {
                         return Err("proxy ownership record changed during stale cleanup — refusing to remove replacement record".into());
                     }
-                    if let Err(err) = std::fs::remove_file(&pid_file) {
-                        if err.kind() != std::io::ErrorKind::NotFound {
+                    if let Err(err) = std::fs::remove_file(&pid_file)
+                        && err.kind() != std::io::ErrorKind::NotFound {
                             return Err(format!(
                                 "remove stale proxy ownership record {}: {}",
                                 pid_file, err
                             )
                             .into());
                         }
-                    }
                     if clear_runtime {
                         clear_proxy_runtime()?;
                     }
@@ -1889,16 +1912,14 @@ fn stop_proxy_locked() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     }
 
     let mut err = stop_headroom_daemon();
-    if err.is_ok() {
-        if let Err(stop_err) = clear_proxy_stop_request() {
+    if err.is_ok()
+        && let Err(stop_err) = clear_proxy_stop_request() {
             err = Err(stop_err);
         }
-    }
-    if err.is_ok() {
-        if let Err(runtime_err) = clear_proxy_runtime() {
+    if err.is_ok()
+        && let Err(runtime_err) = clear_proxy_runtime() {
             err = Err(runtime_err);
         }
-    }
     cleanup_legacy_route_state();
     err
 }
@@ -1913,15 +1934,12 @@ pub fn cleanup_legacy_route_state() {
     let root = headroom_paths_resolved().root;
     let pid_file = Path::new(&root).join("proxy.route.pid");
     if let Some(raw) = read_file_safe(&pid_file) {
-        if let Ok(pid) = raw.trim().parse::<u32>() {
-            if pid > 0 && process_identity_supported() {
-                if let Ok(identity) = identify_process(pid) {
-                    if identity.args.first().map(|s| s.as_str()) == Some("__route-proxy-serve") {
+        if let Ok(pid) = raw.trim().parse::<u32>()
+            && pid > 0 && process_identity_supported()
+                && let Ok(identity) = identify_process(pid)
+                    && identity.args.first().map(|s| s.as_str()) == Some("__route-proxy-serve") {
                         let _ = kill_process(pid);
                     }
-                }
-            }
-        }
         let _ = std::fs::remove_file(&pid_file);
     }
     let _ = std::fs::remove_file(Path::new(&root).join("proxy.routes.json"));
@@ -1955,14 +1973,13 @@ pub fn rollback_proxy_with_identity(
     let supervised_path = proxy_supervised_file();
     let supervised_raw = read_file_safe(&supervised_path);
 
-    if let Some(exp) = expected {
-        if !exp.executable.is_empty() {
+    if let Some(exp) = expected
+        && !exp.executable.is_empty() {
             match identify_process(pid) {
                 Ok(current) if current.equal(exp) => {}
                 _ => return cause,
             }
         }
-    }
 
     if let Err(err) = kill_process(pid) {
         return format!("{}; rollback kill for pid {}: {}", cause, pid, err).into();
@@ -1978,19 +1995,15 @@ pub fn rollback_proxy_with_identity(
         .into();
     }
 
-    if pid_raw.is_some() {
-        if let Err(err) = std::fs::remove_file(pid_file) {
-            if err.kind() != std::io::ErrorKind::NotFound {
+    if pid_raw.is_some()
+        && let Err(err) = std::fs::remove_file(pid_file)
+            && err.kind() != std::io::ErrorKind::NotFound {
                 return format!("{}; rollback record removal: {}", cause, err).into();
             }
-        }
-    }
-    if supervised_raw.is_some() {
-        if let Err(err) = std::fs::remove_file(&supervised_path) {
-            if err.kind() != std::io::ErrorKind::NotFound {
+    if supervised_raw.is_some()
+        && let Err(err) = std::fs::remove_file(&supervised_path)
+            && err.kind() != std::io::ErrorKind::NotFound {
                 return format!("{}; {}", cause, err).into();
             }
-        }
-    }
     cause
 }

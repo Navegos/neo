@@ -711,11 +711,10 @@ pub fn handle_tool_call(store: &mut IcmStore, name: &str, args: &Value) -> (Stri
                         mem.summary = s.to_string();
                         mem.summary_hash = Some(compute_summary_hash(&mem.topic, s));
                     }
-                    if let Some(imp_str) = args.get("importance").and_then(|v| v.as_str()) {
-                        if let Ok(imp) = imp_str.parse() {
+                    if let Some(imp_str) = args.get("importance").and_then(|v| v.as_str())
+                        && let Ok(imp) = imp_str.parse() {
                             mem.importance = imp;
                         }
-                    }
                     mem.updated_at = Utc::now().to_rfc3339();
                     match store.insert_or_update_memory(&mem) {
                         Ok(_) => (format!("Updated memory '{id}'"), false),
@@ -787,17 +786,15 @@ pub fn handle_tool_call(store: &mut IcmStore, name: &str, args: &Value) -> (Stri
             match store.detect_patterns(topic, min_cluster_size) {
                 Ok(clusters) => {
                     let mut created_concepts = Vec::new();
-                    if let Some(m_name) = memoir_arg {
-                        if let Ok(memoirs) = store.list_memoirs() {
-                            if let Some(m) = memoirs.into_iter().find(|m| m.id == m_name || m.name == m_name) {
+                    if let Some(m_name) = memoir_arg
+                        && let Ok(memoirs) = store.list_memoirs()
+                            && let Some(m) = memoirs.into_iter().find(|m| m.id == m_name || m.name == m_name) {
                                 for c in &clusters {
                                     if let Ok(concept) = store.extract_pattern_as_concept(c, &m.id) {
                                         created_concepts.push(concept.id);
                                     }
                                 }
                             }
-                        }
-                    }
                     let out = serde_json::to_string_pretty(&json!({
                         "topic": topic,
                         "patterns": clusters,

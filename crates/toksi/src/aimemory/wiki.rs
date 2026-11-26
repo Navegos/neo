@@ -250,8 +250,8 @@ fn parse_markdown_page(slug: &str, content: &str) -> WikiPage {
     let mut tags = Vec::new();
     let mut body = content.to_string();
 
-    if content.starts_with("---") {
-        if let Some(end_idx) = content[3..].find("---") {
+    if content.starts_with("---")
+        && let Some(end_idx) = content[3..].find("---") {
             let frontmatter = &content[3..3 + end_idx];
             body = content[3 + end_idx + 3..].trim_start().to_string();
 
@@ -288,7 +288,6 @@ fn parse_markdown_page(slug: &str, content: &str) -> WikiPage {
                 }
             }
         }
-    }
 
     WikiPage {
         slug: slug.to_string(),

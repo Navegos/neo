@@ -431,6 +431,7 @@ impl GatewayProxyOrchestrator {
     }
 
     /// Async upstream dispatch with 7-D ranking + multi-provider cascade failover via `AutoHealingClientPool`.
+    #[allow(clippy::too_many_arguments)]
     pub async fn dispatch_with_cascade_async(
         &self,
         session_id: &str,

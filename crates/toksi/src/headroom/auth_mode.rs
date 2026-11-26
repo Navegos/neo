@@ -84,15 +84,14 @@ pub fn classify_auth_mode(headers: &[(String, String)]) -> AuthMode {
                 continue;
             }
         }
-        if lower == "authorization" {
-            if let Some(t) = extract_bearer_token(trimmed) {
+        if lower == "authorization"
+            && let Some(t) = extract_bearer_token(trimmed) {
                 if t.starts_with("ya29.") || t.starts_with("sk-ant-oat") || t.starts_with("ghu_") || t.starts_with("gho_") {
                     has_oauth = true;
                 } else {
                     has_api_key = true;
                 }
             }
-        }
     }
 
     if has_sub {

@@ -1,6 +1,6 @@
 # Phase 15.3: Smart Agent CLI Providers & Open BYOK Quota Telemetry *(Zero Paid-Tier Restrictions)*
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -26,7 +26,7 @@ Disciplinary & Portability Requirements:
 5. Configured-Only Activation Guard: Only wire, spawn, display, and dispatch across agents and `<byok, model, effort>` profiles explicitly configured/enabled by the user in `~/.toksi/config.toml` / `toksi.db` (if none are configured, pass traffic cleanly through without error). Every configured BYOK payload MUST pass through the Headroom optimizer (`headroom/proxy.rs`).
 
 Requirements:
-1. Register Local Agent CLIs (`AntigravityCli`, `CopilotCli`, `ClaudeCli`, `CodexCli`, `CursorBridge`, `GrokCli`, plus `GeminiCli`, `GooseCli`, `CrushCli`) & 65/90+ Categories 1–5 + 22 Local Engine Adapters as peer BYOK providers (multi-instance `<byok, model, effort>` per provider supported).
+1. Register Local Agent CLIs (`AntigravityCli`, `CopilotCli`, `ClaudeCli`, `CodexCli`, `CursorBridge`, `GrokCli`, plus `GeminiCli`, `GooseCli`, `CrushCli`) & 65/90+ Categories 1â€“5 + 22 Local Engine Adapters as peer BYOK providers (multi-instance `<byok, model, effort>` per provider supported).
 2. Smart Background Launch (Configured-Only + Safe PATH Check):
    - Validate binary in `PATH` via `check_executable_in_path` cleanly (never hardcoding paths; greystone/skip if missing).
    - Query OS Keyring (`gemini:antigravity` alias normalized) and SQLite `byok_profiles`.

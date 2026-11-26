@@ -76,7 +76,7 @@ pub fn claim_routing_coordinator(
     owner: &str,
     ttl: Duration,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     let _file_guard = acquire_routing_store_lock()?;
     match read_routing_ownership_unlocked() {
         Ok(current) => {
@@ -164,7 +164,7 @@ pub fn renew_routing_ownership(
     if ttl.is_zero() {
         return Err("coordinator lease TTL must be positive".into());
     }
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     let _file_guard = acquire_routing_store_lock()?;
     let mut claim =
         read_routing_ownership_unlocked().map_err(|_| "coordinator claim is not owned")?;
@@ -196,7 +196,7 @@ pub fn release_routing_coordinator(
     nonce: &str,
     owner: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     let _file_guard = acquire_routing_store_lock()?;
     let path = routing_ownership_path();
     if !Path::new(&path).exists() {
@@ -206,16 +206,15 @@ pub fn release_routing_coordinator(
     if claim.coordinator_nonce != nonce || claim.owner_nonce != owner {
         return Err("coordinator claim is owned by another process".into());
     }
-    if let Err(err) = std::fs::remove_file(&path) {
-        if err.kind() != std::io::ErrorKind::NotFound {
+    if let Err(err) = std::fs::remove_file(&path)
+        && err.kind() != std::io::ErrorKind::NotFound {
             return Err(err.into());
         }
-    }
     Ok(())
 }
 
 pub fn routing_coordinator_owned(nonce: &str, owner: &str) -> bool {
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     if let Ok(_file_guard) = acquire_routing_store_lock() {
         return coordinator_claim_matches_unlocked(nonce, owner);
     }
@@ -237,7 +236,7 @@ pub fn authorize_routing_dispatch_for_lane(
     coordinator_nonce: &str,
     owner_nonce: &str,
 ) -> Result<RoutingLease, Box<dyn std::error::Error + Send + Sync>> {
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     let _file_guard = acquire_routing_store_lock()?;
     let ownership =
         read_routing_ownership_unlocked().map_err(|_| "coordinator claim is not owned")?;
@@ -268,7 +267,7 @@ pub fn authorize_routing_dispatch_for_lane(
 }
 
 pub fn read_routing_state() -> Result<RoutingState, Box<dyn std::error::Error + Send + Sync>> {
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     read_routing_state_unlocked()
 }
 
@@ -288,7 +287,7 @@ pub fn publish_routing_state(
     coordinator_nonce: &str,
     owner_nonce: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     let _file_guard = acquire_routing_store_lock()?;
     if !coordinator_nonce.is_empty()
         && !coordinator_claim_matches_unlocked(coordinator_nonce, owner_nonce)
@@ -336,7 +335,7 @@ pub fn create_routing_lease(
     };
     validate_routing_lease(&lease)?;
 
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     let _file_guard = acquire_routing_store_lock()?;
     if !coordinator_nonce.is_empty()
         && !coordinator_claim_matches_unlocked(coordinator_nonce, owner_nonce)
@@ -402,7 +401,7 @@ pub fn create_routing_lease(
 pub fn read_routing_lease(
     lane_id: Option<&str>,
 ) -> Result<RoutingLease, Box<dyn std::error::Error + Send + Sync>> {
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     let _file_guard = acquire_routing_store_lock()?;
     let ownership = read_routing_ownership_unlocked()?;
     for lease in ownership.leases {
@@ -422,7 +421,7 @@ pub fn renew_routing_lease(
     if ttl.is_zero() {
         return Err("routing lease TTL must be positive".into());
     }
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     let _file_guard = acquire_routing_store_lock()?;
     if !coordinator_nonce.is_empty()
         && !coordinator_claim_matches_unlocked(coordinator_nonce, owner_nonce)
@@ -469,7 +468,7 @@ pub fn release_routing_leases(
     coordinator_nonce: &str,
     owner_nonce: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     let _file_guard = acquire_routing_store_lock()?;
     let path = routing_ownership_path();
     if !Path::new(&path).exists() {
@@ -496,7 +495,7 @@ pub fn release_routing_lease(
     coordinator_nonce: &str,
     owner_nonce: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _mem_guard = ROUTING_STORE_MU.lock().unwrap();
+    let _mem_guard = ROUTING_STORE_MU.lock().unwrap_or_else(|e| e.into_inner());
     let _file_guard = acquire_routing_store_lock()?;
     if !coordinator_nonce.is_empty()
         && !coordinator_claim_matches_unlocked(coordinator_nonce, owner_nonce)
@@ -553,11 +552,10 @@ pub fn lease_live(lease: &RoutingLease, now: DateTime<Utc>) -> bool {
 }
 
 pub fn listener_port(listener: &str) -> i32 {
-    if let Some((_, p_str)) = listener.rsplit_once(':') {
-        if let Ok(p) = p_str.parse::<i32>() {
+    if let Some((_, p_str)) = listener.rsplit_once(':')
+        && let Ok(p) = p_str.parse::<i32>() {
             return p;
         }
-    }
     0
 }
 

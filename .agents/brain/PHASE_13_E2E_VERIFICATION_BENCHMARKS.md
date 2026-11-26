@@ -1,6 +1,6 @@
 # Phase 13: End-to-End System Verification & Benchmarks
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -17,7 +17,7 @@ Disciplinary & Portability Requirements:
 2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors.
 3. Universal Forward-Slash (/) Standard: Use normalize_path() across all test fixtures and assertions.
 4. Cross-Platform Verification: Tests must pass uniformly on Windows, Linux, and macOS.
-5. High-Performance Benchmarks: Verify sub-10ms memory recall, <10 µs gateway proxy overhead, and 30-70% token savings.
+5. High-Performance Benchmarks: Verify sub-10ms memory recall, <10 Âµs gateway proxy overhead, and 30-70% token savings.
 
 Requirements:
 1. Execute full incremental workspace test suite across all consolidated subsystems (`phase1..phase17_7`):
@@ -32,7 +32,7 @@ Requirements:
 2. Incremental Test Skip Policy (`.toksi/test-baseline.json`):
    - Compute BLAKE3 digest over `Cargo.lock` + each suite's `watched_paths`; log `[SKIP-UNCHANGED] <suite>` for already-confirmed passing suites whose code paths and dependencies are unmodified (`--all`/`--force` runs everything). Never strip or weaken assertions!
    - Always run `cargo check --workspace` and `cargo clippy --workspace --all-targets -- -D warnings`.
-3. Verify token reduction & latency benchmarks (`>30%` savings, `<10 µs` proxy overhead, `<5ms` slash/TUI latency) across **35-component `<toksi-siagent>`** (**495 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized zero-bloat `<skills>` & `<advisory>`).
+3. Verify token reduction & latency benchmarks (`>30%` savings, `<10 Âµs` proxy overhead, `<5ms` slash/TUI latency) across **35-component `<toksi-siagent>`** (**495 mandated vaults**, **43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, `DirectWireBus`, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, externalized zero-bloat `<skills>` & `<advisory>`).
 4. Ensure 100% relevant test pass rate with 0 compiler warnings.
 ```
 
@@ -57,7 +57,7 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Pair with `PHASE_18_4`: assert zero stale `.projectmem/` pre-read refs, zero legacy `crates/tokless/*` paths in docs, all **43** `.agents/brain/*.md` files present (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_19_6`), **495** mandated vaults (`36` + `259` Wave 18 across Sections `2.1`–`2.10` incl. `opencode`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `OpenShell`, `E2B`, `opa`, `cedar`, `spire`, `Guardrails`, `llm-guard`, `temporal`, `restate`, `qdrant`, `cognee`, `graphiti`, `defenseclaw`, `skill-scanner`, `<advisory>`, `<skills>`), **35-component `<toksi-siagent>`**, zero embedded skills/rules inside `crates/toksi/`, 8-port daemon coverage (`:9098` Protocol Bus), **16** slash commands (`/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `src/plugins/` Unified Plugin System, `src/validator/`, `src/security/adr.rs`, `src/commands/guard.rs`, `plugins_registry` + zero-plaintext SQLite DDL, and clean incremental updates to `<repo>/.toksi/test-baseline.json`.
+- Pair with `PHASE_18_4`: assert zero stale `.projectmem/` pre-read refs, zero legacy `crates/tokless/*` paths in docs, all **43** `.agents/brain/*.md` files present (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01`..`PHASE_19_6`), **495** mandated vaults (`36` + `259` Wave 18 across Sections `2.1`â€“`2.10` incl. `opencode`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `OpenShell`, `E2B`, `opa`, `cedar`, `spire`, `Guardrails`, `llm-guard`, `temporal`, `restate`, `qdrant`, `cognee`, `graphiti`, `defenseclaw`, `skill-scanner`, `<advisory>`, `<skills>`), **35-component `<toksi-siagent>`**, zero embedded skills/rules inside `crates/toksi/`, 8-port daemon coverage (`:9098` Protocol Bus), **16** slash commands (`/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `src/plugins/` Unified Plugin System, `src/validator/`, `src/security/adr.rs`, `src/commands/guard.rs`, `plugins_registry` + zero-plaintext SQLite DDL, and clean incremental updates to `<repo>/.toksi/test-baseline.json`.
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`

@@ -402,12 +402,11 @@ pub fn disallow_claude_mcp_tool(tool_id: &str) {
     let mut kept = Vec::with_capacity(allow.len());
     let mut changed = false;
     for x in allow {
-        if let Some(s) = x.as_str() {
-            if wants.contains(s) {
+        if let Some(s) = x.as_str()
+            && wants.contains(s) {
                 changed = true;
                 continue;
             }
-        }
         kept.push(x);
     }
     if !changed {
@@ -657,11 +656,10 @@ fn save_proxy_route_stash(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let path = proxy_route_stash_path(agent);
     if providers.is_empty() {
-        if let Some(raw) = read_file_safe(&path) {
-            if serde_json::from_str::<ProxyRouteStashFile>(&raw).is_err() {
+        if let Some(raw) = read_file_safe(&path)
+            && serde_json::from_str::<ProxyRouteStashFile>(&raw).is_err() {
                 return Err(format!("refusing to replace malformed proxy stash {}", path).into());
             }
-        }
         if Path::new(&path).exists() {
             std::fs::remove_file(&path)?;
         }
@@ -1257,8 +1255,8 @@ pub fn claude_known_bin_dirs() -> Vec<String> {
 pub fn claude_desktop_paths() -> Vec<String> {
     if cfg!(windows) {
         let mut paths = Vec::new();
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            if !local.is_empty() {
+        if let Ok(local) = std::env::var("LOCALAPPDATA")
+            && !local.is_empty() {
                 paths.push(
                     Path::new(&local)
                         .join("AnthropicClaude")
@@ -1267,9 +1265,8 @@ pub fn claude_desktop_paths() -> Vec<String> {
                         .to_string(),
                 );
             }
-        }
-        if let Ok(roam) = std::env::var("APPDATA") {
-            if !roam.is_empty() {
+        if let Ok(roam) = std::env::var("APPDATA")
+            && !roam.is_empty() {
                 paths.push(
                     Path::new(&roam)
                         .join("Claude")
@@ -1278,7 +1275,6 @@ pub fn claude_desktop_paths() -> Vec<String> {
                         .to_string(),
                 );
             }
-        }
         paths
     } else if cfg!(target_os = "macos") {
         vec!["/Applications/Claude.app".into()]

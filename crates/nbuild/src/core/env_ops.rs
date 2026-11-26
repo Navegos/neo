@@ -18,11 +18,10 @@ impl EnvManager {
     /// Check if TOOLCHAINS_DIR is present in environment or user profile.
     pub fn get_toolchains_dir_env() -> Option<PathBuf> {
         // 1. Current process env
-        if let Ok(val) = env::var("TOOLCHAINS_DIR") {
-            if !val.trim().is_empty() {
+        if let Ok(val) = env::var("TOOLCHAINS_DIR")
+            && !val.trim().is_empty() {
                 return Some(PathBuf::from(val.trim()));
             }
-        }
 
         // 2. Windows User Environment registry check via PowerShell
         #[cfg(windows)]

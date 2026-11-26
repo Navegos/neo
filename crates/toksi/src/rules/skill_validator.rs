@@ -530,15 +530,17 @@ fn is_valid_yaml_key(key: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-fn parse_yaml_frontmatter_map(
-    fm_raw: &str,
-    start_line: usize,
-) -> (
+type ParsedFrontmatterTuple = (
     Option<BTreeMap<String, YamlValue>>,
     Vec<String>,
     Vec<(String, usize)>,
     Option<String>,
-) {
+);
+
+fn parse_yaml_frontmatter_map(
+    fm_raw: &str,
+    start_line: usize,
+) -> ParsedFrontmatterTuple {
     let lines: Vec<&str> = fm_raw.split('\n').collect();
     let mut data: BTreeMap<String, YamlValue> = BTreeMap::new();
     let mut key_order: Vec<String> = Vec::new();
@@ -703,7 +705,7 @@ fn parse_yaml_frontmatter_map(
             let inner = &after_colon[1..after_colon.len() - 1];
             let items = inner
                 .split(',')
-                .map(|part| unquote_yaml_scalar(part))
+                .map(unquote_yaml_scalar)
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>();
             data.insert(key, YamlValue::List(items));
@@ -877,11 +879,10 @@ pub fn normalize_skill_slug(raw: &str) -> String {
 
 fn find_key_line(fm_raw: &str, key: &str, fm_start: usize) -> usize {
     for (idx, line) in fm_raw.split('\n').enumerate() {
-        if let Some(colon) = line.find(':') {
-            if line[..colon].trim() == key {
+        if let Some(colon) = line.find(':')
+            && line[..colon].trim() == key {
                 return fm_start + idx;
             }
-        }
     }
     fm_start.max(1)
 }
@@ -921,7 +922,7 @@ fn is_wildcard_tool(token: &str) -> bool {
 
 fn trailing_blank_len(line: &str) -> usize {
     let no_cr = line.strip_suffix('\r').unwrap_or(line);
-    let trimmed = no_cr.trim_end_matches(|c| c == ' ' || c == '\t');
+    let trimmed = no_cr.trim_end_matches([' ', '\t']);
     no_cr.len() - trimmed.len()
 }
 
@@ -963,14 +964,13 @@ pub fn validate_agentskills_spec(file: &ParsedSkillFile) -> Vec<String> {
             if !is_valid_skill_name(name) {
                 errors.push(format!("Skill name '{}' violates naming rules", name));
             }
-            if let Some(dir_name) = skill_parent_dir_name(&file.file_path) {
-                if dir_name != name {
+            if let Some(dir_name) = skill_parent_dir_name(&file.file_path)
+                && dir_name != name {
                     errors.push(format!(
                         "Directory name '{}' must match skill name '{}'",
                         dir_name, name
                     ));
                 }
-            }
         }
         _ => errors.push("Missing required field in frontmatter: name".to_string()),
     }
@@ -1035,8 +1035,8 @@ fn lint_file(file: &ParsedSkillFile, findings: &mut Vec<SkillFinding>) {
     }
 
     let fm_start = file.frontmatter.start_line.max(1);
-    if file.frontmatter.present {
-        if let Some(ref err) = file.frontmatter.error {
+    if file.frontmatter.present
+        && let Some(ref err) = file.frontmatter.error {
             findings.push(make_finding(
                 "skill/frontmatter-schema",
                 format!("Frontmatter could not be parsed: {}", err),
@@ -1048,7 +1048,6 @@ fn lint_file(file: &ParsedSkillFile, findings: &mut Vec<SkillFinding>) {
                 return;
             }
         }
-    }
 
     let Some(ref data) = file.frontmatter.data else {
         findings.push(make_finding(
@@ -1107,8 +1106,8 @@ fn lint_file(file: &ParsedSkillFile, findings: &mut Vec<SkillFinding>) {
                         1,
                         Some(make_evidence(name)),
                     ));
-                } else if let Some(dir_name) = skill_parent_dir_name(&file.file_path) {
-                    if dir_name.to_ascii_lowercase() != name {
+                } else if let Some(dir_name) = skill_parent_dir_name(&file.file_path)
+                    && dir_name.to_ascii_lowercase() != name {
                         findings.push(make_finding(
                             "skill/name-dir-mismatch",
                             format!(
@@ -1120,7 +1119,6 @@ fn lint_file(file: &ParsedSkillFile, findings: &mut Vec<SkillFinding>) {
                             None,
                         ));
                     }
-                }
             }
         },
     }
@@ -1714,7 +1712,7 @@ pub fn analyze_files(
     let mut warning_count = 0usize;
     let mut info_count = 0usize;
 
-    for (p, findings) in parsed.iter().zip(per_file_findings.into_iter()) {
+    for (p, findings) in parsed.iter().zip(per_file_findings) {
         let rep = build_report(p, findings);
         for f in &rep.findings {
             match f.severity {
@@ -2208,9 +2206,9 @@ mod tests {
 
         let fixed = fix_skill_content("demo-skill/SKILL.md", raw);
         assert!(fixed.changed);
-        assert!(fixed.applied.contains(&"trailing-whitespace".to_string()));
-        assert!(fixed.applied.contains(&"dedupe-allowed-tools".to_string()));
-        assert!(fixed.applied.contains(&"add-description-stub".to_string()));
+        assert!(fixed.applied.iter().any(|i| i == "trailing-whitespace"));
+        assert!(fixed.applied.iter().any(|i| i == "dedupe-allowed-tools"));
+        assert!(fixed.applied.iter().any(|i| i == "add-description-stub"));
         assert!(fixed.output.ends_with("# Body\r\nKeep CR/LF untouched.\r\n"));
 
         // Idempotent second pass

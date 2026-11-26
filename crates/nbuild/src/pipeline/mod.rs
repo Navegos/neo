@@ -62,16 +62,14 @@ impl Workflow {
             println!("[{}/{}] Step: {}", idx + 1, self.steps.len(), step.name);
 
             // Handle "uses: toolchain/setup"
-            if let Some(uses) = &step.uses {
-                if uses.contains("toolchain/setup") {
-                    if let Some(with_map) = &step.with {
-                        if let Some(tools_val) = with_map.get("tools") {
+            if let Some(uses) = &step.uses
+                && uses.contains("toolchain/setup") {
+                    if let Some(with_map) = &step.with
+                        && let Some(tools_val) = with_map.get("tools") {
                             println!("  [toolchain/setup] Requesting tools: {:?}", tools_val);
                         }
-                    }
                     continue;
                 }
-            }
 
             // Handle "run: ..."
             if let Some(script) = &step.run {

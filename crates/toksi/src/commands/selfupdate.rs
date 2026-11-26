@@ -60,7 +60,7 @@ pub fn run_self_update(check_only: bool) -> i32 {
         L.raw(&format!("  {}", C.cyan(&format!("curl -fsSL {} | bash", INSTALL_SH))));
         return 1;
     }
-    if semver_gte(&local, &latest) {
+    if semver_gte(local, &latest) {
         L.raw(&format!(
             "  {} toksi {}",
             C.green(Sym::CHECK),
@@ -112,7 +112,7 @@ pub fn maybe_self_update(opts: &InitOptions) {
     }
     let local = toksi_version();
     let latest = fetch_latest_release_tag();
-    if latest.is_empty() || semver_gte(&local, &latest) {
+    if latest.is_empty() || semver_gte(local, &latest) {
         return;
     }
     if run_self_update_to(&latest) {
@@ -131,11 +131,10 @@ fn fetch_latest_release_tag() -> String {
     if env::var("TOKSI_TEST").as_deref() == Ok("1") {
         return toksi_version().to_string();
     }
-    if let Some(tag) = github_latest("Navegos/neo") {
-        if !tag.is_empty() {
+    if let Some(tag) = github_latest("Navegos/neo")
+        && !tag.is_empty() {
             return tag;
         }
-    }
     let cmd = if is_win() {
         Command::new("powershell")
             .args([
@@ -155,8 +154,8 @@ fn fetch_latest_release_tag() -> String {
 
     if let Ok(out) = cmd {
         let text = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if text.starts_with('v') {
-            return text[1..].to_string();
+        if let Some(rest) = text.strip_prefix('v') {
+            return rest.to_string();
         }
     }
     String::new()

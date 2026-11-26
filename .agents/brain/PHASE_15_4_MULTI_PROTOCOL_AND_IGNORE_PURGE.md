@@ -1,6 +1,6 @@
 # Phase 15.4: Multi-Protocol Architecture & Dynamic Ignore Purging
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -25,7 +25,7 @@ Disciplinary & Portability Requirements:
 Requirements:
 1. Multi-Protocol Engine (`crates/toksi/src/tools/multi_protocol.rs` & `direct_wire.rs`):
    - Expose unified dispatcher routing incoming requests across all 6 protocols:
-     * **MCP** (Model Context Protocol — tools, resources, prompts; fix `commands/runmcp.rs` `aimemory->icm` misroute!)
+     * **MCP** (Model Context Protocol â€” tools, resources, prompts; fix `commands/runmcp.rs` `aimemory->icm` misroute!)
      * **A2A** v1.0 JSON-RPC 2.0 (`A2aTaskStore`: `SendMessage`/`GetTask` + `"message/send"`/`"tasks/get"` aliases, SHA-256 constant-time bearer auth, 1 MiB cap, `(peer, messageId)` dedupe)
      * **ACP** v2.0 (`SessionActorQueue` per-session serialized dispatch)
      * **stdio** (Standard Input / Standard Output streaming bridge)
@@ -61,7 +61,7 @@ Requirements:
 
 ## Wave 18 (v5.2) Synchronization Addendum
 - Bind `:9098` as the dedicated Protocol Bus port (`MCP` stdio/SSE/HTTP, `A2A` v1.0, and `ACP` Agent Client Protocol from `inspect-vault/agent-client-protocol`) alongside `:8787..:8790`, `:9099`, `:9100`, and `:18787` (`PHASE_18_1`), serving all **495 mandated vaults** and **35-component `<toksi-siagent>`** (**43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`, and externalized `<skills>` & `<advisory>`).
-- Mount Unified Plugin System (`src/plugins/hooks.rs`) protocol endpoints (`MCP`, `A2A`, `ACP`, `stdio`, `SSE`, `HTTP` on `:9098`), `DirectWireBus` wire hooks (Categories 1–3), and `agent_to_agent` messaging under `opa`/`cedar`, `spire`, `defenseclaw` fail-closed hookguard & `skill-scanner` `<enforce>` verification (`PHASE_18_2` / `PHASE_18_6`).
+- Mount Unified Plugin System (`src/plugins/hooks.rs`) protocol endpoints (`MCP`, `A2A`, `ACP`, `stdio`, `SSE`, `HTTP` on `:9098`), `DirectWireBus` wire hooks (Categories 1â€“3), and `agent_to_agent` messaging under `opa`/`cedar`, `spire`, `defenseclaw` fail-closed hookguard & `skill-scanner` `<enforce>` verification (`PHASE_18_2` / `PHASE_18_6`).
 - Publish `temporal`/`restate`/`langgraph` `plan_checkpoints` pause/resume events and static security findings on `:9098` streams.
 
 ## Wave 19 (v6.0) Synchronization Addendum

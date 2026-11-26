@@ -36,11 +36,10 @@ pub fn load_benign_corpus(corpus_dir: &Path) -> Vec<String> {
     let walker = ignore::WalkBuilder::new(corpus_dir).build();
     for entry in walker.flatten() {
         let p = entry.path();
-        if p.is_file() {
-            if let Ok(raw) = std::fs::read_to_string(p) {
+        if p.is_file()
+            && let Ok(raw) = std::fs::read_to_string(p) {
                 samples.push(raw);
             }
-        }
     }
     samples
 }

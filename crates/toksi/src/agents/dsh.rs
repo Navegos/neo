@@ -46,8 +46,8 @@ pub fn dsh_home() -> String {
     if h == "~" {
         return home();
     }
-    if h.starts_with("~/") {
-        return Path::new(&home()).join(&h[2..]).to_string_lossy().to_string();
+    if let Some(rest) = h.strip_prefix("~/") {
+        return Path::new(&home()).join(rest).to_string_lossy().to_string();
     }
     if !h.is_empty() {
         return h;
@@ -122,15 +122,15 @@ pub fn dsh_rtk_plugin_entry() -> String {
 }
 
 pub fn dsh_rtk_wired() -> bool {
-    let raw = match read_file_safe(&dsh_patch_file()) {
+    let raw = match read_file_safe(dsh_patch_file()) {
         Some(r) => r,
         None => return false,
     };
-    raw.contains(&format!("id: {}", DSH_RTK_PLUGIN_NAME)) && exists(&dsh_rtk_plugin_file())
+    raw.contains(&format!("id: {}", DSH_RTK_PLUGIN_NAME)) && exists(dsh_rtk_plugin_file())
 }
 
 pub fn dsh_bridge_wired() -> bool {
-    let raw = match read_file_safe(&dsh_patch_file()) {
+    let raw = match read_file_safe(dsh_patch_file()) {
         Some(r) => r,
         None => return false,
     };
@@ -147,11 +147,10 @@ pub fn configure_dsh_rtk(exe: &str) -> (bool, String, Option<std::io::Error>) {
     let mut changed = false;
 
     if !raw.contains(&format!("id: {}", DSH_RTK_PLUGIN_NAME)) {
-        if let Some(parent) = Path::new(&patched).parent() {
-            if let Err(e) = ensure_dir(parent) {
+        if let Some(parent) = Path::new(&patched).parent()
+            && let Err(e) = ensure_dir(parent) {
                 return (false, patched, Some(e));
             }
-        }
         let updated = format!("{}{}", raw, dsh_rtk_plugin_entry());
         if let Err(e) = write_file(&patched, &updated) {
             return (false, patched, Some(e));
@@ -162,24 +161,22 @@ pub fn configure_dsh_rtk(exe: &str) -> (bool, String, Option<std::io::Error>) {
     let want = dsh_rtk_plugin_source(exe);
     let cur = read_file_safe(&plugin);
     if cur.as_deref() != Some(&want) {
-        if let Some(parent) = Path::new(&plugin).parent() {
-            if let Err(e) = ensure_dir(parent) {
+        if let Some(parent) = Path::new(&plugin).parent()
+            && let Err(e) = ensure_dir(parent) {
                 return (false, plugin, Some(e));
             }
-        }
         if let Err(e) = write_file(&plugin, &want) {
             return (false, plugin, Some(e));
         }
         changed = true;
     }
 
-    if let Some(hooks) = read_file_safe(&dsh_hooks_file()) {
-        if hooks.contains("rtk-hook dsh") {
+    if let Some(hooks) = read_file_safe(dsh_hooks_file())
+        && hooks.contains("rtk-hook dsh") {
             let _ = fs::remove_file(dsh_hooks_file());
             changed = true;
             remove_dsh_bridge_row();
         }
-    }
 
     (changed, patched, None)
 }
@@ -303,13 +300,11 @@ fn yaml_key_line(line: &str) -> (i32, String, bool, String) {
     if rest.is_empty() {
         return (indent, key, false, String::new());
     }
-    if rest.len() >= 2 {
-        if let Some(first_ch) = rest.chars().next() {
-            if (first_ch == '\'' || first_ch == '"') && rest.ends_with(first_ch) {
+    if rest.len() >= 2
+        && let Some(first_ch) = rest.chars().next()
+            && (first_ch == '\'' || first_ch == '"') && rest.ends_with(first_ch) {
                 rest = rest[1..rest.len() - 1].to_string();
             }
-        }
-    }
     (indent, key, true, rest)
 }
 
@@ -325,9 +320,9 @@ fn dsh_find_plugin_block(lines: &[String], plugin_id: &str) -> Option<(usize, us
     let s = start?;
     let mut end = lines.len();
     let block_indent = lines[s].len() - lines[s].trim_start_matches(' ').len();
-    for i in s + 1..lines.len() {
-        let trimmed = lines[i].trim_start_matches(' ');
-        let indent = lines[i].len() - trimmed.len();
+    for (i, line) in lines.iter().enumerate().skip(s + 1) {
+        let trimmed = line.trim_start_matches(' ');
+        let indent = line.len() - trimmed.len();
         if indent <= block_indent && trimmed.starts_with("- id: ") {
             end = i;
             break;
@@ -339,8 +334,8 @@ fn dsh_find_plugin_block(lines: &[String], plugin_id: &str) -> Option<(usize, us
 fn dsh_provider_span(lines: &[String], start: usize, end: usize, provider_id: &str) -> Option<(usize, usize, usize)> {
     let mut prov_key = None;
     let mut prov_indent = -1;
-    for i in start + 1..end {
-        let (ind, key, _, _) = yaml_key_line(&lines[i]);
+    for (i, line) in lines.iter().enumerate().take(end).skip(start + 1) {
+        let (ind, key, _, _) = yaml_key_line(line);
         if key == "providers" {
             prov_key = Some(i);
             prov_indent = ind;
@@ -349,8 +344,8 @@ fn dsh_provider_span(lines: &[String], start: usize, end: usize, provider_id: &s
     }
     let pk = prov_key?;
     let mut direct_indent = -1;
-    for i in pk + 1..end {
-        let (ind, _, _, _) = yaml_key_line(&lines[i]);
+    for line in lines.iter().take(end).skip(pk + 1) {
+        let (ind, _, _, _) = yaml_key_line(line);
         if ind > prov_indent {
             direct_indent = ind;
             break;
@@ -360,8 +355,8 @@ fn dsh_provider_span(lines: &[String], start: usize, end: usize, provider_id: &s
         return None;
     }
     let mut prov_line = None;
-    for i in pk + 1..end {
-        let (ind, key, _, _) = yaml_key_line(&lines[i]);
+    for (i, line) in lines.iter().enumerate().take(end).skip(pk + 1) {
+        let (ind, key, _, _) = yaml_key_line(line);
         if ind == direct_indent && key == provider_id {
             prov_line = Some(i);
             break;
@@ -369,8 +364,8 @@ fn dsh_provider_span(lines: &[String], start: usize, end: usize, provider_id: &s
     }
     let pl = prov_line?;
     let mut prov_end = end;
-    for i in pl + 1..end {
-        let (ind, _, _, _) = yaml_key_line(&lines[i]);
+    for (i, line) in lines.iter().enumerate().take(end).skip(pl + 1) {
+        let (ind, _, _, _) = yaml_key_line(line);
         if ind >= 0 && ind <= direct_indent {
             prov_end = i;
             break;
@@ -380,8 +375,8 @@ fn dsh_provider_span(lines: &[String], start: usize, end: usize, provider_id: &s
 }
 
 fn dsh_provider_field(lines: &[String], prov_line: usize, prov_end: usize, key: &str) -> (String, usize, bool) {
-    for i in prov_line + 1..prov_end {
-        let (_, k, hv, v) = yaml_key_line(&lines[i]);
+    for (i, line) in lines.iter().enumerate().take(prov_end).skip(prov_line + 1) {
+        let (_, k, hv, v) = yaml_key_line(line);
         if k == key {
             return (v, i, hv);
         }
@@ -392,8 +387,8 @@ fn dsh_provider_field(lines: &[String], prov_line: usize, prov_end: usize, key: 
 fn dsh_header_span(lines: &[String], prov_line: usize, prov_end: usize) -> Option<(usize, i32, usize)> {
     let mut hdr_key = None;
     let mut hdr_indent = -1;
-    for i in prov_line + 1..prov_end {
-        let (ind, key, has_val, _) = yaml_key_line(&lines[i]);
+    for (i, line) in lines.iter().enumerate().take(prov_end).skip(prov_line + 1) {
+        let (ind, key, has_val, _) = yaml_key_line(line);
         if key == "headers" && !has_val {
             hdr_key = Some(i);
             hdr_indent = ind;
@@ -402,8 +397,8 @@ fn dsh_header_span(lines: &[String], prov_line: usize, prov_end: usize) -> Optio
     }
     let hk = hdr_key?;
     let mut hdr_end = prov_end;
-    for i in hk + 1..prov_end {
-        let (ind, _, _, _) = yaml_key_line(&lines[i]);
+    for (i, line) in lines.iter().enumerate().take(prov_end).skip(hk + 1) {
+        let (ind, _, _, _) = yaml_key_line(line);
         if ind >= 0 && ind <= hdr_indent {
             hdr_end = i;
             break;
@@ -417,8 +412,8 @@ fn dsh_header_value(lines: &[String], prov_line: usize, prov_end: usize, key: &s
         Some(s) => s,
         None => return (String::new(), false),
     };
-    for i in hdr_key + 1..hdr_end {
-        let (ind, k, hv, v) = yaml_key_line(&lines[i]);
+    for line in lines.iter().take(hdr_end).skip(hdr_key + 1) {
+        let (ind, k, hv, v) = yaml_key_line(line);
         if ind > hdr_indent && k == key {
             return (v, hv);
         }
@@ -434,8 +429,8 @@ fn dsh_set_provider_field(lines: &mut [String], line: usize, key: &str, value: &
 
 fn dsh_upsert_header(lines: &mut Vec<String>, prov_line: usize, prov_end: usize, key: &str, value: &str) -> usize {
     if let Some((hdr_key, hdr_indent, hdr_end)) = dsh_header_span(lines, prov_line, prov_end) {
-        for i in hdr_key + 1..hdr_end {
-            let (ind, k, _, old) = yaml_key_line(&lines[i]);
+        for (i, line) in lines.iter().enumerate().take(hdr_end).skip(hdr_key + 1) {
+            let (ind, k, _, old) = yaml_key_line(line);
             if ind > hdr_indent && k == key {
                 let indent = if ind >= 0 { ind as usize } else { 0 };
                 lines[i] = format!("{}{}: {}", " ".repeat(indent), key, value);
@@ -459,25 +454,30 @@ fn dsh_remove_header(lines: &mut Vec<String>, prov_line: usize, prov_end: usize,
         Some(s) => s,
         None => return false,
     };
-    for i in hdr_key + 1..hdr_end {
-        let (_, k, _, _) = yaml_key_line(&lines[i]);
+    let mut remove_idx = None;
+    for (i, line) in lines.iter().enumerate().take(hdr_end).skip(hdr_key + 1) {
+        let (_, k, _, _) = yaml_key_line(line);
         if k == key {
-            lines.remove(i);
-            if let Some((hk, _, he)) = dsh_header_span(lines, prov_line, prov_end - 1) {
-                let mut empty = true;
-                for j in hk + 1..he {
-                    let (_, kk, _, _) = yaml_key_line(&lines[j]);
-                    if !kk.is_empty() {
-                        empty = false;
-                        break;
-                    }
-                }
-                if empty {
-                    lines.remove(hk);
+            remove_idx = Some(i);
+            break;
+        }
+    }
+    if let Some(i) = remove_idx {
+        lines.remove(i);
+        if let Some((hk, _, he)) = dsh_header_span(lines, prov_line, prov_end - 1) {
+            let mut empty = true;
+            for line in lines.iter().take(he).skip(hk + 1) {
+                let (_, kk, _, _) = yaml_key_line(line);
+                if !kk.is_empty() {
+                    empty = false;
+                    break;
                 }
             }
-            return true;
+            if empty {
+                lines.remove(hk);
+            }
         }
+        return true;
     }
     false
 }
@@ -485,8 +485,8 @@ fn dsh_remove_header(lines: &mut Vec<String>, prov_line: usize, prov_end: usize,
 fn dsh_provider_ids(lines: &[String], start: usize, end: usize) -> Vec<String> {
     let mut prov_key = None;
     let mut prov_indent = -1;
-    for i in start + 1..end {
-        let (ind, key, _, _) = yaml_key_line(&lines[i]);
+    for (i, line) in lines.iter().enumerate().take(end).skip(start + 1) {
+        let (ind, key, _, _) = yaml_key_line(line);
         if key == "providers" {
             prov_key = Some(i);
             prov_indent = ind;
@@ -498,8 +498,8 @@ fn dsh_provider_ids(lines: &[String], start: usize, end: usize) -> Vec<String> {
         None => return Vec::new(),
     };
     let mut direct_indent = -1;
-    for i in pk + 1..end {
-        let (ind, _, _, _) = yaml_key_line(&lines[i]);
+    for line in lines.iter().take(end).skip(pk + 1) {
+        let (ind, _, _, _) = yaml_key_line(line);
         if ind > prov_indent {
             direct_indent = ind;
             break;
@@ -509,8 +509,8 @@ fn dsh_provider_ids(lines: &[String], start: usize, end: usize) -> Vec<String> {
         return Vec::new();
     }
     let mut ids = Vec::new();
-    for i in pk + 1..end {
-        let (ind, key, _, _) = yaml_key_line(&lines[i]);
+    for line in lines.iter().take(end).skip(pk + 1) {
+        let (ind, key, _, _) = yaml_key_line(line);
         if ind == direct_indent && !key.is_empty() {
             ids.push(key);
         }
@@ -570,19 +570,19 @@ pub fn discover_dsh_byok() -> Vec<DshBYOK> {
                             if route.token == token && is_valid_byok_upstream(&route.upstream) {
                                 base = route_upstream_to_base_url(&route.upstream, &proto);
                             } else {
-                                base = String::new();
+                                base.clear();
                             }
                         } else {
-                            base = String::new();
+                            base.clear();
                         }
                     } else {
-                        base = String::new();
+                        base.clear();
                     }
                 } else {
-                    base = String::new();
+                    base.clear();
                 }
             } else {
-                base = String::new();
+                base.clear();
             }
         }
 
@@ -632,7 +632,7 @@ pub fn configure_dsh_proxy_locked() -> (bool, String) {
     }
 
     let mut stash = load_proxy_route_stash_locked("dsh");
-    let stash_raw = read_file_safe(&proxy_route_stash_path("dsh"));
+    let stash_raw = read_file_safe(proxy_route_stash_path("dsh"));
     let stash_exists = stash_raw.is_some();
     let mut route_changes: Vec<ByokRouteRollback> = Vec::new();
 
@@ -815,17 +815,15 @@ pub fn remove_dsh_proxy_locked() -> bool {
             dsh_remove_header(&mut lines, prov_line, prov_end, byok_key);
         }
 
-        if let Some((s2, e2)) = dsh_find_plugin_block(&lines, "llm-pi-ai") {
-            if let Some((_, pl2, pe2)) = dsh_provider_span(&lines, s2, e2, id) {
+        if let Some((s2, e2)) = dsh_find_plugin_block(&lines, "llm-pi-ai")
+            && let Some((_, pl2, pe2)) = dsh_provider_span(&lines, s2, e2, id) {
                 dsh_remove_header(&mut lines, pl2, pe2, DSH_HEADROOM_BASE_URL_HEADER);
             }
-        }
 
-        if let Some((s3, e3)) = dsh_find_plugin_block(&lines, "llm-pi-ai") {
-            if let Some((_, pl3, pe3)) = dsh_provider_span(&lines, s3, e3, id) {
+        if let Some((s3, e3)) = dsh_find_plugin_block(&lines, "llm-pi-ai")
+            && let Some((_, pl3, pe3)) = dsh_provider_span(&lines, s3, e3, id) {
                 dsh_remove_header(&mut lines, pl3, pe3, DSH_HEADROOM_ORIGINAL_PATH_HDR);
             }
-        }
 
         if let Some(r) = route {
             deleted_routes.push(r);
@@ -862,7 +860,7 @@ pub fn dsh_proxy_wired() -> bool {
     if stash.is_empty() {
         return false;
     }
-    let raw = match read_file_safe(&dsh_patch_file()) {
+    let raw = match read_file_safe(dsh_patch_file()) {
         Some(r) => r,
         None => return false,
     };

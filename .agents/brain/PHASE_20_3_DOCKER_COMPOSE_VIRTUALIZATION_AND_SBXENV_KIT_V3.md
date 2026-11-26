@@ -1,6 +1,6 @@
-# Phase 20.3 — Docker CLI/Compose OS Virtualization & `sbxenv.yaml`/Kit v3 Sandbox Engine
+# Phase 20.3 â€” Docker CLI/Compose OS Virtualization & `sbxenv.yaml`/Kit v3 Sandbox Engine
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text

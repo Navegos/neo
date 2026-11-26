@@ -128,7 +128,7 @@ impl PackageCatalog {
         self.manager.as_deref() == Some("vcpkg")
             || self.targets.values().any(|t| {
                 t.source.source_type == "vcpkg"
-                    || t.build.as_ref().map_or(false, |b| b.builder == "vcpkg")
+                    || t.build.as_ref().is_some_and(|b| b.builder == "vcpkg")
             })
     }
 }
@@ -216,6 +216,12 @@ impl CatalogRegistry {
 
     pub fn list(&self) -> Vec<&PackageCatalog> {
         self.catalogs.values().collect()
+    }
+}
+
+impl Default for CatalogRegistry {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

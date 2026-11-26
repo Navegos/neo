@@ -57,15 +57,13 @@ pub fn find_repo_root_and_subproject(start: Option<&Path>) -> Result<(PathBuf, S
     let repo_root = match found_repo {
         Some(r) => {
             // Prohibit bare home directory masquerading as repository
-            if let Some(home) = dirs::home_dir() {
-                if let Ok(canon_home) = home.canonicalize() {
-                    if canon_home == r {
+            if let Some(home) = dirs::home_dir()
+                && let Ok(canon_home) = home.canonicalize()
+                    && canon_home == r {
                         return Err(ContextModeError::RepoNotFound(
                             "Storage in user home root '~' is strictly prohibited; context must live in a project repository.".to_string(),
                         ));
                     }
-                }
-            }
             r
         }
         None => {

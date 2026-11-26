@@ -1,6 +1,6 @@
 # Phase 05: CodeGraph Pure Rust Engine
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -55,7 +55,7 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Upgrade `"dockerfile"`, `"vue"`, and `"scss"` from fallback alias grammars (`tree_sitter_bash`, `tree_sitter_html`, `tree_sitter_css` in `langs.rs:99–103`) to dedicated grammars in `crates/toksi-grammars`; integrate `openwiki.rs`, `bpe.rs` (`tokenizers`), `embeddings.rs` (`text-embeddings-inference`), `reranker.rs` (`NeMo-Retriever`), `Codewhale` diff context, and `security/polyglot.rs` 41-language SAST across `<toksi-siagent>` (`35` components, `495` mandated vaults, `43` `.agents/brain/*.md` guides, canonical `<repo>/.toksi/projectmem/`).
+- Upgrade `"dockerfile"`, `"vue"`, and `"scss"` from fallback alias grammars (`tree_sitter_bash`, `tree_sitter_html`, `tree_sitter_css` in `langs.rs:99â€“103`) to dedicated grammars in `crates/toksi-grammars`; integrate `openwiki.rs`, `bpe.rs` (`tokenizers`), `embeddings.rs` (`text-embeddings-inference`), `reranker.rs` (`NeMo-Retriever`), `Codewhale` diff context, and `security/polyglot.rs` 41-language SAST across `<toksi-siagent>` (`35` components, `495` mandated vaults, `43` `.agents/brain/*.md` guides, canonical `<repo>/.toksi/projectmem/`).
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`

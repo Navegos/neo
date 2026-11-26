@@ -170,8 +170,8 @@ impl Doctor {
                     let distro_root = config.distro_dir(triple.platform.as_str(), &triple.raw);
                     let mut healed = false;
 
-                    if distro_root.exists() {
-                        if let Ok(distro_entries) = fs::read_dir(&distro_root) {
+                    if distro_root.exists()
+                        && let Ok(distro_entries) = fs::read_dir(&distro_root) {
                             for pkg in distro_entries.flatten() {
                                 let candidate = pkg.path().join("bin").join(&file_name);
                                 if candidate.exists() {
@@ -183,7 +183,6 @@ impl Doctor {
                                 }
                             }
                         }
-                    }
 
                     if !healed {
                         // Purge dead link
@@ -260,11 +259,11 @@ impl Doctor {
 
     /// Run full diagnosis and self-healing suite
     pub fn run_doctor(config: &mut NeoConfig, triple: &TargetTriple, heal: bool) -> Result<DoctorReport> {
-        let mut report = DoctorReport::default();
-
-        // 1. Check environment
-        report.env_toolchains_ok = EnvManager::get_toolchains_dir_env().is_some();
-        report.env_path_ok = EnvManager::is_usr_bin_in_path(config);
+        let mut report = DoctorReport {
+            env_toolchains_ok: EnvManager::get_toolchains_dir_env().is_some(),
+            env_path_ok: EnvManager::is_usr_bin_in_path(config),
+            ..Default::default()
+        };
 
         if heal && (!report.env_toolchains_ok || !report.env_path_ok) {
             println!("[nbuild] Healing environment and PATH...");

@@ -103,8 +103,8 @@ fn generate_prime_context(cwd: &str) -> (String, serde_json::Value) {
     let mut gotchas = Vec::new();
 
     let events_path = Path::new(cwd).join(".projectmem").join("events.jsonl");
-    if events_path.exists() {
-        if let Ok(lines) = fs::read_to_string(&events_path) {
+    if events_path.exists()
+        && let Ok(lines) = fs::read_to_string(&events_path) {
             for line in lines.lines().rev().take(50) {
                 if let Ok(val) = serde_json::from_str::<serde_json::Value>(line) {
                     let ev_type = val.get("type").and_then(|v| v.as_str()).unwrap_or("");
@@ -120,7 +120,6 @@ fn generate_prime_context(cwd: &str) -> (String, serde_json::Value) {
                 }
             }
         }
-    }
 
     sections.push("\n## Architectural Decisions & High-Priority Gotchas".to_string());
     if !decisions.is_empty() {
@@ -162,11 +161,10 @@ fn copy_to_clipboard(text: &str) -> bool {
                 use std::io::Write;
                 let _ = stdin.write_all(text.as_bytes());
             }
-            if let Ok(status) = child.wait() {
-                if status.success() {
+            if let Ok(status) = child.wait()
+                && status.success() {
                     return true;
                 }
-            }
         }
         let res = run_cmd("powershell", &["-NoProfile", "-Command", "Set-Clipboard -Value $input"], &[]);
         res.code == 0
@@ -188,11 +186,10 @@ fn copy_to_clipboard(text: &str) -> bool {
                 use std::io::Write;
                 let _ = stdin.write_all(text.as_bytes());
             }
-            if let Ok(status) = child.wait() {
-                if status.success() {
+            if let Ok(status) = child.wait()
+                && status.success() {
                     return true;
                 }
-            }
         }
         if let Ok(mut child) = Command::new("xclip").args(["-selection", "clipboard"]).stdin(std::process::Stdio::piped()).spawn() {
             if let Some(mut stdin) = child.stdin.take() {

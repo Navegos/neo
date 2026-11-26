@@ -1208,8 +1208,8 @@ pub fn classify_grok_toml_proxy(
         if trimmed.starts_with('#') {
             continue;
         }
-        if let Some((k, v)) = trimmed.split_once('=') {
-            if k.trim() == "base_url" {
+        if let Some((k, v)) = trimmed.split_once('=')
+            && k.trim() == "base_url" {
                 let val = v.trim().trim_matches('"').trim_matches('\'');
                 if val == endpoint {
                     return if stashed.is_some() {
@@ -1222,7 +1222,6 @@ pub fn classify_grok_toml_proxy(
                     return ProxyConfigState::ForeignBYOK;
                 }
             }
-        }
     }
     ProxyConfigState::NativeUnconfigured
 }

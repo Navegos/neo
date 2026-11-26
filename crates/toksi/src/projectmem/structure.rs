@@ -181,8 +181,8 @@ fn extract_relationships(root: &Path, files: &[String]) -> Vec<StructureRelation
                     }
                 }
             }
-        } else if f.ends_with(".py") {
-            if let Some(ref re) = re_py_import {
+        } else if f.ends_with(".py")
+            && let Some(ref re) = re_py_import {
                 for cap in re.captures_iter(&content) {
                     let mod_path = cap.get(1).or_else(|| cap.get(2)).map(|m| m.as_str()).unwrap_or("");
                     let rel_candidate = normalize_path(&format!("{}.py", mod_path.replace('.', "/")));
@@ -195,7 +195,6 @@ fn extract_relationships(root: &Path, files: &[String]) -> Vec<StructureRelation
                     }
                 }
             }
-        }
     }
 
     relationships

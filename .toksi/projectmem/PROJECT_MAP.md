@@ -1,22 +1,22 @@
 # Toksi Project Map (Wave 21 / v8.0)
 
 - **Repository Root**: `d:/AI/neo` (Three-Repository Ecosystem: `<neo>` `Navegos/neo`, `<advisory>` `Navegos/advisory` at `inspect-vault/advisory`, `<skills>` `Navegos/skills` at `inspect-vault/skills`)
-- **Primary Rust Crate**: `crates/toksi` (`crates/toksi/Cargo.toml` — `497` `src/**/*.rs` / `541` total `.rs` files, `#![deny(unsafe_code)]` with `0` unsafe blocks; leaf FFI/grammar crates `crates/toksi-sys`, `crates/toksi-grammars`)
+- **Primary Rust Crate**: `crates/toksi` (`crates/toksi/Cargo.toml` â€” `497` `src/**/*.rs` / `541` total `.rs` files, `#![deny(unsafe_code)]` with `0` unsafe blocks; leaf FFI/grammar crates `crates/toksi-sys`, `crates/toksi-grammars`)
 - **Externalized Zero-Bloat Staging & Hygiene Audit Target**: `<neo>/agents/`, `<neo>/rules/` outside `crates/toksi/` synced to `<skills>`; `<neo>/.agents/skills/` cleaned & audited under `PHASE_19_4`
 - **Architecture & Phase Specs**:
-  - `crates/toksi/CONSOLIDATION_PLAN.md` (Wave 21 / v8.0 Master Plan — **495** unique vaults [`493` Wave 20 + `2` Wave 21: `Zoo-Code`, `agent-orchestrator`] across Sections `2.1`–`2.17`, 35-component `<toksi-siagent>`, 11 AI/ML Pillars, Distributed Cluster Stack, `NetworkService` Manager, Codex/Grok Chat TUI, 13-IDE Plugin Host, Multi-Agent Resume, 54 phases + 8-state roadmap)
+  - `crates/toksi/CONSOLIDATION_PLAN.md` (Wave 21 / v8.0 Master Plan â€” **495** unique vaults [`493` Wave 20 + `2` Wave 21: `Zoo-Code`, `agent-orchestrator`] across Sections `2.1`â€“`2.17`, 35-component `<toksi-siagent>`, 11 AI/ML Pillars, Distributed Cluster Stack, `NetworkService` Manager, Codex/Grok Chat TUI, 13-IDE Plugin Host, Multi-Agent Resume, 54 phases + 8-state roadmap)
   - `crates/toksi/PLAN.md` (Wave 21 / v8.0 Architectural Blueprint, `NetworkService` + `_worker` IPC Topology, `daemon heal|dashboard|service`, `~/.toksi/services/*.db`, 22 modes & `29` slash commands)
   - `crates/toksi/README.md` (Wave 21 / v8.0 Technical Documentation & CLI/TUI/Cockpit/Bridge Usage Reference)
   - `crates/toksi/research/RESEARCHPLAN.md` (Wave 21 Technical Blueprints: **495** vaults `[DEEP-RESEARCH-DONE]`, `<toksi-siagent>`, 3 repos, `ctxmode`/`aimemory` renames, `NetworkService` + DirectWire IPC, Codex/Grok Chat TUI, 13-IDE host protocol, `Dockerfile.test`/`compose.test.yaml`/`sbxenv.yaml`, skills hygiene, 22 modes, 10-tab UI, cluster stack, OTel, Multi-Agent Resilience & Cross-Chat Resume)
   - `crates/toksi/research/docker_cli_compose_yaml_full_reference.md` & `docker_sandboxes_sbx_cli_yaml_reference.md`
-  - `crates/toksi/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_protocols_gateways_and_quota_architecture.md` (65/91+ ecosystems, Categories 1–5, sampling compatibility matrix)
-  - `crates/toksi/research/folders_structures_default_knowledge_used_by_the_known_cli_agents_ides.md` (`.agents` & vendor directory schemas + Category 1–3 hooks)
+  - `crates/toksi/research/full_ai_ecosystem_agent_runtimes_local_inference_engines_protocols_gateways_and_quota_architecture.md` (65/91+ ecosystems, Categories 1â€“5, sampling compatibility matrix)
+  - `crates/toksi/research/folders_structures_default_knowledge_used_by_the_known_cli_agents_ides.md` (`.agents` & vendor directory schemas + Category 1â€“3 hooks)
   - `crates/toksi/research/open_security_standards_zero_plaintext_blind_signature_engine_native_git_pr_validator.md` (Zero-plaintext `BLAKE3` + `sparse::DFA`, `DisclosureGate`, 12-DB `UpstreamDeduplicator`, `CommandGuard`, & `Navegos/advisory`)
   - `crates/toksi/research/toksi-siagent_Super_Intelligence_SI_Agent_Orchestrator_Mode_to_Architecture_Mapping.md` + `toksi-siagent_Complete_LLM_Router_&_Model_Gateway_Configuration.toml` (22 Orchestrator Modes across 7 Cognitive Domains)
   - `.agents/brain/INDEX_AND_EXECUTION_GUIDE.md` + 54 `PHASE_*.md` files (**55** total markdown guides covering `PHASE_01`..`PHASE_21_6` with 8-State Progress Taxonomy badges)
   - `.toksi/projectmem/{plan.md,PROJECT_MAP.md,summary.md,events.jsonl,plan_checkpoints/}` (Canonical workspace memory root)
 
-## Crate Module Map (`crates/toksi/src/` & Wave 19–21 Additions)
+## Crate Module Map (`crates/toksi/src/` & Wave 19â€“21 Additions)
 | Directory / Module | Role |
 |---|---|
 | `src/main.rs`, `src/lib.rs`, `src/commands/` (`daemon.rs`, `worker.rs`, `test_runner.rs`, `orchestrator.rs`, `train.rs`/`serve.rs`/`eval.rs`, `dataset.rs`/`compress.rs`, `cluster.rs`, `otel.rs`, `guard.rs`, `compile_blind.rs`, `advisory.rs`, `skills.rs`, `sandbox.rs`, `security.rs`, `plugin.rs`, `ctx.rs`) | CLI entrypoint, `NetworkService` Manager (`toksi _worker network-manager`) + `_worker` Supervisor (`daemon heal\|dashboard\|service`), `CommandGuard` kill-switch, `--docker`/`--sandbox` test runner, & **29** `< 5ms` slash commands (`/byok`..`/voice`) |
@@ -35,5 +35,5 @@
 | `docker/` | `docker/Dockerfile.test` & `docker/compose.test.yaml` for live-safe isolated container testing |
 
 ## Key Verification Paths
-- `crates/toksi/tests/` — **44** integration suites (including `phase19_1_to_19_6_verification`, `phase20_1_to_20_6_verification`, & `phase21_1_to_21_6_verification`) tracked in `<repo>/.toksi/test-baseline.json`.
-- `inspect-vault/` — **495** unique mandated upstream research repositories & companion repos (`493` Wave 20 + `2` Wave 21 reconciled: `Zoo-Code`, `agent-orchestrator`) — all `[DEEP-RESEARCH-DONE]`.
+- `crates/toksi/tests/` â€” **44** integration suites (including `phase19_1_to_19_6_verification`, `phase20_1_to_20_6_verification`, & `phase21_1_to_21_6_verification`) tracked in `<repo>/.toksi/test-baseline.json`.
+- `inspect-vault/` â€” **495** unique mandated upstream research repositories & companion repos (`493` Wave 20 + `2` Wave 21 reconciled: `Zoo-Code`, `agent-orchestrator`) â€” all `[DEEP-RESEARCH-DONE]`.

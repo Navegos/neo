@@ -104,7 +104,7 @@ pub fn zcode_headroom_upstream(base_url: &str) -> Option<(String, String)> {
     Some((origin, chat_path))
 }
 
-fn zcode_headers<'a>(m: &'a OrderedMap) -> (Option<&'a OrderedMap>, bool, String, bool) {
+fn zcode_headers(m: &OrderedMap) -> (Option<&OrderedMap>, bool, String, bool) {
     let Some(v) = m.get("headers") else {
         return (None, false, String::new(), true);
     };
@@ -183,22 +183,21 @@ pub fn discover_zcode_byok() -> Vec<ZcodeBYOK> {
             if !s.base_url.is_empty() {
                 base = s.base_url.clone();
             }
-        } else if let Some((_, _, value, _)) = Some(zcode_headers(api)) {
+        } else {
+            let (_, _, value, _) = zcode_headers(api);
             if let Some(route_id) = zcode_route_id_from_header(&value) {
                 if let Some(route) = read_byok_route(&route_id) {
                     if is_valid_byok_upstream(&route.upstream) {
                         base = route_upstream_to_base_url(&route.upstream, &proto);
                     } else {
-                        base = String::new();
+                        base.clear();
                     }
                 } else {
-                    base = String::new();
+                    base.clear();
                 }
             } else {
-                base = String::new();
+                base.clear();
             }
-        } else {
-            base = String::new();
         }
 
         if base.is_empty() {
@@ -270,7 +269,7 @@ pub fn configure_zcode_proxy_locked() -> (bool, String) {
     }
 
     let mut stash = load_proxy_route_stash_locked("zcode");
-    let stash_raw = read_file_safe(&proxy_route_stash_path("zcode"));
+    let stash_raw = read_file_safe(proxy_route_stash_path("zcode"));
     let stash_exists = stash_raw.is_some();
     let mut route_changes: Vec<ByokRouteRollback> = Vec::new();
 
@@ -521,7 +520,7 @@ pub fn zcode_proxy_wired() -> bool {
     if stash.is_empty() {
         return false;
     }
-    let raw = match read_file_safe(&zcode_provider_config_path()) {
+    let raw = match read_file_safe(zcode_provider_config_path()) {
         Some(r) => r,
         None => return false,
     };

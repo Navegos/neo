@@ -64,7 +64,7 @@ pub fn extract_tool_name(tool: &Value) -> Option<&str> {
 pub fn estimate_json_tokens(val: &Value) -> usize {
     let s = val.to_string();
     let char_count = s.chars().count();
-    (char_count + 3) / 4
+    char_count.div_ceil(4)
 }
 
 /// Recursively optimizes and strips redundant attributes from a JSON schema.
@@ -77,37 +77,31 @@ pub fn optimize_json_schema(schema: &mut Value, config: &McpPrunerConfig) {
         map.remove("$schema");
     }
 
-    if let Some(desc) = map.get("description").and_then(Value::as_str).map(|s| s.to_string()) {
-        if desc.chars().count() > config.max_description_len {
+    if let Some(desc) = map.get("description").and_then(Value::as_str).map(|s| s.to_string())
+        && desc.chars().count() > config.max_description_len {
             let truncated: String = desc.chars().take(config.max_description_len).collect();
             map.insert("description".to_string(), json!(format!("{}...", truncated.trim())));
         }
-    }
 
-    if config.strip_empty_fields {
-        if let Some(Value::Object(req)) = map.get("required") {
-            if req.is_empty() {
+    if config.strip_empty_fields
+        && let Some(Value::Object(req)) = map.get("required")
+            && req.is_empty() {
                 map.remove("required");
             }
-        }
-    }
 
     if let Some(Value::Object(properties)) = map.get_mut("properties") {
         for (prop_name, prop_val) in properties.iter_mut() {
             if let Value::Object(prop_map) = prop_val {
-                if config.strip_redundant_titles {
-                    if let Some(title) = prop_map.get("title").and_then(Value::as_str) {
-                        if title.eq_ignore_ascii_case(prop_name) {
+                if config.strip_redundant_titles
+                    && let Some(title) = prop_map.get("title").and_then(Value::as_str)
+                        && title.eq_ignore_ascii_case(prop_name) {
                             prop_map.remove("title");
                         }
-                    }
-                }
-                if let Some(desc) = prop_map.get("description").and_then(Value::as_str).map(|s| s.to_string()) {
-                    if desc.chars().count() > config.max_description_len {
+                if let Some(desc) = prop_map.get("description").and_then(Value::as_str).map(|s| s.to_string())
+                    && desc.chars().count() > config.max_description_len {
                         let truncated: String = desc.chars().take(config.max_description_len).collect();
                         prop_map.insert("description".to_string(), json!(format!("{}...", truncated.trim())));
                     }
-                }
                 optimize_json_schema(prop_val, config);
             }
         }
@@ -135,12 +129,11 @@ pub fn prune_mcp_tools(tools: &mut Vec<Value>, config: &McpPrunerConfig) -> McpP
 
     for tool in tools.iter_mut() {
         if let Value::Object(map) = tool {
-            if let Some(desc) = map.get("description").and_then(Value::as_str).map(|s| s.to_string()) {
-                if desc.chars().count() > config.max_description_len {
+            if let Some(desc) = map.get("description").and_then(Value::as_str).map(|s| s.to_string())
+                && desc.chars().count() > config.max_description_len {
                     let truncated: String = desc.chars().take(config.max_description_len).collect();
                     map.insert("description".to_string(), json!(format!("{}...", truncated.trim())));
                 }
-            }
 
             // Anthropic input_schema
             if let Some(schema) = map.get_mut("input_schema") {
@@ -149,12 +142,11 @@ pub fn prune_mcp_tools(tools: &mut Vec<Value>, config: &McpPrunerConfig) -> McpP
 
             // OpenAI function parameters
             if let Some(Value::Object(func)) = map.get_mut("function") {
-                if let Some(desc) = func.get("description").and_then(Value::as_str).map(|s| s.to_string()) {
-                    if desc.chars().count() > config.max_description_len {
+                if let Some(desc) = func.get("description").and_then(Value::as_str).map(|s| s.to_string())
+                    && desc.chars().count() > config.max_description_len {
                         let truncated: String = desc.chars().take(config.max_description_len).collect();
                         func.insert("description".to_string(), json!(format!("{}...", truncated.trim())));
                     }
-                }
                 if let Some(params) = func.get_mut("parameters") {
                     optimize_json_schema(params, config);
                 }

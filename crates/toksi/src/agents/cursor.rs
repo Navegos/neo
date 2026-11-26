@@ -79,11 +79,10 @@ fn cursor_mcp_entry_for(tool_id: &str, windows_bridge: bool) -> Value {
             }
             spawn.args = filtered;
         }
-        if let Ok(distro) = std::env::var("WSL_DISTRO_NAME") {
-            if !distro.is_empty() {
+        if let Ok(distro) = std::env::var("WSL_DISTRO_NAME")
+            && !distro.is_empty() {
                 args = vec!["-d".to_string(), distro, "--".to_string()];
             }
-        }
         args.push(spawn.command);
         args.extend(spawn.args);
         spawn = McpSpawn {
@@ -363,13 +362,11 @@ fn cursor_legacy_entry_matches(v: &Value, want: &Value) -> bool {
     else {
         return false;
     };
-    if want_command == "wsl.exe" {
-        if let Some(pos) = want_args.iter().position(|a| a.as_str() == Some("--")) {
-            if pos + 1 < want_args.len() {
+    if want_command == "wsl.exe"
+        && let Some(pos) = want_args.iter().position(|a| a.as_str() == Some("--"))
+            && pos + 1 < want_args.len() {
                 want_args = &want_args[pos + 1..];
             }
-        }
-    }
     for i in 0..want_args.len().saturating_sub(2) {
         if want_args[i].as_str() == Some("run-mcp")
             && want_args[i + 1].as_str() == Some("--agent")
@@ -620,23 +617,21 @@ fn cursor_native_cli_config_file() -> String {
             .to_string_lossy()
             .to_string();
     }
-    if let Ok(dir) = std::env::var("CURSOR_CONFIG_DIR") {
-        if !dir.is_empty() {
+    if let Ok(dir) = std::env::var("CURSOR_CONFIG_DIR")
+        && !dir.is_empty() {
             return Path::new(&dir)
                 .join("cli-config.json")
                 .to_string_lossy()
                 .to_string();
         }
-    }
-    if let Ok(dir) = std::env::var("XDG_CONFIG_HOME") {
-        if !dir.is_empty() {
+    if let Ok(dir) = std::env::var("XDG_CONFIG_HOME")
+        && !dir.is_empty() {
             return Path::new(&dir)
                 .join("cursor")
                 .join("cli-config.json")
                 .to_string_lossy()
                 .to_string();
         }
-    }
     Path::new(&home())
         .join(".cursor")
         .join("cli-config.json")
@@ -660,15 +655,14 @@ fn cursor_rtk_hook_command_for(bridge: bool) -> String {
     let args = ["rtk-hook", "cursor"];
     if bridge {
         let mut wsl = vec!["--".to_string()];
-        if let Ok(distro) = std::env::var("WSL_DISTRO_NAME") {
-            if !distro.is_empty() {
+        if let Ok(distro) = std::env::var("WSL_DISTRO_NAME")
+            && !distro.is_empty() {
                 wsl = vec![
                     "-d".to_string(),
                     cursor_windows_command_arg(&distro),
                     "--".to_string(),
                 ];
             }
-        }
         let mut full = vec!["wsl.exe".to_string()];
         full.extend(wsl);
         full.push(cursor_windows_command_arg(&toksi_abs()));
@@ -688,15 +682,14 @@ fn cursor_codegraph_hook_command_for(bridge: bool) -> String {
     let args = ["codegraph-hook", "cursor"];
     if bridge {
         let mut wsl = vec!["--".to_string()];
-        if let Ok(distro) = std::env::var("WSL_DISTRO_NAME") {
-            if !distro.is_empty() {
+        if let Ok(distro) = std::env::var("WSL_DISTRO_NAME")
+            && !distro.is_empty() {
                 wsl = vec![
                     "-d".to_string(),
                     cursor_windows_command_arg(&distro),
                     "--".to_string(),
                 ];
             }
-        }
         let mut full = vec!["wsl.exe".to_string()];
         full.extend(wsl);
         full.push(cursor_windows_command_arg(&toksi_abs()));
@@ -716,15 +709,14 @@ fn cursor_project_rules_hook_command_for(bridge: bool) -> String {
     let args = ["cursor-hook", "project-rules"];
     if bridge {
         let mut wsl = vec!["--".to_string()];
-        if let Ok(distro) = std::env::var("WSL_DISTRO_NAME") {
-            if !distro.is_empty() {
+        if let Ok(distro) = std::env::var("WSL_DISTRO_NAME")
+            && !distro.is_empty() {
                 wsl = vec![
                     "-d".to_string(),
                     cursor_windows_command_arg(&distro),
                     "--".to_string(),
                 ];
             }
-        }
         let mut full = vec!["wsl.exe".to_string()];
         full.extend(wsl);
         full.push(cursor_windows_command_arg(&toksi_abs()));
@@ -814,11 +806,10 @@ fn install_cursor_codegraph_index_hook_at(path: &str) -> bool {
     let Some(root) = cfg.as_object_mut() else {
         return false;
     };
-    if let Some(version) = root.get("version") {
-        if !cursor_version_one(version) {
+    if let Some(version) = root.get("version")
+        && !cursor_version_one(version) {
             return false;
         }
-    }
     if !root.contains_key("hooks") {
         root.insert("hooks".to_string(), Value::Object(OrderedMap::new()));
     }
@@ -1030,11 +1021,10 @@ pub fn snapshot_cursor_project_rules_hook() -> std::io::Result<CursorProjectRule
                 exists: true,
             });
         } else {
-            if let Err(err) = fs::metadata(&path) {
-                if err.kind() != std::io::ErrorKind::NotFound {
+            if let Err(err) = fs::metadata(&path)
+                && err.kind() != std::io::ErrorKind::NotFound {
                     return Err(err);
                 }
-            }
             files.push(CursorFileSnapshot {
                 path,
                 raw: String::new(),
@@ -1059,20 +1049,16 @@ impl CursorProjectRulesHookSnapshot {
                 continue;
             }
             if !remove_cursor_project_rules_hook_at(&file.path) {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                return Err(std::io::Error::other(
                     format!("restore Cursor project-rules hook {}", file.path),
                 ));
             }
-            if let Some(current) = read_file_safe(&file.path) {
-                if cursor_project_rules_hook_scaffold(&current) {
-                    if let Err(err) = fs::remove_file(&file.path) {
-                        if err.kind() != std::io::ErrorKind::NotFound {
+            if let Some(current) = read_file_safe(&file.path)
+                && cursor_project_rules_hook_scaffold(&current)
+                    && let Err(err) = fs::remove_file(&file.path)
+                        && err.kind() != std::io::ErrorKind::NotFound {
                             return Err(err);
                         }
-                    }
-                }
-            }
         }
         Ok(())
     }
@@ -1262,11 +1248,10 @@ fn install_cursor_rtk_hook_at(path: &str) -> bool {
     let Some(root) = cfg.as_object_mut() else {
         return false;
     };
-    if let Some(version) = root.get("version") {
-        if !cursor_version_one(version) {
+    if let Some(version) = root.get("version")
+        && !cursor_version_one(version) {
             return false;
         }
-    }
     if !root.contains_key("hooks") {
         root.insert("hooks".to_string(), Value::Object(OrderedMap::new()));
     }
@@ -1329,11 +1314,10 @@ fn remove_cursor_rtk_hook_at(path: &str) -> bool {
     let Some(root) = cfg.as_object_mut() else {
         return false;
     };
-    if let Some(version) = root.get("version") {
-        if !cursor_version_one(version) {
+    if let Some(version) = root.get("version")
+        && !cursor_version_one(version) {
             return false;
         }
-    }
     let Some(hooks) = root.get_mut("hooks").and_then(|v| v.as_object_mut()) else {
         return true;
     };
@@ -1514,15 +1498,14 @@ fn cursor_permission(path: &str, key: &str, want: &str, nested: bool, remove: bo
     let Some(root_obj) = cfg.as_object_mut() else {
         return false;
     };
-    if nested {
-        if root_obj
+    if nested
+        && root_obj
             .get("permissions")
             .and_then(|v| v.as_object())
             .is_some_and(|m| m.is_empty())
         {
             root_obj.remove("permissions");
         }
-    }
     if !nested && root_obj.is_empty() {
         return fs::remove_file(path).is_ok();
     }
@@ -1557,11 +1540,10 @@ fn restore_cursor_files(snapshots: &[CursorFileSnapshot]) -> bool {
             if write_file(&snapshot.path, &snapshot.raw).is_err() {
                 ok = false;
             }
-        } else if let Err(err) = fs::remove_file(&snapshot.path) {
-            if err.kind() != std::io::ErrorKind::NotFound {
+        } else if let Err(err) = fs::remove_file(&snapshot.path)
+            && err.kind() != std::io::ErrorKind::NotFound {
                 ok = false;
             }
-        }
     }
     ok
 }
@@ -1688,8 +1670,8 @@ pub fn has_cursor_mcp_permissions(tool_id: &str) -> bool {
 pub fn cursor_desktop_paths() -> Vec<String> {
     if IS_WIN {
         let mut paths = Vec::new();
-        if let Ok(d) = std::env::var("LOCALAPPDATA") {
-            if !d.is_empty() {
+        if let Ok(d) = std::env::var("LOCALAPPDATA")
+            && !d.is_empty() {
                 paths.push(
                     Path::new(&d)
                         .join("Programs")
@@ -1699,9 +1681,8 @@ pub fn cursor_desktop_paths() -> Vec<String> {
                         .to_string(),
                 );
             }
-        }
-        if let Ok(d) = std::env::var("ProgramFiles") {
-            if !d.is_empty() {
+        if let Ok(d) = std::env::var("ProgramFiles")
+            && !d.is_empty() {
                 paths.push(
                     Path::new(&d)
                         .join("cursor")
@@ -1710,7 +1691,6 @@ pub fn cursor_desktop_paths() -> Vec<String> {
                         .to_string(),
                 );
             }
-        }
         return paths;
     }
     if std::env::consts::OS == "macos" {
@@ -1747,11 +1727,10 @@ fn cursor_desktop_file_valid(path: &str) -> bool {
         if line == "Type=Application" {
             type_application = true;
         }
-        if let Some(rest) = line.strip_prefix("Name=") {
-            if rest.to_lowercase().contains("cursor") {
+        if let Some(rest) = line.strip_prefix("Name=")
+            && rest.to_lowercase().contains("cursor") {
                 name_cursor = true;
             }
-        }
         if let Some(rest) = line.strip_prefix("Exec=") {
             for token in rest.split_whitespace() {
                 let token = token.trim_matches(['"', '\'']);
@@ -1810,8 +1789,8 @@ pub fn cursor_known_bin_dirs() -> Vec<String> {
             .to_string(),
     ];
     if IS_WIN {
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            if !local.is_empty() {
+        if let Ok(local) = std::env::var("LOCALAPPDATA")
+            && !local.is_empty() {
                 dirs.push(
                     Path::new(&local)
                         .join("Programs")
@@ -1830,7 +1809,6 @@ pub fn cursor_known_bin_dirs() -> Vec<String> {
                         .to_string(),
                 );
             }
-        }
         dirs.push(
             Path::new(&home())
                 .join(".cursor")

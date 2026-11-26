@@ -59,7 +59,7 @@ fn test_all_17_agent_manifests_registered_and_configured() {
     let registered_ids = agent_ids();
     for agent_id in ALL_17_AGENTS {
         assert!(
-            registered_ids.contains(&agent_id.to_string()),
+            registered_ids.iter().any(|i| i == agent_id),
             "Agent '{}' must be registered in agent_ids()",
             agent_id
         );
@@ -114,7 +114,7 @@ fn test_all_17_agent_proxy_specifications() {
     let proxy_ids = proxy_agent_ids();
     for agent_id in ALL_17_AGENTS {
         assert!(
-            proxy_ids.contains(&agent_id.to_string()),
+            proxy_ids.iter().any(|i| i == agent_id),
             "Agent '{}' must be included in proxy_agent_ids()",
             agent_id
         );
@@ -142,7 +142,7 @@ fn test_mcp_multiplexer_tools_registration() {
 
     let expected_tools = ["rtk", "caveman", "ponytail", "codegraph", "ctxmode", "headroom", "projectmem"];
     for t in expected_tools {
-        assert!(tools.contains(&t.to_string()), "Tool '{}' must be registered", t);
+        assert!(tools.iter().any(|i| i == t), "Tool '{}' must be registered", t);
     }
 }
 
@@ -236,7 +236,7 @@ fn test_proxy_streaming_compression_and_cache_alignment() {
     let aligned = align_to_1024_tokens(short_prompt);
     assert!(aligned.contains("<!-- toksi:cache-align pad_tokens="));
     let est = estimate_tokens(&aligned);
-    assert!(est >= 1024 && est <= 1030, "Aligned prompt must align to 1024-token boundary, got: {}", est);
+    assert!((1024..=1030).contains(&est), "Aligned prompt must align to 1024-token boundary, got: {}", est);
     assert!(aligned.starts_with(short_prompt));
 
     // 2. Anthropic Cache Control Auto-placement

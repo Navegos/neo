@@ -277,9 +277,9 @@ fn test_phase5_petgraph_blast_radius_and_call_path() {
     // 3. Blast radius for charge
     let blast = engine.compute_blast_radius(&node_b.id, 2).expect("blast radius");
     assert_eq!(blast.focal_name, "charge");
-    assert!(blast.affected_files.contains(&"src/payment.rs".to_string()));
-    assert!(blast.affected_files.contains(&"src/order.rs".to_string()));
-    assert!(blast.affected_files.contains(&"src/gateway.rs".to_string()));
+    assert!(blast.affected_files.iter().any(|i| i == "src/payment.rs"));
+    assert!(blast.affected_files.iter().any(|i| i == "src/order.rs"));
+    assert!(blast.affected_files.iter().any(|i| i == "src/gateway.rs"));
     assert!(blast.risk_score > 0.0);
 }
 

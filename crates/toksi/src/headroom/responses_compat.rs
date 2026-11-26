@@ -216,20 +216,18 @@ impl<R> SseFixupBody<R> {
                     self.saw_item_done = true;
                 }
                 if let Some(Value::Object(mut item)) = data.get("item").cloned() {
-                    if let Some(iid) = item.get("id").and_then(|v| v.as_str()) {
-                        if !iid.is_empty() && self.item_id.is_empty() {
+                    if let Some(iid) = item.get("id").and_then(|v| v.as_str())
+                        && !iid.is_empty() && self.item_id.is_empty() {
                             self.item_id = iid.to_string();
                         }
-                    }
                     self.restore_function_call(&mut item);
                     data.insert("item".to_string(), Value::Object(item));
                     self.emit_data(ev, idx, &data);
                 } else {
-                    if let Some(iid) = data.get("item_id").and_then(|v| v.as_str()) {
-                        if !iid.is_empty() && self.item_id.is_empty() {
+                    if let Some(iid) = data.get("item_id").and_then(|v| v.as_str())
+                        && !iid.is_empty() && self.item_id.is_empty() {
                             self.item_id = iid.to_string();
                         }
-                    }
                     self.emit(ev);
                 }
             }

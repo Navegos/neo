@@ -1,6 +1,6 @@
 # Phase 16.3: Open Agents Directory Protocols & README Verification
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -36,10 +36,10 @@ Requirements:
    - Lifecycle management operations via CLI (`toksi agent ...`), TUI, and Web Dashboard: `install`, `health`, `mismatch`, `upgrade`, `fix`, `restore`, `remove`, `edit`.
 2. Comprehensive Technical README (`crates/toksi/README.md`):
    - Three-repository architecture (`<neo>` `Navegos/neo`, `<advisory>` `Navegos/advisory`, `<skills>` `Navegos/skills`) with zero-bloat externalized skills/rules staged outside `crates/toksi/` (`<neo>/agents/`, `<neo>/rules/`).
-   - Unified 8-port network architecture (`:8787`, `:8788` Grok, `:8789`/`:8790` Copilot, `:9098` Protocol Bus, `:9099` Gateway, `:9100` Cockpit, `:18787` BYOK w/ Google Cloud ADC `AGY_ADC_AUTH=true`), **35-component `<toksi-siagent>`** (`Section 0.2`) wired out of the box via `DirectWireBus` & shared 7-entrypoint `HeadroomEffortCompressor`, **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `src/plugins/` Unified Plugin System (`toksi plugin`, `plugins_registry`), Zero-Plaintext Blind Engine + `src/validator/` (`toksi compile-blind`, `toksi advisory`), ADR + 5-backend Isolated Agent Sandbox (`toksi sandbox` w/ 3-OS native + `sandbox-runtime` + `OpenShell` + `E2B` + `sbx`), `CommandGuard` + bypass kill-switch (`src/commands/guard.rs`), `opa`/`cedar` Policy-as-Code + `spire` IAM + `Guardrails`/`llm-guard`, `<enforce>` skills/security guard (`defenseclaw` + `skill-scanner`), `skilldoctor` + `agentskills` YAML healer, canonical `<repo>/.toksi/projectmem/`, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), and all **495** mandated vaults (`36` + `259` Wave 18 across Sections `2.1`–`2.10`).
+   - Unified 8-port network architecture (`:8787`, `:8788` Grok, `:8789`/`:8790` Copilot, `:9098` Protocol Bus, `:9099` Gateway, `:9100` Cockpit, `:18787` BYOK w/ Google Cloud ADC `AGY_ADC_AUTH=true`), **35-component `<toksi-siagent>`** (`Section 0.2`) wired out of the box via `DirectWireBus` & shared 7-entrypoint `HeadroomEffortCompressor`, **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `src/plugins/` Unified Plugin System (`toksi plugin`, `plugins_registry`), Zero-Plaintext Blind Engine + `src/validator/` (`toksi compile-blind`, `toksi advisory`), ADR + 5-backend Isolated Agent Sandbox (`toksi sandbox` w/ 3-OS native + `sandbox-runtime` + `OpenShell` + `E2B` + `sbx`), `CommandGuard` + bypass kill-switch (`src/commands/guard.rs`), `opa`/`cedar` Policy-as-Code + `spire` IAM + `Guardrails`/`llm-guard`, `<enforce>` skills/security guard (`defenseclaw` + `skill-scanner`), `skilldoctor` + `agentskills` YAML healer, canonical `<repo>/.toksi/projectmem/`, **43** `.agents/brain/*.md` guides (`PHASE_01`..`PHASE_19_6`), and all **495** mandated vaults (`36` + `259` Wave 18 across Sections `2.1`â€“`2.10`).
    - `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`) reference & `toksi daemon|proxy|dashboard start|stop|restart --agents` CLI control.
    - Native `toksi chat|run|exec|swarm|plugin|security|advisory|skills|sandbox|compile-blind|agent resume` coding CLI (`src/agent_runtime/`), `DirectWireBus` (`direct-wired`), and all **16** in-chat slash commands (`/byok`, `/model`, `/effort`, `/byokmodel`, `/projectmem`, `/context`, `/codegraph`, `/icm`, `/ai-memory`, `/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`).
-   - 65/90+ Categories 1–5 + 26 local/Rust inference engines, multi-instance `<byok, model, effort>` routing, **zero paid-tier restrictions**, read-only quota windows, and mandatory Headroom BYOK optimization.
+   - 65/90+ Categories 1â€“5 + 26 local/Rust inference engines, multi-instance `<byok, model, effort>` routing, **zero paid-tier restrictions**, read-only quota windows, and mandatory Headroom BYOK optimization.
    - 41+ Tree-sitter languages, strict `<repo>/.toksi/<tool>` repo-only storage, monorepo subproject partitioning, `.gitignore`/`.ignore` dynamic purge, and 10-Tab TUI/Web parity.
    - Complete CLI command reference (`--help` matched 1:1) and `.toksi/test-baseline.json` incremental verification guide.
 3. Verification:
@@ -52,7 +52,7 @@ Requirements:
 
 ### 1. Architectural Scope & Subsystems
 - **OpenAgents Directory Manager** (`src/agents/open_agents.rs`): Reads and writes vendor-agnostic `.agents/` folder structures.
-- **Agent Lifecycle Operations** (`src/agents/manager.rs`): Handles installation, health checks, version upgrades, and clean removals across configured agents (`18+` built-in harnesses + `.agents/` + Category 1–5 layouts).
+- **Agent Lifecycle Operations** (`src/agents/manager.rs`): Handles installation, health checks, version upgrades, and clean removals across configured agents (`18+` built-in harnesses + `.agents/` + Category 1â€“5 layouts).
 - **Technical Documentation** (`README.md`): Provides complete, professional reference documentation for developers and automated coding agents.
 
 ### 2. Verification Criteria

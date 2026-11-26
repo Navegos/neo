@@ -116,19 +116,17 @@ pub struct EffortCompressionStats {
 /// Detects requested effort tier from `x-toksi-effort` header or JSON body reasoning/thinking hints.
 pub fn detect_effort_level(headers: &[(String, String)], payload: Option<&Value>) -> EffortLevel {
     for (k, v) in headers {
-        if k.eq_ignore_ascii_case("x-toksi-effort") {
-            if let Some(level) = EffortLevel::from_str_loose(v) {
+        if k.eq_ignore_ascii_case("x-toksi-effort")
+            && let Some(level) = EffortLevel::from_str_loose(v) {
                 return level;
             }
-        }
     }
 
     if let Some(val) = payload {
-        if let Some(raw) = val.get("reasoning_effort").and_then(Value::as_str) {
-            if let Some(level) = EffortLevel::from_str_loose(raw) {
+        if let Some(raw) = val.get("reasoning_effort").and_then(Value::as_str)
+            && let Some(level) = EffortLevel::from_str_loose(raw) {
                 return level;
             }
-        }
         if let Some(budget) = val
             .get("thinking")
             .and_then(|t| t.get("budget_tokens"))
@@ -489,15 +487,18 @@ impl HeadroomEffortCompressor {
         let mut economizer = TokenEconomizer::new(econ_opts);
         stats.economizer_dupes_removed =
             economize_unfrozen_turns(payload, frozen_count, &mut economizer);
+        if stats.economizer_dupes_removed > 0 {
+            crate::telemetry::global_collector()
+                .record_layer_savings("economizer", (stats.economizer_dupes_removed as u64).saturating_mul(24));
+        }
 
         // Apply live-zone byte-range surgery (SmartCrusher, SearchCompressor, DiffCompressor, Log/Code/JSON + CCR)
         if let Ok(serialized) = serde_json::to_vec(payload) {
             let compressed = compress_request_body_safe(path, &serialized);
-            if compressed.len() < serialized.len() {
-                if let Ok(re_parsed) = serde_json::from_slice::<Value>(&compressed) {
+            if compressed.len() < serialized.len()
+                && let Ok(re_parsed) = serde_json::from_slice::<Value>(&compressed) {
                     *payload = re_parsed;
                 }
-            }
         }
 
         let final_bytes = serde_json::to_vec(payload).map(|v| v.len()).unwrap_or(orig_bytes);
@@ -584,11 +585,10 @@ impl HeadroomEffortCompressor {
                 false
             };
 
-            if let Ok(bytes) = serde_json::to_vec(&parsed) {
-                if bytes.len() <= working_body.len() || translated {
+            if let Ok(bytes) = serde_json::to_vec(&parsed)
+                && (bytes.len() <= working_body.len() || translated) {
                     working_body = bytes;
                 }
-            }
         }
 
         let live_compressed = compress_request_body_safe(path, &working_body);
@@ -618,15 +618,14 @@ fn economize_unfrozen_turns(
 
     if let Some(Value::Array(messages)) = obj.get_mut("messages") {
         for msg in messages.iter_mut().skip(frozen_count) {
-            if let Some(Value::String(s)) = msg.get_mut("content") {
-                if s.len() >= 256 && !s.contains("<<ccr:") {
+            if let Some(Value::String(s)) = msg.get_mut("content")
+                && s.len() >= 256 && !s.contains("<<ccr:") {
                     let (econ, report) = economizer.economize_prompt(s);
                     dupes += report.duplicate_instructions_removed;
                     if econ.len() < s.len() {
                         *s = econ;
                     }
                 }
-            }
         }
     }
     dupes

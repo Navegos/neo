@@ -170,8 +170,8 @@ fn run_auth_adc(args: &[String]) -> i32 {
         i += 1;
     }
 
-    if let Some(ref proj) = project_arg {
-        if !proj.is_empty() {
+    if let Some(ref proj) = project_arg
+        && !proj.is_empty() {
             let loc = location_arg
                 .as_deref()
                 .filter(|s| !s.is_empty())
@@ -197,7 +197,6 @@ fn run_auth_adc(args: &[String]) -> i32 {
                 }
             }
         }
-    }
 
     let adc = inspect_adc_status();
     println!("{}", C.bold("Google Cloud Application Default Credentials (ADC)"));
@@ -224,11 +223,10 @@ fn run_auth_get(service: &str, account: &str, reveal: bool) -> i32 {
             println!("Agent Token for '{}' (Backend: {})", service, current_backend_name());
             println!("  Type:    {}", env.token_type.as_deref().unwrap_or("Bearer"));
             println!("  Expired: {}", if env.is_expired(0) { C.red("Yes") } else { C.green("No") });
-            if let Some(exp) = env.expires_at {
-                if let Some(dt) = chrono::DateTime::from_timestamp(exp, 0) {
+            if let Some(exp) = env.expires_at
+                && let Some(dt) = chrono::DateTime::from_timestamp(exp, 0) {
                     println!("  Expires: {}", dt.format("%Y-%m-%d %H:%M:%S UTC"));
                 }
-            }
             let tok = &env.access_token;
             let mask = if tok.len() > 10 {
                 format!("{}...{}", &tok[..4], &tok[tok.len() - 4..])

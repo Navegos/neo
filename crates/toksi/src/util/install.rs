@@ -25,8 +25,8 @@ pub fn write_install_marker(method: &str, path: &str, version: &str) -> std::io:
 pub fn refresh_install_marker(version: &str) {
     let mut method = "self-update".to_string();
     let mut path = String::new();
-    if let Some(raw) = read_file_safe(install_marker_path()) {
-        if let Ok(m) = serde_json::from_str::<InstallRecord>(&raw) {
+    if let Some(raw) = read_file_safe(install_marker_path())
+        && let Ok(m) = serde_json::from_str::<InstallRecord>(&raw) {
             if !m.method.is_empty() {
                 method = m.method;
             }
@@ -34,7 +34,6 @@ pub fn refresh_install_marker(version: &str) {
                 path = m.path;
             }
         }
-    }
     let current = toksi_abs_strict();
     if stable_executable(&current) {
         path = current;
@@ -51,13 +50,11 @@ fn stable_executable(p: &str) -> bool {
 
 pub fn install_info() -> (InstallRecord, bool) {
     let exe = toksi_abs();
-    if let Some(raw) = read_file_safe(install_marker_path()) {
-        if let Ok(m) = serde_json::from_str::<InstallRecord>(&raw) {
-            if !m.method.is_empty() && same_path(&m.path, &exe) {
+    if let Some(raw) = read_file_safe(install_marker_path())
+        && let Ok(m) = serde_json::from_str::<InstallRecord>(&raw)
+            && !m.method.is_empty() && same_path(&m.path, &exe) {
                 return (m, true);
             }
-        }
-    }
     (
         InstallRecord {
             method: infer_install_method(&exe),
@@ -124,19 +121,17 @@ fn is_install_script_dir(dir: &str) -> bool {
     if !IS_WIN {
         return false;
     }
-    if let Ok(base) = std::env::var("LOCALAPPDATA") {
-        if same_path(dir, &Path::new(&base).join("Programs").join("toksi").to_string_lossy()) {
+    if let Ok(base) = std::env::var("LOCALAPPDATA")
+        && same_path(dir, &Path::new(&base).join("Programs").join("toksi").to_string_lossy()) {
             return true;
         }
-    }
     false
 }
 
 fn is_cargo_bin_dir(dir: &str) -> bool {
-    if let Ok(cargo_home) = std::env::var("CARGO_HOME") {
-        if same_path(dir, &Path::new(&cargo_home).join("bin").to_string_lossy()) {
+    if let Ok(cargo_home) = std::env::var("CARGO_HOME")
+        && same_path(dir, &Path::new(&cargo_home).join("bin").to_string_lossy()) {
             return true;
         }
-    }
     same_path(dir, &Path::new(&home()).join(".cargo").join("bin").to_string_lossy())
 }

@@ -99,8 +99,8 @@ pub fn normalize_cursor_hook_path(raw: &str) -> String {
 
 pub fn resolve_hook_project_dirs(raw_input: &str) -> Vec<String> {
     let mut candidates = Vec::new();
-    if !raw_input.trim().is_empty() {
-        if let Some(Value::Object(map)) = try_parse_jsonc(raw_input) {
+    if !raw_input.trim().is_empty()
+        && let Some(Value::Object(map)) = try_parse_jsonc(raw_input) {
             for key in ["cwd", "workspace", "workspaceFolder", "projectDir", "rootPath"] {
                 if let Some(Value::String(s)) = map.get(key) {
                     let norm = normalize_cursor_hook_path(s);
@@ -120,12 +120,10 @@ pub fn resolve_hook_project_dirs(raw_input: &str) -> Vec<String> {
                 }
             }
         }
-    }
-    if candidates.is_empty() {
-        if let Ok(cwd) = env::current_dir() {
+    if candidates.is_empty()
+        && let Ok(cwd) = env::current_dir() {
             candidates.push(cwd.to_string_lossy().to_string());
         }
-    }
 
     let mut seen = HashSet::new();
     let mut out = Vec::new();

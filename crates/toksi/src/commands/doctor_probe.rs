@@ -115,7 +115,8 @@ pub fn audit_agent_hook_conventions(agent_id: &str) -> Vec<RuntimeIssue> {
             let hooks_dir = normalize_path(&copilot_paths_resolved().hooks_dir);
             for (legacy, replacement) in [
                 ("toksi-rtk.json", "rtk.json"),
-                ("context-mode.json", "context.json"),
+                ("context-mode.json", "ctxmode.json"),
+                ("context.json", "ctxmode.json"),
                 ("projectmem-context.json", "projectmem.json"),
                 ("toksi-projectmem.json", "projectmem.json"),
                 ("toksi-codegraph-index.json", "codegraph.json"),
@@ -130,6 +131,7 @@ pub fn audit_agent_hook_conventions(agent_id: &str) -> Vec<RuntimeIssue> {
             }
             for name in [
                 "rtk.json",
+                "ctxmode.json",
                 "context.json",
                 "projectmem.json",
                 "codegraph.json",
@@ -144,7 +146,7 @@ pub fn audit_agent_hook_conventions(agent_id: &str) -> Vec<RuntimeIssue> {
         }
         "grok" => {
             let grok_dir = normalize_path(&grok_paths_resolved().dir);
-            for name in ["rtk.json", "context.json", "projectmem.json", "toksi-rtk.json", "toksi-projectmem.json"] {
+            for name in ["rtk.json", "ctxmode.json", "context.json", "projectmem.json", "toksi-rtk.json", "toksi-projectmem.json"] {
                 paths_to_scan.push(format!("{}/hooks/{}", grok_dir, name));
             }
         }
@@ -175,14 +177,13 @@ pub fn audit_agent_hook_conventions(agent_id: &str) -> Vec<RuntimeIssue> {
                     break;
                 }
             }
-            if !has_legacy && (p.ends_with("/.gemini/config/hooks.json") || p.ends_with("\\.gemini\\config\\hooks.json")) {
-                if raw.contains("\"context-mode\"") || raw.contains("\"projectmem-context\"") || raw.contains("\"toksi-projectmem\"") {
+            if !has_legacy && (p.ends_with("/.gemini/config/hooks.json") || p.ends_with("\\.gemini\\config\\hooks.json"))
+                && (raw.contains("\"context-mode\"") || raw.contains("\"projectmem-context\"") || raw.contains("\"toksi-projectmem\"")) {
                     issues.push(RuntimeIssue {
                         kind: "hook".into(),
                         detail: format!("legacy hook group key in {}", short_path(&p)),
                     });
                 }
-            }
         }
     }
 
@@ -261,10 +262,7 @@ fn agent_instruction_paths(agent_id: &str) -> Vec<String> {
 }
 
 pub fn probe_runtime_file(file: &RuntimeFile) -> Option<String> {
-    let raw = match read_file_safe(&file.path) {
-        Some(r) => r,
-        None => return None,
-    };
+    let raw = read_file_safe(&file.path)?;
     for marker in &file.markers {
         if !raw.contains(marker) {
             return Some(format!("RTK integration file invalid: {}", short_path(&file.path)));
@@ -286,7 +284,7 @@ pub fn probe_hook_command(command: &str) -> Option<String> {
     if is_toksi_managed_hook(&fields) && windows_bash_hostile_path(exe) {
         return Some(format!("backslash path breaks Git Bash hooks — re-run toksi ({})", short_path(exe)));
     }
-    if let Err(_) = resolve_runnable(exe) {
+    if resolve_runnable(exe).is_err() {
         return Some(format!("hook binary not found: {}", short_path(exe)));
     }
     if !is_toksi_managed_hook(&fields) {
@@ -390,17 +388,15 @@ pub fn probe_mcp_spawn(command: &str, args: &[String]) -> Option<String> {
     if command.is_empty() {
         return Some("empty mcp command".into());
     }
-    if let Err(_) = resolve_runnable(command) {
+    if resolve_runnable(command).is_err() {
         return Some(format!("mcp binary not found: {}", short_path(command)));
     }
     let (inner_cmd, inner_args) = unwrap_run_mcp(command, args);
-    if !is_cmd_name(&inner_cmd) {
-        if let Err(_) = resolve_runnable(&inner_cmd) {
-            if inner_cmd.contains('/') || inner_cmd.contains('\\') || inner_cmd.contains(':') {
+    if !is_cmd_name(&inner_cmd)
+        && resolve_runnable(&inner_cmd).is_err()
+            && (inner_cmd.contains('/') || inner_cmd.contains('\\') || inner_cmd.contains(':')) {
                 return Some(format!("mcp target not found: {}", short_path(&inner_cmd)));
             }
-        }
-    }
     let mut argv = vec![inner_cmd.clone()];
     argv.extend(inner_args);
     let mut path = inner_cmd;
@@ -413,7 +409,7 @@ pub fn probe_mcp_spawn(command: &str, args: &[String]) -> Option<String> {
     if is_cmd_name(&exe) || is_cmd_name(&base_path) {
         return probe_cmd_batch(&exe, &norm_args);
     }
-    if let Err(_) = resolve_runnable(&exe) {
+    if resolve_runnable(&exe).is_err() {
         return Some(format!("mcp binary not found: {}", short_path(&exe)));
     }
     if looks_like_codegraph(&exe, &norm_args) {
@@ -634,14 +630,13 @@ fn read_file_or_empty(p: &str) -> String {
 fn extract_cline_hook_command(raw: &str) -> Option<String> {
     for line in raw.lines() {
         let line = line.trim();
-        if line.starts_with("exec ") {
-            if let Some(i) = line.find(" rtk-hook cline") {
+        if line.starts_with("exec ")
+            && let Some(i) = line.find(" rtk-hook cline") {
                 let exe = line["exec ".len()..i].trim().trim_matches(|c| c == '\'' || c == '"');
                 if !exe.is_empty() {
                     return Some(format!("{} rtk-hook cline", exe));
                 }
             }
-        }
         const SPAWN_PREFIX: &str = "spawnSync(\"";
         if let Some(i) = line.find(SPAWN_PREFIX) {
             let start = i + SPAWN_PREFIX.len();
@@ -746,11 +741,10 @@ fn managed_hook_commands(agent_id: &str) -> Vec<String> {
                 path.push_str(".cjs");
             }
             let raw = read_file_or_empty(&path);
-            if !raw.is_empty() {
-                if let Some(cmd) = extract_cline_hook_command(&raw) {
+            if !raw.is_empty()
+                && let Some(cmd) = extract_cline_hook_command(&raw) {
                     direct.push(cmd);
                 }
-            }
         }
         _ => {}
     }

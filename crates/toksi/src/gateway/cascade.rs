@@ -101,7 +101,7 @@ pub fn classify_failure(status: u16, headers: &HashMap<String, String>, body: &s
         return FailureClass::ModelAccess;
     }
 
-    if status == 529 || (status >= 500 && status <= 504) {
+    if status == 529 || (500..=504).contains(&status) {
         return FailureClass::Transient;
     }
 
@@ -119,7 +119,7 @@ pub fn classify_failure(status: u16, headers: &HashMap<String, String>, body: &s
     }
 
     // Check headers for rate limit indications
-    for (k, _) in headers {
+    for k in headers.keys() {
         let lk = k.to_lowercase();
         if lk.contains("retry-after") || lk.contains("ratelimit") {
             return FailureClass::RateLimit;
@@ -133,16 +133,14 @@ pub fn classify_failure(status: u16, headers: &HashMap<String, String>, body: &s
 pub fn parse_retry_after(headers: &HashMap<String, String>) -> Duration {
     for (k, v) in headers {
         let lk = k.to_lowercase();
-        if lk == "retry-after" {
-            if let Ok(sec) = v.parse::<u64>() {
+        if lk == "retry-after"
+            && let Ok(sec) = v.parse::<u64>() {
                 return Duration::from_secs(sec);
             }
-        }
-        if lk == "retry-after-ms" {
-            if let Ok(ms) = v.parse::<u64>() {
+        if lk == "retry-after-ms"
+            && let Ok(ms) = v.parse::<u64>() {
                 return Duration::from_millis(ms);
             }
-        }
     }
     // Default jittered backoff for rate limits
     Duration::from_millis(1500)

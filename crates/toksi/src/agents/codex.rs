@@ -180,10 +180,7 @@ fn is_absolute_http(u: &str) -> bool {
     if parsed.scheme() != "http" && parsed.scheme() != "https" {
         return false;
     }
-    match parsed.host_str() {
-        Some(h) if !h.is_empty() => true,
-        _ => false,
-    }
+    matches!(parsed.host_str(), Some(h) if !h.is_empty())
 }
 
 fn same_proxy_base(a: &str, b: &str) -> bool {
@@ -225,13 +222,12 @@ fn delete_byok_route_for(agent: &str, provider_id: &str) -> Result<(), String> {
 }
 
 fn rollback_byok_route(agent: &str, provider_id: &str, previous: Option<&BYOKRoute>) -> Result<(), String> {
-    if let Some(prev) = previous {
-        if !prev.id.is_empty() {
+    if let Some(prev) = previous
+        && !prev.id.is_empty() {
             return upsert_byok_route(&byok_route_id(agent, provider_id), &prev.protocol, &prev.upstream)
                 .map(|_| ())
                 .map_err(|e| e.to_string());
         }
-    }
     delete_byok_route_for(agent, provider_id)
 }
 
@@ -268,14 +264,12 @@ where
                 return res;
             }
             Err(_) => {
-                if let Ok(meta) = fs::metadata(&lock_path) {
-                    if let Ok(modified) = meta.modified() {
-                        if modified.elapsed().unwrap_or_default() > Duration::from_secs(30) {
+                if let Ok(meta) = fs::metadata(&lock_path)
+                    && let Ok(modified) = meta.modified()
+                        && modified.elapsed().unwrap_or_default() > Duration::from_secs(30) {
                             let _ = fs::remove_file(&lock_path);
                             continue;
                         }
-                    }
-                }
                 if Instant::now() >= deadline {
                     return Err(format!("timed out acquiring {}", lock_path));
                 }
@@ -309,7 +303,7 @@ fn sha256_hex(data: &[u8]) -> String {
     }
     msg.extend_from_slice(&bit_len.to_be_bytes());
 
-    for chunk in msg.chunks_exact(64) {
+    for chunk in msg.as_chunks::<64>().0 {
         let mut w = [0u32; 64];
         for i in 0..16 {
             w[i] = u32::from_be_bytes([
@@ -773,11 +767,10 @@ fn codex_provider_block(raw: &str) -> String {
         return String::new();
     };
     let mut block = &raw[start..];
-    if let Some(re) = CODEX_RE_SECTION_OPEN.as_ref() {
-        if let Some(m) = re.find(&block[header.len()..]) {
+    if let Some(re) = CODEX_RE_SECTION_OPEN.as_ref()
+        && let Some(m) = re.find(&block[header.len()..]) {
             block = &block[..header.len() + m.start()];
         }
-    }
     block.to_string()
 }
 
@@ -874,15 +867,11 @@ pub fn codex_takeover_target(raw: &str) -> Option<CodexBYOK> {
     if id.is_empty() || id == "headroom" {
         return None;
     }
-    for b in discover_codex_byok() {
-        if b.id == id
+    discover_codex_byok().into_iter().find(|b| {
+        b.id == id
             && strip_v1_suffix(&codex_named_provider_base_url(raw, &id))
                 == strip_v1_suffix(&b.base_url)
-        {
-            return Some(b);
-        }
-    }
-    None
+    })
 }
 
 fn codex_named_provider_base_url(raw: &str, id: &str) -> String {
@@ -928,14 +917,13 @@ fn codex_pick_byok(raw: &str) -> Option<CodexBYOK> {
         return byoks.into_iter().find(|b| b.id == id);
     }
     let route = codex_dot_env_value(CODEX_BYOK_ROUTE_VAR);
-    if !route.is_empty() {
-        if let Some(found) = byoks
+    if !route.is_empty()
+        && let Some(found) = byoks
             .iter()
             .find(|b| route.starts_with(&format!("codex:{}.", b.id)))
         {
             return Some(found.clone());
         }
-    }
     let url = codex_dot_env_value(CODEX_BYOK_URL_VAR);
     if !url.is_empty() {
         let want = strip_v1_suffix(&url);
@@ -1031,11 +1019,10 @@ fn codex_named_provider_field(raw: &str, header_id: &str, key: &str) -> String {
         return String::new();
     };
     let mut block = &raw[start + header.len()..];
-    if let Some(next_re) = CODEX_RE_SECTION_OPEN.as_ref() {
-        if let Some(m) = next_re.find(block) {
+    if let Some(next_re) = CODEX_RE_SECTION_OPEN.as_ref()
+        && let Some(m) = next_re.find(block) {
             block = &block[..m.start()];
         }
-    }
     let k = regex::escape(key);
     let pat = format!(
         r#"(?m)^[ \t]*(?:{k}|"{k}"|'{k}')[ \t]*=[ \t]*(?:"([^"]*)"|'([^']*)')"#
@@ -1333,8 +1320,8 @@ fn configure_codex_proxy_locked() -> (bool, String) {
         byok = Some(takeover);
     }
 
-    if let Some(b) = byok.as_mut() {
-        if !took_over {
+    if let Some(b) = byok.as_mut()
+        && !took_over {
             if stash_exists {
                 let (_, valid) = load_codex_stash();
                 if !valid {
@@ -1372,7 +1359,6 @@ fn configure_codex_proxy_locked() -> (bool, String) {
                 }
             }
         }
-    }
 
     let mut root_extras: Vec<String> = Vec::new();
     let original = raw.clone();
@@ -1405,29 +1391,27 @@ fn configure_codex_proxy_locked() -> (bool, String) {
         next = codex_inject_root_extras(&next, &root_extras);
     }
     if next == original {
-        if route_registered {
-            if let Some(b) = byok.as_ref() {
+        if route_registered
+            && let Some(b) = byok.as_ref() {
                 rollback_byok_route_logged("codex", &b.id, previous_route.as_ref());
             }
-        }
         if stash_created {
             let _ = restore_codex_config(&stash_path, &stash_raw, stash_exists);
         }
         return (false, p.config);
     }
     if write_file(&p.config, &next).is_err() {
-        if route_registered {
-            if let Some(b) = byok.as_ref() {
+        if route_registered
+            && let Some(b) = byok.as_ref() {
                 rollback_byok_route_logged("codex", &b.id, previous_route.as_ref());
             }
-        }
         if stash_created {
             let _ = restore_codex_config(&stash_path, &stash_raw, stash_exists);
         }
         return (false, p.config);
     }
-    if let Some(b) = byok.as_ref() {
-        if !write_codex_byok_dot_env(b) {
+    if let Some(b) = byok.as_ref()
+        && !write_codex_byok_dot_env(b) {
             if route_registered {
                 rollback_byok_route_logged("codex", &b.id, previous_route.as_ref());
             }
@@ -1440,7 +1424,6 @@ fn configure_codex_proxy_locked() -> (bool, String) {
             }
             return (false, p.config);
         }
-    }
     let _ = chmod_600(&p.config);
     (true, p.config)
 }
@@ -1531,8 +1514,8 @@ fn remove_codex_proxy_locked() -> bool {
     if write_file(&p.config, &next).is_err() {
         return false;
     }
-    if byok_proxy {
-        if let Some(b) = byok.as_ref() {
+    if byok_proxy
+        && let Some(b) = byok.as_ref() {
             let dot_env_ok = if stash.byok {
                 remove_codex_byok_dot_env_owned(b, &stash)
             } else {
@@ -1543,23 +1526,19 @@ fn remove_codex_proxy_locked() -> bool {
                 return false;
             }
         }
-    }
-    if let Some(b) = byok.as_ref() {
-        if !b.id.is_empty() {
-            if delete_byok_route_for("codex", &b.id).is_err() {
+    if let Some(b) = byok.as_ref()
+        && !b.id.is_empty()
+            && delete_byok_route_for("codex", &b.id).is_err() {
                 let _ = restore_codex_config(&p.config, &raw, true);
                 let _ = restore_codex_config(&dot_env_path, &dot_env_raw, dot_env_existed);
                 return false;
             }
-        }
-    }
-    if !stash.provider_id.is_empty() || stash.byok {
-        if clear_codex_stash().is_err() {
+    if (!stash.provider_id.is_empty() || stash.byok)
+        && clear_codex_stash().is_err() {
             let _ = restore_codex_config(&p.config, &raw, true);
             let _ = restore_codex_config(&dot_env_path, &dot_env_raw, dot_env_existed);
             return false;
         }
-    }
     true
 }
 
@@ -1738,15 +1717,14 @@ fn codex_transform_managed_groups(
         let mut kept = Vec::with_capacity(hooks.len());
         for (old_hook, h) in hooks.iter().enumerate() {
             let mut managed = false;
-            if group_matcher == matcher {
-                if let Some(hm) = h.as_object() {
+            if group_matcher == matcher
+                && let Some(hm) = h.as_object() {
                     let cmd = hm.get("command").and_then(|v| v.as_str()).unwrap_or("");
                     managed = toksi_managed_command(cmd, args);
                 }
-            }
             if managed {
-                if let Some(dh) = desired_hook.as_ref() {
-                    if desired_pos.group == -1 {
+                if let Some(dh) = desired_hook.as_ref()
+                    && desired_pos.group == -1 {
                         desired_pos = CodexHookPos {
                             group: out.len() as isize,
                             hook: kept.len() as isize,
@@ -1754,7 +1732,6 @@ fn codex_transform_managed_groups(
                         kept.push(dh.clone());
                         continue;
                     }
-                }
                 removed.push(CodexHookPos {
                     group: old_group as isize,
                     hook: old_hook as isize,
@@ -1781,15 +1758,14 @@ fn codex_transform_managed_groups(
             out.push(Value::Object(gm));
         }
     }
-    if desired_hook.is_some() && desired_pos.group == -1 {
-        if let Some(d) = desired {
+    if desired_hook.is_some() && desired_pos.group == -1
+        && let Some(d) = desired {
             desired_pos = CodexHookPos {
                 group: out.len() as isize,
                 hook: 0,
             };
             out.push(d);
         }
-    }
     (out, desired_pos, moved, removed)
 }
 
@@ -1937,12 +1913,11 @@ pub fn install_codex_rtk_hook() -> bool {
         );
         hooks.insert("PreToolUse".to_string(), Value::Array(new_pre));
         let next = stringify_json(&cfg);
-        if next != raw {
-            if write_file(&hooks_file, &next).is_err() {
+        if next != raw
+            && write_file(&hooks_file, &next).is_err() {
                 rollback();
                 return false;
             }
-        }
 
         let craw = read_file_safe(&p.config).unwrap_or_default();
         let craw_swept = sweep_stale_hook_state_entries(&craw);
@@ -1959,9 +1934,9 @@ pub fn install_codex_rtk_hook() -> bool {
         let mut features = TomlBlock::new("features");
         features.set("hooks", true);
         cnext = upsert_block(&cnext, &features, true);
-        if !cnext.contains(CODEX_FEATURES_HOOK_MARKER) {
-            if let Some(i) = cnext.find("[features]") {
-                if let Some(rel_end) = cnext[i..].find('\n') {
+        if !cnext.contains(CODEX_FEATURES_HOOK_MARKER)
+            && let Some(i) = cnext.find("[features]")
+                && let Some(rel_end) = cnext[i..].find('\n') {
                     let line_end = i + rel_end + 1;
                     cnext = format!(
                         "{}{}{}",
@@ -1970,14 +1945,11 @@ pub fn install_codex_rtk_hook() -> bool {
                         &cnext[line_end..]
                     );
                 }
-            }
-        }
-        if cnext != craw {
-            if write_file(&p.config, &cnext).is_err() {
+        if cnext != craw
+            && write_file(&p.config, &cnext).is_err() {
                 rollback();
                 return false;
             }
-        }
     }
 
     if !has_codex_rtk_hook() || !install_codex_permission_hook() || !install_codex_rules_allowlist()
@@ -1991,14 +1963,13 @@ pub fn install_codex_rtk_hook() -> bool {
 pub fn remove_codex_rtk_hook() {
     let p = codex_paths_resolved();
     let hooks_file = codex_hooks_file();
-    if let Some(raw) = read_file_safe(&hooks_file) {
-        if let Some(mut cfg) = try_parse_jsonc(&raw) {
-            if let Some(hooks) = cfg
+    if let Some(raw) = read_file_safe(&hooks_file)
+        && let Some(mut cfg) = try_parse_jsonc(&raw)
+            && let Some(hooks) = cfg
                 .as_object_mut()
                 .and_then(|m| m.get_mut("hooks"))
                 .and_then(|v| v.as_object_mut())
-            {
-                if let Some(pre_arr) = hooks
+                && let Some(pre_arr) = hooks
                     .get("PreToolUse")
                     .and_then(|v| v.as_array())
                     .cloned()
@@ -2025,9 +1996,6 @@ pub fn remove_codex_rtk_hook() {
                         }
                     }
                 }
-            }
-        }
-    }
     remove_codex_permission_hook();
     remove_codex_rules_allowlist();
     codex_cleanup_orphaned_config();
@@ -2099,11 +2067,10 @@ pub fn install_codex_permission_hook() -> bool {
     );
     hooks.insert("PermissionRequest".to_string(), Value::Array(new_perm));
     let next = stringify_json(&cfg);
-    if next != raw {
-        if write_file(&hooks_file, &next).is_err() {
+    if next != raw
+        && write_file(&hooks_file, &next).is_err() {
             return false;
         }
-    }
     let craw = read_file_safe(&p.config).unwrap_or_default();
     let craw_swept = sweep_stale_hook_state_entries(&craw);
     let craw_rewritten = codex_rewrite_hook_state(
@@ -2117,25 +2084,23 @@ pub fn install_codex_permission_hook() -> bool {
     let mut block = TomlBlock::new(codex_hook_state_header(&key));
     block.set("trusted_hash", codex_perm_hook_trust_hash(&command));
     let cnext = upsert_block(&craw_rewritten, &block, false);
-    if cnext != craw {
-        if write_file(&p.config, &cnext).is_err() {
+    if cnext != craw
+        && write_file(&p.config, &cnext).is_err() {
             return false;
         }
-    }
     has_codex_permission_hook()
 }
 
 pub fn remove_codex_permission_hook() {
     let p = codex_paths_resolved();
     let hooks_file = codex_hooks_file();
-    if let Some(raw) = read_file_safe(&hooks_file) {
-        if let Some(mut cfg) = try_parse_jsonc(&raw) {
-            if let Some(hooks) = cfg
+    if let Some(raw) = read_file_safe(&hooks_file)
+        && let Some(mut cfg) = try_parse_jsonc(&raw)
+            && let Some(hooks) = cfg
                 .as_object_mut()
                 .and_then(|m| m.get_mut("hooks"))
                 .and_then(|v| v.as_object_mut())
-            {
-                if let Some(perm_arr) = hooks
+                && let Some(perm_arr) = hooks
                     .get("PermissionRequest")
                     .and_then(|v| v.as_array())
                     .cloned()
@@ -2162,9 +2127,6 @@ pub fn remove_codex_permission_hook() {
                         }
                     }
                 }
-            }
-        }
-    }
 }
 
 pub fn has_codex_permission_hook() -> bool {
@@ -2202,11 +2164,10 @@ pub fn install_codex_rules_allowlist() -> bool {
     if exists(&rules_file) {
         return true;
     }
-    if let Some(parent) = Path::new(&rules_file).parent() {
-        if ensure_dir(parent).is_err() {
+    if let Some(parent) = Path::new(&rules_file).parent()
+        && ensure_dir(parent).is_err() {
             return false;
         }
-    }
     let content = r#"# toksi-managed codex allowlist — our tools pre-approved, everything else prompts.
 
 prefix_rule(pattern = ["rtk"], decision = "allow")
@@ -2279,13 +2240,11 @@ pub fn remove_codex_features_hook(raw: &str) -> (String, bool) {
     let Some(re_any_key) = CODEX_RE_ANY_KEY.as_ref() else {
         return (raw.to_string(), false);
     };
-    if !re_any_key.is_match(&cleaned) {
-        if let Some(re_child_table) = CODEX_RE_FEATURES_CHILD.as_ref() {
-            if !re_child_table.is_match(&bt) {
+    if !re_any_key.is_match(&cleaned)
+        && let Some(re_child_table) = CODEX_RE_FEATURES_CHILD.as_ref()
+            && !re_child_table.is_match(&bt) {
                 return (remove_block(raw, "features"), true);
             }
-        }
-    }
     (raw.replacen(&bt, &cleaned, 1), true)
 }
 
@@ -2332,14 +2291,13 @@ pub fn codex_has_any_toksi_hook() -> bool {
 
 pub fn codex_known_bin_dirs() -> Vec<String> {
     let mut dirs = Vec::new();
-    if let Ok(d) = std::env::var("CODEX_INSTALL_DIR") {
-        if !d.is_empty() {
+    if let Ok(d) = std::env::var("CODEX_INSTALL_DIR")
+        && !d.is_empty() {
             dirs.push(d);
         }
-    }
-    if IS_WIN {
-        if let Ok(la) = std::env::var("LOCALAPPDATA") {
-            if !la.is_empty() {
+    if IS_WIN
+        && let Ok(la) = std::env::var("LOCALAPPDATA")
+            && !la.is_empty() {
                 dirs.push(
                     Path::new(&la)
                         .join("Programs")
@@ -2350,8 +2308,6 @@ pub fn codex_known_bin_dirs() -> Vec<String> {
                         .to_string(),
                 );
             }
-        }
-    }
     let h = home();
     dirs.push(
         Path::new(&h)
@@ -2416,11 +2372,10 @@ pub fn install_codex_projectmem_hook() -> bool {
     );
     hooks.insert("SessionStart".to_string(), Value::Array(new_arr));
     let next = stringify_json(&cfg);
-    if next != raw {
-        if write_file(&hooks_file, &next).is_err() {
+    if next != raw
+        && write_file(&hooks_file, &next).is_err() {
             return false;
         }
-    }
     let craw = read_file_safe(&p.config).unwrap_or_default();
     let craw_swept = sweep_stale_hook_state_entries(&craw);
     let craw_rewritten =
@@ -2432,11 +2387,10 @@ pub fn install_codex_projectmem_hook() -> bool {
     let mut features = TomlBlock::new("features");
     features.set("hooks", true);
     cnext = upsert_block(&cnext, &features, true);
-    if cnext != craw {
-        if write_file(&p.config, &cnext).is_err() {
+    if cnext != craw
+        && write_file(&p.config, &cnext).is_err() {
             return false;
         }
-    }
     has_codex_projectmem_hook()
 }
 

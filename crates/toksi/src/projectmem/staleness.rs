@@ -37,11 +37,10 @@ pub fn commit_times(
 
     let mut cmd = Command::new("git");
     cmd.args(["log", "--format=%cI"]);
-    if let Some(since) = since_iso {
-        if !since.trim().is_empty() {
+    if let Some(since) = since_iso
+        && !since.trim().is_empty() {
             cmd.arg(format!("--since={}", since));
         }
-    }
     cmd.args(["--", file_path]);
     cmd.current_dir(repo_root);
 
@@ -101,11 +100,10 @@ pub fn find_stale_events(
             continue;
         }
 
-        if let Some(filter) = only_files {
-            if !filter.contains(&file_path) {
+        if let Some(filter) = only_files
+            && !filter.contains(&file_path) {
                 continue;
             }
-        }
 
         candidates.push((event, file_path));
     }

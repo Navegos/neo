@@ -124,9 +124,11 @@ fn test_phase7_dynamic_mcp_tool_schema_pruning() {
         })
     ];
 
-    let mut cfg = McpPrunerConfig::default();
-    cfg.allowed_tools = Some(vec!["read_file".to_string(), "execute_command".to_string()]);
-    cfg.max_description_len = 100;
+    let cfg = McpPrunerConfig {
+        allowed_tools: Some(vec!["read_file".to_string(), "execute_command".to_string()]),
+        max_description_len: 100,
+        ..Default::default()
+    };
 
     let stats = prune_mcp_tools(&mut tools, &cfg);
     assert_eq!(stats.tools_before, 3);
@@ -451,8 +453,10 @@ fn test_phase7_gateway_proxy_orchestrator_end_to_end() {
         ProviderId::Anthropic,
         toksi::gateway::keys::ProviderApiKey::new("test-key"),
     );
-    let mut anth = AnthropicProvider::default();
-    anth.base_url = format!("http://127.0.0.1:{}/v1/messages", port);
+    let anth = AnthropicProvider {
+        base_url: format!("http://127.0.0.1:{}/v1/messages", port),
+        ..Default::default()
+    };
 
     let mut payload = json!({
         "model": "claude-3-5-sonnet",

@@ -133,13 +133,11 @@ pub fn search_advisory_local_o1(advisory_root: &Path, query_id: &str) -> Vec<Val
         .join(year)
         .join(format!("{prefix}.json"));
 
-    if shard_file.is_file() {
-        if let Ok(raw) = std::fs::read_to_string(&shard_file) {
-            if let Ok(val) = serde_json::from_str::<Value>(&raw) {
+    if shard_file.is_file()
+        && let Ok(raw) = std::fs::read_to_string(&shard_file)
+            && let Ok(val) = serde_json::from_str::<Value>(&raw) {
                 results.push(val);
             }
-        }
-    }
     results
 }
 
@@ -171,8 +169,8 @@ pub fn check_upstream_duplicates(advisory_root: &Path, id_or_cve: &str) -> Dedup
     if feed_cache.exists() {
         for (name, _) in UPSTREAM_ADVISORY_DATABASES {
             let candidate = feed_cache.join(format!("{name}.json"));
-            if let Ok(raw) = std::fs::read_to_string(candidate) {
-                if raw.contains(id_or_cve) {
+            if let Ok(raw) = std::fs::read_to_string(candidate)
+                && raw.contains(id_or_cve) {
                     return DeduplicationReport {
                         query: id_or_cve.to_string(),
                         checked_databases,
@@ -180,7 +178,6 @@ pub fn check_upstream_duplicates(advisory_root: &Path, id_or_cve: &str) -> Dedup
                         matched_source: Some((*name).to_string()),
                     };
                 }
-            }
         }
     }
 

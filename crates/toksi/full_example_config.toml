@@ -1,0 +1,462 @@
+# Toksi Full Annotated Configuration Reference
+# Canonical location: ~/.toksi/config.toml (respects $TOKSI_HOME/config.toml)
+# Path policy: Always use forward slashes ('/') on all platforms (including Windows).
+# Schema source: crates/toksi/src/config/mod.rs (`ToksiTomlConfig`)
+
+# Convenience top-level default agents list (also configurable under [general].default_agents)
+default_agents = ["claude", "codex", "antigravity", "cursor", "copilot", "grok"]
+
+[general]
+# Agents configured automatically on `toksi init` / `toksi update`
+default_agents = ["claude", "codex", "antigravity", "cursor", "copilot", "grok"]
+# Enable zero-hop in-process DirectWireBus between runtime and tools
+direct_wire = true
+# Automatically install user-level hooks under home agent directories
+auto_install_user_hooks = true
+# Keep repo hooks opt-in unless `toksi init --workspace` or explicit repo wiring is run
+auto_install_repo_hooks = false
+
+[ports]
+# Single-owner NetworkManager binds every active TCP listener across these 8 distinct ports
+headroom_proxy = 8787
+grok_oauth_proxy = 8788
+copilot_vscode_proxy = 8789
+copilot_cli_proxy = 8790
+protocol_bus = 9098
+ai_gateway = 9099
+# Detached web telemetry cockpit (managed separately via `toksi dashboard`)
+dashboard = 9100
+byok_gateway = 18787
+
+[base_urls]
+# Explicit upstream base URLs per provider family (zero trailing slash)
+openai = "https://api.openai.com/v1"
+anthropic = "https://api.anthropic.com"
+gemini = "https://generativelanguage.googleapis.com"
+xai = "https://api.x.ai/v1"
+ollama = "http://127.0.0.1:11434/v1"
+openrouter = "https://openrouter.ai/api/v1"
+
+[auth.gcp_adc]
+# Set true when authenticating Vertex AI / Gemini Code Assist via Google Cloud ADC
+agy_adc_auth = false
+gcp_project = ""
+gcp_location = "us-central1"
+
+[byok.openai-primary]
+base_url = "https://api.openai.com/v1"
+model = "gpt-5.4"
+effort = "high"
+enabled = true
+provider_id = "openai"
+
+[byok.anthropic-primary]
+base_url = "https://api.anthropic.com"
+model = "claude-sonnet-4-6"
+effort = "high"
+enabled = true
+provider_id = "anthropic"
+
+[byok.local-ollama]
+base_url = "http://127.0.0.1:11434/v1"
+model = "qwen2.5-coder:32b"
+effort = "medium"
+enabled = false
+provider_id = "ollama"
+
+[[byok_profiles]]
+id = "l0-openai-codex"
+provider_id = "openai"
+instance_label = "primary"
+model_id = "gpt-5.4"
+thinking_effort = "high"
+temperature = 0.2
+top_p = 0.95
+top_k = 40
+base_url = "https://api.openai.com/v1"
+enabled = true
+auth_mode = "api_key"
+gcp_project = ""
+gcp_location = "us-central1"
+
+[[byok_profiles]]
+id = "l1-vertex-gemini"
+provider_id = "vertex"
+instance_label = "gcp-adc"
+model_id = "gemini-2.5-pro"
+thinking_effort = "xhigh"
+temperature = 0.1
+top_p = 0.9
+top_k = 32
+base_url = "https://us-central1-aiplatform.googleapis.com"
+enabled = false
+auth_mode = "gcp_adc"
+gcp_project = "my-gcp-project"
+gcp_location = "us-central1"
+
+[repositories]
+# 3-Repo Ecosystem separation: neo (engine), advisory (12-DB intel), skills (externalized catalog)
+neo_dir = "d:/AI/neo"
+advisory_dir = "d:/AI/advisory"
+skills_dir = "d:/AI/skills"
+user_skills_dir = "~/.toksi/skills"
+
+[security]
+# <enforce> compliance, fail-closed skill scanner, OPA/Cedar + SPIFFE/SPIRE + ADR + blind sigs
+enforce_in_repo_skills = true
+auto_heal_skill_frontmatter = true
+static_analyzer_enabled = true
+defenseclaw_fail_closed = true
+skill_scanner_policy = "balanced"
+policy_engine = "opa_cedar"
+iam_attestation = "spiffe_spire"
+kill_all_services_on_bypass = true
+adr_enabled = true
+zero_plaintext_blind_signatures = true
+sandbox_backend = "auto"
+external_analyzers = ["rust-analyzer", "gopls", "clang-tidy"]
+
+[test]
+# Incremental BLAKE3 watched_paths + Cargo.lock test runner; live-safe temp isolation
+incremental = true
+baseline_path = ".toksi/test-baseline.json"
+live_safe_isolation = true
+sandbox_backend = "docker"
+test_image = "toksi-test:local"
+
+[supervisor]
+restart_backoff_ms = 500
+max_restarts_per_min = 10
+heartbeat_interval_ms = 3000
+drain_timeout_ms = 2000
+
+[headroom]
+# Proxy-layer token & byte-surgery optimization + effort scaling
+enabled = true
+default_effort = "medium"
+align_1024_cache = true
+adaptive_memory = true
+mcp_pruning = true
+ccr_ttl_seconds = 1800
+ccr_max_entries = 2048
+loop_guard_threshold = 3
+live_zone_surgery = true
+smart_crusher = true
+token_economizer = true
+
+[gateway]
+bind_host = "127.0.0.1"
+auto_complete_v1 = true
+semantic_cache_enabled = true
+circuit_breaker_enabled = true
+reconnect_watchdog_enabled = true
+load_balance_strategy = "least_latency"
+local_engines_enabled = true
+max_cascade_retries = 3
+request_timeout_ms = 60000
+
+[plugins]
+plugin_dirs = ["~/.toksi/plugins", ".toksi/plugins", ".agents/plugins"]
+enforce_security_scan = true
+fail_closed_hooks = true
+protocols = ["mcp", "a2a", "acp", "anp", "stdio", "sse", "http", "quic"]
+allow_agent_to_agent = true
+
+[checkpoint]
+# Crash-resilient multi-agent orchestration & cross-chat resume
+enabled = true
+write_ahead_journal = true
+disjoint_worker_leases = true
+five_store_atomic_flush = true
+blake3_resume_verify = true
+checkpoints_dir = ".toksi/projectmem/plan_checkpoints"
+
+[sandbox]
+backend = "auto"
+allow_network = false
+skills_mount_mode = "read_only"
+sbxenv_path = "sbxenv.yaml"
+compose_test_path = "docker/compose.test.yaml"
+timeout_secs = 120
+memory_limit_mb = 2048
+
+[cluster]
+enabled = false
+default_backend = "kubernetes"
+lan_pair_enabled = true
+nv_sentinel_auto_cordon = true
+aicr_profile = "h100-sxm"
+otel_collector_port = 4318
+
+[training]
+default_backend = "unsloth"
+default_method = "lora"
+default_quant_format = "gguf-q4km"
+default_serving_engine = "oxillama"
+verify_safetensors_headers = true
+default_eval_harness = "deepeval"
+
+[telemetry]
+enabled = true
+otlp_endpoint = "http://127.0.0.1:4318/v1/traces"
+service_name = "toksi"
+semconv_version = "gen_ai.1.29"
+fail_open = true
+per_service_dbs = true
+service_db_dir = "~/.toksi/services"
+prometheus_metrics = true
+
+[dashboard]
+bind_host = "127.0.0.1"
+detached_from_daemon = true
+auto_open_browser = false
+sse_interval_ms = 1000
+tabs_count = 10
+
+[tui]
+mouse_capture = true
+tick_rate_ms = 100
+tabs_count = 10
+chat_ui_enabled = true
+chat_plain_fallback = false
+
+[keyring]
+backend = "os-native"
+zeroize_on_drop = true
+service_prefix = "toksi"
+sync_on_startup = true
+
+[tools]
+# Strict <repo>/.toksi/<tool> storage and dynamic .gitignore / .ignore awareness
+repo_scoped_only = true
+respect_gitignore = true
+dynamic_ignore_purge = true
+rtk_enabled = true
+codegraph_enabled = true
+ctxmode_enabled = true
+projectmem_enabled = true
+icm_enabled = true
+aimemory_enabled = true
+ctxmode_replace_trigger_bytes = 4096
+codegraph_languages = 45
+
+[hooks]
+standard_syntax = "<tool>-hook <agent>"
+auto_migrate_legacy = true
+map_mcp_to_skills = true
+inject_enforce_rules = true
+cleanup_dead_ide_hooks = true
+
+[ide_bridge]
+# External 13-IDE plugin host protocol (never bundles IDE packages in crates/toksi/)
+enabled = true
+external_package_only = true
+default_transport = "http"
+supported_ides = [
+    "vscode",
+    "visual-studio",
+    "jetbrains",
+    "android-studio",
+    "zed",
+    "xcode",
+    "eclipse",
+    "cursor",
+    "windsurf",
+    "apache-netbeans",
+    "kiro",
+    "qoder",
+    "lapce",
+]
+
+# ---------------------------------------------------------------------------
+# 22-Mode / 7-Domain Super-Intelligence Router ([toksi_siagent_router.*])
+# ---------------------------------------------------------------------------
+[toksi_siagent_router]
+gateway = "toksi://gateway:9099/v1"
+router = "toksi://router:9098/route"
+default_fallback = "anthropic/claude-opus-4-6"
+
+[toksi_siagent_router.1_meta_cognition_governance.orchestrate_route]
+model_tier = "frontier_reasoning"
+primary_model = "openai/gpt-5.4-pro"
+fallback_model = "anthropic/claude-opus-4-6"
+reasoning_effort = "xhigh"
+temperature = 0.2
+top_p = 0.9
+architecture = ["direct_wire_bus", "policy_router"]
+
+[toksi_siagent_router.1_meta_cognition_governance.reflect_self_critique]
+model_tier = "frontier_reasoning"
+primary_model = "anthropic/claude-opus-4-6"
+fallback_model = "google/gemini-3.1-pro"
+reasoning_effort = "xhigh"
+temperature = 0.1
+top_p = 0.85
+architecture = ["evaluator_loop"]
+
+[toksi_siagent_router.1_meta_cognition_governance.align_guardrail]
+model_tier = "governance_policy"
+primary_model = "openai/gpt-5.4"
+fallback_model = "anthropic/claude-sonnet-4-6"
+reasoning_effort = "high"
+temperature = 0.0
+top_p = 0.9
+architecture = ["opa_cedar", "spiffe_spire"]
+
+[toksi_siagent_router.1_meta_cognition_governance.evolve_self_improve]
+model_tier = "frontier_reasoning"
+primary_model = "google/gemini-3.1-pro"
+fallback_model = "openai/gpt-5.4-pro"
+reasoning_effort = "xhigh"
+temperature = 0.3
+top_p = 0.95
+architecture = ["gepa", "autofa"]
+
+[toksi_siagent_router.2_memory_world_modeling.recall_retrieve]
+model_tier = "retrieval_orchestrator"
+primary_model = "openai/gpt-5.4-mini"
+fallback_model = "anthropic/claude-haiku-4-5"
+embedding_model = "openai/text-embedding-3-large"
+reranker_model = "cohere/rerank-v3.5"
+query_rewriter_model = "xai/grok-4.1-fast"
+reasoning_effort = "low"
+temperature = 0.1
+architecture = ["icm_fts5", "aimemory_hybrid"]
+
+[toksi_siagent_router.2_memory_world_modeling.consolidate_memorize]
+model_tier = "fast_synthesis"
+primary_model = "google/gemini-3-flash"
+fallback_model = "openai/gpt-5.4-mini"
+reasoning_effort = "medium"
+temperature = 0.2
+architecture = ["projectmem_jsonl", "aimemory_graph"]
+
+[toksi_siagent_router.2_memory_world_modeling.simulate_predict]
+model_tier = "frontier_reasoning"
+primary_model = "openai/gpt-5.4-pro"
+fallback_model = "google/gemini-3.1-pro"
+reasoning_effort = "xhigh"
+temperature = 0.3
+architecture = ["world_model_sim"]
+
+[toksi_siagent_router.3_discovery_epistemics.chat_interface]
+model_tier = "conversational_fast"
+primary_model = "anthropic/claude-sonnet-4-6"
+fallback_model = "openai/gpt-5.4"
+reasoning_effort = "low"
+temperature = 0.4
+architecture = ["slash_engine", "stream_sse"]
+
+[toksi_siagent_router.3_discovery_epistemics.brainstorm_diverge]
+model_tier = "creative_synthesis"
+primary_model = "xai/grok-4"
+fallback_model = "openai/gpt-5.4"
+reasoning_effort = "medium"
+temperature = 0.8
+top_p = 0.95
+architecture = ["divergent_search"]
+
+[toksi_siagent_router.3_discovery_epistemics.research_ground]
+model_tier = "deep_research"
+primary_model = "google/gemini-3.1-pro"
+fallback_model = "openai/gpt-5.4-pro"
+reasoning_effort = "high"
+temperature = 0.15
+architecture = ["codegraph_ast", "ctxmode_fts5"]
+
+[toksi_siagent_router.3_discovery_epistemics.synthesize_abstract]
+model_tier = "frontier_reasoning"
+primary_model = "anthropic/claude-opus-4-6"
+fallback_model = "google/gemini-3.1-pro"
+reasoning_effort = "high"
+temperature = 0.25
+architecture = ["openwiki", "icm"]
+
+[toksi_siagent_router.4_pedagogy_knowledge_transfer.study_deconstruct]
+model_tier = "structured_analysis"
+primary_model = "google/gemini-3.1-pro"
+fallback_model = "anthropic/claude-sonnet-4-6"
+reasoning_effort = "medium"
+temperature = 0.2
+architecture = ["liteparse", "codegraph_ast"]
+
+[toksi_siagent_router.4_pedagogy_knowledge_transfer.coach_socratic]
+model_tier = "conversational_guided"
+primary_model = "anthropic/claude-sonnet-4-6"
+fallback_model = "openai/gpt-5.4"
+reasoning_effort = "medium"
+temperature = 0.35
+architecture = ["socratic_loop"]
+
+[toksi_siagent_router.5_strategy_architecture.plan_decompose]
+model_tier = "frontier_reasoning"
+primary_model = "anthropic/claude-opus-4-6"
+fallback_model = "openai/gpt-5.4-pro"
+reasoning_effort = "xhigh"
+temperature = 0.15
+architecture = ["openspec", "plan_checkpoints"]
+
+[toksi_siagent_router.5_strategy_architecture.toolsmith_architect]
+model_tier = "frontier_coding"
+primary_model = "openai/gpt-5.4"
+fallback_model = "anthropic/claude-sonnet-4-6"
+reasoning_effort = "high"
+temperature = 0.15
+architecture = ["multi_protocol_bus", "mcp"]
+
+[toksi_siagent_router.6_autonomous_execution.write_code_build]
+model_tier = "frontier_coding"
+primary_model = "anthropic/claude-sonnet-4-6"
+fallback_model = "openai/gpt-5.4"
+reasoning_effort = "high"
+temperature = 0.1
+top_k = 40
+architecture = ["rtk_filter", "cargo_verify"]
+
+[toksi_siagent_router.6_autonomous_execution.refactor_optimize]
+model_tier = "frontier_coding"
+primary_model = "openai/gpt-5.4"
+fallback_model = "anthropic/claude-sonnet-4-6"
+reasoning_effort = "high"
+temperature = 0.1
+architecture = ["codegraph_blast_radius"]
+
+[toksi_siagent_router.6_autonomous_execution.act_operate]
+model_tier = "fast_execution"
+primary_model = "xai/grok-4.1-fast"
+fallback_model = "openai/gpt-5.4-mini"
+reasoning_effort = "medium"
+temperature = 0.05
+architecture = ["sandbox_5_backend", "command_guard"]
+
+[toksi_siagent_router.7_verification_resilience.running_tests_verify]
+model_tier = "verification"
+primary_model = "openai/gpt-5.4-mini"
+fallback_model = "anthropic/claude-haiku-4-5"
+reasoning_effort = "medium"
+temperature = 0.0
+architecture = ["blake3_incremental_test", "docker_sandbox"]
+
+[toksi_siagent_router.7_verification_resilience.debug_heal]
+model_tier = "frontier_debugging"
+primary_model = "anthropic/claude-opus-4-6"
+fallback_model = "openai/gpt-5.4-pro"
+reasoning_effort = "xhigh"
+temperature = 0.1
+architecture = ["rtk_tee", "heal_loop"]
+
+[toksi_siagent_router.7_verification_resilience.audit_red_team]
+model_tier = "security_audit"
+primary_model = "openai/gpt-5.4-pro"
+fallback_model = "anthropic/claude-opus-4-6"
+reasoning_effort = "xhigh"
+temperature = 0.1
+architecture = ["sast_41_lang", "blind_signatures", "advisory_12db"]
+
+[toksi_siagent_router.7_verification_resilience.document_log]
+model_tier = "fast_synthesis"
+primary_model = "google/gemini-3-flash"
+fallback_model = "anthropic/claude-haiku-4-5"
+reasoning_effort = "low"
+temperature = 0.2
+architecture = ["projectmem_summary", "otel_semconv"]

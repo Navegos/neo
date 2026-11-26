@@ -286,14 +286,13 @@ pub fn run() -> Result<()> {
             let meta_file = config.pkg_meta_path(target.platform.as_str(), &target.raw, &cat.name);
 
             // Fast idempotency: check if already installed
-            if meta_file.exists() {
-                if let Ok(existing_meta) = crate::core::meta::PkgMeta::load_from_file(&meta_file) {
+            if meta_file.exists()
+                && let Ok(existing_meta) = crate::core::meta::PkgMeta::load_from_file(&meta_file) {
                     if !cli.quiet {
                         println!("[nbuild] {} {} is already installed at {}", cat.name, existing_meta.version, distro_path.display());
                     }
                     return Ok(());
                 }
-            }
 
             if cat.is_vcpkg() {
                 let vcpkg = crate::core::VcpkgManager::new();
@@ -347,8 +346,8 @@ pub fn run() -> Result<()> {
             });
 
             if let Some(api_url) = api_url_opt {
-                if let Ok(forge) = crate::core::forge::ForgeClient::new() {
-                    if let Ok(latest_rel) = forge.fetch_release_by_url(api_url) {
+                if let Ok(forge) = crate::core::forge::ForgeClient::new()
+                    && let Ok(latest_rel) = forge.fetch_release_by_url(api_url) {
                         if let Some(asset) = latest_rel.find_asset_with_hints(target.platform.as_str(), &target.arch, hints) {
                             if !cli.quiet {
                                 println!("[nbuild] Resolved platform asset from releases API: {} (v{})", asset.name, latest_rel.clean_version());
@@ -360,11 +359,10 @@ pub fn run() -> Result<()> {
                             anyhow::bail!("No matching asset for platform {} / arch {} found in releases API: {}", target.platform.as_str(), target.arch, api_url);
                         }
                     }
-                }
-            } else if let Some(repo) = cat.get_remote_repo() {
-                if let Ok(forge) = crate::core::forge::ForgeClient::new() {
-                    if let Ok(latest_rel) = forge.fetch_latest_release(repo) {
-                        if let Some(asset) = latest_rel.find_asset_with_hints(target.platform.as_str(), &target.arch, hints) {
+            } else if let Some(repo) = cat.get_remote_repo()
+                && let Ok(forge) = crate::core::forge::ForgeClient::new()
+                    && let Ok(latest_rel) = forge.fetch_latest_release(repo)
+                        && let Some(asset) = latest_rel.find_asset_with_hints(target.platform.as_str(), &target.arch, hints) {
                             if !cli.quiet {
                                 println!("[nbuild] Resolved latest release for {}: v{}", repo, latest_rel.clean_version());
                             }
@@ -372,9 +370,6 @@ pub fn run() -> Result<()> {
                             source_to_use.sha256 = None;
                             version_to_use = latest_rel.clean_version();
                         }
-                    }
-                }
-            }
 
             if source_to_use.url.is_empty() {
                 anyhow::bail!("No download source or releases API URL resolved for package '{}' on target '{}'", package, target.raw);
@@ -539,12 +534,11 @@ pub fn run() -> Result<()> {
 
             let hints = cat.get_asset_hints(target.platform.as_str(), &target.arch).map(|v| v.as_slice());
 
-            if let Some(release) = &remote_release {
-                if let Some(asset) = release.find_asset_with_hints(target.platform.as_str(), &target.arch, hints) {
+            if let Some(release) = &remote_release
+                && let Some(asset) = release.find_asset_with_hints(target.platform.as_str(), &target.arch, hints) {
                     source_to_use.url = asset.browser_download_url.clone();
                     source_to_use.sha256 = None;
                 }
-            }
 
             let installer = DistroInstaller::new(&config);
             let mut meta = installer.install_prebuilt(
@@ -569,7 +563,7 @@ pub fn run() -> Result<()> {
             };
 
             let target_dest = dest.unwrap_or_else(|| {
-                let pkg_name = repo_url.trim_end_matches(".git").split('/').last().unwrap_or("repo");
+                let pkg_name = repo_url.trim_end_matches(".git").split('/').next_back().unwrap_or("repo");
                 PathBuf::from(pkg_name)
             });
 
@@ -891,11 +885,10 @@ fn init_catalog_registry(config: &NeoConfig) -> CatalogRegistry {
     registry.add_search_path("catalog");
     registry.add_search_path("crates/nbuild/catalog");
     registry.add_search_path(config.toolchains_dir.join("catalog"));
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(parent) = exe.parent() {
             registry.add_search_path(parent.join("catalog"));
         }
-    }
     for p in &config.catalog_extra_paths {
         registry.add_search_path(p);
     }

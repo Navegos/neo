@@ -151,15 +151,26 @@ pub async fn forward_payload_over_ipc(
     body: Vec<u8>,
 ) -> Result<serde_json::Value, String> {
     let body_text = String::from_utf8_lossy(&body).to_string();
-    let payload = serde_json::json!({
-        "role": role.as_str(),
-        "method": method,
-        "path": path,
-        "headers": headers,
-        "body": body_text,
-    });
+    let payload = if std::str::from_utf8(&body).is_err() {
+        serde_json::json!({
+            "role": role.as_str(),
+            "method": method,
+            "path": path,
+            "headers": headers,
+            "body": body_text,
+            "body_bytes": body,
+        })
+    } else {
+        serde_json::json!({
+            "role": role.as_str(),
+            "method": method,
+            "path": path,
+            "headers": headers,
+            "body": body_text,
+        })
+    };
     let frame = IpcFrame::json(IpcOpcode::NetworkForward, 1, &payload)?;
-    let reply = send_frame_with_timeout(endpoint, &frame, Duration::from_secs(5)).await?;
+    let reply = send_frame_with_timeout(endpoint, &frame, Duration::from_secs(30)).await?;
     reply.payload_json()
 }
 
@@ -190,7 +201,7 @@ async fn handle_http_connection(
         .to_string();
 
     if req.method.eq_ignore_ascii_case("OPTIONS") {
-        let _ = write_http_response(&mut stream, 200, "OK", &[], b"").await;
+        let _ = write_http_response(&mut stream, 204, "No Content", &[], b"").await;
         return;
     }
 
@@ -208,7 +219,7 @@ async fn handle_http_connection(
         return;
     }
 
-    let (status, resp_body) = match forward_payload_over_ipc(
+    let (status, mut resp_headers, resp_bytes) = match forward_payload_over_ipc(
         binding.service_role,
         &endpoint,
         &req.method,
@@ -224,12 +235,32 @@ async fn handle_http_connection(
                 .and_then(|v| v.as_u64())
                 .and_then(|n| u16::try_from(n).ok())
                 .unwrap_or(200);
-            let body_str = if let Some(s) = val.get("body").and_then(|v| v.as_str()) {
-                s.to_string()
+            let parsed_headers: Vec<(String, String)> = val
+                .get("headers")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|item| {
+                            let pair = item.as_array()?;
+                            let k = pair.first()?.as_str()?.to_string();
+                            let v = pair.get(1)?.as_str()?.to_string();
+                            Some((k, v))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let raw_bytes = if let Some(bytes_arr) = val.get("body_bytes").and_then(|v| v.as_array())
+            {
+                bytes_arr
+                    .iter()
+                    .filter_map(|b| b.as_u64().and_then(|n| u8::try_from(n).ok()))
+                    .collect()
+            } else if let Some(s) = val.get("body").and_then(|v| v.as_str()) {
+                s.as_bytes().to_vec()
             } else {
-                val.to_string()
+                val.to_string().into_bytes()
             };
-            (code, body_str)
+            (code, parsed_headers, raw_bytes)
         }
         Err(err) => {
             let err_json = serde_json::json!({
@@ -239,17 +270,26 @@ async fn handle_http_connection(
                 "detail": err,
             })
             .to_string();
-            (503, err_json)
+            (
+                503,
+                vec![("Content-Type".to_string(), "application/json".to_string())],
+                err_json.into_bytes(),
+            )
         }
     };
 
-    let headers = vec![("Content-Type".to_string(), "application/json".to_string())];
+    if !resp_headers
+        .iter()
+        .any(|(k, _)| k.eq_ignore_ascii_case("content-type"))
+    {
+        resp_headers.push(("Content-Type".to_string(), "application/json".to_string()));
+    }
     let _ = write_http_response(
         &mut stream,
         status,
         status_reason(status),
-        &headers,
-        resp_body.as_bytes(),
+        &resp_headers,
+        &resp_bytes,
     )
     .await;
 }

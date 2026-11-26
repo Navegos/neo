@@ -1,6 +1,6 @@
 # Phase 15.5: Ground-Truth Token Accounting & Network Reconnect Healing
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -32,7 +32,7 @@ Requirements:
    - Atomically swaps `ArcSwap<reqwest::Client>` pools and closes/re-arms stale connections without requiring daemon restarts.
    - Preserves HTTP/2 ConnectRPC framing & streaming headers cleanly (resolving `#0033`/`#0034`).
 3. Universal Rules, Skills & Instructions Sync (`rules/sync.rs` + `agents/manager.rs`):
-   - Sync externalized `<enforce>` `Karpathy`, `Caveman` v4, and `Ponytail` guidelines (staged outside `crates/toksi/` in `<neo>/agents/` & `<neo>/rules/`, zero binary bloat) across ONLY user-configured/selected agents (`18+` built-in + `.agents` + Category 1–5) with granular component toggles (`hooks|mcp|skills|rules|instructions|configs`), respecting `user` auto-install vs explicit `repo` opt-in.
+   - Sync externalized `<enforce>` `Karpathy`, `Caveman` v4, and `Ponytail` guidelines (staged outside `crates/toksi/` in `<neo>/agents/` & `<neo>/rules/`, zero binary bloat) across ONLY user-configured/selected agents (`18+` built-in + `.agents` + Category 1â€“5) with granular component toggles (`hooks|mcp|skills|rules|instructions|configs`), respecting `user` auto-install vs explicit `repo` opt-in.
 4. Comprehensive CLI Help (`crates/toksi/src/main.rs`):
    - Update `help_text()` with exhaustive documentation of all commands (`chat|run|exec|swarm`, `daemon|proxy|dashboard start|stop|restart --agents`, `config`, `byok`, `db`, `auth`, `security`, `compile-blind`, `advisory`, `skills`, `sandbox`, `plugin`, `agent`, `mem`, `graph`, `ctx`, `rtk`, `doctor`), 8 ports (`8787..18787`, incl. `:9098` Protocol Bus), `~/.toksi/config.toml` (`[repositories]`, `[plugins]`, `[security]`), **16** slash commands (`/byok`..`/rtk`, `/security`, `/advisory`, `/skills`, `/sandbox`, `/plugin`, `/resume`), `direct-wired` bus, effort-tier `tokview` attribution, **35-component `<toksi-siagent>`** across **495 mandated vaults** (**43** `.agents/brain/*.md` guides `PHASE_01`..`PHASE_19_6`, zero paid-tier restrictions, externalized zero-bloat `<skills>` & `<advisory>`), and `<repo>/.toksi/<tool>` rules.
 5. Verification:

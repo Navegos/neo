@@ -11,10 +11,9 @@ use std::path::Path;
 use std::sync::RwLock;
 use serde::{Deserialize, Serialize};
 
+type WriteFileOverrideFn = Box<dyn Fn(&str, &str) -> std::io::Result<()> + Send + Sync>;
 static HOME_OVERRIDE: RwLock<Option<String>> = RwLock::new(None);
-static WRITE_FILE_OVERRIDE: RwLock<
-    Option<Box<dyn Fn(&str, &str) -> std::io::Result<()> + Send + Sync>>,
-> = RwLock::new(None);
+static WRITE_FILE_OVERRIDE: RwLock<Option<WriteFileOverrideFn>> = RwLock::new(None);
 
 pub const IS_WIN: bool = cfg!(windows);
 pub fn is_win() -> bool {
@@ -123,31 +122,27 @@ pub fn clear_write_file_override() {
 }
 
 pub fn home() -> String {
-    if let Ok(guard) = HOME_OVERRIDE.read() {
-        if let Some(ref h) = *guard {
-            if !h.is_empty() {
+    if let Ok(guard) = HOME_OVERRIDE.read()
+        && let Some(ref h) = *guard
+            && !h.is_empty() {
                 return normalize_path(h);
             }
-        }
-    }
     if let Ok(h) = std::env::var("TOKSI_HOME")
         && !h.trim().is_empty()
     {
         return normalize_path(&h);
     }
-    if IS_WIN {
-        if let Some(dir) = dirs::home_dir() {
+    if IS_WIN
+        && let Some(dir) = dirs::home_dir() {
             let s = normalize_path(&dir.to_string_lossy());
             if !s.is_empty() {
                 return s;
             }
         }
-    }
-    if let Ok(h) = std::env::var("HOME") {
-        if !h.is_empty() {
+    if let Ok(h) = std::env::var("HOME")
+        && !h.is_empty() {
             return normalize_path(&h);
         }
-    }
     dirs::home_dir()
         .map(|p| normalize_path(&p.to_string_lossy()))
         .unwrap_or_default()
@@ -241,19 +236,16 @@ pub fn persisted_toksi_command(exe: &str, args: &[&str]) -> String {
 }
 
 pub fn toksi_data_dir() -> String {
-    if let Ok(dir) = std::env::var("TOKSI_DATA_DIR") {
-        if !dir.trim().is_empty() {
+    if let Ok(dir) = std::env::var("TOKSI_DATA_DIR")
+        && !dir.trim().is_empty() {
             return normalize_path(dir.trim());
         }
-    }
-    if let Ok(guard) = HOME_OVERRIDE.read() {
-        if let Some(ref h) = *guard {
-            if !h.is_empty() {
+    if let Ok(guard) = HOME_OVERRIDE.read()
+        && let Some(ref h) = *guard
+            && !h.is_empty() {
                 let toksi_home = normalize_path(&Path::new(h).join(".toksi").to_string_lossy());
                 return toksi_home;
             }
-        }
-    }
     let h = home();
     if !h.is_empty() {
         let toksi_home = normalize_path(&Path::new(&h).join(".toksi").to_string_lossy());
@@ -352,16 +344,14 @@ pub fn remove_file_retry(p: impl AsRef<Path>) -> std::io::Result<()> {
 
 pub fn write_file_atomic(p: impl AsRef<Path>, content: &str) -> std::io::Result<()> {
     let p = p.as_ref();
-    if let Ok(guard) = WRITE_FILE_OVERRIDE.read() {
-        if let Some(ref f) = *guard {
+    if let Ok(guard) = WRITE_FILE_OVERRIDE.read()
+        && let Some(ref f) = *guard {
             return f(&p.to_string_lossy(), content);
         }
-    }
-    if let Some(parent) = p.parent() {
-        if !parent.as_os_str().is_empty() {
+    if let Some(parent) = p.parent()
+        && !parent.as_os_str().is_empty() {
             ensure_dir(parent)?;
         }
-    }
     let parent = p
         .parent()
         .filter(|d| !d.as_os_str().is_empty())
@@ -379,16 +369,14 @@ pub fn write_file_atomic(p: impl AsRef<Path>, content: &str) -> std::io::Result<
 
 pub fn write_file(p: impl AsRef<Path>, content: &str) -> std::io::Result<()> {
     let p = p.as_ref();
-    if let Ok(guard) = WRITE_FILE_OVERRIDE.read() {
-        if let Some(ref f) = *guard {
+    if let Ok(guard) = WRITE_FILE_OVERRIDE.read()
+        && let Some(ref f) = *guard {
             return f(&p.to_string_lossy(), content);
         }
-    }
-    if let Ok(meta) = std::fs::symlink_metadata(p) {
-        if meta.file_type().is_symlink() {
+    if let Ok(meta) = std::fs::symlink_metadata(p)
+        && meta.file_type().is_symlink() {
             return std::fs::write(p, content);
         }
-    }
     write_file_atomic(p, content)
 }
 
@@ -526,8 +514,8 @@ pub fn is_real_binary(path: &Path) -> bool {
             .to_ascii_lowercase();
         if ext == "app" {
             let macos_dir = path.join("Contents").join("MacOS");
-            if macos_dir.is_dir() {
-                if let Ok(entries) = std::fs::read_dir(macos_dir) {
+            if macos_dir.is_dir()
+                && let Ok(entries) = std::fs::read_dir(macos_dir) {
                     for entry in entries.flatten() {
                         if entry.path().is_file()
                             && entry.metadata().map(|m| m.len() > 0).unwrap_or(false)
@@ -536,7 +524,6 @@ pub fn is_real_binary(path: &Path) -> bool {
                         }
                     }
                 }
-            }
         }
         return false;
     }
@@ -625,8 +612,8 @@ pub fn is_real_binary(path: &Path) -> bool {
                 }
             }
         }
-    } else if ext == "exe" || (IS_WIN && ext.is_empty()) {
-        if let Ok(mut f) = std::fs::File::open(path) {
+    } else if (ext == "exe" || (IS_WIN && ext.is_empty()))
+        && let Ok(mut f) = std::fs::File::open(path) {
             use std::io::Read;
             let mut magic = [0u8; 2];
             if f.read_exact(&mut magic).is_ok() && &magic == b"MZ" {
@@ -636,7 +623,6 @@ pub fn is_real_binary(path: &Path) -> bool {
                 return false;
             }
         }
-    }
 
     if ext == "cmd"
         || ext == "bat"
@@ -786,20 +772,19 @@ pub fn is_go_test_executable(exe: &str) -> bool {
 }
 
 pub fn toksi_abs() -> String {
-    if let Ok(exe) = std::env::current_exe() {
-        if let Ok(resolved) = std::fs::canonicalize(&exe) {
+    if let Ok(exe) = std::env::current_exe()
+        && let Ok(resolved) = std::fs::canonicalize(&exe) {
             let clean_str = normalize_path(&resolved.to_string_lossy());
             if !clean_str.contains([' ', '\t']) && !is_test_executable(&clean_str) {
                 return clean_str;
             }
         }
-    }
     which_toksi_or_bare()
 }
 
 pub fn toksi_abs_strict() -> String {
-    if let Ok(exe) = std::env::current_exe() {
-        if let Ok(resolved) = std::fs::canonicalize(&exe) {
+    if let Ok(exe) = std::env::current_exe()
+        && let Ok(resolved) = std::fs::canonicalize(&exe) {
             let clean_str = normalize_path(&resolved.to_string_lossy());
             if !clean_str.contains([' ', '\t']) && !is_test_executable(&clean_str) {
                 let stem = Path::new(&clean_str)
@@ -812,7 +797,6 @@ pub fn toksi_abs_strict() -> String {
                 }
             }
         }
-    }
     let w = which("toksi");
     if !w.is_empty() && Path::new(&w).is_absolute() {
         return normalize_path(&w);
@@ -834,9 +818,9 @@ pub fn toksi_persisted_abs() -> String {
             }
         }
     }
-    if let Some(raw) = read_file_safe(install_marker_path()) {
-        if let Ok(marker) = serde_json::from_str::<InstallRecord>(&raw) {
-            if stable_executable(&marker.path) {
+    if let Some(raw) = read_file_safe(install_marker_path())
+        && let Ok(marker) = serde_json::from_str::<InstallRecord>(&raw)
+            && stable_executable(&marker.path) {
                 let base = Path::new(&marker.path)
                     .file_stem()
                     .and_then(|s| s.to_str())
@@ -846,8 +830,6 @@ pub fn toksi_persisted_abs() -> String {
                     return normalize_path(&marker.path);
                 }
             }
-        }
-    }
     let mut known = vec![
         normalize_path(
             &Path::new(&home())
@@ -859,8 +841,8 @@ pub fn toksi_persisted_abs() -> String {
     ];
     if IS_WIN {
         known.clear();
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            if !local.is_empty() {
+        if let Ok(local) = std::env::var("LOCALAPPDATA")
+            && !local.is_empty() {
                 known.push(normalize_path(
                     &Path::new(&local)
                         .join("Programs")
@@ -869,7 +851,6 @@ pub fn toksi_persisted_abs() -> String {
                         .to_string_lossy(),
                 ));
             }
-        }
     } else {
         known.push("/usr/local/bin/toksi".to_string());
     }
@@ -953,16 +934,14 @@ pub struct OpenCodePaths {
 }
 
 fn opencode_config_dir() -> String {
-    if let Ok(d) = std::env::var("OPENCODE_CONFIG_DIR") {
-        if !d.is_empty() {
+    if let Ok(d) = std::env::var("OPENCODE_CONFIG_DIR")
+        && !d.is_empty() {
             return normalize_path(&d);
         }
-    }
-    if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
-        if !x.is_empty() {
+    if let Ok(x) = std::env::var("XDG_CONFIG_HOME")
+        && !x.is_empty() {
             return join_norm(&x, &["opencode"]);
         }
-    }
     join_norm(&home(), &[".config", "opencode"])
 }
 
@@ -1017,11 +996,10 @@ pub fn opencode_config_dir_v2() -> String {
             .unwrap_or_else(|| Path::new(&v2_name).to_path_buf())
             .to_string_lossy(),
     );
-    if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
-        if !x.is_empty() {
+    if let Ok(x) = std::env::var("XDG_CONFIG_HOME")
+        && !x.is_empty() {
             v2_dir = join_norm(&x, &["opencode2"]);
         }
-    }
     let legacy_dir = join_norm(&home(), &[".opencode2"]);
     for dir in [&v1_dir, &v2_dir, &legacy_dir] {
         for name in ["opencode2.jsonc", "opencode2.json", "opencode2.config.json"] {
@@ -1080,20 +1058,18 @@ pub struct KiloPaths {
 pub fn kilo_paths_resolved() -> KiloPaths {
     let mut dir = normalize_path(&std::env::var("KILO_CONFIG_DIR").unwrap_or_default());
     if dir.is_empty() {
-        if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
-            if !x.is_empty() {
+        if let Ok(x) = std::env::var("XDG_CONFIG_HOME")
+            && !x.is_empty() {
                 dir = join_norm(&x, &["kilo"]);
             }
-        }
         if dir.is_empty() {
             dir = join_norm(&home(), &[".config", "kilo"]);
         }
     }
-    if !Path::new(&dir).is_absolute() {
-        if let Ok(cwd) = std::env::current_dir() {
+    if !Path::new(&dir).is_absolute()
+        && let Ok(cwd) = std::env::current_dir() {
             dir = normalize_path(&cwd.join(&dir).to_string_lossy());
         }
-    }
     KiloPaths {
         config: join_norm(&dir, &["kilo.jsonc"]),
         plugins_dir: join_norm(&dir, &["plugin"]),
@@ -1116,11 +1092,10 @@ pub fn cline_paths_resolved() -> ClinePaths {
     if dir.is_empty() {
         dir = join_norm(&home(), &[".cline"]);
     }
-    if !Path::new(&dir).is_absolute() {
-        if let Ok(cwd) = std::env::current_dir() {
+    if !Path::new(&dir).is_absolute()
+        && let Ok(cwd) = std::env::current_dir() {
             dir = normalize_path(&cwd.join(&dir).to_string_lossy());
         }
-    }
     let mut data_dir = normalize_path(&std::env::var("CLINE_DATA_DIR").unwrap_or_default());
     if data_dir.is_empty() {
         data_dir = join_norm(&dir, &["data"]);
@@ -1193,11 +1168,10 @@ pub struct CopilotPaths {
 pub fn copilot_paths_resolved() -> CopilotPaths {
     let mut dir = normalize_path(&std::env::var("COPILOT_HOME").unwrap_or_default());
     if dir.is_empty() {
-        if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
-            if !x.is_empty() {
+        if let Ok(x) = std::env::var("XDG_CONFIG_HOME")
+            && !x.is_empty() {
                 dir = join_norm(&x, &["copilot"]);
             }
-        }
         if dir.is_empty() {
             dir = join_norm(&home(), &[".copilot"]);
         }
@@ -1225,11 +1199,10 @@ pub fn cursor_paths_resolved() -> CursorPaths {
             if !env.is_empty() {
                 dir = normalize_path(&env);
             }
-        } else if let Ok(x) = std::env::var("XDG_CONFIG_HOME") {
-            if !x.is_empty() {
+        } else if let Ok(x) = std::env::var("XDG_CONFIG_HOME")
+            && !x.is_empty() {
                 dir = join_norm(&x, &["cursor"]);
             }
-        }
     }
     CursorPaths {
         mcp_config: join_norm(&dir, &["mcp.json"]),
@@ -1423,22 +1396,22 @@ mod tests {
     #[test]
     fn test_known_binary_aliases() {
         let aliases = known_binary_aliases("Antigravity IDE");
-        assert!(aliases.contains(&"agy".to_string()));
-        assert!(aliases.contains(&"Antigravity".to_string()));
+        assert!(aliases.iter().any(|i| i == "agy"));
+        assert!(aliases.iter().any(|i| i == "Antigravity"));
 
         let cursor_aliases = known_binary_aliases("cursor");
-        assert!(cursor_aliases.contains(&"agent".to_string()));
-        assert!(cursor_aliases.contains(&"cursor-agent".to_string()));
+        assert!(cursor_aliases.iter().any(|i| i == "agent"));
+        assert!(cursor_aliases.iter().any(|i| i == "cursor-agent"));
 
         let droid_aliases = known_binary_aliases("droid");
-        assert!(droid_aliases.contains(&"Factory".to_string()));
+        assert!(droid_aliases.iter().any(|i| i == "Factory"));
 
         let opencode_aliases = known_binary_aliases("opencoe2");
-        assert!(opencode_aliases.contains(&"opencode2".to_string()));
+        assert!(opencode_aliases.iter().any(|i| i == "opencode2"));
 
         let toksi_aliases = known_binary_aliases("toksi");
-        assert!(toksi_aliases.contains(&"toksi".to_string()));
-        assert!(!toksi_aliases.contains(&"tokless".to_string()));
+        assert!(toksi_aliases.iter().any(|i| i == "toksi"));
+        assert!(!toksi_aliases.iter().any(|i| i == "tokless"));
     }
 
     #[test]

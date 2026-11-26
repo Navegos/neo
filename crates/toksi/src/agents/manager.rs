@@ -161,11 +161,10 @@ impl AgentManager {
             "droid" => home.join(".factory"),
             "cline" => home.join(".cline"),
             _ => {
-                if let Some(agent) = get_agent(agent_id) {
-                    if let Some(ref dir_fn) = agent.config_dir {
+                if let Some(agent) = get_agent(agent_id)
+                    && let Some(ref dir_fn) = agent.config_dir {
                         return PathBuf::from(dir_fn());
                     }
-                }
                 home.join(format!(".{}", agent_id))
             }
         }
@@ -864,9 +863,9 @@ fn native_mcp_entry_for(agent_id: &str, norm_tool: &str, legacy_shape: Option<&O
     let mut entry = OrderedMap::new();
     let is_copilot_cli = agent_id == "copilot-cli" || agent_id == "copilot";
     let is_vscode = agent_id == "copilot-vscode";
-    let server_type = if is_copilot_cli {
-        "local"
-    } else if legacy_shape.and_then(|m| m.get("type")).and_then(|v| v.as_str()) == Some("local") {
+    let server_type = if is_copilot_cli
+        || legacy_shape.and_then(|m| m.get("type")).and_then(|v| v.as_str()) == Some("local")
+    {
         "local"
     } else {
         "stdio"
@@ -1369,17 +1368,17 @@ mod tests {
     fn test_all_managed_agents_list() {
         let agents = AgentManager::all_managed_agents();
         assert!(agents.len() >= 18);
-        assert!(agents.contains(&"antigravity".to_string()));
-        assert!(agents.contains(&"antigravity-cli".to_string()));
-        assert!(agents.contains(&"antigravity-ide".to_string()));
-        assert!(agents.contains(&"copilot".to_string()));
-        assert!(agents.contains(&"copilot-cli".to_string()));
-        assert!(agents.contains(&"copilot-vscode".to_string()));
-        assert!(agents.contains(&"claude".to_string()));
-        assert!(agents.contains(&"codex".to_string()));
-        assert!(agents.contains(&"cursor".to_string()));
-        assert!(agents.contains(&"grok".to_string()));
-        assert!(agents.contains(&"openagents".to_string()));
+        assert!(agents.iter().any(|i| i == "antigravity"));
+        assert!(agents.iter().any(|i| i == "antigravity-cli"));
+        assert!(agents.iter().any(|i| i == "antigravity-ide"));
+        assert!(agents.iter().any(|i| i == "copilot"));
+        assert!(agents.iter().any(|i| i == "copilot-cli"));
+        assert!(agents.iter().any(|i| i == "copilot-vscode"));
+        assert!(agents.iter().any(|i| i == "claude"));
+        assert!(agents.iter().any(|i| i == "codex"));
+        assert!(agents.iter().any(|i| i == "cursor"));
+        assert!(agents.iter().any(|i| i == "grok"));
+        assert!(agents.iter().any(|i| i == "openagents"));
     }
 
     #[test]

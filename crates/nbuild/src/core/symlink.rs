@@ -37,11 +37,10 @@ impl LinkEngine {
         }
 
         if dest.exists() || dest.is_symlink() {
-            if let Ok(target) = fs::read_link(dest) {
-                if target == src || target == fs::canonicalize(src).unwrap_or_else(|_| src.to_path_buf()) {
+            if let Ok(target) = fs::read_link(dest)
+                && (target == src || target == fs::canonicalize(src).unwrap_or_else(|_| src.to_path_buf())) {
                     return Ok(LinkStatus::AlreadyValid);
                 }
-            }
             // Remove old link/dir if stale
             let _ = fs::remove_dir(dest).or_else(|_| fs::remove_file(dest));
         }
@@ -87,22 +86,20 @@ impl LinkEngine {
         }
 
         if dest.exists() || dest.is_symlink() {
-            if let Ok(target) = fs::read_link(dest) {
-                if target == src || target == fs::canonicalize(src).unwrap_or_else(|_| src.to_path_buf()) {
+            if let Ok(target) = fs::read_link(dest)
+                && (target == src || target == fs::canonicalize(src).unwrap_or_else(|_| src.to_path_buf())) {
                     return Ok(LinkStatus::AlreadyValid);
                 }
-            }
 
             if conflict_guard {
                 // Check if existing file is different
-                if let (Ok(meta1), Ok(meta2)) = (fs::metadata(src), fs::metadata(dest)) {
-                    if meta1.len() != meta2.len() {
+                if let (Ok(meta1), Ok(meta2)) = (fs::metadata(src), fs::metadata(dest))
+                    && meta1.len() != meta2.len() {
                         return Ok(LinkStatus::Conflict(format!(
                             "Collision at destination: {} already exists with different size",
                             dest.display()
                         )));
                     }
-                }
             }
 
             // Remove existing destination link/file

@@ -47,9 +47,9 @@ impl VertexAdcEndpoint {
         let (mut project, mut location) = read_vscode_gcp_settings();
         let adc_enabled = is_agy_adc_auth_enabled();
 
-        if project.is_none() {
-            if let Ok(db) = crate::db::open_default_db() {
-                if let Some(prof) = crate::db::resolve_active_adc_profile(&db) {
+        if project.is_none()
+            && let Ok(db) = crate::db::open_default_db()
+                && let Some(prof) = crate::db::resolve_active_adc_profile(&db) {
                     if !prof.gcp_project.trim().is_empty() {
                         project = Some(prof.gcp_project);
                     }
@@ -57,8 +57,6 @@ impl VertexAdcEndpoint {
                         location = prof.gcp_location;
                     }
                 }
-            }
-        }
 
         let Some(proj) = project.filter(|p| !p.trim().is_empty()) else {
             let status = inspect_adc_status();

@@ -37,7 +37,7 @@ pub fn projectmem_root(workspace: &str) -> String {
 
 pub fn ensure_proxy_for_agent(agent: &str) {
     if !agent.is_empty() {
-        let _ = ensure_proxy_up();
+        ensure_proxy_up();
     }
 }
 
@@ -117,11 +117,10 @@ pub fn run_mcp(argv: &[String]) -> i32 {
     }
 
     ensure_process_path();
-    if cmd_args[0].contains(std::path::MAIN_SEPARATOR) || cmd_args[0].contains('/') {
-        if let Some(parent) = Path::new(&cmd_args[0]).parent() {
+    if (cmd_args[0].contains(std::path::MAIN_SEPARATOR) || cmd_args[0].contains('/'))
+        && let Some(parent) = Path::new(&cmd_args[0]).parent() {
             prepend_process_path(&parent.to_string_lossy());
         }
-    }
 
     let actual_cmd_args: Vec<String> = cmd_args.to_vec();
 

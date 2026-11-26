@@ -149,8 +149,8 @@ pub fn parse_query_window_at(
 
     // 4. "N days/weeks/months/years ago"
     for i in 0..tokens.len() {
-        if i + 2 < tokens.len() && tokens[i + 2] == "ago" {
-            if let Ok(n) = tokens[i].parse::<u64>() {
+        if i + 2 < tokens.len() && tokens[i + 2] == "ago"
+            && let Ok(n) = tokens[i].parse::<u64>() {
                 let unit = tokens[i + 1].trim_end_matches('s');
                 match unit {
                     "day" => {
@@ -180,7 +180,6 @@ pub fn parse_query_window_at(
                     _ => {}
                 }
             }
-        }
     }
 
     // 5. Named month ("in March 2024", "January 2023", etc.)
@@ -198,18 +197,16 @@ pub fn parse_query_window_at(
             // Find year if specified nearby
             let mut matched_year = today.year();
             for token in &tokens {
-                if let Ok(y) = token.parse::<i32>() {
-                    if (MIN_YEAR..=MAX_YEAR_BOUND).contains(&y) {
+                if let Ok(y) = token.parse::<i32>()
+                    && (MIN_YEAR..=MAX_YEAR_BOUND).contains(&y) {
                         matched_year = y;
                         break;
                     }
-                }
             }
-            if let Some(start) = NaiveDate::from_ymd_opt(matched_year, *m_num, 1) {
-                if let Some(end) = start.checked_add_months(Months::new(1)) {
+            if let Some(start) = NaiveDate::from_ymd_opt(matched_year, *m_num, 1)
+                && let Some(end) = start.checked_add_months(Months::new(1)) {
                     return span_window(start, end, offset);
                 }
-            }
         }
     }
 
@@ -217,13 +214,12 @@ pub fn parse_query_window_at(
     for i in 0..tokens.len() {
         if (tokens[i] == "in" || tokens[i] == "en") && i + 1 < tokens.len() {
             let clean = tokens[i + 1].trim_matches(|c: char| !c.is_numeric());
-            if let Ok(y) = clean.parse::<i32>() {
-                if (MIN_YEAR..=MAX_YEAR_BOUND).contains(&y) && y <= today.year() {
+            if let Ok(y) = clean.parse::<i32>()
+                && (MIN_YEAR..=MAX_YEAR_BOUND).contains(&y) && y <= today.year() {
                     let start = NaiveDate::from_ymd_opt(y, 1, 1)?;
                     let end = NaiveDate::from_ymd_opt(y.checked_add(1)?, 1, 1)?;
                     return span_window(start, end, offset);
                 }
-            }
         }
     }
 

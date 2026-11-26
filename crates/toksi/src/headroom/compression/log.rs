@@ -145,7 +145,7 @@ pub fn classify_line(line: &str) -> (LogLevel, bool, bool) {
     let is_stack_trace = t.starts_with("at ")
         || t.starts_with("File \"")
         || (t.starts_with("0x") && t.contains(" - "))
-        || (t.chars().next().map_or(false, |c| c.is_ascii_digit()) && t.contains(": 0x"))
+        || (t.chars().next().is_some_and(|c| c.is_ascii_digit()) && t.contains(": 0x"))
         || t.starts_with("stack backtrace:")
         || t.starts_with("Traceback (most recent call last):");
 
@@ -208,11 +208,10 @@ pub fn classify_line(line: &str) -> (LogLevel, bool, bool) {
 
 fn normalize_for_dedupe(line: &str) -> String {
     let t = line.trim();
-    if let Some((prefix, _)) = t.split_once(':') {
-        if prefix.contains("error") || prefix.contains("warning") || prefix.contains("info") {
+    if let Some((prefix, _)) = t.split_once(':')
+        && (prefix.contains("error") || prefix.contains("warning") || prefix.contains("info")) {
             return prefix.trim().to_string();
         }
-    }
     t.to_string()
 }
 

@@ -59,7 +59,9 @@ impl SearchCompressor {
         }
 
         // Preserve each file's first-seen order and every match's input index + verbatim raw line.
-        let mut by_file: HashMap<String, (usize, Vec<(usize, usize, String, String)>)> =
+        type FileMatchBucket = (usize, Vec<(usize, usize, String, String)>);
+        type RankedFileMatch = (f64, usize, String, Vec<(usize, usize, String, String)>);
+        let mut by_file: HashMap<String, FileMatchBucket> =
             HashMap::new();
         for (input_idx, line) in lines.iter().enumerate() {
             if let Some((file, line_no, content, raw_line)) = parse_search_line_verbatim(line) {
@@ -81,7 +83,7 @@ impl SearchCompressor {
             .map(|w| w.to_string())
             .collect();
 
-        let mut ranked_files: Vec<(f64, usize, String, Vec<(usize, usize, String, String)>)> =
+        let mut ranked_files: Vec<RankedFileMatch> =
             by_file
                 .into_iter()
                 .map(|(file, (first_order, matches))| {
@@ -166,13 +168,12 @@ impl SearchCompressor {
             out.push(format!("[... and {} more files]", dropped_files));
         }
 
-        if let Some(ccr) = store {
-            if out.len() * 10 < lines.len() * 8 {
+        if let Some(ccr) = store
+            && out.len() * 10 < lines.len() * 8 {
                 let key = compute_key(input.as_bytes());
                 ccr.put(&key, input);
                 out.push(format!("[Full search results: headroom_retrieve({})]", marker_for(&key)));
             }
-        }
 
         let compressed = out.join("\n");
         if compressed.len() < input.len() {
@@ -231,15 +232,14 @@ pub fn parse_search_line_verbatim(line: &str) -> Option<(String, usize, String, 
         while end < bytes.len() && bytes[end].is_ascii_digit() {
             end += 1;
         }
-        if end < bytes.len() && bytes[end] == sep {
-            if let Ok(line_no) = trimmed[idx + 1..end].parse::<usize>() {
+        if end < bytes.len() && bytes[end] == sep
+            && let Ok(line_no) = trimmed[idx + 1..end].parse::<usize>() {
                 let file = trimmed[..idx].to_string();
                 let content = trimmed[end + 1..].to_string();
                 if !file.is_empty() && line_no > 0 {
                     return Some((file, line_no, content, line.to_string()));
                 }
             }
-        }
     }
     None
 }

@@ -106,12 +106,11 @@ pub fn run_security_cli(args: &[String]) -> i32 {
                 return 1;
             };
             let healed = heal_skill_content(target, &raw, None, true);
-            if healed.changed {
-                if let Err(e) = std::fs::write(p, &healed.output) {
+            if healed.changed
+                && let Err(e) = std::fs::write(p, &healed.output) {
                     eprintln!("Failed to write healed file: {e}");
                     return 1;
                 }
-            }
             println!("Healed '{}' (changed={})", target, healed.changed);
             0
         }

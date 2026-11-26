@@ -148,6 +148,9 @@ pub struct DashboardSnapshot {
     pub rtk_tokens_saved: u64,
     pub headroom_tokens_saved: u64,
     pub caveman_tokens_saved: u64,
+    pub ccr_tokens_saved: u64,
+    pub ctxmode_tokens_saved: u64,
+    pub economizer_tokens_saved: u64,
     pub cost_saved_usd: f64,
     pub cost_spent_usd: f64,
     pub total_calls: u64,
@@ -197,6 +200,9 @@ pub struct MetricsCollector {
     pub rtk_tokens_saved_total: AtomicU64,
     pub headroom_tokens_saved_total: AtomicU64,
     pub caveman_tokens_saved_total: AtomicU64,
+    pub ccr_tokens_saved_total: AtomicU64,
+    pub ctxmode_tokens_saved_total: AtomicU64,
+    pub economizer_tokens_saved_total: AtomicU64,
     pub agent_tokens_saved: RwLock<HashMap<String, u64>>,
 
     // 4. Costs & ROI (stored in micro-USD for lock-free atomic arithmetic)
@@ -258,6 +264,9 @@ impl MetricsCollector {
             rtk_tokens_saved_total: AtomicU64::new(0),
             headroom_tokens_saved_total: AtomicU64::new(0),
             caveman_tokens_saved_total: AtomicU64::new(0),
+            ccr_tokens_saved_total: AtomicU64::new(0),
+            ctxmode_tokens_saved_total: AtomicU64::new(0),
+            economizer_tokens_saved_total: AtomicU64::new(0),
             agent_tokens_saved: RwLock::new(HashMap::new()),
 
             cost_usd_micros: AtomicU64::new(0),
@@ -333,6 +342,7 @@ impl MetricsCollector {
     }
 
     /// Record upstream provider call metrics
+    #[allow(clippy::too_many_arguments)]
     pub fn record_upstream_call(
         &self,
         provider: &str,
@@ -399,11 +409,10 @@ impl MetricsCollector {
         if let Ok(mut map) = self.tokens_saved_total.write() {
             *map.entry(tok_key).or_insert(0) += tokens_saved;
         }
-        if tokens_saved > 0 {
-            if let Ok(mut per_agent) = self.agent_tokens_saved.write() {
+        if tokens_saved > 0
+            && let Ok(mut per_agent) = self.agent_tokens_saved.write() {
                 *per_agent.entry(agent.to_string()).or_insert(0) += tokens_saved;
             }
-        }
 
         // Costs & ROI
         let spend = calculate_cost(model, input_tokens, output_tokens, cached_tokens);
@@ -446,7 +455,7 @@ impl MetricsCollector {
         }
     }
 
-    /// Record ground-truth per-layer savings ("rtk", "headroom", or "caveman")
+    /// Record ground-truth per-layer savings ("rtk", "headroom", "caveman", "ccr", "ctxmode", "economizer")
     pub fn record_layer_savings(&self, layer: &str, tokens_saved: u64) {
         match layer {
             "rtk" => {
@@ -457,6 +466,15 @@ impl MetricsCollector {
             }
             "caveman" => {
                 self.caveman_tokens_saved_total.fetch_add(tokens_saved, Ordering::Relaxed);
+            }
+            "ccr" => {
+                self.ccr_tokens_saved_total.fetch_add(tokens_saved, Ordering::Relaxed);
+            }
+            "ctxmode" | "context" => {
+                self.ctxmode_tokens_saved_total.fetch_add(tokens_saved, Ordering::Relaxed);
+            }
+            "economizer" => {
+                self.economizer_tokens_saved_total.fetch_add(tokens_saved, Ordering::Relaxed);
             }
             _ => {
                 self.headroom_tokens_saved_total.fetch_add(tokens_saved, Ordering::Relaxed);
@@ -632,6 +650,12 @@ impl MetricsCollector {
     }
 }
 
+impl Default for MetricsCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Builds a ground-truth `DashboardSnapshot` from a `MetricsCollector` without blocking.
 pub fn snapshot_from_collector(c: &MetricsCollector) -> DashboardSnapshot {
     let tokens_saved_lifetime: u64 = c.tokens_saved_total.read().map(|m| m.values().sum()).unwrap_or(0);
@@ -646,6 +670,9 @@ pub fn snapshot_from_collector(c: &MetricsCollector) -> DashboardSnapshot {
         rtk_tokens_saved: c.rtk_tokens_saved_total.load(Ordering::Relaxed),
         headroom_tokens_saved: c.headroom_tokens_saved_total.load(Ordering::Relaxed),
         caveman_tokens_saved: c.caveman_tokens_saved_total.load(Ordering::Relaxed),
+        ccr_tokens_saved: c.ccr_tokens_saved_total.load(Ordering::Relaxed),
+        ctxmode_tokens_saved: c.ctxmode_tokens_saved_total.load(Ordering::Relaxed),
+        economizer_tokens_saved: c.economizer_tokens_saved_total.load(Ordering::Relaxed),
         cost_saved_usd: c.cost_savings_usd_micros.load(Ordering::Relaxed) as f64 / 1_000_000.0,
         cost_spent_usd: c.cost_usd_micros.load(Ordering::Relaxed) as f64 / 1_000_000.0,
         total_calls,
@@ -707,11 +734,10 @@ pub fn async_metrics_sender() -> Option<&'static mpsc::Sender<TelemetryEvent>> {
 /// Try sending a telemetry event asynchronously without blocking (<1 µs hot path).
 /// If channel is uninitialized or full, falls back to direct synchronous ingestion with zero panics.
 pub fn try_send_telemetry_event(event: TelemetryEvent) -> bool {
-    if let Some(tx) = ASYNC_SENDER.get() {
-        if tx.try_send(event.clone()).is_ok() {
+    if let Some(tx) = ASYNC_SENDER.get()
+        && tx.try_send(event.clone()).is_ok() {
             return true;
         }
-    }
     global_collector().ingest_event(event);
     publish_dashboard_snapshot();
     true

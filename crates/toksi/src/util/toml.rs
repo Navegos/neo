@@ -153,11 +153,10 @@ pub fn render_block(block: &TomlBlock) -> String {
     let mut lines = vec![format!("[{}]", block.header)];
     for k in &block.keys {
         if let Some(v) = block.fields.get(k) {
-            if k == "env" {
-                if let TomlValue::Map(_) = v {
+            if k == "env"
+                && let TomlValue::Map(_) = v {
                     continue;
                 }
-            }
             lines.push(format!("{} = {}", k, fmt_toml_value(v)));
         }
     }
@@ -259,8 +258,12 @@ fn find_block_range(src: &str, header: &str) -> Option<BlockRange> {
 
 fn parse_scalar_fields(block_text: &str) -> TomlBlock {
     let mut b = TomlBlock::new("");
-    let re_scalar = Regex::new(r#"^\s*(?:([A-Za-z0-9_-]+)|'([^']*)'|"([^"]*)")\s*=\s*(.+?)\s*$"#).unwrap();
-    let re_num = Regex::new(r#"^-?\d+(\.\d+)?$"#).unwrap();
+    let Ok(re_scalar) = Regex::new(r#"^\s*(?:([A-Za-z0-9_-]+)|'([^']*)'|"([^"]*)")\s*=\s*(.+?)\s*$"#) else {
+        return b;
+    };
+    let Ok(re_num) = Regex::new(r#"^-?\d+(\.\d+)?$"#) else {
+        return b;
+    };
 
     for line in block_text.lines() {
         if let Some(caps) = re_scalar.captures(line) {
@@ -293,8 +296,8 @@ fn parse_scalar_fields(block_text: &str) -> TomlBlock {
 
 pub fn upsert_block(src: &str, block: &TomlBlock, merge: bool) -> String {
     let mut effective = block.clone();
-    if merge {
-        if let Some(r) = find_block_range(src, &block.header) {
+    if merge
+        && let Some(r) = find_block_range(src, &block.header) {
             let existing = parse_scalar_fields(&src[r.start..r.end]);
             let mut merged = TomlBlock::new(&block.header);
             for k in &existing.keys {
@@ -309,7 +312,6 @@ pub fn upsert_block(src: &str, block: &TomlBlock, merge: bool) -> String {
             }
             effective = merged;
         }
-    }
     let rendered = render_block(&effective);
     let r = match find_block_range(src, &block.header) {
         None => {
@@ -366,8 +368,9 @@ pub fn toml_block_field(src: &str, header: &str, key: &str) -> String {
 pub fn set_toml_top_key(src: &str, key: &str, value: &str) -> String {
     let line = format!("{} = \"{}\"", key, toml_escape_str(value));
     let pattern = format!(r#"(?m)^[ \t]*(?:{}|"{}"|'{}')[ \t]*=.*$"#, regex::escape(key), regex::escape(key), regex::escape(key));
-    let re = Regex::new(&pattern).unwrap();
-    if re.is_match(src) {
+    if let Ok(re) = Regex::new(&pattern)
+        && re.is_match(src)
+    {
         return re.replace_all(src, line.as_str()).to_string();
     }
     if src.is_empty() {
@@ -378,13 +381,11 @@ pub fn set_toml_top_key(src: &str, key: &str, value: &str) -> String {
 
 pub fn get_toml_top_key(src: &str, key: &str) -> String {
     let pattern = format!(r#"(?m)^[ \t]*(?:{}|"{}"|'{}')[ \t]*=[ \t]*"([^"]*)""#, regex::escape(key), regex::escape(key), regex::escape(key));
-    if let Ok(re) = Regex::new(&pattern) {
-        if let Some(caps) = re.captures(src) {
-            if let Some(m) = caps.get(1) {
+    if let Ok(re) = Regex::new(&pattern)
+        && let Some(caps) = re.captures(src)
+            && let Some(m) = caps.get(1) {
                 return m.as_str().to_string();
             }
-        }
-    }
     String::new()
 }
 

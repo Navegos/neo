@@ -193,7 +193,7 @@ pub fn run_purge(
 
         let mut agent_err: Option<String> = None;
         for tool in &tools {
-            if let Some(ref unwire_fn) = tool.unwire_for.get(agent_id) {
+            if let Some(unwire_fn) = tool.unwire_for.get(agent_id) {
                 let ro = RunOpts {
                     dry_run: opts.dry_run,
                     agent: agent_id.clone(),
@@ -211,7 +211,7 @@ pub fn run_purge(
 
         if let Some(err) = agent_err {
             had_error = true;
-            unwire_bar.fail(&first_line(&err));
+            unwire_bar.fail(first_line(&err));
         } else {
             unwire_bar.complete(past_label);
         }

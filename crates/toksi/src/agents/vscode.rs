@@ -20,7 +20,7 @@ fn detect_agent_base(
 ) -> Detection {
     let dir_refs: Vec<&str> = known_dirs.iter().map(|s| s.as_str()).collect();
     let has_cli = !find_binary(cli, &dir_refs).is_empty();
-    let has_desktop = desktop_paths.iter().any(|p| exists(p));
+    let has_desktop = desktop_paths.iter().any(exists);
 
     if has_cli && has_desktop {
         return Detection {
@@ -164,10 +164,9 @@ pub fn vscode_extension_dirs() -> Vec<String> {
             .to_string_lossy()
             .to_string(),
     ];
-    if let Ok(dir) = std::env::var("VSCODE_EXTENSIONS") {
-        if !dir.is_empty() {
+    if let Ok(dir) = std::env::var("VSCODE_EXTENSIONS")
+        && !dir.is_empty() {
             dirs.push(dir);
         }
-    }
     dirs
 }

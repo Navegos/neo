@@ -19,6 +19,7 @@ pub mod diff_compressor;
 pub mod effort;
 pub mod error;
 pub mod grok_daemon;
+#[allow(clippy::module_inception)]
 pub mod headroom;
 pub mod live_zone;
 pub mod process_identity;

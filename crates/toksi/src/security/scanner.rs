@@ -47,8 +47,8 @@ pub fn scan_with_blind_signatures(
     }
 
     for (idx, b64) in sigs.sparse_dfas_b64.iter().enumerate() {
-        if let Ok(bytes) = decode_sparse_dfa_bytes(b64) {
-            if let Ok((dfa, _)) = SparseDfa::from_bytes(&bytes) {
+        if let Ok(bytes) = decode_sparse_dfa_bytes(b64)
+            && let Ok((dfa, _)) = SparseDfa::from_bytes(&bytes) {
                 let input = Input::new(target_text.as_bytes());
                 if dfa.try_search_fwd(&input).ok().flatten().is_some() {
                     hits.push(BlindMatch {
@@ -57,7 +57,6 @@ pub fn scan_with_blind_signatures(
                     });
                 }
             }
-        }
     }
 
     hits

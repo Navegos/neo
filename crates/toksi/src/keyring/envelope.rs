@@ -142,11 +142,10 @@ pub fn parse_credential_envelope(raw: &str) -> Option<OAuthEnvelope> {
     }
 
     // 2. Try direct JSON parsing
-    if let Ok(val) = serde_json::from_str::<Value>(trimmed) {
-        if let Some(env) = extract_envelope_from_json(val) {
+    if let Ok(val) = serde_json::from_str::<Value>(trimmed)
+        && let Some(env) = extract_envelope_from_json(val) {
             return Some(env);
         }
-    }
 
     // 3. Fallback: treat as raw token string
     if trimmed.len() >= 8 {

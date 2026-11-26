@@ -121,14 +121,13 @@ impl HnswSemanticIndex {
         });
 
         for neighbor_idx in selected {
-            if let Some(neighbor) = self.nodes.get_mut(neighbor_idx) {
-                if !neighbor.neighbors.contains(&new_id) {
+            if let Some(neighbor) = self.nodes.get_mut(neighbor_idx)
+                && !neighbor.neighbors.contains(&new_id) {
                     neighbor.neighbors.push(new_id);
                     if neighbor.neighbors.len() > HNSW_MAX_NEIGHBORS * 2 {
                         neighbor.neighbors.truncate(HNSW_MAX_NEIGHBORS * 2);
                     }
                 }
-            }
         }
     }
 
@@ -317,13 +316,11 @@ impl DualTierSemanticCache {
     pub fn lookup_semantic(&self, query_embedding: &[f32], model: &str) -> Option<(String, f32)> {
         let entries = self.semantic_entries.read().unwrap_or_else(|e| e.into_inner());
         let hnsw = self.hnsw_index.read().unwrap_or_else(|e| e.into_inner());
-        if let Some((entry_idx, score)) = hnsw.search_best(query_embedding, model, self.metric) {
-            if score >= self.similarity_threshold {
-                if let Some(entry) = entries.get(entry_idx) {
+        if let Some((entry_idx, score)) = hnsw.search_best(query_embedding, model, self.metric)
+            && score >= self.similarity_threshold
+                && let Some(entry) = entries.get(entry_idx) {
                     return Some((entry.response.clone(), score));
                 }
-            }
-        }
         None
     }
 
@@ -363,14 +360,13 @@ impl DualTierSemanticCache {
         };
 
         // Write to SQLite WAL first so foyer-style RAM eviction never drops persistence
-        if let Ok(guard) = self.db_conn.lock() {
-            if let Some(ref conn) = *guard {
+        if let Ok(guard) = self.db_conn.lock()
+            && let Some(ref conn) = *guard {
                 let _ = conn.execute(
                     "INSERT OR REPLACE INTO semantic_cache (hash, prompt, response, model, hit_count) VALUES (?1, ?2, ?3, ?4, ?5)",
                     params![hash, prompt, response, model, 0],
                 );
             }
-        }
 
         {
             let mut cache = self.exact_cache.write().unwrap_or_else(|e| e.into_inner());
@@ -447,13 +443,12 @@ impl DualTierSemanticCache {
             sem.retain(|e| !purged_hashes.contains(&e.hash));
             hnsw.rebuild_for_entries(&sem, self.metric);
 
-            if let Ok(guard) = self.db_conn.lock() {
-                if let Some(ref conn) = *guard {
+            if let Ok(guard) = self.db_conn.lock()
+                && let Some(ref conn) = *guard {
                     for h in &purged_hashes {
                         let _ = conn.execute("DELETE FROM semantic_cache WHERE hash = ?1", params![h]);
                     }
                 }
-            }
         }
 
         purged_count

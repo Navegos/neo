@@ -935,8 +935,8 @@ impl App {
         }
 
         // 2. Read ICM SQLite memory DB
-        if let Ok(store) = crate::icm::store::IcmStore::open_default() {
-            if let Ok(hits) = store.get_recent(50) {
+        if let Ok(store) = crate::icm::store::IcmStore::open_default()
+            && let Ok(hits) = store.get_recent(50) {
                 for h in hits {
                     items.push(MemoryItem {
                         id: h.memory.id.chars().take(8).collect(),
@@ -948,7 +948,6 @@ impl App {
                     });
                 }
             }
-        }
 
         self.memory.items = items;
     }
@@ -1316,8 +1315,8 @@ impl App {
         let (_pid_file, log_file) = crate::headroom::proxy::proxy_files();
         let mut entries = Vec::new();
 
-        if Path::new(&log_file).exists() {
-            if let Ok(content) = fs::read_to_string(&log_file) {
+        if Path::new(&log_file).exists()
+            && let Ok(content) = fs::read_to_string(&log_file) {
                 for line in content.lines().rev().take(150) {
                     if line.trim().is_empty() {
                         continue;
@@ -1330,7 +1329,6 @@ impl App {
                     });
                 }
             }
-        }
 
         if entries.is_empty() {
             let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
@@ -1347,8 +1345,8 @@ impl App {
 
     pub fn poll_new_logs(&mut self) {
         let (_, log_file) = crate::headroom::proxy::proxy_files();
-        if let Ok(mut f) = fs::File::open(&log_file) {
-            if let Ok(meta) = f.metadata() {
+        if let Ok(mut f) = fs::File::open(&log_file)
+            && let Ok(meta) = f.metadata() {
                 let len = meta.len();
                 if len < self.log_file_offset {
                     self.log_file_offset = 0;
@@ -1358,8 +1356,8 @@ impl App {
                     let _ = f.seek(SeekFrom::Start(self.log_file_offset));
                     let reader = BufReader::new(f);
                     for line_res in reader.lines() {
-                        if let Ok(line) = line_res {
-                            if !line.trim().is_empty() {
+                        if let Ok(line) = line_res
+                            && !line.trim().is_empty() {
                                 self.logs.entries.push(LogEntry {
                                     timestamp: line.chars().take(19).collect(),
                                     level: if line.contains("ERROR") { "ERROR".into() } else { "INFO".into() },
@@ -1367,7 +1365,6 @@ impl App {
                                     message: line,
                                 });
                             }
-                        }
                     }
                     self.log_file_offset = len;
                     if self.logs.entries.len() > 500 {
@@ -1376,7 +1373,6 @@ impl App {
                     }
                 }
             }
-        }
     }
 
     // -------------------------------------------------------------------------
@@ -1581,7 +1577,7 @@ impl App {
                 self.set_status("Refreshed services and token telemetry");
             }
             KeyCode::Char('u') => {
-                let _ = ensure_proxy_up();
+                ensure_proxy_up();
                 self.monitor.proxy_up = true;
                 self.set_status("Headroom proxy started on port 8787");
             }
@@ -2048,7 +2044,7 @@ impl App {
             0 => {
                 // Monitor: [Proxy Up] [Proxy Down] [Refresh]
                 if col < 22 {
-                    let _ = ensure_proxy_up();
+                    ensure_proxy_up();
                     self.monitor.proxy_up = true;
                     self.set_status("Headroom proxy started on port 8787");
                 } else if col < 44 {
@@ -2197,6 +2193,12 @@ impl App {
                 matches_filter && matches_search
             })
             .collect()
+    }
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

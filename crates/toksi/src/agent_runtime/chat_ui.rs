@@ -599,11 +599,10 @@ pub fn execute_in_chat_cli_command(
         rest.trim()
     } else if let Some(rest) = trimmed.strip_prefix(":cli ") {
         rest.trim()
-    } else if let Some(rest) = trimmed.strip_prefix('!') {
+    } else {
+        let rest = trimmed.strip_prefix('!')?;
         let r = rest.trim();
         r.strip_prefix("toksi ").unwrap_or(r)
-    } else {
-        return None;
     };
 
     if sub_cmd.is_empty() {

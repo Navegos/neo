@@ -156,8 +156,8 @@ pub fn headroom_stats_rows(savings_raw: &str, perf_raw: &str) -> Vec<String> {
         }
     }
 
-    if !perf_raw.is_empty() {
-        if let Some(perf) = parse_perf(perf_raw) {
+    if !perf_raw.is_empty()
+        && let Some(perf) = parse_perf(perf_raw) {
             let mut req = perf.requests;
             if req == 0 {
                 req = perf.total_requests;
@@ -178,7 +178,6 @@ pub fn headroom_stats_rows(savings_raw: &str, perf_raw: &str) -> Vec<String> {
                 rows.push(format!("transform {}: {} uses", first_t.transform, human_count(first_t.uses)));
             }
         }
-    }
     rows.push("per-port stats unavailable: headroom has no port dimension".into());
     rows
 }
@@ -379,20 +378,18 @@ pub fn context_store_stats(project_dir: &str, home_dir: &str) -> String {
         Path::new(project_dir).join(".toksi").join("context"),
     ];
     if is_win() {
-        if let Ok(v) = std::env::var("APPDATA") {
-            if !v.is_empty() {
+        if let Ok(v) = std::env::var("APPDATA")
+            && !v.is_empty() {
                 roots.push(Path::new(&v).join("toksi").join("ctxmode"));
                 roots.push(Path::new(&v).join("toksi").join("context"));
                 roots.push(Path::new(&v).join("context-mode"));
             }
-        }
-    } else if let Ok(v) = std::env::var("XDG_DATA_HOME") {
-        if !v.is_empty() {
+    } else if let Ok(v) = std::env::var("XDG_DATA_HOME")
+        && !v.is_empty() {
             roots.push(Path::new(&v).join("toksi").join("ctxmode"));
             roots.push(Path::new(&v).join("toksi").join("context"));
             roots.push(Path::new(&v).join("context-mode"));
         }
-    }
     roots.push(
         Path::new(home_dir)
             .join(".config")
@@ -407,15 +404,14 @@ pub fn context_store_stats(project_dir: &str, home_dir: &str) -> String {
             let dir = if sub.is_empty() { root.clone() } else { root.join(sub) };
             if let Ok(entries) = fs::read_dir(dir) {
                 for entry in entries.flatten() {
-                    if let Ok(meta) = entry.metadata() {
-                        if meta.is_file() {
+                    if let Ok(meta) = entry.metadata()
+                        && meta.is_file() {
                             let name = entry.file_name().to_string_lossy().to_lowercase();
                             if name.ends_with(".db") {
                                 count += 1;
                                 size += meta.len();
                             }
                         }
-                    }
                 }
             }
         }

@@ -155,15 +155,12 @@ pub fn is_memory_path(path: &str, root: Option<&Path>) -> bool {
         return true;
     }
     let norm = lexical_normpath(path.trim());
-    if norm.contains(TOKSI_MEM_SUBDIR) || norm.contains(LEGACY_MEM_DIR) {
-        return true;
-    }
-    false
+    norm.contains(TOKSI_MEM_SUBDIR) || norm.contains(LEGACY_MEM_DIR)
 }
 
 pub fn parse_snooze_duration(text: &str) -> Result<ChronoDuration> {
     let re = Regex::new(r"(?i)^(\d+)\s*([mhd])$")
-        .map_err(|e| ProjectMemError::Regex(e))?;
+        .map_err(ProjectMemError::Regex)?;
     let caps = re
         .captures(text.trim())
         .ok_or_else(|| ProjectMemError::Validation(format!("Invalid duration '{}' — use forms like 30m, 2h, or 1d.", text)))?;
@@ -221,11 +218,10 @@ pub fn set_snooze(duration_text: &str, root: Option<&Path>) -> Result<DateTime<U
 }
 
 pub fn clear_snooze(root: Option<&Path>) -> bool {
-    if let Ok(path) = snooze_path(root) {
-        if path.exists() {
+    if let Ok(path) = snooze_path(root)
+        && path.exists() {
             return fs::remove_file(path).is_ok();
         }
-    }
     false
 }
 
@@ -233,15 +229,14 @@ pub fn get_staged_files(root: &Path) -> Vec<String> {
     let mut cmd = Command::new("git");
     cmd.args(["diff", "--name-only", "--cached"]);
     cmd.current_dir(root);
-    if let Ok(output) = cmd.output() {
-        if output.status.success() {
+    if let Ok(output) = cmd.output()
+        && output.status.success() {
             return String::from_utf8_lossy(&output.stdout)
                 .lines()
                 .map(|l| normalize_path(l.trim()))
                 .filter(|l| !l.is_empty())
                 .collect();
         }
-    }
     Vec::new()
 }
 
@@ -250,8 +245,8 @@ pub fn get_working_tree_files(root: &Path) -> Vec<String> {
     let mut cmd = Command::new("git");
     cmd.args(["diff", "--name-only"]);
     cmd.current_dir(root);
-    if let Ok(output) = cmd.output() {
-        if output.status.success() {
+    if let Ok(output) = cmd.output()
+        && output.status.success() {
             for l in String::from_utf8_lossy(&output.stdout).lines() {
                 let trimmed = normalize_path(l.trim());
                 if !trimmed.is_empty() {
@@ -259,13 +254,12 @@ pub fn get_working_tree_files(root: &Path) -> Vec<String> {
                 }
             }
         }
-    }
 
     let mut status_cmd = Command::new("git");
     status_cmd.args(["status", "--porcelain"]);
     status_cmd.current_dir(root);
-    if let Ok(output) = status_cmd.output() {
-        if output.status.success() {
+    if let Ok(output) = status_cmd.output()
+        && output.status.success() {
             for l in String::from_utf8_lossy(&output.stdout).lines() {
                 if l.len() > 3 {
                     let path_part = normalize_path(l[3..].trim());
@@ -275,7 +269,6 @@ pub fn get_working_tree_files(root: &Path) -> Vec<String> {
                 }
             }
         }
-    }
     files.into_iter().collect()
 }
 
@@ -321,14 +314,13 @@ pub fn events_for_file(file_path: &str, events: &[Event], root: Option<&Path>) -
             }
         }
 
-        if !matches {
-            if let Some(loc_file) = location_to_file(e.location.as_deref()) {
+        if !matches
+            && let Some(loc_file) = location_to_file(e.location.as_deref()) {
                 let rel = cache.entry(loc_file.clone()).or_insert_with(|| project_relative(&loc_file, root));
                 if *rel == norm_target {
                     matches = true;
                 }
             }
-        }
 
         if !matches && (e.summary.contains(trimmed) || (!norm_target.is_empty() && e.summary.contains(&norm_target))) {
             matches = true;
@@ -376,12 +368,11 @@ pub fn analyze_files(files: &[String], events: &[Event], root: Option<&Path>) ->
 
         let mut recent = Vec::new();
         for e in &file_events {
-            if let Ok(dt) = DateTime::parse_from_rfc3339(&e.timestamp) {
-                if dt.with_timezone(&Utc) >= cutoff {
+            if let Ok(dt) = DateTime::parse_from_rfc3339(&e.timestamp)
+                && dt.with_timezone(&Utc) >= cutoff {
                     recent.push(e.clone());
                     continue;
                 }
-            }
             recent.push(e.clone());
         }
 

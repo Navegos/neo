@@ -102,23 +102,21 @@ impl AgentOptimizer {
             });
         }
 
-        if let Some(budget) = self.constraints.max_tokens {
-            if self.total_tokens >= budget {
+        if let Some(budget) = self.constraints.max_tokens
+            && self.total_tokens >= budget {
                 return Err(AgentOptError::TokenBudgetExceeded {
                     budget,
                     consumed: self.total_tokens,
                 });
             }
-        }
 
-        if let Some(max_time) = self.constraints.max_duration_ms {
-            if self.total_duration_ms >= max_time {
+        if let Some(max_time) = self.constraints.max_duration_ms
+            && self.total_duration_ms >= max_time {
                 return Err(AgentOptError::TurnTimeoutExceeded {
                     limit_ms: max_time,
                     elapsed_ms: self.total_duration_ms,
                 });
             }
-        }
 
         let arg_hash = sha256_hex(arguments_repr);
         let call_key = (tool_name.to_string(), arg_hash);

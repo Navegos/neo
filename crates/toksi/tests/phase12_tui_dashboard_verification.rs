@@ -229,44 +229,46 @@ fn test_phase12_dashboard_assets_and_api_handlers() {
 
 #[tokio::test]
 async fn test_phase12_dashboard_http_server_and_sse() {
-    let _lock = acquire_lock();
+    {
+        let _lock = acquire_lock();
 
-    // 1. Comprehensive In-Memory HTTP Protocol & Routing Verification
-    let req_html_raw = b"GET / HTTP/1.1\r\nHost: 127.0.0.1:9100\r\n\r\n";
-    let (req_html, _) = HttpRequest::parse(req_html_raw).expect("parse HTML request");
-    assert_eq!(req_html.path, "/");
+        // 1. Comprehensive In-Memory HTTP Protocol & Routing Verification
+        let req_html_raw = b"GET / HTTP/1.1\r\nHost: 127.0.0.1:9100\r\n\r\n";
+        let (req_html, _) = HttpRequest::parse(req_html_raw).expect("parse HTML request");
+        assert_eq!(req_html.path, "/");
 
-    let req_css_raw = b"GET /style.css HTTP/1.1\r\nHost: 127.0.0.1:9100\r\n\r\n";
-    let (req_css, _) = HttpRequest::parse(req_css_raw).expect("parse CSS request");
-    assert_eq!(req_css.path, "/style.css");
+        let req_css_raw = b"GET /style.css HTTP/1.1\r\nHost: 127.0.0.1:9100\r\n\r\n";
+        let (req_css, _) = HttpRequest::parse(req_css_raw).expect("parse CSS request");
+        assert_eq!(req_css.path, "/style.css");
 
-    let req_js_raw = b"GET /app.js HTTP/1.1\r\nHost: 127.0.0.1:9100\r\n\r\n";
-    let (req_js, _) = HttpRequest::parse(req_js_raw).expect("parse JS request");
-    assert_eq!(req_js.path, "/app.js");
+        let req_js_raw = b"GET /app.js HTTP/1.1\r\nHost: 127.0.0.1:9100\r\n\r\n";
+        let (req_js, _) = HttpRequest::parse(req_js_raw).expect("parse JS request");
+        assert_eq!(req_js.path, "/app.js");
 
-    let req_api_raw = b"GET /api/overview HTTP/1.1\r\nHost: 127.0.0.1:9100\r\n\r\n";
-    let (req_api, _) = HttpRequest::parse(req_api_raw).expect("parse API request");
-    assert_eq!(req_api.path, "/api/overview");
+        let req_api_raw = b"GET /api/overview HTTP/1.1\r\nHost: 127.0.0.1:9100\r\n\r\n";
+        let (req_api, _) = HttpRequest::parse(req_api_raw).expect("parse API request");
+        assert_eq!(req_api.path, "/api/overview");
 
-    // Verify response generation
-    let resp_html = HttpResponse::ok_html(INDEX_HTML);
-    let bytes_html = resp_html.to_bytes();
-    let str_html = String::from_utf8_lossy(&bytes_html);
-    assert!(str_html.contains("HTTP/1.1 200 OK"));
-    assert!(str_html.contains("Content-Type: text/html"));
-    assert!(str_html.contains("Telemetry & Control Cockpit"));
+        // Verify response generation
+        let resp_html = HttpResponse::ok_html(INDEX_HTML);
+        let bytes_html = resp_html.to_bytes();
+        let str_html = String::from_utf8_lossy(&bytes_html);
+        assert!(str_html.contains("HTTP/1.1 200 OK"));
+        assert!(str_html.contains("Content-Type: text/html"));
+        assert!(str_html.contains("Telemetry & Control Cockpit"));
 
-    let resp_js = HttpResponse::ok_js(APP_JS);
-    let bytes_js = resp_js.to_bytes();
-    let str_js = String::from_utf8_lossy(&bytes_js);
-    assert!(str_js.contains("HTTP/1.1 200 OK"));
-    assert!(str_js.contains("Content-Type: application/javascript"));
+        let resp_js = HttpResponse::ok_js(APP_JS);
+        let bytes_js = resp_js.to_bytes();
+        let str_js = String::from_utf8_lossy(&bytes_js);
+        assert!(str_js.contains("HTTP/1.1 200 OK"));
+        assert!(str_js.contains("Content-Type: application/javascript"));
 
-    let resp_css = HttpResponse::ok_css(STYLE_CSS);
-    let bytes_css = resp_css.to_bytes();
-    let str_css = String::from_utf8_lossy(&bytes_css);
-    assert!(str_css.contains("HTTP/1.1 200 OK"));
-    assert!(str_css.contains("Content-Type: text/css"));
+        let resp_css = HttpResponse::ok_css(STYLE_CSS);
+        let bytes_css = resp_css.to_bytes();
+        let str_css = String::from_utf8_lossy(&bytes_css);
+        assert!(str_css.contains("HTTP/1.1 200 OK"));
+        assert!(str_css.contains("Content-Type: text/css"));
+    }
 
     // 2. Live TCP Socket Test (with Sandbox Permission Guard)
     let listener_res = tokio::net::TcpListener::bind("127.0.0.1:0").await;

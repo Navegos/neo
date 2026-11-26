@@ -18,7 +18,7 @@ pub fn estimate_tokens(text: &str) -> usize {
     // Heuristic: ~3.8 to 4.0 chars per token for English & code
     // Max of word-based and char-based estimates
     let words = text.split_whitespace().count();
-    let char_est = (char_count + 3) / 4;
+    let char_est = char_count.div_ceil(4);
     words.max(char_est).max(1)
 }
 
@@ -72,31 +72,28 @@ pub fn auto_place_anthropic_cache_control(body: &mut Value) -> bool {
     };
 
     // Gate 2: Prefer placing on the last tool definition (highest reuse rate across multi-turn interactions)
-    if let Some(Value::Array(tools)) = map.get_mut("tools") {
-        if let Some(last_tool) = tools.last_mut() {
-            if let Value::Object(tool_map) = last_tool {
+    if let Some(Value::Array(tools)) = map.get_mut("tools")
+        && let Some(last_tool) = tools.last_mut()
+            && let Value::Object(tool_map) = last_tool {
                 tool_map.insert(
                     "cache_control".to_string(),
                     json!({ "type": "ephemeral" }),
                 );
                 return true;
             }
-        }
-    }
 
     // Gate 3: If no tools, place on system prompt
     if let Some(system_val) = map.get_mut("system") {
         match system_val {
             Value::Array(blocks) => {
-                if let Some(last_block) = blocks.last_mut() {
-                    if let Value::Object(block_map) = last_block {
+                if let Some(last_block) = blocks.last_mut()
+                    && let Value::Object(block_map) = last_block {
                         block_map.insert(
                             "cache_control".to_string(),
                             json!({ "type": "ephemeral" }),
                         );
                         return true;
                     }
-                }
             }
             Value::String(sys_str) => {
                 let text = sys_str.clone();
@@ -114,25 +111,19 @@ pub fn auto_place_anthropic_cache_control(body: &mut Value) -> bool {
     }
 
     // Gate 4: Fall back to last message in conversation if history >= 2 turns
-    if let Some(Value::Array(messages)) = map.get_mut("messages") {
-        if messages.len() >= 2 {
-            if let Some(last_msg) = messages.last_mut() {
-                if let Value::Object(msg_map) = last_msg {
-                    if let Some(Value::Array(content_blocks)) = msg_map.get_mut("content") {
-                        if let Some(last_block) = content_blocks.last_mut() {
-                            if let Value::Object(block_map) = last_block {
+    if let Some(Value::Array(messages)) = map.get_mut("messages")
+        && messages.len() >= 2
+            && let Some(last_msg) = messages.last_mut()
+                && let Value::Object(msg_map) = last_msg
+                    && let Some(Value::Array(content_blocks)) = msg_map.get_mut("content")
+                        && let Some(last_block) = content_blocks.last_mut()
+                            && let Value::Object(block_map) = last_block {
                                 block_map.insert(
                                     "cache_control".to_string(),
                                     json!({ "type": "ephemeral" }),
                                 );
                                 return true;
                             }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     false
 }
@@ -164,10 +155,10 @@ pub fn stabilize_cache_keys(body: &mut Value) {
     // Sort tool parameters properties if tools exist
     if let Some(Value::Array(tools)) = map.get_mut("tools") {
         for tool in tools {
-            if let Value::Object(tool_map) = tool {
-                if let Some(Value::Object(func_map)) = tool_map.get_mut("function") {
-                    if let Some(Value::Object(param_map)) = func_map.get_mut("parameters") {
-                        if let Some(Value::Object(prop_map)) = param_map.get_mut("properties") {
+            if let Value::Object(tool_map) = tool
+                && let Some(Value::Object(func_map)) = tool_map.get_mut("function")
+                    && let Some(Value::Object(param_map)) = func_map.get_mut("parameters")
+                        && let Some(Value::Object(prop_map)) = param_map.get_mut("properties") {
                             // Sort keys into a deterministic BTreeMap representation
                             let mut sorted_props: std::collections::BTreeMap<String, Value> =
                                 std::collections::BTreeMap::new();
@@ -181,9 +172,6 @@ pub fn stabilize_cache_keys(body: &mut Value) {
                                 prop_map.insert(k, v);
                             }
                         }
-                    }
-                }
-            }
         }
     }
 }
@@ -205,35 +193,29 @@ pub fn align_system_prompt_to_1024(body: &mut Value) -> bool {
                 }
             }
             Value::Array(blocks) => {
-                if let Some(first_block) = blocks.first_mut() {
-                    if let Value::Object(block_map) = first_block {
-                        if let Some(Value::String(text)) = block_map.get_mut("text") {
-                            if !text.contains("toksi:cache-align") && !text.contains("toksi:cache-align") {
+                if let Some(first_block) = blocks.first_mut()
+                    && let Value::Object(block_map) = first_block
+                        && let Some(Value::String(text)) = block_map.get_mut("text")
+                            && !text.contains("toksi:cache-align") && !text.contains("toksi:cache-align") {
                                 *text = align_to_1024_tokens(text);
                                 return true;
                             }
-                        }
-                    }
-                }
             }
             _ => {}
         }
     }
 
     // OpenAI / Gemini: system message in messages[0]
-    if let Some(Value::Array(messages)) = map.get_mut("messages") {
-        if let Some(first_msg) = messages.first_mut() {
+    if let Some(Value::Array(messages)) = map.get_mut("messages")
+        && let Some(first_msg) = messages.first_mut() {
             let role = first_msg.get("role").and_then(|v| v.as_str()).unwrap_or("");
-            if role == "system" || role == "developer" {
-                if let Some(Value::String(content)) = first_msg.get_mut("content") {
-                    if !content.contains("toksi:cache-align") && !content.contains("toksi:cache-align") {
+            if (role == "system" || role == "developer")
+                && let Some(Value::String(content)) = first_msg.get_mut("content")
+                    && !content.contains("toksi:cache-align") && !content.contains("toksi:cache-align") {
                         *content = align_to_1024_tokens(content);
                         return true;
                     }
-                }
-            }
         }
-    }
 
     false
 }

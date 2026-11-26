@@ -71,8 +71,8 @@ pub fn configure_instruction_conflicts(agent: &str) {
                     let _ = fs::remove_file(f);
                 }
             }
-            if let Some(raw) = read_file_safe(&p.config) {
-                if let Some(Value::Object(mut cfg)) = try_parse_jsonc(&raw) {
+            if let Some(raw) = read_file_safe(&p.config)
+                && let Some(Value::Object(mut cfg)) = try_parse_jsonc(&raw) {
                     let mut changed = false;
                     if let Some(Value::Array(arr)) = cfg.get_mut("instructions") {
                         let before = arr.len();
@@ -97,13 +97,12 @@ pub fn configure_instruction_conflicts(agent: &str) {
                         let _ = write_file_atomic(&p.config, &stringify_json(&Value::Object(cfg)));
                     }
                 }
-            }
         }
         "kilo" => {
             let p = kilo_paths_resolved();
-            if let Some(raw) = read_file_safe(&p.config) {
-                if let Some(Value::Object(mut cfg)) = try_parse_jsonc(&raw) {
-                    if let Some(Value::Array(arr)) = cfg.get_mut("instructions") {
+            if let Some(raw) = read_file_safe(&p.config)
+                && let Some(Value::Object(mut cfg)) = try_parse_jsonc(&raw)
+                    && let Some(Value::Array(arr)) = cfg.get_mut("instructions") {
                         let target = kilo_instructions_path();
                         let before = arr.len();
                         arr.retain(|item| {
@@ -120,8 +119,6 @@ pub fn configure_instruction_conflicts(agent: &str) {
                             let _ = write_file_atomic(&p.config, &stringify_json(&Value::Object(cfg)));
                         }
                     }
-                }
-            }
         }
         _ => {}
     }
@@ -260,11 +257,10 @@ pub fn write_owner_at_path(path: &str, owner: &str) -> bool {
     if path.is_empty() || instruction_section(owner).is_empty() {
         return false;
     }
-    if let Some(parent) = Path::new(path).parent() {
-        if !parent.as_os_str().is_empty() {
+    if let Some(parent) = Path::new(path).parent()
+        && !parent.as_os_str().is_empty() {
             let _ = ensure_dir(parent);
         }
-    }
     let existing = read_file_safe(path).unwrap_or_default();
     let mut owners = extract_present_owners(&existing);
     if !owners.iter().any(|o| o == owner) {

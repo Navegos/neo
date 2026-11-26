@@ -66,11 +66,10 @@ impl EnvFactsDistiller {
                 || trimmed.starts_with("PWD=")
                 || trimmed.starts_with("SHELL=")
                 || trimmed.starts_with("PATH=");
-            if is_env_fact {
-                if !self.seen_facts.insert(trimmed.to_string()) {
+            if is_env_fact
+                && !self.seen_facts.insert(trimmed.to_string()) {
                     continue;
                 }
-            }
             out.push(line);
         }
         out.join("\n")
@@ -199,8 +198,8 @@ impl TokenEconomizer {
             }
 
             // Redundant comments
-            if self.options.strip_redundant_comments {
-                if trimmed.starts_with("//") && !trimmed.starts_with("///") && trimmed.len() < 80 {
+            if self.options.strip_redundant_comments
+                && trimmed.starts_with("//") && !trimmed.starts_with("///") && trimmed.len() < 80 {
                     let comment_body = trimmed.trim_start_matches('/').trim().to_ascii_lowercase();
                     if comment_body.contains("todo") || comment_body.contains("fixme") || comment_body.contains("note") {
                         // keep significant comments
@@ -208,7 +207,6 @@ impl TokenEconomizer {
                         continue;
                     }
                 }
-            }
 
             // Deduplicate repetitive instructions across turns
             if self.options.deduplicate_instructions && (trimmed.starts_with("- ") || trimmed.starts_with("* ")) && trimmed.len() > 15 {
@@ -338,15 +336,13 @@ fn collapse_line_whitespace(s: &str) -> String {
 fn prune_schema_recursive(val: &mut serde_json::Value) {
     if let serde_json::Value::Object(map) = val {
         // Strip or truncate verbose description fields in tool parameters (UTF-8 char-boundary safe)
-        if let Some(desc) = map.get_mut("description") {
-            if let Some(s) = desc.as_str() {
-                if s.chars().count() > 120 {
+        if let Some(desc) = map.get_mut("description")
+            && let Some(s) = desc.as_str()
+                && s.chars().count() > 120 {
                     let prefix: String = s.chars().take(100).collect();
                     let truncated = format!("{}...", prefix);
                     *desc = serde_json::Value::String(truncated);
                 }
-            }
-        }
         for (_, v) in map.iter_mut() {
             prune_schema_recursive(v);
         }
@@ -503,7 +499,7 @@ End of prompt.
     #[test]
     fn test_prune_schema_verbose_descriptions() {
         let econ = TokenEconomizer::default();
-        let mut schema = serde_json::json!({
+        let schema = serde_json::json!({
             "type": "object",
             "properties": {
                 "code": {
@@ -512,7 +508,7 @@ End of prompt.
                 }
             }
         });
-        let pruned = econ.prune_json_schema(&mut schema);
+        let pruned = econ.prune_json_schema(&schema);
         let desc = pruned["properties"]["code"]["description"].as_str().unwrap_or("");
         assert!(desc.ends_with("..."));
         assert!(desc.len() <= 105);

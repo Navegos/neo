@@ -37,11 +37,10 @@ pub fn run(cmd: &str, args: &[&str], opts: RunOptions) -> ExecResult {
     let mut command = Command::new(cmd);
     command.args(args);
 
-    if let Some(ref cwd) = opts.cwd {
-        if !cwd.is_empty() {
+    if let Some(ref cwd) = opts.cwd
+        && !cwd.is_empty() {
             command.current_dir(cwd);
         }
-    }
     for (k, v) in &opts.env {
         command.env(k, v);
     }
@@ -194,11 +193,10 @@ pub fn prepend_process_path(dir: &str) {
     if trimmed.is_empty() {
         return;
     }
-    if let Ok(mut guard) = EXTRA_PATH_DIRS.write() {
-        if !guard.iter().any(|d| d == trimmed) {
+    if let Ok(mut guard) = EXTRA_PATH_DIRS.write()
+        && !guard.iter().any(|d| d == trimmed) {
             guard.insert(0, trimmed.to_string());
         }
-    }
 }
 
 pub fn extra_process_path_dirs() -> Vec<String> {
@@ -236,15 +234,14 @@ pub fn which_any(bins: &[&str]) -> (String, String) {
 
 pub fn rtk_install_dirs() -> Vec<String> {
     if IS_WIN {
-        if let Ok(local) = std::env::var("LOCALAPPDATA") {
-            if !local.is_empty() {
+        if let Ok(local) = std::env::var("LOCALAPPDATA")
+            && !local.is_empty() {
                 return vec![Path::new(&local)
                     .join("rtk")
                     .join("bin")
                     .to_string_lossy()
                     .to_string()];
             }
-        }
         return vec![];
     }
     vec![Path::new(&home())

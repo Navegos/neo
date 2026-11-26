@@ -54,24 +54,22 @@ pub(crate) fn end_log_capture(prev: Option<String>) -> String {
 }
 
 fn emit_stdout(line: &str) {
-    if let Ok(mut guard) = CAPTURE_BUFFER.lock() {
-        if let Some(ref mut buf) = *guard {
+    if let Ok(mut guard) = CAPTURE_BUFFER.lock()
+        && let Some(ref mut buf) = *guard {
             buf.push_str(line);
             buf.push('\n');
             return;
         }
-    }
     println!("{}", line);
 }
 
 fn emit_stderr(line: &str) {
-    if let Ok(mut guard) = CAPTURE_BUFFER.lock() {
-        if let Some(ref mut buf) = *guard {
+    if let Ok(mut guard) = CAPTURE_BUFFER.lock()
+        && let Some(ref mut buf) = *guard {
             buf.push_str(line);
             buf.push('\n');
             return;
         }
-    }
     eprintln!("{}", line);
 }
 

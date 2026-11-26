@@ -172,12 +172,11 @@ pub fn build_principles() -> ToolManifest {
             } else {
                 None
             };
-            if let Some(path) = target {
-                if let Some(raw) = read_file_safe(path.to_string_lossy().as_ref()) {
+            if let Some(path) = target
+                && let Some(raw) = read_file_safe(path.to_string_lossy().as_ref()) {
                     let expected = cursor_project_rule_content("principles");
                     return Some(!expected.is_empty() && raw.replace("\r\n", "\n") == expected.replace("\r\n", "\n"));
                 }
-            }
             Some(false)
         }),
     );

@@ -239,7 +239,7 @@ fn test_neo_catalog_loading() {
     );
     let hints = neo.get_asset_hints("windows", "x86_64");
     assert!(hints.is_some());
-    assert!(hints.unwrap().contains(&"neo-x86_64-pc-windows-msvc".to_string()));
+    assert!(hints.unwrap().iter().any(|i| i == "neo-x86_64-pc-windows-msvc"));
 }
 
 #[test]

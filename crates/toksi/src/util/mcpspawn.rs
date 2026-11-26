@@ -220,15 +220,12 @@ pub fn codegraph_binary_healthy(p: &str) -> bool {
         Some((m.len(), mod_ns))
     });
 
-    if let Some((size, mod_ns)) = stat_key {
-        if let Ok(guard) = CODEGRAPH_HEALTH.lock() {
-            if let Some(cached) = guard.get(p) {
-                if cached.size == size && cached.modified_ns == mod_ns {
+    if let Some((size, mod_ns)) = stat_key
+        && let Ok(guard) = CODEGRAPH_HEALTH.lock()
+            && let Some(cached) = guard.get(p)
+                && cached.size == size && cached.modified_ns == mod_ns {
                     return cached.ok;
                 }
-            }
-        }
-    }
 
     let (cmd, mut args) = codegraph_probe_command(p);
     args.push("--version".to_string());
@@ -244,8 +241,8 @@ pub fn codegraph_binary_healthy(p: &str) -> bool {
     );
     let ok = version.code == 0 && semver_like_matches(&version.stdout);
 
-    if let Some((size, modified_ns)) = stat_key {
-        if let Ok(mut guard) = CODEGRAPH_HEALTH.lock() {
+    if let Some((size, modified_ns)) = stat_key
+        && let Ok(mut guard) = CODEGRAPH_HEALTH.lock() {
             guard.insert(
                 p.to_string(),
                 CodegraphHealthEntry {
@@ -255,7 +252,6 @@ pub fn codegraph_binary_healthy(p: &str) -> bool {
                 },
             );
         }
-    }
     ok
 }
 
@@ -386,8 +382,8 @@ pub fn codegraph_mcp_tools_healthy_mode(
                 #[serde(default)]
                 name: String,
             }
-            if let Ok(resp) = serde_json::from_slice::<ProbeResp>(&msg) {
-                if resp.id == 2 {
+            if let Ok(resp) = serde_json::from_slice::<ProbeResp>(&msg)
+                && resp.id == 2 {
                     let found = resp
                         .result
                         .tools
@@ -396,7 +392,6 @@ pub fn codegraph_mcp_tools_healthy_mode(
                     let _ = tx.send(found);
                     return;
                 }
-            }
         }
     });
 
@@ -445,11 +440,10 @@ pub fn read_mcp_probe_response<R: BufRead>(rd: &mut R, framed: bool) -> io::Resu
         if trimmed.is_empty() {
             break;
         }
-        if let Some((k, v)) = trimmed.split_once(':') {
-            if k.trim().eq_ignore_ascii_case("Content-Length") {
+        if let Some((k, v)) = trimmed.split_once(':')
+            && k.trim().eq_ignore_ascii_case("Content-Length") {
                 length = v.trim().parse::<usize>().unwrap_or(0);
             }
-        }
     }
     if length == 0 {
         return Err(io::Error::new(

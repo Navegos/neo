@@ -11,42 +11,34 @@ use crate::keyring::get_agent_token;
 
 pub fn read_grok_session() -> Option<String> {
     // 1. Check OS Keyring first
-    if let Some(mut env) = get_agent_token("grok") {
-        if !env.is_expired(30) && !env.access_token.is_empty() {
+    if let Some(mut env) = get_agent_token("grok")
+        && !env.is_expired(30) && !env.access_token.is_empty() {
             return Some(env.take_access_token());
         }
-    }
-    if let Some(mut env) = get_agent_token("xai") {
-        if !env.is_expired(30) && !env.access_token.is_empty() {
+    if let Some(mut env) = get_agent_token("xai")
+        && !env.is_expired(30) && !env.access_token.is_empty() {
             return Some(env.take_access_token());
         }
-    }
 
     // 2. Check local config ~/.grok/config.json
     if let Some(home) = dirs::home_dir() {
         let path = home.join(".grok").join("config.json");
-        if path.exists() {
-            if let Ok(raw) = std::fs::read_to_string(path) {
-                if let Ok(val) = serde_json::from_str::<Value>(&raw) {
-                    if let Some(tok) = val.get("api_key")
+        if path.exists()
+            && let Ok(raw) = std::fs::read_to_string(path)
+                && let Ok(val) = serde_json::from_str::<Value>(&raw)
+                    && let Some(tok) = val.get("api_key")
                         .or_else(|| val.get("session_token"))
                         .and_then(Value::as_str)
-                    {
-                        if !tok.is_empty() {
+                        && !tok.is_empty() {
                             return Some(tok.to_string());
                         }
-                    }
-                }
-            }
-        }
     }
 
     // 3. Fallback: check environment variable
-    if let Ok(k) = std::env::var("XAI_API_KEY").or_else(|_| std::env::var("GROK_API_KEY")) {
-        if !k.trim().is_empty() {
+    if let Ok(k) = std::env::var("XAI_API_KEY").or_else(|_| std::env::var("GROK_API_KEY"))
+        && !k.trim().is_empty() {
             return Some(k.trim().to_string());
         }
-    }
 
     None
 }

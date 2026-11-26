@@ -118,11 +118,10 @@ pub fn handle_slash_command(input: &str, root: Option<&Path>) -> String {
             }
         }
         "summary" => {
-            if let Ok(p) = summary_path(root) {
-                if p.exists() {
+            if let Ok(p) = summary_path(root)
+                && p.exists() {
                     return std::fs::read_to_string(p).unwrap_or_else(|_| "Failed to read summary.".into());
                 }
-            }
             "No summary found. Run `toksi mem init` first.".to_string()
         }
         "gotchas" => {

@@ -10,16 +10,14 @@ use crate::keyring::get_agent_token;
 
 pub fn read_gemini_adc_session() -> Option<String> {
     // 1. Check native OS Keyring first (macOS Keychain, Windows Credential Manager, Linux Secret Service)
-    if let Some(mut env) = get_agent_token("antigravity") {
-        if !env.is_expired(30) && !env.access_token.is_empty() {
+    if let Some(mut env) = get_agent_token("antigravity")
+        && !env.is_expired(30) && !env.access_token.is_empty() {
             return Some(env.take_access_token());
         }
-    }
-    if let Some(mut env) = get_agent_token("gemini") {
-        if !env.is_expired(30) && !env.access_token.is_empty() {
+    if let Some(mut env) = get_agent_token("gemini")
+        && !env.is_expired(30) && !env.access_token.is_empty() {
             return Some(env.take_access_token());
         }
-    }
 
     // 2. Check local file token storage (.gemini/antigravity-cli/auth.json, oauth_credentials.json, etc.)
     if let Some(home) = dirs::home_dir() {
@@ -29,31 +27,27 @@ pub fn read_gemini_adc_session() -> Option<String> {
             home.join(".gemini").join("config").join("auth.json"),
             home.join(".gemini").join("oauth_credentials.json"),
         ];
-        if cfg!(windows) {
-            if let Some(local) = dirs::data_local_dir() {
+        if cfg!(windows)
+            && let Some(local) = dirs::data_local_dir() {
                 candidates.push(local.join("Antigravity").join("auth.json"));
             }
-        }
 
         for path in candidates {
-            if path.exists() {
-                if let Ok(raw) = std::fs::read_to_string(&path) {
-                    if let Some(mut env) = crate::keyring::parse_credential_envelope(&raw) {
-                        if !env.is_expired(30) && !env.access_token.is_empty() {
+            if path.exists()
+                && let Ok(raw) = std::fs::read_to_string(&path) {
+                    if let Some(mut env) = crate::keyring::parse_credential_envelope(&raw)
+                        && !env.is_expired(30) && !env.access_token.is_empty() {
                             return Some(env.take_access_token());
                         }
-                    }
-                    if let Ok(val) = serde_json::from_str::<Value>(&raw) {
-                        if let Some(tok) = val.get("access_token")
+                    if let Ok(val) = serde_json::from_str::<Value>(&raw)
+                        && let Some(tok) = val.get("access_token")
                             .or_else(|| val.get("token"))
                             .or_else(|| val.get("session_token"))
                             .and_then(Value::as_str)
                         {
                             return Some(tok.to_string());
                         }
-                    }
                 }
-            }
         }
 
         // 3. Check gcloud application_default_credentials.json
@@ -63,30 +57,24 @@ pub fn read_gemini_adc_session() -> Option<String> {
             home.join(".config").join("gcloud").join("application_default_credentials.json").into()
         };
 
-        if let Some(path) = adc_path {
-            if path.exists() {
-                if let Ok(raw) = std::fs::read_to_string(path) {
-                    if let Ok(val) = serde_json::from_str::<Value>(&raw) {
-                        if let Some(tok) = val.get("client_secret").or_else(|| val.get("access_token")).and_then(Value::as_str) {
+        if let Some(path) = adc_path
+            && path.exists()
+                && let Ok(raw) = std::fs::read_to_string(path)
+                    && let Ok(val) = serde_json::from_str::<Value>(&raw)
+                        && let Some(tok) = val.get("client_secret").or_else(|| val.get("access_token")).and_then(Value::as_str) {
                             return Some(tok.to_string());
                         }
-                    }
-                }
-            }
-        }
     }
 
     // 4. Fallback: check environment variables
-    if let Ok(k) = std::env::var("GEMINI_API_KEY") {
-        if !k.trim().is_empty() {
+    if let Ok(k) = std::env::var("GEMINI_API_KEY")
+        && !k.trim().is_empty() {
             return Some(k.trim().to_string());
         }
-    }
-    if let Ok(k) = std::env::var("GOOGLE_API_KEY") {
-        if !k.trim().is_empty() {
+    if let Ok(k) = std::env::var("GOOGLE_API_KEY")
+        && !k.trim().is_empty() {
             return Some(k.trim().to_string());
         }
-    }
 
     None
 }

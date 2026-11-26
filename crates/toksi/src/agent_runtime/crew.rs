@@ -115,7 +115,7 @@ impl ReflectionAgent {
     where
         F: FnMut(usize, &str, &str) -> (bool, String, String),
     {
-        let cap = self.max_rounds.min(MAX_REFLECTION_ROUNDS).max(1);
+        let cap = self.max_rounds.clamp(1, MAX_REFLECTION_ROUNDS);
         let mut current = initial_output.to_string();
         let mut last_critique = String::new();
 

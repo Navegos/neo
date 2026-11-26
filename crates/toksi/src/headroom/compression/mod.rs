@@ -43,11 +43,10 @@ pub fn detect_content_kind(content: &str, hint: Option<&str>) -> ContentKind {
         }
     }
 
-    if (trimmed.starts_with('{') && trimmed.ends_with('}')) || (trimmed.starts_with('[') && trimmed.ends_with(']')) {
-        if serde_json::from_str::<serde_json::Value>(trimmed).is_ok() {
+    if ((trimmed.starts_with('{') && trimmed.ends_with('}')) || (trimmed.starts_with('[') && trimmed.ends_with(']')))
+        && serde_json::from_str::<serde_json::Value>(trimmed).is_ok() {
             return ContentKind::Json;
         }
-    }
 
     let code_lang = detect_code_language(trimmed);
     if code_lang != CodeLanguage::Unknown {

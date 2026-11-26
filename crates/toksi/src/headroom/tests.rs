@@ -6,6 +6,7 @@
 // lastModified: 2026-10-31
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod tests {
     use serde_json::json;
 
@@ -209,8 +210,10 @@ ValueError: invalid ID parameter";
     #[test]
     fn test_json_array_truncation() {
         let payload = r#"{"logs": ["line1", "line2", "line3", "line4", "line5", "line6", "line7"]}"#;
-        let mut cfg = JsonPrunerConfig::default();
-        cfg.max_array_items = 2;
+        let cfg = JsonPrunerConfig {
+            max_array_items: 2,
+            ..Default::default()
+        };
 
         let pruned = prune_json(payload, &cfg);
         assert!(pruned.contains(r#""logs":["line1","line2","[... 5 items omitted by toksi]"]"#));
@@ -367,21 +370,30 @@ ValueError: invalid ID parameter";
 
     #[test]
     fn test_build_adaptive_memory_brief() {
+        let has_entries = !crate::headroom::adaptive_mem::collect_memory_entries().is_empty();
+
         // High headroom (> 92%) scales up to L2 (Full content)
         let (brief_l2, tier_l2) = build_adaptive_memory_brief(5_000, 200_000);
         assert_eq!(tier_l2, DisclosureTier::L2);
-        assert!(brief_l2.contains("<!-- toksi:adaptive-mem-governor"));
-        assert!(brief_l2.contains("tier=L2"));
 
         // Moderate headroom (70%..=92%) scales to L1 (Abstracts)
         let (brief_l1, tier_l1) = build_adaptive_memory_brief(40_000, 200_000);
         assert_eq!(tier_l1, DisclosureTier::L1);
-        assert!(brief_l1.contains("tier=L1"));
 
         // Low headroom (< 30%) scales to L0 (TOC)
         let (brief_l0, tier_l0) = build_adaptive_memory_brief(180_000, 200_000);
         assert_eq!(tier_l0, DisclosureTier::L0);
-        assert!(brief_l0.contains("tier=L0"));
+
+        if has_entries {
+            assert!(brief_l2.contains("<!-- toksi:adaptive-mem-governor"));
+            assert!(brief_l2.contains("tier=L2"));
+            assert!(brief_l1.contains("tier=L1"));
+            assert!(brief_l0.contains("tier=L0"));
+        } else {
+            assert!(brief_l2.is_empty());
+            assert!(brief_l1.is_empty());
+            assert!(brief_l0.is_empty());
+        }
     }
 
     #[test]
@@ -394,11 +406,14 @@ ValueError: invalid ID parameter";
             ]
         });
 
+        let has_entries = !crate::headroom::adaptive_mem::collect_memory_entries().is_empty();
         let injected = inject_adaptive_memory(&mut body);
-        assert!(injected);
+        assert_eq!(injected, has_entries);
         let sys = body["system"].as_str().unwrap();
-        assert!(sys.contains("toksi:adaptive-mem-governor"));
         assert!(sys.contains("Original prompt"));
+        if has_entries {
+            assert!(sys.contains("toksi:adaptive-mem-governor"));
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
