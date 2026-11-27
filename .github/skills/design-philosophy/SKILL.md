@@ -1,11 +1,11 @@
 ---
 name: design-philosophy
-description: The VS Code design philosophy — a shared Values→Principles→Moves vocabulary for reasoning about UI in design terms instead of raw pixels. Use when designing, building, reviewing, or giving feedback on any visual surface; when deciding a radius, spacing, type role, icon size, border, color, or motion; or when translating a "this feels off" observation into a concrete, principled fix.
+description: The VS Code design philosophy --- a shared Values->Principles->Moves vocabulary for reasoning about UI in design terms instead of raw pixels. Use when designing, building, reviewing, or giving feedback on any visual surface; when deciding a radius, spacing, type role, icon size, border, color, or motion; or when translating a "this feels off" observation into a concrete, principled fix.
 ---
 
 # VS Code Design Philosophy
 
-This skill is the **canonical VS Code design philosophy** — the single source of truth for how we reason about UI, for both developers and agents.
+This skill is the **canonical VS Code design philosophy** --- the single source of truth for how we reason about UI, for both developers and agents.
 
 As more and more of the UI is implemented via agents and tooling, the pixels increasingly take care of themselves, and the scarce, human part becomes the design judgment behind them.
 
@@ -38,7 +38,7 @@ Read top-down when you're learning the system, and bottom-up when you're fixing 
 
 These four values name what we want people to *feel* using VS Code - they're the top layer, the thing every principle and move below is ultimately in service of. Learn them and you can describe almost any bug. Each is a *feeling* the UI should give; each is upheld by one or more **principles** below. Reach for the value first, the principle second, the move last.
 
-| Value | Means | When it's broken it feels… | Principles |
+| Value | Means | When it's broken it feels... | Principles |
 |------|-------|----------------------------|------------|
 | **Calm** | quiet at rest, uncluttered; room to breathe; soft, not sharp; plain-spoken and human | busy, noisy, cramped, jagged, cryptic, shouty | 1, 2, 3 |
 | **Focused** | clear hierarchy; one thing leads, the rest supports | flat, samey, the eye has nowhere to go | 4, 5 |
@@ -201,7 +201,7 @@ Corner radius encodes **how far a surface floats above the one beneath it**. Eve
 | **Inner** | 6px | `--vscode-cornerRadius-medium` | non-control containers sitting *inside* a surface |
 | **Outer** | 8px | `--vscode-cornerRadius-large` | floating / overlay surfaces - menus, hovers, dialogs, toasts |
 
-Pills (radius ≈ half the height) are **fully round** (`--vscode-cornerRadius-circle`), not "a big radius."
+Pills (radius ~= half the height) are **fully round** (`--vscode-cornerRadius-circle`), not "a big radius."
 - **Decision rule:** pick the tier by the surface's **role in the stack**, not by how the corner looks. A bug here sounds like *"this overlay is rounded at the control tier,"* never *"this needs more border-radius."*
 - **Serves:** *Elevation is encoded* (5), *Room to breathe* (2).
 
@@ -209,20 +209,20 @@ Pills (radius ≈ half the height) are **fully round** (`--vscode-cornerRadius-c
 ### The spacing ramp - on-scale or off-scale
 
 Padding, margin, and gap come from the **spacing ramp** (0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40).
-- **Decision rule:** a value either lands *on* the ramp or it doesn't. Off-scale values (3, 5, 7, 14, 26…) break the rhythm; snap to the nearest step, ties rounding up. Report rhythm bugs as *"this is off the spacing ramp,"* not *"add a couple of pixels."*
+- **Decision rule:** a value either lands *on* the ramp or it doesn't. Off-scale values (3, 5, 7, 14, 26...) break the rhythm; snap to the nearest step, ties rounding up. Report rhythm bugs as *"this is off the spacing ramp,"* not *"add a couple of pixels."*
 - **Serves:** *Room to breathe* (2), *Sameness signals sameness* (6).
 
 <a id="type-ramp"></a>
 ### The type ramp - roles and two weights, not free sizes
 
-Text styles are **roles**, not arbitrary sizes: `heading1–3`, `body1–2`, `label1–3`. There are exactly **two weights** - `regular` (400) and `semiBold` (600). There is no medium (500). "Strong" is not a bigger size; it is the *same role token at `semiBold`*.
+Text styles are **roles**, not arbitrary sizes: `heading1--3`, `body1--2`, `label1--3`. There are exactly **two weights** - `regular` (400) and `semiBold` (600). There is no medium (500). "Strong" is not a bigger size; it is the *same role token at `semiBold`*.
 - **Decision rule:** choose the role by the text's **rank in the hierarchy**, not by eyeballing a size. A heading that looks weak is *"the wrong type role"* or *"missing the semiBold weight,"* not *"bump the font to 14."* A `500` anywhere is **off the ramp**.
 - **Serves:** *One thing leads* (4), *Sameness signals sameness* (6).
 
 <a id="icon-sizes"></a>
 ### Icon sizes - two sizes, chosen by context
 
-Codicons are **16px (base)** or **12px (compact)** - nothing in between; `14px` is always a bug. At the compact size, also swap to the `*Compact` glyph (`Codicon.close` → `Codicon.closeCompact`) so the icon is *optically* tuned, not just scaled.
+Codicons are **16px (base)** or **12px (compact)** - nothing in between; `14px` is always a bug. At the compact size, also swap to the `*Compact` glyph (`Codicon.close` -> `Codicon.closeCompact`) so the icon is *optically* tuned, not just scaled.
 - **Decision rule:** size tracks the **density and rank of the context**. Use **base (16px)** for standalone or primary actions and comfortable click targets; use **compact (12px)** for dense rows, inline glyphs, and secondary chrome where the icon rides alongside text. So the answer to "16 or 12?" is *"what is this icon's role here?"* - not a taste call. Say *"this icon should be compact,"* not *"shrink it a bit."*
 - **Serves:** *One thing leads* (4), *Sameness signals sameness* (6).
 
@@ -259,7 +259,7 @@ Chrome that used to carry a permanent fill now reads transparent at rest and onl
 
 **Write in sentence case.** Labels, buttons, menus, and messages capitalize the first word and proper nouns only - *"Start new session,"* not *"Start New Session."* It's calmer, friendlier, and quicker to scan. Report it as *"this is Title Case - make it sentence case,"* a tone fix, not a reword.
 
-> **⚠️ Known conflict - reconcile later.** This sentence-case guidance is the intended modern-UI direction, but it **contradicts** the repo-wide coding guideline that mandates title-style capitalization for command labels, buttons, and menu items (see [coding-guidelines.instructions.md](../../instructions/coding-guidelines.instructions.md), "UI labels"). The two conventions have not yet been reconciled. Until they are, **follow the existing title-case rule for shipped, non-experimental UI**, and apply sentence case only within surfaces that have explicitly adopted the modern UI direction. TODO: agree a single casing convention and update whichever doc loses.
+> **[WARN] Known conflict - reconcile later.** This sentence-case guidance is the intended modern-UI direction, but it **contradicts** the repo-wide coding guideline that mandates title-style capitalization for command labels, buttons, and menu items (see [coding-guidelines.instructions.md](../../instructions/coding-guidelines.instructions.md), "UI labels"). The two conventions have not yet been reconciled. Until they are, **follow the existing title-case rule for shipped, non-experimental UI**, and apply sentence case only within surfaces that have explicitly adopted the modern UI direction. TODO: agree a single casing convention and update whichever doc loses.
 
 - **Serves:** *The interface explains itself* (3).
 
@@ -269,22 +269,22 @@ Chrome that used to carry a permanent fill now reads transparent at rest and onl
 
 Lead with the **role / tier / ramp**, not the number - then name the principle so the fix lands everywhere, not just here. The number is a symptom.
 
-| ❌ Don't say | ✅ Do say | Principle |
+| [FAIL] Don't say | [DONE] Do say | Principle |
 |----------------------|--------------------------|-----------|
-| "border-radius should be 6, not 8" | "this is an **Inner** surface rounded at the **Outer** tier" | 5 · Elevation |
-| "this menu corner is too sharp" | "this **overlay** should be on the **Outer** radius tier" | 5 · Elevation |
-| "add 2px of padding" | "this content is **off the spacing ramp** / needs ramp breathing room" | 2 · Room to breathe |
-| "make this 14px" | "this should use the **`label1` / `body1` type role**" | 4 · One thing leads |
-| "the title looks thin" | "the heading is **missing the `semiBold` weight**" | 4 · One thing leads |
-| "font-weight 500 here" | "**500 is off the ramp** - snap to `semiBold` (600)" | 6 · Sameness |
-| "shrink this icon a touch" | "this icon should be the **compact (12px) size + `*Compact` glyph**" | 4 · One thing leads |
-| "this icon is 14px" | "codicons are **16 or 12 only** - pick base or compact" | 6 · Sameness |
-| "this ordinary border is too thick" | "standard borders are **one stroke (1px)** - this should/shouldn't have one; preserve thicker focus/semantic strokes" | 1 · Quiet at rest |
-| "change this grey hex" | "this is the **wrong theme token** / it **vanishes in light/HC**" | 6 · Sameness |
-| "the command center has a box around it" | "chrome should be **quiet at rest, reveal on hover**" | 1 · Quiet at rest |
-| "the focus outline shows when I click" | "the ring is **keyboard-focus only** (`:focus-visible`)" | 1 · Quiet at rest |
-| "the list is cut off at the bottom" | "the surface is **missing its scroll-shadow fade**" | 7 · Delight / 5 · Elevation |
-| "the pane header has a line / hard edge" | "pane headers are **rounded, separator-less section titles**" | 1 · Quiet at rest |
+| "border-radius should be 6, not 8" | "this is an **Inner** surface rounded at the **Outer** tier" | 5 - Elevation |
+| "this menu corner is too sharp" | "this **overlay** should be on the **Outer** radius tier" | 5 - Elevation |
+| "add 2px of padding" | "this content is **off the spacing ramp** / needs ramp breathing room" | 2 - Room to breathe |
+| "make this 14px" | "this should use the **`label1` / `body1` type role**" | 4 - One thing leads |
+| "the title looks thin" | "the heading is **missing the `semiBold` weight**" | 4 - One thing leads |
+| "font-weight 500 here" | "**500 is off the ramp** - snap to `semiBold` (600)" | 6 - Sameness |
+| "shrink this icon a touch" | "this icon should be the **compact (12px) size + `*Compact` glyph**" | 4 - One thing leads |
+| "this icon is 14px" | "codicons are **16 or 12 only** - pick base or compact" | 6 - Sameness |
+| "this ordinary border is too thick" | "standard borders are **one stroke (1px)** - this should/shouldn't have one; preserve thicker focus/semantic strokes" | 1 - Quiet at rest |
+| "change this grey hex" | "this is the **wrong theme token** / it **vanishes in light/HC**" | 6 - Sameness |
+| "the command center has a box around it" | "chrome should be **quiet at rest, reveal on hover**" | 1 - Quiet at rest |
+| "the focus outline shows when I click" | "the ring is **keyboard-focus only** (`:focus-visible`)" | 1 - Quiet at rest |
+| "the list is cut off at the bottom" | "the surface is **missing its scroll-shadow fade**" | 7 - Delight / 5 - Elevation |
+| "the pane header has a line / hard edge" | "pane headers are **rounded, separator-less section titles**" | 1 - Quiet at rest |
 
 ---
 

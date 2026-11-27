@@ -172,7 +172,7 @@ Avoid moving rendered widgets between DOM parents after initial render. This cau
 - Focus loss (blur events can trigger hide logic in widgets like QuickInput)
 - Screenshot instability (the component explorer may capture an intermediate layout state)
 
-**Bad pattern — reparenting a widget after async wait:**
+**Bad pattern --- reparenting a widget after async wait:**
 ```typescript
 async function render({ container }: ComponentFixtureContext): Promise<void> {
     const host = document.createElement('div');
@@ -184,7 +184,7 @@ async function render({ container }: ComponentFixtureContext): Promise<void> {
 }
 ```
 
-**Better pattern — render in-place with the correct DOM structure from the start:**
+**Better pattern --- render in-place with the correct DOM structure from the start:**
 ```typescript
 function render({ container }: ComponentFixtureContext): void {
     // Set up the correct DOM structure first, then create the widget inside it
@@ -197,7 +197,7 @@ If the component absolutely requires async setup (e.g., QuickInput which renders
 
 ## Adapting Existing Components for Fixtures
 
-Existing components often need small changes to become fixturable. When writing a fixture reveals friction, fix the component — don't work around it in the fixture. Common adaptations:
+Existing components often need small changes to become fixturable. When writing a fixture reveals friction, fix the component --- don't work around it in the fixture. Common adaptations:
 
 ### Decouple CSS from ancestor context
 
@@ -243,7 +243,7 @@ The fixture passes `shouldAutoFocus: false`. The production call site keeps the 
 
 ### Expose internal state for "already completed" rendering
 
-Many components have lifecycle states (loading → active → completed). If the component can only reach the "completed" state through user interaction, add support for initializing directly into that state via constructor data:
+Many components have lifecycle states (loading -> active -> completed). If the component can only reach the "completed" state through user interaction, add support for initializing directly into that state via constructor data:
 
 ```typescript
 // The fixture can pass pre-filled data to render the summary/completed state

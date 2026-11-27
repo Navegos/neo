@@ -1,6 +1,6 @@
 # Creating Behavioral Evals
 
-## 🔬 Rig Selection
+## [RIG] Rig Selection
 
 | Rig Type          | Import From            | Architecture                                                         | Use When                                                                                              |
 | :---------------- | :--------------------- | :------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------- |
@@ -9,7 +9,7 @@
 
 ---
 
-## 🏗️ Scenario Design
+## [DESIGN] Scenario Design
 
 Evals must simulate realistic agent environments to effectively test
 decision-making.
@@ -24,7 +24,7 @@ decision-making.
 
 ---
 
-## ❌ Fail First Principle
+## [FAIL] Fail First Principle
 
 Before asserting a new capability or locking in a fix, **verify that the test
 fails first**.
@@ -36,7 +36,7 @@ fails first**.
 
 ---
 
-## ✋ Testing Patterns
+## [STOP] Testing Patterns
 
 ### 1. Breakpoints
 
@@ -44,7 +44,7 @@ Verifies the agent _intends_ to use a tool BEFORE executing it. Useful for
 interactive prompts or safety checks.
 
 ```typescript
-// ⚠️ Only works with appEvalTest (AppRig)
+// [WARN] Only works with appEvalTest (AppRig)
 setup: async (rig) => {
   rig.setBreakpoint(['ask_user']);
 },
@@ -110,7 +110,7 @@ assert: async (rig) => {
 
 ---
 
-## ⚠️ Safety & Efficiency Guardrails
+## [WARN] Safety & Efficiency Guardrails
 
 ### 1. Breakpoint Deadlocks
 

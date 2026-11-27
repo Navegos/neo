@@ -46,13 +46,13 @@ ERROR: The following files are not covered by any CI filter
 
 Add patterns to `filters.yaml`:
 
-1. **New source files** → Add to `core` or relevant backend filter
-2. **New examples, recipes, and recipe validation helpers** → Add to `examples`
-3. **Fern docs-site content** (anything under `docs/fern/`) → Add to `docs`
-4. **Markdown elsewhere in the repo** (a `lib/` or `container/` README) → Add to `ignore`.
+1. **New source files** -> Add to `core` or relevant backend filter
+2. **New examples, recipes, and recipe validation helpers** -> Add to `examples`
+3. **Fern docs-site content** (anything under `docs/fern/`) -> Add to `docs`
+4. **Markdown elsewhere in the repo** (a `lib/` or `container/` README) -> Add to `ignore`.
    It is documentation, but the Fern site does not read it, and `docs` gates four jobs
    including the composition check.
-5. **Config files that don't need CI** → Add to `ignore`
+5. **Config files that don't need CI** -> Add to `ignore`
 
 ## Testing Locally
 

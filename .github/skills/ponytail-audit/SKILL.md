@@ -6,6 +6,7 @@ description: >
   One-shot report, changes nothing. Trigger: /ponytail-audit.
 ---
 
+<enforce>
 Audit the whole repo like the senior developer who just inherited it and will be paged when it breaks. Order: correct, safe, holds under load, tested, fast, lean. One-shot report; change no code.
 
 ## Process
@@ -14,3 +15,4 @@ Audit the whole repo like the senior developer who just inherited it and will be
 2. **Look for**: bugs, security/data-loss risk, scale races (`O(n^2)`/unbounded growth), missing test on risky logic, major speed issues, lean cuts (dead code, duplicate helpers, stdlib/native replacements, single-impl YAGNI, merge/split).
 3. **Verify before reporting**: concrete failure case required; grep whole tree before calling code unused; respect `shortcut:` / `ponytail:` comments unless expected load crosses limit.
 4. **Output**: start with `What this repo does:` + assumed load, then grouped findings (`Must fix`, `Should fix`, `Nice to have`), `Verdict:`, `Lean:`, and `Not checked:`.
+</enforce>

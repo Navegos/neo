@@ -1,6 +1,6 @@
 # Bulk Issue Solver
 
-Orchestrate parallel `mc` (mastracode) headless instances to debug and fix multiple GitHub issues simultaneously. You act as the supervisor — spawning workers, monitoring progress, reviewing output, and creating PRs.
+Orchestrate parallel `mc` (mastracode) headless instances to debug and fix multiple GitHub issues simultaneously. You act as the supervisor --- spawning workers, monitoring progress, reviewing output, and creating PRs.
 
 ## Inputs
 
@@ -57,7 +57,7 @@ Create a `reports/` directory in the main project root. For each issue, maintain
 2. Check for new changesets and ISSUE_SUMMARY files
 3. If the instance **timed out but made progress**, restart it with a `--prompt` that says "Continue working on issue #<NUMBER>." and summarizes where it left off based on the diff and last output
 4. If the instance **completed its work** (code + tests + changeset):
-   - Review the diff — does the fix make sense?
+   - Review the diff --- does the fix make sense?
    - Report the changes to the user for review
    - When approved, commit, push, and create a PR using `/gh-new-pr` conventions:
      - Conventional commit title: `fix: ...` or `feat(pkg): ...`
@@ -82,9 +82,9 @@ If any checks are failing, spawn an `mc` instance in the worktree with `/gh-fix-
 ## Key Rules
 
 - **2 builds at a time** to manage CPU during `pnpm build`
-- **All `mc` instances can run in parallel** — they're IO-bound, not CPU-bound
-- **One worktree per issue, always** — every task related to an issue (debugging, PR comments, CI fixes) must run in that issue's worktree. Never create a second worktree for the same issue. The worktree accumulates context (commits, diffs, build artifacts) that each `mc` instance benefits from.
+- **All `mc` instances can run in parallel** --- they're IO-bound, not CPU-bound
+- **One worktree per issue, always** --- every task related to an issue (debugging, PR comments, CI fixes) must run in that issue's worktree. Never create a second worktree for the same issue. The worktree accumulates context (commits, diffs, build artifacts) that each `mc` instance benefits from.
 - **Always restart timed-out processes** with a continuation prompt that includes context from the diff and last output
-- **Never leave a process unmonitored** — check every 3 minutes
+- **Never leave a process unmonitored** --- check every 3 minutes
 - **Update report files continuously** so the user always has a written record
-- **Review all `mc` output before creating PRs** — subagent work is untrusted
+- **Review all `mc` output before creating PRs** --- subagent work is untrusted

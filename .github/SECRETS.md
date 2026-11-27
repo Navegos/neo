@@ -69,7 +69,7 @@ This environment is used by standard evals, Harbor evals, unified evals, and clb
 
 | Secret | Purpose |
 | --- | --- |
-| `LANGSMITH_API_KEY` | Eval datasets, examples, experiments, traces, feedback, and—temporarily—LangSmith sandbox lifecycle. |
+| `LANGSMITH_API_KEY` | Eval datasets, examples, experiments, traces, feedback, and---temporarily---LangSmith sandbox lifecycle. |
 | `ANTHROPIC_API_KEY` | Anthropic models selected by an eval matrix. |
 | `BASETEN_API_KEY` | Baseten-hosted models selected by an eval matrix. |
 | `FIREWORKS_API_KEY` | Fireworks-hosted models selected by an eval matrix. |
@@ -120,7 +120,7 @@ managed package.
 
 | Actions variable | Value | Type | Purpose |
 | --- | --- | --- | --- |
-| `RELEASE_BOT_MODEL` | Variable | Environment | Model used for changelog generation (`provider:model`). Must support JSON Schema structured output and a 32,768-token output ceiling. For `openai:…`, use a Chat Completions model. See [RELEASING.md](RELEASING.md) for the exact list. |
+| `RELEASE_BOT_MODEL` | Variable | Environment | Model used for changelog generation (`provider:model`). Must support JSON Schema structured output and a 32,768-token output ceiling. For `openai:...`, use a Chat Completions model. See [RELEASING.md](RELEASING.md) for the exact list. |
 | `RELEASE_BOT_ID` | - | Repository | GitHub App bot account user ID. |
 | `RELEASE_BOT_LOGIN` | `langchain-oss-automated-triage[bot]` | Repository | Login ID. |
 

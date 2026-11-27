@@ -1,6 +1,6 @@
 ---
 name: fix-ci-failures
-description: Investigate and fix CI failures on a pull request. Use when CI checks fail on a PR branch — covers finding the PR, identifying failed checks, downloading logs and artifacts, extracting the failure cause, and iterating on a fix. Requires the `gh` CLI.
+description: Investigate and fix CI failures on a pull request. Use when CI checks fail on a PR branch --- covers finding the PR, identifying failed checks, downloading logs and artifacts, extracting the failure cause, and iterating on a fix. Requires the `gh` CLI.
 ---
 
 # Investigating and Fixing CI Failures
@@ -41,7 +41,7 @@ gh pr checks --json name,state,link,bucket
 gh pr checks --json name,state,link,bucket --jq '.[] | select(.bucket == "fail")'
 ```
 
-The `link` field contains the URL to the GitHub Actions job. Extract the **run ID** from the URL — it's the number after `/runs/`:
+The `link` field contains the URL to the GitHub Actions job. Extract the **run ID** from the URL --- it's the number after `/runs/`:
 ```
 https://github.com/microsoft/vscode/actions/runs/<RUN_ID>/job/<JOB_ID>
 ```
@@ -71,7 +71,7 @@ There are two approaches depending on the type of failure.
 Best for build/compile/lint failures where the error is in the step output:
 
 ```bash
-# View only the failed step logs (most useful — shows just the errors)
+# View only the failed step logs (most useful --- shows just the errors)
 gh run view <RUN_ID> --job <JOB_ID> --log-failed
 ```
 
@@ -103,7 +103,7 @@ gh run download <RUN_ID> -n "logs-linux-x64-electron-1" -D /tmp/ci-logs
 gh run download <RUN_ID> -n "crash-dump-linux-x64-electron-1" -D /tmp/ci-crashes
 ```
 
-> **Tip**: Use the test runner name from the failed check (e.g., "Linux / Electron" → `electron`, "Linux / Remote" → `remote`) and platform map ("Windows" → `windows-x64`, "Linux" → `linux-x64`, "macOS" → `macos-arm64`) to construct the artifact name.
+> **Tip**: Use the test runner name from the failed check (e.g., "Linux / Electron" -> `electron`, "Linux / Remote" -> `remote`) and platform map ("Windows" -> `windows-x64`, "Linux" -> `linux-x64`, "macOS" -> `macos-arm64`) to construct the artifact name.
 
 > **Warning**: Log artifacts may be empty if the test runner crashed before producing output (e.g., Electron download failure). In that case, fall back to **Option C**.
 
@@ -112,11 +112,11 @@ gh run download <RUN_ID> -n "crash-dump-linux-x64-electron-1" -D /tmp/ci-crashes
 When the run is still in progress but the failed job has completed, use the GitHub API to download that job's step logs directly:
 
 ```bash
-# Save the full job log to a temp file (can be very large — 30k+ lines)
+# Save the full job log to a temp file (can be very large --- 30k+ lines)
 gh api repos/microsoft/vscode/actions/jobs/<JOB_ID>/logs > "$TMPDIR/ci-job-log.txt"
 ```
 
-Then search the saved file. **Start with `##[error]`** — this is the GitHub Actions error annotation that marks the exact line where the step failed:
+Then search the saved file. **Start with `##[error]`** --- this is the GitHub Actions error annotation that marks the exact line where the step failed:
 
 ```bash
 # Step 1: Find the error annotation (fastest path to the failure)
@@ -165,10 +165,10 @@ gh run view <RUN_ID> --job <JOB_ID> --log-failed | grep -A 5 "failing\|Assertion
 ```
 
 Common patterns in VS Code CI:
-- **`AssertionError [ERR_ASSERTION]`**: Test assertion failed — check expected vs actual values
+- **`AssertionError [ERR_ASSERTION]`**: Test assertion failed --- check expected vs actual values
 - **`Extension host test runner exit code: 1`**: Integration test suite had failures
 - **`Command produced no output`**: Shell integration may not have captured command output (see terminal.log)
-- **`Error: Timeout`**: Test timed out — could be a hang or slow CI machine
+- **`Error: Timeout`**: Test timed out --- could be a hang or slow CI machine
 
 ### For Build Failures
 
@@ -186,11 +186,11 @@ gh run view <RUN_ID> --job <JOB_ID> --log-failed | grep -E "eslint|stylelint|hyg
 
 Before fixing, determine if the failure is caused by the PR changes or is a pre-existing/infrastructure issue:
 
-1. **Check if the failing test is in code you changed** — if the test is in a completely unrelated area, it may be a flake
-2. **Check the test name** — does it relate to the feature area you modified?
-3. **Look at the failure output** — does it reference code paths your PR touches?
-4. **Check if the same tests fail on main** — if identical failures exist on recent main commits, it's a pre-existing issue
-5. **Look for infrastructure failures** — network timeouts, npm registry errors, and machine-level issues are not caused by code changes
+1. **Check if the failing test is in code you changed** --- if the test is in a completely unrelated area, it may be a flake
+2. **Check the test name** --- does it relate to the feature area you modified?
+3. **Look at the failure output** --- does it reference code paths your PR touches?
+4. **Check if the same tests fail on main** --- if identical failures exist on recent main commits, it's a pre-existing issue
+5. **Look for infrastructure failures** --- network timeouts, npm registry errors, and machine-level issues are not caused by code changes
 
 ```bash
 # Check recent runs on main for the same workflow
@@ -202,26 +202,26 @@ gh run list --branch main --workflow pr-linux-test.yml --limit 5 --json database
 Not all CI failures are caused by code changes. Common infrastructure failures:
 
 **Network / Registry issues**:
-- `npm ERR! network`, `ETIMEDOUT`, `ECONNRESET`, `EAI_AGAIN` — npm registry unreachable
-- `error: RPC failed; curl 56`, `fetch-pack: unexpected disconnect` — git network failure
-- `Error: unable to get local issuer certificate` — TLS/certificate issues
-- `rate limit exceeded` — GitHub API rate limiting
-- `HTTPError: Request failed with status code 502` on `electron/electron/releases` — Electron CDN download failure (common in the `node.js integration tests` step, which downloads Electron at runtime)
+- `npm ERR! network`, `ETIMEDOUT`, `ECONNRESET`, `EAI_AGAIN` --- npm registry unreachable
+- `error: RPC failed; curl 56`, `fetch-pack: unexpected disconnect` --- git network failure
+- `Error: unable to get local issuer certificate` --- TLS/certificate issues
+- `rate limit exceeded` --- GitHub API rate limiting
+- `HTTPError: Request failed with status code 502` on `electron/electron/releases` --- Electron CDN download failure (common in the `node.js integration tests` step, which downloads Electron at runtime)
 
 **Machine / Environment issues**:
-- `No space left on device` — CI disk full
-- `ENOMEM`, `JavaScript heap out of memory` — CI machine ran out of memory
-- `The runner has received a shutdown signal` — CI preemption / timeout
-- `Error: The operation was canceled` — GitHub Actions cancelled the job
-- `Xvfb failed to start` — display server for headless Linux tests failed
+- `No space left on device` --- CI disk full
+- `ENOMEM`, `JavaScript heap out of memory` --- CI machine ran out of memory
+- `The runner has received a shutdown signal` --- CI preemption / timeout
+- `Error: The operation was canceled` --- GitHub Actions cancelled the job
+- `Xvfb failed to start` --- display server for headless Linux tests failed
 
 **Test flakes** (not infrastructure, but not your fault either):
-- Timeouts on tests that normally pass — slow CI machine
+- Timeouts on tests that normally pass --- slow CI machine
 - Race conditions in async tests
 - Shell integration not reporting exit codes (see terminal.log for `exitCode: undefined`)
 
 **What to do with infrastructure failures**:
-1. **Don't change code** — the failure isn't caused by your PR
+1. **Don't change code** --- the failure isn't caused by your PR
 2. **Re-run the failed jobs** via the GitHub UI or:
    ```bash
    gh run rerun <RUN_ID> --failed
@@ -230,7 +230,7 @@ Not all CI failures are caused by code changes. Common infrastructure failures:
    ```bash
    gh run list --branch main --limit 10 --json databaseId,conclusion,displayTitle
    ```
-4. If main is broken too, wait for it to be fixed — your PR is not the cause
+4. If main is broken too, wait for it to be fixed --- your PR is not the cause
 
 ---
 

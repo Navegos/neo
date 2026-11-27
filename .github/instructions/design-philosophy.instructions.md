@@ -1,5 +1,5 @@
 ---
-description: VS Code design philosophy — the shared Values→Principles→Moves vocabulary for reasoning about UI in design terms rather than raw pixels. Use when creating, editing, or reviewing any visual surface (CSS, DOM, theming, icons, motion). Name the value/principle before reaching for a token.
+description: VS Code design philosophy --- the shared Values->Principles->Moves vocabulary for reasoning about UI in design terms rather than raw pixels. Use when creating, editing, or reviewing any visual surface (CSS, DOM, theming, icons, motion). Name the value/principle before reaching for a token.
 applyTo: "src/vs/**/browser/**/*.{ts,css}"
 ---
 
@@ -9,7 +9,7 @@ When you touch a visual surface, reason about it in **design terms, not pixels**
 
 Work in three layers - name the **feeling**, find the **principle** it breaks, then reach for the **move** that restores it:
 
-- **Values (how it should feel):** **Calm** · **Focused** · **Consistent** · **Delightful**
+- **Values (how it should feel):** **Calm** - **Focused** - **Consistent** - **Delightful**
 - **Principles (questions to ask):**
   1. *Quiet at rest, present on intent* - is anything shouting when nothing's happening?
   2. *Room to breathe* - does this feel cramped, tight, or jagged?

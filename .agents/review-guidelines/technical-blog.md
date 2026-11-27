@@ -13,24 +13,24 @@ post.
 
 ## Checks
 
-1. **Factual support** — Every technical claim, performance number, and
+1. **Factual support** --- Every technical claim, performance number, and
    comparison must be supported by a cited public source, a clearly identified
    reproducible measurement, or a qualified statement. Flag claims that
    overstate what the cited source establishes.
-2. **Citation integrity** — Check that cited papers, repositories, checkpoints,
+2. **Citation integrity** --- Check that cited papers, repositories, checkpoints,
    and issue or PR links exist and match the surrounding claim. Publication
    dates must not precede the cited source's availability.
-3. **Technical precision** — Preserve meaningful distinctions: measured versus
+3. **Technical precision** --- Preserve meaningful distinctions: measured versus
    inferred results, training versus serving behavior, throughput versus
    latency, architecture versus implementation detail, and public facts versus
    internal context.
-4. **Figure provenance** — Images need an accurate alt text and a source or
+4. **Figure provenance** --- Images need an accurate alt text and a source or
    provenance that makes their public use appropriate. Captions and nearby
    text must not imply a result the figure does not show.
-5. **Public-release suitability** — Do not expose private infrastructure,
+5. **Public-release suitability** --- Do not expose private infrastructure,
    unreleased products, confidential benchmark data, credentials, internal
    URLs, or claims that cannot be independently supported by public material.
-6. **Reader clarity** — Verify the title, date, author, summary, tags, and
+6. **Reader clarity** --- Verify the title, date, author, summary, tags, and
    announcement-card metadata agree. Prefer precise terminology over marketing
    shorthand when the two could be confused.
 

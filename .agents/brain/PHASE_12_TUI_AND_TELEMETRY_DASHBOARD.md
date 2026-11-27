@@ -69,7 +69,7 @@ Requirements:
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`
-- **Wave 19â€“20 Reconciliation:** Synchronized to Wave 20 / v7.0 (`493` deep-researched vaults, `49` `.agents/brain/*.md` guides, dedicated `toksi _worker <role>` subprocesses, `ctxmode`/`aimemory` renames, `docker/Dockerfile.test` + `docker/compose.test.yaml`, separated `~/.toksi/services/*.db`, detached `:9100` **10-Tab** UI, `toksi cluster`, `src/telemetry/otel.rs`, and **29** slash commands).
+- **Wave 19--20 Reconciliation:** Synchronized to Wave 20 / v7.0 (`493` deep-researched vaults, `49` `.agents/brain/*.md` guides, dedicated `toksi _worker <role>` subprocesses, `ctxmode`/`aimemory` renames, `docker/Dockerfile.test` + `docker/compose.test.yaml`, separated `~/.toksi/services/*.db`, detached `:9100` **10-Tab** UI, `toksi cluster`, `src/telemetry/otel.rs`, and **29** slash commands).
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

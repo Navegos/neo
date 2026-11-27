@@ -81,8 +81,8 @@ _`@{COMMENT_AUTHOR}` commented:_
 
 **ALL `@username` mentions MUST be wrapped in backticks to prevent GitHub from sending notifications.**
 
-✅ Correct: `` `@username` ``
-❌ Wrong: `@username`
+[DONE] Correct: `` `@username` ``
+[FAIL] Wrong: `@username`
 
 This applies to:
 
@@ -98,14 +98,14 @@ This applies to:
 
 **Convert ALL `#NUMBER` references to full URLs:**
 
-✅ Correct: `https://github.com/microsoft/vscode-copilot/issues/12345`
-✅ Also OK: `microsoft/vscode-copilot#12345`
-❌ Wrong: `#12345` (will link to wrong repo)
+[DONE] Correct: `https://github.com/microsoft/vscode-copilot/issues/12345`
+[DONE] Also OK: `microsoft/vscode-copilot#12345`
+[FAIL] Wrong: `#12345` (will link to wrong repo)
 
 This applies to:
 
-- Issue references in the body (`#12345` → full URL)
-- PR references in the body (`#12345` → full URL)
+- Issue references in the body (`#12345` -> full URL)
+- PR references in the body (`#12345` -> full URL)
 - References in comments
 - References in quoted content
 - References in image alt text or links

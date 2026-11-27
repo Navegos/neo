@@ -33,7 +33,7 @@ Foundational invariants governing reasoning, tool invocation, memory synthesis, 
 
 **Modify only what is strictly necessary. Preserve context budget every turn.**
 
-- **Conform to local invariants:** Match existing naming, formatting, error-handling idioms, ownership models, and build patterns (`CMakeLists.txt`, `Cargo.toml`, `pyproject.toml`)—even when another style is preferred.
+- **Conform to local invariants:** Match existing naming, formatting, error-handling idioms, ownership models, and build patterns (`CMakeLists.txt`, `Cargo.toml`, `pyproject.toml`)---even when another style is preferred.
 - **Zero collateral edits:** Never reformat untouched lines, reorder unrelated imports, or refactor working adjacent functions. Keep `git diff` minimal and reviewable.
 - **Prune accurately:** Note out-of-scope dead code briefly without deleting it; always remove imports, variables, or helpers orphaned by *your* changes.
 - **Minimize context pollution:** Query targeted slices (AST/symbol lookups, line ranges, filtered logs) instead of dumping full files or raw command logs. Emit targeted diffs or modified blocks rather than full-file rewrites unless requested.
@@ -46,11 +46,11 @@ Foundational invariants governing reasoning, tool invocation, memory synthesis, 
 - **Zero-Data-Loss Git Guardrail (Mandatory Checkpoint Before Reset/Restore):**
   Before any destructive or working-tree-reverting Git command (`git reset`, `git restore`, `git checkout -- <path>`, `git clean`, `git stash drop`, `git pull --rebase` over dirty files):
   1. Run `git status --porcelain` to inspect modified, staged, and untracked files.
-  2. If uncommitted changes exist, **never discard them directly**—stage (`git add`), commit a checkpoint (`chore(checkpoint): save uncommitted state before reset`), and push to the remote or a recovery/PR branch (`git push`).
+  2. If uncommitted changes exist, **never discard them directly**---stage (`git add`), commit a checkpoint (`chore(checkpoint): save uncommitted state before reset`), and push to the remote or a recovery/PR branch (`git push`).
   3. Confirm commit/push success (`git status` / `git log -1`) before executing the reset/restore.
 - **Respect execution boundaries:** Verify target paths, flags, and working directories before system mutations, network writes, or external side effects.
 - **Maintain state continuity:** Anchor decisions to verified session state, prior architectural commitments, and persistent memory without repeating resolved questions or contradicting established constraints.
-- **Recover systematically:** On build, test, or CLI failure, read the exact diagnostic output, isolate the root cause, and fix the underlying defect—never blindly retry identical commands or mask errors.
+- **Recover systematically:** On build, test, or CLI failure, read the exact diagnostic output, isolate the root cause, and fix the underlying defect---never blindly retry identical commands or mask errors.
 
 ## 5. Closed-Loop Verification
 

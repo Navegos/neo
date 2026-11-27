@@ -30,15 +30,15 @@ Credential placement rules are in [`SECRETS.md`](./SECRETS.md). Release wiring i
 
 ### Labeling workflows
 
-- `pr_labeler.yml` — unified PR labeler: size, title-derived change type and breaking marker, package/integration, org provenance, contributor tier.
-- `pr_labeler_backfill.yml` — manual backfill of those labels on open PRs.
-- `auto-label-by-package.yml` — applies `package:*`/`integration:*` to issues from the form's Area section.
-- `tag-external-issues.yml` — applies `org:external`/`org:internal` to issues, plus the contributor tier.
-- `sync_priority_labels.yml` — copies `priority:*` from linked issues onto PRs.
+- `pr_labeler.yml` --- unified PR labeler: size, title-derived change type and breaking marker, package/integration, org provenance, contributor tier.
+- `pr_labeler_backfill.yml` --- manual backfill of those labels on open PRs.
+- `auto-label-by-package.yml` --- applies `package:*`/`integration:*` to issues from the form's Area section.
+- `tag-external-issues.yml` --- applies `org:external`/`org:internal` to issues, plus the contributor tier.
+- `sync_priority_labels.yml` --- copies `priority:*` from linked issues onto PRs.
 
-The label taxonomy — the `type:`/`package:`/`topic:`/`integration:`/`org:`/
+The label taxonomy --- the `type:`/`package:`/`topic:`/`integration:`/`org:`/
 `priority:`/`size:`/`triage:`/`auto:`/`ci:` prefixes, who applies each label and
-which gate reads it — is in [`LABELS.md`](./LABELS.md).
+which gate reads it --- is in [`LABELS.md`](./LABELS.md).
 
 The two PR labelers also appear in [`RELEASING.md`](./RELEASING.md#ci-guardrails-around-releases) because the release guardrails section lists every check a PR may hit; the labelers' output does not drive release gating. The two issue labelers are not release-gated either.
 
@@ -47,11 +47,11 @@ The two PR labelers also appear in [`RELEASING.md`](./RELEASING.md#ci-guardrails
 Blocking pre-merge checks that read PR metadata and fail until it is fixed or a
 bypass label is applied. They consume labels rather than apply them.
 
-- `pr_scope_file_check.yml` — fails when the PR title's package scope does not cover the package dirs it changes; bypass with `ci:allow-scope-mismatch`.
-- `markdown_file_check.yml` — fails non-`docs` PRs that add Markdown files; bypass with `ci:ack-markdown`.
-- `project_readme_check.yml` — fails non-`docs` PRs that edit a project README; bypass with `ci:ack-readme`.
+- `pr_scope_file_check.yml` --- fails when the PR title's package scope does not cover the package dirs it changes; bypass with `ci:allow-scope-mismatch`.
+- `markdown_file_check.yml` --- fails non-`docs` PRs that add Markdown files; bypass with `ci:ack-markdown`.
+- `project_readme_check.yml` --- fails non-`docs` PRs that edit a project README; bypass with `ci:ack-readme`.
 
-None of these gate merges on their own — each must be added to the branch's
+None of these gate merges on their own --- each must be added to the branch's
 required status checks.
 
 ## Local composite actions (`actions/`)
@@ -64,18 +64,18 @@ Production helpers are nested by domain:
 
 ```text
 scripts/
-├── checks/      # repo integrity / sync checkers
-├── evals/       # eval/harbor matrix and aggregation
-├── labeling/    # PR/issue labeling and triage automation
-├── release/     # release-please guards, notes, pin checks
-└── tests/       # tests for the helpers above (and some workflow contracts)
+|-- checks/      # repo integrity / sync checkers
+|-- evals/       # eval/harbor matrix and aggregation
+|-- labeling/    # PR/issue labeling and triage automation
+|-- release/     # release-please guards, notes, pin checks
+`-- tests/       # tests for the helpers above (and some workflow contracts)
 ```
 
 ### Placement rules
 
 1. **Put new helpers in an existing domain folder** when they clearly belong there.
 2. **Add a domain folder** only for a sustained new area (not a one-off script). Keep the name short and topic-style like the neighbors.
-3. Prefer plain modules invoked with `python .github/scripts/<domain>/<script>.py` (or `node …`) from workflow steps. Avoid inventing a package install story under `.github/`.
+3. Prefer plain modules invoked with `python .github/scripts/<domain>/<script>.py` (or `node ...`) from workflow steps. Avoid inventing a package install story under `.github/`.
 4. Keep secrets out of scripts; read them from the environment the workflow injects.
 
 ### Tests (`scripts/tests/`)
@@ -91,14 +91,14 @@ Special cases:
 
 | Location | What goes there |
 | --- | --- |
-| `scripts/tests/workflows/` | Contract tests over workflow/action YAML (job graphs, options matrices, secret scoping, root `action.yml`) — not a production `scripts/workflows/` tree |
+| `scripts/tests/workflows/` | Contract tests over workflow/action YAML (job graphs, options matrices, secret scoping, root `action.yml`) --- not a production `scripts/workflows/` tree |
 | `scripts/tests/conftest.py` | Shared pytest path setup so domain helpers import without packaging |
 
 `conftest.py` puts each domain directory (`checks`, `evals`, `labeling`, `release`) on `sys.path`. New domains must be added there if their tests import modules by bare filename the same way.
 
 ## Related docs
 
-- [`RELEASING.md`](./RELEASING.md) — version branches, release-please, fan-out guards, publishing
-- [`SECRETS.md`](./SECRETS.md) — secret/variable names and environment scopes
-- [`../AGENTS.md`](../AGENTS.md) — monorepo conventions and PR title scopes
-- [`../libs/partners/AGENTS.md`](../libs/partners/AGENTS.md) — adding a new partner to CI
+- [`RELEASING.md`](./RELEASING.md) --- version branches, release-please, fan-out guards, publishing
+- [`SECRETS.md`](./SECRETS.md) --- secret/variable names and environment scopes
+- [`../AGENTS.md`](../AGENTS.md) --- monorepo conventions and PR title scopes
+- [`../libs/partners/AGENTS.md`](../libs/partners/AGENTS.md) --- adding a new partner to CI

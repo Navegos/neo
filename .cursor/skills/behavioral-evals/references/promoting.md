@@ -5,7 +5,7 @@ to stable suites.
 
 ---
 
-## 1. 🔍 Investigate candidates
+## 1. [INPUT] Investigate candidates
 
 1.  **Audit Nightly Logs**: Use the `gh` CLI to fetch results from
     `evals-nightly.yml` (Direct URL:
@@ -22,7 +22,7 @@ to stable suites.
 
 ---
 
-## 2. 🚥 Promotion Steps
+## 2. [GATE] Promotion Steps
 
 1.  **Locate File**: Locate the eval file in the `evals/` directory.
 2.  **Update Policy**: Modify the policy argument to `ALWAYS_PASSES`.
@@ -36,7 +36,7 @@ to stable suites.
 
 ---
 
-## 3. ✅ Verify
+## 3. [DONE] Verify
 
 1.  **Run Prompted Tests**: Run the promoted test locally using non-interactive
     Vitest to confirm structure validity.
@@ -45,7 +45,7 @@ to stable suites.
 
 ---
 
-## 4. 📊 Report
+## 4. [METRICS] Report
 
 Provide a summary of:
 

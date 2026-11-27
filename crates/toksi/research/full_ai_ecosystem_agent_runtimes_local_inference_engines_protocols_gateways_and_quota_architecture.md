@@ -19,7 +19,7 @@ Comprehensive technical blueprint and master catalog covering cloud AI providers
 | **xAI** | `https://api.x.ai` | `POST /v1/chat/completions`<br>`POST /v1/messages` (Anthropic compatible)<br>`POST /v1/images/generations`<br>`GET /v1/models` | `wss://api.x.ai/v1/realtime` (Grok Voice API) | `v1` (OpenAI & Anthropic compatible) | Header: `Authorization: Bearer $XAI_API_KEY` | `grok-4.7`<br>`grok-4.6`<br>`grok-4.5`<br>`grok-4.3`<br>`grok-4.20`<br>`grok-imagine-2.0` (`Image 2.0`)<br>`grok-video-1.5`<br>`grok-3` / `grok-3-mini` *(legacy)* | `reasoning_format`: `"raw"` \| `"parsed"` or `reasoning_effort`: `"low"` \| `"high"`; encrypted reasoning (`reasoning.encrypted_content`) on Grok-4.7 |
 | **DeepSeek API** | `https://api.deepseek.com` | `POST /chat/completions` (or `/v1/chat/completions`)<br>`POST /beta/chat/completions` (Prefix/FIM)<br>`GET /user/balance`<br>`GET /models` | N/A (SSE HTTP streaming) | `v1` (OpenAI compatible) | Header: `Authorization: Bearer $DEEPSEEK_API_KEY` | `deepseek-v4-pro` (`DeepSeek-V4-Pro-0813`)<br>`deepseek-flash` (`DeepSeek-V4.1-Flash-1017`, text+vision)<br>`deepseek-reasoner` (R1) *(retired)*<br>`deepseek-chat` (V3) *(retired)* | Native togglable Thinking Mode on V4 models; streams internal CoT via `reasoning_content` parameter in delta responses |
 | **Groq Cloud** | `https://api.groq.com/openai` | `POST /v1/chat/completions`<br>`POST /v1/audio/transcriptions`<br>`POST /v1/audio/translations`<br>`POST /v1/batches`<br>`GET /v1/models` | N/A (OpenAI compatible SSE) | `v1` | Header: `Authorization: Bearer $GROQ_API_KEY` | `openai/gpt-oss-120b`<br>`openai/gpt-oss-20b`<br>`meta-llama/llama-4-scout-17b-16e-instruct`<br>`qwen/qwen3.8-27b`<br>`llama-3.3-70b-versatile`<br>`llama-3.1-8b-instant`<br>`meta-llama/llama-prompt-guard-2-86m`<br>`whisper-large-v3-turbo` | `reasoning_format`: `"parsed"` \| `"raw"` \| `"hidden"` on reasoning checkpoints; ultra-high speed LPU inference |
-| **Cerebras Cloud** | `https://api.cerebras.ai` | `POST /v1/chat/completions`<br>`POST /v1/completions`<br>`GET /v1/models` | N/A (OpenAI compatible SSE) | `v1` | Header: `Authorization: Bearer $CEREBRAS_API_KEY` | `gpt-oss-120b`<br>`qwen-3.8-27b`<br>`gemma-4-31b`<br>`llama-3.3-70b`<br>`llama-3.1-8b` | Instant execution on Wafer-Scale Engine (2,000–3,000+ tok/s); `reasoning_format` supported on reasoning checkpoints |
+| **Cerebras Cloud** | `https://api.cerebras.ai` | `POST /v1/chat/completions`<br>`POST /v1/completions`<br>`GET /v1/models` | N/A (OpenAI compatible SSE) | `v1` | Header: `Authorization: Bearer $CEREBRAS_API_KEY` | `gpt-oss-120b`<br>`qwen-3.8-27b`<br>`gemma-4-31b`<br>`llama-3.3-70b`<br>`llama-3.1-8b` | Instant execution on Wafer-Scale Engine (2,000--3,000+ tok/s); `reasoning_format` supported on reasoning checkpoints |
 | **Fireworks AI** | `https://api.fireworks.ai/inference` | `POST /v1/chat/completions`<br>`POST /v1/completions`<br>`POST /v1/embeddings`<br>`POST /v1/workflows/{account}/{workflow}/run` | `wss://audio-streaming.us-virginia-1.direct.fireworks.ai/v1/audio/transcriptions/streaming` | `v1` | Header: `Authorization: Bearer $FIREWORKS_API_KEY` | `accounts/fireworks/models/deepseek-v4-pro`<br>`accounts/fireworks/models/deepseek-v4p1-flash`<br>`accounts/fireworks/models/kimi-k3`<br>`accounts/fireworks/models/kimi-k2p6`<br>`accounts/fireworks/models/glm-5p3-fast`<br>`accounts/fireworks/models/llama4-maverick-instruct-basic`<br>`accounts/fireworks/models/llama-v3p3-70b-instruct` | `reasoning_effort`: `"low"` \| `"medium"` \| `"high"` or native `<think>` tags |
 | **SambaNova Cloud** | `https://api.sambanova.ai` | `POST /v1/chat/completions`<br>`POST /v1/audio/transcriptions`<br>`GET /v1/models` | N/A (SSE HTTP streaming) | `v1` | Header: `Authorization: Bearer $SAMBANOVA_API_KEY` | `DeepSeek-V4-Pro`<br>`DeepSeek-R1`<br>`Llama-4-Maverick-17B-128E-Instruct`<br>`Meta-Llama-3.3-70B-Instruct`<br>`Qwen3.8-27B` | High-speed RDU inference; emits `<think>` blocks in message content |
 | **Alibaba Cloud Model Studio / DashScope (Qwen)** | `https://dashscope-intl.aliyuncs.com/compatible-mode` | `POST /v1/chat/completions`<br>`POST /v1/embeddings`<br>`POST /api/v1/services/aigc/text-generation/generation` (Native) | `wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference` | `v1` | Header: `Authorization: Bearer $DASHSCOPE_API_KEY` | `qwen4-max` *(preview)*<br>`qwen3.8-max` / `qwen3.7-max`<br>`qwen3.7-plus` / `qwen3.6-plus`<br>`qwen3.8-flash` / `qwen3.6-flash`<br>`qwen3-vl-plus`<br>`qwen3-omni-flash`<br>`qwen3-asr-flash` / `qwen3-tts-flash`<br>`qwen-image-2.0-pro`<br>`wan` *(video)* | `enable_thinking: true` / `thinking_budget` in `extra_body`; streams reasoning steps in `reasoning_content` |
@@ -75,33 +75,33 @@ https://generativelanguage.googleapis.com/{API_VERSION}/models/{MODEL_ID}:{METHO
 
 | Provider | `temperature` | `top_p` | `top_k` | Default (`temp` / `top_p` / `top_k`) | Ranges, Wire Naming & Restrictions |
 | :--- | :---: | :---: | :---: | :--- | :--- |
-| **Google Gemini API (AI Studio)** | Yes | Yes | Yes | `1.0` / `0.95` / `40` *(or `64` on Gemini 2.5/3/4)* | `generationConfig`: `temperature` (0.0–2.0), `topP` (0.0–1.0), `topK` (int $\ge 1$, model-dependent/fixed on some Gemini checkpoints). |
-| **Google Cloud Vertex AI** | Yes | Yes | Yes | `1.0` / `0.95` / `40`–`64` *(Gemini)*; `1.0` / unset / unset *(Claude)* | `generationConfig` (`temperature`, `topP`, `topK`) for Gemini; Anthropic native rules apply for Claude on Vertex. |
-| **OpenAI** | Yes* | Yes* | **No** | `1.0` / `1.0` / `N/A` | `temperature` (0.0–2.0), `top_p` (0.0–1.0). `top_k` rejected (HTTP 400). *Disallowed/rejected on reasoning models (`o1`, `o3`, `o4-mini`, and GPT-5/GPT-6 when reasoning is active). |
-| **Anthropic** | Yes* | Yes* | Yes* | `1.0` / unset / unset | `temperature` (0.0–1.0), `top_p` (0.0–1.0), `top_k` ($\ge 1$). *Newer Claude models disallow setting both `temperature` and `top_p` together. With Extended Thinking enabled: `temperature` must be `1.0` (or omitted), `top_k` is disallowed, and `top_p` is restricted/disallowed. |
+| **Google Gemini API (AI Studio)** | Yes | Yes | Yes | `1.0` / `0.95` / `40` *(or `64` on Gemini 2.5/3/4)* | `generationConfig`: `temperature` (0.0--2.0), `topP` (0.0--1.0), `topK` (int $\ge 1$, model-dependent/fixed on some Gemini checkpoints). |
+| **Google Cloud Vertex AI** | Yes | Yes | Yes | `1.0` / `0.95` / `40`--`64` *(Gemini)*; `1.0` / unset / unset *(Claude)* | `generationConfig` (`temperature`, `topP`, `topK`) for Gemini; Anthropic native rules apply for Claude on Vertex. |
+| **OpenAI** | Yes* | Yes* | **No** | `1.0` / `1.0` / `N/A` | `temperature` (0.0--2.0), `top_p` (0.0--1.0). `top_k` rejected (HTTP 400). *Disallowed/rejected on reasoning models (`o1`, `o3`, `o4-mini`, and GPT-5/GPT-6 when reasoning is active). |
+| **Anthropic** | Yes* | Yes* | Yes* | `1.0` / unset / unset | `temperature` (0.0--1.0), `top_p` (0.0--1.0), `top_k` ($\ge 1$). *Newer Claude models disallow setting both `temperature` and `top_p` together. With Extended Thinking enabled: `temperature` must be `1.0` (or omitted), `top_k` is disallowed, and `top_p` is restricted/disallowed. |
 | **AWS Bedrock** | Yes | Yes | Partial | Model-dependent *(e.g., Nova `0.7`/`0.9`/`N/A`; Claude `1.0`/unset/unset; Llama `0.5`/`0.9`/`N/A`)* | Converse `inferenceConfig` supports `temperature` and `topP`. `top_k` is not in `inferenceConfig`; must be passed via `additionalModelRequestFields` (allowed for Claude, Cohere, Mistral, Llama, Nova; subject to model rules). |
 | **Azure OpenAI / Azure AI Foundry** | Yes* | Yes* | **No*** | `1.0` / `1.0` / `N/A` *(OpenAI)*; publisher default *(Foundry)* | Follows OpenAI schema (`temperature`, `top_p`; no `top_k`). *Same OpenAI reasoning-model restrictions; non-OpenAI Foundry models (e.g., Claude) follow their publisher schema. |
-| **xAI** | Yes | Yes | **No** | `1.0` / `1.0` / `N/A` | `temperature` (0.0–2.0), `top_p` (0.0–1.0) on `/v1/chat/completions`. `top_k` not supported on OpenAI-compat route. Grok reasoning models still accept `temperature` and `top_p`. |
-| **DeepSeek API** | Yes* | Yes* | **No** | `1.0` / `1.0` / `N/A` | `temperature` (0.0–2.0), `top_p` (0.0–1.0). `top_k` not supported. *Silently ignored (no-op) on `deepseek-reasoner` (R1) and V4 Thinking Mode. |
-| **Groq Cloud** | Yes | Yes | **No** | `1.0` / `1.0` / `N/A` | `temperature` (0.0–2.0), `top_p` (0.0–1.0). `top_k` not supported on OpenAI-compatible endpoint. |
-| **Cerebras Cloud** | Yes | Yes | **No** | `1.0` / `1.0` / `N/A` | `temperature` (0.0–1.5), `top_p` (0.0–1.0). `top_k` not supported. |
-| **Fireworks AI** | Yes | Yes | Yes | `1.0` *(or `0.6` on some chat models)* / `1.0` / `0` *(disabled)* | `temperature` (0.0–2.0), `top_p` (0.0–1.0), `top_k` (0–100). |
-| **SambaNova Cloud** | Yes | Yes | Yes | `0.0` / `1.0` / `50` *(or unset)* | `temperature` (0.0–1.0/2.0), `top_p` (0.0–1.0), `top_k` (1–100). |
-| **Alibaba Cloud Model Studio / DashScope (Qwen)** | Yes | Yes | Yes | `0.7`–`1.0` / `0.8` *(or `0.95` thinking)* / `20` *(or unset)* | `temperature` (0.0–2.0), `top_p` (0.0–1.0); `top_k` supported natively and via `extra_body` in OpenAI-compatible mode. |
-| **Together AI** | Yes | Yes | Yes | `0.7` *(or `1.0` model-dependent)* / `0.7`–`1.0` / `50` *(or unset)* | `temperature` (0.0–2.0), `top_p` (0.0–1.0), `top_k` (int). |
-| **Mistral AI** | Yes | Yes | **No** | `0.7` / `1.0` / `N/A` | `temperature` (0.0–1.5), `top_p` (0.0–1.0). `top_k` not supported. |
-| **Cohere** | Yes | Yes | Yes | `0.3` / `0.75` / `0` *(disabled)* | Native `/v2/chat` uses `temperature` (0.0–1.0), `p` (0.01–0.99), `k` (0–500). OpenAI-compat route exposes `temperature` and `top_p`. |
-| **Perplexity AI** | Yes | Yes | Yes | `0.2` / `0.9` / `0` *(disabled)* | `temperature` (0.0–2.0), `top_p` (0.0–1.0), `top_k` (0–2048). |
-| **NVIDIA NIM API** | Yes | Yes | Partial | Model-dependent *(typically `0.2`–`1.0`)* / `1.0` / `-1` *(disabled)* | `temperature` and `top_p` supported; `top_k` available via `extra_body` on TensorRT-LLM / vLLM-backed NIMs, not all endpoints. |
+| **xAI** | Yes | Yes | **No** | `1.0` / `1.0` / `N/A` | `temperature` (0.0--2.0), `top_p` (0.0--1.0) on `/v1/chat/completions`. `top_k` not supported on OpenAI-compat route. Grok reasoning models still accept `temperature` and `top_p`. |
+| **DeepSeek API** | Yes* | Yes* | **No** | `1.0` / `1.0` / `N/A` | `temperature` (0.0--2.0), `top_p` (0.0--1.0). `top_k` not supported. *Silently ignored (no-op) on `deepseek-reasoner` (R1) and V4 Thinking Mode. |
+| **Groq Cloud** | Yes | Yes | **No** | `1.0` / `1.0` / `N/A` | `temperature` (0.0--2.0), `top_p` (0.0--1.0). `top_k` not supported on OpenAI-compatible endpoint. |
+| **Cerebras Cloud** | Yes | Yes | **No** | `1.0` / `1.0` / `N/A` | `temperature` (0.0--1.5), `top_p` (0.0--1.0). `top_k` not supported. |
+| **Fireworks AI** | Yes | Yes | Yes | `1.0` *(or `0.6` on some chat models)* / `1.0` / `0` *(disabled)* | `temperature` (0.0--2.0), `top_p` (0.0--1.0), `top_k` (0--100). |
+| **SambaNova Cloud** | Yes | Yes | Yes | `0.0` / `1.0` / `50` *(or unset)* | `temperature` (0.0--1.0/2.0), `top_p` (0.0--1.0), `top_k` (1--100). |
+| **Alibaba Cloud Model Studio / DashScope (Qwen)** | Yes | Yes | Yes | `0.7`--`1.0` / `0.8` *(or `0.95` thinking)* / `20` *(or unset)* | `temperature` (0.0--2.0), `top_p` (0.0--1.0); `top_k` supported natively and via `extra_body` in OpenAI-compatible mode. |
+| **Together AI** | Yes | Yes | Yes | `0.7` *(or `1.0` model-dependent)* / `0.7`--`1.0` / `50` *(or unset)* | `temperature` (0.0--2.0), `top_p` (0.0--1.0), `top_k` (int). |
+| **Mistral AI** | Yes | Yes | **No** | `0.7` / `1.0` / `N/A` | `temperature` (0.0--1.5), `top_p` (0.0--1.0). `top_k` not supported. |
+| **Cohere** | Yes | Yes | Yes | `0.3` / `0.75` / `0` *(disabled)* | Native `/v2/chat` uses `temperature` (0.0--1.0), `p` (0.01--0.99), `k` (0--500). OpenAI-compat route exposes `temperature` and `top_p`. |
+| **Perplexity AI** | Yes | Yes | Yes | `0.2` / `0.9` / `0` *(disabled)* | `temperature` (0.0--2.0), `top_p` (0.0--1.0), `top_k` (0--2048). |
+| **NVIDIA NIM API** | Yes | Yes | Partial | Model-dependent *(typically `0.2`--`1.0`)* / `1.0` / `-1` *(disabled)* | `temperature` and `top_p` supported; `top_k` available via `extra_body` on TensorRT-LLM / vLLM-backed NIMs, not all endpoints. |
 | **Hugging Face Inference API (HF Router)** | Yes | Yes | Partial | `1.0` *(or `generation_config.json`)* / `1.0` / unset | `temperature` and `top_p` standard; `top_k` depends on routed backend (supported on TGI/vLLM/SGLang via `extra_body`, rejected by some third-party providers). |
-| **Moonshot AI (Kimi)** | Yes* | Yes | **No** | `0.3` *(non-thinking; `0.6`–`1.0` thinking)* / `1.0` / `N/A` | `temperature` (0.0–1.0), `top_p` (0.0–1.0). `top_k` not supported. *Thinking modes on Kimi K2.5/K3 fix or restrict `temperature` (e.g., locked to `1.0` in thinking mode). |
-| **Zhipu AI / Z.ai (GLM)** | Yes | Yes | **No** | `0.95` *(or `1.0` on GLM-5.x)* / `0.7` *(or `0.95` on GLM-5.x)* / `N/A` | `temperature` (0.0–1.0), `top_p` (0.0–1.0). `top_k` not supported. |
-| **MiniMax** | Yes* | Yes | **No** | `1.0` / `0.95` / `N/A` | `temperature` (`(0.0, 1.0]` — strictly `> 0.0`, `0.0` is rejected), `top_p` (0.0–1.0). `top_k` not supported on OpenAI-compat chat. |
-| **ByteDance Seed (Volcano Engine / Ark)** | Yes | Yes | **No** | `1.0` / `0.7` *(or `0.95` model-dependent)* / `N/A` | `temperature` (0.0–2.0), `top_p` (0.0–1.0). `top_k` not supported on standard OpenAI-compat endpoint. |
+| **Moonshot AI (Kimi)** | Yes* | Yes | **No** | `0.3` *(non-thinking; `0.6`--`1.0` thinking)* / `1.0` / `N/A` | `temperature` (0.0--1.0), `top_p` (0.0--1.0). `top_k` not supported. *Thinking modes on Kimi K2.5/K3 fix or restrict `temperature` (e.g., locked to `1.0` in thinking mode). |
+| **Zhipu AI / Z.ai (GLM)** | Yes | Yes | **No** | `0.95` *(or `1.0` on GLM-5.x)* / `0.7` *(or `0.95` on GLM-5.x)* / `N/A` | `temperature` (0.0--1.0), `top_p` (0.0--1.0). `top_k` not supported. |
+| **MiniMax** | Yes* | Yes | **No** | `1.0` / `0.95` / `N/A` | `temperature` (`(0.0, 1.0]` --- strictly `> 0.0`, `0.0` is rejected), `top_p` (0.0--1.0). `top_k` not supported on OpenAI-compat chat. |
+| **ByteDance Seed (Volcano Engine / Ark)** | Yes | Yes | **No** | `1.0` / `0.7` *(or `0.95` model-dependent)* / `N/A` | `temperature` (0.0--2.0), `top_p` (0.0--1.0). `top_k` not supported on standard OpenAI-compat endpoint. |
 | **OpenRouter** | Yes | Yes | Pass-through | `1.0` *(or upstream model default)* / `1.0` / `0` *(disabled)* | Accepts `temperature`, `top_p`, and `top_k`; forwards only if the upstream provider/model supports them (drops/rejects otherwise). |
-| **DeepInfra** | Yes | Yes | Yes | `1.0` / `1.0` / `0` *(disabled)* | `temperature` (0.0–2.0), `top_p` (0.0–1.0), `top_k` (int). |
-| **Replicate** | Yes* | Yes* | Yes* | Model-dependent *(commonly `0.7`–`1.0` / `0.9`–`0.95` / `50`)* | *Model-dependent `input` schema; most open-weight text models expose `temperature`, `top_p`, and `top_k`. |
-| **Cloudflare Workers AI** | Yes | Yes | Yes | `0.6` / `1.0` *(or `0.9`)* / unset | `temperature` (0.0–5.0), `top_p` (0.0–2.0), `top_k` (1–50) on text generation models. |
+| **DeepInfra** | Yes | Yes | Yes | `1.0` / `1.0` / `0` *(disabled)* | `temperature` (0.0--2.0), `top_p` (0.0--1.0), `top_k` (int). |
+| **Replicate** | Yes* | Yes* | Yes* | Model-dependent *(commonly `0.7`--`1.0` / `0.9`--`0.95` / `50`)* | *Model-dependent `input` schema; most open-weight text models expose `temperature`, `top_p`, and `top_k`. |
+| **Cloudflare Workers AI** | Yes | Yes | Yes | `0.6` / `1.0` *(or `0.9`)* / unset | `temperature` (0.0--5.0), `top_p` (0.0--2.0), `top_k` (1--50) on text generation models. |
 | **GitHub Models** | Yes* | Yes* | **No** | `1.0` / `1.0` / `N/A` | `temperature`, `top_p` supported (*subject to underlying model rules, e.g., OpenAI reasoning models reject both). `top_k` not supported. |
 
 #### Model-Level Restrictions (Disallowed, Locked, or Ignored)
@@ -378,15 +378,15 @@ https://generativelanguage.googleapis.com/{API_VERSION}/models/{MODEL_ID}:{METHO
 
 ```
                                   Your Primary Goal
-                                          │
-         ┌────────────────────────────────┼────────────────────────────────┐
-         ▼                                ▼                                ▼
+                                          |
+         +--------------------------------+--------------------------------+
+         v                                v                                v
 [Desktop Workspace]             [Developer Daemon]              [Production Concurrency]
-  • LM Studio (GUI / lms)         • Ollama (CLI / Modelfile)      • vLLM (PagedAttention)
-  • Jan AI (Open-Source / MCP)    • llama-server (Bare-metal)     • SGLang (RadixAttention / JSON)
-  • GPT4All (CPU / LocalDocs)     • TabbyAPI (ExLlamaV2 / EXL2)   • TGI (Hugging Face ecosystem)
-  • Msty AI (Side-by-side eval)   • MLX-LM (Apple Silicon)        • Triton + TRT-LLM (Enterprise)
-                                  • Exo (Distributed cluster)     • Aphrodite Engine (Creative/Batch)
+  - LM Studio (GUI / lms)         - Ollama (CLI / Modelfile)      - vLLM (PagedAttention)
+  - Jan AI (Open-Source / MCP)    - llama-server (Bare-metal)     - SGLang (RadixAttention / JSON)
+  - GPT4All (CPU / LocalDocs)     - TabbyAPI (ExLlamaV2 / EXL2)   - TGI (Hugging Face ecosystem)
+  - Msty AI (Side-by-side eval)   - MLX-LM (Apple Silicon)        - Triton + TRT-LLM (Enterprise)
+                                  - Exo (Distributed cluster)     - Aphrodite Engine (Creative/Batch)
 ```
 
 ---
@@ -1011,7 +1011,7 @@ https://generativelanguage.googleapis.com/{API_VERSION}/models/{MODEL_ID}:{METHO
 * **Architecture:** High-speed Rust-based Language Server for code completion using Hugging Face Inference API, TGI, or local Ollama endpoints.
 * **Protocol & APIs:** LSP 3.17 (`textDocument/completion`, custom `llm-ls/getCompletions`) -> Hugging Face `/models/{id}`, TGI `/generate`, or Ollama `/api/generate`.
 
-#### 14. Agent-to-Agent Protocol (A2A — Google / Linux Foundation)
+#### 14. Agent-to-Agent Protocol (A2A --- Google / Linux Foundation)
 * **Architecture:** Open protocol enabling opaque, multi-vendor AI agents to discover capabilities, negotiate modalities, and delegate long-running tasks across organizational boundaries.
 * **Protocol & Endpoints:** JSON-RPC 2.0 over HTTP(S) + SSE, Agent discovery via `GET /.well-known/agent.json` (Agent Card), `tasks/send`, `tasks/sendSubscribe`, `tasks/get`, and `tasks/cancel`.
 
@@ -1210,7 +1210,7 @@ https://generativelanguage.googleapis.com/{API_VERSION}/models/{MODEL_ID}:{METHO
     * `devin: pause`: Halts micro-VM execution.
     * `devin: resume`: Continues autonomous workflow.
     * `devin: restart`: Flushes current VM workspace and restarts from source commit.
-* **Enforced Limits & Billing:** Billed per Devin Compute Unit (ACU) / wall-clock execution hour; strict concurrent runner caps (typically 1–10 parallel tasks per team).
+* **Enforced Limits & Billing:** Billed per Devin Compute Unit (ACU) / wall-clock execution hour; strict concurrent runner caps (typically 1--10 parallel tasks per team).
 
 #### 2. Factory AI (Code Droids)
 * **Architecture:** Specialized autonomous enterprise cloud workers (Review Droid, Refactor Droid, Documentation Droid, Test Droid).
@@ -1442,7 +1442,7 @@ https://generativelanguage.googleapis.com/{API_VERSION}/models/{MODEL_ID}:{METHO
 
 | Provider / Tier | Requests Per Minute (RPM) | Tokens Per Minute (TPM) | Requests Per Day (RPD) | Concurrency Limit |
 | :--- | :--- | :--- | :--- | :--- |
-| **Google AI Studio (Free Tier)** | 15 RPM (Flash) / 2 RPM (Pro) | 1,000,000 TPM (Flash) / 32,000 TPM (Pro) | 1,500 RPD (Flash) / 50 RPD (Pro) | 1–2 in-flight |
+| **Google AI Studio (Free Tier)** | 15 RPM (Flash) / 2 RPM (Pro) | 1,000,000 TPM (Flash) / 32,000 TPM (Pro) | 1,500 RPD (Flash) / 50 RPD (Pro) | 1--2 in-flight |
 | **Google AI Studio (Pay-Go Tier 1)** | 1,000 RPM (Flash) / 360 RPM (Pro) | 4,000,000 TPM (Flash) / 2,000,000 TPM (Pro) | Unlimited | Up to 100 in-flight |
 | **Google AI Studio (Pay-Go Tier 2+)** | 4,000+ RPM | 10,000,000+ TPM | Unlimited | Custom |
 | **OpenAI (Tier 1: $5 paid)** | 500 RPM | 30,000 TPM (`gpt-4o`) / 10,000 TPM (`o3-mini`) | Unlimited | 5 in-flight |
@@ -1450,12 +1450,12 @@ https://generativelanguage.googleapis.com/{API_VERSION}/models/{MODEL_ID}:{METHO
 | **OpenAI (Tier 5: $1,000+ paid)** | 15,000 RPM | 4,000,000 TPM (`gpt-4o`) / 1,000,000 TPM (`o3-mini`) | Unlimited | 500 in-flight |
 | **Anthropic (Tier 1: $5 deposit)** | 50 RPM | 20,000 TPM (`claude-3-7-sonnet`) | Unlimited | 2 in-flight |
 | **Anthropic (Tier 4: $400 deposit)** | 4,000 RPM | 400,000 TPM (`claude-3-7-sonnet`) | Unlimited | 80 in-flight |
-| **AWS Bedrock (On-Demand Default)** | 250–1,000 RPM (model/region dependent) | 200,000–2,000,000 TPM | Unlimited | Account Service Quota |
-| **Azure OpenAI (Standard Pay-Go)** | 600–6,000 RPM (based on provisioned TPM) | 100,000 to 1,000,000+ TPM | Unlimited | Dynamic per deployment |
+| **AWS Bedrock (On-Demand Default)** | 250--1,000 RPM (model/region dependent) | 200,000--2,000,000 TPM | Unlimited | Account Service Quota |
+| **Azure OpenAI (Standard Pay-Go)** | 600--6,000 RPM (based on provisioned TPM) | 100,000 to 1,000,000+ TPM | Unlimited | Dynamic per deployment |
 | **DeepSeek API (Standard Pay-Go)** | 1,000 RPM | Dynamic cluster capacity throttling | Unlimited | Dynamic based on cluster load |
-| **Groq Cloud (Developer Free)** | 30 RPM | 6,000 to 30,000 TPM | 14,400 RPD | 1–3 in-flight |
+| **Groq Cloud (Developer Free)** | 30 RPM | 6,000 to 30,000 TPM | 14,400 RPD | 1--3 in-flight |
 | **Fireworks AI (Developer / Pay-Go)** | 600 RPM (default) / 6,000+ RPM (scaled) | 250,000 to 2,500,000 TPM | Unlimited | 50+ in-flight |
-| **Mistral AI (Experiment / Scale)** | 60 RPM (Free) / 1,000+ RPM (Scale) | 500,000 to 2,000,000 TPM | Unlimited | 10–100 in-flight |
+| **Mistral AI (Experiment / Scale)** | 60 RPM (Free) / 1,000+ RPM (Scale) | 500,000 to 2,000,000 TPM | Unlimited | 10--100 in-flight |
 
 ---
 

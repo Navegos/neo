@@ -20,17 +20,17 @@ This prompt will:
 1. Search through the repository's git blame history for files you've significantly contributed to
 2. Analyze which files and directories have your contributions
 3. **Follow the existing structure** in the `.github/CODENOTIFY` file, here are some examples:
-   - `src/vs/base/common/**` → Add to **Base Utilities** section
-   - `src/vs/base/browser/ui/**` → Add to **Base Widgets** section
-   - `src/vs/base/parts/**` → Add to **Base Utilities** section
-   - `src/vs/platform/**` → Add to **Platform** section
-   - `src/bootstrap-*.ts`, `src/main.ts`, etc. → Add to **Bootstrap** section
-   - `src/vs/code/**` → Add to **Electron Main** section
-   - `src/vs/workbench/services/**` → Add to **Workbench Services** section
-   - `src/vs/workbench/common/**`, `src/vs/workbench/browser/**` → Add to **Workbench Core** section
-   - `src/vs/workbench/contrib/**` → Add to **Workbench Contributions** section
-   - `src/vs/workbench/api/**` → Add to **Workbench API** section
-   - `extensions/**` → Add to **Extensions** section
+   - `src/vs/base/common/**` -> Add to **Base Utilities** section
+   - `src/vs/base/browser/ui/**` -> Add to **Base Widgets** section
+   - `src/vs/base/parts/**` -> Add to **Base Utilities** section
+   - `src/vs/platform/**` -> Add to **Platform** section
+   - `src/bootstrap-*.ts`, `src/main.ts`, etc. -> Add to **Bootstrap** section
+   - `src/vs/code/**` -> Add to **Electron Main** section
+   - `src/vs/workbench/services/**` -> Add to **Workbench Services** section
+   - `src/vs/workbench/common/**`, `src/vs/workbench/browser/**` -> Add to **Workbench Core** section
+   - `src/vs/workbench/contrib/**` -> Add to **Workbench Contributions** section
+   - `src/vs/workbench/api/**` -> Add to **Workbench API** section
+   - `extensions/**` -> Add to **Extensions** section
 4. Add appropriate entries in the format:
    - Individual files: `path/to/file.ts @yourusername`
    - Directories: `path/to/directory/** @yourusername`
@@ -45,19 +45,19 @@ Entries will be added to **existing sections** based on their path. For example:
 ```
 # Base Utilities
 src/vs/base/common/extpath.ts @bpasero
-src/vs/base/common/oauth.ts @yourusername  # ← Your contribution added here
-src/vs/base/parts/quickinput/** @yourusername  # ← Your contribution added here
+src/vs/base/common/oauth.ts @yourusername  # <- Your contribution added here
+src/vs/base/parts/quickinput/** @yourusername  # <- Your contribution added here
 
 # Platform
-src/vs/platform/quickinput/** @yourusername  # ← Your contribution added here
-src/vs/platform/secrets/** @yourusername  # ← Your contribution added here
+src/vs/platform/quickinput/** @yourusername  # <- Your contribution added here
+src/vs/platform/secrets/** @yourusername  # <- Your contribution added here
 
 # Workbench Services
-src/vs/workbench/services/authentication/** @yourusername  # ← Your contribution added here
+src/vs/workbench/services/authentication/** @yourusername  # <- Your contribution added here
 
 # Workbench Contributions
-src/vs/workbench/contrib/authentication/** @yourusername  # ← Your contribution added here
-src/vs/workbench/contrib/localization/** @yourusername  # ← Your contribution added here
+src/vs/workbench/contrib/authentication/** @yourusername  # <- Your contribution added here
+src/vs/workbench/contrib/localization/** @yourusername  # <- Your contribution added here
 ```
 
 If you have contributions that don't fit existing sections (e.g., `foo/bar/**`), new sections can be created at the end:

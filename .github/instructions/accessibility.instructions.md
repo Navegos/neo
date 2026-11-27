@@ -25,7 +25,7 @@ keybinding: {
 
 ## Accessible Help Dialogs (Alt+F1)
 
-Use `AccessibleContentProvider` directly — do not create custom subclasses:
+Use `AccessibleContentProvider` directly --- do not create custom subclasses:
 
 ```typescript
 getProvider(): AccessibleContentProvider {
@@ -61,7 +61,7 @@ if (this.accessibilityService.isScreenReaderOptimized() &&
 For important state changes, provide all three:
 1. **Audio signal**: `this.accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired)`
 2. **ARIA alert**: `status(message)` for screen readers
-3. **OS notification**: Respect `chat.notifyWindowOnConfirmation` setting. OS notifications are **conditional on window focus** — only fire when `targetWindow.document.hasFocus()` is `false` (see `ChatWindowNotifier`)
+3. **OS notification**: Respect `chat.notifyWindowOnConfirmation` setting. OS notifications are **conditional on window focus** --- only fire when `targetWindow.document.hasFocus()` is `false` (see `ChatWindowNotifier`)
 
 ## Configuration
 

@@ -12,13 +12,13 @@ description: >
 
 ```
 python/
-├── pyproject.toml              # Root package (agent-framework)
-├── packages/
-│   ├── core/                   # agent-framework-core (main package)
-│   ├── foundry/                # agent-framework-foundry
-│   ├── lab/                    # Standalone uv project, excluded from the root workspace
-│   ├── anthropic/              # agent-framework-anthropic
-│   └── ...                     # Other connector packages
+|-- pyproject.toml              # Root package (agent-framework)
+|-- packages/
+|   |-- core/                   # agent-framework-core (main package)
+|   |-- foundry/                # agent-framework-foundry
+|   |-- lab/                    # Standalone uv project, excluded from the root workspace
+|   |-- anthropic/              # agent-framework-anthropic
+|   `-- ...                     # Other connector packages
 ```
 
 - `agent-framework-core` contains core abstractions and OpenAI/Azure OpenAI built-in

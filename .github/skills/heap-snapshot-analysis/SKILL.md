@@ -31,7 +31,7 @@ If the user needs the agent to launch VS Code, drive a scenario, and capture sna
 
 ### 1. Parse Snapshots
 
-Use the helpers in [parseSnapshot.ts](./helpers/parseSnapshot.ts) to load snapshots. The files are often >500MB and too large for `JSON.parse` as a string — the helpers use Buffer-based extraction. In scratchpad scripts, import helpers from `../helpers/*.ts`.
+Use the helpers in [parseSnapshot.ts](./helpers/parseSnapshot.ts) to load snapshots. The files are often >500MB and too large for `JSON.parse` as a string --- the helpers use Buffer-based extraction. In scratchpad scripts, import helpers from `../helpers/*.ts`.
 
 For very large snapshots, the helper may still be too eager. Node cannot create a Buffer larger than roughly 2 GiB, so snapshots above that size can fail with `ERR_FS_FILE_TOO_LARGE` even before parsing. In that case, do not try to raise `--max-old-space-size` and retry the same full-file read. Switch to a streaming script.
 
@@ -104,7 +104,7 @@ findRetainerPaths(graph, 'ChatModel', { maxPaths: 5, maxDepth: 25, maxAttempts: 
 
 ### 4. Write Investigation Scripts
 
-Write investigation-specific scripts in the [scratchpad](./scratchpad/) directory. This folder is gitignored — use it freely for one-off analysis.
+Write investigation-specific scripts in the [scratchpad](./scratchpad/) directory. This folder is gitignored --- use it freely for one-off analysis.
 
 Organize scratchpad work into **dated subfolders** named `YYYY-MM-DD-short-description/` (e.g., `2026-04-09-chat-model-retainers/`). Each subfolder should contain:
 
@@ -140,7 +140,7 @@ The `.heapsnapshot` file is JSON with these key sections:
 | **`weak`** | WeakRef/WeakMap key | **No** |
 | `shortcut` | Convenience link | Depends |
 
-**Always skip `weak` edges when tracing retainer paths.** WeakMap entries show up as edges from key → backing array, but they don't prevent collection — they're red herrings.
+**Always skip `weak` edges when tracing retainer paths.** WeakMap entries show up as edges from key -> backing array, but they don't prevent collection --- they're red herrings.
 
 ### Common VS Code Retention Patterns
 
@@ -150,7 +150,7 @@ The `.heapsnapshot` file is JSON with these key sections:
 
 3. **`autorunIterableDelta` lastValues**: The closure captures a `Map` of previous iteration values. Values stay until the autorun re-runs. Async disposal delays keep models in observable stores longer than expected.
 
-4. **`HoverService._delayedHovers`**: Global singleton Map retaining disposed objects via `show` closure → `resolveHoverOptions` closure → `this`. If hover cleanup disposable doesn't fire, the entire object tree is retained.
+4. **`HoverService._delayedHovers`**: Global singleton Map retaining disposed objects via `show` closure -> `resolveHoverOptions` closure -> `this`. If hover cleanup disposable doesn't fire, the entire object tree is retained.
 
 5. **`ObjectMutationLog._previous`**: The incremental serializer keeps a full snapshot of the last-serialized state. Every loaded ChatModel holds 2x its data: live + `_previous`.
 
@@ -174,7 +174,7 @@ override dispose() {
 
 ### False Retainers to Watch For
 
-- **DevTools debugger global handles**: If the snapshot was captured after opening DevTools, large source strings, compiled scripts, preview data, inspected objects, or debugger bookkeeping can be retained by paths like `DevTools debugger(internal)` → `synthetic::(Global handles)` → GC roots. Treat these as debugger-induced until proven otherwise. They may not exist in the app before DevTools opens, and they should not be confused with application-owned leaks.
+- **DevTools debugger global handles**: If the snapshot was captured after opening DevTools, large source strings, compiled scripts, preview data, inspected objects, or debugger bookkeeping can be retained by paths like `DevTools debugger(internal)` -> `synthetic::(Global handles)` -> GC roots. Treat these as debugger-induced until proven otherwise. They may not exist in the app before DevTools opens, and they should not be confused with application-owned leaks.
 - **`DevToolsLogger._aliveInstances`** (Map): Enabled by `VSCODE_DEV_DEBUG_OBSERVABLES` env var. Retains ALL observed observables. Check if this is active before investigating observable-rooted paths.
 - **`GCBasedDisposableTracker` (FinalizationRegistry)**: If `register(target, held, target)` is used (target === unregister token), creates a strong self-reference preventing GC. Currently commented out in production.
 - **WeakMap backing arrays**: Show up in retainer paths but don't prevent collection.

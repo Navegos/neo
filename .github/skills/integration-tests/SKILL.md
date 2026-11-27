@@ -126,7 +126,7 @@ Tests run against compiled JavaScript output. Ensure the `VS Code - Build` watch
 
 ## Distinction from unit tests
 
-- **Unit tests** (`.test.ts`) → use `scripts/test.sh` or the `runTests` tool
-- **Integration tests** (`.integrationTest.ts` and extension tests) → use `scripts/test-integration.sh`
+- **Unit tests** (`.test.ts`) -> use `scripts/test.sh` or the `runTests` tool
+- **Integration tests** (`.integrationTest.ts` and extension tests) -> use `scripts/test-integration.sh`
 
 Do **not** mix these up: `scripts/test.sh` will not find integration test files unless you explicitly pass `--runGlob **/*.integrationTest.js`, and `scripts/test-integration.sh` is not intended for `.test.ts` files.

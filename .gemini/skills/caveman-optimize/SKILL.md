@@ -95,7 +95,7 @@ permit dismissal only, and this skill does not perform that mutation either.
 Report:
 
 ```text
-Observation: <id> â€” <server title>
+Observation: <id> --- <server title>
 Recorded profile: <server observation, verbatim>
 Candidate: <file:line and approved change>
 Paired eval: <identical input/fixture, baseline result, candidate result>

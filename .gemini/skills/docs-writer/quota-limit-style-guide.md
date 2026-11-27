@@ -46,7 +46,7 @@ identifies the specific wall the user just hit.
 
 **Examples:**
 
-- **Error message:** You’ve reached the 50-request-per-minute **limit**.
+- **Error message:** You've reached the 50-request-per-minute **limit**.
 - **Inline warning:** Input exceeds the 32k token **limit**.
 
 ### How to use both together

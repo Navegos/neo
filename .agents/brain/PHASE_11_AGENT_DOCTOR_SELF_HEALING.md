@@ -24,7 +24,7 @@ Disciplinary & Portability Requirements:
 
 Requirements:
 1. Implement full self-healing audit in `crates/toksi/src/commands/doctor.rs` & `agents/manager.rs`:
-   - Audit and verify configured agent configurations (`18+` built-in adapters including `"openagents"` + Category 1â€“5 layouts) across user homes and workspace roots.
+   - Audit and verify configured agent configurations (`18+` built-in adapters including `"openagents"` + Category 1--5 layouts) across user homes and workspace roots.
    - Detect and fix broken legacy MCP configurations (purge stale `node`, `npx`, `python`, `uvx`, `toksi-*`, `tokless_*`, `toksi-codegraph-init.js` commands, replacing with native `toksi <tool>` / `DirectWireBus`).
    - Standardize hook configurations across all agents to `<tool>-hook <agent>` (e.g. `codegraph-hook agy`, `projectmem-hook agy`; purge `agy-hook codegraph-index` and `rtk hook cursor`).
    - Validate presence of externalized `<enforce>` rules (`Karpathy`, `Caveman` v4, `Ponytail` staged outside `crates/toksi/` and synced via `<skills>`), skills (`skilldoctor` + `agentskills` YAML healer), and instructions (`~/.toksi/config.toml` compliant).

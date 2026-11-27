@@ -47,14 +47,14 @@ Use this checklist to audit UI strings and AI responses.
   analysis (thinking)
 
 ### Structural scannability
-- **The skip test:** Do the first 3 words describe the user’s intent? If not,
+- **The skip test:** Do the first 3 words describe the user's intent? If not,
   rewrite.
 - **Goal-first sequence:** Use the template: [To Accomplish X] + [Do Y].
 - **The 5-word rule:** Keep status updates and loading states under 5 words.
 - **Telemetry over etiquette:** Remove polite filler (Please wait, Thank you,
   Certainly). Replace with raw data or progress indicators.
 - **Micro-state cycles:** For tasks $> 3$ seconds, cycle through specific
-  sub-states (e.g., Parsing logs... ➔ Identifying patterns...) to show momentum.
+  sub-states (e.g., Parsing logs... -> Identifying patterns...) to show momentum.
 
 
 ### Technical accuracy and humility
@@ -72,7 +72,7 @@ Use this checklist to audit UI strings and AI responses.
 - **Human-first:** Provide a human-readable explanation before machine error
   codes (e.g., 404, 500).
 -  **Suggested prompts:** Offer specific text for the user to copy/click like
-   “Ask Gemini: 'Explain this port error.'”
+   "Ask Gemini: 'Explain this port error.'"
 
 ### Use consistent terminology
 
@@ -94,6 +94,6 @@ format. Do not provide suggestions outside of this list..
 
 ```
 1. **{Rationale/Principle Violated}**
-  - ❌ "{incorrect phrase}"
-  - ✅ `"{corrected phrase}"`
+  - [FAIL] "{incorrect phrase}"
+  - [DONE] `"{corrected phrase}"`
 ```

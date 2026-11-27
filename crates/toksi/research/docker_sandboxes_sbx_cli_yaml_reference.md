@@ -1,4 +1,4 @@
-# `sbx` — Docker Sandboxes CLI Reference
+# `sbx` --- Docker Sandboxes CLI Reference
 
 **Description:** Manage AI coding agent sandboxes.  
 **Usage:** `sbx COMMAND`
@@ -13,7 +13,7 @@ These flags apply to `sbx` and its subcommands:
 
 | Option | Default | Description |
 | :--- | :--- | :--- |
-| `--cloud` | | Dispatch to Docker Cloud Sandboxes API instead of local `sandboxd` (supported by a growing set of verbs — run `sbx --cloud --help` for the current list) |
+| `--cloud` | | Dispatch to Docker Cloud Sandboxes API instead of local `sandboxd` (supported by a growing set of verbs --- run `sbx --cloud --help` for the current list) |
 | `-D, --debug` | | Enable debug logging |
 | `--no-input` | | Never prompt; commands that need an answer fail with the command to run instead |
 
@@ -91,14 +91,14 @@ Create a sandbox for an agent or sandbox kit without attaching to it.
 
 - **Usage:** `sbx create AGENT|SANDBOX_KIT [PATH...] [flags]`
 - **Supported Built-in Agents / Subcommands:**
-  - `sbx create claude` — Create a sandbox for Claude Code
-  - `sbx create codex` — Create a sandbox for OpenAI Codex
-  - `sbx create cursor` — Create a sandbox for Cursor
-  - `sbx create devin` — Create a sandbox for Devin
-  - `sbx create docker-agent` — Create a sandbox for Docker Agent
-  - `sbx create gemini` — Create a sandbox for Gemini CLI
-  - `sbx create opencode` — Create a sandbox for OpenCode
-  - `sbx create shell` — Create a plain Bash shell sandbox without an agent
+  - `sbx create claude` --- Create a sandbox for Claude Code
+  - `sbx create codex` --- Create a sandbox for OpenAI Codex
+  - `sbx create cursor` --- Create a sandbox for Cursor
+  - `sbx create devin` --- Create a sandbox for Devin
+  - `sbx create docker-agent` --- Create a sandbox for Docker Agent
+  - `sbx create gemini` --- Create a sandbox for Gemini CLI
+  - `sbx create opencode` --- Create a sandbox for OpenCode
+  - `sbx create shell` --- Create a plain Bash shell sandbox without an agent
 - **Key Options:**
   - `--allow-network`: Network pattern to allow for the new sandbox
   - `--kit`: Add mixin kits
@@ -207,7 +207,7 @@ Remove all stopped sandboxes and their associated resources *(local-only)*.
 - **Usage:** `sbx prune [flags]`
 - **Options:**
   - `--dry-run`: List the sandboxes that would be removed without removing them
-  - `--filter`: Filter candidates (supported: `until=TIMESTAMP` — RFC 3339, Unix timestamp, or Go duration like `168h`)
+  - `--filter`: Filter candidates (supported: `until=TIMESTAMP` --- RFC 3339, Unix timestamp, or Go duration like `168h`)
   - `-f, --force`: Skip confirmation prompts and remove even if in use
   - `--format`: Output format: `table`, `json`, or `yaml`
   - `--json`: Output in JSON format
@@ -523,8 +523,8 @@ Docker Sandboxes uses two distinct declarative YAML schemas:
 
 | Field | Type | Required | Default | Description |
 | :--- | :--- | :--- | :--- | :--- |
-| `schemaVersion` | string | **Yes** | — | Must be `"1"` |
-| `agent` | string | **Yes** | — | Built-in agent name (`claude`, `codex`, `cursor`, `devin`, `docker-agent`, `gemini`, `opencode`, `shell`) or manifest name of a workload kit in `kits:` |
+| `schemaVersion` | string | **Yes** | --- | Must be `"1"` |
+| `agent` | string | **Yes** | --- | Built-in agent name (`claude`, `codex`, `cursor`, `devin`, `docker-agent`, `gemini`, `opencode`, `shell`) or manifest name of a workload kit in `kits:` |
 | `name` | string | No | Derived from directory | Sandbox name (overridable via `--name`; disallowed in `~/.sbxenv.yaml`) |
 | `entrypoint` | list of strings | No | Image/kit default | Override container launch entrypoint (exec argv, not shell-expanded) |
 | `cmd` | list of strings | No | Image/kit default | Override default launch arguments appended to `entrypoint` (replaced by CLI args after `--`) |
@@ -552,12 +552,12 @@ Can be a string reference (local path prefixed with `./` or `../`, Git URL, ZIP 
 - String shorthand (for `workspace` or `additionalWorkspaces[]`): Host path resolved relative to the declaring file's directory.
 - Object form:
   - `path` (string, **required**): Host directory path.
-  - `target` (string, optional — `additionalWorkspaces` only): Custom mount destination path inside the sandbox.
+  - `target` (string, optional --- `additionalWorkspaces` only): Custom mount destination path inside the sandbox.
   - `readOnly` (bool, optional, default `false`): Mount directory read-only inside the sandbox.
   - `clone` (bool, optional): Clone the repository instead of bind-mounting directly.
 
 **`ports[]`** *(local-only)*
-- `container` (int, **required**): Sandbox port (`1`–`65535`).
+- `container` (int, **required**): Sandbox port (`1`--`65535`).
 - `host` (int, optional): Host port to bind (omitting allocates an ephemeral host port).
 - `hostIP` (string, optional): Host IP interface to bind (e.g., `127.0.0.1`).
 - `protocol` (string, optional): `tcp`, `udp`, `tcp4`, or `tcp6` (case-insensitive; defaults to `tcp4`, or `tcp6` for IPv6 `hostIP`).
@@ -697,7 +697,7 @@ Each item in `capabilities` specifies `type` (required), `optional` (bool, defau
 | `com.docker.sandbox/sbx@1` | Singleton | No | Declares workload compliance for `sbx` (no `config`; requires `/bin/sh`, `/bin/bash`, non-empty image `USER` in `/etc/passwd`, and `BASH_ENV`) |
 | `com.docker.sandbox/lifecycle@1` | Singleton | No | `install[]` (once at create: `command`, `user`, `env[]`, `description`), `startup[]` (every boot: `command`, `user`, `background`, `env[]`), `files[]` (`path`, `content`, `mode`, `overwrite`), and `interactive` (argv tail for TTY sessions) |
 | `com.docker.sandbox/network-policy@1` | Instance | Yes | Outbound network allowlists split by phase (`install.allow[]`, `runtime.allow[]`) |
-| `com.docker.sandbox/credential@1` | Instance | Yes | Proxy-injected service credentials (`service`, `phase`: `install`\|`runtime`, `inject[]` domains — every injected domain must be allowed in that phase's `network-policy@1`) |
+| `com.docker.sandbox/credential@1` | Instance | Yes | Proxy-injected service credentials (`service`, `phase`: `install`\|`runtime`, `inject[]` domains --- every injected domain must be allowed in that phase's `network-policy@1`) |
 | `com.docker.sandbox/ssh-agent@1` | Singleton | Yes | Requests host SSH agent socket forwarding into the sandbox |
 | `com.docker.sandbox/port@1` | Instance | Yes | Declares inbound container port to publish (`name`, `container`: `1..65535`, `transport`: `tcp`\|`udp`, `family`: `ipv4`\|`ipv6`\|`dual`) |
 | `com.docker.sandbox/agent-context@2` | Instance | No | Injects inline agent guidance (`content`, optional `directory` and `filename`; replaces `@1` `contentFile`) |

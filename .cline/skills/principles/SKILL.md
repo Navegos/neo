@@ -38,7 +38,7 @@ Before mutating files, invoking side-effecting tools, or committing to an archit
 **Modify only what is strictly necessary. Preserve context budget across every turn.**
 
 When operating on codebases, configurations, or structured artifacts:
-- **Conform to local invariants.** Match existing naming conventions, formatting, error-handling idioms, memory/ownership models, and build-system patterns (`CMakeLists.txt`, `Cargo.toml`, `pyproject.toml`, etc.)—even if you prefer another style.
+- **Conform to local invariants.** Match existing naming conventions, formatting, error-handling idioms, memory/ownership models, and build-system patterns (`CMakeLists.txt`, `Cargo.toml`, `pyproject.toml`, etc.)---even if you prefer another style.
 - **Zero collateral edits.** Do not reformat untouched lines, reorder unrelated imports, or refactor working adjacent functions. Keep `git diff` minimal and reviewable.
 - **Preserve vs. prune accurately.** Mention pre-existing dead code or technical debt outside your scope briefly without deleting it; always remove imports, variables, or helpers that *your* changes orphaned.
 - **Minimize context pollution.** Query targeted slices (AST/symbol lookups, specific line ranges, filtered logs) rather than dumping entire files or unfiltered command outputs into context. Emit targeted diffs or modified blocks rather than re-printing entire files unless explicitly requested.
@@ -57,7 +57,7 @@ Every changed line and tool call must trace directly to the active objective.
   3. Verify the commit/push succeeded (`git status` / `git log -1`) before proceeding with `git reset`, `git restore`, or branch cleanup.
 - **Respect execution and approval boundaries.** Treat destructive commands, system-level mutations, network writes, and external side effects with strict caution; verify target paths, flags, and working directories before execution.
 - **Maintain state continuity.** Anchor decisions to verified session state, prior architectural commitments, and persistent memory without repeating resolved questions or contradicting established constraints.
-- **Recover systematically from tool failures.** When a build, test, or CLI command fails, read the exact diagnostic output, isolate the root cause, and fix the underlying defect—never blindly retry identical commands or mask errors.
+- **Recover systematically from tool failures.** When a build, test, or CLI command fails, read the exact diagnostic output, isolate the root cause, and fix the underlying defect---never blindly retry identical commands or mask errors.
 
 ## 5. Closed-Loop Verification
 

@@ -98,11 +98,11 @@ Following the "too many type checkers" approach, type checkers are split by targ
 - The extra checkers run over tests/samples because those exercise the public API the way
   users do. The profile is intentionally relaxed (private access allowed, untyped test
   bodies allowed) so authors aren't forced into ugly over-annotation.
-- **Gating checkers** are `pyright`, `mypy`, `pyrefly`, `ty`, and `zuban` — all five run by
+- **Gating checkers** are `pyright`, `mypy`, `pyrefly`, `ty`, and `zuban` --- all five run by
   default and gate CI. `zuban` is the strictest of the mypy-compatible pair, so the same
   `[tool.mypy]` config yields more findings; suppress zuban-only friction with shared
   `# type: ignore[code]`. Suppress relaxed-pyright friction with `# pyright: ignore[rule]`.
-- **Samples** add `pyright` to `pyrefly` + `ty` — mypy/zuban can't resolve script-style
+- **Samples** add `pyright` to `pyrefly` + `ty` --- mypy/zuban can't resolve script-style
   sample layouts (numeric-prefixed dirs, duplicate `main.py`), but pyright handles them.
 - `pyrefly.samples.toml` enables fallback lookup for standalone sibling imports.
   The ty sample profile uses first-party `root = ["."]` for PEP 723 sibling helpers,
@@ -123,21 +123,21 @@ Following the "too many type checkers" approach, type checkers are split by targ
 
 - **Source**: strict mode (`[tool.pyright]`), `reportUnnecessaryTypeIgnoreComment = "error"`,
   excludes tests, samples, .venv, packages/devui/frontend.
-- **Tests**: relaxed `basic` profile (`pyrightconfig.tests.json`) — private import/usage and
+- **Tests**: relaxed `basic` profile (`pyrightconfig.tests.json`) --- private import/usage and
   not-required TypedDict access allowed; runs as the `pyright` checker in `test-typing`.
-- **Samples**: relaxed `basic` profile (`pyrightconfig.samples.json`) —
+- **Samples**: relaxed `basic` profile (`pyrightconfig.samples.json`) ---
   runs as the `pyright` checker in `test-typing -S`.
 
 ## Parallel Execution
 
 The task runner (`scripts/task_runner.py`) executes the cross-product of
-(package × task) in parallel using ThreadPoolExecutor. Single items run
+(package x task) in parallel using ThreadPoolExecutor. Single items run
 in-process with streaming output.
 
 ## CI Workflow
 
 CI splits into 4 parallel jobs:
-1. **Pre-commit hooks** — lightweight hooks (SKIP=poe-check)
-2. **Package checks** — syntax/pyright (source) via check-packages
-3. **Samples & markdown** — `check -S` plus `markdown-code-lint`
-4. **Test Typing** — change-detected mypy/pyrefly/ty over tests (`ci-test-typing`)
+1. **Pre-commit hooks** --- lightweight hooks (SKIP=poe-check)
+2. **Package checks** --- syntax/pyright (source) via check-packages
+3. **Samples & markdown** --- `check -S` plus `markdown-code-lint`
+4. **Test Typing** --- change-detected mypy/pyrefly/ty over tests (`ci-test-typing`)

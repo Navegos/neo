@@ -28,7 +28,7 @@ When reviewing changes to these files, verify:
 
 ## Red Flags
 
-- Any **newly added** copyleft license (GPL, LGPL, AGPL) — flag immediately (existing copyleft entries like ffmpeg are pre-approved)
+- Any **newly added** copyleft license (GPL, LGPL, AGPL) --- flag immediately (existing copyleft entries like ffmpeg are pre-approved)
 - Any "UNKNOWN" or placeholder license text
 - License text that appears truncated or corrupted
 - A package declared as MIT but with Apache/BSD/other license text (or vice versa)

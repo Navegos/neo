@@ -66,9 +66,9 @@ The auto-release workflow will create a new release when:
 
 1. All CI checks pass (CI, Quality, Security workflows)
 2. There are conventional commits since the last release:
-   - Any `feat:` commits → Minor release
-   - Any `fix:` commits → Patch release  
-   - Any `BREAKING CHANGE:` → Major release
+   - Any `feat:` commits -> Minor release
+   - Any `fix:` commits -> Patch release  
+   - Any `BREAKING CHANGE:` -> Major release
 3. Manual trigger via workflow dispatch
 
 ## Release Process

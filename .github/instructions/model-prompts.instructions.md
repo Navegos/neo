@@ -12,11 +12,11 @@ The `PromptRegistry` in `promptRegistry.ts` maps AI models to their optimal prom
 ### Resolution Order
 
 When `PromptRegistry.resolveAllCustomizations()` is called:
-1. **Phase 1 — `matchesModel()`**: Iterates registered resolvers in order, calling `matchesModel()`. First `true` wins.
-2. **Phase 2 — `familyPrefixes`**: If no `matchesModel` matched, checks `endpoint.family.startsWith(prefix)`. First match wins.
+1. **Phase 1 --- `matchesModel()`**: Iterates registered resolvers in order, calling `matchesModel()`. First `true` wins.
+2. **Phase 2 --- `familyPrefixes`**: If no `matchesModel` matched, checks `endpoint.family.startsWith(prefix)`. First match wins.
 3. **Defaults**: If no resolver matches, defaults are used for all customizations.
 
-Registration order matters — more specific resolvers (e.g., hash-based) should be registered before broader ones (e.g., prefix-based fallbacks).
+Registration order matters --- more specific resolvers (e.g., hash-based) should be registered before broader ones (e.g., prefix-based fallbacks).
 
 ### Resolver Interface
 
@@ -138,10 +138,10 @@ Add your model family to the list at the top of `test/agentPrompt.spec.tsx`. Thi
 
 ## Prompt Authoring Principles
 
-- **Start with defaults** — most models infer correct behavior from tool definitions alone. Only customize if the model consistently fails.
-- **Make minimal adjustments** — add 1-2 sentences targeting specific issues rather than over-specifying.
-- **Use conditional sections** — wrap instructions in tool availability checks (`detectToolCapabilities`).
-- **Remove redundancy** — avoid repeating what tool definitions already convey.
+- **Start with defaults** --- most models infer correct behavior from tool definitions alone. Only customize if the model consistently fails.
+- **Make minimal adjustments** --- add 1-2 sentences targeting specific issues rather than over-specifying.
+- **Use conditional sections** --- wrap instructions in tool availability checks (`detectToolCapabilities`).
+- **Remove redundancy** --- avoid repeating what tool definitions already convey.
 
 ### Behaviors to Validate
 
@@ -151,7 +151,7 @@ Run the model through test scenarios and check these categories before adding cu
 - Uses edit tools (`replace_string_in_file`, `apply_patch`, `insert_edit_into_file`) instead of code blocks
 - Uses code search tools (`read_file`, `semantic_search`, `grep_search`, `file_search`) to gather context
 - Uses terminal tool (`run_in_terminal`) instead of bash commands
-- Does NOT use terminal tools to create, edit, or update files — always uses dedicated edit tools
+- Does NOT use terminal tools to create, edit, or update files --- always uses dedicated edit tools
 - Uses planning tools (`manage_todo_list`) for complex tasks
 
 **2. Response Format**

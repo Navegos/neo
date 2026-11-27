@@ -17,7 +17,7 @@ the exact failing local artifact, creation script, traceback, and task
 reproducer. Repair that artifact and rerun the same command; do not generate a
 different model and use its success as evidence for the failed one.
 
-## Step 1 — Inspect the original model
+## Step 1 --- Inspect the original model
 
 Download or load configuration and lightweight code/processor assets only.
 Record:
@@ -39,7 +39,7 @@ Inspect precision fields under every relevant configuration level. Remote
 models may use `dtype`, `torch_dtype`, or both, including separate values in
 vision, text, audio, or projector sub-configs.
 
-## Step 2 — Write a reusable constructor
+## Step 2 --- Write a reusable constructor
 
 Create `create_tiny_model.py` in the designated working directory. It must:
 
@@ -68,7 +68,7 @@ cache when the generator logic or required invariants change.
 Keep construction logic easy to adapt into
 `_create_tiny_<model_type>_model()` in `tests/openvino/utils_tests.py`.
 
-## Step 3 — Verify architecture identity
+## Step 3 --- Verify architecture identity
 
 Compare the original and tiny configurations. Preserve:
 
@@ -91,7 +91,7 @@ identity differs from the original model, stop and report the mismatch. A tiny
 model that executes successfully through another architecture is not a valid
 fixture.
 
-## Step 4 — Validate the real task path
+## Step 4 --- Validate the real task path
 
 Reload the saved directory through its documented Transformers or pipeline API
 and execute the requested task.

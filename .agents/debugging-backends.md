@@ -5,8 +5,8 @@ When a backend fails at runtime (e.g. a gRPC method error, a Python import error
 ## Architecture Overview
 
 - **Source directory**: `backend/python/<name>/` (or `backend/go/<name>/`, `backend/cpp/<name>/`)
-- **Installed directory**: `backends/<name>/` — this is what LocalAI actually runs. It is populated by `make backends/<name>` which builds a Docker image, exports it, and installs it via `local-ai backends install`.
-- **Virtual environment**: `backends/<name>/venv/` — the installed Python venv (for Python backends). The Python binary is at `backends/<name>/venv/bin/python`.
+- **Installed directory**: `backends/<name>/` --- this is what LocalAI actually runs. It is populated by `make backends/<name>` which builds a Docker image, exports it, and installs it via `local-ai backends install`.
+- **Virtual environment**: `backends/<name>/venv/` --- the installed Python venv (for Python backends). The Python binary is at `backends/<name>/venv/bin/python`.
 
 Editing files in `backend/python/<name>/` does **not** affect the running backend until you rebuild with `make backends/<name>`.
 
@@ -21,9 +21,9 @@ GRPC stderr id="trl-finetune-127.0.0.1:37335" line="..."
 ```
 
 Common error patterns:
-- **"Method not implemented"** — the backend is missing a gRPC method that the Go side calls. The model loader (`pkg/model/initializers.go`) always calls `LoadModel` after `Health`; fine-tuning backends must implement it even as a no-op stub.
-- **Python import errors / `AttributeError`** — usually a dependency version mismatch (e.g. `pyarrow` removing `PyExtensionType`).
-- **"failed to load backend"** — the gRPC process crashed or never started. Check stderr lines for the traceback.
+- **"Method not implemented"** --- the backend is missing a gRPC method that the Go side calls. The model loader (`pkg/model/initializers.go`) always calls `LoadModel` after `Health`; fine-tuning backends must implement it even as a no-op stub.
+- **Python import errors / `AttributeError`** --- usually a dependency version mismatch (e.g. `pyarrow` removing `PyExtensionType`).
+- **"failed to load backend"** --- the gRPC process crashed or never started. Check stderr lines for the traceback.
 
 ### 2. Test the Python environment directly
 
@@ -59,7 +59,7 @@ If the Go side calls a method the backend doesn't implement (e.g. `LoadModel`), 
 
 ```python
 def LoadModel(self, request, context):
-    """No-op — actual loading happens elsewhere."""
+    """No-op --- actual loading happens elsewhere."""
     return backend_pb2.Result(success=True, message="OK")
 ```
 
@@ -73,10 +73,10 @@ Python backends often break when a transitive dependency releases a breaking cha
 2. Test in the installed venv: `backends/<name>/venv/bin/python -c "import <module>"`
 3. Check upstream requirements for version constraints
 4. Update **all** requirements files in `backend/python/<name>/`:
-   - `requirements.txt` — base deps (grpcio, protobuf)
-   - `requirements-cpu.txt` — CPU-specific (includes PyTorch CPU index)
-   - `requirements-cublas12.txt` — CUDA 12
-   - `requirements-cublas13.txt` — CUDA 13
+   - `requirements.txt` --- base deps (grpcio, protobuf)
+   - `requirements-cpu.txt` --- CPU-specific (includes PyTorch CPU index)
+   - `requirements-cublas12.txt` --- CUDA 12
+   - `requirements-cublas13.txt` --- CUDA 13
 5. Rebuild: `make backends/<name>`
 
 ### PyTorch index conflicts (uv resolver)
@@ -88,7 +88,7 @@ EXTRA_PIP_INSTALL_FLAGS+=" --upgrade --index-strategy=unsafe-first-match"
 installRequirements
 ```
 
-Most Python backends already do this — check `backend/python/transformers/install.sh` or similar for reference.
+Most Python backends already do this --- check `backend/python/transformers/install.sh` or similar for reference.
 
 ## Rebuilding
 
@@ -129,7 +129,7 @@ vim backends/<name>/backend.py
 # Restart LocalAI to respawn the gRPC process
 ```
 
-This is useful for testing but **does not persist** — the next `make backends/<name>` will overwrite it. Always commit fixes to the source in `backend/python/<name>/`.
+This is useful for testing but **does not persist** --- the next `make backends/<name>` will overwrite it. Always commit fixes to the source in `backend/python/<name>/`.
 
 ## Verification
 

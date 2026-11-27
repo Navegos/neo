@@ -30,10 +30,10 @@ Please ensure your PR includes the following. See
   - Serves the model through vLLM on Neuron and validates accuracy
     (logit validation, data set evaluation, or equivalent).
 - [ ] **`README.md`** for the model, with:
-  - [ ] **Usage example** — how to serve the model through vLLM with the Neuron plugin.
-  - [ ] **Compatibility matrix** — tested Neuron SDK versions and instance types (like Trn2, Trn3, etc).
-  - [ ] **Example checkpoints** — links to compatible checkpoints (e.g., Hugging Face Hub).
-  - [ ] **Testing instructions** — command(s) to run the model's test suite.
+  - [ ] **Usage example** --- how to serve the model through vLLM with the Neuron plugin.
+  - [ ] **Compatibility matrix** --- tested Neuron SDK versions and instance types (like Trn2, Trn3, etc).
+  - [ ] **Example checkpoints** --- links to compatible checkpoints (e.g., Hugging Face Hub).
+  - [ ] **Testing instructions** --- command(s) to run the model's test suite.
 - [ ] **Source code** under `contrib/models/<model_name>/src/`.
 
 ### Optional components

@@ -24,7 +24,7 @@ This is also a review rule: code added to either file needs a specific reason th
 
 Write a contribution when the behavior answers yes to this test:
 
-1. Does it react to a lifecycle moment the hooks already name — a turn request asking to proceed, a completed turn, a dispatched action, a turn about to be sent, a restored turn list, or a chat being restored?
+1. Does it react to a lifecycle moment the hooks already name --- a turn request asking to proceed, a completed turn, a dispatched action, a turn about to be sent, a restored turn list, or a chat being restored?
 2. Can an explicitly registered, dependency-injected unit own it without changing protocol routing or provider mapping?
 3. Does it compose with other behavior in a defined order?
 
@@ -98,10 +98,10 @@ Add its constructor to the one built-in list with `contributions.registerContrib
 | `onIncomingRequest` | A turn request asks to proceed to a provider, before any side effect. **Synchronous, and fails closed.** | It decides admission, so a throw rejects rather than being skipped. Return `accept`, `handled`, or `reject`; the first non-accept wins and later contributions are not consulted. | `localCommand` 50, `turnAdmission` 100 |
 | `onTurnEnd` | Any terminal outcome a started turn can reach, plus a request refused before its turn started. | Discriminate `rejected` from `error`: the former has no started turn to finalize and no checkpoint to capture. Do not throw. It does not fire for an agent-emitted terminal action arriving with no active turn, because the reducer no-ops for those. | `checkpointAndChangeset`, `queueDrain`, `githubReferences`, `sessionTitle`, `markUnread` |
 | `onDidApplyClientAction` | A client-dispatched action was applied to host state. | It never sees server-dispatched or rejected actions. Anything it sees definitely reduced. | `queueDrain` tracks queued senders; `sessionTitle` persists user title changes. |
-| `onDidDispatchAction` | Any action was dispatched and its outcome is known, from any origin. | It also delivers **rejected** actions that never reduced — check `rejectionReason`. Implementing this and `onDidApplyClientAction` together sees every client action twice. | `sessionInputNeeded`, `persistedTurnUsage`, `sessionFlags` |
+| `onDidDispatchAction` | Any action was dispatched and its outcome is known, from any origin. | It also delivers **rejected** actions that never reduced --- check `rejectionReason`. Implementing this and `onDidApplyClientAction` together sees every client action twice. | `sessionInputNeeded`, `persistedTurnUsage`, `sessionFlags` |
 | `onOutgoingTurn` | Awaited after admission and provider lookup, before the turn is sent. | Rejected turns and `noAgent` failures never reach it. `IOutgoingTurn` carries the full `Message`; contributions can replace its text in order and add instructions, but cannot replace its already-committed attachments, model, agent, origin, or metadata. Prefer the message-text channel for context injection: changing instructions invalidates the provider prompt cache and increases user cost. Do not bypass the send path. | `markdownPlanRichLinks`, `artifactTools`, `chatSurface`, `sessionTitle`, `sideChat` |
 | `onHydrateTurns` | A provider has returned the complete restored turn list for a chat. | It is not limited to default chats and must return a list for the next stage. Do not assume its input is pristine provider output because earlier contributions may have transformed it. | `turnDelegation`, `persistedTurnUsage`, `worktreeAnnouncement`, `sideChat` |
-| `onHydrateChat` | A chat is being restored, eagerly, before it enters the session catalog. | It runs with no provider — it is a metadata-only read — and before the chat exists, so a chat memento taken here would outlive a failed registration. | `sessionTitle`, `chatDraft` |
+| `onHydrateChat` | A chat is being restored, eagerly, before it enters the session catalog. | It runs with no provider --- it is a metadata-only read --- and before the chat exists, so a chat memento taken here would outlive a failed registration. | `sessionTitle`, `chatDraft` |
 
 The call sites are in `node/agentSideEffects.ts`, `node/agentHostTurnStarter.ts`, and `node/agentService.ts`.
 
@@ -163,7 +163,7 @@ The dispatcher logs and isolates failures independently for every observer hook:
 
 **`onIncomingRequest` inverts this and fails closed.** A contribution that throws there *rejects* the request with `internalError` at stage `validation`. That gate is the enforcement behind the UI hiding the composer, so failing open would let a buggy or remote client run work in a session that may no longer have its isolated worktree on disk. Losing one enrichment is survivable; letting a request past a guard is not.
 
-It is also **deliberately synchronous**, for the same reason: a gate has to decide before the send path performs any await, so the state it reads cannot change between the decision and its effect. Every admission check the host makes today is already synchronous. An async version was tried first and broke three `agentSideEffects` tests by deferring the read-only guard one microtask past the assertions — which was the design saying the gate belongs before the first await.
+It is also **deliberately synchronous**, for the same reason: a gate has to decide before the send path performs any await, so the state it reads cannot change between the decision and its effect. Every admission check the host makes today is already synchronous. An async version was tried first and broke three `agentSideEffects` tests by deferring the read-only guard one microtask past the assertions --- which was the design saying the gate belongs before the first await.
 
 Implement normal error handling where it improves the feature, but never depend on a thrown error to control lifecycle flow. The exact dispatch behavior is in `node/agentHostChatContributionsService.ts`.
 
@@ -173,4 +173,4 @@ Add focused dispatcher tests in `test/node/chatContributions.test.ts` for hook d
 
 When extracting existing behavior from `AgentSideEffects`, leave the existing `test/node/agentSideEffects.test.ts` suite unchanged. Its passing behavior is the proof that the extraction preserved semantics; test new dispatcher mechanics separately rather than rewriting the old assertions to fit the new structure.
 
-One caveat that has bitten twice: some hand-built test graphs construct `AgentSideEffects` **without** calling `registerBuiltInChatContributions`, so they silently stop exercising behavior the moment it moves into a contribution. When an extraction breaks such a suite, add the missing registration so the graph mirrors production wiring — do not weaken the assertion. The failure means the test was verifying an incomplete graph, not that the extraction was wrong.
+One caveat that has bitten twice: some hand-built test graphs construct `AgentSideEffects` **without** calling `registerBuiltInChatContributions`, so they silently stop exercising behavior the moment it moves into a contribution. When an extraction breaks such a suite, add the missing registration so the graph mirrors production wiring --- do not weaken the assertion. The failure means the test was verifying an incomplete graph, not that the extraction was wrong.

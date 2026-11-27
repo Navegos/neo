@@ -44,7 +44,7 @@ Use `github.com/mudler/xlog` for logging which has the same API as slog.
 
 ## Go tests
 
-All Go tests — including backend tests — must use [Ginkgo](https://onsi.github.io/ginkgo/) (v2) with Gomega matchers, not the stdlib `testing` package with `t.Run` / `t.Errorf`. A test file should register a suite with `RegisterFailHandler(Fail)` in a `TestXxx(t *testing.T)` bootstrap and use `Describe`/`Context`/`It` blocks for the actual cases. Look at any existing `*_test.go` under `core/` or `pkg/` for a template.
+All Go tests --- including backend tests --- must use [Ginkgo](https://onsi.github.io/ginkgo/) (v2) with Gomega matchers, not the stdlib `testing` package with `t.Run` / `t.Errorf`. A test file should register a suite with `RegisterFailHandler(Fail)` in a `TestXxx(t *testing.T)` bootstrap and use `Describe`/`Context`/`It` blocks for the actual cases. Look at any existing `*_test.go` under `core/` or `pkg/` for a template.
 
 Do not mix styles within a package. If you are extending tests in a package that already uses Ginkgo, keep using Ginkgo. If you find stdlib-style Go tests in the tree, treat them as tech debt to be migrated rather than as a pattern to follow.
 
@@ -62,14 +62,14 @@ and is not in the catalog.
 
 ## Outbound HTTP
 
-All outbound HTTP must go through `github.com/mudler/LocalAI/pkg/httpclient` rather than the standard library's default client. Use `httpclient.New(...)` (no body deadline — safe for streaming/SSE) or `httpclient.NewWithTimeout(d, ...)` (simple request/response). Both **refuse redirects by default** and set a TLS 1.2 floor.
+All outbound HTTP must go through `github.com/mudler/LocalAI/pkg/httpclient` rather than the standard library's default client. Use `httpclient.New(...)` (no body deadline --- safe for streaming/SSE) or `httpclient.NewWithTimeout(d, ...)` (simple request/response). Both **refuse redirects by default** and set a TLS 1.2 floor.
 
 The reason is GHSA-3mj3-57v2-4636: the std default client follows redirects, and on a *cross-host* redirect Go forwards custom credential headers (e.g. Anthropic's `x-api-key`) to the redirect target, leaking the secret. `httpclient` fails closed instead.
 
-- Need to follow redirects (download CDNs, registry blobs, GitHub asset URLs)? Pass `httpclient.WithFollowRedirects()` — it still strips credential headers on any cross-host hop.
+- Need to follow redirects (download CDNs, registry blobs, GitHub asset URLs)? Pass `httpclient.WithFollowRedirects()` --- it still strips credential headers on any cross-host hop.
 - Have a custom transport (IP-pinned dialer, HTTP/2 tuning, a credential-injecting `RoundTripper`)? Pass `httpclient.WithTransport(rt)`, basing the transport on `httpclient.HardenedTransport()` to keep the TLS floor. Handed a `*http.Client` by a library? `httpclient.Harden(c)` applies the policy in place.
 
-This is enforced by `forbidigo` (see `.golangci.yml`): `http.DefaultClient` and `http.Get`/`Post`/`PostForm`/`Head` are flagged. The `&http.Client{}` composite literal can't be matched precisely by forbidigo without also flagging legitimate `*http.Client` type references, so that form is caught by review — don't construct raw clients.
+This is enforced by `forbidigo` (see `.golangci.yml`): `http.DefaultClient` and `http.Get`/`Post`/`PostForm`/`Head` are flagged. The `&http.Client{}` composite literal can't be matched precisely by forbidigo without also flagging legitimate `*http.Client` type references, so that form is caught by review --- don't construct raw clients.
 
 ## Documentation
 

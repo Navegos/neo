@@ -4,7 +4,7 @@
 
 ## Ready-to-Run Chat Prompt
 ```text
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 13.3â€“13.4), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_2_MULTI_MODEL_DB_KEYRING_AND_HEADROOM_PASS.md first.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 13.3--13.4), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, .agents/brain/PHASE_17_2_MULTI_MODEL_DB_KEYRING_AND_HEADROOM_PASS.md first.
 
 Execute Phase 17.2: Multi-Model `<byok, model, effort>` DB, Keyring Fix, `headroom-core` `live_zone`, & Mandatory BYOK Headroom Pass.
 Sources:
@@ -21,7 +21,7 @@ Targets:
 Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): `#![deny(unsafe_code)]` enforced strictly; Windows Credential Manager FFI lives in `crates/toksi-sys`.
 2. Zero Panics & Prompt Cache Preservation: NEVER rewrite/strip early history turns in place if doing so breaks provider prompt caching. Use `headroom-core`'s `compute_frozen_count` + `live_zone` byte-range surgery!
-3. Universal Mandatory `HeadroomEffortCompressor` Pass: Zero `/byok/`, gateway (`:9099`), BYOK/Vertex ADC (`:18787`), or Protocol Bus (`:9098`) compression exemptions â€” EVERY inference/protocol entrypoint invokes the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, `mcp_pruner`, `rtk`, `chroma`/`lance` semantic cache).
+3. Universal Mandatory `HeadroomEffortCompressor` Pass: Zero `/byok/`, gateway (`:9099`), BYOK/Vertex ADC (`:18787`), or Protocol Bus (`:9098`) compression exemptions --- EVERY inference/protocol entrypoint invokes the shared `HeadroomEffortCompressor` (`Low`/`Medium`/`High`: `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, `mcp_pruner`, `rtk`, `chroma`/`lance` semantic cache).
 4. Configured-Only Keyring & Multi-Instance BYOK: Users can configure multiple `<byok, model, effort>` rows under the same BYOK provider (separate models, separate endpoints, separate quotas) via CLI, TUI, Web Cockpit, or `/byokmodel`.
 
 Requirements:
@@ -60,7 +60,7 @@ See `RESEARCHPLAN.md` Section 13.4 for exact `byok_profiles`, `agent_profile_bin
 
 ## Wave 18 (v5.2) Synchronization Addendum
 - Extend `byok_profiles` table schema with `auth_mode`, `gcp_project`, and `gcp_location` (`us-central1` default) for `AGY_ADC_AUTH=true` Vertex routing (`PHASE_18_3`), and persist Unified Plugin descriptors/scan verdicts in `plugins_registry` (`PHASE_18_2`), zero-plaintext signatures/embargoes in `blind_signatures` & `advisory_embargoes` (`PHASE_18_2`), and ADR/kill-switch events in `adr_audit_events` (`PHASE_18_5`).
-- Wire `Low` / `Medium` / `High` thinking-effort aggressiveness (`tokenizers` exact BPE + `Chroma`/`Lance`/`Qdrant` ANN + `Guardrails`/`llm-guard` + `<enforce>`) across all 7 entrypoints (`:8787`â€“`:8790`, `:9098`, `:9099`, `:18787`) and cross-provider reasoning budget translation (`reasoning_effort`, `thinking.budget_tokens`, `generationConfig.thinkingConfig.thinkingBudget`) for **35-component `<toksi-siagent>`** across **495 mandated vaults** and **43** `.agents/brain/*.md` guides.
+- Wire `Low` / `Medium` / `High` thinking-effort aggressiveness (`tokenizers` exact BPE + `Chroma`/`Lance`/`Qdrant` ANN + `Guardrails`/`llm-guard` + `<enforce>`) across all 7 entrypoints (`:8787`--`:8790`, `:9098`, `:9099`, `:18787`) and cross-provider reasoning budget translation (`reasoning_effort`, `thinking.budget_tokens`, `generationConfig.thinkingConfig.thinkingBudget`) for **35-component `<toksi-siagent>`** across **495 mandated vaults** and **43** `.agents/brain/*.md` guides.
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`

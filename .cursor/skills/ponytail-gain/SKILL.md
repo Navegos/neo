@@ -10,7 +10,7 @@ description: >
 
 One-shot display: do not change mode, write flag files, or persist anything.
 
-## Scoreboard (Ponytail 5 · 39 tasks × 5 runs · Opus 5.5)
+## Scoreboard (Ponytail 5 - 39 tasks x 5 runs - Opus 5.5)
 
 - No-skill baseline: `100%`
 - Lines of code: `47%` (`-53%`)

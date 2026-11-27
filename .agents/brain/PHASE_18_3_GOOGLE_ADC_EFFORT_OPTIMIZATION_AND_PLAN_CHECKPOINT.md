@@ -1,4 +1,4 @@
-# Phase 18.3 â€” Google Cloud ADC (`AGY_ADC_AUTH=true`), Thinking-Effort Optimization & Safe Plan Checkpoints
+# Phase 18.3 --- Google Cloud ADC (`AGY_ADC_AUTH=true`), Thinking-Effort Optimization & Safe Plan Checkpoints
 
 > **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
@@ -6,7 +6,7 @@
 
 ```text
 Implement Phase 18.3 of the Toksi Unified Consolidation Plan (Google Cloud ADC Gateway, Thinking-Effort-Aware Optimization across 495 Mandated Vaults & 35-Component `<toksi-siagent>`, and Safe Temporal/Restate/LangGraph Plan Checkpoint/Resume across 43 `.agents/brain/*.md` guides).
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 1â€“3, 4.3, 12â€“13), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, and .agents/brain/PHASE_18_3_GOOGLE_ADC_EFFORT_OPTIMIZATION_AND_PLAN_CHECKPOINT.md first.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 1--3, 4.3, 12--13), .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, and .agents/brain/PHASE_18_3_GOOGLE_ADC_EFFORT_OPTIMIZATION_AND_PLAN_CHECKPOINT.md first.
 
 Your goals in Rust (`crates/toksi`):
 1. Google Cloud ADC (`AGY_ADC_AUTH=true`) First-Class Gateway & Auth (`src/keyring/adc.rs`, `src/db/byok.rs`, `src/gateway/vertex_adc.rs`):
@@ -21,7 +21,7 @@ Your goals in Rust (`crates/toksi`):
      * OpenAI / Codex / Copilot / DeepSeek / Grok -> `reasoning_effort: "low" | "medium" | "high"`.
      * Anthropic -> `thinking: { type: "enabled", budget_tokens: 1024 | 8192 | 32768 }` (auto-omitted for non-thinking models).
      * Gemini / Vertex ADC -> `generationConfig.thinkingConfig.thinkingBudget` (e.g. `1024 | 8192 | 24576` or model-specific min/max clamp; silently stripped if model does not support thinking).
-   - Tune Toksi compression aggressiveness by effort tier across ALL 7 inference/protocol entrypoints (`:8787`â€“`:8790` proxies, `:9098` Protocol Bus, `:9099` Enterprise AI Gateway `gateway/proxy.rs`, and `:18787` BYOK & Vertex ADC Gateway `byok_gateway.rs`) plus `<toksi-siagent>` (`src/agent_runtime/`) via the shared `HeadroomEffortCompressor` (with `tokenizers` pure-Rust BPE counting, `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, MCP Pruner, `RTK`, `Chroma`/`Lance`/`Qdrant` semantic cache, and `<enforce>`):
+   - Tune Toksi compression aggressiveness by effort tier across ALL 7 inference/protocol entrypoints (`:8787`--`:8790` proxies, `:9098` Protocol Bus, `:9099` Enterprise AI Gateway `gateway/proxy.rs`, and `:18787` BYOK & Vertex ADC Gateway `byok_gateway.rs`) plus `<toksi-siagent>` (`src/agent_runtime/`) via the shared `HeadroomEffortCompressor` (with `tokenizers` pure-Rust BPE counting, `live_zone`, `CcrStore`, `SmartCrusher`, `TokenEconomizer`, `agent-opt`, MCP Pruner, `RTK`, `Chroma`/`Lance`/`Qdrant` semantic cache, and `<enforce>`):
      * `Low`: fast heuristic pruning, RTK max compaction, top-K AST slices, zero multi-hop SCIP expansion.
      * `Medium`: balanced Headroom semantic compression + AST body pruning + ICM summary cache.
      * `High`: lossless reasoning/system prompt preservation, deep CodeGraph SCIP + blast-radius context, zero truncation of user constraints or error backtraces.

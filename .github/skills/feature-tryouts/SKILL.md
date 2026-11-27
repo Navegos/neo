@@ -54,8 +54,8 @@ Add a feature-owned presentation only when the built-in types cannot express the
 
 Canonical implementations:
 
-- [diffEditorTryout.contribution.ts](../../../src/vs/workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.ts) — isolated editor sample.
-- [modelPickerTryout.contribution.ts](../../../src/vs/workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribution.ts) — scoped multi-instance target.
+- [diffEditorTryout.contribution.ts](../../../src/vs/workbench/contrib/codeEditor/browser/diffEditorTryout.contribution.ts) --- isolated editor sample.
+- [modelPickerTryout.contribution.ts](../../../src/vs/workbench/contrib/chat/browser/onboarding/modelPickerTryout.contribution.ts) --- scoped multi-instance target.
 
 ## 4. Preserve the trust boundary
 
@@ -137,7 +137,7 @@ Use `targetWindow: 'agents'` when implementation belongs in the Agents window.
 - Keep shared IDs and metadata in a layer both windows can load.
 - Keep the implementation in its owning Sessions contribution.
 - Import it from the appropriate `sessions.*.main.ts` entry point.
-- Preserve the `vs/sessions` → `vs/workbench` layer direction.
+- Preserve the `vs/sessions` -> `vs/workbench` layer direction.
 - Rely on the request-scoped native handoff; do not persist or replay the request.
 - A newer request must supersede and dispose the active destination run.
 

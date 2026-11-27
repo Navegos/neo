@@ -2,15 +2,15 @@
 
 This guide covers how to add new API endpoints and properly integrate them with the auth/permissions system.
 
-> **Before you ship a new endpoint or capability surface**, re-read the [checklist at the bottom of this file](#checklist). LocalAI advertises its feature surface in several independent places — miss any one of them and clients/admins/UI won't know the endpoint exists.
+> **Before you ship a new endpoint or capability surface**, re-read the [checklist at the bottom of this file](#checklist). LocalAI advertises its feature surface in several independent places --- miss any one of them and clients/admins/UI won't know the endpoint exists.
 
 ## Architecture overview
 
 Authentication and authorization flow through three layers:
 
-1. **Global auth middleware** (`core/http/auth/middleware.go` → `auth.Middleware`) — applied to every request in `core/http/app.go`. Handles session cookies, Bearer tokens, API keys, and legacy API keys. Populates `auth_user` and `auth_role` in the Echo context.
-2. **Feature middleware** (`auth.RequireFeature`) — per-feature access control applied to route groups or individual routes. Checks if the authenticated user has the specific feature enabled.
-3. **Admin middleware** (`auth.RequireAdmin`) — restricts endpoints to admin users only.
+1. **Global auth middleware** (`core/http/auth/middleware.go` -> `auth.Middleware`) --- applied to every request in `core/http/app.go`. Handles session cookies, Bearer tokens, API keys, and legacy API keys. Populates `auth_user` and `auth_role` in the Echo context.
+2. **Feature middleware** (`auth.RequireFeature`) --- per-feature access control applied to route groups or individual routes. Checks if the authenticated user has the specific feature enabled.
+3. **Admin middleware** (`auth.RequireAdmin`) --- restricts endpoints to admin users only.
 
 When auth is disabled (no auth DB, no legacy API keys), all middleware becomes pass-through (`auth.NoopMiddleware`).
 
@@ -50,7 +50,7 @@ Add routes in the appropriate file under `core/http/routes/`. The file you use d
 Choose the appropriate protection level:
 
 #### No auth required (public)
-Exempt paths bypass auth entirely. Add to `isExemptPath()` in `middleware.go` or use the `/api/auth/` prefix (always exempt). Use sparingly — most endpoints should require auth.
+Exempt paths bypass auth entirely. Add to `isExemptPath()` in `middleware.go` or use the `/api/auth/` prefix (always exempt). Use sparingly --- most endpoints should require auth.
 
 #### Standard auth (any authenticated user)
 The global middleware already handles this. API paths (`/api/`, `/v1/`, etc.) automatically require authentication when auth is enabled. You don't need to add any extra middleware.
@@ -134,10 +134,10 @@ const (
 Then add it to the appropriate slice:
 
 ```go
-// Default OFF — user must be explicitly granted access:
+// Default OFF --- user must be explicitly granted access:
 var AgentFeatures = []string{..., FeatureMyFeature}
 
-// Default ON — user has access unless explicitly revoked:
+// Default ON --- user has access unless explicitly revoked:
 var APIFeatures = []string{..., FeatureMyFeature}
 ```
 
@@ -177,7 +177,7 @@ func MyHandler(c echo.Context) error {
     // Get the user (nil when auth is disabled or unauthenticated)
     user := auth.GetUser(c)
     if user == nil {
-        // Handle unauthenticated — or let middleware handle it
+        // Handle unauthenticated --- or let middleware handle it
     }
 
     // Check role
@@ -242,9 +242,9 @@ return c.JSON(http.StatusForbidden, schema.ErrorResponse{
 ```
 
 Use these HTTP status codes:
-- `401 Unauthorized` — no valid credentials provided
-- `403 Forbidden` — authenticated but lacking permission
-- `429 Too Many Requests` — rate limited (auth endpoints)
+- `401 Unauthorized` --- no valid credentials provided
+- `403 Forbidden` --- authenticated but lacking permission
+- `429 Too Many Requests` --- rate limited (auth endpoints)
 
 ## Usage tracking
 
@@ -302,9 +302,9 @@ the first successful sample the gauges are absent rather than zero, since a zero
 xmin age would read as a healthy horizon: alert on `absent()` too if you need to
 distinguish "healthy" from "never sampled".
 
-## Advertising surfaces — where to register a new capability
+## Advertising surfaces --- where to register a new capability
 
-Beyond routing and auth, LocalAI publishes its capability surface in **four independent places**. When you add an endpoint — especially one introducing a net-new capability like a new media type or a new auth-gated feature — you must update every relevant surface. These aren't optional: missing them means the endpoint works but is invisible to clients, admins, and the UI.
+Beyond routing and auth, LocalAI publishes its capability surface in **four independent places**. When you add an endpoint --- especially one introducing a net-new capability like a new media type or a new auth-gated feature --- you must update every relevant surface. These aren't optional: missing them means the endpoint works but is invisible to clients, admins, and the UI.
 
 ### 1. Swagger `@Tags` annotation (mandatory)
 
@@ -320,7 +320,7 @@ Every handler needs a swagger block so the endpoint appears in `/swagger/index.h
 func MyEndpoint(...) echo.HandlerFunc { ... }
 ```
 
-Use an existing tag when the endpoint extends an existing area (e.g. `audio`, `images`, `face-recognition`). Create a new tag only when the endpoint introduces a genuinely new capability surface — and in that case, also register it in step 2.
+Use an existing tag when the endpoint extends an existing area (e.g. `audio`, `images`, `face-recognition`). Create a new tag only when the endpoint introduces a genuinely new capability surface --- and in that case, also register it in step 2.
 
 After adding endpoints, regenerate the embedded spec so the runtime serves it:
 
@@ -331,7 +331,7 @@ make swagger             # regenerates swagger/swagger.json
 
 ### 2. `/api/instructions` registry (for new capability areas)
 
-`core/http/endpoints/localai/api_instructions.go` defines `instructionDefs` — a lightweight, machine-readable index of capability areas that groups swagger endpoints by tag. It's the primary discovery surface for agents and SDKs ("what can this server do?").
+`core/http/endpoints/localai/api_instructions.go` defines `instructionDefs` --- a lightweight, machine-readable index of capability areas that groups swagger endpoints by tag. It's the primary discovery surface for agents and SDKs ("what can this server do?").
 
 **When to update:** only when adding a new capability area (a new swagger tag). Existing-tag additions automatically surface without any change here.
 
@@ -366,7 +366,7 @@ If your feature needs a new `FLAG_*` usecase flag in `core/config/model_config.g
 export const CAP_MY_CAPABILITY = 'FLAG_MY_CAPABILITY'
 ```
 
-React pages that want to filter the ModelSelector by capability import this symbol. Declare it even if you're not building the UI page yet — the declaration keeps the Go/JS vocabularies in sync.
+React pages that want to filter the ModelSelector by capability import this symbol. Declare it even if you're not building the UI page yet --- the declaration keeps the Go/JS vocabularies in sync.
 
 ### 4. `docs/content/` (user-facing documentation)
 
@@ -380,7 +380,7 @@ The global auth middleware classifies paths as API paths or non-API paths:
 
 - **API paths** (always require auth when auth is enabled): `/api/`, `/v1/`, `/models/`, `/backends/`, `/backend/`, `/tts`, `/vad`, `/video`, `/stores/`, `/system`, `/ws/`, `/metrics`
 - **Exempt paths** (never require auth): `/api/auth/` prefix, anything in `appConfig.PathWithoutAuth`
-- **Non-API paths** (UI, static assets): pass through without auth — the React UI handles login redirects client-side
+- **Non-API paths** (UI, static assets): pass through without auth --- the React UI handles login redirects client-side
 
 If you add endpoints under a new top-level path prefix, add it to `isAPIPath()` in `middleware.go` to ensure it requires authentication.
 
@@ -392,20 +392,20 @@ When adding a new endpoint:
 - [ ] Handler in `core/http/endpoints/`
 - [ ] Route registered in appropriate `core/http/routes/` file
 - [ ] Auth level chosen: public / standard / admin / feature-gated
-- [ ] Entry added to `RouteFeatureRegistry` in `core/http/auth/features.go` (one row per route/method — all /v1/* routes gate through this, not per-route middleware)
+- [ ] Entry added to `RouteFeatureRegistry` in `core/http/auth/features.go` (one row per route/method --- all /v1/* routes gate through this, not per-route middleware)
 - [ ] If new feature: constant in `permissions.go`, added to the right slice (`APIFeatures` default-ON / `AgentFeatures` default-OFF), metadata in `features.go` `*FeatureMetas()`
 - [ ] If feature uses group middleware: wired in `core/http/app.go` and passed to the route registration function
 - [ ] If new path prefix: added to `isAPIPath()` in `middleware.go`
 - [ ] If token-counting: `usageMiddleware` added to middleware chain
 
-**Advertising surfaces (easy to miss — see the [Advertising surfaces](#advertising-surfaces--where-to-register-a-new-capability) section)**
+**Advertising surfaces (easy to miss --- see the [Advertising surfaces](#advertising-surfaces--where-to-register-a-new-capability) section)**
 - [ ] Swagger block on the handler: `@Summary`, `@Tags`, `@Param`, `@Success`, `@Router`
 - [ ] If new capability area (new swagger tag): entry in `instructionDefs` in `core/http/endpoints/localai/api_instructions.go` + test count bumped in `api_instructions_test.go`
 - [ ] If new `FLAG_*` usecase flag: matching `CAP_*` symbol exported from `core/http/react-ui/src/utils/capabilities.js`
 - [ ] `docs/content/models/capabilities/<group>/<feature>.md` created; cross-links from related feature pages; capability covered in the release blog post (see [preparing-a-release.md](preparing-a-release.md))
 
 **Quality**
-- [ ] Error responses use `schema.ErrorResponse` format (or `echo.NewHTTPError` with a mapped gRPC status — see the `mapBackendError` helper in `core/http/endpoints/localai/images.go`)
+- [ ] Error responses use `schema.ErrorResponse` format (or `echo.NewHTTPError` with a mapped gRPC status --- see the `mapBackendError` helper in `core/http/endpoints/localai/images.go`)
 - [ ] Tests cover both authenticated and unauthenticated access
 - [ ] Swagger regenerated (`make swagger`) if you changed any `@Router`/`@Tags`/`@Param` annotation
 - [ ] Stateful feature: distributed mode chosen and documented (see [distributed-state.md](distributed-state.md))
@@ -417,13 +417,13 @@ When adding a new endpoint:
 
 ## Companion: MCP admin tool surface
 
-**Required for admin endpoints.** Every new admin endpoint MUST be considered for the MCP admin tool surface — the REST API and the MCP tool catalog can drift silently otherwise, and both the LocalAI Assistant chat modality and the standalone `local-ai mcp-server` rely on `core/services/localaitools/` to mirror REST.
+**Required for admin endpoints.** Every new admin endpoint MUST be considered for the MCP admin tool surface --- the REST API and the MCP tool catalog can drift silently otherwise, and both the LocalAI Assistant chat modality and the standalone `local-ai mcp-server` rely on `core/services/localaitools/` to mirror REST.
 
 Two outcomes are acceptable; one is not:
 
 - **Tool added.** The new endpoint is something an admin would manage conversationally (install, list, edit, toggle, upgrade). Follow the full checklist in [.agents/localai-assistant-mcp.md](localai-assistant-mcp.md): add a `LocalAIClient` interface method, implement it in both `inproc` and `httpapi`, register the tool with a `Tool*` constant, update the skill prompts, **and add the route to `toolToHTTPRoute` in `core/services/localaitools/coverage_test.go`**.
 - **Tool deliberately skipped.** The endpoint is internal/diagnostic and adding a chat path would be misleading. Document the decision in the PR description; no code action.
-- **Forgot.** This breaks the contract. The `TestToolHTTPRouteMappingComplete` test in `core/services/localaitools` is a partial guard (it checks every `Tool*` has a route mapping), but it does NOT detect new REST endpoints without a tool — that's still a process check on the PR author.
+- **Forgot.** This breaks the contract. The `TestToolHTTPRouteMappingComplete` test in `core/services/localaitools` is a partial guard (it checks every `Tool*` has a route mapping), but it does NOT detect new REST endpoints without a tool --- that's still a process check on the PR author.
 
 **Add to the bottom of the checklist below**:
 - [ ] If admin: decided whether MCP coverage is needed; if yes, tool registered + map updated; if no, skip-reason in PR description.

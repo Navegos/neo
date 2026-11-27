@@ -7,7 +7,7 @@ description: "Symbolicate a native VS Code crash dump (.dmp) using electron-mini
 
 Turn a native VS Code crash dump (`.dmp`) into a readable backtrace with method names using [electron-minidump](https://www.npmjs.com/package/electron-minidump).
 
-> **VS Code team members only.** Symbol files for internal Electron, Insiders, and Stable builds live in a private-adjacent release repo. A **macOS or Linux** device is required — electron-minidump does not run on Windows.
+> **VS Code team members only.** Symbol files for internal Electron, Insiders, and Stable builds live in a private-adjacent release repo. A **macOS or Linux** device is required --- electron-minidump does not run on Windows.
 
 ## Prerequisites
 
@@ -47,7 +47,7 @@ Match the symbol source to the build that produced the crash:
 | Insiders / Stable (internal Electron) | [microsoft/vscode-electron-prebuilt releases](https://github.com/microsoft/vscode-electron-prebuilt/releases) |
 | Code - OSS (OSS Electron) | [electron/electron releases](https://github.com/electron/electron/releases) |
 
-`microsoft/vscode-electron-prebuilt` is a **private** repo — this is why the flow is team-members-only. A plain browser or `curl` link will 404 without auth; download the asset with an authenticated GitHub CLI instead (`gh auth status` should show you logged in):
+`microsoft/vscode-electron-prebuilt` is a **private** repo --- this is why the flow is team-members-only. A plain browser or `curl` link will 404 without auth; download the asset with an authenticated GitHub CLI instead (`gh auth status` should show you logged in):
 
 ```bash
 # List releases (tagged by Electron version) to find the right tag:
@@ -59,9 +59,9 @@ gh release download v42.5.0-14525058 \
     --pattern "stable-symbols-v42.5.0-win32-x64.zip"
 ```
 
-The releases are tagged by **Electron version**, not VS Code version, so first find the Electron version the crashed VS Code build shipped. It's the `target=` in that version's `.npmrc` (e.g. `git show 1.128.0:.npmrc`), which mirrors the `electron` devDependency in `package.json`. Then pick the matching symbol zip by **quality, platform, and architecture** — e.g. a Stable Windows x64 crash on Electron 42.5.0 needs `stable-symbols-v42.5.0-win32-x64.zip` (use `insiders-symbols-…` for Insiders). Code - OSS symbols come from the public [electron/electron releases](https://github.com/electron/electron/releases) and can be downloaded without special access.
+The releases are tagged by **Electron version**, not VS Code version, so first find the Electron version the crashed VS Code build shipped. It's the `target=` in that version's `.npmrc` (e.g. `git show 1.128.0:.npmrc`), which mirrors the `electron` devDependency in `package.json`. Then pick the matching symbol zip by **quality, platform, and architecture** --- e.g. a Stable Windows x64 crash on Electron 42.5.0 needs `stable-symbols-v42.5.0-win32-x64.zip` (use `insiders-symbols-...` for Insiders). Code - OSS symbols come from the public [electron/electron releases](https://github.com/electron/electron/releases) and can be downloaded without special access.
 
-> **These zips are small and selective.** A `*-symbols-*.zip` typically contains only a handful of first-party modules — `electron.exe.sym`, `libEGL.dll.sym`, `libGLESv2.dll.sym` on Windows (and the equivalents elsewhere). Many modules that show up in a backtrace — notably `runtime.node` and any OS/third-party DLL — are **not** in these zips. `runtime.node` frames often cannot be symbolicated at all from public symbols; when the crash is in a third-party module, attribute it by module name rather than expecting method names on every frame (see [Reading the result](#reading-the-result)).
+> **These zips are small and selective.** A `*-symbols-*.zip` typically contains only a handful of first-party modules --- `electron.exe.sym`, `libEGL.dll.sym`, `libGLESv2.dll.sym` on Windows (and the equivalents elsewhere). Many modules that show up in a backtrace --- notably `runtime.node` and any OS/third-party DLL --- are **not** in these zips. `runtime.node` frames often cannot be symbolicated at all from public symbols; when the crash is in a third-party module, attribute it by module name rather than expecting method names on every frame (see [Reading the result](#reading-the-result)).
 
 ### 3. Copy the `.sym` files into the electron-minidump cache
 
@@ -71,7 +71,7 @@ The cache lives at:
 "$(npm root -g)/electron-minidump/cache/breakpad_symbols"
 ```
 
-Breakpad keys symbols by `<module>.pdb/<debug-id>/<module>.sym`, and the `<debug-id>` **must match exactly** between the dump and the symbol zip — a same-version zip built from a different pipeline run will have a different id and won't be used. After the initial pass, the cache already contains an (empty) directory for each required module whose name and hash you must match:
+Breakpad keys symbols by `<module>.pdb/<debug-id>/<module>.sym`, and the `<debug-id>` **must match exactly** between the dump and the symbol zip --- a same-version zip built from a different pipeline run will have a different id and won't be used. After the initial pass, the cache already contains an (empty) directory for each required module whose name and hash you must match:
 
 ```bash
 CACHE="$(npm root -g)/electron-minidump/cache/breakpad_symbols"
@@ -94,9 +94,9 @@ cp ~/stable-symbols/symbols/electron.exe.pdb/"$HASH"/electron.exe.sym \
    "$CACHE/electron.exe.pdb/$HASH/"
 ```
 
-On macOS the analogous module is `Electron Framework` (`Electron Framework/<hash>/Electron Framework.sym`). Repeat for any other module the initial pass reported as missing method names — but only when the zip actually contains a matching-hash `.sym` for it.
+On macOS the analogous module is `Electron Framework` (`Electron Framework/<hash>/Electron Framework.sym`). Repeat for any other module the initial pass reported as missing method names --- but only when the zip actually contains a matching-hash `.sym` for it.
 
-> **If no matching-hash symbols exist**, you cannot get method names for that module — this is common for officially-shipped Stable/Insiders builds whose exact `electron.exe`/`Code.exe` hash isn't in any public prebuilt zip, and for `runtime.node`. Fall back to attributing the crash by module and process (see [Reading the result](#reading-the-result)); that is usually enough to identify a third-party culprit.
+> **If no matching-hash symbols exist**, you cannot get method names for that module --- this is common for officially-shipped Stable/Insiders builds whose exact `electron.exe`/`Code.exe` hash isn't in any public prebuilt zip, and for `runtime.node`. Fall back to attributing the crash by module and process (see [Reading the result](#reading-the-result)); that is usually enough to identify a third-party culprit.
 
 ### 4. Re-run symbolication
 
@@ -114,8 +114,8 @@ Once you have a symbolicated backtrace, turn it into a root cause by answering t
 
 Look at the **top frame of the crashing thread** (marked `(crashed)`) and its module name:
 
-- If it's a **VS Code / Electron module** — `Code.exe`, `runtime.node`, `Electron Framework`, `libnode`, `libffmpeg`, V8 frames — the fault is likely inside the product or Electron.
-- If it's a **third-party / OS module** — an antivirus, VPN, proxy, or shell-extension DLL injected into the process — the crash is almost certainly caused by that software, not VS Code. Injected DLLs often appear interleaved with `runtime.node`/V8 frames because they hook the runtime.
+- If it's a **VS Code / Electron module** --- `Code.exe`, `runtime.node`, `Electron Framework`, `libnode`, `libffmpeg`, V8 frames --- the fault is likely inside the product or Electron.
+- If it's a **third-party / OS module** --- an antivirus, VPN, proxy, or shell-extension DLL injected into the process --- the crash is almost certainly caused by that software, not VS Code. Injected DLLs often appear interleaved with `runtime.node`/V8 frames because they hook the runtime.
 
 Find where the module is loaded on disk to confirm it's third-party. On Windows the `strings` of the dump usually reveal the full path, e.g. a DLL under `C:\WINDOWS\system32\` or a vendor folder rather than the VS Code install directory:
 
@@ -125,7 +125,7 @@ strings -a crash-file.dmp | grep -i "<SuspectModule>" | sort -u
 
 ### Which process crashed?
 
-The process type tells you whether this is the main process, a renderer/window, or the extension host. On modern Electron the **extension host runs inside a Node utility process**, so a crash there shows up as the `node.mojom.NodeService` utility — not a process literally named "extension host":
+The process type tells you whether this is the main process, a renderer/window, or the extension host. On modern Electron the **extension host runs inside a Node utility process**, so a crash there shows up as the `node.mojom.NodeService` utility --- not a process literally named "extension host":
 
 ```bash
 strings -a crash-file.dmp | grep -oiE "utility-sub-type=[a-zA-Z0-9._-]+|node\.mojom\.[A-Za-z]+|--type=[a-z-]+" | sort -u
@@ -140,7 +140,7 @@ strings -a crash-file.dmp | grep -oiE "utility-sub-type=[a-zA-Z0-9._-]+|node\.mo
 
 Match this against the reported symptom (e.g. an "extension host crash-loop" should correspond to a `NodeService` utility crash).
 
-When you have multiple dumps, symbolicate each and compare the crash reason and top frame — an identical signature across dumps confirms a single, reproducible cause.
+When you have multiple dumps, symbolicate each and compare the crash reason and top frame --- an identical signature across dumps confirms a single, reproducible cause.
 
 ## Creating a crash report
 
@@ -174,7 +174,7 @@ Native crashes in a remote server's extension host use core dumps and `gdb` inst
 
 ## Tips
 
-- Keep `crash-file.dmp` and `symbolicated-output.log` out of the repo — they are throwaway artifacts.
+- Keep `crash-file.dmp` and `symbolicated-output.log` out of the repo --- they are throwaway artifacts.
 - The cache path is dynamic; always resolve it with `$(npm root -g)` rather than hardcoding a home directory.
 - Breakpad matches symbols by exact debug-id, not by version name. If method names are still missing after adding symbols, confirm the `.sym` you copied has the exact hash the cache directory expects, and double-check the quality (`stable`/`insiders`), platform (`win32`/`darwin`/`linux`), and arch (`x64`/`arm64`) of the symbol zip.
 - Not every frame can be symbolicated. `runtime.node` and third-party/OS modules frequently have no public symbols; identifying the crashing module and process is usually enough to reach a root cause.

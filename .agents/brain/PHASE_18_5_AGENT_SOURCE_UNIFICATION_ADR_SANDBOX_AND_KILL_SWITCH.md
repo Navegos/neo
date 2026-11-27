@@ -1,4 +1,4 @@
-# Phase 18.5 â€” Agent Source Unification, ADR Layer, Isolated Agent Sandbox (`sbx` / `sandbox-runtime` / 3-OS Native), & `CommandGuard` Bypass Kill-Switch
+# Phase 18.5 --- Agent Source Unification, ADR Layer, Isolated Agent Sandbox (`sbx` / `sandbox-runtime` / 3-OS Native), & `CommandGuard` Bypass Kill-Switch
 
 > **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
@@ -6,7 +6,7 @@
 
 ```text
 Implement Phase 18.5 of the Toksi Unified Consolidation Plan (Cross-Agent Source Unification into 35-Component `<toksi-siagent>`, Agent Detection & Response ADR Layer, 5-Backend Isolated Agent Sandbox across 495 Mandated Vaults & 43 `.agents/brain/*.md` guides, and Offensive-Security CommandGuard + Bypass Kill-Switch).
-Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 1â€“3, 5, 12â€“13), crates/toksi/research/docker_sandboxes_sbx_cli_reference.md, crates/toksi/research/open_security_standards_zero_plaintext_blind_signature_engine_native_git_pr_validator.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, and .agents/brain/PHASE_18_5_AGENT_SOURCE_UNIFICATION_ADR_SANDBOX_AND_KILL_SWITCH.md first.
+Read crates/toksi/CONSOLIDATION_PLAN.md, crates/toksi/PLAN.md, crates/toksi/research/RESEARCHPLAN.md (Sections 1--3, 5, 12--13), crates/toksi/research/docker_sandboxes_sbx_cli_reference.md, crates/toksi/research/open_security_standards_zero_plaintext_blind_signature_engine_native_git_pr_validator.md, .toksi/projectmem/plan.md, .toksi/projectmem/PROJECT_MAP.md, .toksi/projectmem/summary.md, and .agents/brain/PHASE_18_5_AGENT_SOURCE_UNIFICATION_ADR_SANDBOX_AND_KILL_SWITCH.md first.
 
 Your goals in Rust (`crates/toksi`):
 1. Cross-Agent Source Unification (`<neo>/inspect-vault/*<agent>` -> `<toksi-siagent>`) (`src/agent_runtime/`, `src/agents/opencode.rs`):

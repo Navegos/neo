@@ -1,6 +1,6 @@
 # CI Build Caching
 
-Container builds — both the root LocalAI image (`Dockerfile`) and the per-backend images (`backend/Dockerfile.*`) — share a registry-backed BuildKit cache plus a layered set of prebuilt base images. This file explains how the cache is laid out, what invalidates it, and how to bypass it.
+Container builds --- both the root LocalAI image (`Dockerfile`) and the per-backend images (`backend/Dockerfile.*`) --- share a registry-backed BuildKit cache plus a layered set of prebuilt base images. This file explains how the cache is laid out, what invalidates it, and how to bypass it.
 
 ## Workflow surfaces
 
@@ -36,13 +36,13 @@ The per-arch suffix exists because amd64 and arm64 builds produce different inte
 | `push` to `master` / tag / cron / dispatch | yes | yes (`mode=max,ignore-error=true`) |
 | `pull_request` | yes | **no** |
 
-PR builds read master's warm cache but never write — this prevents PRs from polluting the shared cache with their experimental state. After merge, the master build for that matrix entry refreshes the cache.
+PR builds read master's warm cache but never write --- this prevents PRs from polluting the shared cache with their experimental state. After merge, the master build for that matrix entry refreshes the cache.
 
 `ignore-error=true` on the write side means a transient quay push failure does not fail the build; the next master push retries.
 
 ## Pre-built base images (`base-grpc-*`)
 
-The C++ backend Dockerfiles (`Dockerfile.{llama-cpp,ik-llama-cpp,turboquant}`) compile gRPC from source. On a cold build that's ~25–35 min before any LocalAI source compiles. To skip that on CI, `.github/workflows/base-images.yml` builds and pushes a set of pre-prepped builder bases:
+The C++ backend Dockerfiles (`Dockerfile.{llama-cpp,ik-llama-cpp,turboquant}`) compile gRPC from source. On a cold build that's ~25--35 min before any LocalAI source compiles. To skip that on CI, `.github/workflows/base-images.yml` builds and pushes a set of pre-prepped builder bases:
 
 | Tag | Contents |
 |---|---|
@@ -55,20 +55,20 @@ The C++ backend Dockerfiles (`Dockerfile.{llama-cpp,ik-llama-cpp,turboquant}`) c
 | `base-grpc-vulkan-amd64` / `base-grpc-vulkan-arm64` | Ubuntu 24.04 + Vulkan SDK 1.4.335 + gRPC |
 | `base-grpc-intel-amd64` | intel/oneapi-basekit:2025.3.2 base + gRPC |
 
-**Single source of truth**: the install logic for all 10 variants lives in `.docker/install-base-deps.sh`. Both `Dockerfile.base-grpc-builder` AND each variant Dockerfile's `builder-fromsource` stage bind-mount and execute the same script — so the prebuilt CI base and the local from-source path are bit-equivalent by construction.
+**Single source of truth**: the install logic for all 10 variants lives in `.docker/install-base-deps.sh`. Both `Dockerfile.base-grpc-builder` AND each variant Dockerfile's `builder-fromsource` stage bind-mount and execute the same script --- so the prebuilt CI base and the local from-source path are bit-equivalent by construction.
 
 ### How variant Dockerfiles consume the base
 
 `Dockerfile.{llama-cpp,ik-llama-cpp,turboquant}` are multi-target. Three stages plus a final aliasing stage:
 
-- `builder-fromsource` — `FROM ${BASE_IMAGE}` then runs `install-base-deps.sh` and the per-backend compile script. Used when `BUILDER_TARGET=builder-fromsource` (the default; local `make backends/<name>`).
-- `builder-prebuilt` — `FROM ${BUILDER_BASE_IMAGE}` (one of the prebuilt `base-grpc-*` tags) and runs only the per-backend compile script. Used when `BUILDER_TARGET=builder-prebuilt` (CI when the matrix entry sets `builder-base-image`).
-- `FROM ${BUILDER_TARGET} AS builder` — alias resolves the ARG-selected stage to a fixed name (BuildKit doesn't allow ARG expansion in `COPY --from=`).
-- `FROM scratch` + `COPY --from=builder ...package/. ./` — emits the final scratch image with just the package contents.
+- `builder-fromsource` --- `FROM ${BASE_IMAGE}` then runs `install-base-deps.sh` and the per-backend compile script. Used when `BUILDER_TARGET=builder-fromsource` (the default; local `make backends/<name>`).
+- `builder-prebuilt` --- `FROM ${BUILDER_BASE_IMAGE}` (one of the prebuilt `base-grpc-*` tags) and runs only the per-backend compile script. Used when `BUILDER_TARGET=builder-prebuilt` (CI when the matrix entry sets `builder-base-image`).
+- `FROM ${BUILDER_TARGET} AS builder` --- alias resolves the ARG-selected stage to a fixed name (BuildKit doesn't allow ARG expansion in `COPY --from=`).
+- `FROM scratch` + `COPY --from=builder ...package/. ./` --- emits the final scratch image with just the package contents.
 
 BuildKit prunes the unreferenced builder stage, so each build only runs the path it needs. `backend_build.yml` derives `BUILDER_TARGET=builder-prebuilt` automatically when the matrix entry has a non-empty `builder-base-image`; otherwise it defaults to `builder-fromsource`.
 
-The matrix `(build-type, platforms)` → `builder-base-image` mapping for llama-cpp / ik-llama-cpp / turboquant entries:
+The matrix `(build-type, platforms)` -> `builder-base-image` mapping for llama-cpp / ik-llama-cpp / turboquant entries:
 
 | `build-type` | `platforms` | tag |
 |---|---|---|
@@ -109,14 +109,14 @@ Multi-arch backends (and the core LocalAI image) build natively per arch instead
 
 Both `backend.yml` (push) and `backend_pr.yml` (PR) generate their matrix dynamically through `scripts/changed-backends.js`:
 
-- **PR events**: paginated `pulls/{n}/files` API → filter the matrix to entries whose `dockerfile` path prefix matches the PR diff.
-- **Push events**: GitHub Compare API (`/repos/{owner}/{repo}/compare/{before}...{after}`) → same path-filter logic. Falls back to "run everything" on first-branch push (`event.before` zero), API truncation (≥300 changed files), missing API token, or any thrown error.
-- **Tag pushes**: `FORCE_ALL=true` is set from the workflow side (`startsWith(github.ref, 'refs/tags/')`) — releases rebuild every backend regardless of diff.
+- **PR events**: paginated `pulls/{n}/files` API -> filter the matrix to entries whose `dockerfile` path prefix matches the PR diff.
+- **Push events**: GitHub Compare API (`/repos/{owner}/{repo}/compare/{before}...{after}`) -> same path-filter logic. Falls back to "run everything" on first-branch push (`event.before` zero), API truncation (>=300 changed files), missing API token, or any thrown error.
+- **Tag pushes**: `FORCE_ALL=true` is set from the workflow side (`startsWith(github.ref, 'refs/tags/')`) --- releases rebuild every backend regardless of diff.
 - **Schedule / `workflow_dispatch`**: no `event.before`, falls through to "run everything" automatically.
 
 ### Shared build inputs
 
-The per-backend prefix match only sees files under a backend's own directory, so a change to shared build infrastructure would rebuild *nothing* — an empty matrix, every job green, and the change reaching no image. That silently un-shipped PR #10946 (a partial-cuDNN packaging fix in `scripts/build/package-gpu-libs.sh`), which merged 1h48m after the weekly cron and so sat unbuilt for a week.
+The per-backend prefix match only sees files under a backend's own directory, so a change to shared build infrastructure would rebuild *nothing* --- an empty matrix, every job green, and the change reaching no image. That silently un-shipped PR #10946 (a partial-cuDNN packaging fix in `scripts/build/package-gpu-libs.sh`), which merged 1h48m after the weekly cron and so sat unbuilt for a week.
 
 `SHARED_BUILD_INPUTS` in `scripts/lib/backend-filter.mjs` closes that hole. Each rule maps a shared path to the narrowest set of matrix entries it can honestly invalidate, since a full matrix is 417 Linux + 56 Darwin builds:
 
@@ -128,7 +128,7 @@ The per-backend prefix match only sees files under a backend's own directory, so
 | `scripts/build/package-gpu-libs.sh` | every Linux entry (Python, Go and C++ all run it) |
 | `scripts/build/<lang>-darwin.sh` | the Darwin entries that build target routes to |
 | `.github/workflows/backend_build[_darwin].yml` | everything on that OS |
-| anything else under `scripts/build/` (except `*_test.sh`) | everything — conservative default for unclassified packaging inputs |
+| anything else under `scripts/build/` (except `*_test.sh`) | everything --- conservative default for unclassified packaging inputs |
 
 Deliberately excluded: `backend/index.yaml` (gallery metadata, never enters an image), `.github/backend-matrix.yml` (adding a backend would rebuild all of them), `backend/Dockerfile.base-grpc-builder` (owned by `base-images.yml`), and the root `Makefile` (touched in ~11% of commits, and its backend-relevant edits arrive alongside the backend directory anyway). `make test-ci-scripts` pins all of this.
 
@@ -168,8 +168,8 @@ Neither of those two workflows can observe such a change. `make build` is `go bu
 
 What still triggers a full run, because none of it lives under those prefixes:
 
-- `backend/backend.proto` — feeds `protogen-go`, so it does change the binary.
-- `go.mod` / `go.sum` — the `go mod tidy` before-hook.
+- `backend/backend.proto` --- feeds `protogen-go`, so it does change the binary.
+- `go.mod` / `go.sum` --- the `go mod tidy` before-hook.
 - `backend/Dockerfile.*` and anything else directly under `backend/`.
 
 Deliberately **not** applied to:
@@ -192,7 +192,7 @@ What still runs, and why it has to:
 Two properties this relies on:
 
 - `paths-ignore` skips a run only when **every** changed file matches, so a PR touching the gallery *and* Go code still runs everything. That is what makes the exclusion safe rather than a hole.
-- `master` carries no branch protection and no rulesets, so a skipped workflow reports no status and nothing waits on it. If required status checks are ever introduced, these four entries must be excluded from the required set or PRs will hang on "Expected — Waiting for status to be reported".
+- `master` carries no branch protection and no rulesets, so a skipped workflow reports no status and nothing waits on it. If required status checks are ever introduced, these four entries must be excluded from the required set or PRs will hang on "Expected --- Waiting for status to be reported".
 
 ### `image.yml` on master push is gated too, by a job rather than a path filter
 
@@ -214,7 +214,7 @@ ARG DEPS_REFRESH=initial
 RUN cd /${BACKEND} && PORTABLE_PYTHON=true make
 ```
 
-Most Python backends ship `requirements*.txt` files that **do not pin every transitive dep** (`torch`, `transformers`, `vllm`, `diffusers`, etc. are listed without a `==` pin, or with `>=` lower bounds only). With a warm BuildKit cache, the `make` layer hashes only on Dockerfile instructions + COPYed source — not on what `pip install` resolves at runtime. So a warm cache would ship the *first* version of `vllm` ever cached and never pick up upstream releases.
+Most Python backends ship `requirements*.txt` files that **do not pin every transitive dep** (`torch`, `transformers`, `vllm`, `diffusers`, etc. are listed without a `==` pin, or with `>=` lower bounds only). With a warm BuildKit cache, the `make` layer hashes only on Dockerfile instructions + COPYed source --- not on what `pip install` resolves at runtime. So a warm cache would ship the *first* version of `vllm` ever cached and never pick up upstream releases.
 
 `DEPS_REFRESH` defends against that:
 
@@ -242,7 +242,7 @@ RUN --mount=type=cache,target=/root/.ccache,id=<backend>-ccache-${TARGETARCH}-${
 
 The compile script exports `CMAKE_C/CXX/CUDA_COMPILER_LAUNCHER=ccache` so CMake threads ccache through gcc/g++/nvcc. Cache scope is per `(TARGETARCH, BUILD_TYPE)` so e.g. cublas-12 doesn't share with cublas-13 (their CUDA headers differ; cross-pollination would just be cache misses anyway).
 
-### ⚠️ This ccache does nothing in CI today
+### [WARN] This ccache does nothing in CI today
 
 This section previously claimed that `cache-to: type=registry,mode=max` "exports the cache mount data into the registry cache, so subsequent builds restore it". **That is not true.** BuildKit does not export the contents of a `--mount=type=cache` to a registry cache export. A cache mount lives in the builder's local state, and every CI job gets a fresh runner with a fresh builder, so `/root/.ccache` starts empty on every single build.
 
@@ -258,11 +258,11 @@ The first two are the decisive control: commit `90355cd44` changed exactly one f
 
 So the paragraph above about `LLAMA_VERSION` bumps reusing previous `.o` files describes an intended design that is not in effect. `Dockerfile.{llama-cpp,ik-llama-cpp,turboquant,bonsai,ds4,privacy-filter}` pay the ccache wrapper overhead and get nothing back. Multi-hour C++ rebuilds are recompiling identical translation units from scratch.
 
-**Do not "fix" this by adding cache mounts to more Dockerfiles.** Wiring the same mount into `Dockerfile.golang` (215 of the 434 matrix entries) was measured locally at 18% faster on a rebuild after a source edit, with a 71.5% ccache hit rate — but only because the local test reused one builder across both builds. In CI it would be a no-op for exactly the reason above.
+**Do not "fix" this by adding cache mounts to more Dockerfiles.** Wiring the same mount into `Dockerfile.golang` (215 of the 434 matrix entries) was measured locally at 18% faster on a rebuild after a source edit, with a 71.5% ccache hit rate --- but only because the local test reused one builder across both builds. In CI it would be a no-op for exactly the reason above.
 
 Making this actually work needs the cache to live outside the builder. The options, none of them free:
 
-- **ccache `remote_storage`** (ccache ≥ 4.4, HTTP or Redis backend) or **sccache** with an S3/GCS/Redis backend. Genuinely works across runners; needs a cache service to point at. quay.io is a registry, not a blob store, so the existing infra does not cover it.
+- **ccache `remote_storage`** (ccache >= 4.4, HTTP or Redis backend) or **sccache** with an S3/GCS/Redis backend. Genuinely works across runners; needs a cache service to point at. quay.io is a registry, not a blob store, so the existing infra does not cover it.
 - **Round-trip the cache dir through `actions/cache` on the runner**: restore it, pass it in, and export it back out via a build stage output. No external infra, but clunky, and the repo already sits at GitHub's 10 GB cache ceiling while the llama-cpp ccache alone is capped at 5 GB.
 
 Until one of those lands, treat C++ backend builds as always-cold and spend the effort on not running them instead (path filtering, see above).
@@ -284,8 +284,8 @@ If the call fails and the sources were rewritten, it prints one line naming the 
 
 Two composite actions handle runner-side prep:
 
-- **`.github/actions/free-disk-space/action.yml`** — wraps `jlumbroso/free-disk-space@main` plus an explicit apt purge of dotnet/android/ghc/mono/etc. Reclaims ~6–10 GB on `ubuntu-latest`. No-op on self-hosted runners. Used by `backend_build.yml`, `image_build.yml` and `base-images.yml` — the jobs that actually build images. Deliberately **not** used by `test.yml`, which runs no buildx step.
-- **`.github/actions/setup-build-disk/action.yml`** — relocates Docker's data-root to `/mnt` on hosted X64 runners. GHA hosted `ubuntu-latest` ships ~75 GB of unused space at `/mnt`; combined with the free-disk-space cleanup this gives ~100 GB working space — enough for ROCm dev image + vLLM torch install + flash-attn intermediate layers. No-op on self-hosted and on non-X64 hosted runners. Used by `backend_build.yml`, `image_build.yml`, `base-images.yml`.
+- **`.github/actions/free-disk-space/action.yml`** --- wraps `jlumbroso/free-disk-space@main` plus an explicit apt purge of dotnet/android/ghc/mono/etc. Reclaims ~6--10 GB on `ubuntu-latest`. No-op on self-hosted runners. Used by `backend_build.yml`, `image_build.yml` and `base-images.yml` --- the jobs that actually build images. Deliberately **not** used by `test.yml`, which runs no buildx step.
+- **`.github/actions/setup-build-disk/action.yml`** --- relocates Docker's data-root to `/mnt` on hosted X64 runners. GHA hosted `ubuntu-latest` ships ~75 GB of unused space at `/mnt`; combined with the free-disk-space cleanup this gives ~100 GB working space --- enough for ROCm dev image + vLLM torch install + flash-attn intermediate layers. No-op on self-hosted and on non-X64 hosted runners. Used by `backend_build.yml`, `image_build.yml`, `base-images.yml`.
 
 Both actions run before any docker buildx step.
 
@@ -299,8 +299,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 ```
 
-- **PR events** group by PR number → newer pushes to the same PR cancel old runs (intended).
-- **Push events** group by `github.sha` → each master commit gets its own run; rapid-fire merges don't cancel each other (this was a real issue prior — two master pushes 11 seconds apart would cancel the first's CI).
+- **PR events** group by PR number -> newer pushes to the same PR cancel old runs (intended).
+- **Push events** group by `github.sha` -> each master commit gets its own run; rapid-fire merges don't cancel each other (this was a real issue prior --- two master pushes 11 seconds apart would cancel the first's CI).
 
 ### Test, lint and E2E workflows cancel superseded master runs
 
@@ -355,13 +355,13 @@ curl -s -H "Authorization: Bearer ${QUAY_TOKEN}" \
   "https://quay.io/api/v1/repository/go-skynet/ci-cache/tag/?limit=100" | jq '.tags[].name'
 ```
 
-Eviction is rarely needed in normal operation — `DEPS_REFRESH` handles weekly drift, source changes invalidate naturally, and `mode=max` keeps the cache scoped per matrix entry per arch so a stale tag never bleeds into a different build.
+Eviction is rarely needed in normal operation --- `DEPS_REFRESH` handles weekly drift, source changes invalidate naturally, and `mode=max` keeps the cache scoped per matrix entry per arch so a stale tag never bleeds into a different build.
 
 ## What the cache does **not** cover
 
-- The `free-disk-space` and `setup-build-disk` composite actions run on every job — these reclaim runner-state, not Docker layers, so BuildKit caches don't apply. `test.yml` deliberately does **not** use `free-disk-space`: it runs no buildx step, and the multi-GB fixture downloads that once justified it left `make test` in the test-suite reorg.
-- Intermediate artifacts of `Build (PR)` are not pushed anywhere — PRs only build for verification.
-- Darwin builds (see below) — macOS runners have no Docker daemon, so the registry-backed BuildKit cache cannot apply.
+- The `free-disk-space` and `setup-build-disk` composite actions run on every job --- these reclaim runner-state, not Docker layers, so BuildKit caches don't apply. `test.yml` deliberately does **not** use `free-disk-space`: it runs no buildx step, and the multi-GB fixture downloads that once justified it left `make test` in the test-suite reorg.
+- Intermediate artifacts of `Build (PR)` are not pushed anywhere --- PRs only build for verification.
+- Darwin builds (see below) --- macOS runners have no Docker daemon, so the registry-backed BuildKit cache cannot apply.
 
 ### The Linux Go workflows set `cache: false` on purpose
 
@@ -375,7 +375,7 @@ Before re-enabling this, measure `Set up Go` again and confirm it has actually b
 
 ## Darwin native caches
 
-`backend_build_darwin.yml` runs natively on `macOS-14` GitHub-hosted runners — there is no Docker, no BuildKit, no cross-job registry cache. Instead, the reusable workflow uses `actions/cache@v4` for four native caches that mirror the spirit of the Linux cache (warm by default, weekly refresh for unpinned Python deps, PRs read-only).
+`backend_build_darwin.yml` runs natively on `macOS-14` GitHub-hosted runners --- there is no Docker, no BuildKit, no cross-job registry cache. Instead, the reusable workflow uses `actions/cache@v4` for four native caches that mirror the spirit of the Linux cache (warm by default, weekly refresh for unpinned Python deps, PRs read-only).
 
 | Cache | Path(s) | Key | Scope |
 |---|---|---|---|
@@ -386,23 +386,23 @@ Before re-enabling this, measure `Set up Go` again and confirm it has actually b
 
 Read/write semantics match the BuildKit cache: `actions/cache/restore` runs every time, `actions/cache/save` is gated on `github.event_name != 'pull_request'`. PRs read master's warm cache but never write back.
 
-The Python wheel cache uses the same ISO-week cache-buster as the Linux `DEPS_REFRESH` build-arg — same problem (unpinned `torch`/`mlx`/`diffusers`/`transformers` resolve to fresh wheels weekly), same ~one-cold-rebuild-per-week solution.
+The Python wheel cache uses the same ISO-week cache-buster as the Linux `DEPS_REFRESH` build-arg --- same problem (unpinned `torch`/`mlx`/`diffusers`/`transformers` resolve to fresh wheels weekly), same ~one-cold-rebuild-per-week solution.
 
 The brew Cellar cache requires `HOMEBREW_NO_AUTO_UPDATE=1` and `HOMEBREW_NO_INSTALL_CLEANUP=1` (set as job-level env). Without those, `brew install` would mutate the very directories that were just restored, defeating the cache.
 
 **Force-link after cache restore**: `actions/cache` restores `/opt/homebrew/Cellar/*` but NOT the `/opt/homebrew/bin/*` symlinks. After a cache hit, `brew install` sees the Cellar entries and decides "already installed" without re-running its link step, leaving the formulas off PATH. The Dependencies step explicitly runs `brew link --overwrite` for every cached formula afterwards to ensure the symlinks exist.
 
-For ccache, the workflow exports `CMAKE_ARGS=… -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache` via `$GITHUB_ENV` before running `make build-darwin-go-backend`. The Makefile in `backend/cpp/llama-cpp/` already forwards `CMAKE_ARGS` through to each variant build (`fallback`, `grpc`, `rpc-server`), so no script changes are needed. The three variants share most TUs, so ccache dedupes object files across them.
+For ccache, the workflow exports `CMAKE_ARGS=... -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache` via `$GITHUB_ENV` before running `make build-darwin-go-backend`. The Makefile in `backend/cpp/llama-cpp/` already forwards `CMAKE_ARGS` through to each variant build (`fallback`, `grpc`, `rpc-server`), so no script changes are needed. The three variants share most TUs, so ccache dedupes object files across them.
 
 `backend_build_darwin.yml` also has a llama-cpp-specific build-step branch that runs `make backends/llama-cpp-darwin` (the bespoke script that compiles three CMake variants and bundles dylibs via `otool`), distinct from the generic `make build-darwin-${lang}-backend` path. This was consolidated from a previously-bespoke top-level `llama-cpp-darwin` job in `backend.yml` so llama-cpp on Darwin honors the same path filter as the other 34 Darwin backends.
 
 ### Cache budget on Darwin
 
-GitHub Actions caches are limited to 10 GB per repo. Steady-state worst case: ~800 MB Go cache + ~2 GB brew Cellar + up to 2 GB ccache + ~1.5 GB × 5 python backends. If the cap is hit, prefer collapsing the per-backend Python keys into a shared `pyenv-darwin-shared-<week>` key (accepts more cross-backend churn for a smaller footprint) before reducing other caches.
+GitHub Actions caches are limited to 10 GB per repo. Steady-state worst case: ~800 MB Go cache + ~2 GB brew Cellar + up to 2 GB ccache + ~1.5 GB x 5 python backends. If the cap is hit, prefer collapsing the per-backend Python keys into a shared `pyenv-darwin-shared-<week>` key (accepts more cross-backend churn for a smaller footprint) before reducing other caches.
 
 ## Self-hosted runners
 
-`.github/backend-matrix.yml` has zero references to `arc-runner-set` or `bigger-runner` — all backends run on GHA free-tier hosted runners (`ubuntu-latest` for amd64, `ubuntu-24.04-arm` for arm64 native, `macos-14` for Darwin). The migration off self-hosted relied on the per-arch native split (no QEMU emulation) plus `setup-build-disk`'s `/mnt` relocation (~100 GB working space, enough for ROCm dev image + vLLM/torch installs).
+`.github/backend-matrix.yml` has zero references to `arc-runner-set` or `bigger-runner` --- all backends run on GHA free-tier hosted runners (`ubuntu-latest` for amd64, `ubuntu-24.04-arm` for arm64 native, `macos-14` for Darwin). The migration off self-hosted relied on the per-arch native split (no QEMU emulation) plus `setup-build-disk`'s `/mnt` relocation (~100 GB working space, enough for ROCm dev image + vLLM/torch installs).
 
 One residual self-hosted reference remains in `test-extra.yml` (`tests-vibevoice-cpp-grpc-transcription` uses `bigger-runner` for the 30s JFK-decode timeout headroom). That's a separate concern.
 
@@ -431,12 +431,12 @@ Note for any future re-route: `lint.yml` also triggers on `pull_request`, and a 
 When changing `image_build.yml`, `backend_build.yml`, any of the `backend/Dockerfile.*` files, `Dockerfile.base-grpc-builder`, `.docker/install-base-deps.sh`, `.docker/<backend>-compile.sh`, or `scripts/changed-backends.js`:
 
 1. **Don't drop `DEPS_REFRESH=...` from the build-args** without a replacement strategy (lockfiles, pinned requirements). Otherwise master will silently freeze on whichever versions were cached at the time.
-2. **Keep `(tag-suffix, platform-tag)` unique per matrix entry** — together they're the cache namespace. Two matrix entries sharing a key would clobber each other's cache.
-3. **Keep `cache-to` gated on `github.event_name != 'pull_request'`** — PRs must not write.
-4. **Keep `ignore-error=true` on `cache-to`** — quay registry hiccups must not fail builds.
-5. **Keep `provenance: false` on push-by-digest steps** — multi-registry digest divergence is the Bug We Already Fixed; reintroducing provenance attestation re-breaks the merge.
-6. **`install-base-deps.sh` is the single source of truth for base contents.** Both `Dockerfile.base-grpc-builder` (CI) and the variant Dockerfiles' `builder-fromsource` (local) bind-mount and execute it. If you add a package to one path, add it to the script — don't fork the logic into a Dockerfile RUN.
-7. **After adding a `base-images.yml` matrix variant, run the workflow on your branch before merging consumer changes** that depend on the new tag — otherwise the consumer's CI fails "image not found."
+2. **Keep `(tag-suffix, platform-tag)` unique per matrix entry** --- together they're the cache namespace. Two matrix entries sharing a key would clobber each other's cache.
+3. **Keep `cache-to` gated on `github.event_name != 'pull_request'`** --- PRs must not write.
+4. **Keep `ignore-error=true` on `cache-to`** --- quay registry hiccups must not fail builds.
+5. **Keep `provenance: false` on push-by-digest steps** --- multi-registry digest divergence is the Bug We Already Fixed; reintroducing provenance attestation re-breaks the merge.
+6. **`install-base-deps.sh` is the single source of truth for base contents.** Both `Dockerfile.base-grpc-builder` (CI) and the variant Dockerfiles' `builder-fromsource` (local) bind-mount and execute it. If you add a package to one path, add it to the script --- don't fork the logic into a Dockerfile RUN.
+7. **After adding a `base-images.yml` matrix variant, run the workflow on your branch before merging consumer changes** that depend on the new tag --- otherwise the consumer's CI fails "image not found."
 
 ## Native validation paths
 

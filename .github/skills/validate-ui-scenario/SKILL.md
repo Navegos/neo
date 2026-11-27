@@ -7,7 +7,7 @@ description: Use when reproducing a UI bug or verifying a fix by driving a real 
 
 Drives a real VS Code instance through a scenario and records reproducible evidence.
 
-Use this to reproduce a reported bug, to show that a fix works, or to attach a recording to a test-plan item. For deterministic regression coverage that runs on every build, write a smoke test instead (see the `smoke-tests` skill) — this skill is for one-off, issue-derived validation.
+Use this to reproduce a reported bug, to show that a fix works, or to attach a recording to a test-plan item. For deterministic regression coverage that runs on every build, write a smoke test instead (see the `smoke-tests` skill) --- this skill is for one-off, issue-derived validation.
 
 A scenario is a small JavaScript file run by `test/scenario/out/runScenario.js`. Nothing else has to be configured: the runner launches VS Code, records video and a trace, captures a screenshot at every step boundary, writes the report, and captions the recording with each step and its result.
 
@@ -30,12 +30,12 @@ A new terminal may be needed for `PATH` to pick them up, or set `FFMPEG_PATH` an
 
 | Target | Flags | Also required | Use for |
 |--------|-------|---------------|---------|
-| Installed Insiders, else Stable | *(none — the default)* | nothing | Reproducing a report against shipped behavior |
+| Installed Insiders, else Stable | *(none --- the default)* | nothing | Reproducing a report against shipped behavior |
 | Dev build from this checkout | `--dev` | `npm run electron`, `npm run transpile-client` | Verifying an unmerged change |
 | A specific install | `--build <app-root>` | nothing | Pinning an exact build |
 | Web | `--web --headless` | `npm run transpile-client` | Browser-only behavior |
 
-With no target flag the runner finds an installed VS Code Insiders (falling back to Stable) and logs which one it chose. `--build` takes the application root — the install directory on Windows and Linux, or the `.app` bundle on macOS:
+With no target flag the runner finds an installed VS Code Insiders (falling back to Stable) and logs which one it chose. `--build` takes the application root --- the install directory on Windows and Linux, or the `.app` bundle on macOS:
 
 ```bash
 # Windows
@@ -44,7 +44,7 @@ With no target flag the runner finds an installed VS Code Insiders (falling back
 --build "/Applications/Visual Studio Code - Insiders.app"
 ```
 
-Every target runs with its own profile and extensions directory, so your extensions and settings never leak into the recording, and the window is sized to the recording canvas so the capture has no empty margins. The evidence records the quality of the build that actually ran (`Insiders`, `Stable`, `Dev`), so a report always names the product it validated. An installed build only reproduces **shipped** behavior — to validate an unmerged change, use `--dev` in a checkout that contains it.
+Every target runs with its own profile and extensions directory, so your extensions and settings never leak into the recording, and the window is sized to the recording canvas so the capture has no empty margins. The evidence records the quality of the build that actually ran (`Insiders`, `Stable`, `Dev`), so a report always names the product it validated. An installed build only reproduces **shipped** behavior --- to validate an unmerged change, use `--dev` in a checkout that contains it.
 
 ## Write the scenario
 
@@ -117,7 +117,7 @@ module.exports = {
 | `extraArgs` | Extra VS Code command-line arguments |
 | `stepPauseMs` | How long to hold each finished step so its caption is readable. Defaults to `1000`; set `0` when the scenario is timing-sensitive |
 
-Each step receives a `context` with `app`, `workbench`, `code`, `page`, and `skip(reason, options)`. `workbench` exposes the feature helpers (`settingsEditor`, `quickaccess`, `editors`, `terminal`, `chat`, …); `page` is the Playwright page for anything they do not cover.
+Each step receives a `context` with `app`, `workbench`, `code`, `page`, and `skip(reason, options)`. `workbench` exposes the feature helpers (`settingsEditor`, `quickaccess`, `editors`, `terminal`, `chat`, ...); `page` is the Playwright page for anything they do not cover.
 
 - **Return a string** describing how the step was validated. It appears in the report.
 - **Throw** to fail the step. The message is recorded, and the run stops.
@@ -125,7 +125,7 @@ Each step receives a `context` with `app`, `workbench`, `code`, `page`, and `ski
 
 ## Steps that cannot be automated
 
-Decide this while planning, before writing the scenario, and classify each one — the two kinds have different consequences:
+Decide this while planning, before writing the scenario, and classify each one --- the two kinds have different consequences:
 
 | `needs` | Meaning | What to do |
 |---------|---------|------------|
@@ -137,7 +137,7 @@ ctx.skip('Comparing physical print output requires a person with a printer.', { 
 ctx.skip('The harness cannot drive native OS file dialogs.', { needs: 'infrastructure' });
 ```
 
-Blocked steps are recorded in `manifest.json`, highlighted in a **Needs attention** section of `report.html`, marked on the video caption (`SKIPPED - NEEDS HUMAN`), and printed at the end of the run. Surface them in your summary — never quietly drop a step you could not perform, and never weaken an assertion so that it passes.
+Blocked steps are recorded in `manifest.json`, highlighted in a **Needs attention** section of `report.html`, marked on the video caption (`SKIPPED - NEEDS HUMAN`), and printed at the end of the run. Surface them in your summary --- never quietly drop a step you could not perform, and never weaken an assertion so that it passes.
 
 ## Run it
 
@@ -162,10 +162,10 @@ The caption band is added **above** the recorded frame rather than drawn over it
 
 ## What makes evidence trustworthy
 
-- Assert on DOM state, accessibility, focus, or text — screenshots support a claim, they do not establish one.
+- Assert on DOM state, accessibility, focus, or text --- screenshots support a claim, they do not establish one.
 - Validate through a signal separate from the action. An automation call returning successfully is not a result.
 - Beware virtualized lists. The settings tree and long lists render only the rows near the viewport, so scroll the whole list before concluding that something is absent.
-- If the bug is a race, make the timing explicit — a forced delay or a repeated loop — so the recording shows the window in which it occurs rather than relying on luck.
+- If the bug is a race, make the timing explicit --- a forced delay or a repeated loop --- so the recording shows the window in which it occurs rather than relying on luck.
 - Record the failing behavior before the fix when you can. A passing run alone does not show that the scenario would have caught the bug.
 
 ## Report back

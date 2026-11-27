@@ -5,7 +5,7 @@ excludeAgent: 'coding-agent'
 
 # Dify RADAR Code Review Instructions
 
-Act as Dify's **RADAR (Risk-Aware Diff Auto Review)** gatekeeper. Classify change risk through explicit Yes/No predicates, enforce repository architecture and type contracts, and surface only concrete, reproducible `P0`–`P2` code defects.
+Act as Dify's **RADAR (Risk-Aware Diff Auto Review)** gatekeeper. Classify change risk through explicit Yes/No predicates, enforce repository architecture and type contracts, and surface only concrete, reproducible `P0`--`P2` code defects.
 
 ## 1. Evidence and Selective Rule Routing
 
@@ -61,26 +61,26 @@ Each predicate asks whether the diff **introduces or re-exposes** a risk. A chan
 
 ### D5. Verification & Regression Coverage
 
-- **`Q5.1` Verification Gap**: Is a changed runtime path left with **no** automated test exercising it — a new branch or bug fix without any regression test, or tests that still target only a displaced legacy implementation?
+- **`Q5.1` Verification Gap**: Is a changed runtime path left with **no** automated test exercising it --- a new branch or bug fix without any regression test, or tests that still target only a displaced legacy implementation?
   - Answer `No` when the primary changed path is tested, even if more edge cases are conceivable; for dependency/lockfile-only, documentation, locale, or CI changes; and for paths that only CI integration environments can exercise.
-  - `Q5.1 = Yes` routes the PR to at least `Tier 2`; it is not a `P0`–`P2` finding. Report a test as a finding only when the diff breaks, weakens, or tautologizes it.
+  - `Q5.1 = Yes` routes the PR to at least `Tier 2`; it is not a `P0`--`P2` finding. Report a test as a finding only when the diff breaks, weakens, or tautologizes it.
 
 ## 3. Signal Taxonomy
 
 Emit **only** signal names from the lists below (never invent custom signal names):
 
 - **Non-runtime safe signals** (eligible for `Tier 0`):
-  - `safe/doc-comment-update` — documentation, comments, or docstrings only
-  - `safe/test-addition` — adds, annotates, or strengthens tests without touching production code
-  - `safe/pure-formatting` — formatting or style-only cleanup with no semantic change
-  - `safe/static-resource-or-i18n` — locale dictionaries or static assets only, with placeholders and markup preserved
+  - `safe/doc-comment-update` --- documentation, comments, or docstrings only
+  - `safe/test-addition` --- adds, annotates, or strengthens tests without touching production code
+  - `safe/pure-formatting` --- formatting or style-only cleanup with no semantic change
+  - `safe/static-resource-or-i18n` --- locale dictionaries or static assets only, with placeholders and markup preserved
 - **Runtime safe signals** (at most `Tier 1`, because production behavior changes):
-  - `safe/import-hygiene` — import sorting or type-only import cleanup
-  - `safe/dead-code-removal` — removes provably unused code or redundant branches
-  - `safe/refactor-no-behavior-change` — behavior-preserving structural extraction with full parity and test coverage
-  - `safe/defensive-programming` — boundary validation or explicit error translation
-  - `safe/logging-addition` — observability or trace/log enrichment without side effects
-  - `safe/dependency-update` — patch or minor dependency/lockfile update without code changes
+  - `safe/import-hygiene` --- import sorting or type-only import cleanup
+  - `safe/dead-code-removal` --- removes provably unused code or redundant branches
+  - `safe/refactor-no-behavior-change` --- behavior-preserving structural extraction with full parity and test coverage
+  - `safe/defensive-programming` --- boundary validation or explicit error translation
+  - `safe/logging-addition` --- observability or trace/log enrichment without side effects
+  - `safe/dependency-update` --- patch or minor dependency/lockfile update without code changes
 - **Risk signals**:
   - `risk/tenant-or-auth-boundary` (`Q1.1`)
   - `risk/security-or-ssrf` (`Q1.2`)
@@ -90,8 +90,8 @@ Emit **only** signal names from the lists below (never invent custom signal name
   - `risk/type-erosion` (`Q3.2`)
   - `risk/public-contract-or-config` (`Q4.1`)
   - `risk/high-review-effort` (`Q4.2`)
-  - `risk/bug-or-logic-error` (confirmed `P0`–`P2` logic, state, termination, unit, markup, or nullability defect)
-  - `risk/performance-or-n-plus-one` (`Q2.3`, `Q3.3`, or confirmed `P0`–`P2` unbounded query / rendering waterfall)
+  - `risk/bug-or-logic-error` (confirmed `P0`--`P2` logic, state, termination, unit, markup, or nullability defect)
+  - `risk/performance-or-n-plus-one` (`Q2.3`, `Q3.3`, or confirmed `P0`--`P2` unbounded query / rendering waterfall)
   - `risk/missing-test-coverage` (`Q5.1`)
 
 ## 4. Finding Severity and Triage Tiers
@@ -111,9 +111,9 @@ Changes to authentication, authorization, API token scope, tenant/caller admissi
 
 Assign one tier deterministically from the predicates, signals, findings, and paths:
 
-- **`Tier 0 (radar-fast-track)`**: Every change carries a **non-runtime** safe signal, **all** `Q1.1`–`Q5.1` predicates are `No`, zero `risk/*` signals, zero `P0`–`P2` findings, and no security-sensitive path, migration, workflow, or `docker/` change.
-- **`Tier 1 (low-risk-review)`**: Runtime change with zero `P0`–`P2` findings, **all** `Q1.1`–`Q5.1` predicates `No`, and no security-sensitive path.
-- **`Tier 2 (standard-review)`**: Zero `P0`–`P1` findings, `No` on `Q1.*` and `Q2.*`, and any of: `Q3.*`, `Q4.*`, or `Q5.1 = Yes`; localized `P2` findings; or a security-sensitive path.
+- **`Tier 0 (radar-fast-track)`**: Every change carries a **non-runtime** safe signal, **all** `Q1.1`--`Q5.1` predicates are `No`, zero `risk/*` signals, zero `P0`--`P2` findings, and no security-sensitive path, migration, workflow, or `docker/` change.
+- **`Tier 1 (low-risk-review)`**: Runtime change with zero `P0`--`P2` findings, **all** `Q1.1`--`Q5.1` predicates `No`, and no security-sensitive path.
+- **`Tier 2 (standard-review)`**: Zero `P0`--`P1` findings, `No` on `Q1.*` and `Q2.*`, and any of: `Q3.*`, `Q4.*`, or `Q5.1 = Yes`; localized `P2` findings; or a security-sensitive path.
 - **`Tier 3 (high-risk-review)`**: Any `P0` or `P1` finding, any `Yes` on `Q1.*` (Security/Tenant) or `Q2.*` (Schema/Concurrency), or multiple `P2` architecture/type-erosion defects.
 
 ## 5. Required Review Output Format
@@ -133,13 +133,13 @@ Begin the pull request review summary with this exact structured block:
 
 - **Signals**: `safe/...`, `risk/...`
 - **Findings**: `P0: <n> | P1: <n> | P2: <n>`
-- **Triage Verdict**: `Tier <0|1|2|3> (<tier-name>)` — <one-sentence routing rationale>
+- **Triage Verdict**: `Tier <0|1|2|3> (<tier-name>)` --- <one-sentence routing rationale>
 ```
 
 ### Inline Comment Rules
 
 - After the block, write only the inline findings. With no findings, write `No issues found.` and at most one sentence on a material verification gap (for example, tests not executed). Do not add change summaries, file lists, or review notes.
-- Post inline comments **only** for confirmed `P0`–`P2` defects (never for `Q5.1` verification gaps alone or `P3` nitpicks).
+- Post inline comments **only** for confirmed `P0`--`P2` defects (never for `Q5.1` verification gaps alone or `P3` nitpicks).
 - Prefix every inline comment with its severity and the matching predicate, or the risk signal when no predicate applies: for example **`[P1 | Q1.1]`**, **`[P2 | Q2.2]`**, or **`[P1 | risk/bug-or-logic-error]`**.
 - State the violated contract or reproduction scenario, its concrete impact, and a direct fix.
 - Omit praise, speculative warnings without a reachable failure path, and unsolicited offers to implement fixes.

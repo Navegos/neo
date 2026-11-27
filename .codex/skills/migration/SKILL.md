@@ -9,8 +9,8 @@ metadata:
 <enforce>
 # Migrations: which step, under which rule
 
-Record: `dev/docs/ARCHITECTURE.md` §7 ("Migrations are not the api's job", "Upgrades run on deploy")
-and §9 (the upcast paragraph); `dev/docs/adr/173-upgrades-run-on-deploy.md`, which carries the
+Record: `dev/docs/ARCHITECTURE.md` Sec.7 ("Migrations are not the api's job", "Upgrades run on deploy")
+and Sec.9 (the upcast paragraph); `dev/docs/adr/173-upgrades-run-on-deploy.md`, which carries the
 rulings of rounds 8 to 23. This skill routes; the recipes are in the skills it names.
 
 - How the upgrade machinery itself works (ledger, gate, manifests, console, tests): the `upgrade` skill.
@@ -44,7 +44,7 @@ schema, and a rollback puts an older image back on it. So:
 | Data the next release's schema cannot ship without                       | the same, mode `blocking` (frozen SQL; only tables created in the same release, never a sign-in or ingest table)             | `migration-data-step`                        |
 | Historic values for a new ClickHouse column                              | a background `data` step (`MATERIALIZE`), never an operator comment                                                          | `clickhouse-migration`                       |
 | Per tenant, with a legacy path served until a proof passes               | kind `tenant`, background (`defineMigrationStep` with `migrateTenant`)                                                       | `migration-data-step`                        |
-| An operator-started move (object storage provider, credential resealing) | a named task outside the ledger, safe to run again (ARCHITECTURE.md §7)                                                      | `migration-data-step`                        |
+| An operator-started move (object storage provider, credential resealing) | a named task outside the ledger, safe to run again (ARCHITECTURE.md Sec.7)                                                      | `migration-data-step`                        |
 | Rename or reshape an event type, aggregate or pipeline                   | `.withUpcasts` on the owning pipeline; never rewrite the log first                                                           | `eventing-and-worker` ("Upcasts")            |
 | A projection table's shape changes                                       | a rebuild beside the old table, never an `ALTER`                                                                             | `postgres-migration`, `eventing-and-worker`  |
 | A read model over another module's events                                | a peer projection on your pipeline (`withPeerFoldProjection`); to change its shape, a new lane replayed from the owner's log | `eventing-and-worker` ("Peer projections")   |

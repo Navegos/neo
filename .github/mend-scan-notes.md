@@ -70,7 +70,7 @@ completed successfully, but scan completion does not establish that its inventor
 has no advisories. No per-finding Mend report or approved non-impact decision was
 available for this review. Keep the scan scope intact for follow-up remediation.
 
-## Transformers and PyTorch — addressed by PR #15019
+## Transformers and PyTorch --- addressed by PR #15019
 
 The lock resolves `transformers==5.17.0`, `torch==2.14.0`, and
 `torchvision==0.29.0`. Published dependencies require `transformers>=5.10.1` and,
@@ -82,7 +82,7 @@ PR #15019 records CVE-2026-9856 template-path rejection and CVE-2025-3000 TorchS
 validation, legitimate controls, Docling conversion, and package/release checks.
 Refer to the PR for the exact validation scope and environment limitations.
 
-## Accelerate — 1.15.0 is not a verified fix
+## Accelerate --- 1.15.0 is not a verified fix
 
 [CVE-2026-69112 / GHSA-4j2p-28q2-5m79](https://github.com/advisories/GHSA-4j2p-28q2-5m79)
 covers unchecked shard names in checkpoint `weight_map` entries: paths can escape
@@ -114,7 +114,7 @@ both containment and non-regular-file handling, with explicit tests for legitima
 Hugging Face cache symlinks and supported platforms. Do not suppress the finding
 or raise the version as a security fix based only on the advisory's range endpoint.
 
-## LangChain Community — migration or scoped non-impact review needed
+## LangChain Community --- migration or scoped non-impact review needed
 
 [CVE-2026-72848 / GHSA-vg8m-4p2q-gcjh](https://github.com/advisories/GHSA-vg8m-4p2q-gcjh)
 describes `SitemapLoader` fetching nested sitemap URLs without applying its
@@ -137,7 +137,7 @@ Removing only one manifest edge will not remove the package from the full export
 transitive consumers, preserve component class names used by saved flows, and
 validate representative flows before removing the package.
 
-## Chroma — per-advisory assessment and migration planning needed
+## Chroma --- per-advisory assessment and migration planning needed
 
 PyPI still reports 1.5.9 as the latest release. The package-indexed GitHub query
 returned these four advisories, each with no recorded patched version:
@@ -177,7 +177,7 @@ Chroma backs knowledge-base storage, ingestion, querying, retrieval, and deletio
 as well as the Chroma component. Replacement requires a storage migration for
 existing knowledge bases, plus behavior and saved-flow compatibility validation.
 
-## DiskCache — removed from managed dependencies; manual opt-in remains affected
+## DiskCache --- removed from managed dependencies; manual opt-in remains affected
 
 [CVE-2025-69872 / GHSA-w8v5-vhqr-4h9v](https://github.com/advisories/GHSA-w8v5-vhqr-4h9v)
 covers unsafe pickle deserialization from attacker-writable cache storage. PyPI

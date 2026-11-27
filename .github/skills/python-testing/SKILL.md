@@ -52,7 +52,7 @@ uv run --directory packages/core poe test
 
 ## Test Configuration
 
-- **Async mode**: `asyncio_mode = "auto"` is enabled — do NOT use `@pytest.mark.asyncio`, but do mark tests with `async def` and use `await` for async calls
+- **Async mode**: `asyncio_mode = "auto"` is enabled --- do NOT use `@pytest.mark.asyncio`, but do mark tests with `async def` and use `await` for async calls
 - **Timeout**: Default 60 seconds per test
 - **Import mode**: `importlib` for cross-package isolation
 - **Parallelization**: Large packages (core, ag-ui, orchestrations, anthropic) use `pytest-xdist` (`-n auto --dist worksteal`) in their `poe test` task. The aggregate `uv run poe test -A` sweep also uses xdist across the selected packages.
@@ -65,22 +65,22 @@ Non-core packages must place tests in a uniquely-named subdirectory:
 
 ```
 packages/anthropic/
-├── tests/
-│   └── anthropic/       # Unique subdirectory matching package name
-│       ├── conftest.py
-│       └── test_client.py
+|-- tests/
+|   `-- anthropic/       # Unique subdirectory matching package name
+|       |-- conftest.py
+|       `-- test_client.py
 ```
 
 Core package can use `tests/` directly with topic subdirectories:
 
 ```
 packages/core/
-├── tests/
-│   ├── conftest.py
-│   ├── core/
-│   │   └── test_agents.py
-│   └── openai/
-│       └── test_client.py
+|-- tests/
+|   |-- conftest.py
+|   |-- core/
+|   |   `-- test_agents.py
+|   `-- openai/
+|       `-- test_client.py
 ```
 
 ## Fixture Guidelines
@@ -94,7 +94,7 @@ packages/core/
 
 ## File Naming
 
-- Files starting with `test_` are test files — do not use this prefix for helpers
+- Files starting with `test_` are test files --- do not use this prefix for helpers
 - Prefer extending an existing test file that already covers the same component or behavior; create a new file only for a distinct surface without an appropriate existing file
 - Use `conftest.py` for shared fixtures and normal helper modules for other shared utilities
 
@@ -102,9 +102,9 @@ packages/core/
 
 Integration tests require external services (OpenAI, Azure, etc.) and must be selectable and safely skippable:
 
-1. **`@pytest.mark.integration`** — used for test selection, so integration tests can be included/excluded with `-m integration` / `-m "not integration"`
-2. **`@skip_if_..._integration_tests_disabled`** decorator — skips the test when the required API keys or service endpoints are missing
-3. **`@pytest.mark.flaky`** — add this only when the test is genuinely nondeterministic or service-sensitive
+1. **`@pytest.mark.integration`** --- used for test selection, so integration tests can be included/excluded with `-m integration` / `-m "not integration"`
+2. **`@skip_if_..._integration_tests_disabled`** decorator --- skips the test when the required API keys or service endpoints are missing
+3. **`@pytest.mark.flaky`** --- add this only when the test is genuinely nondeterministic or service-sensitive
 
 ### Adding New Integration Tests
 
@@ -135,12 +135,12 @@ pytestmark = [
 
 The merge CI workflow (`python-merge-tests.yml`) splits integration tests into parallel jobs by provider with change-based detection:
 
-- **Unit tests** — always run all non-integration tests
-- **OpenAI integration** — runs when `packages/core/agent_framework/openai/` or core infrastructure changes
-- **Azure OpenAI integration** — runs when `packages/core/agent_framework/azure/` or core changes
-- **Misc integration** — Anthropic, Ollama, MCP tests; runs when their packages or core change
-- **Functions integration** — Azure Functions + Durable Task; runs when their packages or core change
-- **Foundry integration** — runs when `packages/foundry/` or core changes
+- **Unit tests** --- always run all non-integration tests
+- **OpenAI integration** --- runs when `packages/core/agent_framework/openai/` or core infrastructure changes
+- **Azure OpenAI integration** --- runs when `packages/core/agent_framework/azure/` or core changes
+- **Misc integration** --- Anthropic, Ollama, MCP tests; runs when their packages or core change
+- **Functions integration** --- Azure Functions + Durable Task; runs when their packages or core change
+- **Foundry integration** --- runs when `packages/foundry/` or core changes
 
 Core infrastructure changes (e.g., `_agents.py`, `_types.py`) trigger all integration test jobs. Scheduled and manual runs always execute all jobs.
 
@@ -148,8 +148,8 @@ Core infrastructure changes (e.g., `_agents.py`, `_types.py`) trigger all integr
 
 Two workflow files define the same set of parallel test jobs:
 
-- **`python-merge-tests.yml`** — runs on PRs, merge queue, schedule, and manual dispatch. Uses path-based change detection to skip unaffected integration jobs.
-- **`python-integration-tests.yml`** — called from the manual integration test orchestrator (`integration-tests-manual.yml`). Always runs all jobs (no path filtering).
+- **`python-merge-tests.yml`** --- runs on PRs, merge queue, schedule, and manual dispatch. Uses path-based change detection to skip unaffected integration jobs.
+- **`python-integration-tests.yml`** --- called from the manual integration test orchestrator (`integration-tests-manual.yml`). Always runs all jobs (no path filtering).
 
 These workflows must be kept in sync. When you add, remove, or modify a test job, update **both** files. The job structure, pytest commands, and xdist flags should match between them. The only difference is that `python-merge-tests.yml` has path filters and conditional job execution, while `python-integration-tests.yml` does not.
 
@@ -158,7 +158,7 @@ These workflows must be kept in sync. When you add, remove, or modify a test job
 When adding integration tests for a new provider package, you must update **both** `python-merge-tests.yml` and `python-integration-tests.yml`:
 
 1. **Add a path filter** for the new provider in the `paths-filter` job in `python-merge-tests.yml` so the CI knows which file changes should trigger those tests.
-2. **Add the test job to both workflow files** — either add them to the existing `python-tests-misc-integration` job, or create a dedicated job if the provider:
+2. **Add the test job to both workflow files** --- either add them to the existing `python-tests-misc-integration` job, or create a dedicated job if the provider:
    - Has a large number of integration tests
    - Requires special infrastructure setup (emulators, Docker containers, etc.)
    - Has long-running tests that would slow down the misc job

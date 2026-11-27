@@ -136,7 +136,7 @@ changes, so they are only permitted at a major-version boundary per the
 
 Review every PR included in the release. For each one, check whether new
 functions, classes, or features were added and whether they have complete
-docstrings. Add or edit docstrings as needed — touching docstrings and
+docstrings. Add or edit docstrings as needed --- touching docstrings and
 type annotations in code is OK during code freeze.
 
 Write the release notes in `cuda_core/docs/source/release/`. Look at
@@ -257,7 +257,7 @@ from least effort to most control.
 
 The `regro-cf-autotick-bot` periodically scans for new releases and opens
 a PR automatically. If nothing has changed in the build requirements, the
-bot's PR may be sufficient — review it and ask a feedstock maintainer
+bot's PR may be sufficient --- review it and ask a feedstock maintainer
 to merge. However, the bot only
 updates the version and sha256. If build dependencies, import paths, or
 other recipe fields have changed, the bot's PR will be incomplete and CI
@@ -276,7 +276,7 @@ review the PR and push additional fixes if needed.
 
 ### Approach C: Manual PR
 
-For full control — or when the bot's PR needs extensive fixes — open a
+For full control --- or when the bot's PR needs extensive fixes --- open a
 PR manually from a fork.
 
 **Fork and clone** (one-time setup):
@@ -330,7 +330,7 @@ gh pr create \
 ### Notes
 
 The feedstock CI (Azure Pipelines) triggers automatically on the PR.
-Monitor it for build failures — common issues include missing build-time
+Monitor it for build failures --- common issues include missing build-time
 header dependencies. Feedstock maintainers (listed in
 `recipe/meta.yaml` under `extra.recipe-maintainers`) can merge the PR.
 

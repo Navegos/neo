@@ -4,11 +4,11 @@ description: >-
   Check model compatibility with xinfer before loading. Validates config.json,
   weight tensor shapes and naming, quantization format correctness, and
   multi-rank (tensor-parallel) divisibility. Use when the user asks to check,
-  validate, audit, or verify a model will load correctly — from a HuggingFace
+  validate, audit, or verify a model will load correctly --- from a HuggingFace
   URL/config, local path, or pasted tensor info.
 ---
 
-# Check Model — Pre-Load Compatibility Audit for xinfer
+# Check Model --- Pre-Load Compatibility Audit for xinfer
 
 ## Phase 0: Gather Model Information
 
@@ -122,45 +122,45 @@ The ignore list supports:
 #### Unquantized (BF16/FP16)
 
 Expected tensors per linear layer:
-- `weight` — dtype BF16 or F16, shape `[out_dim, in_dim]`
-- `bias` (optional) — dtype BF16 or F16
+- `weight` --- dtype BF16 or F16, shape `[out_dim, in_dim]`
+- `bias` (optional) --- dtype BF16 or F16
 
 **Check**: No extra scale/packed tensors should be present.
 
 #### FP8 (quant_method == "fp8")
 
 Expected tensors per linear layer:
-- `weight` — dtype U8 (F8_E4M3), shape `[out_dim, in_dim]`
-- `weight_scale` or `weight_scale_inv` — dtype F32, shape `[out_dim/by, in_dim/bx]` where `[by, bx]` = `weight_block_size` (default `[128, 128]`)
+- `weight` --- dtype U8 (F8_E4M3), shape `[out_dim, in_dim]`
+- `weight_scale` or `weight_scale_inv` --- dtype F32, shape `[out_dim/by, in_dim/bx]` where `[by, bx]` = `weight_block_size` (default `[128, 128]`)
 - `bias` (optional)
 
 **Check**: `weight_block_size` must have exactly 2 elements. Scale dimensions must match `ceil(out_dim/by) x ceil(in_dim/bx)`.
 
-#### NVFP4 — ModelOpt format (quant_method == "modelopt" + quant_algo == "NVFP4")
+#### NVFP4 --- ModelOpt format (quant_method == "modelopt" + quant_algo == "NVFP4")
 
 Expected tensors per quantized linear layer:
-- `weight` — dtype U8, shape `[out_dim, in_dim/2]` (packed FP4, 2 values per byte)
-- `weight_scale` — dtype F8_E4M3 (U8), shape `[out_dim, in_dim/16]` (group_size=16)
-- `weight_scale_2` — dtype F32, scalar (global weight scale, direct multiplier)
-- `input_scale` — dtype F32, scalar (activation scale)
+- `weight` --- dtype U8, shape `[out_dim, in_dim/2]` (packed FP4, 2 values per byte)
+- `weight_scale` --- dtype F8_E4M3 (U8), shape `[out_dim, in_dim/16]` (group_size=16)
+- `weight_scale_2` --- dtype F32, scalar (global weight scale, direct multiplier)
+- `input_scale` --- dtype F32, scalar (activation scale)
 
 **Check**: `weight` shape dim1 must be exactly `in_dim/2`. Scale dim1 must be `in_dim/16`.
 
-#### NVFP4 — Compressed-tensors format (quant_method == "compressed-tensors" + nvfp4 format)
+#### NVFP4 --- Compressed-tensors format (quant_method == "compressed-tensors" + nvfp4 format)
 
 Expected tensors per quantized linear layer:
-- `weight_packed` — dtype U8, shape `[out_dim, in_dim/2]`
-- `weight_scale` — dtype F8_E4M3 (U8), shape `[out_dim, in_dim/16]`
-- `weight_global_scale` — dtype F32, scalar or `[1]` (divisor, inverted at load time)
-- `input_global_scale` — dtype F32, scalar or `[1]` (divisor, inverted at load time)
+- `weight_packed` --- dtype U8, shape `[out_dim, in_dim/2]`
+- `weight_scale` --- dtype F8_E4M3 (U8), shape `[out_dim, in_dim/16]`
+- `weight_global_scale` --- dtype F32, scalar or `[1]` (divisor, inverted at load time)
+- `input_global_scale` --- dtype F32, scalar or `[1]` (divisor, inverted at load time)
 
 **Check**: Same shape rules as ModelOpt, but different tensor names.
 
 #### MXFP4 (quant_method == "mxfp4" or compressed-tensors with mxfp4)
 
 Expected tensors per quantized linear layer:
-- `weight_packed` or `blocks` — dtype U8, shape `[out_dim, in_dim/2]`
-- `weight_scale` or `scales` — dtype U8 (F8_E8M0), shape `[out_dim, in_dim/32]` (group_size=32)
+- `weight_packed` or `blocks` --- dtype U8, shape `[out_dim, in_dim/2]`
+- `weight_scale` or `scales` --- dtype U8 (F8_E8M0), shape `[out_dim, in_dim/32]` (group_size=32)
 
 **Check**: Scale dim1 must be `in_dim/32`.
 
@@ -304,9 +304,9 @@ Shared expert: intermediate=1024
 ### Issues Found
 
 Flag any problems:
-- `[ERROR]` — Will fail to load (missing tensors, wrong names, indivisible dims)
-- `[WARN]` — May cause issues (unusual format, edge case)
-- `[INFO]` — Informational (features detected, fallback paths)
+- `[ERROR]` --- Will fail to load (missing tensors, wrong names, indivisible dims)
+- `[WARN]` --- May cause issues (unusual format, edge case)
+- `[INFO]` --- Informational (features detected, fallback paths)
 
 ---
 

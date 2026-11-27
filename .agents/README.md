@@ -138,7 +138,7 @@ package-local guidance loads only when it is relevant. Dot-directories are
 skipped during discovery, which keeps vendored skill bundles such as
 `web/.agents/skills/vercel-*/AGENTS.md` from becoming directory-scoped
 instructions. A shim whose `AGENTS.md` is deleted or moved is swept on the next
-sync. Add an `AGENTS.md` anywhere and you must commit its generated shim —
+sync. Add an `AGENTS.md` anywhere and you must commit its generated shim ---
 CI fails otherwise.
 
 This keeps provider discovery stable while `.agents/` remains the source of
@@ -262,7 +262,7 @@ Use HTTP/OAuth where available so credentials remain outside the agent VM.
 | --- | --- | --- |
 | GitHub | Cursor GitHub App | Enabled for same-repo branches, draft PRs, CI, and preview status |
 | Langfuse Docs | Shared HTTP MCP | Enabled, read-only |
-| Linear | Shared OAuth MCP | Enabled; allow read/search tools only. Cursor Cloud cannot complete that OAuth prompt — maintainers add a personal `LINEAR_API_KEY` secret at https://cursor.com/dashboard/cloud-agents and start a new run. |
+| Linear | Shared OAuth MCP | Enabled; allow read/search tools only. Cursor Cloud cannot complete that OAuth prompt --- maintainers add a personal `LINEAR_API_KEY` secret at https://cursor.com/dashboard/cloud-agents and start a new run. |
 | Datadog EU and US | Team Marketplace MCPs | Enabled; allow logs, metrics, traces, dashboards, and monitor reads only |
 | Metabase | Team Marketplace MCP | Enabled; allow metadata and query reads only |
 | Pylon | Team Marketplace MCP | Enabled; allow issue/thread/customer reads only |
@@ -298,7 +298,7 @@ After editing `.agents/config.json`:
    changed
 
 `pnpm install` also runs the sync and the shim check via `postinstall`. It does
-not run path validation — see [Validation](#validation).
+not run path validation --- see [Validation](#validation).
 
 ## Adding Shared Skills
 

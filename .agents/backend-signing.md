@@ -12,7 +12,7 @@ side (`pkg/oci/cosignverify` plus the gallery YAML).
   `docker buildx imagetools create`. The signing cert is issued by
   Fulcio bound to the workflow's OIDC identity. There is no long-lived
   signing key. `--recursive` signs both the manifest list and every
-  per-arch entry — needed because our consumer resolves a tag to a
+  per-arch entry --- needed because our consumer resolves a tag to a
   per-arch manifest before checking signatures.
 - **Storage:** Signatures are written as OCI 1.1 referrers
   (`--registry-referrers-mode=oci-1-1`) in the new Sigstore bundle format
@@ -28,7 +28,7 @@ side (`pkg/oci/cosignverify` plus the gallery YAML).
   signed images on such a registry read as unsigned.
 - **Revocation:** Keyless cosign certs are ephemeral (10-minute Fulcio
   validity), so revocation is policy-side, not CA-side. The gallery's
-  `verification.not_before` (RFC3339) is the kill-switch — advance it to
+  `verification.not_before` (RFC3339) is the kill-switch --- advance it to
   invalidate every signature produced before a known compromise window.
 
 ## Producer setup
@@ -52,7 +52,7 @@ cosign sign --yes --recursive \
   "${REGISTRY_REPO}@${DIGEST}"
 ```
 
-Sign by digest, never by tag — signing by tag binds the signature to
+Sign by digest, never by tag --- signing by tag binds the signature to
 whatever the tag points at *now*, and a subsequent tag push orphans it.
 
 `--registry-referrers-mode=oci-1-1` is gated behind
@@ -93,7 +93,7 @@ entry (`backend/index.yaml`):
 
 Identity matching pins the OIDC subject Fulcio issued the signing cert
 to. Without this, any image signed by *anyone* with a Fulcio cert would
-pass — the regex is what makes a signature mean "produced by our CI".
+pass --- the regex is what makes a signature mean "produced by our CI".
 
 Policy keys: `issuer` or `issuer_regex`, `identity` or `identity_regex`
 (one of each is required), and the optional `not_before` and
@@ -135,12 +135,12 @@ compromised and we've shipped malicious signed images:
 
 ## Where the code lives
 
-- `pkg/oci/cosignverify/` — verifier, policy, OCI referrer fetch, NotBefore enforcement.
-- `pkg/downloader/uri.go` — `WithImageVerifier` option threaded through `DownloadFileWithContext`.
-- `core/gallery/backends.go` — `backendDownloadOptions` builds the verifier from the gallery's policy.
-- `core/config/gallery.go` — `Gallery.Verification` YAML schema.
-- `core/cli/run.go`, `core/cli/backends.go`, `core/cli/models.go` — `--require-backend-integrity` flag propagation.
-- `.github/workflows/backend_merge.yml` — producer-side `cosign sign --recursive` after each multi-arch manifest list push.
+- `pkg/oci/cosignverify/` --- verifier, policy, OCI referrer fetch, NotBefore enforcement.
+- `pkg/downloader/uri.go` --- `WithImageVerifier` option threaded through `DownloadFileWithContext`.
+- `core/gallery/backends.go` --- `backendDownloadOptions` builds the verifier from the gallery's policy.
+- `core/config/gallery.go` --- `Gallery.Verification` YAML schema.
+- `core/cli/run.go`, `core/cli/backends.go`, `core/cli/models.go` --- `--require-backend-integrity` flag propagation.
+- `.github/workflows/backend_merge.yml` --- producer-side `cosign sign --recursive` after each multi-arch manifest list push.
 
 ## Out of scope (follow-ups)
 

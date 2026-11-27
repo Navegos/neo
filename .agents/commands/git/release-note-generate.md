@@ -22,9 +22,9 @@ Based on analysis of existing release notes in `.github/releases/`, this documen
 
 ### Required Sections
 
-#### 1. What's New 🚀 or Improvements ⚡
-- Use **What's New 🚀** for completely new features or capabilities
-- Use **Improvements ⚡** for enhancements to existing features, new options added to existing commands, or incremental improvements
+#### 1. What's New [NEW] or Improvements [PERF]
+- Use **What's New [NEW]** for completely new features or capabilities
+- Use **Improvements [PERF]** for enhancements to existing features, new options added to existing commands, or incremental improvements
 - Use `###` for feature subsections
 - Include PR numbers and related issue numbers in parentheses: `(#PR, #issue)`
 - Lead with the most significant features first
@@ -47,15 +47,15 @@ Based on analysis of existing release notes in `.github/releases/`, this documen
 
 ### Optional Sections (Use When Relevant)
 
-#### Internal Changes 🔧
+#### Internal Changes [INTERNAL]
 - **Generally avoid including this section** - internal changes are typically not relevant to users
 - Only include if the internal change has direct user-visible benefits or impacts
 - For infrastructure, CI/CD, or internal improvements that don't affect user experience, omit entirely
 
-#### Website Enhancements 🌐
+#### Website Enhancements [WEB]
 - For Repomix website updates
 
-#### Documentation 📚
+#### Documentation [DOCS]
 - For documentation improvements
 - Include links to the relevant documentation pages (e.g., README sections, website pages)
 
@@ -104,7 +104,7 @@ repomix --option-name
 - Include PR numbers and related issue numbers for all features: `### Feature Name (#123, #456)`
   - PR number comes first, followed by the issue number it closes/fixes
   - Check PR body for "Closes #xxx", "Fixes #xxx", or "addresses #xxx" to find related issues
-- Credit contributors: `Special thanks to @username for this contribution! 🎉`
+- Credit contributors: `Special thanks to @username for this contribution! [CELEBRATE]`
 - For first-time contributors, mention it: `Special thanks to @BBboy01 for their first contribution...`
 
 ## Specific Writing Patterns

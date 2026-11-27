@@ -1,4 +1,4 @@
-# Phase 21.6 â€” Wave 21 Integration Verification & 55-File 8-State Master Synchronization
+# Phase 21.6 --- Wave 21 Integration Verification & 55-File 8-State Master Synchronization
 
 > **Status (Wave 21 / v8.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 

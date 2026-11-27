@@ -1,4 +1,4 @@
-# Phase 20.6 â€” OpenTelemetry Native LLMOps (`opentelemetry-rust`) & 49-File 8-State Master Sync
+# Phase 20.6 --- OpenTelemetry Native LLMOps (`opentelemetry-rust`) & 49-File 8-State Master Sync
 
 > **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 

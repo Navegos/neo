@@ -1,4 +1,4 @@
-# Phase 21.2 â€” Codex CLI + Grok-Build CLI Grade `<toksi-siagent>` Chat TUI & Full CLI Bridge
+# Phase 21.2 --- Codex CLI + Grok-Build CLI Grade `<toksi-siagent>` Chat TUI & Full CLI Bridge
 
 > **Status (Wave 21 / v8.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 

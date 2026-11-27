@@ -74,7 +74,7 @@ boundaries" principle (AGENTS.md):
 
 ```bash
 # Bare except clauses (should use specific exception types).
-# Catches both `except:` and `except BaseException:` — both swallow
+# Catches both `except:` and `except BaseException:` --- both swallow
 # everything including KeyboardInterrupt and SystemExit.
 grep -rnE "except\s*:|except\s+BaseException" packages/*/src/ --include='*.py' | grep -v "# noqa"
 
@@ -257,7 +257,7 @@ Follow the standard fix procedure in `_fix-policy.md`. Suite-specific bits:
 
 | Category | Branch type | test_required | Eligibility note |
 |----------|-------------|---------------|------------------|
-| bare-except | `refactor` | yes | Replace `except:` / `except BaseException:` with the specific exception type. Eligible only when grep across the try-block confirms **exactly one** exception type is plausibly raised, verified by inspecting the called functions or imported library docs. Multiple plausible types → ineligible. Test files are excluded (different exception-handling standards). |
+| bare-except | `refactor` | yes | Replace `except:` / `except BaseException:` with the specific exception type. Eligible only when grep across the try-block confirms **exactly one** exception type is plausibly raised, verified by inspecting the called functions or imported library docs. Multiple plausible types -> ineligible. Test files are excluded (different exception-handling standards). |
 
 `fix_backlog.data` should record the proposed replacement exception type
 and the grep evidence used to determine it. Within bare-except findings,
@@ -275,19 +275,19 @@ ready-for-review if the change is correct).
 non-draft PRs have landed clean. Bare-except narrowing is the most
 inference-heavy fix in any suite; recipe judgement has
 to be earned before promotion. Two-strike findings here are an
-especially important signal — they suggest the detector is producing
+especially important signal --- they suggest the detector is producing
 false positives in an already-cautious category.
 
-**Not eligible** — stays report-only:
+**Not eligible** --- stays report-only:
 
 - Complexity refactors, type annotation additions, exception hierarchy
   normalization (judgement-heavy).
-- **TODO line deletion** — the audit's "looks done" judgement is not
+- **TODO line deletion** --- the audit's "looks done" judgement is not
   mechanical enough to delete code on. Deletion is forbidden.
 
 ## Constraints
 
-- Outside the fix phase, this recipe is read-only — do not modify files.
+- Outside the fix phase, this recipe is read-only --- do not modify files.
 - Within the fix phase, only modify paths in the suite's path allowlist
   (`packages/*/src/**/*.py`). Test files are excluded.
 - **TODO line deletion is forbidden.** The audit phase still inventories

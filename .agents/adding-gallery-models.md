@@ -23,9 +23,9 @@ curl -sI "https://huggingface.co/ggml-org/embeddinggemma-300m-qat-q8_0-GGUF/reso
 # x-linked-etag: "6fa0c02a9c302be6f977521d399b4de3a46310a4f2621ee0063747881b673f67"
 ```
 
-**Important**: Pay attention to exact filename casing — HuggingFace filenames are case-sensitive (e.g., `Q8_0` vs `q8_0`). Check the repo's file listing to get the exact name.
+**Important**: Pay attention to exact filename casing --- HuggingFace filenames are case-sensitive (e.g., `Q8_0` vs `q8_0`). Check the repo's file listing to get the exact name.
 
-## Entry format — Embedding models
+## Entry format --- Embedding models
 
 Embedding models use `gallery/virtual.yaml` as the base config and set `embeddings: true`:
 
@@ -50,7 +50,7 @@ Embedding models use `gallery/virtual.yaml` as the base config and set `embeddin
       sha256: <sha256-hash>
 ```
 
-## Entry format — Chat/LLM models
+## Entry format --- Chat/LLM models
 
 Chat models typically reference a template config (e.g., `gallery/gemma.yaml`, `gallery/chatml.yaml`) that defines the prompt format. Use YAML anchors (`&name` / `*name`) if adding multiple quantization variants of the same model:
 
@@ -199,17 +199,17 @@ Two mistakes the rule exists to prevent:
 
 Look at existing `.yaml` files in `gallery/` to find the right prompt template for your model architecture:
 
-- `gemma.yaml` — Gemma-family models (gemma, embeddinggemma, etc.)
-- `chatml.yaml` — ChatML format (many Mistral/OpenHermes models)
-- `deepseek.yaml` — DeepSeek models
-- `virtual.yaml` — Minimal base (good for embedding models that don't need chat templates)
+- `gemma.yaml` --- Gemma-family models (gemma, embeddinggemma, etc.)
+- `chatml.yaml` --- ChatML format (many Mistral/OpenHermes models)
+- `deepseek.yaml` --- DeepSeek models
+- `virtual.yaml` --- Minimal base (good for embedding models that don't need chat templates)
 
 ## Checklist
 
-1. **Find the GGUF file** on HuggingFace — note exact filename (case-sensitive)
+1. **Find the GGUF file** on HuggingFace --- note exact filename (case-sensitive)
 2. **Get the SHA256** using the `curl -sI` + `x-linked-etag` method above
 3. **Choose the right template** config from `gallery/` based on model architecture
 4. **Add the entry** to `gallery/models/index.yaml` near similar models, then regenerate `gallery/index.yaml`
 5. **Set `embeddings: true`** if it's an embedding model
-6. **Include both URLs** — the original model page and the GGUF repo
-7. **Write a description** — mention model size, capabilities, and quantization type
+6. **Include both URLs** --- the original model page and the GGUF repo
+7. **Write a description** --- mention model size, capabilities, and quantization type

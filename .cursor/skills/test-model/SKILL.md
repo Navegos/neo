@@ -3,12 +3,12 @@ name: test-model
 description: >-
   Test LLM models served by xinfer for correctness, output quality, and
   performance. Use when the user asks to test, benchmark, validate, or verify
-  models — either from a local folder path or HuggingFace model IDs. Supports
+  models --- either from a local folder path or HuggingFace model IDs. Supports
   all xinfer-compatible formats: BF16, FP8, MXFP4, NVFP4, GGUF, GPTQ, AWQ,
   ISQ, Dense, MoE, and Multimodal architectures.
 ---
 
-# Test Model — Validate and Benchmark LLM Models on xinfer
+# Test Model --- Validate and Benchmark LLM Models on xinfer
 
 ## Phase 0: Gather Model List
 
@@ -127,7 +127,7 @@ Use these rough heuristics for memory estimation (single-GPU, including KV cache
 | GGUF Q2_K | `params_B * 0.45` |
 | MoE (A3B active) | Use active params for compute, total params for weight memory |
 
-Extract parameter count from the model name when possible (e.g. `Qwen3.5-27B` → 27B).
+Extract parameter count from the model name when possible (e.g. `Qwen3.5-27B` -> 27B).
 For MoE models with `A3B` in the name, the weight memory uses total params but fits better than dense.
 
 ### GPU assignment rules
@@ -148,7 +148,7 @@ cd <project_root>
 ./build.sh --install --features cuda,nccl,flashinfer,cutlass
 ```
 
-Verify the build succeeds (exit code 0). The `Error: Must provide model_id or weight_path` message after build is expected — it means the binary compiled correctly.
+Verify the build succeeds (exit code 0). The `Error: Must provide model_id or weight_path` message after build is expected --- it means the binary compiled correctly.
 
 If the build fails, check and fix compilation errors before proceeding.
 
@@ -250,8 +250,8 @@ After all models are tested, produce a summary table:
 | 2 | ... | ... | ... | ... | ... | ... |
 
 ### Notes
-- Model X: SKIPPED — reason
-- Model Y: FAILED — error description
+- Model X: SKIPPED --- reason
+- Model Y: FAILED --- error description
 ```
 
 Include for each model:

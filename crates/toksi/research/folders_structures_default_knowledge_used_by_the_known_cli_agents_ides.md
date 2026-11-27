@@ -1,7 +1,7 @@
 #This folders structures are the default knowledge for the folder structure used by the known cli/agents/ides.
 
 .agents Protocol
-An open directory convention for AI agent configuration. One place for MCP tools, AGENTS.md instructions, skills, Sub-Agents, Tasks, Memories, and model config — in plain, version-controllable files.
+An open directory convention for AI agent configuration. One place for MCP tools, AGENTS.md instructions, skills, Sub-Agents, Tasks, Memories, and model config --- in plain, version-controllable files.
 
 	Open standard agent's folder, The .agents/ folder is a standardized, vendor-agnostic directory convention used to store AI agent configurations, guidelines, skills, and memory in a project.
 
@@ -10,39 +10,39 @@ An open directory convention for AI agent configuration. One place for MCP tools
 	$ tree .agents/
 
 	.agents/
-	├── speakmcp-settings.json  	# general settings
-	├── mcp.json                	# MCP servers & tool connector definitions
-	├── models.json             	# Model presets, routing configurations, & API keys
-	├── system-prompt.md        	# Global baseline persona or system instruction override
-	├── agents.md               	# Core project instructions & style guides (AGENTS.md)
-	├── dotagents-settings.json     # Protocol runner configuration & engine preferences
-	├── layouts/
-	│   └── ui.json                 # UI, terminal, & canvas layout layout preferences
-	├── agents/						# Multi-Agent ecosystem definitions (ACP compatible)
-	│   ├── <agent-id>/
-	│   │   ├── agent.md         	# Sub-agent profile & local system prompt (with Frontmatter)
-	│   │   └── config.json      	# Agent-specific tool permissions & routing limits
-	│   └── deploy-specialist/
-	│       └── agent.md
-	├── skills/						# Composable, codified procedural workflows
-	│   ├── <skill-id>/
-	│   │   └── skill.md			# Execution recipe, rules, & step-by-step logic
-	│   └── deploy-pipeline/
-	│       └── skill.md
-	├── tasks/                      # Automations, loops, & scheduled execution contexts
-	│   └── <task-id>/
-	│       └── task.md             # Declarative definition & loop triggers (e.g. cron interval)
-	├── knowledge/                  # Persistent semantic memory & multi-modal documentation
-	│   └── <knowledge-domain>/
-	│       ├── architecture.md     # Markdown-based vector context injection files
-	│       ├── diagram.png         # Contextual domain asset (image/diagram support)
-	│       └── db-schema.pdf       # Dense technical documentation payload
-	└── memories/          			# Persistent memory notes
-	│   ├── arch-decisions.md
-	│   └── user-prefs.md
-	└── .backups/               	# auto-rotated, timestamped system snapshots
-		├── skills/
-		└── memories/
+	|-- speakmcp-settings.json  	# general settings
+	|-- mcp.json                	# MCP servers & tool connector definitions
+	|-- models.json             	# Model presets, routing configurations, & API keys
+	|-- system-prompt.md        	# Global baseline persona or system instruction override
+	|-- agents.md               	# Core project instructions & style guides (AGENTS.md)
+	|-- dotagents-settings.json     # Protocol runner configuration & engine preferences
+	|-- layouts/
+	|   `-- ui.json                 # UI, terminal, & canvas layout layout preferences
+	|-- agents/						# Multi-Agent ecosystem definitions (ACP compatible)
+	|   |-- <agent-id>/
+	|   |   |-- agent.md         	# Sub-agent profile & local system prompt (with Frontmatter)
+	|   |   `-- config.json      	# Agent-specific tool permissions & routing limits
+	|   `-- deploy-specialist/
+	|       `-- agent.md
+	|-- skills/						# Composable, codified procedural workflows
+	|   |-- <skill-id>/
+	|   |   `-- skill.md			# Execution recipe, rules, & step-by-step logic
+	|   `-- deploy-pipeline/
+	|       `-- skill.md
+	|-- tasks/                      # Automations, loops, & scheduled execution contexts
+	|   `-- <task-id>/
+	|       `-- task.md             # Declarative definition & loop triggers (e.g. cron interval)
+	|-- knowledge/                  # Persistent semantic memory & multi-modal documentation
+	|   `-- <knowledge-domain>/
+	|       |-- architecture.md     # Markdown-based vector context injection files
+	|       |-- diagram.png         # Contextual domain asset (image/diagram support)
+	|       `-- db-schema.pdf       # Dense technical documentation payload
+	`-- memories/          			# Persistent memory notes
+	|   |-- arch-decisions.md
+	|   `-- user-prefs.md
+	`-- .backups/               	# auto-rotated, timestamped system snapshots
+		|-- skills/
+		`-- memories/
 
 	In this folders we only save and use Open agent's standards compatibles.
 
@@ -70,144 +70,144 @@ An open directory convention for AI agent configuration. One place for MCP tools
 
 Copilot Global user and Workspace|repository project path: (user/).copilot/ and (repository workspace dir/).copilot/
 	.copilot/
-	├── agents/                 # Personal custom agents
-	├── extensions/             # Personal extensions
-	├── hooks/                  # User-level hooks
-	├── instructions/           # Personal *.instructions.md files
-	├── skills/                 # Personal skills
-	├── copilot-instructions.md # Instructions for all sessions
-	├── mcp-config.json         # User-level MCP servers
-	├── lsp-config.json         # User-level LSP servers
-	├── providers.json          # BYOK providers and models
-	├── settings.json           # Personal CLI settings
-	├── permissions-config.json  # Saved permissions
-	├── logs/
-	├── session-state/
-	└── config.json              # Automatically managed application state
+	|-- agents/                 # Personal custom agents
+	|-- extensions/             # Personal extensions
+	|-- hooks/                  # User-level hooks
+	|-- instructions/           # Personal *.instructions.md files
+	|-- skills/                 # Personal skills
+	|-- copilot-instructions.md # Instructions for all sessions
+	|-- mcp-config.json         # User-level MCP servers
+	|-- lsp-config.json         # User-level LSP servers
+	|-- providers.json          # BYOK providers and models
+	|-- settings.json           # Personal CLI settings
+	|-- permissions-config.json  # Saved permissions
+	|-- logs/
+	|-- session-state/
+	`-- config.json              # Automatically managed application state
 
 Github Global user and Workspace|repository project path: (user/).github/ and (repository workspace dir/).github/
 	.github/
-	├── agents/
-	│   └── reviewer.agent.md
-	├── hooks/
-	│   └── ...
-	├── instructions/
-	│   └── frontend.instructions.md
-	├── copilot-instructions.md
-	├── copilot/
-	│   ├── settings.json
-	│   └── settings.local.json
-	├── mcp.json
-	│── skills/
-	│	└── my-skill/
-	│       └── SKILL.md
+	|-- agents/
+	|   `-- reviewer.agent.md
+	|-- hooks/
+	|   `-- ...
+	|-- instructions/
+	|   `-- frontend.instructions.md
+	|-- copilot-instructions.md
+	|-- copilot/
+	|   |-- settings.json
+	|   `-- settings.local.json
+	|-- mcp.json
+	|-- skills/
+	|	`-- my-skill/
+	|       `-- SKILL.md
 
 .Claude protocol
 
 Claude Global user and Workspace|repository project path: (user/).claude/ and (repository workspace dir/).claude/
 
 	.claude/ (or ~/.claude/)
-	├── CLAUDE.md                   # Core project or global instructions loaded every session
-	├── settings.json               # Shared configuration: permissions, hooks, env vars, model defaults
-	├── settings.local.json         # Personal local overrides (gitignored)
-	├── .mcp.json                   # Team-shared Model Context Protocol (MCP) servers
-	├── .worktreeinclude            # Files to carry over into new git worktrees
-	├── rules/                      # Topic-scoped or path-gated markdown rules
-	│   ├── testing.md
-	│   └── security-design.md
-	├── skills/                     # Reusable workflows/prompts invoked via /name or auto-invoked
-	│   └── <skill-name>/
-	│       └── SKILL.md
-	├── commands/                   # Single-file custom slash commands (.md)
-	│   └── <command-name>.md
-	├── agents/                     # Specialized AI subagent definitions (YAML/Markdown)
-	│   └── code-reviewer.md
-	├── workflows/                  # Multi-step automated agent procedures
-	└── agent-memory/               # Persistent auto-memory storage
-		└── <agent-name>/
-			└── MEMORY.md
+	|-- CLAUDE.md                   # Core project or global instructions loaded every session
+	|-- settings.json               # Shared configuration: permissions, hooks, env vars, model defaults
+	|-- settings.local.json         # Personal local overrides (gitignored)
+	|-- .mcp.json                   # Team-shared Model Context Protocol (MCP) servers
+	|-- .worktreeinclude            # Files to carry over into new git worktrees
+	|-- rules/                      # Topic-scoped or path-gated markdown rules
+	|   |-- testing.md
+	|   `-- security-design.md
+	|-- skills/                     # Reusable workflows/prompts invoked via /name or auto-invoked
+	|   `-- <skill-name>/
+	|       `-- SKILL.md
+	|-- commands/                   # Single-file custom slash commands (.md)
+	|   `-- <command-name>.md
+	|-- agents/                     # Specialized AI subagent definitions (YAML/Markdown)
+	|   `-- code-reviewer.md
+	|-- workflows/                  # Multi-step automated agent procedures
+	`-- agent-memory/               # Persistent auto-memory storage
+		`-- <agent-name>/
+			`-- MEMORY.md
 
 .Codex ChatGPT OpenAI protocol
 
 Codex Global user and Workspace|repository project path: (user/).codex/ and (repository workspace dir/).codex/
 
 	.codex/
-	│
-	├── config.toml
-	├── AGENTS.md
-	├── AGENTS.override.md
-	├── hooks.json
-	│
-	├── agents/
-	│   ├── architect.toml
-    │   ├── backend.toml
-    │   ├── frontend.toml
-    │   ├── database.toml
-	│   ├── reviewer.toml
-	│   │── researcher.toml
-    │   │── tester.toml
-    │   ├── debugger.toml
-    │   └── security.toml
-	│
-	├── rules/
-    │   ├── default.rules
-    │   ├── shell.rules
-    │   ├── git.rules
-    │   ├── testing.rules
-    │   └── security.rules
-	│
-	├── auth.json
-	├── history.jsonl
-	│
-	├── worktrees/
-	├── plugins/
-	└── logs/
+	|
+	|-- config.toml
+	|-- AGENTS.md
+	|-- AGENTS.override.md
+	|-- hooks.json
+	|
+	|-- agents/
+	|   |-- architect.toml
+    |   |-- backend.toml
+    |   |-- frontend.toml
+    |   |-- database.toml
+	|   |-- reviewer.toml
+	|   |-- researcher.toml
+    |   |-- tester.toml
+    |   |-- debugger.toml
+    |   `-- security.toml
+	|
+	|-- rules/
+    |   |-- default.rules
+    |   |-- shell.rules
+    |   |-- git.rules
+    |   |-- testing.rules
+    |   `-- security.rules
+	|
+	|-- auth.json
+	|-- history.jsonl
+	|
+	|-- worktrees/
+	|-- plugins/
+	`-- logs/
 
 .Cursor protocol
 
 Cursor Global user and Workspace|repository project path: (user/).cursor/ and (repository workspace dir/).cursor/
 
 	.cursor/
-	├── rules/                    # Global AI rules applied across all projects
-	│   ├── universal-styling.mdc # e.g., default formatting preferences
-	│   └── coding-safety.mdc     # e.g., general security practices to enforce
-	├── skills/                   # Global agent skills available on this machine
-	│   └── custom-git-tool/      # A modular automation folder
-	│       └── SKILL.md          # Standard instruction file for the skill agent
-	├── agents/                   # Machine-wide custom agent blueprints (.md files)
-	├── commands/                 # Global slash commands invoked via (⌘ ⇧ J) menu
-	│   └── code-review.md        # File name maps directly to the command string
-	├── hooks.json				  #
-	├── cli-config.json           # Stores core CLI preferences and terminal sync rules
-	└── mcp.json                  # Global Model Context Protocol integrations
-	├── permissions.json		  #
+	|-- rules/                    # Global AI rules applied across all projects
+	|   |-- universal-styling.mdc # e.g., default formatting preferences
+	|   `-- coding-safety.mdc     # e.g., general security practices to enforce
+	|-- skills/                   # Global agent skills available on this machine
+	|   `-- custom-git-tool/      # A modular automation folder
+	|       `-- SKILL.md          # Standard instruction file for the skill agent
+	|-- agents/                   # Machine-wide custom agent blueprints (.md files)
+	|-- commands/                 # Global slash commands invoked via (Cmd+ Shift+ J) menu
+	|   `-- code-review.md        # File name maps directly to the command string
+	|-- hooks.json				  #
+	|-- cli-config.json           # Stores core CLI preferences and terminal sync rules
+	`-- mcp.json                  # Global Model Context Protocol integrations
+	|-- permissions.json		  #
 
 .Grok protocol
 
 Grok Global user and Workspace|repository project path: (user/).grok/ and (repository workspace dir/).grok/
 
 	.grok/                            # override the root with GROK_HOME
-	├── config.toml                   # personal defaults (full config)
-	├── managed_config.toml           # per-user managed defaults (enterprise)
-	├── requirements.toml             # user policy pins (cannot be overridden below)
-	├── sandbox.toml                  # custom sandbox profiles
-	├── trusted_folders.toml          # /hooks-trust and --trust decisions
-	├── mcp_credentials.json          # OAuth tokens for remote MCP servers
-	├── auth.json                     # session credentials (failed team-pin logins are not written)
-	├── hooks-paths                   # extra hook roots
-	├── known layout under plugins:
-	│   plugins/
-	│   ├── marketplaces/             # marketplace installs
-	│   └── known_marketplaces.json   # marketplace sources (also [[marketplace.sources]] in config.toml)
-	├── skills/                       # user skills (each skill is a folder with SKILL.md)
-	├── plugins/                      # user plugins
-	├── hooks/*.json                  # personal lifecycle hooks
-	├── agents/                       # custom subagent types
-	├── personas/*.toml               # persona overlays
-	├── sessions/                     # conversations, keyed by working directory
-	├── worktrees/<repo>/<name>/      # git worktrees for isolated sessions
-	├── logs/mcp/<server>.stderr.log  # stdio MCP stderr
-	└── crash/                        # panic reports when GROK_CRASH_HANDLER=1
+	|-- config.toml                   # personal defaults (full config)
+	|-- managed_config.toml           # per-user managed defaults (enterprise)
+	|-- requirements.toml             # user policy pins (cannot be overridden below)
+	|-- sandbox.toml                  # custom sandbox profiles
+	|-- trusted_folders.toml          # /hooks-trust and --trust decisions
+	|-- mcp_credentials.json          # OAuth tokens for remote MCP servers
+	|-- auth.json                     # session credentials (failed team-pin logins are not written)
+	|-- hooks-paths                   # extra hook roots
+	|-- known layout under plugins:
+	|   plugins/
+	|   |-- marketplaces/             # marketplace installs
+	|   `-- known_marketplaces.json   # marketplace sources (also [[marketplace.sources]] in config.toml)
+	|-- skills/                       # user skills (each skill is a folder with SKILL.md)
+	|-- plugins/                      # user plugins
+	|-- hooks/*.json                  # personal lifecycle hooks
+	|-- agents/                       # custom subagent types
+	|-- personas/*.toml               # persona overlays
+	|-- sessions/                     # conversations, keyed by working directory
+	|-- worktrees/<repo>/<name>/      # git worktrees for isolated sessions
+	|-- logs/mcp/<server>.stderr.log  # stdio MCP stderr
+	`-- crash/                        # panic reports when GROK_CRASH_HANDLER=1
 
 We have some examples for agent's folders structures, mcp, hooks, settings configurations, .json, .toml, <etc's>, in the folder:
 neo\inspect-vault\agents-structures

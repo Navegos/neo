@@ -37,7 +37,7 @@ function runGh(args) {
 
 function fetchFailuresViaApi(jobId) {
   try {
-    const cmd = `gh api repos/${REPO}/actions/jobs/${jobId}/logs | grep -iE " FAIL |❌|ERROR|Lint failed|Build failed|Exception|failed with exit code"`;
+    const cmd = `gh api repos/${REPO}/actions/jobs/${jobId}/logs | grep -iE " FAIL |[FAIL]|ERROR|Lint failed|Build failed|Exception|failed with exit code"`;
     return execSync(cmd, {
       stdio: ['ignore', 'pipe', 'ignore'],
       maxBuffer: 10 * 1024 * 1024,
@@ -237,7 +237,7 @@ async function monitor() {
 
     if (failuresFoundInLoop) {
       console.log(
-        `\n\n❌ Failures detected across ${allFailed} job(s). Stopping monitor...`,
+        `\n\n[FAIL] Failures detected across ${allFailed} job(s). Stopping monitor...`,
       );
       console.log('\n--- Structured Failure Report (Noise Filtered) ---');
       for (const [file, tests] of fileToTests.entries()) {
@@ -252,12 +252,12 @@ async function monitor() {
       }
       const testCmd = generateTestCommand(fileToTests);
       if (testCmd) {
-        console.log('\n🚀 Run this to verify fixes:');
+        console.log('\n[NEW] Run this to verify fixes:');
         console.log(testCmd);
       } else if (
         Array.from(fileToTests.keys()).some((k) => k.includes('Lint'))
       ) {
-        console.log('\n🚀 Run this to verify lint fixes:\nnpm run lint:all');
+        console.log('\n[NEW] Run this to verify lint fixes:\nnpm run lint:all');
       }
       console.log('---------------------------------');
       process.exit(1);
@@ -265,10 +265,10 @@ async function monitor() {
 
     const completed = allPassed + allFailed;
     process.stdout.write(
-      `\r⏳ Monitoring ${targetRunIds.length} runs... ${completed}/${totalJobs} jobs (${allPassed} passed, ${allFailed} failed, ${allRunning} running, ${allQueued} queued)          `,
+      `\r[WAIT] Monitoring ${targetRunIds.length} runs... ${completed}/${totalJobs} jobs (${allPassed} passed, ${allFailed} failed, ${allRunning} running, ${allQueued} queued)          `,
     );
     if (!anyRunInProgress) {
-      console.log('\n✅ All workflows passed!');
+      console.log('\n[DONE] All workflows passed!');
       process.exit(0);
     }
     await new Promise((r) => setTimeout(r, 15000));

@@ -17,7 +17,7 @@ requested PR unless a maintainer separately authorizes the release handoff below
 Exceptions to selective bumping (these stay coupled regardless of per-package changes):
 
 - **Root `agent-framework` is coupled to `agent-framework-core` via `agent-framework-core[all]==X.Y.Z`** (exact pin in `python/pyproject.toml`). If `core` bumps, root bumps. Root may also bump independently for its own changes (docs/metadata/extras).
-- **Beta-tier cohort bumps are still allowed** when the user explicitly wants a fresh date stamp across all betas for cohort signaling — but this is a deliberate user decision per release, not a default.
+- **Beta-tier cohort bumps are still allowed** when the user explicitly wants a fresh date stamp across all betas for cohort signaling --- but this is a deliberate user decision per release, not a default.
 
 If the user explicitly states which packages to bump (or hands over a PR list per package), treat that as authoritative.
 
@@ -27,7 +27,7 @@ Use `python/.github/skills/python-package-management/SKILL.md` as the source of 
 version patterns, date-stamp cutoffs, classifier alignment, and internal dependency updates.
 
 For release work, derive the live tier map at release time from `python/PACKAGE_STATUS.md` and the actual
-`version =` lines in each `pyproject.toml`. Do not hardcode counts — packages move between tiers.
+`version =` lines in each `pyproject.toml`. Do not hardcode counts --- packages move between tiers.
 
 ## Inputs to confirm before bumping
 
@@ -38,14 +38,14 @@ For release work, derive the live tier map at release time from `python/PACKAGE_
    date-stamp rule.
 5. **Optional cohort bump?**: ask if betas should all get a new date stamp regardless of per-package changes. Default: no.
 
-If the user states target versions or a date explicitly, use exactly what they said — do not "correct" based on historical timezones.
+If the user states target versions or a date explicitly, use exactly what they said --- do not "correct" based on historical timezones.
 
 ## Non-negotiable rules
 
 - **Release workflow owns the CHANGELOG**: individual feature/fix PRs do not edit
   `python/CHANGELOG.md`; this workflow creates the entries centrally from merged changes.
 - **CHANGELOG-driven bumps**: only packages mentioned in the new CHANGELOG section get version bumps. Exceptions: root follows core (==pin); user-opted cohort bump on betas.
-- **Follow `python-package-management` for package lifecycle and versioning rules** — do not duplicate those
+- **Follow `python-package-management` for package lifecycle and versioning rules** --- do not duplicate those
   rules in this release workflow.
 - **No `Co-Authored-By` trailer** on any commit.
 - **Use `uv run`** for cross-version Python/Poe commands and add the relevant
@@ -84,9 +84,9 @@ git checkout -b bump-py-ver-release-YYMMDD "$RELEASE_BASE"
 
 ### 2. Build the live tier map
 
-Read `python/PACKAGE_STATUS.md` to enumerate current packages and lifecycle stages, and `grep '^version' python/pyproject.toml python/packages/*/pyproject.toml` to confirm actual versions. Cross-reference — if `PACKAGE_STATUS.md` shows a package as `beta` but its version looks like `1.0.0aYYMMDD`, surface the inconsistency before proceeding.
+Read `python/PACKAGE_STATUS.md` to enumerate current packages and lifecycle stages, and `grep '^version' python/pyproject.toml python/packages/*/pyproject.toml` to confirm actual versions. Cross-reference --- if `PACKAGE_STATUS.md` shows a package as `beta` but its version looks like `1.0.0aYYMMDD`, surface the inconsistency before proceeding.
 
-Watch for: new packages added since the last release, lifecycle transitions (alpha→beta, beta→rc, rc→released), and stale packages that haven't been touched in many cycles.
+Watch for: new packages added since the last release, lifecycle transitions (alpha->beta, beta->rc, rc->released), and stale packages that haven't been touched in many cycles.
 
 ### 3. Identify changeset
 
@@ -143,13 +143,13 @@ git log --name-only --format='' ${LAST_RELEASED_TAG}..${RELEASE_BASE} \
 
 | Change scope under `python/packages/<pkg>/` | Drives a bump? |
 | --- | --- |
-| Source code under `<pkg>/agent_framework_*` or the package's library tree | **Yes** — ship-affecting |
-| `pyproject.toml` (deps, classifiers, extras, version metadata) | **Yes** — publishes new metadata |
-| `README.md` substantive changes (env vars, install instructions, usage) | **Yes** — user-facing |
-| `README.md` typo/wording-only | Judgment — usually no, but record under `### Changed` if you do bump |
-| Tests only (`tests/`) | Usually no — test changes don't ship to PyPI consumers. Bump only if the test change reflects a real behavior change in the package |
+| Source code under `<pkg>/agent_framework_*` or the package's library tree | **Yes** --- ship-affecting |
+| `pyproject.toml` (deps, classifiers, extras, version metadata) | **Yes** --- publishes new metadata |
+| `README.md` substantive changes (env vars, install instructions, usage) | **Yes** --- user-facing |
+| `README.md` typo/wording-only | Judgment --- usually no, but record under `### Changed` if you do bump |
+| Tests only (`tests/`) | Usually no --- test changes don't ship to PyPI consumers. Bump only if the test change reflects a real behavior change in the package |
 | Package-local samples (alpha packages only, before promotion) | **Yes** for alpha; samples ship with the alpha package |
-| Repo infra touching the package dir (CI config, lint config) | No — record under `- **tests**:`, `- **samples**:`, or `- **docs**:` instead |
+| Repo infra touching the package dir (CI config, lint config) | No --- record under `- **tests**:`, `- **samples**:`, or `- **docs**:` instead |
 
 Root `agent-framework` is touched when `python/pyproject.toml`, `python/agent_framework_meta/`, or root `README.md` substantive content changed.
 
@@ -193,7 +193,7 @@ Locate `## [Unreleased]` and the top existing release header. INSERT a new secti
 
 #### 4a. Reconcile mentions against the touched-package set (DO NOT SKIP)
 
-Before moving on, prove that every ship-affecting touched package has at least one CHANGELOG entry. A package whose code changed but is missing from CHANGELOG will NOT bump — and the fix will not ship to PyPI consumers.
+Before moving on, prove that every ship-affecting touched package has at least one CHANGELOG entry. A package whose code changed but is missing from CHANGELOG will NOT bump --- and the fix will not ship to PyPI consumers.
 
 ```bash
 # 1. Touched ship-affecting packages and root package files (from step 3a)
@@ -215,7 +215,7 @@ TOUCHED=$(
 )
 
 # 2. Packages mentioned in the new CHANGELOG section
-# (Extract from the section you just drafted — adjust the awk range to the new section's bounds)
+# (Extract from the section you just drafted --- adjust the awk range to the new section's bounds)
 MENTIONED=$(awk '
   /^## \[<release-label>\]/ { in_section=1; next }
   in_section && /^## \[/ { exit }
@@ -225,16 +225,16 @@ MENTIONED=$(awk '
   | sed 's/\*\*//g;s/^agent-framework-//' \
   | sort -u)
 
-# 3. Diff — anything in TOUCHED but missing from MENTIONED is a gap
+# 3. Diff --- anything in TOUCHED but missing from MENTIONED is a gap
 comm -23 <(echo "$TOUCHED") <(echo "$MENTIONED")
 ```
 
 For every gap, decide explicitly with the user:
 
-- **Add a CHANGELOG entry and bump** — the default. Even small package changes (a dep upgrade, a metadata fix) deserve an entry under `### Changed`.
-- **Intentionally skip** — only when the touched files are demonstrably non-shipping (e.g. comments-only, test infra). Note the skip in the commit message body so reviewers see the reasoning.
+- **Add a CHANGELOG entry and bump** --- the default. Even small package changes (a dep upgrade, a metadata fix) deserve an entry under `### Changed`.
+- **Intentionally skip** --- only when the touched files are demonstrably non-shipping (e.g. comments-only, test infra). Note the skip in the commit message body so reviewers see the reasoning.
 
-Package-name aliasing to watch for: directory `foundry_local` → package `agent-framework-foundry-local`; `github_copilot` → `agent-framework-github-copilot`; `azure-ai-search` → `agent-framework-azure-ai-search`. The directory name and the published PyPI name are not always identical — confirm both when reconciling.
+Package-name aliasing to watch for: directory `foundry_local` -> package `agent-framework-foundry-local`; `github_copilot` -> `agent-framework-github-copilot`; `azure-ai-search` -> `agent-framework-azure-ai-search`. The directory name and the published PyPI name are not always identical --- confirm both when reconciling.
 
 **Footer reference links** (REQUIRED every release):
 
@@ -442,7 +442,7 @@ lockfile and both ends of each changed package's published dependency metadata m
 
 ### 8. Commit (expect hook retry)
 
-The project's pre-commit hook runs `poe check` / `poe typing` / `uv lock` and may re-modify `uv.lock` on first commit attempt. Expected pattern — run twice:
+The project's pre-commit hook runs `poe check` / `poe typing` / `uv lock` and may re-modify `uv.lock` on first commit attempt. Expected pattern --- run twice:
 
 ```bash
 git add -u
@@ -452,7 +452,7 @@ git add -u                  # re-stage hook-generated changes
 git commit -m "<message>"   # succeeds
 ```
 
-**Commit message format** — HEREDOC, no `Co-Authored-By`:
+**Commit message format** --- HEREDOC, no `Co-Authored-By`:
 
 ```bash
 git commit -m "$(cat <<'EOF'
@@ -473,7 +473,7 @@ EOF
 git push origin bump-py-ver-release-YYMMDD
 ```
 
-The push output includes a `Create a pull request for '<branch>' on GitHub by visiting: <URL>` line — surface that to the user.
+The push output includes a `Create a pull request for '<branch>' on GitHub by visiting: <URL>` line --- surface that to the user.
 
 ### 10. Maintainer handoff: tag and existing draft (only when authorized)
 
@@ -539,14 +539,14 @@ The consumer's asset-only REST finalizer must still preserve the existing draft'
 verify the exact retained artifacts, and publish only after verification. GitHub never receives Azure DevOps
 credentials or queue permission.
 
-## Pitfalls from past cycles — avoid repeating
+## Pitfalls from past cycles --- avoid repeating
 
-- **Scoping from the wrong tag.** A release may have been tagged between bump cycles. Always compute `LAST_RELEASED_TAG` fresh — do NOT reuse the previous compare base. Symptom: dragging already-shipped PRs into the new CHANGELOG section.
+- **Scoping from the wrong tag.** A release may have been tagged between bump cycles. Always compute `LAST_RELEASED_TAG` fresh --- do NOT reuse the previous compare base. Symptom: dragging already-shipped PRs into the new CHANGELOG section.
 - **Bumping packages that had no changes.** This was the old lockstep default. Now: a package without a CHANGELOG entry does not bump. The two exceptions (root follows core, optional beta cohort bump) are explicit choices, not defaults.
 - **Touched package missing from CHANGELOG.** The inverse failure mode of the previous pitfall, and the dangerous one. If a PR landed code into `python/packages/foo/` but the new CHANGELOG section has no `**agent-framework-foo**:` line, then `foo` will NOT bump, and the fix sits in `main` but never reaches PyPI. Always run the touched-vs-mentioned reconciliation in step 4a before applying bumps.
-- **Directory name vs PyPI name confusion.** Some package dirs use underscores or split names that differ from the published PyPI name (e.g. `foundry_local` → `agent-framework-foundry-local`). When reconciling touched dirs against CHANGELOG mentions, normalize on the PyPI form.
+- **Directory name vs PyPI name confusion.** Some package dirs use underscores or split names that differ from the published PyPI name (e.g. `foundry_local` -> `agent-framework-foundry-local`). When reconciling touched dirs against CHANGELOG mentions, normalize on the PyPI form.
 - **Forgetting root when core bumps.** Root `agent-framework` has `agent-framework-core[all]==EXACT_VERSION`. If `core` bumps and root does not, the pin is broken. Always bump them together and update the pin string.
-- **Renaming an existing section header.** When drafting a new release, do NOT rewrite an existing `## [X.Y.Z]` header to a new label — that wipes the historical section. Always INSERT a new section above.
+- **Renaming an existing section header.** When drafting a new release, do NOT rewrite an existing `## [X.Y.Z]` header to a new label --- that wipes the historical section. Always INSERT a new section above.
 - **Forgetting footer reference links.** When a released-tier bump is in play, the `[Unreleased]` line and the new `[X.Y.Z]` link at the bottom MUST be updated. Heading links don't resolve without them.
 - **Wrong footer compare base.** The new `[X.Y.Z]` line compares from the PREVIOUS released tag, not from two releases ago.
 - **Timezone drift.** For alpha/beta date stamps, follow the `python-package-management` date-stamp rule;

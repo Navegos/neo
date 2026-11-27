@@ -15,24 +15,24 @@ The view displays a hierarchical tree structure:
 
 ```
 AI Customization (View Container)
-└── AI Customization (Tree View)
-    ├── Custom Agents (.agent.md files)
-    │   ├── Workspace
-    │   │   └── agent files...
-    │   ├── User
-    │   │   └── agent files...
-    │   └── Extensions
-    │       └── agent files...
-    ├── Skills (SKILL.md files)
-    │   └── (same storage structure)
-    ├── Instructions (.instructions.md files)
-    │   └── (same storage structure)
-    └── Prompts (.prompt.md files)
-        └── (same storage structure)
+`-- AI Customization (Tree View)
+    |-- Custom Agents (.agent.md files)
+    |   |-- Workspace
+    |   |   `-- agent files...
+    |   |-- User
+    |   |   `-- agent files...
+    |   `-- Extensions
+    |       `-- agent files...
+    |-- Skills (SKILL.md files)
+    |   `-- (same storage structure)
+    |-- Instructions (.instructions.md files)
+    |   `-- (same storage structure)
+    `-- Prompts (.prompt.md files)
+        `-- (same storage structure)
 ```
 
 **Key Features:**
-- 3-level tree hierarchy: Category → Storage Group → Files
+- 3-level tree hierarchy: Category -> Storage Group -> Files
 - Auto-expands category nodes on initial load and refresh to show storage groups
 - Symbol-based root element for type safety
 - Double-click to open files in editor
@@ -47,12 +47,12 @@ All files are located in `src/vs/workbench/contrib/chat/browser/aiCustomization/
 
 ```
 aiCustomization/
-├── aiCustomization.ts              # Constants, IDs, and MenuIds
-├── aiCustomization.contribution.ts # View registration and actions
-├── aiCustomizationViews.ts         # Tree view pane implementation
-├── aiCustomizationIcons.ts         # Icon registrations
-└── media/
-    └── aiCustomization.css         # Styling
+|-- aiCustomization.ts              # Constants, IDs, and MenuIds
+|-- aiCustomization.contribution.ts # View registration and actions
+|-- aiCustomizationViews.ts         # Tree view pane implementation
+|-- aiCustomizationIcons.ts         # Icon registrations
+`-- media/
+    `-- aiCustomization.css         # Styling
 ```
 
 ## Key Constants (aiCustomization.ts)
@@ -122,9 +122,9 @@ Discriminated union with `type` field:
 `UnifiedAICustomizationDataSource` implements `IAsyncDataSource`:
 
 **getChildren logic:**
-- ROOT → 4 categories (agent, skill, instructions, prompt)
-- category → storage groups (workspace, user, extensions) that have items
-- group → files from `promptsService.listPromptFilesForStorage()` or `findAgentSkills()`
+- ROOT -> 4 categories (agent, skill, instructions, prompt)
+- category -> storage groups (workspace, user, extensions) that have items
+- group -> files from `promptsService.listPromptFilesForStorage()` or `findAgentSkills()`
 
 **Skills special handling:** Uses `findAgentSkills()` to get names from frontmatter instead of filenames
 
@@ -147,7 +147,7 @@ Three specialized renderers for category/group/file items:
 **Initialization:**
 1. Subscribe to `onDidChangeCustomAgents` and `onDidChangeSlashCommands` events
 2. Create WorkbenchAsyncDataTree with 3 renderers and data source
-3. Register handlers: `onDidOpen` (double-click) → open file, `onContextMenu` → show menu
+3. Register handlers: `onDidOpen` (double-click) -> open file, `onContextMenu` -> show menu
 4. Set input to ROOT_ELEMENT and auto-expand categories
 
 **Auto-expansion:**

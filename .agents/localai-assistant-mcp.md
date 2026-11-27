@@ -1,4 +1,4 @@
-# LocalAI Assistant — admin MCP server
+# LocalAI Assistant --- admin MCP server
 
 This document is the contract for **anyone** (human or AI agent) touching LocalAI's admin REST surface, the in-process MCP server that wraps it, or the embedded skill prompts that teach the assistant how to use it. Read this before adding/removing/renaming admin endpoints, MCP tools, or skill recipes.
 
@@ -7,7 +7,7 @@ This document is the contract for **anyone** (human or AI agent) touching LocalA
 `core/services/localaitools/` is a public Go package that exposes LocalAI's admin/management surface as an MCP server. It is used in two ways:
 
 1. **In-process**: when an admin opens a chat with `metadata.localai_assistant=true`, the chat handler injects the in-memory MCP server (paired `net.Pipe()` transport, no HTTP loopback) so the LLM can install models, manage backends and edit configs by chatting.
-2. **Standalone**: the `local-ai mcp-server --target=…` subcommand serves the same MCP server over stdio, talking HTTP to a remote LocalAI instance.
+2. **Standalone**: the `local-ai mcp-server --target=...` subcommand serves the same MCP server over stdio, talking HTTP to a remote LocalAI instance.
 
 The two modes share **all** tool definitions and skill prompts. They differ only in their `LocalAIClient` implementation (`inproc/` calls services directly; `httpapi/` calls REST).
 
@@ -17,7 +17,7 @@ When you change LocalAI's admin surface, three layers must stay aligned:
 
 1. **REST endpoint** in `core/http/endpoints/localai/*.go`.
 2. **MCP tool registration** in `core/services/localaitools/tools_*.go`, plus a method on `LocalAIClient` (in `client.go`) and implementations in both `inproc/client.go` **and** `httpapi/client.go`.
-3. **Skill prompt** under `core/services/localaitools/prompts/skills/*.md` — the markdown that teaches the LLM how to use the new tool. If the new tool fits an existing recipe, update that recipe; otherwise add a new file.
+3. **Skill prompt** under `core/services/localaitools/prompts/skills/*.md` --- the markdown that teaches the LLM how to use the new tool. If the new tool fits an existing recipe, update that recipe; otherwise add a new file.
 
 If you ship a REST endpoint without (2) and (3), conversational admins won't see the feature.
 
@@ -58,9 +58,9 @@ The skill `localai` (`core/services/studio/builtinskills/tree/localai/SKILL.md`)
 
 These rules guard against the magic-literal drift that surfaced in the first audit. Do not re-introduce bare strings.
 
-- **Tool names** always come from the `Tool*` constants in `core/services/localaitools/tools.go`. Tool registrations, the test catalog (`server_test.go`'s `expectedFullCatalog` / `expectedReadOnlyCatalog`), and dispatch tables reference the constants. The embedded skill prompts under `prompts/` keep bare strings — that's the one allowed exception, and `TestPromptsContainSafetyAnchors` enforces alignment.
+- **Tool names** always come from the `Tool*` constants in `core/services/localaitools/tools.go`. Tool registrations, the test catalog (`server_test.go`'s `expectedFullCatalog` / `expectedReadOnlyCatalog`), and dispatch tables reference the constants. The embedded skill prompts under `prompts/` keep bare strings --- that's the one allowed exception, and `TestPromptsContainSafetyAnchors` enforces alignment.
 - **Toggle/pin actions** use the `modeladmin.Action` type (`core/services/localaitools` and `core/services/modeladmin`). Use `ActionEnable`/`ActionDisable`/`ActionPin`/`ActionUnpin`; never bare `"enable"`/`"pin"` strings.
-- **Capability tags** for `list_installed_models` use the `localaitools.Capability` type (`capability.go`). The `LocalAIClient.ListInstalledModels` interface takes a typed `Capability`, and the `inproc` switch only accepts canonical values (`"embed"`/`"embedding"` are not aliases — only `CapabilityEmbeddings`).
+- **Capability tags** for `list_installed_models` use the `localaitools.Capability` type (`capability.go`). The `LocalAIClient.ListInstalledModels` interface takes a typed `Capability`, and the `inproc` switch only accepts canonical values (`"embed"`/`"embedding"` are not aliases --- only `CapabilityEmbeddings`).
 - **HTTP error checks** in `httpapi.Client` use `errors.Is(err, ErrHTTPNotFound)`, not substring matches on `err.Error()`. The typed `*HTTPError` carries `StatusCode` and `Body`; add new sentinel errors as needed rather than re-introducing string matching.
 - **Channel sends** to `GalleryService.ModelGalleryChannel` / `BackendGalleryChannel` from inproc clients MUST select on `ctx.Done()` so a cancelled chat completion releases the goroutine. See `inproc.sendModelOp` / `sendBackendOp`.
 - **Disk writes** of model config YAML go through `modeladmin.writeFileAtomic` (temp file + `os.Rename`). `os.WriteFile` truncates on crash and corrupts the model.
@@ -72,7 +72,7 @@ These rules guard against the magic-literal drift that surfaced in the first aud
 core/services/localaitools/
   client.go              # LocalAIClient interface + DTO registry
   dto.go                 # JSON-tagged DTOs shared by both client impls
-  server.go              # NewServer(client, opts) — registers tools
+  server.go              # NewServer(client, opts) --- registers tools
   tools.go               # Tool* name constants (single source of truth)
   capability.go          # Capability type + constants
   tools_models.go        # gallery_search, install_model, import_model_uri, ...
@@ -82,7 +82,7 @@ core/services/localaitools/
   tools_state.go
   prompts.go             # //go:embed loader: SystemPrompt (full), CompactSystemPrompt, Recipes
   prompts/00_role.md
-  prompts/10_safety.md   # SAFETY RULES — change with care
+  prompts/10_safety.md   # SAFETY RULES --- change with care
   prompts/20_tools.md    # curated tool catalog with one-liners (full prompt only)
   prompts/skills/*.md
   inproc/client.go       # in-process LocalAIClient (services-direct)
@@ -98,7 +98,7 @@ The in-process MCP server runs inside the same LocalAI binary that serves chat. 
 
 ## Why prompt-enforced confirmation, not code gates
 
-The user chose KISS. Every mutating tool has a safety rule (`prompts/10_safety.md` rule 1) that requires the LLM to summarise the action and wait for explicit user confirmation before calling it. There is no `plan_*`/`apply_*` two-step in code. If you add a mutating tool, do **not** add per-tool confirmation logic in Go — instead, list the new tool name in `prompts/10_safety.md` so the LLM knows it falls under the confirmation rule.
+The user chose KISS. Every mutating tool has a safety rule (`prompts/10_safety.md` rule 1) that requires the LLM to summarise the action and wait for explicit user confirmation before calling it. There is no `plan_*`/`apply_*` two-step in code. If you add a mutating tool, do **not** add per-tool confirmation logic in Go --- instead, list the new tool name in `prompts/10_safety.md` so the LLM knows it falls under the confirmation rule.
 
 ## Scoped exception: add-on tools are not assistant tools
 
@@ -308,4 +308,4 @@ with the chat owner, and the OpenAI-compatible chat endpoint does it with `auth.
 
 ## Distributed mode
 
-The in-memory MCP server runs only on the head node (where the chat handler runs). `inproc.Client` wraps services that are already distributed-aware (`GalleryService` coordinates with workers; `ListNodes` reads the NATS-populated registry). No NATS routing of MCP tools — the admin surface lives on the head, period.
+The in-memory MCP server runs only on the head node (where the chat handler runs). `inproc.Client` wraps services that are already distributed-aware (`GalleryService` coordinates with workers; `ListNodes` reads the NATS-populated registry). No NATS routing of MCP tools --- the admin surface lives on the head, period.

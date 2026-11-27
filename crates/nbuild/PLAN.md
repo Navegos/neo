@@ -1,4 +1,4 @@
-# nbuild — System Architecture & Implementation Plan
+# nbuild --- System Architecture & Implementation Plan
 
 Universal toolchain manager, local workflow runner, and package engine for AI coding agents.
 
@@ -8,43 +8,43 @@ Root directory resolved from `$TOOLCHAINS_DIR` (defaults: Windows `C:\opt\neo-to
 
 ```
 $TOOLCHAINS_DIR/
-│
-├── usr/                                          # Host active runtime prefix ($TOOLCHAINS_DIR/usr/bin in Host PATH)
-│   ├── bin/                                      # Symlinks: host-compatible distro/*/bin/* + DLLs
-│   ├── include/                                  # Symlinks: host headers (namespaced if library)
-│   ├── lib/                                      # Symlinks: host libraries
-│   └── share/                                    # Symlinks: host pkgconfig (.pc), cmake modules
-│
-└── <platform>/                                   # windows | linux | apple | freebsd | android
-    └── <target-triple>/                          # e.g. x86_64-pc-windows-msvc, aarch64-apple-xros
-        │
-        ├── distro/                               # Isolated immutable package stores (clean folder names, no version in folder)
-        │   ├── neo/                                  # Neo unified distro: nbuild, toksi, companion tools
-        │   │   ├── bin/                              # nbuild, archinfo, toksi
-        │   │   ├── share/                            # bundled catalogs, schemas, templates
-        │   │   └── pkg_meta.json                     # Neo package receipt
-        │   ├── cmake/
-        │   │   ├── bin/, share/, ...
-        │   │   └── pkg_meta.json                 # Package receipt
-        │   ├── libpng/
-        │   │   ├── include/, lib/, share/, ...
-        │   │   └── pkg_meta.json
-        │   └── openssl/
-        │       ├── include/, lib/, ...
-        │       └── pkg_meta.json
-        │
-        ├── # Root Level: GNU System Toolchain (Compilers, OS SDKs, Runtimes)
-        ├── bin/                                  # Symlinks: clang, cl.exe, ld + runtime DLLs
-        ├── include/                              # Symlinks: OS headers, C/C++ CRT headers
-        ├── lib/ (lib64/)                         # Symlinks: libc, libstdc++, msvcrt, libucrt
-        ├── libexec/                              # Symlinks: compiler internal drivers
-        ├── share/                                # Toolchain specs & base cmake
-        │
-        └── usr/                                  # GNU Sysroot User Layer (Libraries & Dependencies)
-            ├── bin/                              # Symlinks: user tools + dependency DLLs
-            ├── include/                          # Symlinks: zlib.h, openssl/*.h, or libpng/*
-            ├── lib/ (lib64/)                     # Symlinks: libz.a, libcrypto.lib
-            └── share/                            # Symlinks: usr/share/pkgconfig/*.pc, cmake/*
+|
+|-- usr/                                          # Host active runtime prefix ($TOOLCHAINS_DIR/usr/bin in Host PATH)
+|   |-- bin/                                      # Symlinks: host-compatible distro/*/bin/* + DLLs
+|   |-- include/                                  # Symlinks: host headers (namespaced if library)
+|   |-- lib/                                      # Symlinks: host libraries
+|   `-- share/                                    # Symlinks: host pkgconfig (.pc), cmake modules
+|
+`-- <platform>/                                   # windows | linux | apple | freebsd | android
+    `-- <target-triple>/                          # e.g. x86_64-pc-windows-msvc, aarch64-apple-xros
+        |
+        |-- distro/                               # Isolated immutable package stores (clean folder names, no version in folder)
+        |   |-- neo/                                  # Neo unified distro: nbuild, toksi, companion tools
+        |   |   |-- bin/                              # nbuild, archinfo, toksi
+        |   |   |-- share/                            # bundled catalogs, schemas, templates
+        |   |   `-- pkg_meta.json                     # Neo package receipt
+        |   |-- cmake/
+        |   |   |-- bin/, share/, ...
+        |   |   `-- pkg_meta.json                 # Package receipt
+        |   |-- libpng/
+        |   |   |-- include/, lib/, share/, ...
+        |   |   `-- pkg_meta.json
+        |   `-- openssl/
+        |       |-- include/, lib/, ...
+        |       `-- pkg_meta.json
+        |
+        |-- # Root Level: GNU System Toolchain (Compilers, OS SDKs, Runtimes)
+        |-- bin/                                  # Symlinks: clang, cl.exe, ld + runtime DLLs
+        |-- include/                              # Symlinks: OS headers, C/C++ CRT headers
+        |-- lib/ (lib64/)                         # Symlinks: libc, libstdc++, msvcrt, libucrt
+        |-- libexec/                              # Symlinks: compiler internal drivers
+        |-- share/                                # Toolchain specs & base cmake
+        |
+        `-- usr/                                  # GNU Sysroot User Layer (Libraries & Dependencies)
+            |-- bin/                              # Symlinks: user tools + dependency DLLs
+            |-- include/                          # Symlinks: zlib.h, openssl/*.h, or libpng/*
+            |-- lib/ (lib64/)                     # Symlinks: libz.a, libcrypto.lib
+            `-- share/                            # Symlinks: usr/share/pkgconfig/*.pc, cmake/*
 ```
 
 ## 2. Package Receipt Specification (`pkg_meta.json`)

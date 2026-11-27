@@ -36,7 +36,7 @@ Every response, whole session, until user says "stop caveman" or "normal mode". 
 Plain prose, then resume:
 
 1. Security warning.
-2. Irreversible action — confirm in full sentences first.
+2. Irreversible action --- confirm in full sentences first.
 3. Step order a fragment could scramble.
 4. User confused or repeats the question.
 5. Anything persisted outside chat: code, comments, commits, docs, issues, PRs, tickets, memory files (`/caveman-compress` exempt).

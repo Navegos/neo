@@ -1,6 +1,6 @@
 # How to Become a Core Contributor
 
-Thanks for your interest in joining the Lightning team! We’re a rapidly growing project which is poised to become the go-to framework for DL researchers!
+Thanks for your interest in joining the Lightning team! We're a rapidly growing project which is poised to become the go-to framework for DL researchers!
 
 As a core maintainer, you will have a strong say in the direction of the project. Big changes will require a majority of maintainers to agree.
 Our development is fully open, so you can still raise your voice just by commenting on issues and pull requests! Doing so is a big step in becoming part of core.
@@ -26,13 +26,13 @@ Here, we describe general expectations from core contributors:
   They often require some sort of bug fix, document clarification, or new functionality to be scoped out. You can help them solve their issues and guide them to completion.
 
 - Weigh in on discussions in a timely fashion. Most importantly, on the RFCs (request for comments) that will shape the future of Lightning.
-  There are some big decisions which the project must make. For these, we expect core contributors to have something meaningful to add, especially if it’s their area of expertise.
+  There are some big decisions which the project must make. For these, we expect core contributors to have something meaningful to add, especially if it's their area of expertise.
 
 - Propose your own RFCs that align with the API design goals for Lightning.
 
 - Identify opportunities from an issue or bug that can solve other related issues or make the framework more flexible.
 
-- Don’t make users feel like they don’t know what they’re doing. We’re here to help and to make everyone’s experience delightful.
+- Don't make users feel like they don't know what they're doing. We're here to help and to make everyone's experience delightful.
 
 - Help out with critical bugs. Nobody likes bugs so you'll be a hero if you fix them!
 
@@ -40,7 +40,7 @@ Here, we describe general expectations from core contributors:
 
 - Pull requests are the evolutionary mechanism of Lightning, so quality is extremely important. Make sure contributors adhere to the guidelines described in the [contributing section](CONTRIBUTING.md#pull-request).
 
-- Some PRs are from people who want to get involved and try to add something unnecessary. We do want their help though! So don’t approve the PR, but direct them to a Github issue that they might be interested in helping with instead!
+- Some PRs are from people who want to get involved and try to add something unnecessary. We do want their help though! So don't approve the PR, but direct them to a Github issue that they might be interested in helping with instead!
 
 - Provide strong and valuable feedback during reviews. This is expected both when reviewing community PRs as well as PRs from other core contributors.
   Even if you are not part of core yet, you can still review and approve PRs. This will show us your abilities.

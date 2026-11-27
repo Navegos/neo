@@ -53,13 +53,13 @@ class FileContextPrompt extends PromptElement<FileContextProps> {
 - Never rely on whitespace or string literal newlines
 
 ```tsx
-// ✅ Correct
+// [DONE] Correct
 <SystemMessage>
 	You are an AI assistant.<br />
 	Follow these guidelines.<br />
 </SystemMessage>
 
-// ❌ Wrong - newlines will be collapsed
+// [FAIL] Wrong - newlines will be collapsed
 <SystemMessage>
 	You are an AI assistant.
 	Follow these guidelines.

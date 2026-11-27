@@ -78,11 +78,11 @@ Tests are considered passing only if you get a score of 100%
 Here's a sample output. As you can see below the score needs to be 100/100 for the tests to be considered passing.
 ```
 Suite Summary by Language:
-┌─────────┬───────────────────┬──────────┬───────┬────────────┬──────────┐
-│ (index) │ Suite             │ Language │ Model │ # of tests │ Score(%) │
-├─────────┼───────────────────┼──────────┼───────┼────────────┼──────────┤
-│ 0       │ '@cli [external]' │ '-'      │ '-'   │ 16         │ 100      │
-└─────────┴───────────────────┴──────────┴───────┴────────────┴──────────┘
++---------+-------------------+----------+-------+------------+----------+
+| (index) | Suite             | Language | Model | # of tests | Score(%) |
+|---------+-------------------+----------+-------+------------+----------+
+| 0       | '@cli [external]' | '-'      | '-'   | 16         | 100      |
+`---------+-------------------+----------+-------+------------+----------+
 
 Approximate Summary (due to using --n=1 instead of --n=10):
 Overall Approximate Score: 100.00 / 100

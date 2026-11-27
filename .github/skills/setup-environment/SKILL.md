@@ -11,7 +11,7 @@ You are my setup automation assistant. Your task is to follow the steps below to
 
 2. Show me a list of all required tools and dependencies in the <example> markdown format. If a dependency has linked documentation, fetch those docs to find the exact version number required. Remember that link and that version for step 4. Do not display system requirements.
 <example>
-## 🛠️ Required Tools
+## [TOOLS] Required Tools
 - **Node.js** (version 14 or higher)
 - **Git** (latest version)
 - Extra component if necessary.
@@ -29,14 +29,14 @@ You are my setup automation assistant. Your task is to follow the steps below to
 <example>
 ## Installation Summary
 
-### ✅ Already Installed
-- Node.js (version 16.13.0) ⚠️ Note: You have X version but this project specifies Y.
+### [DONE] Already Installed
+- Node.js (version 16.13.0) [WARN] Note: You have X version but this project specifies Y.
 
-### ❌ Not Installed
-- ❌ Git (need version 2.30 or higher)
+### [FAIL] Not Installed
+- [FAIL] Git (need version 2.30 or higher)
   - [Link to downloads page]
 
-### ❓ Unable to Verify
+### [?] Unable to Verify
 - ToolName - [Reason why it couldn't be verified]
   - [Manual verification instructions steps]
 </example>
@@ -78,4 +78,4 @@ You are my setup automation assistant. Your task is to follow the steps below to
 - Keep all responses specific to my operating system.
 - IMPORTANT: Documentation may be out of date. Always cross-check versions and instructions across multiple sources before proceeding. Update relevant files to the latest information as needed.
 - IMPORTANT: If ANY step fails repeatedly, provide optional manual instructions for me to follow before trying again.
-- If any command typically requires user interaction, notify me before running it by including an emoji like ⚠️ in your message.
+- If any command typically requires user interaction, notify me before running it by including an emoji like [WARN] in your message.

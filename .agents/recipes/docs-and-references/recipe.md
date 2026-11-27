@@ -207,7 +207,7 @@ Follow the standard fix procedure in `_fix-policy.md`. Suite-specific bits:
 
 | Category | Branch type | test_required | Eligibility note |
 |----------|-------------|---------------|------------------|
-| broken-link | `docs` | no | Only when the corrected target is unambiguous (exact-match file at a different path, or a single similar anchor). Multiple candidates → ineligible. |
+| broken-link | `docs` | no | Only when the corrected target is unambiguous (exact-match file at a different path, or a single similar anchor). Multiple candidates -> ineligible. |
 | docstring-drift | `docs` | yes | Purely signature-driven `Args:`/`Returns:`/`Raises:` updates. Rename a param to its current name, drop entries for removed params, add placeholder entries for added params (note the signature; do not invent semantic descriptions). |
 | arch-ref-rename | `docs` | no | Mechanical code/config reference updates in architecture or user docs, excluding dev notes. Source must establish one replacement through a rename, move, or explicit deprecated-alias mapping. Check related example imports and settings against source; do not infer new behavior. |
 
@@ -235,7 +235,7 @@ URL breakage) stay report-only.
 
 ## Constraints
 
-- Outside the fix phase, this recipe is read-only — do not modify files.
+- Outside the fix phase, this recipe is read-only --- do not modify files.
 - Within the fix phase, only modify paths in the suite's path allowlist.
   See `_fix-policy.md` for the shared command/path baseline.
 - Do not read file contents unless needed to verify a specific reference.

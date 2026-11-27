@@ -34,7 +34,7 @@ In particular, animation cleanup PR #330399 supersedes the old revive-sign flow 
 | #327588 | Double-buffer sprite images and swap only after the pending image loads. Never blank the active sprite while a new source is loading. |
 | #327696 | Stable/Insiders is a typed, persisted appearance choice. Keep variant naming and geometry systematic. |
 | #327714 | Animated art is a horizontal sprite sheet plus a deliberate static reduced-motion PNG. Timing is runtime data, not image metadata. |
-| #328334 | Persistent behavior such as “on the run” belongs in service state. Multi-phase animations advance from completion signals, not guessed delays. |
+| #328334 | Persistent behavior such as "on the run" belongs in service state. Multi-phase animations advance from completion signals, not guessed delays. |
 | #328480 | A drag release must not also trigger a click reaction. Gestures that share pointer events need explicit suppression/ownership. |
 | #328530 | Waking consumes the interaction that woke the pet; it must not also trigger a random reaction. Reduced motion may skip the wake transition. |
 | #329121 | Coalesce gaze updates, pause sprite timers while the document is hidden, and resume from elapsed time rather than replaying missed frames. |
@@ -44,18 +44,18 @@ In particular, animation cleanup PR #330399 supersedes the old revive-sign flow 
 | #329867 | Attention animations are bounded; clapping stops after the confirmation-attention window even if the confirmation remains pending. |
 | #330160 | Eyes are a composited runtime layer with tracking/blinking modes. Rapid facing changes can trigger a separate dizzy state. Wide art must respect live bounds. |
 | #330275 | Physics uses the body footprint, bounded frame steps, and explicit impact moments. Recompute geometry when layout changes during flight. |
-| #330399 | Latest animation contract: wide sleep/wake art, frame-aware blink composition, fixed-orientation decorations, and reverse despawn → forward respawn using one effect sheet. |
+| #330399 | Latest animation contract: wide sleep/wake art, frame-aware blink composition, fixed-orientation decorations, and reverse despawn -> forward respawn using one effect sheet. |
 
 ## The logical pixel
 
 The canonical art unit is one **logical pixel**:
 
-- `8×8` source pixels
-- `4×4` CSS pixels at the standard `96×96` source → `48×48` display scale
+- `8x8` source pixels
+- `4x4` CSS pixels at the standard `96x96` source -> `48x48` display scale
 
 Core silhouettes, facial features, props, and repeated details must use the same logical-pixel scale. Do not make a new object from smaller or larger blocks simply to fit more detail.
 
-Effects may deliberately subdivide the logical pixel—for example, small stars, bubbles, or curved motion—but the subdivision must:
+Effects may deliberately subdivide the logical pixel---for example, small stars, bubbles, or curved motion---but the subdivision must:
 
 1. Serve a specific effect that cannot read on the core grid.
 2. Stay consistent throughout that effect.
@@ -84,7 +84,7 @@ The first and last key poses must transition cleanly to idle or rendering withou
 
 ## Canvas and anchoring
 
-The default source canvas is `96×96`, or `12×12` logical pixels.
+The default source canvas is `96x96`, or `12x12` logical pixels.
 
 Use a larger canvas only when content intentionally extends outside the canonical body box:
 
@@ -92,16 +92,16 @@ Use a larger canvas only when content intentionally extends outside the canonica
 - A note, star, or bubble may need extra height.
 - The body must remain anchored exactly where it sits in the baseline sprite.
 
-Do not center the body inside a wider frame. Keep the body in the canonical `96×96` region and let the prop/effect overhang. Declare every nonstandard source dimension in `chatPetWidget.ts` and update wide-sprite boundary handling.
+Do not center the body inside a wider frame. Keep the body in the canonical `96x96` region and let the prop/effect overhang. Declare every nonstandard source dimension in `chatPetWidget.ts` and update wide-sprite boundary handling.
 
 The runtime collision and movement box belongs to the pet body, not to a decorative overhang.
 
 ## Eyes
 
-The standard open eye is **`1×2` logical pixels**:
+The standard open eye is **`1x2` logical pixels**:
 
-- `8×16` source pixels
-- `4×8` CSS pixels
+- `8x16` source pixels
+- `4x8` CSS pixels
 
 Use a different eye shape only when the state communicates a special expression, such as sleep, dizzy, love, worry, or impact.
 
@@ -151,7 +151,7 @@ Author one canonical facing direction and let the runtime mirror it for the othe
 
 Test both directions because mirroring also changes where wide sprites overhang. Keep enough room for boundary correction near the left and right edges.
 
-Decorations that must retain their screen orientation—such as text, musical notation, or directional symbols—must not be baked into a layer that the runtime mirrors. Model them as fixed-orientation decorations or render them separately.
+Decorations that must retain their screen orientation---such as text, musical notation, or directional symbols---must not be baked into a layer that the runtime mirrors. Model them as fixed-orientation decorations or render them separately.
 
 ## Static asset and sprite sheet
 
@@ -163,7 +163,7 @@ Each animated state needs both variants of:
 The sprite sheet contract is:
 
 ```text
-sheet width = frame width × frame count
+sheet width = frame width x frame count
 sheet height = frame height
 ```
 
@@ -175,7 +175,7 @@ Choose a meaningful static pose that communicates the state without motion. Do n
 
 Wearable accessories use a body-owned attachment rig and one palette-independent atlas per appearance under `media/chatPet/accessories/`. Do not export copies for individual runtime states or frames. Body animation metadata owns attachment movement; an accessory atlas only contains the few canonical shapes needed when the body geometry changes.
 
-The default atlas is `256×192`, divided into `64×64` cells. A hat whose supplied silhouette genuinely needs the full 12-logical-pixel body width may declare `atlasCellSize: 96` and use a `384×288` atlas with `96×96` cells. Do not choose the wider tier merely to add detail; both tiers still use the same whole `8×8` logical pixels.
+The default atlas is `256x192`, divided into `64x64` cells. A hat whose supplied silhouette genuinely needs the full 12-logical-pixel body width may declare `atlasCellSize: 96` and use a `384x288` atlas with `96x96` cells. Do not choose the wider tier merely to add detail; both tiers still use the same whole `8x8` logical pixels.
 
 ```text
 columns: upright | sleeping | impact | splat
@@ -196,7 +196,7 @@ Directional head accessories are authored for the canonical right-facing body an
 
 Static reduced-motion art may represent a later frame of its animated sheet. Keep `getChatPetReducedMotionRigFrame()` aligned with the representative body frame; do not assume rig frame zero merely because the static PNG has one image frame.
 
-Author every wearable part on the same `8×8` logical-pixel grid as the body. Brims, crowns, bands, rims, chains, highlights, and shadows must all be composed from whole aligned logical pixels; do not use diagonal polygons or source-pixel stair steps to imply curves. The small-effect exception does not apply to wearable accessories. Use the current Stable body sheets as geometry guides and validate that every alpha value is fully transparent or fully opaque. The runtime mirrors layers with the body; fixed-orientation body decorations are restored without erasing accessory pixels.
+Author every wearable part on the same `8x8` logical-pixel grid as the body. Brims, crowns, bands, rims, chains, highlights, and shadows must all be composed from whole aligned logical pixels; do not use diagonal polygons or source-pixel stair steps to imply curves. The small-effect exception does not apply to wearable accessories. Use the current Stable body sheets as geometry guides and validate that every alpha value is fully transparent or fully opaque. The runtime mirrors layers with the body; fixed-orientation body decorations are restored without erasing accessory pixels.
 
 When changing the accessory source at runtime, keep the current composite visible until the replacement image loads and passes exact dimension validation. Redraw the current frame without restarting the body animation. A failed or malformed accessory source falls back to the body alone and must not repeatedly retry.
 
@@ -219,7 +219,7 @@ Keep the transient-state duration consistent with the intended loops or one-shot
 
 ### Reversible effects
 
-If one sheet is reused in reverse, as with respawn → despawn:
+If one sheet is reused in reverse, as with respawn -> despawn:
 
 - Design both endpoints to work as starts and finishes.
 - Check the effect in both directions.
@@ -330,10 +330,10 @@ Keep the visuals silent: images, canvases, eyes, and effects use empty alt text 
 
 ### Art
 
-- [ ] Core art uses the same `8×8` source-pixel logical unit.
+- [ ] Core art uses the same `8x8` source-pixel logical unit.
 - [ ] Body derives from current idle or rendering art.
 - [ ] Body baseline and canonical anchor stay fixed.
-- [ ] Standard eyes are `1×2` logical pixels.
+- [ ] Standard eyes are `1x2` logical pixels.
 - [ ] DOM-eye sprites contain no baked pupils under the overlay.
 - [ ] Stable and Insiders geometry/alpha masks match.
 - [ ] Transparent regions stay fully transparent.
@@ -360,8 +360,8 @@ Keep the visuals silent: images, canvases, eyes, and effects use empty alt text 
 - [ ] Visual children are `aria-hidden`; the button owns semantics and tab order.
 - [ ] `ChatPetWidget` tests cover state names, exact timings, geometry, state priority, and reduced motion.
 - [ ] Every runtime state maps to the intended body-owned attachment track.
-- [ ] The atlas matches its declared compact (`256×192`) or wide (`384×288`) cell tier and the documented column/row contract.
-- [ ] Every accessory color/alpha block is aligned to the `8×8` logical-pixel grid.
+- [ ] The atlas matches its declared compact (`256x192`) or wide (`384x288`) cell tier and the documented column/row contract.
+- [ ] Every accessory color/alpha block is aligned to the `8x8` logical-pixel grid.
 - [ ] Atlas artwork stays within the body canvas after applying the documented pivots and anchors.
 - [ ] Head accessories overlap the head by the shared wear offset and are absent during love.
 - [ ] Asymmetric artwork reads correctly in both canonical and mirrored facing directions.

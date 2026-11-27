@@ -1,6 +1,6 @@
 ---
 name: cicd
-description: CI/CD reference for NeMo AutoModel — pipeline structure, commit and PR workflow, CI failure investigation, and common failure patterns.
+description: CI/CD reference for NeMo AutoModel --- pipeline structure, commit and PR workflow, CI failure investigation, and common failure patterns.
 when_to_use: Investigating a CI failure, understanding the pipeline structure, writing a commit or PR, triggering CI, 'CI is red', 'how do I trigger CI', 'PR workflow', 'where are the logs', 'CI did not run', '/ok to test'.
 ---
 
@@ -48,21 +48,21 @@ fix/gradient_clip_nan
 
 ## How CI Is Triggered
 
-CI is triggered on `push` — **not** on `pull_request`. A bot called
+CI is triggered on `push` --- **not** on `pull_request`. A bot called
 `copy-pr-bot` controls when CI runs.
 
 **Mechanism:**
 1. When a PR is opened, `copy-pr-bot` watches for a trust signal.
 2. Trust is established in one of two ways:
    - All commits on the PR branch are **GPG-signed** by a verified NVIDIA
-     contributor → bot triggers automatically.
-   - An NVIDIAN posts `/ok to test <commit-sha>` as a PR comment → bot
+     contributor -> bot triggers automatically.
+   - An NVIDIAN posts `/ok to test <commit-sha>` as a PR comment -> bot
      triggers manually for that SHA.
 3. Once trusted, `copy-pr-bot` copies the PR's code into the remote branch
    `pull-request/<number>` and pushes it, which fires CI.
 
 **Consequences:**
-- CI never runs on untrusted pushes — external contributors always need
+- CI never runs on untrusted pushes --- external contributors always need
   `/ok to test`.
 - The running workflow branch is `pull-request/<number>`, not the author's
   feature branch.
@@ -73,10 +73,10 @@ CI is triggered on `push` — **not** on `pull_request`. A bot called
 
 ```
 lint-check
-  └── cicd-container-build
-        ├── unit-tests-core
-        ├── unit-tests-diffusion
-        └── functional-tests (L0 always; L1 with needs-more-tests label; L2 on schedule)
+  `-- cicd-container-build
+        |-- unit-tests-core
+        |-- unit-tests-diffusion
+        `-- functional-tests (L0 always; L1 with needs-more-tests label; L2 on schedule)
 ```
 
 CI test scripts live in `tests/ci_tests/`. These are executed in the CI
@@ -104,7 +104,7 @@ gh pr checks "$PR_NUMBER" --repo NVIDIA-NeMo/Automodel
    gh run list --repo NVIDIA-NeMo/Automodel --branch "pull-request/$PR_NUMBER"
    gh run view <run_id> --repo NVIDIA-NeMo/Automodel --log-failed > run.log
    ```
-4. **Scan logs in chunks** — log files can be large, never load them whole:
+4. **Scan logs in chunks** --- log files can be large, never load them whole:
    ```bash
    wc -l run.log
    tail -200 run.log

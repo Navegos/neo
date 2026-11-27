@@ -2,8 +2,8 @@
 
 Every frontend process is a stateless replica: any of them can take a
 request, and any of them can be the one that starts, stops, or dies first.
-Runtime state that lives only in a Go map on one frontend — an in-memory
-cache, a set of pins, a scheduler's next-run time, a background probe loop —
+Runtime state that lives only in a Go map on one frontend --- an in-memory
+cache, a set of pins, a scheduler's next-run time, a background probe loop ---
 diverges silently the moment there is more than one frontend. Each replica
 believes its own copy, clients see different answers depending on which
 frontend they hit, and nothing errors: the failure mode is quiet disagreement,
@@ -32,20 +32,20 @@ including the publisher, so all frontends converge without an extra polling
 loop.
 
 Add a `Store` (`syncstate.Config.Store`) when the state must survive a
-restart of the whole cluster — the store is the durable source of truth, and
+restart of the whole cluster --- the store is the durable source of truth, and
 new frontends rehydrate from it instead of starting empty. Without a `Store`,
 give a `Loader` for local, disk-backed rehydration in standalone mode.
 
 Examples:
-- Finetune jobs — `core/services/finetune/service.go`. A `Store` persists jobs
+- Finetune jobs --- `core/services/finetune/service.go`. A `Store` persists jobs
   across restarts; without one, a `Loader` reloads from disk.
-- Failover pins, targets, and chains — `core/services/failover/distsync`.
+- Failover pins, targets, and chains --- `core/services/failover/distsync`.
   `failover.pins` is `Store`-backed (pins must survive a restart);
   `failover.targets` and `failover.chains` are ephemeral live-health state
   with no `Store`, republished by the leader every 10 s.
 
 **Gotcha:** `Reconcile` with neither a `Store` nor a `Loader` does **nothing**
-— there is nothing for it to pull from, so it cannot help a late joiner catch
+--- there is nothing for it to pull from, so it cannot help a late joiner catch
 up. If your map has no durable backing, a leader (or another privileged
 writer) must republish its live state after a reconnect instead of relying on
 `Reconcile` to recover it.
@@ -64,7 +64,7 @@ re-hydrated). `failover.Manager.ReconcilePins` is the example.
 Use `advisorylock.RunLeaderLoop` or `advisorylock.TryWithLockCtx`
 (`core/services/advisorylock`) when exactly one frontend in the cluster should
 run some work on a schedule, and it does not matter which one. Add your lock
-key to `keys.go` — keys are a single global namespace across the database, so
+key to `keys.go` --- keys are a single global namespace across the database, so
 pick a number that is not already taken.
 
 `RunLeaderLoop`/`TryWithLockCtx` leadership is **not sticky**: the lock is
@@ -72,9 +72,9 @@ acquired and released around each tick, so a different frontend can win it
 next time. That is fine for idempotent, tick-shaped work (a cleanup pass, a
 periodic scan) where it does not matter who ran the last one.
 
-When leadership must be sticky — the same frontend keeps a role across many
+When leadership must be sticky --- the same frontend keeps a role across many
 ticks, for example because it holds live connections or in-memory session
-state tied to that role — use `advisorylock.HeldLock` instead. It keeps a
+state tied to that role --- use `advisorylock.HeldLock` instead. It keeps a
 dedicated database session and PostgreSQL TCP keepalives so a dead host's
 lock is freed in about 30 s rather than after the OS's multi-hour keepalive
 default. The failover prober (`core/application/failover_distributed.go`)
@@ -98,12 +98,12 @@ heartbeat and reaper.
 
 Nothing to share: the feature re-derives everything it needs from the
 request, the database, or another already-distributed source, so there is no
-in-memory state to diverge. Most handlers are this by default — no action
+in-memory state to diverge. Most handlers are this by default --- no action
 needed beyond noting it if a reviewer might otherwise ask.
 
 ### 4. Per-instance (documented exception)
 
-Some state is legitimately local to a frontend — a warm in-process cache
+Some state is legitimately local to a frontend --- a warm in-process cache
 that only saves work when it is warm, a local rate limiter for the process's
 own outbound connections. This is allowed, but only when the feature's docs
 page says so explicitly and states the consequence (which behavior differs
@@ -119,7 +119,7 @@ construct two instances of the feature against the same fake bus, mutate
 state through one, and assert the other observes it.
 
 `FakeBus` delivers every publish **synchronously**, including back to the
-publisher itself — that is what makes the two-instance test deterministic
+publisher itself --- that is what makes the two-instance test deterministic
 without polling, but it is also a trap: **never publish while holding a lock
 that the apply path also takes.** The publish call re-enters your own apply
 handler on the same goroutine before `Publish` returns, so a lock held across
@@ -145,7 +145,7 @@ When your PR adds or changes state that lives longer than a single request:
       state
 - [ ] The chosen mode (and, for per-instance, the reason) is written on the
       feature's docs page under `docs/content/`
-- [ ] Standalone mode (no NATS/DB) still behaves correctly — most
+- [ ] Standalone mode (no NATS/DB) still behaves correctly --- most
       shared/single-runner code paths must degrade gracefully alone
 
 ### Add-on settings acceptance

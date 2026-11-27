@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved. -->
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 
-# GitHub → NeMo Helix agent dispatcher
+# GitHub -> NeMo Helix agent dispatcher
 
 A reusable bridge: a `/helix-*` PR comment triggers a mapped NeMo Helix
 `agents.execute` job that REVIEWS the PR. The agent holds only a read-only token and
@@ -11,17 +11,17 @@ pattern (the agent returns data; the worker does the writes).
 
 ## The two planes
 
-**Plane 1 — trigger (in the TARGET repo, e.g. nemo-helix):**
+**Plane 1 --- trigger (in the TARGET repo, e.g. nemo-helix):**
 `.github/workflows/helix-agent-dispatch.yaml` + `.github/scripts/helix-agent-dispatch.cjs`.
 On a PR comment starting with `/helix-`, it sends a `repository_dispatch`
 (`event_type: helix-agent`) to the worker repo with a PR-context `client_payload`.
-The trigger is dispatch-only — it does not react to or comment on the PR itself;
+The trigger is dispatch-only --- it does not react to or comment on the PR itself;
 acknowledgement comes from the worker once it picks up the dispatch.
 
-**Plane 2 — worker (in the runner-privileged agents repo, nemo-helix-agents):**
+**Plane 2 --- worker (in the runner-privileged agents repo, nemo-helix-agents):**
 `.github/workflows/helix-agent-run.yaml` + `.github/scripts/dispatch_agent.py` +
 `.github/dispatch-registry.yaml`. On the dispatch it mints TWO repo-scoped `aire-ops`
-tokens — a READ-only one forwarded to the agent, and a WRITE one kept in the worker —
+tokens --- a READ-only one forwarded to the agent, and a WRITE one kept in the worker ---
 resolves the trigger in the registry, submits the `agents.execute` job, then POLLS it
 to completion, downloads the agent's action envelope, validates it, and executes the
 requested actions against the triggering PR with the write token. The write token
@@ -29,22 +29,22 @@ NEVER reaches the agent.
 
 ```
 PR comment "/helix-review"
-      │  (issue_comment workflow, target repo)
-      ▼  repository_dispatch{helix-agent, PR context}
+      |  (issue_comment workflow, target repo)
+      v  repository_dispatch{helix-agent, PR context}
 Worker repo (runner)
-      │  mint READ token (→ agent) + WRITE token (stays here)
-      │  resolve registry · submit agents.execute · poll to done
-      ▼
-NeMo Helix  →  pi agent reads the PR with its READ token
-      │  agent writes review-actions.json (typed action envelope)
-      ▼
-Worker  →  validate envelope · execute actions on the PR with the WRITE token
+      |  mint READ token (-> agent) + WRITE token (stays here)
+      |  resolve registry - submit agents.execute - poll to done
+      v
+NeMo Helix  ->  pi agent reads the PR with its READ token
+      |  agent writes review-actions.json (typed action envelope)
+      v
+Worker  ->  validate envelope - execute actions on the PR with the WRITE token
 ```
 
 ## Why two tokens (the security model)
 
 A GitHub App token can't be scoped below a whole repo, so a `pull_requests: write`
-token held by the agent could act on ANY PR in the repo — a prompt-injected agent
+token held by the agent could act on ANY PR in the repo --- a prompt-injected agent
 could abuse it, and it lives ~1h. So the agent gets only a READ token (on a public
 repo that grants nothing beyond anonymous read) and returns its review as data; the
 WRITE token stays in the trusted worker, which performs only a closed set of actions
@@ -67,25 +67,25 @@ and injects the READ-only token into the job's secret env under `github_token_en
 ### The agent's return: a typed action envelope
 
 The agent does NOT call GitHub to post. It writes `review-actions.json` to its output
-workdir — a CLOSED, typed set of actions the worker validates (unknown types / extra
+workdir --- a CLOSED, typed set of actions the worker validates (unknown types / extra
 fields are rejected) and executes against the triggering PR:
 
 ```json
 { "summary": "one-line summary",
   "actions": [
     { "type": "post_review", "event": "COMMENT",
-      "body": "…", "comments": [ { "path": "f.py", "line": 3, "body": "…", "side": "RIGHT" } ] },
-    { "type": "reply_comment", "comment_id": 42, "body": "…" },
-    { "type": "resolve_thread", "thread_id": "PRRT_…" }
+      "body": "...", "comments": [ { "path": "f.py", "line": 3, "body": "...", "side": "RIGHT" } ] },
+    { "type": "reply_comment", "comment_id": 42, "body": "..." },
+    { "type": "resolve_thread", "thread_id": "PRRT_..." }
   ] }
 ```
 
 `event` is one of `COMMENT` / `APPROVE` / `REQUEST_CHANGES`. Adding a capability means
-adding one action type + its executor branch — nothing else the agent emits is honored.
+adding one action type + its executor branch --- nothing else the agent emits is honored.
 
 ## Onboarding a new GitHub-triggered agent
 
-Follow these in order. Steps 1–2 are the Helix-cluster legwork (done once, out of
+Follow these in order. Steps 1--2 are the Helix-cluster legwork (done once, out of
 band); step 3 is the ~1-line PR to the WORKER repo's registry; step 4 installs the
 trigger. You do NOT create a GitHub-token secret: the dispatcher mints the per-dispatch
 READ token and upserts it into a per-dispatch secret the agent reads under
@@ -110,12 +110,12 @@ models:
     max_tokens: 8192
     extensions: { api: openai-completions, context_window: 200000 }
 instructions:
-  system: { content: "…what the agent should do with the PR context…" }
+  system: { content: "...what the agent should do with the PR context..." }
 ```
 The agent's job `input` is a JSON blob of PR context
-(`{trigger, repo, pr_number, comment_author, head_sha, github_token_env, …}`). Write
+(`{trigger, repo, pr_number, comment_author, head_sha, github_token_env, ...}`). Write
 the system prompt to READ the PR with its token and emit `review-actions.json` (the
-typed envelope above) — NOT to post directly.
+typed envelope above) --- NOT to post directly.
 
 **2. Create the `agent` entity** in the workspace (type `agent`, looked up by
 `{workspace, name}`). The dispatcher no-ops gracefully until this exists:
@@ -124,7 +124,7 @@ nemo agents register --agent agent.yaml --workspace <workspace>
 ```
 
 **3. Add a registry row** in the WORKER repo's `.github/dispatch-registry.yaml`
-(the dispatcher only reads the registry there, not the target repo) — see the
+(the dispatcher only reads the registry there, not the target repo) --- see the
 `/helix-review` entry below as a template:
 ```yaml
   - trigger: "/helix-<name>"
@@ -140,11 +140,11 @@ nemo agents register --agent agent.yaml --workspace <workspace>
 (from the nemo-helix PR), plus the `CI_DISPATCH_TOKEN` / `AUTOMATION_DISPATCH_REPO` secrets.
 `CI_DISPATCH_TOKEN` needs, for a fine-grained token, only `Contents: write` on the
 WORKER repo to send the `repository_dispatch` (without it, dispatch is denied and the
-worker never starts) — least-privilege: the trigger holds no permission on the TARGET
+worker never starts) --- least-privilege: the trigger holds no permission on the TARGET
 repo, since it neither reacts nor comments there.
 
 **Test it:** comment `/helix-<name>` on a PR in an allowed repo (as an org
-OWNER/MEMBER — the trigger is author-gated). The trigger dispatches silently; once the
+OWNER/MEMBER --- the trigger is author-gated). The trigger dispatches silently; once the
 worker picks up the dispatch it acknowledges on the PR, then posts the agent's review.
 If nothing happens, check the worker repo's Actions run: a missing agent entity logs a
 `::notice::` and skips (not an error).
@@ -160,12 +160,12 @@ If nothing happens, check the worker repo's Actions run: a missing agent entity 
 **Worker repo (dispatch side):**
 | Secret / var | Purpose |
 | --- | --- |
-| `AIRE_OPS_APP_PRIVATE_KEY` | `aire-ops` GitHub App key (App ID 4809653) — mints repo-scoped tokens |
+| `AIRE_OPS_APP_PRIVATE_KEY` | `aire-ops` GitHub App key (App ID 4809653) --- mints repo-scoped tokens |
 | `INTERNAL_AGENTS_NHX_ACCESS_TOKEN` | Helix API bearer (dispatcher service identity, cross-workspace submit) |
 
 The agent's GitHub token is NOT a pre-created secret: the dispatcher mints a
 repo-scoped READ-only `aire-ops` token per dispatch and upserts it into a per-dispatch
-Helix secret (named `dispatch-…`), which the agent reads via its AgentEnvironment. The
+Helix secret (named `dispatch-...`), which the agent reads via its AgentEnvironment. The
 WRITE token is minted in the same job but never leaves the worker.
 
 ## Status / open items

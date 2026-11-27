@@ -1,4 +1,4 @@
-# Phase 21.5 â€” Multi-Agent Orchestration Resilience, Fault/Quota Checkpoint & Cross-Chat Resume Engine
+# Phase 21.5 --- Multi-Agent Orchestration Resilience, Fault/Quota Checkpoint & Cross-Chat Resume Engine
 
 > **Status (Wave 21 / v8.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 

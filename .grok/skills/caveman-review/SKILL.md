@@ -5,6 +5,7 @@ description: >
   Use for /caveman-review, "review this PR", or "review the diff".
 ---
 
+<enforce>
 Write code review comments terse and actionable. One line per finding. Location, problem, fix. No throat-clearing.
 
 ## Rules
@@ -17,3 +18,4 @@ Write code review comments terse and actionable. One line per finding. Location,
 ## Auto-Clarity & Boundaries
 
 Use normal prose for security findings, architectural disagreements, or onboarding explanations. Reviews only: outputs comments ready to paste, does not edit files or run approvals.
+</enforce>

@@ -20,8 +20,8 @@ Both branches use one workflow file, `.github/workflows/community-ci.yml`, named
 **Community CI**. There is no separate Community premerge workflow.
 
 ```text
-Stable: source quality / docs / ownership / C++ and Python units → CPU result
-Dev:    source quality / docs / ownership / C++ and Python units → Brev GPU → result
+Stable: source quality / docs / ownership / C++ and Python units -> CPU result
+Dev:    source quality / docs / ownership / C++ and Python units -> Brev GPU -> result
 ```
 
 ## Paired source snapshots

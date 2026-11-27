@@ -20,7 +20,7 @@ exact structure and headings. Fill every section:
 
 ### `### Motivation & Context`
 Explain *why* the change is needed: the problem it solves and the scenario it
-contributes to. Describe the net change relative to `main` — this is implied, so
+contributes to. Describe the net change relative to `main` --- this is implied, so
 do **not** spell out "vs main" explicitly.
 
 ### `### Description & Review Guide`
@@ -28,7 +28,7 @@ Describe the changes, the overall approach, and the design. Answer the three
 prompts:
 - **What are the major changes?**
 - **What is the impact of these changes?**
-- **What do you want reviewers to focus on?** — This item is for **human
+- **What do you want reviewers to focus on?** --- This item is for **human
   reviewers only**. Automated/AI reviewers must ignore it and review the entire
   change rather than narrowing scope to it.
 
@@ -81,7 +81,7 @@ breaking-change item:
 - Leave **"This is not a breaking change."** checked for the common case.
 - If the change **is** breaking, add the `breaking change` label **or** put
   `[BREAKING]` in the title prefix, before or after a language prefix such as
-  `Python:` or `.NET:` — workflows keep the label and the title prefix in sync
+  `Python:` or `.NET:` --- workflows keep the label and the title prefix in sync
   automatically (see `.github/workflows/label-title-prefix.yml` and
   `.github/workflows/label-pr.yml`).
 
@@ -119,7 +119,7 @@ gh pr create --repo microsoft/agent-framework --base main \
 
 ## 2. Handling review comments
 
-When a PR receives review comments, follow this sequence — **do not start editing
+When a PR receives review comments, follow this sequence --- **do not start editing
 code before the user has reviewed the plan**:
 
 1. **Review the comments.** Read every review comment and thread on the PR,

@@ -103,11 +103,11 @@ this.telemetryService.publicLogError2<ErrorEvent, ErrorClassification>('myFeatur
 - Common patterns: `success/hasError/isEnabled`, `sessionId/extensionId`, `type/kind/source`
 
 **Critical Don'ts:**
-- ❌ No PII (usernames, emails, file paths, content)
-- ❌ Missing `owner` field in classification (infer from branch name or ask user)
-- ❌ Vague comments ("user data" → "selected language identifier")
-- ❌ Wrong classification
-- ❌ Missing `isMeasurement: true` on any emitted number or boolean, including numeric versions and boolean flags
+- [FAIL] No PII (usernames, emails, file paths, content)
+- [FAIL] Missing `owner` field in classification (infer from branch name or ask user)
+- [FAIL] Vague comments ("user data" -> "selected language identifier")
+- [FAIL] Wrong classification
+- [FAIL] Missing `isMeasurement: true` on any emitted number or boolean, including numeric versions and boolean flags
 
 **Privacy Requirements:**
 - Minimize data collection to essential insights only

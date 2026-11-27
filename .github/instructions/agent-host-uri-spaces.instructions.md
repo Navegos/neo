@@ -15,7 +15,7 @@ The owning connection's `resourceUris` mapper (`IAgentHostResourceUriMapper`) is
 | Connection | Client space | Host space |
 |---|---|---|
 | Local agent host | `file:///p` | `file:///p` (identity) |
-| Remote agent host | `vscode-agent-host://<connection authority>/p?_ah=…` | the wrapped URI, e.g. `file:///p` |
+| Remote agent host | `vscode-agent-host://<connection authority>/p?_ah=...` | the wrapped URI, e.g. `file:///p` |
 | Editor remote (SSH, WSL, containers, tunnels) | `vscode-remote://<remote authority>/p` | `file:///p` |
 
 ## Rules

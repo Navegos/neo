@@ -1,4 +1,4 @@
-# ArchInfo — System Architecture & Implementation Plan
+# ArchInfo --- System Architecture & Implementation Plan
 
 High-performance CPU feature detection, microarchitecture mapping, and compiler Instruction Set Architecture (ISA) configuration tool in Rust.
 

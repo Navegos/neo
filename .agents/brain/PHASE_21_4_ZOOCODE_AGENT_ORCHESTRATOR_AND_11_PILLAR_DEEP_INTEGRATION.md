@@ -1,4 +1,4 @@
-# Phase 21.4 â€” `Zoo-Code`, `agent-orchestrator` & 11-Pillar AI/ML Deep Integration (`495` Mandated Vaults)
+# Phase 21.4 --- `Zoo-Code`, `agent-orchestrator` & 11-Pillar AI/ML Deep Integration (`495` Mandated Vaults)
 
 > **Status (Wave 21 / v8.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 

@@ -1,6 +1,6 @@
 ---
 name: linting-and-formatting
-description: Code style and quality rules for NeMo AutoModel — ruff configuration, naming conventions, type hints, docstrings, copyright headers, and the code review checklist.
+description: Code style and quality rules for NeMo AutoModel --- ruff configuration, naming conventions, type hints, docstrings, copyright headers, and the code review checklist.
 when_to_use: Writing or reviewing code for style compliance, fixing ruff errors, understanding type hint or docstring conventions, copyright header questions, or pre-commit failures.
 ---
 
@@ -40,14 +40,14 @@ ruff check --fix nemo_automodel/components/models/llama/
 
 | Rule | ID | Description |
 |---|---|---|
-| Line length | — | 120 characters (formatter) |
-| Quote style | — | Double quotes |
+| Line length | --- | 120 characters (formatter) |
+| Quote style | --- | Double quotes |
 | Unused imports | F401 | Auto-removed by `--fix` (ignored in `__init__.py`) |
 | Unused variables | F841 | Auto-removed by `--fix` |
 | Undefined names | F821 | Error |
 | f-string without placeholders | F541 | Error |
 | Import sorting | I | isort-compatible ordering, auto-fixed |
-| Docstring convention | D101/D103 | Google style (currently ignored — selected then suppressed) |
+| Docstring convention | D101/D103 | Google style (currently ignored --- selected then suppressed) |
 | No pickle | S301/S403 | Security: forbids `pickle.load` |
 | Restricted PyTorch load | B614 | Requires explicit `weights_only=True` for `torch.load` |
 | Ambiguous variable names | E741 | Error (e.g., `l`, `O`, `I`) |
@@ -109,7 +109,7 @@ modify it. Use the current year (2026).
 - **Optional dependencies** must be guarded with `safe_import()` from
   `nemo_automodel.shared.import_utils`. Never let an optional import crash
   module loading.
-- **Components must not import each other** — enforced by `import-linter`
+- **Components must not import each other** --- enforced by `import-linter`
   (see `pyproject.toml`).
 
 ## Code Review Checklist
@@ -118,7 +118,7 @@ modify it. Use the current year (2026).
 2. **Type hints** on all public functions and methods
 3. **Docstrings** on public classes and functions (Google style)
 4. **Double quotes** for strings
-5. **No bare `print()`** — use `logging.getLogger(__name__)`
+5. **No bare `print()`** --- use `logging.getLogger(__name__)`
 6. **No commented-out code** without explanation
 7. **Optional imports** guarded with `safe_import()`
 8. **No cross-component imports** between `components/` subdirectories

@@ -3,94 +3,94 @@
 
 ## 1. Exact Two-Repository & Module Architecture
 
-### Repository 1: `Navegos/neo` (`https://github.com/Navegos/neo.git` — Rust Workspace)
+### Repository 1: `Navegos/neo` (`https://github.com/Navegos/neo.git` --- Rust Workspace)
 Respects `neo/crates/toksi/src/db/` strictly as the internal SQLite layer (`~/.toksi/toksi.db`) and leverages existing `keyring/`, `codegraph/`, `env_injector/`, `gateway/`, `telemetry/`, `tools/`, `commands/`, `agents/`, `core/`, and `rules/` modules without rewriting core runtime loops.
 
 ```text
 neo/                                                    # [https://github.com/Navegos/neo.git](https://github.com/Navegos/neo.git)
-├── Cargo.toml
-├── crates/
-│   └── toksi/
-│       └── src/
-│           ├── agents/                                 # Existing agent runtime + SARIF provenance hooks
-│           ├── aimemory/                               # Existing AI memory
-│           ├── codegraph/                              # Existing 38 Tree-sitter parsers (reused by security::polyglot)
-│           ├── commands/                               # Existing CLI/slash commands + pre-execution CommandGuard (guard.rs)
-│           ├── contextmode/                            # Existing context pruning
-│           ├── core/                                   # Existing core primitives & traits
-│           ├── dashboard/                              # Existing web UI dashboard
-│           ├── db/                                     # Strictly internal SQLite (~/.toksi/toksi.db) + blind signature/embargo tables
-│           ├── env_injector/                           # Existing env sanitization & secret injection
-│           ├── gateway/                                # Existing LLM/MCP/A2A/HTTP gateway
-│           ├── headroom/                               # Existing headroom optimizer
-│           ├── icm/                                    # Existing ICM module
-│           ├── keyring/                                # Existing OS keyring (used for GitHub PR, NVD, DefectDojo, TAXII/MISP tokens)
-│           ├── projectmem/                             # Existing project memory
-│           ├── rtk/                                    # Existing RTK module
-│           ├── rules/                                  # Existing rules + ATR/.scm/blind-OSV loaders
-│           ├── telemetry/                              # Existing telemetry & audit events
-│           ├── tools/                                  # Existing agent tools (guarded by CommandGuard)
-│           ├── tui/                                    # Existing 60 FPS Ratatui TUI
-│           ├── util/                                   # Existing forward-slash path & utility helpers
-│           ├── security/                               # NEW zero-plaintext detection, compilation, search & export engine:
-│           │   ├── mod.rs
-│           │   ├── schema.rs                           # OSV 1.7.4, CVE 5.1, STIX 2.1, SARIF 2.1.0, BlindSignatures, Taxonomy
-│           │   ├── polyglot.rs                         # Bridges codegraph's 38 Tree-sitter grammars + ignore AST/n-gram extractor
-│           │   ├── blind_compiler.rs                   # compile-blind gateway (raw -> BLAKE3 + sparse::DFA before any disk/SQLite I/O)
-│           │   ├── scanner.rs                          # Keyed BLAKE3 + zero-copy sparse::DFA + ATR/.scm scanner -> SARIF 2.1.0
-│           │   ├── advisory_client.rs                  # Navegos/advisory O(1) lookup + ~/.toksi/feed/ cache + DisclosureGate + 12-DB dedup
-│           │   └── secure_export.rs                    # Hardened TLS 1.3 (rustls + secrecy + keyring) exporter (GitHub SARIF, DefectDojo, TAXII, MISP)
-│           ├── validator/                              # NEW native validation, FP pruning, 3-tree sharding & Git/PR driver:
-│           │   ├── mod.rs
-│           │   ├── validate.rs                         # OSV 1.7.4, CVE 5.1, STIX 2.1, SARIF 2.1.0 & zero-plaintext verifier
-│           │   ├── fp_pruner.rs                        # False-positive scrubber against corpus/benign/
-│           │   ├── shard_builder.rs                    # Symmetrical 3-tree builder (advisories/, domains/, lookup/ + paired index.json/index.html)
-│           │   └── git_pr_driver.rs                    # Clones/updates Navegos/advisory at ~/.toksi/repos/advisory/, commits, pushes & opens PR via REST API
-│           ├── lib.rs
-│           └── main.rs                                 # Wires `toksi compile-blind` and `toksi advisory {search,validate,prune-fp,build-shards,publish-pr}`
-├── agents/                                             # Audited SKILL.md bundles, AGENTS.md default-deny guardrails, command templates
-└── rules/
-    ├── agent-threats/                                  # ATR (.yaml) detection rules
-    └── polyglot-code/                                  # Tree-sitter S-expression queries (.scm) mapped to CWEs
+|-- Cargo.toml
+|-- crates/
+|   `-- toksi/
+|       `-- src/
+|           |-- agents/                                 # Existing agent runtime + SARIF provenance hooks
+|           |-- aimemory/                               # Existing AI memory
+|           |-- codegraph/                              # Existing 38 Tree-sitter parsers (reused by security::polyglot)
+|           |-- commands/                               # Existing CLI/slash commands + pre-execution CommandGuard (guard.rs)
+|           |-- contextmode/                            # Existing context pruning
+|           |-- core/                                   # Existing core primitives & traits
+|           |-- dashboard/                              # Existing web UI dashboard
+|           |-- db/                                     # Strictly internal SQLite (~/.toksi/toksi.db) + blind signature/embargo tables
+|           |-- env_injector/                           # Existing env sanitization & secret injection
+|           |-- gateway/                                # Existing LLM/MCP/A2A/HTTP gateway
+|           |-- headroom/                               # Existing headroom optimizer
+|           |-- icm/                                    # Existing ICM module
+|           |-- keyring/                                # Existing OS keyring (used for GitHub PR, NVD, DefectDojo, TAXII/MISP tokens)
+|           |-- projectmem/                             # Existing project memory
+|           |-- rtk/                                    # Existing RTK module
+|           |-- rules/                                  # Existing rules + ATR/.scm/blind-OSV loaders
+|           |-- telemetry/                              # Existing telemetry & audit events
+|           |-- tools/                                  # Existing agent tools (guarded by CommandGuard)
+|           |-- tui/                                    # Existing 60 FPS Ratatui TUI
+|           |-- util/                                   # Existing forward-slash path & utility helpers
+|           |-- security/                               # NEW zero-plaintext detection, compilation, search & export engine:
+|           |   |-- mod.rs
+|           |   |-- schema.rs                           # OSV 1.7.4, CVE 5.1, STIX 2.1, SARIF 2.1.0, BlindSignatures, Taxonomy
+|           |   |-- polyglot.rs                         # Bridges codegraph's 38 Tree-sitter grammars + ignore AST/n-gram extractor
+|           |   |-- blind_compiler.rs                   # compile-blind gateway (raw -> BLAKE3 + sparse::DFA before any disk/SQLite I/O)
+|           |   |-- scanner.rs                          # Keyed BLAKE3 + zero-copy sparse::DFA + ATR/.scm scanner -> SARIF 2.1.0
+|           |   |-- advisory_client.rs                  # Navegos/advisory O(1) lookup + ~/.toksi/feed/ cache + DisclosureGate + 12-DB dedup
+|           |   `-- secure_export.rs                    # Hardened TLS 1.3 (rustls + secrecy + keyring) exporter (GitHub SARIF, DefectDojo, TAXII, MISP)
+|           |-- validator/                              # NEW native validation, FP pruning, 3-tree sharding & Git/PR driver:
+|           |   |-- mod.rs
+|           |   |-- validate.rs                         # OSV 1.7.4, CVE 5.1, STIX 2.1, SARIF 2.1.0 & zero-plaintext verifier
+|           |   |-- fp_pruner.rs                        # False-positive scrubber against corpus/benign/
+|           |   |-- shard_builder.rs                    # Symmetrical 3-tree builder (advisories/, domains/, lookup/ + paired index.json/index.html)
+|           |   `-- git_pr_driver.rs                    # Clones/updates Navegos/advisory at ~/.toksi/repos/advisory/, commits, pushes & opens PR via REST API
+|           |-- lib.rs
+|           `-- main.rs                                 # Wires `toksi compile-blind` and `toksi advisory {search,validate,prune-fp,build-shards,publish-pr}`
+|-- agents/                                             # Audited SKILL.md bundles, AGENTS.md default-deny guardrails, command templates
+`-- rules/
+    |-- agent-threats/                                  # ATR (.yaml) detection rules
+    `-- polyglot-code/                                  # Tree-sitter S-expression queries (.scm) mapped to CWEs
 	
 
-Repository 2: Navegos/advisory (https://github.com/Navegos/advisory.git → https://navegos.github.io/advisory/)
+Repository 2: Navegos/advisory (https://github.com/Navegos/advisory.git -> https://navegos.github.io/advisory/)
 
 advisory/                                               # Zero-Rust, zero-plaintext static GitHub Pages repository
-├── .nojekyll                                           # Disables Jekyll so nested folders & raw JSON serve cleanly
-├── index.html                                          # Root zero-dependency static browser explorer UI
-├── index.json                                          # Tiny root router manifest (~1 KB, permanently bounded)
-├── taxonomy.json                                       # Canonical 41+ language, script, web/API, CI/CD, shell & config registry
-├── CONTRIBUTING.md                                     # Schema & zero-plaintext contribution rules
-├── corpus/
-│   └── benign/                                         # Clean code & command fixtures for false-positive pruning
-│       ├── _global/
-│       └── <taxonomy>/
-├── advisories/                                         # TREE 1: Pure OSV 1.7.4 & CVE 5.1 JSONs (zero raw exploits/binaries)
-│   ├── index.html + index.json
-│   └── <taxonomy>/                                     # e.g., rust/crate, shell/bash, ci-cd/github-actions, javascript/script/mjs
-│       ├── index.html + index.json
-│       └── <year>/                                     # e.g., 2026
-│           ├── index.html + index.json
-│           └── <ID>/                                   # e.g., TOKSI-2026-0001
-│               ├── index.html + index.json
-│               └── <ID>.json
-├── domains/                                            # TREE 2: Symmetrical paginated manifests (<= 500 compact rows/page)
-│   ├── index.html + index.json
-│   └── <taxonomy>/
-│       ├── index.html + index.json
-│       └── <year>/
-│           ├── index.html + index.json
-│           └── page-001.json
-├── lookup/                                             # TREE 3: Symmetrical O(1) prefix-sharded ID maps
-│   ├── index.html + index.json
-│   ├── _global/
-│   │   └── {cve,vuln,ghsa,toksi}/<year>/<prefix>.json
-│   └── <taxonomy>/
-│       ├── index.html + index.json
-│       └── {cve,vuln,ghsa,toksi}/<year>/<prefix>.json
-├── threat-intel/                                       # Open STIX 2.1 JSON bundles (with x_blind_signatures)
-└── findings/                                           # Published sanitized SARIF v2.1.0 baseline reports
+|-- .nojekyll                                           # Disables Jekyll so nested folders & raw JSON serve cleanly
+|-- index.html                                          # Root zero-dependency static browser explorer UI
+|-- index.json                                          # Tiny root router manifest (~1 KB, permanently bounded)
+|-- taxonomy.json                                       # Canonical 41+ language, script, web/API, CI/CD, shell & config registry
+|-- CONTRIBUTING.md                                     # Schema & zero-plaintext contribution rules
+|-- corpus/
+|   `-- benign/                                         # Clean code & command fixtures for false-positive pruning
+|       |-- _global/
+|       `-- <taxonomy>/
+|-- advisories/                                         # TREE 1: Pure OSV 1.7.4 & CVE 5.1 JSONs (zero raw exploits/binaries)
+|   |-- index.html + index.json
+|   `-- <taxonomy>/                                     # e.g., rust/crate, shell/bash, ci-cd/github-actions, javascript/script/mjs
+|       |-- index.html + index.json
+|       `-- <year>/                                     # e.g., 2026
+|           |-- index.html + index.json
+|           `-- <ID>/                                   # e.g., TOKSI-2026-0001
+|               |-- index.html + index.json
+|               `-- <ID>.json
+|-- domains/                                            # TREE 2: Symmetrical paginated manifests (<= 500 compact rows/page)
+|   |-- index.html + index.json
+|   `-- <taxonomy>/
+|       |-- index.html + index.json
+|       `-- <year>/
+|           |-- index.html + index.json
+|           `-- page-001.json
+|-- lookup/                                             # TREE 3: Symmetrical O(1) prefix-sharded ID maps
+|   |-- index.html + index.json
+|   |-- _global/
+|   |   `-- {cve,vuln,ghsa,toksi}/<year>/<prefix>.json
+|   `-- <taxonomy>/
+|       |-- index.html + index.json
+|       `-- {cve,vuln,ghsa,toksi}/<year>/<prefix>.json
+|-- threat-intel/                                       # Open STIX 2.1 JSON bundles (with x_blind_signatures)
+`-- findings/                                           # Published sanitized SARIF v2.1.0 baseline reports
 
 
 # Objective: Embedded Zero-Plaintext Blind Signature Engine (`crates/toksi/src/security/`) & Native Git/PR Validator (`crates/toksi/src/validator/`) for `Navegos/neo` + `Navegos/advisory`
@@ -102,7 +102,7 @@ Extend the existing Rust crate at `crates/toksi/` in `[https://github.com/Navego
 1. **Zero-Plaintext Blind Signatures (`BLAKE3` + Serialized `sparse::DFA`):**
    - **Zero-Plaintext Rule:** Never persist raw exploit strings, PoC code, malicious payloads, SQLite malware blobs, or human-readable regexes on disk, in SQLite (`src/db/`), in Git commits, in SARIF reports, or in RAM during scanning.
    - **Exact & Tokenized Command/AST Matching:** Normalize input commands and AST token windows (lowercase + whitespace collapse + sliding n-grams `3, 4, 5`) and match against one-way keyed `BLAKE3` digests (`blake3::keyed_hash`).
-   - **Wildcard & Pattern Matching:** Compile regex rules offline via `regex_automata::dfa::dense::Builder` → `to_sparse()` → `to_bytes_little_endian()`, Base64-encode into JSON, and execute zero-copy state-machine transitions (`sparse::DFA::from_bytes`) at runtime without plaintext regexes ever existing on disk or in RAM.
+   - **Wildcard & Pattern Matching:** Compile regex rules offline via `regex_automata::dfa::dense::Builder` -> `to_sparse()` -> `to_bytes_little_endian()`, Base64-encode into JSON, and execute zero-copy state-machine transitions (`sparse::DFA::from_bytes`) at runtime without plaintext regexes ever existing on disk or in RAM.
    - **Schema-Compliant Embedding:**
      - **OSV 1.7.4:** `database_specific.blind_signatures`
      - **CVE JSON 5.1:** `containers.adp[].x_blind_signatures`
@@ -123,7 +123,7 @@ Extend the existing Rust crate at `crates/toksi/` in `[https://github.com/Navego
 - **`schema.rs`:** `serde` models for OSV 1.7.4, CVE JSON 5.1, STIX 2.1, SARIF 2.1.0 (`serde-sarif`), `SKILL.md`, `AGENTS.md`, ATR YAML, `taxonomy.json`, `BlindSignatures`, `TargetKind` (`package`, `source_repo`, `agent`, `skill`, `rule`, `command`, `script`, `code_snippet`), `SourceOrigin` (`github_repo`, `external_git_repo`, `package_registry`, `distributed`), and `DistributionChannel` (`oci_registry`, `release_asset`, `archive_bundle`, `raw_url`, `local_dir`, `single_file`).
 - **`polyglot.rs`:** Reuses `crates/toksi/src/codegraph/`'s existing 38 `tree-sitter` parsers + `ignore` walker across all 41+ taxonomies to extract AST sinks, lockfile dependencies, and normalized sliding token windows.
 - **`blind_compiler.rs` (`compile-blind`):** Sole serialization gateway converting raw patterns/tokens into keyed `BLAKE3` digests and little-endian `sparse::DFA` Base64 buffers and stripping all plaintext before any write to SQLite (`src/db/`), `~/.toksi/`, or `Navegos/advisory`.
-- **`scanner.rs`:** Evaluates keyed `BLAKE3` n-grams, zero-copy `sparse::DFA::from_bytes` state machines, ATR YAML rules, and `.scm` queries → outputs sanitized SARIF 2.1.0 logs.
+- **`scanner.rs`:** Evaluates keyed `BLAKE3` n-grams, zero-copy `sparse::DFA::from_bytes` state machines, ATR YAML rules, and `.scm` queries -> outputs sanitized SARIF 2.1.0 logs.
 - **`advisory_client.rs`:** Searches `[https://navegos.github.io/advisory/](https://navegos.github.io/advisory/)` in O(1) via `lookup/` prefix shards and `domains/` paginated manifests (cached in `~/.toksi/feed/`), enforcing `DisclosureGate` and `UpstreamDeduplicator` prior to publishing.
 - **`secure_export.rs`:** Hardened TLS 1.3 (`rustls` + `secrecy`, pulling credentials from `crates/toksi/src/keyring/` and redacting paths via `env_injector`/`util`) for GitHub Code Scanning (gzip+base64 SARIF), DefectDojo, TAXII 2.1/OpenCTI, and MISP.
 
@@ -131,7 +131,7 @@ Extend the existing Rust crate at `crates/toksi/` in `[https://github.com/Navego
 - **`validate.rs`:** Validates OSV 1.7.4, CVE 5.1, STIX 2.1, SARIF 2.1.0, ATR, `SKILL.md`, `AGENTS.md`, and enforces zero-plaintext hygiene.
 - **`fp_pruner.rs`:** Evaluates `BLAKE3` n-grams and `sparse::DFA` automata against `corpus/benign/`, surgically strips false-positive entries, and deletes or marks `withdrawn` empty advisories.
 - **`shard_builder.rs`:** Generates the symmetrical 3-tree GitHub Pages layout (`advisories/`, `domains/`, `lookup/`) with paired `index.json` + `index.html` in every directory (max 500 compact rows per `page-NNN.json`).
-- **`git_pr_driver.rs`:** Manages a local working clone of `[https://github.com/Navegos/advisory.git](https://github.com/Navegos/advisory.git)` at `~/.toksi/repos/advisory/` or a dir configured by the user, runs `validate` → `prune-fp` → `build-shards` atomically on a feature branch, commits, pushes via Git, and opens a Pull Request via GitHub REST API (`POST /repos/Navegos/advisory/pulls`) using `crates/toksi/src/keyring/` tokens so GitHub Pages serves directly from `main` without GitHub Actions.
+- **`git_pr_driver.rs`:** Manages a local working clone of `[https://github.com/Navegos/advisory.git](https://github.com/Navegos/advisory.git)` at `~/.toksi/repos/advisory/` or a dir configured by the user, runs `validate` -> `prune-fp` -> `build-shards` atomically on a feature branch, commits, pushes via Git, and opens a Pull Request via GitHub REST API (`POST /repos/Navegos/advisory/pulls`) using `crates/toksi/src/keyring/` tokens so GitHub Pages serves directly from `main` without GitHub Actions.
 
 ### 3. Integration Hooks into Existing `crates/toksi/src/` Modules
 - **`db/`:** Keep `src/db/` strictly for internal SQLite (`~/.toksi/toksi.db`); add non-breaking tables/mappers storing only compiled `BlindSignatures`, TLP embargo state, and scan provenance (never raw exploit code).

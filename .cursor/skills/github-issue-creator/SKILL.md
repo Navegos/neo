@@ -33,7 +33,7 @@ Follow these steps to create a GitHub issue:
     - If using a YAML template (form), prepare values for each `id` defined in
       the template.
     - If using a Markdown template, follow its structure exactly.
-    - **Default Label**: Always include the `🔒 maintainer only` label unless the
+    - **Default Label**: Always include the `[LOCK] maintainer only` label unless the
       user explicitly requests otherwise.
 
 5.  **Create Issue**: Use the `gh` CLI to create the issue.
@@ -45,7 +45,7 @@ Follow these steps to create a GitHub issue:
     ```bash
     # 1. Write the drafted content to a temporary file
     # 2. Create the issue using the --body-file flag
-    gh issue create --title "Succinct title" --body-file <temp_file_path> --label "🔒 maintainer only"
+    gh issue create --title "Succinct title" --body-file <temp_file_path> --label "[LOCK] maintainer only"
     # 3. Remove the temporary file
     rm <temp_file_path>
     ```

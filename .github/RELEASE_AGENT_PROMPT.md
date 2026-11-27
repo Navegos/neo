@@ -25,7 +25,7 @@ gh release view --repo pytorch/pytorch --json tagName --jq '.tagName'
 gh release list --repo pytorch/pytorch --limit 5
 ```
 
-The release tag format is `v2.X.Y`. Extract the major.minor version for the `pytorch_release` parameter (e.g., `v2.10.0` → `release/2.10`).
+The release tag format is `v2.X.Y`. Extract the major.minor version for the `pytorch_release` parameter (e.g., `v2.10.0` -> `release/2.10`).
 
 ### Option 2: Check PyPI
 
@@ -59,7 +59,7 @@ Collect the following information from the user (or determine automatically wher
 
 ## Step 1: Analyze Commits for Release Notes
 
-### For Major Releases (e.g., 0.10.x → 0.11.0)
+### For Major Releases (e.g., 0.10.x -> 0.11.0)
 
 Get commits from the last major release:
 
@@ -69,7 +69,7 @@ git fetch --tags
 git log v0.10.0..HEAD --oneline --no-merges
 ```
 
-### For Minor Releases (e.g., 0.11.0 → 0.11.1)
+### For Minor Releases (e.g., 0.11.0 -> 0.11.1)
 
 Get commits from the last release:
 
@@ -81,9 +81,9 @@ git log v0.11.0..HEAD --oneline --no-merges
 
 When selecting PRs for a minor release, follow this decision flow:
 
-1. **If labeled `user-facing`** → **Exclude** (only for major releases)
-2. **If labeled `non-user-facing` or `Suitable for minor`** → **Include**
-3. **If neither label is present** → **Assess yourself** based on the changes
+1. **If labeled `user-facing`** -> **Exclude** (only for major releases)
+2. **If labeled `non-user-facing` or `Suitable for minor`** -> **Include**
+3. **If neither label is present** -> **Assess yourself** based on the changes
 
 Labels:
 - `user-facing` - API changes, new features, or public interface changes
@@ -325,7 +325,7 @@ The release workflow is triggered manually via workflow_dispatch (not automatica
 
 To trigger:
 
-1. Go to Actions → Release workflow
+1. Go to Actions -> Release workflow
 2. Click "Run workflow"
 3. Fill in:
    - `tag`: The version tag (e.g., `v0.11.0`)

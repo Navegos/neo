@@ -3,7 +3,7 @@ name: ci
 description:
   A specialized skill for Gemini CLI that provides high-performance, fail-fast
   monitoring of GitHub Actions workflows and automated local verification of CI
-  failures. It handles run discovery automatically—simply provide the branch name.
+  failures. It handles run discovery automatically---simply provide the branch name.
 ---
 
 # CI Replicate & Status
@@ -28,7 +28,7 @@ Use this as the primary path to monitor CI and **automatically** replicate
 failures locally for immediate triage and fixing.
 - **Behavior**: When this workflow is triggered, the agent will monitor the CI
   and **immediately and automatically execute** all suggested test or lint
-  commands (marked with 🚀) as soon as a failure is detected. 
+  commands (marked with [NEW]) as soon as a failure is detected. 
 - **Tool**: `node .gemini/skills/ci/scripts/ci.mjs [branch]`
 - **Discovery**: The script **automatically** finds the latest active or recent
   run for the branch. Do NOT manually search for run IDs.
@@ -44,7 +44,7 @@ any failures locally.
   unless a specific historical run is requested. Simply provide the branch name.
 - **Step 1 (Monitor)**: Execute the tool with the branch name.
 - **Step 2 (Extract)**: Extract suggested \`npm test\` or \`npm run lint\` commands
-  from the output (marked with 🚀).
+  from the output (marked with [NEW]).
 - **Step 3 (Reproduce)**: Execute those commands locally to confirm the failure.
 - **Behavior**: It will poll every 15 seconds. If it detects a failure, it will
   exit with a structured report and provide the exact commands to run locally.

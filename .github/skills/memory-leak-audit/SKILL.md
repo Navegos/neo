@@ -24,40 +24,40 @@ Work through each check in order. A single missed pattern can cause thousands of
 **Rule**: Never use raw `.onload`, `.onclick`, or `addEventListener()` directly. Always use `addDisposableListener()`.
 
 ```typescript
-// BAD — leaks a listener every call
+// BAD --- leaks a listener every call
 this.iconElement.onload = () => { ... };
 
-// GOOD — tracked and disposable
+// GOOD --- tracked and disposable
 this._register(addDisposableListener(this.iconElement, 'load', () => { ... }));
 ```
 
-**Validated by**: PR #280566 — Extension icon widget leaked 185 listeners after 37 toggles.
+**Validated by**: PR #280566 --- Extension icon widget leaked 185 listeners after 37 toggles.
 
 ### Step 2: One-Time Events
 
 **Rule**: Use `Event.once()` for events that should only fire once (lifecycle events, close events, first-change events).
 
 ```typescript
-// BAD — listener stays registered forever after first fire
+// BAD --- listener stays registered forever after first fire
 model.onDidDispose(() => store.dispose());
 
-// GOOD — auto-removes after first invocation
+// GOOD --- auto-removes after first invocation
 Event.once(model.onDidDispose)(() => store.dispose());
 ```
 
-**Validated by**: PRs #285657, #285661 — Terminal lifecycle hacks replaced with `Event.once()`.
+**Validated by**: PRs #285657, #285661 --- Terminal lifecycle hacks replaced with `Event.once()`.
 
 ### Step 3: Repeated Method Calls
 
 **Rule**: Objects created in methods called multiple times must NOT be registered to the class `this._register()`. Use `MutableDisposable` or return `IDisposable` to the caller.
 
 ```typescript
-// BAD — every call adds another listener to the class store
+// BAD --- every call adds another listener to the class store
 startSearch() {
     this._register(this.model.onResults(() => { ... }));
 }
 
-// GOOD — MutableDisposable ensures max 1 listener
+// GOOD --- MutableDisposable ensures max 1 listener
 private readonly _searchListener = this._register(new MutableDisposable());
 
 startSearch() {
@@ -65,7 +65,7 @@ startSearch() {
 }
 ```
 
-When the event should only fire once per method call, combine `Event.once()` with `MutableDisposable` — this auto-removes the listener after the first invocation while still guarding against repeated calls:
+When the event should only fire once per method call, combine `Event.once()` with `MutableDisposable` --- this auto-removes the listener after the first invocation while still guarding against repeated calls:
 
 ```typescript
 private readonly _searchListener = this._register(new MutableDisposable());
@@ -75,7 +75,7 @@ startSearch() {
 }
 ```
 
-**Validated by**: PR #283466 — Terminal find widget leaked 1 listener per search.
+**Validated by**: PR #283466 --- Terminal find widget leaked 1 listener per search.
 
 ### Step 4: Model-Tied DisposableStores
 
@@ -94,14 +94,14 @@ store.add(model.onDidChange(() => { ... }));
 **Rule**: When using factory methods that create pooled objects (lists, trees), disposables must be registered to the individual item, not the pool class.
 
 ```typescript
-// BAD — registers to pool, never cleaned per item
+// BAD --- registers to pool, never cleaned per item
 createItem() {
     const item = new Item();
     this._register(item.onEvent(() => { ... }));
     return item;
 }
 
-// GOOD — wrap with item-scoped disposal
+// GOOD --- wrap with item-scoped disposal
 createItem(): IDisposable & Item {
     const store = new DisposableStore();
     const item = new Item();
@@ -110,7 +110,7 @@ createItem(): IDisposable & Item {
 }
 ```
 
-**Validated by**: PR #290505 — Chat content parts CollapsibleListPool and TreePool leaked disposables.
+**Validated by**: PR #290505 --- Chat content parts CollapsibleListPool and TreePool leaked disposables.
 
 ### Step 6: Test Validation
 

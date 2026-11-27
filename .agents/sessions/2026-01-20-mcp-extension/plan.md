@@ -33,9 +33,9 @@ Create a pi extension that integrates MCPHub's `mh` CLI to provide Model Context
 
 ```
 pi/extensions/mcp/
-├── index.ts        # Main extension entry point
-├── client.ts       # MCP client wrapper for mh CLI
-└── types.ts        # TypeScript types for MCP data
+|-- index.ts        # Main extension entry point
+|-- client.ts       # MCP client wrapper for mh CLI
+`-- types.ts        # TypeScript types for MCP data
 ```
 
 The extension follows existing patterns:
@@ -115,18 +115,18 @@ class MCPClient {
 
 ### Manual Tests
 
-- Start pi with `~/.pi/agent/mcp.json` present → tools should appear in prompt
-- Start pi without config file → no MCP section in prompt
+- Start pi with `~/.pi/agent/mcp.json` present -> tools should appear in prompt
+- Start pi without config file -> no MCP section in prompt
 - Use mcp_inspect to get tool details
 - Use mcp_invoke to call an MCP tool
 - Use mcp_exec to run orchestration code
 
 ### Edge Cases
 
-- Config file missing → graceful skip, notify user
-- mh command not found → error notification
-- MCP server connection failure → handle and report
-- Invalid JSON parameters → return error to LLM
+- Config file missing -> graceful skip, notify user
+- mh command not found -> error notification
+- MCP server connection failure -> handle and report
+- Invalid JSON parameters -> return error to LLM
 
 ## Considerations
 
@@ -149,7 +149,7 @@ class MCPClient {
 
 ### Open Questions
 
-- [x] Should we support tool enable/disable like tools.ts? → No, keep simple for v1
+- [x] Should we support tool enable/disable like tools.ts? -> No, keep simple for v1
 
 ## Review Feedback
 

@@ -1,4 +1,4 @@
-# Phase 19.4 â€” Zero-Pollution Adapt-Only Repo Hygiene & `.agents/skills/` Cleanup
+# Phase 19.4 --- Zero-Pollution Adapt-Only Repo Hygiene & `.agents/skills/` Cleanup
 
 > **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
 
@@ -21,7 +21,7 @@ Execute Phase 19.4: Zero-Pollution Adapt-Only Repo Hygiene & `.agents/skills/` C
 Sources (inspect-vault/*): skills (<skills> Navegos/skills), advisory (<advisory> Navegos/advisory), skilldoctor, agentskills, skill-scanner, defenseclaw, upskill, agent-threat-rules, qdrant-skills, crewAIInc-skills, Essential-Hermes-Skills
 Targets:
   - <neo>/.agents/skills/ (922 unadapted external skill directories verified on disk)
-  - <neo>/agents/ (28 files) & <neo>/rules/ (24 files) â€” staged zero-bloat outside crates/toksi/
+  - <neo>/agents/ (28 files) & <neo>/rules/ (24 files) --- staged zero-bloat outside crates/toksi/
   - crates/toksi/src/rules/{skills_repo.rs,skill_validator.rs,skills_catalog.rs,cli.rs} (`toksi skills audit-neo`)
   - crates/toksi/src/commands/skills.rs
   - inspect-vault/skills (`Navegos/skills`) & inspect-vault/advisory (`Navegos/advisory`)
@@ -33,7 +33,7 @@ Requirements:
    - Audit every directory in `<neo>/.agents/skills/` (currently `922` unadapted directories from upstream tool packs) plus `<neo>` root/crate folders.
 2. Quarantine/Delete Unadapted Clutter & Adapt Strictly Required `<neo>` Skills:
    - Remove unadapted foreign framework skills not authored for `<neo>` / `toksi` (retaining only verified, adapted `<neo>` workspace skills such as `codegraph`, `ctxmode`, `projectmem`, `icm`, `aimemory`, `rtk`, `principles`, `caveman`, `ponytail`, `security`, etc.).
-   - Adapt retained/imported skills (`qdrant-skills`, `crewAIInc-skills`, `Essential-Hermes-Skills` â€” **explicitly quarantining/stripping offensive/unsafe patterns such as `reverse-skill` if non-compliant with `<enforce>`**), heal YAML frontmatter via `agentskills/skills-ref`, grade `>= 85/100` via `skilldoctor`, evaluate quality via `upskill`, wrap in `<enforce>...</enforce>`, and verify `CelVerdict::Allow` via `skill-scanner` + `defenseclaw` + ATR.
+   - Adapt retained/imported skills (`qdrant-skills`, `crewAIInc-skills`, `Essential-Hermes-Skills` --- **explicitly quarantining/stripping offensive/unsafe patterns such as `reverse-skill` if non-compliant with `<enforce>`**), heal YAML frontmatter via `agentskills/skills-ref`, grade `>= 85/100` via `skilldoctor`, evaluate quality via `upskill`, wrap in `<enforce>...</enforce>`, and verify `CelVerdict::Allow` via `skill-scanner` + `defenseclaw` + ATR.
 3. Enforce Zero Binary Bloat & Sync External Repositories:
    - Keep zero `.md`/`.yaml`/`.json` skills/rules embedded via `include_str!` inside `crates/toksi/`. Stage vetted assets in `<neo>/agents/` & `<neo>/rules/`, sync cleanly into `<skills>` (`inspect-vault/skills` -> `Navegos/skills`), and validate zero-plaintext shards in `<advisory>` (`inspect-vault/advisory` -> `Navegos/advisory`).
 4. Implement `toksi skills audit-neo` in `src/commands/skills.rs` / `src/rules/cli.rs` + continuous guard in `phase19_4_zero_pollution_hygiene_verification.rs` failing if unadapted foreign skill bloat or raw vault scripts exist in `<neo>`.

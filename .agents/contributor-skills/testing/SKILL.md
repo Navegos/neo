@@ -1,6 +1,6 @@
 ---
 name: testing
-description: Testing reference for NeMo AutoModel — unit and functional test layout, tier semantics (L0/L1/L2), running tests locally, adding or disabling tests, and pytest conventions.
+description: Testing reference for NeMo AutoModel --- unit and functional test layout, tier semantics (L0/L1/L2), running tests locally, adding or disabling tests, and pytest conventions.
 when_to_use: Adding, running, or disabling tests; debugging a test failure; choosing the right test tier; understanding L0 vs L1 vs L2; handling flaky tests; 'add a test', 'which tier', 'functional test layout'.
 ---
 
@@ -23,7 +23,7 @@ unless reproducing a CI failure.
 
 | Tier | Trigger | Blocking |
 |---|---|---|
-| L0 | Every PR | Yes — PR cannot merge if L0 fails |
+| L0 | Every PR | Yes --- PR cannot merge if L0 fails |
 | L1 | PRs with `needs-more-tests` label, scheduled | Yes |
 | L2 | Scheduled only | Yes (when triggered) |
 
@@ -71,7 +71,7 @@ if not hasattr(config_obj, key):
 setattr(config_obj, key, value)
 ```
 
-Setting a non-existent attribute silently creates a phantom field — the test
+Setting a non-existent attribute silently creates a phantom field --- the test
 passes but the recipe fails for a real user.
 
 ## Adding a Functional Test

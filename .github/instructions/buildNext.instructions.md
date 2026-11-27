@@ -33,8 +33,8 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
 
 - **[index.ts](index.ts)** - Main build orchestrator
   - `build-fast` command: Persistent non-watch incremental development build
-  - `transpile` command: Fast TS → JS using `esbuild.transform()`
-  - `bundle` command: TS → bundled JS using `esbuild.build()`
+  - `transpile` command: Fast TS -> JS using `esbuild.transform()`
+  - `bundle` command: TS -> bundled JS using `esbuild.build()`
 - **[build-fast.ts](../../build/next/build-fast.ts)** - Git change discovery, persistent state, lane planning, and orchestration
 - **[transpile.ts](../../build/next/transpile.ts)** - Shared full/watch/incremental transpile and copy operations
 - **[resources.ts](../../build/next/resources.ts)** - Curated production resource selection and copied JavaScript minification
@@ -56,8 +56,8 @@ grep -l "serverLicense" out-vscode-reh-web-test/vs/code/browser/workbench/workbe
 ### Gulp Integration and Retained Build Tooling
 
 In [build/gulpfile.vscode.ts](../../build/gulpfile.vscode.ts), the `core-ci` task wires up these helpers (defined in [build/lib/esbuild.ts](../../build/lib/esbuild.ts)):
-- `runEsbuildTranspile()` → transpile command
-- `runEsbuildBundle()` → bundle command
+- `runEsbuildTranspile()` -> transpile command
+- `runEsbuildBundle()` -> bundle command
 
 Desktop, server, server-web, and standalone web packaging use the same `runEsbuildBundle()` helper. Minified bundles enable `--minify --mangle-privates --nls`. Local server and web builds generate API proposal names and the shared build date explicitly instead of compiling an intermediate production tree.
 
@@ -125,8 +125,8 @@ The `[svg]` build log reports actual input/output byte counts. These are uncompr
 2. `productService.serverLicense` is empty/undefined
 3. Browser's `SignService.vsda()` can't decrypt vsda WASM (needs serverLicense as key)
 4. Browser's `sign()` returns original challenge instead of signed value
-5. Server validates signature → fails
-6. Server is in built mode (no `VSCODE_DEV`) → rejects connection
+5. Server validates signature -> fails
+6. Server is in built mode (no `VSCODE_DEV`) -> rejects connection
 
 **Fix:** The `fileContentMapperPlugin` now runs during `onLoad`, replacing placeholders before esbuild strips them.
 
@@ -167,12 +167,12 @@ Desktop, server, and server-web packaging compute `nlsMetadataHash` from the com
 
 **Problem:** The new build used curated, specific resource pattern lists (e.g., `desktopResourcePatterns`) for **both** transpile/dev and production/bundle builds. Team members kept discovering missing resources because every new non-TS file in `src/` required manually adding its pattern.
 
-**Root cause:** The old gulp build uses `gulp.src('src/**')` for dev/transpile — a catch-all glob that streams **every file** in `src/`. Non-TS files bypass the compiler via `tsFilter` + `tsFilter.restore` and land in `out/` untouched. This is inherently complete. The old build only uses curated resource lists for **production packaging** (`vscodeResourceIncludes`, `serverResourceIncludes` in the gulpfiles).
+**Root cause:** The old gulp build uses `gulp.src('src/**')` for dev/transpile --- a catch-all glob that streams **every file** in `src/`. Non-TS files bypass the compiler via `tsFilter` + `tsFilter.restore` and land in `out/` untouched. This is inherently complete. The old build only uses curated resource lists for **production packaging** (`vscodeResourceIncludes`, `serverResourceIncludes` in the gulpfiles).
 
 **Fix:**
 - **Transpile/dev path** (`transpile` command, `--watch` mode): Now uses `copyAllNonTsFiles()` which copies ALL non-TS files from `src/` to the output, matching old `gulp.src('src/**')` behavior. No curated patterns needed.
 - **Bundle/production path** (`bundle` command): Continues using `copyResources()` with curated per-target patterns, matching old `vscodeResourceIncludes` etc.
-- Removed `devOnlyResourcePatterns` and `testFixturePatterns` — no longer needed since the broad copy handles all dev resources.
+- Removed `devOnlyResourcePatterns` and `testFixturePatterns` --- no longer needed since the broad copy handles all dev resources.
 - Watch mode incremental copy now accepts **any** non-`.ts` file change (removed the `copyExtensions` allowlist).
 
 **Lesson:** Dev builds should copy everything (completeness matters); production builds should be selective (size matters). Don't mix the two strategies.
@@ -247,7 +247,7 @@ npm run gulp vscode-reh-web-darwin-arm64-min
 
 ---
 
-## Historical Build Comparison: OLD (gulp-tsb) vs NEW (esbuild) — Desktop Build
+## Historical Build Comparison: OLD (gulp-tsb) vs NEW (esbuild) --- Desktop Build
 
 The following measurements and action items describe the initial migration, not the current production build.
 
@@ -256,7 +256,7 @@ The following measurements and action items describe the initial migration, not 
 | Metric | OLD | NEW | Delta |
 |--------|-----|-----|-------|
 | Total files in `out/` | 3993 | 4301 | +309 extra, 1 missing |
-| Total size of `out/` | 25.8 MB | 64.6 MB | +38.8 MB (2.5×) |
+| Total size of `out/` | 25.8 MB | 64.6 MB | +38.8 MB (2.5x) |
 | `workbench.desktop.main.js` | 13.0 MB | 15.5 MB | +2.5 MB |
 
 ### 1 Missing File (in OLD, not in NEW)
@@ -265,21 +265,21 @@ The following measurements and action items describe the initial migration, not 
 |------|-------------|-----|
 | `out/vs/platform/browserView/electron-browser/preload-browserView.js` | Not listed in `desktopStandaloneFiles` in index.ts. Only `preload.ts` and `preload-aux.ts` are compiled as standalone files. | **Add** `'vs/platform/browserView/electron-browser/preload-browserView.ts'` to the `desktopStandaloneFiles` array in `index.ts`. |
 
-### 309 Extra Files (in NEW, not in OLD) — Breakdown
+### 309 Extra Files (in NEW, not in OLD) --- Breakdown
 
 | Category | Count | Explanation |
 |----------|-------|-------------|
 | **CSS files** | 291 | `copyCssFiles()` copies ALL `.css` from `src/` to the output. The old bundler inlines CSS into the main `.css` bundle (e.g., `workbench.desktop.main.css`) and never ships individual CSS files. These individual files ARE needed at runtime because the new ESM system uses `import './foo.css'` resolved by an import map. |
-| **Vendor JS files** | 3 | `dompurify.js`, `marked.js`, `semver.js` — listed in `commonResourcePatterns`. The old bundler inlines these into the main bundle. The new system keeps them as separate files because they're plain JS (not TS). They're needed. |
-| **Web workbench bundle** | 1 | `vs/code/browser/workbench/workbench.js` (15.4 MB). This is the web workbench entry point bundle. It should NOT be in a desktop build — the old build explicitly excludes `out-build/vs/code/browser/**`. The `desktopResourcePatterns` in index.ts includes `vs/code/browser/workbench/*.html` and `callback.html` which is correct, but the actual bundle gets written by the esbuild desktop bundle step because the desktop entry points include web entry points. |
+| **Vendor JS files** | 3 | `dompurify.js`, `marked.js`, `semver.js` --- listed in `commonResourcePatterns`. The old bundler inlines these into the main bundle. The new system keeps them as separate files because they're plain JS (not TS). They're needed. |
+| **Web workbench bundle** | 1 | `vs/code/browser/workbench/workbench.js` (15.4 MB). This is the web workbench entry point bundle. It should NOT be in a desktop build --- the old build explicitly excludes `out-build/vs/code/browser/**`. The `desktopResourcePatterns` in index.ts includes `vs/code/browser/workbench/*.html` and `callback.html` which is correct, but the actual bundle gets written by the esbuild desktop bundle step because the desktop entry points include web entry points. |
 | **Web workbench internal** | 1 | `vs/workbench/workbench.web.main.internal.js` (15.4 MB). Similar: shouldn't ship in a desktop build. It's output by the esbuild bundler. |
-| **Keyboard layout contributions** | 3 | `layout.contribution.{darwin,linux,win}.js` — the old bundler inlines these into the main bundle. These are new separate files from the esbuild bundler. |
+| **Keyboard layout contributions** | 3 | `layout.contribution.{darwin,linux,win}.js` --- the old bundler inlines these into the main bundle. These are new separate files from the esbuild bundler. |
 | **NLS files** | 2 | `nls.messages.js` (new) and `nls.metadata.json` (new). The old build has `nls.messages.json` and `nls.keys.json` but not a `.js` version or metadata. The `.js` version is produced by the NLS plugin. |
-| **HTML files** | 2 | `vs/code/browser/workbench/workbench.html` and `callback.html` — correctly listed in `desktopResourcePatterns` (these are needed for desktop's built-in web server). |
+| **HTML files** | 2 | `vs/code/browser/workbench/workbench.html` and `callback.html` --- correctly listed in `desktopResourcePatterns` (these are needed for desktop's built-in web server). |
 | **SVG loading spinners** | 3 | `loading-dark.svg`, `loading-hc.svg`, `loading.svg` in `vs/workbench/contrib/extensions/browser/media/`. The old build only copies `theme-icon.png` and `language-icon.svg` from that folder; the new build's `desktopResourcePatterns` uses `*.svg` which is broader. |
 | **codicon.ttf (duplicate)** | 1 | At `vs/base/browser/ui/codicons/codicon/codicon.ttf`. The old build copies this to `out/media/codicon.ttf` only. The new build has BOTH: the copy in `out/media/` (from esbuild's `file` loader) AND the original path (from `commonResourcePatterns`). Duplicate. |
-| **PSReadLine.psm1** | 1 | `vs/workbench/contrib/terminal/common/scripts/psreadline/PSReadLine.psm1` — the old build uses `*.psm1` in `terminal/common/scripts/` (non-recursive?). The new build uses `**/*.psm1` (recursive), picking up this subdirectory file. Check if it's needed. |
-| **date file** | 1 | `out/date` — build timestamp, produced by the new build's `bundle()` function. The old build doesn't write this; it reads `package.json.date` instead. |
+| **PSReadLine.psm1** | 1 | `vs/workbench/contrib/terminal/common/scripts/psreadline/PSReadLine.psm1` --- the old build uses `*.psm1` in `terminal/common/scripts/` (non-recursive?). The new build uses `**/*.psm1` (recursive), picking up this subdirectory file. Check if it's needed. |
+| **date file** | 1 | `out/date` --- build timestamp, produced by the new build's `bundle()` function. The old build doesn't write this; it reads `package.json.date` instead. |
 
 ### Size Increase Breakdown by Area
 
@@ -291,21 +291,21 @@ The following measurements and action items describe the initial migration, not 
 | `vs/editor` | 0.3 MB | 0.5 MB | +0.1 MB | Individual CSS files |
 | `vs/platform` | 1.7 MB | 1.9 MB | +0.2 MB | Individual CSS files |
 
-### JS Files with >2× Size Change
+### JS Files with >2x Size Change
 
 | File | OLD | NEW | Ratio | Reason |
 |------|-----|-----|-------|--------|
-| `vs/workbench/contrib/webview/browser/pre/service-worker.js` | 7 KB | 15 KB | 2.2× | Not minified / includes more inlined code |
-| `vs/code/electron-browser/workbench/workbench.js` | 10 KB | 28 KB | 2.75× | OLD is minified to 6 lines; NEW is 380 lines (not compressed, includes tslib banner) |
+| `vs/workbench/contrib/webview/browser/pre/service-worker.js` | 7 KB | 15 KB | 2.2x | Not minified / includes more inlined code |
+| `vs/code/electron-browser/workbench/workbench.js` | 10 KB | 28 KB | 2.75x | OLD is minified to 6 lines; NEW is 380 lines (not compressed, includes tslib banner) |
 
 ### Action Items
 
-1. **[CRITICAL] Missing `preload-browserView.ts`** — Add to `desktopStandaloneFiles` in index.ts. Without it, BrowserView (used for Simple Browser) may fail.
-2. **[SIZE] Web bundles in desktop build** — `workbench.web.main.internal.js` and `vs/code/browser/workbench/workbench.js` together add ~31 MB. These are written by the esbuild bundler and not filtered out. Consider: either don't bundle web entry points for the desktop target, or ensure the packaging step excludes them (currently `packageTask` takes `out-vscode-min/**` without filtering).
-3. **[SIZE] No mangling** — The desktop main bundle is 2.5 MB larger due to no property mangling. Known open item.
-4. **[MINOR] Duplicate codicon.ttf** — Exists at both `out/media/codicon.ttf` (from esbuild `file` loader) and `out/vs/base/browser/ui/codicons/codicon/codicon.ttf` (from `commonResourcePatterns`). Consider removing from `commonResourcePatterns` if it's already handled by the loader.
-5. **[MINOR] Extra SVGs** — `desktopResourcePatterns` uses `*.svg` for extensions media but old build only ships `language-icon.svg`. The loading spinners may be unused in the desktop build.
-6. **[MINOR] Extra PSReadLine.psm1** from recursive glob — verify if needed.
+1. **[CRITICAL] Missing `preload-browserView.ts`** --- Add to `desktopStandaloneFiles` in index.ts. Without it, BrowserView (used for Simple Browser) may fail.
+2. **[SIZE] Web bundles in desktop build** --- `workbench.web.main.internal.js` and `vs/code/browser/workbench/workbench.js` together add ~31 MB. These are written by the esbuild bundler and not filtered out. Consider: either don't bundle web entry points for the desktop target, or ensure the packaging step excludes them (currently `packageTask` takes `out-vscode-min/**` without filtering).
+3. **[SIZE] No mangling** --- The desktop main bundle is 2.5 MB larger due to no property mangling. Known open item.
+4. **[MINOR] Duplicate codicon.ttf** --- Exists at both `out/media/codicon.ttf` (from esbuild `file` loader) and `out/vs/base/browser/ui/codicons/codicon/codicon.ttf` (from `commonResourcePatterns`). Consider removing from `commonResourcePatterns` if it's already handled by the loader.
+5. **[MINOR] Extra SVGs** --- `desktopResourcePatterns` uses `*.svg` for extensions media but old build only ships `language-icon.svg`. The loading spinners may be unused in the desktop build.
+6. **[MINOR] Extra PSReadLine.psm1** from recursive glob --- verify if needed.
 
 ---
 
@@ -331,13 +331,13 @@ Two categories of corruption:
 
 2. **`--source-map-base-url` option** - Rewrites JS and CSS `sourceMappingURL` comments to point to CDN URLs, using forward slashes for relative output paths on every platform. Without this option, existing comments are left unchanged. Tests in [source-map-url.test.ts](../../build/next/test/source-map-url.test.ts).
 
-3. **NLS plugin inline source maps** (`nls-plugin.ts`) - The `onLoad` handler generates an inline source map (`//# sourceMappingURL=data:...`) mapping from NLS-transformed source back to original. esbuild composes this with its own bundle source map. `SourceMapGenerator.setSourceContent` embeds the original source so `sourcesContent` in the final `.map` has the real TypeScript. `generateNLSSourceMap` adds per-column identity mappings after each edit on a line so that esbuild's source-map composition preserves fine-grained column accuracy (source maps don't interpolate columns — they use binary search, so a single boundary mapping would collapse all subsequent columns to the edit-end position). Tests in `test/nls-sourcemap.test.ts`.
+3. **NLS plugin inline source maps** (`nls-plugin.ts`) - The `onLoad` handler generates an inline source map (`//# sourceMappingURL=data:...`) mapping from NLS-transformed source back to original. esbuild composes this with its own bundle source map. `SourceMapGenerator.setSourceContent` embeds the original source so `sourcesContent` in the final `.map` has the real TypeScript. `generateNLSSourceMap` adds per-column identity mappings after each edit on a line so that esbuild's source-map composition preserves fine-grained column accuracy (source maps don't interpolate columns --- they use binary search, so a single boundary mapping would collapse all subsequent columns to the edit-end position). Tests in `test/nls-sourcemap.test.ts`.
 
 4. **`convertPrivateFields` source map adjustment** (`private-to-property.ts`) - `convertPrivateFields` returns its sorted edits as `TextEdit[]`. `adjustSourceMap()` uses `SourceMapConsumer` to walk every mapping, adjusts generated columns based on cumulative edit shifts per line, and rebuilds with `SourceMapGenerator`. The post-processing loop in `index.ts` saves pre-mangle content + edits per JS file, then applies `adjustSourceMap` to the corresponding `.map`. Tests in `test/private-to-property.test.ts`.
 
-5. **`postProcessNLS` source map adjustment** (`nls-plugin.ts`, `index.ts`) — `postProcessNLS` now returns `{ code, edits }` where `edits` is a `TextEdit[]` tracking each replacement's byte offset. The bundle loop in `index.ts` chains `adjustSourceMap` calls: first for mangle edits, then for NLS edits, so both transforms are accurately reflected in the final `.map` file. Tests in `test/nls-sourcemap.test.ts`.
+5. **`postProcessNLS` source map adjustment** (`nls-plugin.ts`, `index.ts`) --- `postProcessNLS` now returns `{ code, edits }` where `edits` is a `TextEdit[]` tracking each replacement's byte offset. The bundle loop in `index.ts` chains `adjustSourceMap` calls: first for mangle edits, then for NLS edits, so both transforms are accurately reflected in the final `.map` file. Tests in `test/nls-sourcemap.test.ts`.
 
-6. **`adjustSourceMap` unmapped segment preservation** (`private-to-property.ts`) — Previously, `adjustSourceMap()` silently dropped mappings where `source === null`. These unmapped segments create essential "gaps" that prevent `originalPositionFor()` from wrongly interpolating between distant valid mappings on the same minified line. Now emits them as generated-only mappings. Also preserves `sourceRoot` from the input map.
+6. **`adjustSourceMap` unmapped segment preservation** (`private-to-property.ts`) --- Previously, `adjustSourceMap()` silently dropped mappings where `source === null`. These unmapped segments create essential "gaps" that prevent `originalPositionFor()` from wrongly interpolating between distant valid mappings on the same minified line. Now emits them as generated-only mappings. Also preserves `sourceRoot` from the input map.
 
 ### Key Technical Details
 
@@ -350,39 +350,39 @@ Two categories of corruption:
 
 **Plugin interaction:** Both the NLS plugin and `fileContentMapperPlugin` register `onLoad({ filter: /\.ts$/ })`. In esbuild, the first `onLoad` to return non-`undefined` wins. The NLS plugin is `unshift`ed (runs first), so files with NLS calls skip `fileContentMapperPlugin`. This is safe in practice since `product.ts` (which has `BUILD->INSERT_PRODUCT_CONFIGURATION`) has no localize calls.
 
-### Still Broken — Full Production Build (`npm run gulp vscode-min`)
+### Still Broken --- Full Production Build (`npm run gulp vscode-min`)
 
-**Symptom:** Source maps are totally broken in the minified production build. E.g. a breakpoint at `src/vs/editor/browser/editorExtensions.ts` line 308 resolves to `src/vs/editor/common/cursor/cursorMoveCommands.ts` line 732 — a completely different file. This is **cross-file** mapping corruption, not just column drift.
+**Symptom:** Source maps are totally broken in the minified production build. E.g. a breakpoint at `src/vs/editor/browser/editorExtensions.ts` line 308 resolves to `src/vs/editor/common/cursor/cursorMoveCommands.ts` line 732 --- a completely different file. This is **cross-file** mapping corruption, not just column drift.
 
-**Status of unit tests:** The fixes above pass in isolated unit tests (small 1–2 file bundles via `esbuild.build` with `minify: true`). The tests verify column drift ≤ 20 and correct line mapping for single-file bundles with NLS. **183 tests pass, 0 failing.** But the full production build bundles hundreds of files into huge minified outputs (e.g. `workbench.desktop.main.js` at ~15 MB) and the source maps break at that scale.
+**Status of unit tests:** The fixes above pass in isolated unit tests (small 1--2 file bundles via `esbuild.build` with `minify: true`). The tests verify column drift <= 20 and correct line mapping for single-file bundles with NLS. **183 tests pass, 0 failing.** But the full production build bundles hundreds of files into huge minified outputs (e.g. `workbench.desktop.main.js` at ~15 MB) and the source maps break at that scale.
 
 **Suspected root causes (need investigation):**
 
-1. **`generateNLSSourceMap` per-column identity mappings may overwhelm esbuild's source-map composition.** The fix added one mapping per column from edit-end to end-of-line (or next edit). For a long TypeScript line with a `localize()` call near the beginning, this generates hundreds of identity mappings per line. Across hundreds of files, the inline source maps embedded in `onLoad` responses may be extremely large. esbuild must compose these with its own source maps during bundling — it may hit limits, silently drop mappings, or produce incorrect composed maps at this scale. **Mitigation to try:** Instead of per-column mappings, use sparser "checkpoint" mappings (e.g., every N characters) or rely only on boundary mappings and accept some column drift within the NLS-transformed region. The old boundary-only approach was wrong (collapsed all downstream columns), but per-column may be the other extreme.
+1. **`generateNLSSourceMap` per-column identity mappings may overwhelm esbuild's source-map composition.** The fix added one mapping per column from edit-end to end-of-line (or next edit). For a long TypeScript line with a `localize()` call near the beginning, this generates hundreds of identity mappings per line. Across hundreds of files, the inline source maps embedded in `onLoad` responses may be extremely large. esbuild must compose these with its own source maps during bundling --- it may hit limits, silently drop mappings, or produce incorrect composed maps at this scale. **Mitigation to try:** Instead of per-column mappings, use sparser "checkpoint" mappings (e.g., every N characters) or rely only on boundary mappings and accept some column drift within the NLS-transformed region. The old boundary-only approach was wrong (collapsed all downstream columns), but per-column may be the other extreme.
 
 2. **`adjustSourceMap` may corrupt source indices in large minified bundles.** In a minified bundle, the entire output is on one or very few lines. `adjustSourceMap()` walks every mapping via `SourceMapConsumer.eachMapping()` and adjusts `generatedColumn` using `adjustColumn()`. But when thousands of mappings all share `generatedLine: 1` and there are hundreds of NLS edits on that same line, there may be sorting/ordering bugs: `eachMapping()` returns mappings in generated order by default, but `adjustColumn()` binary-searches through edits sorted by column. If edits cover regions that interleave with mappings from different source files, the cumulative shift calculation might produce wrong columns that then resolve to wrong source files.
 
-3. **Chained `adjustSourceMap` calls (mangle → NLS) may compound errors.** After the first `adjustSourceMap` for mangle edits, the source map's generated columns are updated. The second call for NLS edits uses `nlsEdits` which were computed against `preNLSCode` — but `preNLSCode` is the post-mangle JS, which is what the first `adjustSourceMap` maps from. This chaining _should_ be correct, but needs verification at scale with a real minified bundle.
+3. **Chained `adjustSourceMap` calls (mangle -> NLS) may compound errors.** After the first `adjustSourceMap` for mangle edits, the source map's generated columns are updated. The second call for NLS edits uses `nlsEdits` which were computed against `preNLSCode` --- but `preNLSCode` is the post-mangle JS, which is what the first `adjustSourceMap` maps from. This chaining _should_ be correct, but needs verification at scale with a real minified bundle.
 
 4. **The `source-map` v0.6.1 library may have precision issues with very large VLQ-encoded maps.** The bundled outputs have source maps with hundreds of thousands of mappings. The library is old (2017) and there may be numerical precision or sorting issues with very large maps. Consider testing with `source-map` v0.7+ or the Rust-based `@aspect-build/source-map`.
 
-5. **Alternative approach: skip per-column NLS plugin mappings, fix only `postProcessNLS`.** The NLS plugin `onLoad` replaces `"key"` with `"%%NLS:longPlaceholder%%"` — a length change that only affects columns on affected lines. The subsequent `postProcessNLS` then replaces the long placeholder with a short index. If the `adjustSourceMap` for `postProcessNLS` is correct, it should compensate for both expansions (plugin expansion + post-process contraction). We might not need per-column mappings in `generateNLSSourceMap` at all — just the boundary mapping. The column will drift in the intermediate representation but `adjustSourceMap` for NLS should fix it. **This hypothesis needs testing.**
+5. **Alternative approach: skip per-column NLS plugin mappings, fix only `postProcessNLS`.** The NLS plugin `onLoad` replaces `"key"` with `"%%NLS:longPlaceholder%%"` --- a length change that only affects columns on affected lines. The subsequent `postProcessNLS` then replaces the long placeholder with a short index. If the `adjustSourceMap` for `postProcessNLS` is correct, it should compensate for both expansions (plugin expansion + post-process contraction). We might not need per-column mappings in `generateNLSSourceMap` at all --- just the boundary mapping. The column will drift in the intermediate representation but `adjustSourceMap` for NLS should fix it. **This hypothesis needs testing.**
 
-6. **Alternative approach: do NLS replacement purely in post-processing.** Skip the `onLoad` two-phase approach (placeholder insertion + post-processing replacement) entirely. Instead, run `postProcessNLS` as a single post-processing step that directly replaces `localize("key", "message")` → `localize(0, null)` in the bundled JS output, with proper source-map adjustment via `adjustSourceMap`. This avoids both the inline source map composition complexity and the two-step replacement. The downside is that post-processing must parse/regex-match real `localize()` calls (not easy placeholders), which is more fragile.
+6. **Alternative approach: do NLS replacement purely in post-processing.** Skip the `onLoad` two-phase approach (placeholder insertion + post-processing replacement) entirely. Instead, run `postProcessNLS` as a single post-processing step that directly replaces `localize("key", "message")` -> `localize(0, null)` in the bundled JS output, with proper source-map adjustment via `adjustSourceMap`. This avoids both the inline source map composition complexity and the two-step replacement. The downside is that post-processing must parse/regex-match real `localize()` calls (not easy placeholders), which is more fragile.
 
 **Summary of fixes applied vs status:**
 
 | Bug | Fix | Unit test | Production |
 |-----|-----|-----------|------------|
-| `generateNLSSourceMap` only had boundary mappings → columns collapsed | Added per-column identity mappings after each edit | Pass (drift: 0) | **Broken** — may overwhelm esbuild composition at scale |
-| `postProcessNLS` didn't track edits for source map adjustment | Returns `{ code, edits }`, chained in `index.ts` | Pass | **Broken** — `adjustSourceMap` may corrupt source indices on huge single-line minified output |
-| `adjustSourceMap` dropped unmapped segments | Preserves generated-only mappings + `sourceRoot` | Pass (no regressions) | **Broken** — same cross-file mapping issue |
+| `generateNLSSourceMap` only had boundary mappings -> columns collapsed | Added per-column identity mappings after each edit | Pass (drift: 0) | **Broken** --- may overwhelm esbuild composition at scale |
+| `postProcessNLS` didn't track edits for source map adjustment | Returns `{ code, edits }`, chained in `index.ts` | Pass | **Broken** --- `adjustSourceMap` may corrupt source indices on huge single-line minified output |
+| `adjustSourceMap` dropped unmapped segments | Preserves generated-only mappings + `sourceRoot` | Pass (no regressions) | **Broken** --- same cross-file mapping issue |
 
 **Files involved:**
-- `build/next/nls-plugin.ts` — `generateNLSSourceMap()` (per-column mappings), `postProcessNLS()` (returns edits), `replaceInOutput()` (regex replacement)
-- `build/next/private-to-property.ts` — `adjustSourceMap()` (column adjustment)
-- `build/next/index.ts` — bundle post-processing loop (lines ~899–975), chains adjustSourceMap calls
-- `build/next/test/nls-sourcemap.test.ts` — unit tests (pass but don't cover production-scale bundles)
+- `build/next/nls-plugin.ts` --- `generateNLSSourceMap()` (per-column mappings), `postProcessNLS()` (returns edits), `replaceInOutput()` (regex replacement)
+- `build/next/private-to-property.ts` --- `adjustSourceMap()` (column adjustment)
+- `build/next/index.ts` --- bundle post-processing loop (lines ~899--975), chains adjustSourceMap calls
+- `build/next/test/nls-sourcemap.test.ts` --- unit tests (pass but don't cover production-scale bundles)
 
 **How to reproduce:**
 ```bash
@@ -399,7 +399,7 @@ node build/next/index.ts bundle --nls --minify --target desktop --out out-debug
 # 2. Build with just --mangle-privates (no NLS) to isolate mangle issues
 node build/next/index.ts bundle --mangle-privates --minify --target desktop --out out-debug
 
-# 3. Build with neither (baseline — does esbuild's own map work?)
+# 3. Build with neither (baseline --- does esbuild's own map work?)
 node build/next/index.ts bundle --minify --target desktop --out out-debug
 
 # 4. Compare .map files across the three builds to find where mappings diverge
@@ -423,14 +423,14 @@ The default `VS Code - Build` task now runs three parallel watchers:
 
 | Task | What it does | Script |
 |------|-------------|--------|
-| **Core - Transpile** | esbuild single-file TS→JS (fast, no type checking) | `watch-client-transpiled` → `node build/next/index.ts transpile --watch` |
-| **Core - Typecheck** | tsgo `noEmit` watch (type errors only, no output) | `watch-clientd` → `gulp watch-client` (uses `watchTypeCheckTask`) |
+| **Core - Transpile** | esbuild single-file TS->JS (fast, no type checking) | `watch-client-transpiled` -> `node build/next/index.ts transpile --watch` |
+| **Core - Typecheck** | tsgo `noEmit` watch (type errors only, no output) | `watch-clientd` -> `gulp watch-client` (uses `watchTypeCheckTask`) |
 | **Ext - Build** | Extension compilation (unchanged) | `watch-extensionsd` |
 
 ### Key Changes
 
 - **`build/lib/compilation.ts`**: `watchTypeCheckTask()` runs tsgo with `noEmit: true` in response to source changes, alongside Monaco declaration generation.
-- **`build/gulpfile.ts`**: `watchClientTask` is now `task.parallel(compilation.watchTypeCheckTask('src'), ...)` — no `rimraf('out')` (the transpiler owns that), no JS emit.
+- **`build/gulpfile.ts`**: `watchClientTask` is now `task.parallel(compilation.watchTypeCheckTask('src'), ...)` --- no `rimraf('out')` (the transpiler owns that), no JS emit.
 - **`build/next/index.ts`**: Watch mode emits `Starting transpilation...` / `Finished transpilation with N errors after X ms` for VS Code problem matcher.
 - **`.vscode/tasks.json`**: Old "Core - Build" split into "Core - Transpile" + "Core - Typecheck" with separate problem matchers (owners: `esbuild` vs `typescript`).
 - **`package.json`**: Added `watch-client-transpile`, `watch-client-transpiled`, `kill-watch-client-transpiled` scripts.

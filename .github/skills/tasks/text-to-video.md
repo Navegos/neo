@@ -22,8 +22,8 @@ the spatial compression ratio times the patch size. A request that violates
 them is silently rounded, so an assertion written against the requested value
 will fail for a reason that has nothing to do with the export.
 
-Record which `__call__` arguments switch on extra denoising passes —
-classifier-free guidance, spatio-temporal guidance, modality isolation — and
+Record which `__call__` arguments switch on extra denoising passes ---
+classifier-free guidance, spatio-temporal guidance, modality isolation --- and
 their default values **in the installed version**. These defaults change
 between releases, and they decide what a default-settings comparison actually
 exercises. A pass the exported graph cannot serve is the most common cause of
@@ -66,8 +66,8 @@ audio output the same way, but do not treat quiet audio as a failure on its
 own: the audio level follows the prompt.
 
 Size the fixture so the features under test are reachable. A feature selected
-by block index — spatio-temporal guidance defaults to an index far beyond a
-one-block fixture — is a silent no-op on a model that small, and a packed
+by block index --- spatio-temporal guidance defaults to an index far beyond a
+one-block fixture --- is a silent no-op on a model that small, and a packed
 per-layer text-encoder output needs more than one hidden layer before the
 packing is exercised at all. Likewise keep `num_frames` above a single latent
 frame, or the temporal path never runs.

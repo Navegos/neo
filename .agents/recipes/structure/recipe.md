@@ -235,7 +235,7 @@ diff remains within the localized-fix bar. Batch at most 3 files. Run the
 shared test target once. Use one hidden finding marker and one
 `attempted_fixes` entry per file.
 
-**Not eligible** — stays report-only:
+**Not eligible** --- stays report-only:
 
 - Import boundary violations (architectural judgement).
 - Dead exports (audit labels them "potentially dead"; external plugin
@@ -243,7 +243,7 @@ shared test target once. Use one hidden finding marker and one
 
 ## Constraints
 
-- Outside the fix phase, this recipe is read-only — do not modify files.
+- Outside the fix phase, this recipe is read-only --- do not modify files.
 - Within the fix phase, only modify paths in the suite's path allowlist.
   See `_fix-policy.md` for the shared command/path baseline.
 - Imports inside `if TYPE_CHECKING:` blocks are allowed and should not be
@@ -252,7 +252,7 @@ shared test target once. Use one hidden finding marker and one
   not be treated as violations.
 - Dead export detection has false positives. Mark uncertain cases as
   "potentially dead" rather than definitively dead. **Do not auto-remove
-  them** — they are not in the fix-eligible list.
+  them** --- they are not in the fix-eligible list.
 - Always cite which rule or doc is violated so maintainers can verify.
 - Import boundaries are currently clean. No findings in that section is
   normal and expected.

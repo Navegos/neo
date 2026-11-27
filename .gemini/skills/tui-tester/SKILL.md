@@ -51,7 +51,7 @@ agent-tui live start --open
 env GEMINI_CLI_TRUST_WORKSPACE=true agent-tui run node packages/cli/dist/index.js
 
 # Wait for the prompt
-agent-tui wait "│" --assert
+agent-tui wait "|" --assert
 
 # Send a command
 agent-tui type "/help"

@@ -22,7 +22,7 @@ git push
 Create the file `.github/workflows/test-headless.yml` with this content:
 
 ```yaml
-name: Test Headless Mode 🤖
+name: Test Headless Mode [BOT]
 
 on:
   push:
@@ -229,10 +229,10 @@ jobs:
         echo "Windows tests: ${{ needs.test-headless-windows.result }}"
 
         if [ "${{ needs.test-headless.result }}" != "success" ] || [ "${{ needs.test-headless-windows.result }}" != "success" ]; then
-          echo "❌ Some tests failed"
+          echo "[FAIL] Some tests failed"
           exit 1
         else
-          echo "✅ All tests passed"
+          echo "[DONE] All tests passed"
         fi
 ```
 
@@ -240,7 +240,7 @@ jobs:
 
 1. Go to your repository on GitHub
 2. Navigate to `.github/workflows/`
-3. Click "Add file" → "Create new file"
+3. Click "Add file" -> "Create new file"
 4. Name it `test-headless.yml`
 5. Paste the content from Option 2
 6. Commit directly to your branch
@@ -250,7 +250,7 @@ jobs:
 Once added, you can verify the workflow is active:
 
 1. Go to the "Actions" tab in your repository
-2. Look for "Test Headless Mode 🤖" in the workflows list
+2. Look for "Test Headless Mode [BOT]" in the workflows list
 3. Click "Run workflow" to test manually
 
 ## What the Workflow Tests

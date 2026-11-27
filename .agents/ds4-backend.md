@@ -18,14 +18,14 @@ then `make purge && make` (or rely on CI's clean build).
 | RPC | Implementation |
 |---|---|
 | Health, Free, Status | Trivial; no engine dependency for Health |
-| LoadModel | `ds4_engine_open` + `ds4_session_create`; backend is compile-time (DS4_NO_GPU → CPU, __APPLE__ → Metal, otherwise CUDA) |
+| LoadModel | `ds4_engine_open` + `ds4_session_create`; backend is compile-time (DS4_NO_GPU -> CPU, __APPLE__ -> Metal, otherwise CUDA) |
 | TokenizeString | `ds4_tokenize_text` |
-| Predict | `ds4_engine_generate_argmax` + `DsmlParser` → one ChatDelta with content / reasoning_content / tool_calls[] |
+| Predict | `ds4_engine_generate_argmax` + `DsmlParser` -> one ChatDelta with content / reasoning_content / tool_calls[] |
 | PredictStream | Same, per-token ChatDelta writes |
 
 ## DSML
 
-ds4 emits tool calls as literal text markers (`<｜DSML｜tool_calls>` etc.) -
+ds4 emits tool calls as literal text markers (`<|DSML|tool_calls>` etc.) -
 NOT special tokens. `dsml_parser.{h,cpp}` is our streaming state machine that
 classifies token bytes into CONTENT / REASONING / TOOL_START / TOOL_ARGS / TOOL_END
 events. `dsml_renderer.{h,cpp}` does the prompt direction: turns
@@ -164,7 +164,7 @@ workers dial in.
   even where `grpc-server` can't. Runs the worker serving loop (`ds4_dist_run`).
 - **Coordinator wiring**: the ds4 `grpc-server` acts as coordinator when `LoadModel`
   `ModelOptions.Options` (from model-YAML `options:`) carry:
-  - `ds4_role:coordinator` (enables distributed mode; absent → single-node, back-compat)
+  - `ds4_role:coordinator` (enables distributed mode; absent -> single-node, back-compat)
   - `ds4_layers:0:19` (coordinator's own slice, inclusive; `N:output` includes the head)
   - `ds4_listen:0.0.0.0:1234` (address workers dial into)
   - `ds4_route_timeout:60` (optional; seconds Predict/PredictStream wait for the route

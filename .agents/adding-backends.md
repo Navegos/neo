@@ -30,11 +30,11 @@ For Rust backends, you'll typically need (see `backend/rust/kokoros/` as a refer
 
 ## 2. Add Build Configurations to `.github/backend-matrix.yml`
 
-The build matrix is data-only YAML at `.github/backend-matrix.yml` (not inside `backend.yml` itself). `backend.yml` (master push) and `backend_pr.yml` (PR) load it via `scripts/changed-backends.js`, which also handles per-file path filtering so only touched backends rebuild on PRs and master pushes alike. Add build matrix entries to `.github/backend-matrix.yml` for each platform/GPU type you want to support. Look at similar backends for reference — `chatterbox`/`faster-whisper` for Python, `piper`/`silero-vad` for Go, `kokoros` for Rust.
+The build matrix is data-only YAML at `.github/backend-matrix.yml` (not inside `backend.yml` itself). `backend.yml` (master push) and `backend_pr.yml` (PR) load it via `scripts/changed-backends.js`, which also handles per-file path filtering so only touched backends rebuild on PRs and master pushes alike. Add build matrix entries to `.github/backend-matrix.yml` for each platform/GPU type you want to support. Look at similar backends for reference --- `chatterbox`/`faster-whisper` for Python, `piper`/`silero-vad` for Go, `kokoros` for Rust.
 
 **Without an entry here no image is ever built or pushed, and the library entry in `gallery/backends/index.yaml` will point at a tag that does not exist.** The `dockerfile:` field must point at `./backend/Dockerfile.<lang>` matching the language bucket from step 1 (e.g. `Dockerfile.python`, `Dockerfile.golang`, `Dockerfile.rust`). The `tag-suffix` must match the `uri:` of the entry you give to `backendcatalog --add` (step 3) exactly.
 
-**Path-filter registration — REQUIRED for any new dockerfile suffix.** This is the single most common omission, because it has no effect on the PR that adds the backend (when no prior path filter could catch it anyway) — it only breaks the *next* PR that touches your backend's directory, which then gets zero CI jobs and looks broken for unrelated reasons. Edit `scripts/lib/backend-filter.mjs:inferBackendPath` and add a branch BEFORE the more-generic suffixes:
+**Path-filter registration --- REQUIRED for any new dockerfile suffix.** This is the single most common omission, because it has no effect on the PR that adds the backend (when no prior path filter could catch it anyway) --- it only breaks the *next* PR that touches your backend's directory, which then gets zero CI jobs and looks broken for unrelated reasons. Edit `scripts/lib/backend-filter.mjs:inferBackendPath` and add a branch BEFORE the more-generic suffixes:
 
 ```js
 if (item.dockerfile.endsWith("<your-dockerfile-suffix>")) {
@@ -42,7 +42,7 @@ if (item.dockerfile.endsWith("<your-dockerfile-suffix>")) {
 }
 ```
 
-The `endsWith()` test is against the matrix entry's `dockerfile:` value (e.g. `./backend/Dockerfile.ds4` → `endsWith("ds4")`). Specificity order matters here just like it does for importers: more-specific suffixes go BEFORE more-generic ones (e.g. `ds4` before `llama-cpp` even though both end with letters, because some upstream might one day call itself `super-ds4-llama-cpp`). Verify locally before pushing:
+The `endsWith()` test is against the matrix entry's `dockerfile:` value (e.g. `./backend/Dockerfile.ds4` -> `endsWith("ds4")`). Specificity order matters here just like it does for importers: more-specific suffixes go BEFORE more-generic ones (e.g. `ds4` before `llama-cpp` even though both end with letters, because some upstream might one day call itself `super-ds4-llama-cpp`). Verify locally before pushing:
 
 ```bash
 # Confirm your dockerfile suffix is unique enough
@@ -56,9 +56,9 @@ for (const e of m.include.filter(e => e.backend === '<your-backend>')) {
 
 A quick way to find the right insertion point: `grep -n 'item.dockerfile.endsWith' scripts/lib/backend-filter.mjs`.
 
-If your backend consumes a *shared* build input that lives outside its own directory (a new script under `scripts/build/`, a new file copied into every image), add a rule to `SHARED_BUILD_INPUTS` in the same file — the per-backend prefix match cannot see those, and a miss ships your change to no image at all. See `scripts/lib/backend-filter_test.mjs` for the pattern; `make test-ci-scripts` runs it.
+If your backend consumes a *shared* build input that lives outside its own directory (a new script under `scripts/build/`, a new file copied into every image), add a rule to `SHARED_BUILD_INPUTS` in the same file --- the per-backend prefix match cannot see those, and a miss ships your change to no image at all. See `scripts/lib/backend-filter_test.mjs` for the pattern; `make test-ci-scripts` runs it.
 
-**`bump_deps.yaml` registration — REQUIRED for any backend pinning an upstream commit.** If your backend's Makefile has a `*_VERSION?=<sha>` pin to a third-party repo, the daily auto-bump bot at `.github/workflows/bump_deps.yaml` won't notice it unless you register the backend in its matrix. The bot runs `.github/bump_deps.sh` which `grep`s for `^$VAR?=` in the Makefile you list — so the pin MUST live in the Makefile (not in a separate shell script). The bump for ds4 (#9761) had to walk this back because the original landed the pin in `prepare.sh`, which the bot can't see. Pattern (for `antirez/ds4`):
+**`bump_deps.yaml` registration --- REQUIRED for any backend pinning an upstream commit.** If your backend's Makefile has a `*_VERSION?=<sha>` pin to a third-party repo, the daily auto-bump bot at `.github/workflows/bump_deps.yaml` won't notice it unless you register the backend in its matrix. The bot runs `.github/bump_deps.sh` which `grep`s for `^$VAR?=` in the Makefile you list --- so the pin MUST live in the Makefile (not in a separate shell script). The bump for ds4 (#9761) had to walk this back because the original landed the pin in `prepare.sh`, which the bot can't see. Pattern (for `antirez/ds4`):
 
 ```yaml
 # .github/workflows/bump_deps.yaml
@@ -84,7 +84,7 @@ ds4:
 	git checkout FETCH_HEAD
 ```
 
-If you have a `prepare.sh` doing the clone, delete it — the recipe belongs in the Makefile target so `make purge && make` works as a clean-and-rebuild and so the bump bot finds the pin.
+If you have a `prepare.sh` doing the clone, delete it --- the recipe belongs in the Makefile target so `make purge && make` works as a clean-and-rebuild and so the bump bot finds the pin.
 
 **Placement in file:**
 - CPU builds: Add after other CPU builds (e.g., after `cpu-chatterbox`)
@@ -98,29 +98,29 @@ If you have a `prepare.sh` doing the clone, delete it — the recipe belongs in 
 
 **Per-arch native builds (`linux/amd64` + `linux/arm64`):**
 
-Multi-arch backends are NOT a single matrix entry with `platforms: 'linux/amd64,linux/arm64'`. Instead, add **two** entries — one with `platforms: 'linux/amd64'` + `platform-tag: 'amd64'` + `runs-on: 'ubuntu-latest'`, one with `platforms: 'linux/arm64'` + `platform-tag: 'arm64'` + `runs-on: 'ubuntu-24.04-arm'` — both sharing the same `tag-suffix`. The script detects the shared `tag-suffix` and emits a `merge-matrix` entry, so `backend-merge-jobs` (in `backend.yml`/`backend_pr.yml`) automatically assembles the manifest list from per-arch digest artifacts. See `-cpu-faster-whisper` in `.github/backend-matrix.yml` for a reference shape.
+Multi-arch backends are NOT a single matrix entry with `platforms: 'linux/amd64,linux/arm64'`. Instead, add **two** entries --- one with `platforms: 'linux/amd64'` + `platform-tag: 'amd64'` + `runs-on: 'ubuntu-latest'`, one with `platforms: 'linux/arm64'` + `platform-tag: 'arm64'` + `runs-on: 'ubuntu-24.04-arm'` --- both sharing the same `tag-suffix`. The script detects the shared `tag-suffix` and emits a `merge-matrix` entry, so `backend-merge-jobs` (in `backend.yml`/`backend_pr.yml`) automatically assembles the manifest list from per-arch digest artifacts. See `-cpu-faster-whisper` in `.github/backend-matrix.yml` for a reference shape.
 
-**llama-cpp / ik-llama-cpp / turboquant variants only — `builder-base-image`:**
+**llama-cpp / ik-llama-cpp / turboquant variants only --- `builder-base-image`:**
 
-Entries whose `dockerfile` is `./backend/Dockerfile.{llama-cpp,ik-llama-cpp,turboquant}` must also set a `builder-base-image` field pointing at a prebuilt base from `quay.io/go-skynet/ci-cache:base-grpc-*` (CI builds these via `.github/workflows/base-images.yml`). The mapping is by `(build-type, platforms)` — see existing entries for the pattern. CI uses these prebuilt bases to skip the gRPC compile (~25–35 min cold). Local `make backends/<name>` ignores `builder-base-image` and uses the from-source path inside the Dockerfile, so you don't need quay access for local builds.
+Entries whose `dockerfile` is `./backend/Dockerfile.{llama-cpp,ik-llama-cpp,turboquant}` must also set a `builder-base-image` field pointing at a prebuilt base from `quay.io/go-skynet/ci-cache:base-grpc-*` (CI builds these via `.github/workflows/base-images.yml`). The mapping is by `(build-type, platforms)` --- see existing entries for the pattern. CI uses these prebuilt bases to skip the gRPC compile (~25--35 min cold). Local `make backends/<name>` ignores `builder-base-image` and uses the from-source path inside the Dockerfile, so you don't need quay access for local builds.
 
 ### Cover every OS the project supports (Linux **and** Darwin)
 
 `.github/backend-matrix.yml` has two matrices, and they are the source of truth for which OS a backend ships on:
 
-- `include:` — the **Linux** matrix (x86_64 + arm64; CPU and CUDA / ROCm / SYCL / Vulkan).
-- `includeDarwin:` — the **macOS / Apple Silicon** matrix (arm64; Metal where the engine supports it, otherwise a native arm64 CPU build).
+- `include:` --- the **Linux** matrix (x86_64 + arm64; CPU and CUDA / ROCm / SYCL / Vulkan).
+- `includeDarwin:` --- the **macOS / Apple Silicon** matrix (arm64; Metal where the engine supports it, otherwise a native arm64 CPU build).
 
-**A new backend must target every OS it can build for — do not ship Linux-only by default.** A backend that appears only under `include:` is silently unavailable on macOS even when its code would run there. Most C/C++/GGML engines build on Darwin out of the box (ggml defaults `GGML_METAL=ON` on Apple, so a plain build is Metal-enabled), and many Python backends do too (CPU / MPS wheels). If a backend genuinely cannot support an OS (e.g. CUDA-only, no CPU variant), state that in the PR description instead of omitting it silently.
+**A new backend must target every OS it can build for --- do not ship Linux-only by default.** A backend that appears only under `include:` is silently unavailable on macOS even when its code would run there. Most C/C++/GGML engines build on Darwin out of the box (ggml defaults `GGML_METAL=ON` on Apple, so a plain build is Metal-enabled), and many Python backends do too (CPU / MPS wheels). If a backend genuinely cannot support an OS (e.g. CUDA-only, no CPU variant), state that in the PR description instead of omitting it silently.
 
 Wiring a backend into `includeDarwin:` is more than the matrix entry:
 
-1. **`includeDarwin:` entry** — `tag-suffix: "-metal-darwin-arm64-<backend>"`, `build-type: "metal"`, `lang: "go"` for go+ggml backends; omit `build-type` for the bespoke C++ ones (llama-cpp / ds4 / privacy-filter). Match an existing entry of the same shape.
-2. **The backend library** (step 3) — add `metal:` to the backend's `capabilities` map (main and `-development`) and concrete `metal-<backend>` / `metal-<backend>-development` image entries pointing at the `-metal-darwin-arm64-<backend>` images.
-3. **C/C++ backends only** — add an `inferBackendPathDarwin` case in `scripts/lib/backend-filter.mjs` returning `backend/cpp/<backend>/` (the generic fallthrough assumes `backend/<lang>/`, which is wrong for a C++ source tree driven with `lang: go`), and give `run.sh` a Darwin branch that exports `DYLD_LIBRARY_PATH` instead of `LD_LIBRARY_PATH`. If the build is bespoke (single `grpc-server` + dylib bundling), model it on `scripts/build/ds4-darwin.sh` and add a `backends/<backend>-darwin` make target plus a gated step in `.github/workflows/backend_build_darwin.yml`.
-4. **C++ proto gotcha** — if the backend compiles the generated gRPC/protobuf in a separate CMake target (e.g. `hw_grpc_proto`), that target must link `protobuf::libprotobuf` + `gRPC::grpc++` so the Homebrew include dirs propagate; otherwise macOS fails with `google/protobuf/runtime_version.h not found` (Linux hides this because apt headers sit in `/usr/include`).
+1. **`includeDarwin:` entry** --- `tag-suffix: "-metal-darwin-arm64-<backend>"`, `build-type: "metal"`, `lang: "go"` for go+ggml backends; omit `build-type` for the bespoke C++ ones (llama-cpp / ds4 / privacy-filter). Match an existing entry of the same shape.
+2. **The backend library** (step 3) --- add `metal:` to the backend's `capabilities` map (main and `-development`) and concrete `metal-<backend>` / `metal-<backend>-development` image entries pointing at the `-metal-darwin-arm64-<backend>` images.
+3. **C/C++ backends only** --- add an `inferBackendPathDarwin` case in `scripts/lib/backend-filter.mjs` returning `backend/cpp/<backend>/` (the generic fallthrough assumes `backend/<lang>/`, which is wrong for a C++ source tree driven with `lang: go`), and give `run.sh` a Darwin branch that exports `DYLD_LIBRARY_PATH` instead of `LD_LIBRARY_PATH`. If the build is bespoke (single `grpc-server` + dylib bundling), model it on `scripts/build/ds4-darwin.sh` and add a `backends/<backend>-darwin` make target plus a gated step in `.github/workflows/backend_build_darwin.yml`.
+4. **C++ proto gotcha** --- if the backend compiles the generated gRPC/protobuf in a separate CMake target (e.g. `hw_grpc_proto`), that target must link `protobuf::libprotobuf` + `gRPC::grpc++` so the Homebrew include dirs propagate; otherwise macOS fails with `google/protobuf/runtime_version.h not found` (Linux hides this because apt headers sit in `/usr/include`).
 
-The CI path filter only builds a backend on a PR when a file under its directory changes, so a darwin-only YAML edit builds nothing — touch a file under `backend/<lang>/<backend>/` (a one-line comment is enough) in the same PR.
+The CI path filter only builds a backend on a PR when a file under its directory changes, so a darwin-only YAML edit builds nothing --- touch a file under `backend/<lang>/<backend>/` (a one-line comment is enough) in the same PR.
 
 ## 3. Add Backend Metadata to the Backend Library
 
@@ -143,7 +143,7 @@ The first command converts the entries, pins every `latest-` image that is alrea
 
 To change a backend that is already there, put its new entries in the scratch file and run `--add` again: the entries of that backend are replaced where they stand. To pin every `latest-` image again after a release, run `go run ./scripts/backends/cmd/backendcatalog --library gallery/backends/index.yaml --repin`; this is the only mode that reads the registry, and a digest is never edited by hand.
 
-**Note on integrity:** OCI backends installed from a gallery whose `verification:` block is set are verified against a keyless-cosign policy before extraction; tarball/HTTP backends use the optional `sha256:` field. New backends do not need any extra YAML — the gallery-level `verification:` block covers every entry. See [.agents/backend-signing.md](backend-signing.md) for the producer-side CI step.
+**Note on integrity:** OCI backends installed from a gallery whose `verification:` block is set are verified against a keyless-cosign policy before extraction; tarball/HTTP backends use the optional `sha256:` field. New backends do not need any extra YAML --- the gallery-level `verification:` block covers every entry. See [.agents/backend-signing.md](backend-signing.md) for the producer-side CI step.
 
 ## 4. Update the Makefile
 
@@ -159,7 +159,7 @@ Add `backends/<backend-name>` to the `.NOTPARALLEL` line (around line 2) to prev
 
 **Step 4b: Add to `prepare-test-extra`**
 
-Add the backend to the `prepare-test-extra` target to prepare it for testing. Use the path matching your language bucket (`backend/python/`, `backend/go/`, `backend/rust/`, …):
+Add the backend to the `prepare-test-extra` target to prepare it for testing. Use the path matching your language bucket (`backend/python/`, `backend/go/`, `backend/rust/`, ...):
 
 ```makefile
 prepare-test-extra: protogen-python
@@ -171,7 +171,7 @@ For Rust backends the target is usually the crate build target itself (e.g. `$(M
 
 **Step 4c: Add to `test-extra`**
 
-Add the backend to the `test-extra` target to run its tests — applies to Go and Rust backends too, not only Python:
+Add the backend to the `test-extra` target to run its tests --- applies to Go and Rust backends too, not only Python:
 
 ```makefile
 test-extra: prepare-test-extra
@@ -205,7 +205,7 @@ BACKEND_<BACKEND_NAME> = <backend-name>|golang|.|false|true
 BACKEND_<BACKEND_NAME> = <backend-name>|rust|.|false|true
 ```
 
-The language field (`python`/`golang`/`rust`/…) must match a `backend/Dockerfile.<lang>` file.
+The language field (`python`/`golang`/`rust`/...) must match a `backend/Dockerfile.<lang>` file.
 
 **Step 4e: Generate Docker Build Target**
 
@@ -319,26 +319,26 @@ After adding a new backend, verify:
 
 - [ ] Backend directory structure is complete with all necessary files
 - [ ] Build configurations added to `.github/backend-matrix.yml` for all desired platforms (per-arch entries with `platform-tag` for multi-arch; `builder-base-image` for llama-cpp / ik-llama-cpp / turboquant)
-- [ ] **OS coverage considered**: added to `includeDarwin:` (macOS/Apple Silicon) if the backend can build there — with the `metal:` capability in the backend library + `metal-<backend>` image entries, a `run.sh` Darwin/DYLD branch and `inferBackendPathDarwin` case (in `scripts/lib/backend-filter.mjs`) for C++ backends — or the PR explains why an OS is unsupported. Do not ship Linux-only by default.
+- [ ] **OS coverage considered**: added to `includeDarwin:` (macOS/Apple Silicon) if the backend can build there --- with the `metal:` capability in the backend library + `metal-<backend>` image entries, a `run.sh` Darwin/DYLD branch and `inferBackendPathDarwin` case (in `scripts/lib/backend-filter.mjs`) for C++ backends --- or the PR explains why an OS is unsupported. Do not ship Linux-only by default.
 - [ ] Meta definition and image entries added to the backend library with `backendcatalog --add`, for all build variants (latest + development), and `backend/index.yaml` regenerated (never edited by hand)
 - [ ] Tag suffixes match between the workflow file and the library entries
 - [ ] Makefile updated with all 6 required changes (`.NOTPARALLEL`, `prepare-test-extra`, `test-extra`, backend definition, docker-build target eval, `docker-build-backends`)
 - [ ] No YAML syntax errors (check with linter)
 - [ ] No Makefile syntax errors (check with linter)
 - [ ] Follows the same pattern as similar backends (e.g., if it's a transcription backend, follow `faster-whisper` pattern)
-- [ ] **`Load` validates its input and refuses models it can't serve.** When a model config has no explicit `backend:`, the model loader greedily probes *every* installed backend with the model's name and binds to the first `Load` that succeeds — an accept-anything `Load` will capture arbitrary LLMs (issue #9287). Backends that load a real artefact get this for free (the load fails); backends with no artefact must gate on the name: `opus` accepts only its own name (or none), `local-store` requires the `store.NamespacePrefix` namespace marker sent by `core/backend/stores.go`.
+- [ ] **`Load` validates its input and refuses models it can't serve.** When a model config has no explicit `backend:`, the model loader greedily probes *every* installed backend with the model's name and binds to the first `Load` that succeeds --- an accept-anything `Load` will capture arbitrary LLMs (issue #9287). Backends that load a real artefact get this for free (the load fails); backends with no artefact must gate on the name: `opus` accepts only its own name (or none), `local-store` requires the `store.NamespacePrefix` namespace marker sent by `core/backend/stores.go`.
 - [ ] **Gallery variant ranking considered**: if this backend should be preferred over another on some hardware, it is listed in `engineNamePreferenceRules` (NOT `backendBuildTagPreferenceRules`, NOT `servingFeaturePreferenceTokens`) in `pkg/system/capabilities.go`. A missing entry silently ranks it last and lets the next sort key decide.
 - [ ] Documented: added to the category list in `docs/content/models/backends.md` (and any new endpoint/realtime capability documented under `docs/content/`)
 - [ ] If it is an in-house native C/C++/GGML engine, added to the maintained-engines table in the top-level `README.md`
 
 ## Bundling runtime shared libraries (`package.sh`)
 
-The final `Dockerfile.python` stage is `FROM scratch` — there is no system `libc`, no `apt`, no fallback library path. Only files explicitly copied from the builder stage end up in the backend image. That means any runtime `dlopen` your backend (or its Python deps) needs **must** be packaged into `${BACKEND}/lib/`.
+The final `Dockerfile.python` stage is `FROM scratch` --- there is no system `libc`, no `apt`, no fallback library path. Only files explicitly copied from the builder stage end up in the backend image. That means any runtime `dlopen` your backend (or its Python deps) needs **must** be packaged into `${BACKEND}/lib/`.
 
 Pattern:
 
 1. Make sure the library is installed in the builder stage of `backend/Dockerfile.python` (add it to the top-level `apt-get install`).
-2. Drop a `package.sh` in your backend directory that copies the library — and its soname symlinks — into `$(dirname $0)/lib`. See `backend/python/vllm/package.sh` for a reference implementation that walks `/usr/lib/x86_64-linux-gnu`, `/usr/lib/aarch64-linux-gnu`, etc.
+2. Drop a `package.sh` in your backend directory that copies the library --- and its soname symlinks --- into `$(dirname $0)/lib`. See `backend/python/vllm/package.sh` for a reference implementation that walks `/usr/lib/x86_64-linux-gnu`, `/usr/lib/aarch64-linux-gnu`, etc.
 3. `Dockerfile.python` already runs `package.sh` automatically if it exists, after `package-gpu-libs.sh`.
 4. `libbackend.sh` automatically prepends `${EDIR}/lib` to `LD_LIBRARY_PATH` at run time, so anything packaged this way is found by `dlopen`.
 
@@ -357,26 +357,26 @@ Then boot it inside a fresh `ubuntu:24.04` (which intentionally does *not* have 
 
 ## Importer integration
 
-When you add a new backend, you MUST also make it importable via the model import form (`/app/import-model`). The import form dropdown is sourced dynamically from `GET /backends/known` — it reads the importer registry at `core/gallery/importers/importers.go`, so the steps below are the ONLY way to make your backend show up.
+When you add a new backend, you MUST also make it importable via the model import form (`/app/import-model`). The import form dropdown is sourced dynamically from `GET /backends/known` --- it reads the importer registry at `core/gallery/importers/importers.go`, so the steps below are the ONLY way to make your backend show up.
 
 Required steps:
 
 1. **If your backend has unambiguous detection signals** (unique file extension, HF `pipeline_tag`, unique repo name pattern, unique artefact like `modules.json`):
    - Create an importer file at `core/gallery/importers/<backend>.go` following the Match/Import pattern in `llama-cpp.go`.
-   - Register it in `importers.go:defaultImporters` in **specificity order** — more specific detectors must appear BEFORE more generic ones (e.g. `sentencetransformers` before `transformers`, `stablediffusion-ggml` before `llama-cpp`, `vllm-omni` before `vllm`). First match wins.
+   - Register it in `importers.go:defaultImporters` in **specificity order** --- more specific detectors must appear BEFORE more generic ones (e.g. `sentencetransformers` before `transformers`, `stablediffusion-ggml` before `llama-cpp`, `vllm-omni` before `vllm`). First match wins.
 2. **If your backend is a drop-in replacement** (same artefacts as another backend, e.g. `ik-llama-cpp` and `turboquant` both consume GGUF the same way `llama-cpp` does):
    - Do NOT create a new importer. Extend the existing importer's `Import()` to swap the emitted `backend:` field when `preferences.backend` matches. See `llama-cpp.go` for the pattern.
-3. **If your backend has no reliable auto-detect signal** (preference-only — e.g. `sglang`, `tinygrad`, `whisperx`):
+3. **If your backend has no reliable auto-detect signal** (preference-only --- e.g. `sglang`, `tinygrad`, `whisperx`):
    - Do NOT create an importer. Instead add the backend name to the curated pref-only slice in `core/http/endpoints/localai/backend.go` that feeds `/backends/known`. A single line addition.
 4. **Always** add a table-driven test in `core/gallery/importers/importers_test.go` (Ginkgo/Gomega):
-   - Use a real public HuggingFace repo URI as the test fixture (existing tests already hit the live HF API — follow that pattern).
-   - Cover detection (auto-match without preferences), preference-override (explicit `backend:` in preferences wins), and — if the backend's modality has a common `pipeline_tag` but ambiguous artefacts — an ambiguity test asserting `errors.Is(err, importers.ErrAmbiguousImport)`.
+   - Use a real public HuggingFace repo URI as the test fixture (existing tests already hit the live HF API --- follow that pattern).
+   - Cover detection (auto-match without preferences), preference-override (explicit `backend:` in preferences wins), and --- if the backend's modality has a common `pipeline_tag` but ambiguous artefacts --- an ambiguity test asserting `errors.Is(err, importers.ErrAmbiguousImport)`.
 
 Rules of thumb:
 
 - When in doubt, lean pref-only. A wrong auto-detect is worse than a forced preference.
 - Never silently emit a modality mismatch (e.g. emit `llama-cpp` for a TTS repo because `.gguf` is present). Return `ErrAmbiguousImport` instead.
-- Registration order is the single most common source of bugs. Check by running `go test ./core/gallery/importers/...` — the existing suite will fail if you've shadowed a pre-existing detector.
+- Registration order is the single most common source of bugs. Check by running `go test ./core/gallery/importers/...` --- the existing suite will fail if you've shadowed a pre-existing detector.
 
 ## 6. Example: Adding a Python Backend
 

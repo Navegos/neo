@@ -1,6 +1,6 @@
 ---
 name: build-and-dependency
-description: Dev environment setup for NeMo AutoModel — container-based development, uv package management, installation options, environment variables, and common build pitfalls.
+description: Dev environment setup for NeMo AutoModel --- container-based development, uv package management, installation options, environment variables, and common build pitfalls.
 when_to_use: Setting up a dev environment, adding or removing dependencies, switching container images, configuring environment variables, 'uv sync fails', 'ModuleNotFoundError', 'TransformerEngine version mismatch', stale .venv issues.
 ---
 
@@ -16,7 +16,7 @@ uv sync --locked --all-groups --extra all
 ```
 
 Or use the NeMo-AutoModel container from NVIDIA NGC (pick a published tag from
-[the NGC catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo-automodel) —
+[the NGC catalog](https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo-automodel) ---
 e.g. `26.04`):
 
 ```bash
@@ -58,7 +58,7 @@ uv sync --locked --all-groups --extra all
 
 > **Warning:** the `update_pyproject_pytorch.sh` step is required. Without it,
 > `uv sync` will try to reinstall `torch`, which leads to CUDA version
-> mismatches and TE import failures — uv cannot recognize the torch baked into
+> mismatches and TE import failures --- uv cannot recognize the torch baked into
 > the PyTorch base container.
 
 ### Option 2: uv (Recommended for Local Development)
@@ -77,11 +77,11 @@ uv sync --locked --all-groups --extra diffusion        # diffusion models
 uv sync --locked --all-groups --extra diffusion-media  # + diffusion preprocessing/export (imageio-ffmpeg, opencv)
 uv sync --locked --all-groups --extra media            # vlm-media + diffusion-media (union)
 uv sync --locked --all-groups --extra delta-databricks # Delta Lake / Databricks
-uv sync --locked --all-groups --extra all              # all standard extras (EXCLUDES media — FFmpeg kept opt-in)
+uv sync --locked --all-groups --extra all              # all standard extras (EXCLUDES media --- FFmpeg kept opt-in)
 ```
 
 The media extras (`vlm-media`, `diffusion-media`, `media`) bundle FFmpeg and are
-deliberately **excluded from `all`** and from the container image — add them
+deliberately **excluded from `all`** and from the container image --- add them
 explicitly for video/image decode.
 
 ### Option 3: uv pip
@@ -149,4 +149,4 @@ uv run automodel examples/llm_finetune/llama3_2/llama3_2_1b_squad.yaml \
 | Stale `.venv` after switching branches | Cached environment out of sync | Delete `.venv` and re-run `uv sync --locked` |
 | Import errors for optional features (TE, flash-attn, MoE) | Missing extras | Install the matching `uv` extra (`--extra fa`, `--extra moe`, etc.) |
 | Import errors for media (`cv2`, `decord`, `qwen_vl_utils`, `imageio_ffmpeg`) | Media extras are opt-in (not in `all`) | Install `--extra vlm-media` (VLM/Qwen/Mistral) or `--extra diffusion-media` (diffusion) |
-| TransformerEngine version mismatch | The TE installed by `uv sync` takes precedence over the version baked into the container | Set the desired TE version in `pyproject.toml` / `uv.lock` and re-run `uv sync` — the venv's TE wins, not the container's |
+| TransformerEngine version mismatch | The TE installed by `uv sync` takes precedence over the version baked into the container | Set the desired TE version in `pyproject.toml` / `uv.lock` and re-run `uv sync` --- the venv's TE wins, not the container's |

@@ -39,28 +39,28 @@ The runtime's `docs/developer-docs/monitor.md` is exhaustive for native Copilot 
 
 ```text
 src/vs/platform/agentHost/
-├── OTEL.md
-├── common/
-│   ├── agentService.ts                         # setting IDs, env names, settings → env translation
-│   └── otel/agentHostOTelService.ts            # service contract and synthetic span names
-├── electron-main/electronAgentHostStarter.ts   # Electron spawn-time env binding
-├── node/
-│   ├── nodeAgentHostStarter.ts                  # server spawn-time env binding
-│   ├── otel/agentHostOTelService.ts             # pass-through and DB-mode routing
-│   ├── copilot/                                 # Copilot SDK configuration and trace context
-│   ├── claude/                                  # Claude launch environment
-│   └── codex/                                   # Codex launch overrides
-└── test/node/otel/                              # pipeline integration tests
+|-- OTEL.md
+|-- common/
+|   |-- agentService.ts                         # setting IDs, env names, settings -> env translation
+|   `-- otel/agentHostOTelService.ts            # service contract and synthetic span names
+|-- electron-main/electronAgentHostStarter.ts   # Electron spawn-time env binding
+|-- node/
+|   |-- nodeAgentHostStarter.ts                  # server spawn-time env binding
+|   |-- otel/agentHostOTelService.ts             # pass-through and DB-mode routing
+|   |-- copilot/                                 # Copilot SDK configuration and trace context
+|   |-- claude/                                  # Claude launch environment
+|   `-- codex/                                   # Codex launch overrides
+`-- test/node/otel/                              # pipeline integration tests
 ```
 
 Shared transport and persistence live under:
 
 ```text
 src/vs/platform/otel/
-├── common/                                      # normalized span data and shared attributes
-└── node/
-    ├── otlp/                                    # receiver, decoder, outbound forwarders
-    └── sqlite/                                  # persistent span store
+|-- common/                                      # normalized span data and shared attributes
+`-- node/
+    |-- otlp/                                    # receiver, decoder, outbound forwarders
+    `-- sqlite/                                  # persistent span store
 ```
 
 Agent Host supports two routing modes:
@@ -74,16 +74,16 @@ Read `src/vs/platform/agentHost/OTEL.md` before changing either mode.
 
 ```text
 extensions/copilot/src/platform/otel/
-├── common/                                      # IOTelService, config, attributes, events, metrics
-└── node/                                        # SDK implementation and exporters
+|-- common/                                      # IOTelService, config, attributes, events, metrics
+`-- node/                                        # SDK implementation and exporters
 
 extensions/copilot/src/extension/
-├── prompt/node/chatMLFetcher.ts                 # chat spans
-├── intents/node/toolCallingLoop.ts              # invoke_agent spans
-├── tools/vscode-node/toolsService.ts            # execute_tool spans
-├── chat/vscode-node/chatHookService.ts           # execute_hook spans
-├── byok/vscode-node/                            # BYOK chat spans
-└── trajectory/vscode-node/                      # Agent Debug Log conversion
+|-- prompt/node/chatMLFetcher.ts                 # chat spans
+|-- intents/node/toolCallingLoop.ts              # invoke_agent spans
+|-- tools/vscode-node/toolsService.ts            # execute_tool spans
+|-- chat/vscode-node/chatHookService.ts           # execute_hook spans
+|-- byok/vscode-node/                            # BYOK chat spans
+`-- trajectory/vscode-node/                      # Agent Debug Log conversion
 ```
 
 For extension-emitted attributes, use constants from `extensions/copilot/src/platform/otel/common/genAiAttributes.ts`. Those constants are not authoritative for provider-native Agent Host telemetry.

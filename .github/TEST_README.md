@@ -29,12 +29,12 @@ Copy `.github` to the shared temporary directory before calling it:
 
 ```text
 /__w/
-├── <repo>/
-│   └── <repo>/                 # workspace; local uses paths start here
-│       └── .github/
-└── _temp/                     # $RUNNER_TEMP
-    └── ci-workflow/
-        └── .github/actions/...
+|-- <repo>/
+|   `-- <repo>/                 # workspace; local uses paths start here
+|       `-- .github/
+`-- _temp/                     # $RUNNER_TEMP
+    `-- ci-workflow/
+        `-- .github/actions/...
 ```
 
 With this layout, `./../../_temp` resolves to `$RUNNER_TEMP`. A layout change can
@@ -68,22 +68,22 @@ emits a GitHub Actions matrix.
 
 ```text
 PR changed files
-    │
-    ▼
-test_selector.py (coverage + AST) ──► recommended pytest targets
-                                         │
+    |
+    v
+test_selector.py (coverage + AST) --- recommended pytest targets
+                                         |
                               select_tests.py --test-list-file
-                                         │
+                                         |
                             runner_mapping regex routing
-                                         │
+                                         |
                               default partition
-                                         │
+                                         |
                             pinned_routes (optional)
-                                         │
+                                         |
                             partition runner_label
-                                         │
+                                         |
                               runner_label.json
-                                         │
+                                         |
                                   test_groups JSON
 ```
 
@@ -139,7 +139,7 @@ branch's pinned `.github/vllm-main-verified.commit` for the static checks
 | `skip_tests` | Test files removed from any selection after scanning |
 | `runner_mapping` | Regex patterns mapping test paths to logical partitions |
 | `pinned_routes` | Files moved to dedicated partitions after selection |
-| `partition` | Logical partition → runner label + load-balanced group count |
+| `partition` | Logical partition -> runner label + load-balanced group count |
 
 `estimated_times.yaml` holds per-test estimated seconds for load-balanced
 partitioning. It is a separate file so timing-only PRs do not trigger the

@@ -1,15 +1,15 @@
-# RTK Documentation — Interface Contract
+# RTK Documentation --- Interface Contract
 
 This directory contains user-facing documentation for the RTK website.
 It feeds `rtk-ai/rtk-website` via the `prepare-docs.mjs` pipeline.
 
 **Scope**: `docs/guide/` is website content only. Technical and contributor documentation
 lives in the codebase (distributed, co-located pattern):
-- `ARCHITECTURE.md` — System design, ADRs, filtering strategies
-- `CONTRIBUTING.md` — Design philosophy, PR process, TOML vs Rust
-- `SECURITY.md` — Vulnerability policy
-- `src/*/README.md` — Per-module implementation docs
-- `hooks/README.md` — Hook system and agent integrations
+- `ARCHITECTURE.md` --- System design, ADRs, filtering strategies
+- `CONTRIBUTING.md` --- Design philosophy, PR process, TOML vs Rust
+- `SECURITY.md` --- Vulnerability policy
+- `src/*/README.md` --- Per-module implementation docs
+- `hooks/README.md` --- Hook system and agent integrations
 
 ## Structure
 
@@ -27,8 +27,8 @@ docs/
 ```
 
 Engine and proxy user documentation lives here, not in `engine/README.md` or
-`proxy/README.md` — those are short crate READMEs that point into `guide/`.
-Links stay inside `guide/`: a relative link that leaves it (`../../../engine/…`)
+`proxy/README.md` --- those are short crate READMEs that point into `guide/`.
+Links stay inside `guide/`: a relative link that leaves it (`../../../engine/...`)
 has no page on the website.
 
 ## Frontmatter (required on every .md)
@@ -55,5 +55,5 @@ if frontmatter is missing or malformed.
 - **Diagrams**: Mermaid in fenced code blocks
 - **Code samples**: always specify the language (`rust`, `toml`, `bash`)
 - **Language**: English only
-- **No `rtk <cmd>` syntax**: users never type `rtk` — hooks rewrite commands transparently.
+- **No `rtk <cmd>` syntax**: users never type `rtk` --- hooks rewrite commands transparently.
   Only `rtk gain`, `rtk init`, `rtk verify`, and `rtk bypass` appear as user-typed commands.

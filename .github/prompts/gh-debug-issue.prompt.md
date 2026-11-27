@@ -15,10 +15,10 @@ RUN curl -s -X GET -H "Authorization: Bot $MASTRA_DISCORD_BOT_TOKEN" "https://di
 
 If discord returns a 401, ignore it, the user hasn't set up the token yet, continue on without the discord messages.
 
-**IMPORTANT — Capture issue details immediately.** After fetching the issue, before doing anything else:
+**IMPORTANT --- Capture issue details immediately.** After fetching the issue, before doing anything else:
 
-1. Record the issue number, title, and a 2-3 sentence summary of the problem as your first task (e.g., "Debug issue #${input:issue}: <title> — <brief summary>"). This ensures the issue context survives in your task state even if conversation history is compressed.
-2. Create an ISSUE_SUMMARY${input:issue}.md file in the project root with the issue number, title, labels, and a summary of the issue body and key comments. This file is your persistent reference — you can re-read it at any point if you need to recall the issue details.
+1. Record the issue number, title, and a 2-3 sentence summary of the problem as your first task (e.g., "Debug issue #${input:issue}: <title> --- <brief summary>"). This ensures the issue context survives in your task state even if conversation history is compressed.
+2. Create an ISSUE_SUMMARY${input:issue}.md file in the project root with the issue number, title, labels, and a summary of the issue body and key comments. This file is your persistent reference --- you can re-read it at any point if you need to recall the issue details.
 
 Debugging Github issues has 3 stages. Each stage must be fully completed before moving on to the next.
 

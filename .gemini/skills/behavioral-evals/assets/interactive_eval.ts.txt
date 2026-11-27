@@ -9,9 +9,9 @@ describe('interactive_feature', () => {
       'package.json': JSON.stringify({ name: 'app' })
     },
     prompt: 'Task description here requiring approval',
-    timeout: 60000, 
+    timeout: 60000,
     setup: async (rig) => {
-      // ⚠️ Breakpoints are ONLY safe in appEvalTest
+      // [WARN] Breakpoints are ONLY safe in appEvalTest
       rig.setBreakpoint(['ask_user']);
     },
     assert: async (rig) => {

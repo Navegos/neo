@@ -47,7 +47,7 @@ Prefer no trigger over an approximate one. Dilution only costs statistical power
 
 Fire it where the code decides between control and treatment behavior, before they differ, under a condition that is the same in every arm.
 
-| The treatment… | Fire when… |
+| The treatment... | Fire when... |
 |---|---|
 | changes what an action does | the action runs |
 | adds UI that control lacks | the UI would render, checked in every arm |

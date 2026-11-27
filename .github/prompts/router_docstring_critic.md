@@ -84,16 +84,16 @@ for the human reviewer. Keep each entry to one line:
 
 ```markdown
 ### Corrected
-- `path/to/router.py` `handler_name` · "<claim as written>" → "<what it says now>". Evidence: `file.py:line` <what it shows>.
+- `path/to/router.py` `handler_name` - "<claim as written>" -> "<what it says now>". Evidence: `file.py:line` <what it shows>.
 
 ### Added
-- `path/to/router.py` `handler_name` · "<what you added>". Evidence: `file.py:line`.
+- `path/to/router.py` `handler_name` - "<what you added>". Evidence: `file.py:line`.
 
 ### Removed
-- `path/to/router.py` `handler_name` · "<claim>": <why nothing true could replace it>.
+- `path/to/router.py` `handler_name` - "<claim>": <why nothing true could replace it>.
 
 ### Reviewer should check
-- `path/to/router.py` `handler_name` · "<claim>": <why you kept it but are unsure>.
+- `path/to/router.py` `handler_name` - "<claim>": <why you kept it but are unsure>.
 ```
 
 Write "None." under a heading with no entries. Cite evidence a reviewer can open: a file

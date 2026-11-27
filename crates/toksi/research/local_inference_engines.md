@@ -336,12 +336,12 @@ This technical reference catalogs local LLM runtimes, engines, workstations, and
 
 ```
                                   Your Primary Goal
-                                          │
-         ┌────────────────────────────────┼────────────────────────────────┐
-         ▼                                ▼                                ▼
+                                          |
+         +--------------------------------+--------------------------------+
+         v                                v                                v
 [Desktop Workspace]             [Developer Daemon]              [Production Concurrency]
-  • LM Studio (GUI)               • Ollama (CLI / Modelfile)      • vLLM (General throughput)
-  • Jan AI (Open-Source / MCP)    • llama-server (Bare-metal)     • SGLang (Agents & JSON)
-  • GPT4All (CPU / LocalDocs)     • TabbyAPI (ExLlamaV2 / EXL2)   • TGI (Hugging Face ecosystem)
-                                  • Exo (Distributed cluster)     • Triton + TRT-LLM (Enterprise)
+  - LM Studio (GUI)               - Ollama (CLI / Modelfile)      - vLLM (General throughput)
+  - Jan AI (Open-Source / MCP)    - llama-server (Bare-metal)     - SGLang (Agents & JSON)
+  - GPT4All (CPU / LocalDocs)     - TabbyAPI (ExLlamaV2 / EXL2)   - TGI (Hugging Face ecosystem)
+                                  - Exo (Distributed cluster)     - Triton + TRT-LLM (Enterprise)
 ```

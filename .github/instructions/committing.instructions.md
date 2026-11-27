@@ -1,5 +1,5 @@
 ---
-description: Guidelines for creating git commits — respecting signing configuration, verification hooks, and referencing GitHub issues.
+description: Guidelines for creating git commits --- respecting signing configuration, verification hooks, and referencing GitHub issues.
 applyTo: '**'
 ---
 

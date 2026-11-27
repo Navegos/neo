@@ -1,5 +1,5 @@
 ---
-description: VS Code test writing guidelines — unit tests, integration tests, snapshot tests, and clean teardown patterns. Reference when writing or updating tests.
+description: VS Code test writing guidelines --- unit tests, integration tests, snapshot tests, and clean teardown patterns. Reference when writing or updating tests.
 applyTo: "{src/vs/**/test/**,src/vs/**/*.test.ts,src/vs/**/*.integrationTest.ts}"
 ---
 
@@ -46,11 +46,11 @@ Always call `sinon.restore()` in `teardown` to avoid leaking mocks.
 
 ### Best Practices
 
-- Minimize assertions per test — prefer one `assert.deepStrictEqual` snapshot over many fine-grained assertions
-- Don't add tests to the wrong suite — find the relevant `suite` block
+- Minimize assertions per test --- prefer one `assert.deepStrictEqual` snapshot over many fine-grained assertions
+- Don't add tests to the wrong suite --- find the relevant `suite` block
 - Follow existing patterns (`describe`/`test` or `suite`/`test`) consistently within a file
-- Don't stub globals (e.g., `(mainWindow as any).X = ...`) — make dependencies injectable instead
+- Don't stub globals (e.g., `(mainWindow as any).X = ...`) --- make dependencies injectable instead
 
 ### Snapshot Testing
 
-Use `assertSnapshot` for Jest-like snapshot tests. Snapshots are written to a `__snapshots__` directory beside the test file on first run — verify the output is correct, then subsequent runs compare against it.
+Use `assertSnapshot` for Jest-like snapshot tests. Snapshots are written to a `__snapshots__` directory beside the test file on first run --- verify the output is correct, then subsequent runs compare against it.

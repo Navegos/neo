@@ -1,6 +1,6 @@
 # Running & Promoting Evals
 
-## 🛠️ Prerequisites
+## [TOOLS] Prerequisites
 
 Behavioral evals run against the compiled binary. You **must** build and bundle
 the project first after making changes:
@@ -11,7 +11,7 @@ npm run build && npm run bundle
 
 ---
 
-## 🏃‍♂️ Running Tests
+## [RUN] Running Tests
 
 ### 1. Configure Environment Variables
 
@@ -39,7 +39,7 @@ RUN_EVALS=1 npx vitest run --config evals/vitest.config.ts my_feature.eval.ts
 
 ---
 
-## 🐞 Debugging and Logs
+## [DEBUG] Debugging and Logs
 
 If a test fails, verify:
 
@@ -52,7 +52,7 @@ If a test fails, verify:
 
 ---
 
-### 🎯 Verify Model Targeting
+### [MISSION] Verify Model Targeting
 
 - **Tip:** Standard evals benchmark against model variations. If a test passes
   on Flash but fails on Pro (or vice versa), the issue is usually in the **tool
@@ -61,7 +61,7 @@ If a test fails, verify:
 
 ---
 
-## 🚥 deflaking & Promotion
+## [GATE] deflaking & Promotion
 
 To maintain CI stability, all new evals follow a strict incubation period.
 

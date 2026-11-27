@@ -170,7 +170,7 @@ Follow the standard fix procedure in `_fix-policy.md`. Suite-specific bits:
 
 | Category | Branch type | test_required | Batchable | Eligibility note |
 |----------|-------------|---------------|-----------|------------------|
-| transitive-gap | `chore` | yes | yes, by target package (max 3) | Add the imported distribution to the dependency list of the package that imports it, copying the version specifier from a sibling package that already declares it. Insert in alphabetical order; match existing quote/specifier style. **Ineligible** when no sibling package declares the dep — choosing a specifier from scratch is interpretive, not mechanical. Those findings stay report-only and surface for maintainer judgement. |
+| transitive-gap | `chore` | yes | yes, by target package (max 3) | Add the imported distribution to the dependency list of the package that imports it, copying the version specifier from a sibling package that already declares it. Insert in alphabetical order; match existing quote/specifier style. **Ineligible** when no sibling package declares the dep --- choosing a specifier from scratch is interpretive, not mechanical. Those findings stay report-only and surface for maintainer judgement. |
 | unused | `chore` | yes | no | Remove the declaration. Eligible only when checks across the package's `src/`, lazy-import system, plugin entry points, and tests turn up zero references. |
 
 `fix_backlog.data` should record: for transitive-gap, the target package,
@@ -189,7 +189,7 @@ regenerated `uv.lock`, and run `uv lock --check`. The PR must include
 per-package test target (see `_fix-policy.md`). `make install-dev` is the only
 sanctioned install command (no direct `pip install` or `uv pip install`).
 
-**Not eligible** — stays report-only:
+**Not eligible** --- stays report-only:
 
 - Cross-package version reconciliation, version pinning concerns
   (judgement-heavy).
@@ -197,7 +197,7 @@ sanctioned install command (no direct `pip install` or `uv pip install`).
 
 ## Constraints
 
-- Outside the fix phase, this recipe is read-only — do not modify files.
+- Outside the fix phase, this recipe is read-only --- do not modify files.
 - Within the fix phase, only modify `packages/*/pyproject.toml` and `uv.lock`.
   The repo-root `pyproject.toml` is forbidden.
 - `make install-dev` is the only sanctioned install command. Do not

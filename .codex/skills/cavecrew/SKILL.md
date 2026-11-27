@@ -10,8 +10,8 @@ description: >
 
 Three ultracave subagent presets whose returned results use strict compact contracts:
 
-- `cavecrew-investigator`: locate definitions/callers; returns `path:line — symbol — note` and `totals: <counts>` or `No match.`
-- `cavecrew-builder`: surgical edits (<=2 files, known scope); returns `path:line-range — <change>` + `verified: re-read OK` or terminal marker (`too-big.`, `needs-confirm.`, `ambiguous.`, `regressed.`).
+- `cavecrew-investigator`: locate definitions/callers; returns `path:line --- symbol --- note` and `totals: <counts>` or `No match.`
+- `cavecrew-builder`: surgical edits (<=2 files, known scope); returns `path:line-range --- <change>` + `verified: re-read OK` or terminal marker (`too-big.`, `needs-confirm.`, `ambiguous.`, `regressed.`).
 - `cavecrew-reviewer`: diff review; returns `path:line: <severity>: <problem>. <fix>.` sorted ascending, or `No issues.`
 
 ## Auto-Clarity & Safety

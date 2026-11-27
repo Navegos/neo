@@ -3,56 +3,56 @@ name: FastANP 插件化重构方案
 overview: ""
 todos:
   - id: ce002381-8c70-4ca7-9b63-13c874b6e852
-    content: 重构 FastANP 主类：接受 FastAPI 实例，添加 get_common_header() 方法，添加 interfaces 字典属性，移除自动路由注册
+    content: 重构 FastANP 主类: 接受 FastAPI 实例, 添加 get_common_header() 方法, 添加 interfaces 字典属性, 移除自动路由注册
     status: pending
   - id: c59e43e6-4d28-4ce6-af87-dded0af8914b
-    content: 实现 Context 注入机制：创建 Context、Session、SessionManager 类
+    content: 实现 Context 注入机制: 创建 Context, Session, SessionManager 类
     status: pending
   - id: eb6f2a6a-bcae-4fe5-8def-549a6486a963
-    content: 重构 Interface 管理器：支持 path 参数，自动注册 OpenRPC 文档路由，实现 InterfaceProxy，添加函数名唯一性检查
+    content: 重构 Interface 管理器: 支持 path 参数, 自动注册 OpenRPC 文档路由, 实现 InterfaceProxy, 添加函数名唯一性检查
     status: pending
   - id: dea0dbf5-22f4-4dea-9434-d8c374265309
-    content: 实现 JSON-RPC 自动端点和请求分发：注册统一 /rpc 端点，支持 Context 自动注入
+    content: 实现 JSON-RPC 自动端点和请求分发: 注册统一 /rpc 端点, 支持 Context 自动注入
     status: pending
   - id: 607ef5c9-8003-4527-8f16-eac8374db5bf
-    content: 简化 AD Generator：仅生成公共头部，移除自动合并逻辑
+    content: 简化 AD Generator: 仅生成公共头部, 移除自动合并逻辑
     status: pending
   - id: a38122a4-fcac-47ee-88dc-9271c34d5ccc
-    content: 重构中间件：转换为 FastAPI 中间件类，提供 auth_middleware 属性
+    content: 重构中间件: 转换为 FastAPI 中间件类, 提供 auth_middleware 属性
     status: pending
   - id: 5844224a-2ec5-452b-91f8-cfda63e13080
-    content: 更新示例代码：重写 simple_agent.py 和 hotel_booking_agent.py
+    content: 更新示例代码: 重写 simple_agent.py 和 hotel_booking_agent.py
     status: pending
   - id: bb36219c-6e40-4564-a8de-0db5c054daa0
-    content: 更新文档：README.md, QUICKSTART.md, IMPLEMENTATION.md
+    content: 更新文档: README.md, QUICKSTART.md, IMPLEMENTATION.md
     status: pending
   - id: 52ef693f-eef4-4ad4-9794-7025b2ab2a50
   - id: 3115a90d-863e-415b-891e-709697c52680
-    content: 重构 FastANP 主类：接受 FastAPI 实例，添加 get_common_header() 方法，添加 interfaces 字典属性，移除自动路由注册
+    content: 重构 FastANP 主类: 接受 FastAPI 实例, 添加 get_common_header() 方法, 添加 interfaces 字典属性, 移除自动路由注册
     status: pending
   - id: 4c64c8df-b42d-4c21-ae79-07879085771f
-    content: 实现 Context 注入机制：创建 Context、Session、SessionManager 类
+    content: 实现 Context 注入机制: 创建 Context, Session, SessionManager 类
     status: pending
   - id: af27c519-878c-4ea8-9243-4b039f5611e4
-    content: 重构 Interface 管理器：支持 path 参数，自动注册 OpenRPC 文档路由，实现 InterfaceProxy，添加函数名唯一性检查
+    content: 重构 Interface 管理器: 支持 path 参数, 自动注册 OpenRPC 文档路由, 实现 InterfaceProxy, 添加函数名唯一性检查
     status: pending
   - id: e1d33399-fd05-4d71-9f3a-5169467891ef
-    content: 实现 JSON-RPC 自动端点和请求分发：注册统一 /rpc 端点，支持 Context 自动注入
+    content: 实现 JSON-RPC 自动端点和请求分发: 注册统一 /rpc 端点, 支持 Context 自动注入
     status: pending
   - id: 9db8b52a-70bb-4b04-8801-5e0c0d66a5f5
-    content: 简化 AD Generator：仅生成公共头部，移除自动合并逻辑
+    content: 简化 AD Generator: 仅生成公共头部, 移除自动合并逻辑
     status: pending
   - id: ba97ba4d-52b9-4afb-996e-87b5df565054
-    content: 重构中间件：转换为 FastAPI 中间件类，提供 auth_middleware 属性
+    content: 重构中间件: 转换为 FastAPI 中间件类, 提供 auth_middleware 属性
     status: pending
   - id: b5e8bde8-05cc-43a6-bc68-f0868b391901
-    content: 更新示例代码：重写 simple_agent.py 和 hotel_booking_agent.py
+    content: 更新示例代码: 重写 simple_agent.py 和 hotel_booking_agent.py
     status: pending
   - id: d1c78fbc-b29b-4d75-a4ec-a09b450080f4
-    content: 更新文档：README.md, QUICKSTART.md, IMPLEMENTATION.md
+    content: 更新文档: README.md, QUICKSTART.md, IMPLEMENTATION.md
     status: pending
   - id: c145f9d6-69c3-467f-8e3e-03705a560d64
-    content: 更新单元测试：适配新接口，添加 Context、Session、InterfaceProxy 测试
+    content: 更新单元测试: 适配新接口, 添加 Context, Session, InterfaceProxy 测试
     status: pending
 ---
 
@@ -60,9 +60,9 @@ todos:
 
 ## 核心设计变更
 
-**从**: FastANP 作为框架，自动管理所有路由和生成
+**从**: FastANP 作为框架, 自动管理所有路由和生成
 
-**到**: FastAPI 作为主框架，FastANP 作为插件辅助工具
+**到**: FastAPI 作为主框架, FastANP 作为插件辅助工具
 
 ## 关键接口设计
 
@@ -88,7 +88,7 @@ anp = FastANP(
     private_key_path="...",
     public_key_path="...",
     owner={...},
-    jsonrpc_server_url="...",  # JSON-RPC 端点路径，默认 "/rpc"
+    jsonrpc_server_url="...",  # JSON-RPC 端点路径, 默认 "/rpc"
     jsonrpc_server_name="...",
     jsonrpc_server_description="...",
     external_nonce_validator=None,
@@ -99,7 +99,7 @@ anp = FastANP(
 
 ### 2. 路由完全由用户控制
 
-用户手动定义 ad.json 路由：
+用户手动定义 ad.json 路由: 
 
 ```python
 @app.get("/{agent_id}/ad.json")
@@ -107,7 +107,7 @@ def get_agent_description(agent_id: str):
     # 获取公共头部
     ad = anp.get_common_header()
     
-    # 添加 Information（用户自定义）
+    # 添加 Information(用户自定义)
     ad["Infomations"] = [
         {
             "type": "Product",
@@ -116,7 +116,7 @@ def get_agent_description(agent_id: str):
         }
     ]
     
-    # 添加 Interface（通过 FastANP 辅助）
+    # 添加 Interface(通过 FastANP 辅助)
     ad["interfaces"] = [
         anp.interfaces[search_rooms].link_summary,  # 链接模式
         # 或
@@ -148,7 +148,7 @@ def get_rooms(query: str, ctx: Context) -> dict:
     """
     Args:
         query: 查询参数
-        ctx: 自动注入的上下文（基于 DID + Access Token 识别 session）
+        ctx: 自动注入的上下文(基于 DID + Access Token 识别 session)
     """
     return {"session": ctx.session.id, "did": ctx.did}
 ```
@@ -169,27 +169,27 @@ app.add_middleware(anp.auth_middleware, minimum_size=500)
 1. `__init__` 接受 `app: FastAPI` 参数
 2. 移除 `self.app = FastAPI()` 创建逻辑
 3. 移除自动注册 `/ad.json` 端点
-4. 添加 `jsonrpc_server_url` 参数（默认 `/rpc`）
+4. 添加 `jsonrpc_server_url` 参数(默认 `/rpc`)
 5. 添加 `enable_auth_middleware` 参数
 6. 在初始化时自动注册 JSON-RPC 端点到 FastAPI
 7. 添加 `get_common_header()` 方法返回 ad.json 公共头部
-8. 添加 `interfaces` 属性作为字典，key 为函数对象
+8. 添加 `interfaces` 属性作为字典, key 为函数对象
 9. 移除 `finalize()` 自动路由注册逻辑
-10. 移除 `run()` 方法（由 FastAPI 直接运行）
+10. 移除 `run()` 方法(由 FastAPI 直接运行)
 11. 保留 `auth_middleware` 属性供用户使用
 
 ### 阶段 2: 重构 Interface 管理器 (interface_manager.py)
 
 **变更点**:
 
-1. `register_function()` 接受 `path` 参数（OpenRPC 文档路径）
+1. `register_function()` 接受 `path` 参数(OpenRPC 文档路径)
 2. 自动注册 `GET {path}` 路由返回该接口的 OpenRPC 文档
-3. 创建 `InterfaceProxy` 类，提供 `.link_summary`, `.content`, `.openrpc_doc` 属性
+3. 创建 `InterfaceProxy` 类, 提供 `.link_summary`, `.content`, `.openrpc_doc` 属性
 4. `InterfaceManager.get_interface()` 返回 `InterfaceProxy` 对象
-5. 自动注册 JSON-RPC 统一端点（`/rpc`）
+5. 自动注册 JSON-RPC 统一端点(`/rpc`)
 6. 实现 JSON-RPC 请求分发到对应函数
-7. 支持函数签名检测，自动注入 `Context` 参数
-8. 检查函数名全局唯一性，重复时抛出异常
+7. 支持函数签名检测, 自动注入 `Context` 参数
+8. 检查函数名全局唯一性, 重复时抛出异常
 
 ### 阶段 3: 实现 Context 注入机制
 
@@ -197,35 +197,35 @@ app.add_middleware(anp.auth_middleware, minimum_size=500)
 
 **实现**:
 
-1. 定义 `Context` 类，包含：
+1. 定义 `Context` 类, 包含: 
 
-   - `session: Session` - 会话对象（基于 DID + Access Token）
+   - `session: Session` - 会话对象(基于 DID + Access Token)
    - `did: str` - 请求方 DID
    - `request: Request` - FastAPI Request 对象
    - `auth_result: dict` - 认证结果
 
-2. 定义 `Session` 类，包含：
+2. 定义 `Session` 类, 包含: 
 
-   - `id: str` - Session ID（基于 DID + Token 哈希生成）
+   - `id: str` - Session ID(基于 DID + Token 哈希生成)
    - `did: str` - DID
    - `created_at: datetime` - 创建时间
    - `data: dict` - Session 数据存储
 
 3. 实现 `SessionManager` 管理 session 生命周期
 4. 在 JSON-RPC 处理器中检测函数签名
-5. 如果参数包含 `ctx: Context`，自动注入
+5. 如果参数包含 `ctx: Context`, 自动注入
 
 ### 阶段 4: 重构 AD Generator (ad_generator.py)
 
 **变更点**:
 
 1. 简化为仅生成公共头部
-2. `generate_common_header()` 方法返回基础字段：
+2. `generate_common_header()` 方法返回基础字段: 
 
    - `protocolType`, `protocolVersion`, `type`, `url`
    - `name`, `did`, `description`, `created`
-   - `securityDefinitions`, `security`（如果需要）
-   - `owner`（如果有）
+   - `securityDefinitions`, `security`(如果需要)
+   - `owner`(如果有)
 
 3. 移除 `informations` 和 `interfaces` 自动合并逻辑
 
@@ -235,7 +235,7 @@ app.add_middleware(anp.auth_middleware, minimum_size=500)
 
 1. 移除自动路由注册逻辑
 2. 保留 `InformationItem` 类作为数据模型
-3. 或者完全移除（因为用户自己管理）
+3. 或者完全移除(因为用户自己管理)
 
 ### 阶段 6: 实现 InterfaceProxy
 
@@ -281,7 +281,7 @@ class InterfaceProxy:
 
 1. 将 `AuthManager` 转换为 FastAPI 中间件类
 2. 提供 `anp.auth_middleware` 供用户添加
-3. 支持可选参数（如 `minimum_size`）
+3. 支持可选参数(如 `minimum_size`)
 
 ### 阶段 8: 更新示例和文档
 
@@ -320,7 +320,7 @@ def register_function(self, func, path, ...):
 
 ### JSON-RPC 自动端点注册
 
-在 `FastANP.__init__()` 中：
+在 `FastANP.__init__()` 中: 
 
 ```python
 # 自动注册 JSON-RPC 端点
@@ -333,7 +333,7 @@ self.interface_manager.register_jsonrpc_endpoint(
 
 ### OpenRPC 文档路由自动注册
 
-在 `@anp.interface(path)` 装饰器中：
+在 `@anp.interface(path)` 装饰器中: 
 
 ```python
 def interface(self, path: str):
@@ -352,7 +352,7 @@ def interface(self, path: str):
 
 ### Context 自动注入实现
 
-在 JSON-RPC 处理器中：
+在 JSON-RPC 处理器中: 
 
 ```python
 sig = inspect.signature(func)
@@ -376,7 +376,7 @@ result = func(**final_params)
 
 ## 兼容性考虑
 
-- 保留旧 API 的废弃警告（可选）
+- 保留旧 API 的废弃警告(可选)
 - 提供迁移指南文档
 - 示例中同时展示新旧用法对比
 

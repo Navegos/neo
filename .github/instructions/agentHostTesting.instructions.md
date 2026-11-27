@@ -13,10 +13,10 @@ If this directory doesn't exist, you should use the "ask questions" tool to ask 
 
 The sessions process is a portable, standalone server that multiple clients can connect to. Clients see a synchronized view of sessions and can send commands that are reflected back as state-changing actions. The protocol is designed around four requirements:
 
-1. **Synchronized multi-client state** — an immutable, redux-like state tree mutated exclusively by actions flowing through pure reducers. While there is the option to implement functionality via imperative commands, we ALWAYS prefer to model features as pure state and actions.
-2. **Lazy loading** — clients subscribe to state by URI and load data on demand. The session list is fetched imperatively. Large content (images, long tool outputs) is stored by reference and fetched separately.
-3. **Write-ahead with reconciliation** — clients optimistically apply their own actions locally, then reconcile when the server echoes them back alongside any concurrent actions from other clients or the server itself.
-4. **Forward-compatible versioning** — newer clients can connect to older servers. A single protocol version number maps to a capabilities object; clients check capabilities before using features.
+1. **Synchronized multi-client state** --- an immutable, redux-like state tree mutated exclusively by actions flowing through pure reducers. While there is the option to implement functionality via imperative commands, we ALWAYS prefer to model features as pure state and actions.
+2. **Lazy loading** --- clients subscribe to state by URI and load data on demand. The session list is fetched imperatively. Large content (images, long tool outputs) is stored by reference and fetched separately.
+3. **Write-ahead with reconciliation** --- clients optimistically apply their own actions locally, then reconcile when the server echoes them back alongside any concurrent actions from other clients or the server itself.
+4. **Forward-compatible versioning** --- newer clients can connect to older servers. A single protocol version number maps to a capabilities object; clients check capabilities before using features.
 
 See the agent host protocol documentation for more details.
 

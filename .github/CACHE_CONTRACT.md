@@ -19,7 +19,7 @@ them without updating this document.
 | Prefix encodes | container image + Python version + uv version + locked PyTorch minor version |
 | Suffix | literal `latest` (mutable slot, refreshed via delete-before-save) |
 | Contents | every wheel uv has ever downloaded for this baseline, plus the PyG extensions built from source against the locked PyTorch; additive across lockfile changes |
-| Invalidates when | container image, CUDA version, Python version, uv version, or PyTorch minor version changes (prefix change → new slot) |
+| Invalidates when | container image, CUDA version, Python version, uv version, or PyTorch minor version changes (prefix change -> new slot) |
 | Does **not** invalidate on | `uv.lock` or `pyproject.toml` changes |
 | Restore semantics | **fail-open**; missing cache only costs download time, never correctness |
 | Save semantics | nightly only, on cold-cache runs: delete the existing entry first, then save, then verify with `gh cache list` |
@@ -36,7 +36,7 @@ from three independent sources: a pinned CUDA container image, a pinned
 | Prefix encodes | container image + Python version |
 | Suffix | literal `latest` (mutable slot, refreshed via delete-before-save) |
 | Contents | compiled artifacts from warp (`warp/`), triton (`triton/`), and torch inductor (`inductor/`); additive across lockfile and kernel-source changes |
-| Invalidates when | container image or Python version changes (prefix change → new slot) |
+| Invalidates when | container image or Python version changes (prefix change -> new slot) |
 | Does **not** invalidate on | `uv.lock`, `pyproject.toml`, or kernel source changes (each compiler handles its own source-hash invalidation internally) |
 | Restore semantics | **fail-open**; missing cache only costs compilation time, never correctness |
 | Save semantics | nightly `testmon` job only, via the `replace-cache` action; PR workflows restore but never save |
@@ -45,9 +45,9 @@ The JIT compilation cache bundles all JIT compiler artifact directories
 under a single umbrella path.  Each compiler writes to a subdirectory
 controlled by its own environment variable:
 
-- **Warp**: `WARP_CACHE_PATH` → `$JIT_CACHE_DIR/warp`
-- **Triton**: `TRITON_CACHE_DIR` → `$JIT_CACHE_DIR/triton`
-- **torch.compile / Inductor**: `TORCHINDUCTOR_CACHE_DIR` → `$JIT_CACHE_DIR/inductor`
+- **Warp**: `WARP_CACHE_PATH` -> `$JIT_CACHE_DIR/warp`
+- **Triton**: `TRITON_CACHE_DIR` -> `$JIT_CACHE_DIR/triton`
+- **torch.compile / Inductor**: `TORCHINDUCTOR_CACHE_DIR` -> `$JIT_CACHE_DIR/inductor`
 
 Static multi-GPU workers instead use
 `$JIT_CACHE_DIR/inductor/rank-$LOCAL_RANK`. Inductor's cached wrappers can
@@ -141,7 +141,7 @@ Two ways to run the regen:
 
 2. **Local docker.**  See the header of
    [`.github/regen-ci-deps-lock.sh`](regen-ci-deps-lock.sh) for the
-   `docker run …` invocation.  Useful when iterating on the script
+   `docker run ...` invocation.  Useful when iterating on the script
    itself or when the standalone workflow is unavailable (e.g. a
    feature branch where the workflow file has not yet landed on
    the default branch).
@@ -183,8 +183,8 @@ setting, same `source`, absolute paths recorded from the shared container
 workspace).  The shards deliberately use the canonical
 `.coverage.pytest.` filename prefix: both the nightly `coverage` job and
 the PR `Coverage` job restore these two slots next to the canonical
-baseline and their existing plain `coverage combine` folds everything —
-CPU baseline, PR-run shards, and multi-GPU shards — into one report.
+baseline and their existing plain `coverage combine` folds everything ---
+CPU baseline, PR-run shards, and multi-GPU shards --- into one report.
 Testmon is intentionally not extended to the multi-GPU streams: dynamic
 tests execute in worker subprocesses and static tests execute from
 multiple torchrun ranks, neither of which testmon can attribute.

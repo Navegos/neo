@@ -36,37 +36,37 @@ Each timestamped log folder has this structure:
 
 ```text
 <timestamp>/
-├── main.log                    # Electron main process (app lifecycle, window management)
-├── agenthost.log               # Agent host process (Copilot agent, model listing, agent sessions)
-├── mcpGateway.log              # MCP gateway/server coordination
-├── sharedprocess.log           # Shared process (extensions gallery, global services)
-├── telemetry.log               # Telemetry events
-├── terminal.log                # Terminal/pty activity
-├── ptyhost.log                 # Pty host process
-├── network-shared.log          # Shared network activity
-├── editSessions.log            # Edit sessions / cloud changes
-├── userDataSync.log            # Settings sync
-├── remoteTunnelService.log     # Remote tunnel service
-│
-└── window1/                    # Per-window logs (window1, window2, etc.)
-    ├── renderer.log            # Renderer process (workbench UI, services, startup)
-    ├── network.log             # Per-window network activity
-    ├── views.log               # View/panel activity
-    ├── notebook.rendering.log  # Notebook rendering
-    ├── customizationsDebug.log # Agent customizations debug info (Agents app)
-    ├── mcpServer.*.log         # Per-MCP-server logs (one file per configured server)
-    │
-    ├── exthost/                # Extension host logs
-    │   ├── exthost.log         # Extension host main log (activation, errors)
-    │   ├── extHostTelemetry.log
-    │   ├── <publisher.extension>/  # Per-extension log folders
-    │   │   └── <extension>.log
-    │   └── output_logging_<timestamp>/  # Extension output channels
-    │
-    └── output_<timestamp>/     # Output channel logs (workbench side)
-        ├── tasks.log           # Tasks output
-        ├── agentSessionsOutput.log  # Agent sessions output (Agents app)
-        └── agenthost.<clientId>.log  # Agent host IPC traffic when tracing is enabled
+|-- main.log                    # Electron main process (app lifecycle, window management)
+|-- agenthost.log               # Agent host process (Copilot agent, model listing, agent sessions)
+|-- mcpGateway.log              # MCP gateway/server coordination
+|-- sharedprocess.log           # Shared process (extensions gallery, global services)
+|-- telemetry.log               # Telemetry events
+|-- terminal.log                # Terminal/pty activity
+|-- ptyhost.log                 # Pty host process
+|-- network-shared.log          # Shared network activity
+|-- editSessions.log            # Edit sessions / cloud changes
+|-- userDataSync.log            # Settings sync
+|-- remoteTunnelService.log     # Remote tunnel service
+|
+`-- window1/                    # Per-window logs (window1, window2, etc.)
+    |-- renderer.log            # Renderer process (workbench UI, services, startup)
+    |-- network.log             # Per-window network activity
+    |-- views.log               # View/panel activity
+    |-- notebook.rendering.log  # Notebook rendering
+    |-- customizationsDebug.log # Agent customizations debug info (Agents app)
+    |-- mcpServer.*.log         # Per-MCP-server logs (one file per configured server)
+    |
+    |-- exthost/                # Extension host logs
+    |   |-- exthost.log         # Extension host main log (activation, errors)
+    |   |-- extHostTelemetry.log
+    |   |-- <publisher.extension>/  # Per-extension log folders
+    |   |   `-- <extension>.log
+    |   `-- output_logging_<timestamp>/  # Extension output channels
+    |
+    `-- output_<timestamp>/     # Output channel logs (workbench side)
+        |-- tasks.log           # Tasks output
+        |-- agentSessionsOutput.log  # Agent sessions output (Agents app)
+        `-- agenthost.<clientId>.log  # Agent host IPC traffic when tracing is enabled
 ```
 
 ### Multiple `output_` Folders

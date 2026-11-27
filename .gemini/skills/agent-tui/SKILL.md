@@ -7,7 +7,7 @@ description: >
   Also use when: user asks "what is agent-tui", "what does agent-tui do", "demo agent-tui", "show me agent-tui", "how does agent-tui work", or wants to see it in action.
 ---
 
-## 🚨 CRITICAL: macOS Daemon Workaround & Gemini CLI Usage 🚨
+## [CRITICAL] CRITICAL: macOS Daemon Workaround & Gemini CLI Usage [CRITICAL]
 
 When using `agent-tui` in this macOS environment, the default background daemonization process crashes, causing `Connection refused (os error 61)` errors. 
 
@@ -93,20 +93,20 @@ Terminal UIs are **stateless from the observer's perspective**. Unlike web brows
 | Query once, act many times | Must re-verify before EVERY action |
 | Network events signal completion | Must detect visual stability |
 
-**The Core Insight**: agent-tui gives you vision without memory. Each screenshot is a fresh observation. Previous state means nothing after the UI changes. This isn't a limitation—it's the nature of terminal interaction.
+**The Core Insight**: agent-tui gives you vision without memory. Each screenshot is a fresh observation. Previous state means nothing after the UI changes. This isn't a limitation---it's the nature of terminal interaction.
 
 ## Mental Model: The Feedback Loop
 
 Think of terminal automation as a **closed-loop control system**:
 
 ```
-    ┌──────────────────────────────────────────────┐
-    │                                              │
-    ▼                                              │
-OBSERVE ──► DECIDE ──► ACT ──► WAIT ──► VERIFY ───┘
-   │                                        │
-   │                                        │
-   └─────── NEVER skip ◄────────────────────┘
+    +----------------------------------------------+
+    |                                              |
+    v                                              |
+OBSERVE --- DECIDE --- ACT --- WAIT --- VERIFY ---+
+   |                                        |
+   |                                        |
+   `------- NEVER skip <---------------------+
 ```
 
 **Each phase is mandatory.** Skipping verification is the #1 cause of flaky automation.
@@ -115,10 +115,10 @@ OBSERVE ──► DECIDE ──► ACT ──► WAIT ──► VERIFY ───
 
 Every time you need to interact with the UI:
 
-1. **Take a fresh screenshot** — your previous one is now stale
-2. **Locate your target visually** — text positions may have changed
-3. **Verify the state** — the UI may have changed unexpectedly
-4. **Act only when stable** — animations and loading states cause failures
+1. **Take a fresh screenshot** --- your previous one is now stale
+2. **Locate your target visually** --- text positions may have changed
+3. **Verify the state** --- the UI may have changed unexpectedly
+4. **Act only when stable** --- animations and loading states cause failures
 
 This feels slower, but it's the only reliable approach. Optimistic reuse of stale state causes intermittent failures that are painful to debug.
 
@@ -134,7 +134,7 @@ This feels slower, but it's the only reliable approach. Optimistic reuse of stal
 > If the UI is animating, loading, or transitioning, `wait --stable` first. Acting during transitions because race conditions.
 
 > **RULE 4: Verify before claiming success**
-> Use `wait "expected text" --assert` to confirm outcomes. Don't assume an action worked—prove it.
+> Use `wait "expected text" --assert` to confirm outcomes. Don't assume an action worked---prove it.
 
 > **RULE 5: Error Recovery**
 > If a `wait` command times out, DO NOT blindly restart or kill the session. Execute `screenshot` to visually diagnose what unexpected UI element (modal, error dialog, lost focus) intercepted the flow.
@@ -152,30 +152,30 @@ Use `screenshot --format json` when parsing automation output, or plain `screens
 
 ```
 What are you waiting for?
-│
-├─► Specific text to appear
-│   └─► `wait "text" --assert` (fails if not found)
-│
-├─► Specific text to disappear
-│   └─► `wait "text" --gone --assert`
-│
-├─► UI to stop changing (animations, loading)
-│   └─► `wait --stable`
-│
-└─► Multiple conditions
-    └─► Chain waits sequentially
+|
++-- Specific text to appear
+|   +-- `wait "text" --assert` (fails if not found)
+|
++-- Specific text to disappear
+|   +-- `wait "text" --gone --assert`
+|
++-- UI to stop changing (animations, loading)
+|   +-- `wait --stable`
+|
++-- Multiple conditions
+    +-- Chain waits sequentially
 ```
 
 ### How to Act?
 
 ```
 What do you need to do?
-│
-├─► Type text into the terminal
-│   └─► `type "text"`
-│
-├─► Send keyboard shortcuts/navigation
-│   └─► `press Ctrl+C` or `press ArrowDown Enter`
+|
++-- Type text into the terminal
+|   +-- `type "text"`
+|
++-- Send keyboard shortcuts/navigation
+|   +-- `press Ctrl+C` or `press ArrowDown Enter`
 ```
 
 ## Core Workflow
@@ -210,13 +210,13 @@ agent-tui kill
 
 ## Anti-Patterns (What NOT to Do)
 
-### ❌ Acting During Animation/Loading
+### [FAIL] Acting During Animation/Loading
 
 ```bash
 # WRONG: Acting immediately on dynamic UI
 agent-tui run my-app
 agent-tui screenshot --format json    # UI might still be loading!
-agent-tui type "value"                # ❌ Might miss the input field
+agent-tui type "value"                # [FAIL] Might miss the input field
 
 # RIGHT: Wait for stability first
 agent-tui run my-app
@@ -225,32 +225,32 @@ agent-tui screenshot --format json    # Now it's reliable
 agent-tui type "value"
 ```
 
-### ❌ Assuming Success Without Verification
+### [FAIL] Assuming Success Without Verification
 
 ```bash
 # WRONG: Assuming the type worked
 agent-tui type "value"
 agent-tui press Enter
-# ...proceed as if success...       # ❌ What if it failed silently?
+# ...proceed as if success...       # [FAIL] What if it failed silently?
 
 # RIGHT: Verify the outcome
 agent-tui type "value"
 agent-tui press Enter
-agent-tui wait "Success" --assert    # ✓ Proves the action worked
+agent-tui wait "Success" --assert    # [x] Proves the action worked
 ```
 
-### ❌ Skipping Cleanup
+### [FAIL] Skipping Cleanup
 
 ```bash
 # WRONG: Forgetting to kill the session
 agent-tui run my-app
 # ...do stuff...
-# script ends                        # ❌ Session left running!
+# script ends                        # [FAIL] Session left running!
 
 # RIGHT: Always clean up
 agent-tui run my-app
 # ...do stuff...
-agent-tui kill                       # ✓ Clean exit
+agent-tui kill                       # [x] Clean exit
 ```
 
 ## Before You Start: Clarify Requirements
@@ -270,9 +270,9 @@ If any of these are unclear, ask before running.
 
 When a user asks what agent-tui is, wants a demo, or asks "show me how it works":
 
-1. **Don't explain—demonstrate.** Actions speak louder than words.
+1. **Don't explain---demonstrate.** Actions speak louder than words.
 2. **Use the live preview** so they can watch in real-time.
-3. **Run `top`**—it's universal and shows dynamic real-time updates.
+3. **Run `top`**---it's universal and shows dynamic real-time updates.
 
 **Quick demo trigger phrases:**
 - "What is agent-tui?" / "What does agent-tui do?"

@@ -138,9 +138,9 @@ Report every check using this table:
 
 Finish with exactly one verdict:
 
-- `Eligible` — the submission is complete, local review checks pass, and the
+- `Eligible` --- the submission is complete, local review checks pass, and the
   Markdown link check passes.
-- `Needs changes` — the submission is incomplete or its links, placement,
+- `Needs changes` --- the submission is incomplete or its links, placement,
   wording, or link-check result must be corrected.
-- `Not eligible` — the project fails a substantive eligibility requirement or
+- `Not eligible` --- the project fails a substantive eligibility requirement or
   matches an exclusion.

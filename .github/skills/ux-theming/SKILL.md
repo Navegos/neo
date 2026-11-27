@@ -45,8 +45,8 @@ Usage: var(--vscode-editor-background)
 ```
 
 Conversion functions in `colorUtils.ts`:
-- `asCssVariable(colorId)` → `'var(--vscode-editor-background)'`
-- `asCssVariableName(colorId)` → `'--vscode-editor-background'`
+- `asCssVariable(colorId)` -> `'var(--vscode-editor-background)'`
+- `asCssVariableName(colorId)` -> `'--vscode-editor-background'`
 
 **In CSS files**, reference directly:
 ```css
@@ -89,7 +89,7 @@ Defined in `src/vs/workbench/browser/media/style.css`:
 ```
 
 **Rules**:
-- Use `var(--vscode-focusBorder)` — never hardcode a focus color.
+- Use `var(--vscode-focusBorder)` --- never hardcode a focus color.
 - Default `outline-offset: -1px` (inset). Exception: checkboxes use `2px`.
 - Active elements suppress focus ring: `.my-widget:active { outline: 0 !important; }`
 - Use `.synthetic-focus` class for programmatic focus indication.
@@ -103,7 +103,7 @@ Modal dialogs must trap focus within the dialog until dismissed. Use `dom.trackF
 
 - **Always** provide `hcDark` and `hcLight` defaults when registering colors.
 - HC backgrounds: `Color.black` (hcDark), `Color.white` (hcLight).
-- HC borders: reference `contrastBorder` — it is `null` in normal themes, visible in HC.
+- HC borders: reference `contrastBorder` --- it is `null` in normal themes, visible in HC.
 - HC focus: use `activeContrastBorder` (derived from `focusBorder`).
 - In CSS, use `.hc-black` / `.hc-light` class selectors for HC-specific overrides:
   ```css
@@ -131,16 +131,16 @@ Reviewers will always flag hardcoded colors, shadows, sizes that should use them
 | `#252526` | `var(--vscode-editor-background)` |
 | `color: white` | `var(--vscode-button-foreground)` |
 | `border: 1px solid #ccc` | `var(--vscode-editorWidget-border)` |
-| `border: 1px solid …` (width) | `var(--vscode-strokeThickness)` for the 1px width |
+| `border: 1px solid ...` (width) | `var(--vscode-strokeThickness)` for the 1px width |
 | `border-radius: 6px` | `var(--vscode-cornerRadius-medium)` (radius ramp) |
 | `padding: 8px 12px` (off-scale) | spacing ramp (`--vscode-spacing-size*`) |
 | `font-size: 14px` (arbitrary) | size ramp (`--vscode-fontSize-*`) |
 | `font-weight: 500` | `--vscode-fontWeight-semiBold` (no 500) |
 | codicon `font-size: 14px` | `--vscode-codiconFontSize` (16) / `-compact` (12) |
 
-**Rule:** If a value relates to color, shadow, or border — it must come from a CSS variable or registered color token. The only exception is `0` (zero) values and purely structural measurements like `100%`.
+**Rule:** If a value relates to color, shadow, or border --- it must come from a CSS variable or registered color token. The only exception is `0` (zero) values and purely structural measurements like `100%`.
 
-**Size, spacing, radius, font and stroke** values have their own design-system **size** tokens (and decision logic — snap maps, the pill→`circle` rule, and the compact-glyph convention). Those live in the **ux-css-layout** skill (§10 Design-System Size Tokens) and the auto-injected `.github/instructions/design-tokens.instructions.md`. Reach for those when a flag is about *how big / how round / how bold* something is rather than *what color*.
+**Size, spacing, radius, font and stroke** values have their own design-system **size** tokens (and decision logic --- snap maps, the pill->`circle` rule, and the compact-glyph convention). Those live in the **ux-css-layout** skill (Sec.10 Design-System Size Tokens) and the auto-injected `.github/instructions/design-tokens.instructions.md`. Reach for those when a flag is about *how big / how round / how bold* something is rather than *what color*.
 
 
 ---

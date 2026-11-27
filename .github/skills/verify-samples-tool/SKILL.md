@@ -42,16 +42,16 @@ dotnet run --project eng/verify-samples -- --category 03-workflows --parallel 4 
 ### Required Environment Variables
 
 The tool itself needs:
-- `AZURE_OPENAI_ENDPOINT` — for the AI verification agent
+- `AZURE_OPENAI_ENDPOINT` --- for the AI verification agent
 - `AZURE_OPENAI_DEPLOYMENT_NAME` (optional, defaults to `gpt-5-mini`)
 
 Individual samples require their own env vars (for example, `FOUNDRY_PROJECT_ENDPOINT`). The tool automatically checks and skips samples with missing env vars.
 
 ### Output Files
 
-- `--log results.log` — detailed per-sample log with stdout/stderr, AI reasoning, and a summary
-- `--csv results.csv` — tabular summary with Sample, ProjectPath, Status, FailedChecks, and Failures columns
-- `--md results.md` — Markdown summary with results table and collapsible failure details (suitable for GitHub PR comments)
+- `--log results.log` --- detailed per-sample log with stdout/stderr, AI reasoning, and a summary
+- `--csv results.csv` --- tabular summary with Sample, ProjectPath, Status, FailedChecks, and Failures columns
+- `--md results.md` --- Markdown summary with results table and collapsible failure details (suitable for GitHub PR comments)
 
 ## Sample Categories
 
@@ -130,7 +130,7 @@ new SampleDefinition
    - Web servers that don't exit
    - Multi-process client/server architectures
    - Samples requiring external infrastructure (MCP servers you can't reach, Docker, etc.)
-   - Do NOT skip for missing env vars — the tool checks those dynamically.
+   - Do NOT skip for missing env vars --- the tool checks those dynamically.
 
 4. **For interactive samples, provide `Inputs`:**
    - Samples using `Application.GetInput(args)` need one initial input
@@ -144,12 +144,12 @@ new SampleDefinition
 
 ### Writing Good ExpectedOutputDescription
 
-- Write descriptions that are **semantically flexible** — LLM output varies between runs
+- Write descriptions that are **semantically flexible** --- LLM output varies between runs
 - Each array entry should describe **one independent aspect** to verify
 - Always include `"The output should not contain error messages or stack traces."` as the last entry
-- Avoid exact wording expectations — use "should mention", "should contain information about", "should show"
-- Bad: `"The output should say 'The weather in Amsterdam is cloudy with a high of 15°C'"`
-- Good: `"The output should contain weather information about Amsterdam mentioning cloudy weather with a high of 15°C."`
+- Avoid exact wording expectations --- use "should mention", "should contain information about", "should show"
+- Bad: `"The output should say 'The weather in Amsterdam is cloudy with a high of 15 degC'"`
+- Good: `"The output should contain weather information about Amsterdam mentioning cloudy weather with a high of 15 degC."`
 
 ### Example: Simple LLM Sample
 

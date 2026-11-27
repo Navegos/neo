@@ -8,7 +8,7 @@ description: >-
   architectures, and quantization formats (MXFP4, NVFP4, FP8, ISQ).
 ---
 
-# Add Model — Adapt New LLM Architectures to xinfer
+# Add Model --- Adapt New LLM Architectures to xinfer
 
 ## Phase 0: Gather Required Information
 
@@ -16,13 +16,13 @@ Before starting, the agent **must** collect the inputs below. If any are missing
 
 **Resolution order** (try top to bottom, stop at the first that succeeds):
 
-1. **Local model path** (preferred) — If the user provides a local directory containing safetensors, read `config.json` and inspect weight tensors directly from disk. If the user provides a `.gguf` file, extract metadata and tensor info from the GGUF header (GGUF is self-contained; there is no separate `config.json`). No further input is needed in either case.
-2. **HuggingFace model ID** — Look for the model in the local HuggingFace Hub cache (`~/.cache/huggingface/hub/`). If not cached, fetch `config.json` from the HuggingFace model repo. If that also fails, fall back to step 3.
-3. **Manual input** — Ask the user to provide:
+1. **Local model path** (preferred) --- If the user provides a local directory containing safetensors, read `config.json` and inspect weight tensors directly from disk. If the user provides a `.gguf` file, extract metadata and tensor info from the GGUF header (GGUF is self-contained; there is no separate `config.json`). No further input is needed in either case.
+2. **HuggingFace model ID** --- Look for the model in the local HuggingFace Hub cache (`~/.cache/huggingface/hub/`). If not cached, fetch `config.json` from the HuggingFace model repo. If that also fails, fall back to step 3.
+3. **Manual input** --- Ask the user to provide:
    - `config.json` contents (for safetensors models) **or** GGUF metadata (for GGUF models).
    - Weight tensor info (names, shapes, dtypes). The user can obtain this by clicking a weight file in the HuggingFace model repo.
 
-**Additionally**, ask the user if they can provide the **Python reference implementation** (`modeling_<arch>.py` from HuggingFace Transformers). This is not strictly required, but significantly improves accuracy — it clarifies the exact forward pass, attention variants, MoE routing, activation functions, and normalization order that config fields alone cannot fully describe.
+**Additionally**, ask the user if they can provide the **Python reference implementation** (`modeling_<arch>.py` from HuggingFace Transformers). This is not strictly required, but significantly improves accuracy --- it clarifies the exact forward pass, attention variants, MoE routing, activation functions, and normalization order that config fields alone cannot fully describe.
 
 | Input | How to obtain |
 |-------|---------------|
@@ -57,10 +57,10 @@ For GGUF, use the `gguf_helper` CLI or Python `gguf` library to list tensors and
 
 Read and compare:
 
-1. **`config.json`** — identify: `architectures`, `hidden_size`, `num_hidden_layers`, `num_attention_heads`, `num_key_value_heads`, `head_dim`, `intermediate_size`, `hidden_act`, `vocab_size`, `rope_theta`, `partial_rotary_factor`, `sliding_window`, `tie_word_embeddings`.
+1. **`config.json`** --- identify: `architectures`, `hidden_size`, `num_hidden_layers`, `num_attention_heads`, `num_key_value_heads`, `head_dim`, `intermediate_size`, `hidden_act`, `vocab_size`, `rope_theta`, `partial_rotary_factor`, `sliding_window`, `tie_word_embeddings`.
 2. **MoE fields** (if any): `num_experts`, `num_experts_per_tok` / `top_k_experts`, `moe_intermediate_size`, `norm_topk_prob`, `routed_scaling_factor`.
 3. **Special features**: `attention_k_eq_v`, `layer_types` array, `layer_scalar`, `final_logit_softcapping`, `attn_logit_softcapping`, dual `head_dim`, dual RoPE, per-expert scaling, shared experts, etc.
-4. **Python reference** — understand the forward pass, especially:
+4. **Python reference** --- understand the forward pass, especially:
    - Attention: GQA/MQA, head dim, RoPE variant, sliding window, QK norm, V norm
    - MLP: standard SiLU-gate, GeluTanh, custom SwiGLU, etc.
    - MoE: router structure, expert computation, parallel dense+MoE, renormalization
@@ -191,8 +191,8 @@ For GGUF models with **packed** `ffn_gate_up_exps` (instead of separate `ffn_gat
 
 If the model uses packed `gate_up_proj` with a non-standard layout, add the architecture name to the layout resolvers in `src/models/layers/moe.rs`:
 
-- `resolve_packed_gate_up_layout()` — `InterPacked` if shape is `[experts, 2*intermediate, hidden]`
-- `resolve_packed_down_layout()` — `HiddenInter` if shape is `[experts, hidden, intermediate]`
+- `resolve_packed_gate_up_layout()` --- `InterPacked` if shape is `[experts, 2*intermediate, hidden]`
+- `resolve_packed_down_layout()` --- `HiddenInter` if shape is `[experts, hidden, intermediate]`
 
 ---
 
@@ -212,7 +212,7 @@ pub enum ModelType {
 }
 ```
 
-### 4c. `src/utils/mod.rs` — `get_arch_rope` function
+### 4c. `src/utils/mod.rs` --- `get_arch_rope` function
 Add mappings in order:
 
 1. **GGUF canonical_arch**: `"<gguf_arch>" => "<HFArchitectureName>".to_string()`
@@ -273,7 +273,7 @@ Fix all errors and warnings before proceeding.
 
 Provide:
 1. The model's `config.json` (local path or HuggingFace URL)
-2. Weight tensor info (names, shapes, dtypes) — from a local safetensors file or HuggingFace model page
+2. Weight tensor info (names, shapes, dtypes) --- from a local safetensors file or HuggingFace model page
 
 The check-model skill will verify:
 - Tensor names match the loader's expected format (e.g. `weight_packed` vs `weight` vs `blocks` for FP4)

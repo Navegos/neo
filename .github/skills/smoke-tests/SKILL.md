@@ -9,8 +9,8 @@ Smoke tests live in `test/smoke/` and drive a full VS Code instance (Electron, w
 
 ## Scripts
 
-- `npm run smoketest` — compiles the smoke tests first (`test/smoke`), then runs them.
-- `npm run smoketest-no-compile` — runs the already-compiled smoke tests. CI uses this after an explicit compile step.
+- `npm run smoketest` --- compiles the smoke tests first (`test/smoke`), then runs them.
+- `npm run smoketest-no-compile` --- runs the already-compiled smoke tests. CI uses this after an explicit compile step.
 
 Both forward extra arguments after `--` to the runner (`test/smoke/test/index.js`).
 
@@ -47,7 +47,7 @@ When a smoke test fails intermittently only in CI, a useful technique is to **te
 This is a debugging aid, **not a permanent CI fixture**:
 
 - Add it on a throwaway branch, push, and let CI run it. Iterate until you reproduce (and then fix) the flake.
-- **Remove the loop before merging** — leaving it in would add ~an hour per platform to every run.
+- **Remove the loop before merging** --- leaving it in would add ~an hour per platform to every run.
 - It is **not specific to any one suite**. Point the `-g` filter at whichever suite you are investigating (the examples below use `"Agents Window"`, but substitute your own).
 
 ### Where to add it
@@ -66,14 +66,14 @@ Drop the loop next to the existing Electron smoke step, gated on the same condit
 
 ### Shape
 
-Loop N iterations (e.g. 20) and abort on the first failing run. Give it a generous timeout — N sequential runs of a ~3-minute suite can take roughly an hour.
+Loop N iterations (e.g. 20) and abort on the first failing run. Give it a generous timeout --- N sequential runs of a ~3-minute suite can take roughly an hour.
 
 Bash (Linux/macOS):
 
 ```yaml
 # TEMPORARY: loop the suite to reproduce a flaky failure. Remove before merge.
 # Replace <suite name> with the suite you're investigating (e.g. "Agents Window").
-- name: 🧪 Smoke test flakiness probe (TEMPORARY)
+- name: [TEST] Smoke test flakiness probe (TEMPORARY)
   if: ${{ inputs.electron_tests }}
   timeout-minutes: 60
   run: |
@@ -92,7 +92,7 @@ The loop is a probe: the first failure is the signal. Stopping immediately prese
 
 ## Debugging CI smoke failures
 
-Both CI systems publish the smoke runner's per-platform logs (the `.build/logs` directory) as a downloadable artifact. The artifact's internal layout is identical on both — only the artifact name and the download tool differ.
+Both CI systems publish the smoke runner's per-platform logs (the `.build/logs` directory) as a downloadable artifact. The artifact's internal layout is identical on both --- only the artifact name and the download tool differ.
 
 ### Downloading the logs artifact
 
@@ -100,7 +100,7 @@ Both CI systems publish the smoke runner's per-platform logs (the `.build/logs` 
 
 The GitHub PR workflows upload the artifact as `logs-<os>-<arch>-<suite>-<attempt>`, where `<os>` is `linux` / `macos` / `windows`, `<suite>` is `electron` / `browser` / `remote`, and `<attempt>` is the run attempt (e.g. `logs-macos-arm64-electron-1`).
 
-The run id is the number in the run/job URL — for `…/actions/runs/<run-id>/job/<job-id>` use `<run-id>`. Download with the `gh` CLI:
+The run id is the number in the run/job URL --- for `.../actions/runs/<run-id>/job/<job-id>` use `<run-id>`. Download with the `gh` CLI:
 
 ```bash
 # A specific artifact into ./logs
@@ -116,8 +116,8 @@ gh run download <run-id>
 
 The artifact name depends on which pipeline produced it:
 
-- **Product build** (`product-build-<os>.yml`): `logs-<os>-<arch>-<attempt>` — no suite segment, e.g. `logs-macos-arm64-1`.
-- **Suite-split CI build** (`product-build-<os>-ci.yml`): `logs-<os>-<arch>-<suite>-<attempt>` — the `<suite>` segment is `lower(VSCODE_TEST_SUITE)` (e.g. `electron`), so e.g. `logs-macos-arm64-electron-1` (same shape as GitHub).
+- **Product build** (`product-build-<os>.yml`): `logs-<os>-<arch>-<attempt>` --- no suite segment, e.g. `logs-macos-arm64-1`.
+- **Suite-split CI build** (`product-build-<os>-ci.yml`): `logs-<os>-<arch>-<suite>-<attempt>` --- the `<suite>` segment is `lower(VSCODE_TEST_SUITE)` (e.g. `electron`), so e.g. `logs-macos-arm64-electron-1` (same shape as GitHub).
 
 `<os>` is `linux` / `macos` / `windows`, `<arch>` is `x64` / `arm64`, and `<attempt>` is `$(System.JobAttempt)`. Download with the Azure CLI:
 
@@ -134,10 +134,10 @@ For the VS Code build that is `--org https://dev.azure.com/monacotools --project
 
 Under `smoke-tests-<suite>/` (`smoke-tests-electron/`, `smoke-tests-browser/`, or `smoke-tests-remote/`, matching the suite that ran):
 
-- `smoke-test-runner.log` — the mocha driver output plus, for suites that use the mock LLM server, its verbose request/response bodies (look for `request body:`). On a Copilot CLI / Copilot session failure it also carries a tail of the captured Copilot runtime logs (see below).
-- `<N>_suite_<Suite_Name>/copilot-runtime-logs/process-*.log` — the Copilot runtime (`@github/copilot` CLI) process logs, captured by `dumpFailureDiagnostics` when a Copilot-runtime session fails. **Check these first for a hang or "Timed out waiting for response"**: they are the SDK/CLI's own account of what it did (startup, auth, model request, turn lifecycle, and any panic / out-of-order event / protocol error) and explain a timeout that the test error alone does not. **Agent Host** sessions (Agents Window / local AgentHost) write a full log run at `trace` (`chat.agentHost.copilotSdk.logLevel`). Chat Sessions editor (Copilot CLI / Claude) and Local sessions run the SDK in-process and write only a minimal startup log here (`Server started, waiting for requests`) — enough to tell whether the runtime came up; their detailed model/turn diagnostics are in the `GitHub Copilot Chat.log` below. (Claude / Codex sessions use a different runtime and are not captured here.)
-- `<N>_suite_<Suite_Name>/window2/exthost/<extension>/…log` — per-suite extension-host logs (e.g. `GitHub.copilot-chat/GitHub Copilot Chat.log`). Many diagnostics are gated behind a setting the suite enables in its `before` hook, so check the suite's setup if an expected log line is missing.
-- `<N>_suite_<Suite_Name>/playwright-screenshot-*.png` — last-frame screenshot captured when a test fails (only when the suite ran with `--tracing`).
+- `smoke-test-runner.log` --- the mocha driver output plus, for suites that use the mock LLM server, its verbose request/response bodies (look for `request body:`). On a Copilot CLI / Copilot session failure it also carries a tail of the captured Copilot runtime logs (see below).
+- `<N>_suite_<Suite_Name>/copilot-runtime-logs/process-*.log` --- the Copilot runtime (`@github/copilot` CLI) process logs, captured by `dumpFailureDiagnostics` when a Copilot-runtime session fails. **Check these first for a hang or "Timed out waiting for response"**: they are the SDK/CLI's own account of what it did (startup, auth, model request, turn lifecycle, and any panic / out-of-order event / protocol error) and explain a timeout that the test error alone does not. **Agent Host** sessions (Agents Window / local AgentHost) write a full log run at `trace` (`chat.agentHost.copilotSdk.logLevel`). Chat Sessions editor (Copilot CLI / Claude) and Local sessions run the SDK in-process and write only a minimal startup log here (`Server started, waiting for requests`) --- enough to tell whether the runtime came up; their detailed model/turn diagnostics are in the `GitHub Copilot Chat.log` below. (Claude / Codex sessions use a different runtime and are not captured here.)
+- `<N>_suite_<Suite_Name>/window2/exthost/<extension>/...log` --- per-suite extension-host logs (e.g. `GitHub.copilot-chat/GitHub Copilot Chat.log`). Many diagnostics are gated behind a setting the suite enables in its `before` hook, so check the suite's setup if an expected log line is missing.
+- `<N>_suite_<Suite_Name>/playwright-screenshot-*.png` --- last-frame screenshot captured when a test fails (only when the suite ran with `--tracing`).
 
 `<Suite_Name>` is the mocha suite title with non-word characters replaced by `_`. See also the `code-oss-logs` skill.
 
@@ -145,6 +145,6 @@ Under `smoke-tests-<suite>/` (`smoke-tests-electron/`, `smoke-tests-browser/`, o
 
 ## Distinction from other test types
 
-- **Unit tests** (`.test.ts`) → `scripts/test.sh` / `runTests` tool (see the `unit-tests` skill).
-- **Integration tests** (`.integrationTest.ts` + extension tests) → `scripts/test-integration.sh` (see the `integration-tests` skill).
-- **Smoke tests** (`test/smoke/`) → `npm run smoketest` — full end-to-end UI flows.
+- **Unit tests** (`.test.ts`) -> `scripts/test.sh` / `runTests` tool (see the `unit-tests` skill).
+- **Integration tests** (`.integrationTest.ts` + extension tests) -> `scripts/test-integration.sh` (see the `integration-tests` skill).
+- **Smoke tests** (`test/smoke/`) -> `npm run smoketest` --- full end-to-end UI flows.

@@ -6,10 +6,10 @@ This invocation runs the **FIX** phase only.
   report is at `/tmp/audit-{{suite}}.md` and
   `{{memory_path}}/runner-state.json` has the populated `fix_backlog`.
 - Execute only the recipe's "Fix phase" section per `_fix-policy.md`.
-  Do NOT redo audit work — that is, do NOT re-scan whole packages or
+  Do NOT redo audit work --- that is, do NOT re-scan whole packages or
   rebuild `fix_backlog` from scratch. The "no re-scan" rule does NOT
   override the per-candidate re-verification step required by
-  `_fix-policy.md` §"Standard fix procedure": when you pick a candidate,
+  `_fix-policy.md` Sec."Standard fix procedure": when you pick a candidate,
   you MUST re-grep / re-read the specific file or symbol it points at to
   confirm the finding still applies before editing.
   Re-verification of every task member is required; re-scanning the

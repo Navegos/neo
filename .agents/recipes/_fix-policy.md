@@ -3,7 +3,7 @@
 Prepended to every daily-suite recipe alongside `_runner.md`. Defines what
 "open a PR" means for these recipes and the rules that apply across all of
 them. Each suite recipe declares only its eligible finding categories, its
-branch types, and any risk-specific notes — everything else is here.
+branch types, and any risk-specific notes --- everything else is here.
 
 When in doubt, fall back to report-only.
 
@@ -11,8 +11,8 @@ When in doubt, fall back to report-only.
 
 A maintenance task may be converted to a PR only if all hold:
 
-- **Bounded scope**: ≤3 files, ≤50 changed lines (added + removed). For
-  docs-and-references, allow ≤10 files and ≤200 changed lines. For dependencies,
+- **Bounded scope**: <=3 files, <=50 changed lines (added + removed). For
+  docs-and-references, allow <=10 files and <=200 changed lines. For dependencies,
   exclude generated `uv.lock` changes from the LOC total; the lockfile still
   counts toward the file cap and must pass the path allowlist.
 - **Reversible**: no public API changes, no `__all__` deletions, no version
@@ -128,7 +128,7 @@ shared diff once, and update every associated finding together on rejection.
 
 ### `attempted_fixes` rules
 
-`outcome` ∈ `{open, merged, closed, abandoned}`.
+`outcome` in `{open, merged, closed, abandoned}`.
 
 - `abandoned` means the recipe could not produce a PR (tests failed,
   conflict, lint failed, allowlist rejected, etc.).
@@ -143,12 +143,12 @@ shared diff once, and update every associated finding together on rejection.
   every `<id>`, and back-fill any missing `attempted_fixes` entries with
   `outcome: "open"` and the parsed `pr_number` and `branch`.
 - Prune: drop `merged` entries older than 90 days. Do **not** prune
-  `closed` or `abandoned` entries by age — pruning a single-strike entry
+  `closed` or `abandoned` entries by age --- pruning a single-strike entry
   would erase the history needed to ever reach the two-strike threshold.
 - The 200-entry cap handles long-tail cleanup. Eviction order:
   non-two-strike entries first, oldest-first by `attempts[0].at`.
-  Two-strike entries (≥2 `closed`/`abandoned`) are exempt from cap
-  eviction unless every other entry has already been evicted — they
+  Two-strike entries (>=2 `closed`/`abandoned`) are exempt from cap
+  eviction unless every other entry has already been evicted --- they
   represent maintainer-action signals and must not be silently
   forgotten. If two-strike entries alone exceed 200, that's itself a
   signal worth surfacing; in that pathological case, evict oldest-first
@@ -160,7 +160,7 @@ shared diff once, and update every associated finding together on rejection.
 ## Finding hash
 
 `finding_id = sha1(suite + ":" + canonical_key)[:12]`, where
-`canonical_key` uses durable identifiers only — never line numbers or free
+`canonical_key` uses durable identifiers only --- never line numbers or free
 text:
 
 | Suite (category) | canonical_key |
@@ -284,15 +284,15 @@ to the next candidate.
 - **Draft PRs**: `code-quality` opens draft until a maintainer flips
   `draft_until_proven` to `false` in runner-state, after at least two
   non-draft PRs from that suite have landed clean. This flip is
-  intentionally manual — it is the sole human-gated promotion step in
+  intentionally manual --- it is the sole human-gated promotion step in
   the fix policy and must not be automated.
 
 ## Atomicity
 
 Each fix-phase invocation produces exactly one of:
 
-- **Report-only** — runner-state updated; no branch, commit, or PR.
-- **Report + PR** — same, plus a pushed branch, a commit, and a PR. The
+- **Report-only** --- runner-state updated; no branch, commit, or PR.
+- **Report + PR** --- same, plus a pushed branch, a commit, and a PR. The
   `attempted_fixes` entry is recorded *before* the recipe exits.
 
 No half-states. The runner state is the source of truth for what the

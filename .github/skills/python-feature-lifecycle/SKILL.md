@@ -12,8 +12,8 @@ description: >
 
 Agent Framework uses lifecycle at two different levels:
 
-1. **Package lifecycle** — the maturity of the package as a whole
-2. **Feature lifecycle** — the maturity of a specific API or feature inside that package
+1. **Package lifecycle** --- the maturity of the package as a whole
+2. **Feature lifecycle** --- the maturity of a specific API or feature inside that package
 
 These are related, but they are **not the same thing**.
 

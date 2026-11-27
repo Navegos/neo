@@ -1,6 +1,6 @@
 ---
 name: chat-customizations-editor
-description: Use when working on the Chat Customizations editor — the management UI for agents, skills, instructions, hooks, prompts, MCP servers, and plugins.
+description: Use when working on the Chat Customizations editor --- the management UI for agents, skills, instructions, hooks, prompts, MCP servers, and plugins.
 metadata:
   allowed-tools: Bash(npx @playwright/cli:*)
 ---
@@ -11,13 +11,13 @@ Split-view management pane for AI customization items across workspace, user, ex
 
 ## Spec
 
-**`src/vs/sessions/AI_CUSTOMIZATIONS.md`** — read for ownership and interface contracts. Update it only when those contracts change; behavior and regressions belong in focused tests.
+**`src/vs/sessions/AI_CUSTOMIZATIONS.md`** --- read for ownership and interface contracts. Update it only when those contracts change; behavior and regressions belong in focused tests.
 
 ## Key Folders
 
 | Folder | What |
 |--------|------|
-| `src/vs/workbench/contrib/chat/common/` | `ICustomizationHarnessService`, `ISectionOverride`, `ICustomizationItemProvider` — shared interfaces |
+| `src/vs/workbench/contrib/chat/common/` | `ICustomizationHarnessService`, `ISectionOverride`, `ICustomizationItemProvider` --- shared interfaces |
 | `src/vs/workbench/contrib/chat/browser/aiCustomization/` | Management editor, list widgets (prompts, MCP, plugins), harness service registration |
 | `src/vs/sessions/contrib/chat/browser/` | Sessions-window overrides (harness service, workspace service) |
 | `src/vs/sessions/contrib/sessions/browser/` | Sessions tree view counts and toolbar |
@@ -26,11 +26,11 @@ When changing harness descriptor interfaces or factory functions, verify both co
 
 ## Key Interfaces
 
-- **`IHarnessDescriptor`** — drives harness behavior declaratively (hidden sections, button overrides, item providers, agent gating). See spec for the stable ownership contract.
-- **`ISectionOverride`** — per-section button customization (command invocation, root file creation, type labels, file extensions).
-- **`ICustomizationItemProvider`** / **`ICustomizationItem`** — internal interfaces (in `customizationHarnessService.ts`) for extension-contributed providers that supply items directly. These mirror the proposed extension API types.
+- **`IHarnessDescriptor`** --- drives harness behavior declaratively (hidden sections, button overrides, item providers, agent gating). See spec for the stable ownership contract.
+- **`ISectionOverride`** --- per-section button customization (command invocation, root file creation, type labels, file extensions).
+- **`ICustomizationItemProvider`** / **`ICustomizationItem`** --- internal interfaces (in `customizationHarnessService.ts`) for extension-contributed providers that supply items directly. These mirror the proposed extension API types.
 
-Principle: the UI widgets read everything from the descriptor — no harness-specific conditionals in widget code.
+Principle: the UI widgets read everything from the descriptor --- no harness-specific conditionals in widget code.
 
 ## Extension API (`chatSessionCustomizationProvider`)
 
@@ -86,12 +86,12 @@ The `selectedSection` calls `editor.selectSectionById()` after `setInput`, which
 ### Populating test data
 
 Each customization type requires its own mock path in `createMockPromptsService`:
-- **Agents** — `getCustomAgents()` returns agent objects
-- **Skills** — `findAgentSkills()` returns `IAgentSkill[]`
-- **Prompts** — `getPromptSlashCommands()` returns `IChatPromptSlashCommand[]`
-- **Instructions/Hooks** — `listPromptFiles()` filtered by `PromptsType`
-- **MCP Servers** — `mcpWorkspaceServers`/`mcpUserServers` arrays passed to `IMcpWorkbenchService` mock
-- **Plugins** — `IPluginMarketplaceService.installedPlugins` and `IAgentPluginService.plugins` observables
+- **Agents** --- `getCustomAgents()` returns agent objects
+- **Skills** --- `findAgentSkills()` returns `IAgentSkill[]`
+- **Prompts** --- `getPromptSlashCommands()` returns `IChatPromptSlashCommand[]`
+- **Instructions/Hooks** --- `listPromptFiles()` filtered by `PromptsType`
+- **MCP Servers** --- `mcpWorkspaceServers`/`mcpUserServers` arrays passed to `IMcpWorkbenchService` mock
+- **Plugins** --- `IPluginMarketplaceService.installedPlugins` and `IAgentPluginService.plugins` observables
 
 All test data lives in `allFiles` (prompt-based items) and the `mcpWorkspace/UserServers` arrays. Add enough items per category (8+) to invoke scrolling.
 
@@ -107,12 +107,12 @@ Without all three, built-in regrouping silently doesn't run and the fixture only
 ### Editor contribution service mocks
 
 The management editor embeds a `CodeEditorWidget`. Electron-side editor contributions (e.g., `AgentFeedbackEditorWidgetContribution`) are instantiated automatically and crash if their injected services aren't registered. The fixture must mock at minimum:
-- `IAgentFeedbackService` — needs `onDidChangeFeedback`, `onDidChangeNavigation`, `onDidAddFeedback`, `onDidConvertFeedback`, `onDidAddReply`, `onDidSubmitFeedback` as `Event.None`
-- `ICodeReviewService` — needs `getReviewState()` / `getPRReviewState()` returning idle observables
-- `IChatEditingService` — needs `editingSessionsObs` as empty observable
-- `IAgentSessionsService` — needs `model.sessions` as empty array
+- `IAgentFeedbackService` --- needs `onDidChangeFeedback`, `onDidChangeNavigation`, `onDidAddFeedback`, `onDidConvertFeedback`, `onDidAddReply`, `onDidSubmitFeedback` as `Event.None`
+- `ICodeReviewService` --- needs `getReviewState()` / `getPRReviewState()` returning idle observables
+- `IChatEditingService` --- needs `editingSessionsObs` as empty observable
+- `IAgentSessionsService` --- needs `model.sessions` as empty array
 
-These are cross-layer imports from `vs/sessions/` — use `// eslint-disable-next-line local/code-import-patterns` on the import lines.
+These are cross-layer imports from `vs/sessions/` --- use `// eslint-disable-next-line local/code-import-patterns` on the import lines.
 
 ### CI regression gates
 
@@ -127,11 +127,11 @@ MyFixture: defineComponentFixture({
 }),
 ```
 
-Don't add `blocksCi` to every fixture — only ones that cover critical layout paths (default view, section with list + footer, narrow viewport). Too many gated fixtures creates noisy CI.
+Don't add `blocksCi` to every fixture --- only ones that cover critical layout paths (default view, section with list + footer, narrow viewport). Too many gated fixtures creates noisy CI.
 
 ### Screenshot stability
 
-Scrollbar fade transitions cause screenshot instability — the scrollbar shifts from `visible` to `invisible fade` class ~2 seconds after a programmatic scroll. After calling `revealLastItem()` or any scroll action, wait for the transition to complete before the fixture's render promise resolves:
+Scrollbar fade transitions cause screenshot instability --- the scrollbar shifts from `visible` to `invisible fade` class ~2 seconds after a programmatic scroll. After calling `revealLastItem()` or any scroll action, wait for the transition to complete before the fixture's render promise resolves:
 
 ```typescript
 await new Promise(resolve => setTimeout(resolve, 2400));
@@ -163,7 +163,7 @@ npx @playwright/cli eval "(() => { const items = [...document.querySelectorAll('
 
 ### Inspecting widget layout
 
-`@playwright/cli eval` wraps the expression in `() => (...)` — use an IIFE for multi-statement code. Use `document.title` as a return channel:
+`@playwright/cli eval` wraps the expression in `() => (...)` --- use an IIFE for multi-statement code. Use `document.title` as a return channel:
 
 ```bash
 npx @playwright/cli eval "(() => { const w = document.querySelector('.mcp-list-widget'); \
@@ -177,21 +177,21 @@ npx @playwright/cli eval "document.title" 2>&1
 ```
 
 Key diagnostics:
-- **`rows`** — fewer than expected means `list.layout()` never received the correct viewport height.
-- **`seStH`** — empty means the list was never properly laid out.
-- **`listH` vs `wH`** — list container height should be widget height minus search bar minus footer.
+- **`rows`** --- fewer than expected means `list.layout()` never received the correct viewport height.
+- **`seStH`** --- empty means the list was never properly laid out.
+- **`listH` vs `wH`** --- list container height should be widget height minus search bar minus footer.
 
 ### Common layout issues
 
 | Symptom | Root cause | Fix pattern |
 |---------|-----------|-------------|
-| List shows 0-1 rows in a tall container | `layout()` bailed out because `offsetHeight` returned 0 during `display:none → visible` transition | Defer layout via `DOM.getWindow(this.element).requestAnimationFrame(...)` |
+| List shows 0-1 rows in a tall container | `layout()` bailed out because `offsetHeight` returned 0 during `display:none -> visible` transition | Defer layout via `DOM.getWindow(this.element).requestAnimationFrame(...)` |
 | Badge or row content clips at right edge | Widget container missing `overflow: hidden` | Add `overflow: hidden` to the widget's CSS class |
 | Items visible in fixture but not in product | Fixture uses many mock items; real product has few | Add fixture variants with fewer items or narrower dimensions (`width`/`height` options) |
 
 ### Fixture vs real product gaps
 
-Fixtures render at a fixed size (default 900×600) with many mock items. They won't catch:
-- **Reflow timing** — the real product's `display:none → visible` transition may not have reflowed before `layout()` fires
-- **Narrow windows** — add narrow fixture variants (e.g., `width: 550, height: 400`)
-- **Real data counts** — a user with 1 MCP server sees very different layout than a fixture with 12
+Fixtures render at a fixed size (default 900x600) with many mock items. They won't catch:
+- **Reflow timing** --- the real product's `display:none -> visible` transition may not have reflowed before `layout()` fires
+- **Narrow windows** --- add narrow fixture variants (e.g., `width: 550, height: 400`)
+- **Real data counts** --- a user with 1 MCP server sees very different layout than a fixture with 12

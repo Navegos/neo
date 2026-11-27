@@ -17,11 +17,11 @@ The `vscode-dev` repo is the `vscode.dev` server. When run locally with `?vscode
   vscode-dev/      # microsoft/vscode-dev checkout
 ```
 
-If your paths differ, check `server/` in `vscode-dev` for the source root resolution — the `/vscode-sources/*` route maps to `../vscode`.
+If your paths differ, check `server/` in `vscode-dev` for the source root resolution --- the `/vscode-sources/*` route maps to `../vscode`.
 
 ## Start the dev server
 
-**Critical:** Run `npm run dev` from the **`vscode-dev`** folder, NOT from `vscode`. The `vscode` repo has no `dev` script and will fail with `npm error Missing script: "dev"`. Terminal tools that simplify/strip leading `cd` into separate commands will silently keep the cwd of a previous terminal — always use an absolute `pushd` or verify with `pwd` before `npm run dev`.
+**Critical:** Run `npm run dev` from the **`vscode-dev`** folder, NOT from `vscode`. The `vscode` repo has no `dev` script and will fail with `npm error Missing script: "dev"`. Terminal tools that simplify/strip leading `cd` into separate commands will silently keep the cwd of a previous terminal --- always use an absolute `pushd` or verify with `pwd` before `npm run dev`.
 
 ```bash
 cd /path/to/vscode-dev     # NOT /path/to/vscode
@@ -34,13 +34,13 @@ If you're driving this through an agent/terminal tool, prefer:
 pushd /absolute/path/to/vscode-dev >/dev/null && pwd && npm run dev
 ```
 
-On first start you may see one crash like `Cannot find module './indexes'` — it's the watcher racing the first build. nodemon restarts automatically once `out/` finishes compiling. The server is ready when `curl -sk -o /dev/null -w "%{http_code}" https://127.0.0.1:3000/` returns `200`.
+On first start you may see one crash like `Cannot find module './indexes'` --- it's the watcher racing the first build. nodemon restarts automatically once `out/` finishes compiling. The server is ready when `curl -sk -o /dev/null -w "%{http_code}" https://127.0.0.1:3000/` returns `200`.
 
 ## URLs
 
-- `https://127.0.0.1:3000/?vscode-quality=dev` — main workbench, local dev sources
-- `https://127.0.0.1:3000/agents?vscode-quality=dev` — Agents window, local dev sources
-- `https://127.0.0.1:3000/?vscode-version=<commit>` — pinned production commit
+- `https://127.0.0.1:3000/?vscode-quality=dev` --- main workbench, local dev sources
+- `https://127.0.0.1:3000/agents?vscode-quality=dev` --- Agents window, local dev sources
+- `https://127.0.0.1:3000/?vscode-version=<commit>` --- pinned production commit
 - Add `&vscode-log=trace` for verbose client logging
 
 ## Interacting via the integrated browser
@@ -49,7 +49,7 @@ Use `open_browser_page` and the standard browser tools.
 
 ### Enter inserts a newline in the chat input
 
-The chat input is a Monaco editor — `page.keyboard.press('Enter')` inserts a newline. To send, click the **Send** button (`a[aria-label^="Send"]`) or use the send keybinding.
+The chat input is a Monaco editor --- `page.keyboard.press('Enter')` inserts a newline. To send, click the **Send** button (`a[aria-label^="Send"]`) or use the send keybinding.
 
 ### Hard-reloading after a rebuild
 
@@ -87,27 +87,27 @@ For a true mobile viewport, drive a standalone Playwright script with `devices['
 
 ## Known-noise console messages (ignore)
 
-- `Canceled: Canceled` at `clipboardService.js` — cancelled permission probes on hover.
-- `NotAllowedError: Failed to execute 'write' on 'Clipboard'` — web clipboard requires a user gesture.
-- `[WebTunnelAgentHost] Failed to list tunnels` — only fires when not signed in.
-- `The web worker extension host is started in a same-origin iframe!` — expected in dev.
-- `Unrecognized feature: 'local-network-access'` — dev manifest warning.
-- `[LEAKED DISPOSABLE]` stacks — GC-based tracker; only real if reproducible across reloads.
+- `Canceled: Canceled` at `clipboardService.js` --- cancelled permission probes on hover.
+- `NotAllowedError: Failed to execute 'write' on 'Clipboard'` --- web clipboard requires a user gesture.
+- `[WebTunnelAgentHost] Failed to list tunnels` --- only fires when not signed in.
+- `The web worker extension host is started in a same-origin iframe!` --- expected in dev.
+- `Unrecognized feature: 'local-network-access'` --- dev manifest warning.
+- `[LEAKED DISPOSABLE]` stacks --- GC-based tracker; only real if reproducible across reloads.
 
 ## Troubleshooting
 
 | Symptom                                                   | Cause                                      | Fix                                                        |
 | --------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------- |
 | `Cannot find module './indexes'` on first run             | nodemon started before TS compile finished | Wait; it auto-restarts                                     |
-| `Session not found: <uuid>` when sending chat             | Reopened a cloud/tunnel-backed session     | Start a fresh session (⌘N) in the Agents window            |
-| Workspace picker opens native dialog and hangs automation | `Select Folder…` needs a real file dialog  | Pick a workspace URL scheme instead, or skip in automation |
+| `Session not found: <uuid>` when sending chat             | Reopened a cloud/tunnel-backed session     | Start a fresh session (Cmd+N) in the Agents window            |
+| Workspace picker opens native dialog and hangs automation | `Select Folder...` needs a real file dialog  | Pick a workspace URL scheme instead, or skip in automation |
 | Stale UI after editing `vscode/` sources                  | Service worker cache                       | Unregister SWs + clear caches (snippet above)              |
 
 ## Testing the Agents window against a local mock agent host
 
-If the scenario touches the Agents window (`/agents` route), you almost always need the mock agent host running. Without it, the Agents window will sit on the sign-in / tunnel-discovery screen and block any real interaction. Start it **in addition to** the dev server — it's a second terminal, not a replacement.
+If the scenario touches the Agents window (`/agents` route), you almost always need the mock agent host running. Without it, the Agents window will sit on the sign-in / tunnel-discovery screen and block any real interaction. Start it **in addition to** the dev server --- it's a second terminal, not a replacement.
 
-`vscode-dev` supports a `?mock-agent-host=ws://…` URL parameter that short-circuits tunnel discovery and wires the Agents window to a raw WebSocket. Pair it with the mock agent host binary from `microsoft/vscode`:
+`vscode-dev` supports a `?mock-agent-host=ws://...` URL parameter that short-circuits tunnel discovery and wires the Agents window to a raw WebSocket. Pair it with the mock agent host binary from `microsoft/vscode`:
 
 ```bash
 cd /path/to/vscode
@@ -134,4 +134,4 @@ Expect these logs in order:
 - `[WebTunnelAgentHost] Protocol handshake completed with tunnel:mock`
 - `[RemoteAgentHost] Registered agent mock from tunnel:mock as remote-tunnel__mock-mock`
 
-This bypasses GitHub auth and the `/agents/api/hosts` endpoint entirely, so it works offline. The fake tunnel on the `vscode-dev` side must advertise a `protocolvN` tag ≥ `TUNNEL_MIN_PROTOCOL_VERSION` in `src/vs/platform/agentHost/common/tunnelAgentHost.ts` (currently 5); otherwise `WebTunnelAgentHostService` filters it out and you'll see `Found 0 tunnel(s) with agent host support`.
+This bypasses GitHub auth and the `/agents/api/hosts` endpoint entirely, so it works offline. The fake tunnel on the `vscode-dev` side must advertise a `protocolvN` tag >= `TUNNEL_MIN_PROTOCOL_VERSION` in `src/vs/platform/agentHost/common/tunnelAgentHost.ts` (currently 5); otherwise `WebTunnelAgentHostService` filters it out and you'll see `Found 0 tunnel(s) with agent host support`.

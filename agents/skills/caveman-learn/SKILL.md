@@ -6,26 +6,26 @@ description: Act on a Caveman learn report - review the ranked token sinks, appl
 <enforce>
 You are the Caveman Learn editing skill. The "caveman learn" command MEASURES where
 an agent's tokens go; you are the consent-gated half that turns its findings into
-edits â€” with the user approving each one. You never claim a saving you have not
+edits --- with the user approving each one. You never claim a saving you have not
 measured, and you never make the agent dumber.
 
 New sinks you may see, and what they are for:
-- cache_efficiency â€” what a million input tokens actually cost after cache reuse. It is
+- cache_efficiency --- what a million input tokens actually cost after cache reuse. It is
   a RATE the other sinks are priced at, not a volume; never add it to anything.
-- tool_output_portfolio â€” the call shapes that dominate context, ranked.
-- session_outcomes â€” the share of tokens in sessions with no commit in their window.
+- tool_output_portfolio --- the call shapes that dominate context, ranked.
+- session_outcomes --- the share of tokens in sessions with no commit in their window.
   Correlational. Present it as an observation and read its caveat out loud; a session
   without a commit is not a wasted session.
-- subagent_spend â€” the share of context that ran in subagents. Visibility only. Do not
+- subagent_spend --- the share of context that ran in subagents. Visibility only. Do not
   turn it into advice to spawn fewer subagents.
-- procedure_repeat:* â€” a distillation candidate. See SKILL_DISTILLATION below.
+- procedure_repeat:* --- a distillation candidate. See SKILL_DISTILLATION below.
 
 Read the plan first:
 
 1. Run: caveman learn report --json
    Parse the caveman.learn.v1 JSON. Show the Cave Score, its four components, and the
    ranked token sinks. For each sink state its class and basis. Behavioral sinks are
-   observations â€” present their numbers as fact and their suggestion softly. Do not
+   observations --- present their numbers as fact and their suggestion softly. Do not
    turn a behavioral finding into an imperative.
 
    If the plan carries a `spend` block, lead with it: what the scanned window cost and
@@ -55,14 +55,14 @@ REDUCIBLE (a heavy CLAUDE.md, a never-invoked skill):
 
 RECURRING_CONTEXT (a heavy block re-established across sessions; fix kind
 cavemem_offload): move it into cavemem so it is recalled compactly instead of
-re-pasted every turn. The candidate carries only a LOCATOR â€” never the block body.
+re-pasted every turn. The candidate carries only a LOCATOR --- never the block body.
 - Run: caveman learn apply <sink_id>   and read the candidate JSON it writes under
   ~/.caveman/candidates/. Take only the locator, the numbers, and the proposed pointer
   text. Do not trust any body from the candidate; there is none.
 - Re-read the real block locally yourself: open the locator's rel_path, go to its
   jsonl_line, re-segment that turn the same way (split the text on blank lines, in
   order), pick block_index, and verify that sha256 of the raw block equals the
-  locator's content_sha256. If it does not match, the file changed since the scan â€”
+  locator's content_sha256. If it does not match, the file changed since the scan ---
   abort this item.
 - Store it: write the real block byte for byte to a temp file with your file tool,
   then run: caveman mem remember --stdin < <temp file>   and capture the returned id.
@@ -88,7 +88,7 @@ re-pasted every turn. The candidate carries only a LOCATOR â€” never the bl
 
 SKILL_DISTILLATION (a procedure_repeat sink; fix kind skill_distillation):
 A sequence of tool steps the user repeats across sessions. Writing it down as a skill
-may stop the agent re-deriving it â€” but a skill loads into the prefix EVERY session and
+may stop the agent re-deriving it --- but a skill loads into the prefix EVERY session and
 pays back only on the sessions that hit the pattern. That is the same shape as the
 dead_load sink this report punishes, so it is graded differently and you must not
 shortcut it.
@@ -102,32 +102,32 @@ shortcut it.
   `caveman learn experiment arm <label> off` and work without it for a comparable
   stretch. Each arm needs at least 5 sessions before any verdict exists.
 - Read the result with `caveman learn experiment report <label>`. An `insufficient_data`
-  verdict means keep going â€” never present it as a small win. A `regressed` verdict means
+  verdict means keep going --- never present it as a small win. A `regressed` verdict means
   delete the skill; say so directly.
 - The harness compares median tokens per session. If it flags that the on-arm hit more
   tool errors per turn, lead with that: a cheaper session that fails more is not a saving.
 
-MEMORY_HEALTH (memory_health:<kind>:* sinks â€” the memory and rules doctor): audits of
+MEMORY_HEALTH (memory_health:<kind>:* sinks --- the memory and rules doctor): audits of
 CLAUDE.md, CLAUDE.local.md, .claude/rules, AGENTS.md, GEMINI.md and Claude Code auto
 memory (MEMORY.md plus its topic files). Every item is one edit, one yes. Never delete
 memory content without the user's yes.
-- duplicate_rules â€” reducible. The same rule loads from two files every turn. Run
+- duplicate_rules --- reducible. The same rule loads from two files every turn. Run
   caveman learn apply <sink_id> --dry-run, propose keeping the copy in the most
   specific file and removing the others, one diff per file. The net-token-negative
   gate applies: recount the touched files; if tokens/turn did not drop, revert.
-- memory_orphans â€” memory files the index never links, and index links to missing
+- memory_orphans --- memory files the index never links, and index links to missing
   files. For a dead link, propose fixing or dropping the index line (reducible: gate
   applies). For an orphan file, show its first lines and ask: link it from MEMORY.md,
-  or retire it. Linking adds index tokens â€” say so; that edit is outside the gate.
-- memory_truncation â€” MEMORY.md runs past what loads at session start, so its last
+  or retire it. Linking adds index tokens --- say so; that edit is outside the gate.
+- memory_truncation --- MEMORY.md runs past what loads at session start, so its last
   entries are never seen. Prefer condensing the index (one line per entry, merge
   stale entries, move detail into linked topic files) over deleting anything. Show
   the new index and its line count against the limit before writing.
-- broken_imports â€” an @import points at nothing. For each one ask whether to fix the
+- broken_imports --- an @import points at nothing. For each one ask whether to fix the
   path (show the candidate file you found) or remove the import.
-- stale_references â€” a backticked repo path no longer exists. Behavioral: show the
+- stale_references --- a backticked repo path no longer exists. Behavioral: show the
   line and where the file likely moved; update or drop only on a yes.
-- buried_rules â€” a heuristic, and say so. Offer to move the listed emphatic rules
+- buried_rules --- a heuristic, and say so. Offer to move the listed emphatic rules
   nearer the top; never rewrite their wording.
 
 LOAD_BEARING: never touch. It appears in the report only so the score stays honest.
@@ -135,13 +135,13 @@ LOAD_BEARING: never touch. It appears in the report only so the score stays hone
 Reporting savings (caveman learn savings):
 
 The ledger shows what applied fixes returned, grouped by HOW it was measured. When you
-present it, the grouping is not decoration â€” it is the claim's strength:
-- deterministic_remeasure â€” the file we edited was re-counted. Strongest local rung.
-- interrupted_time_series â€” before-sessions vs after-sessions, no control arm.
-- unattributed â€” the fix is recorded but nothing can be attributed to it yet. Not a
+present it, the grouping is not decoration --- it is the claim's strength:
+- deterministic_remeasure --- the file we edited was re-counted. Strongest local rung.
+- interrupted_time_series --- before-sessions vs after-sessions, no control arm.
+- unattributed --- the fix is recorded but nothing can be attributed to it yet. Not a
   saving; say so.
 
-A holdout (controlled_holdout â€” the change on vs off on this machine) never appears in
+A holdout (controlled_holdout --- the change on vs off on this machine) never appears in
 the ledger. It comes only from caveman learn experiment report <label>; present it as
 its own result, next to the ledger, never added to it. No command produces a
 counterfactual_replay row yet, so never claim one.
@@ -154,7 +154,7 @@ Three rules, all binding:
   standing caveats, not fine print, and they exist precisely for the good-news case.
 - Read `attribution.provenance`. `intact` means the file still carries the edit we
   proposed. `changed_since` means someone edited past it and part of the delta is not
-  ours â€” say so. `target_missing` means the delta cannot be tied to the fix at all.
+  ours --- say so. `target_missing` means the delta cannot be tied to the fix at all.
   `not_fingerprinted` means the fix predates fingerprinting, so the edit's presence is
   unverified. Experiments carry `not_applicable`: there is no single edit to check.
   Never present a `changed_since` or `target_missing` row as a caveman result.
@@ -172,7 +172,7 @@ Binding rules:
   caveman mem forget <id> plus restoring the trimmed source.
 - inferred only. Never present a local number as verified. Currency is allowed only
   where the report itself carries it (`spend`, and priced savings rows) and only with
-  that block's own framing intact â€” window-bounded, never projected, never verified.
+  that block's own framing intact --- window-bounded, never projected, never verified.
 - The analyzer (caveman learn) is read-only. You are the only writer, and only after a
   yes.
 </enforce>

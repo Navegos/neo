@@ -17,7 +17,7 @@ tags:
 author: yamadashy
 metadata:
   openclaw:
-    emoji: "📦"
+    emoji: "[PKG]"
     homepage: "https://github.com/yamadashy/repomix"
     requires:
       bins:
@@ -30,7 +30,7 @@ metadata:
         label: "Install Repomix CLI (npm)"
 ---
 
-# Repomix — Codebase Packer & Analyzer
+# Repomix --- Codebase Packer & Analyzer
 
 Pack entire codebases into a single, AI-friendly file for analysis. Repomix intelligently collects repository files, respects `.gitignore`, runs security checks, and generates structured output optimized for LLM consumption.
 
@@ -64,7 +64,7 @@ npx repomix@latest [directory] --output /tmp/<name>-analysis.xml
 | Option | Description |
 |--------|-------------|
 | `--style <format>` | Output format: `xml` (default, recommended), `markdown`, `plain`, `json` |
-| `--compress` | Tree-sitter compression (~70% token reduction) — use for large repos |
+| `--compress` | Tree-sitter compression (~70% token reduction) --- use for large repos |
 | `--include <patterns>` | Include only matching patterns (e.g., `"src/**/*.ts,**/*.md"`) |
 | `--ignore <patterns>` | Additional ignore patterns |
 | `--output <path>` | Custom output path (default: `repomix-output.xml`) |
@@ -136,7 +136,7 @@ grep -iE "model|schema|database|query" <output-file>
 2. **Use pattern search first** before reading entire output files
 3. **Use a temporary directory for output** (`/tmp` on Unix, `%TEMP%` on Windows) to keep the user's workspace clean
 4. **Use `--include` to focus** on specific parts of a codebase
-5. **XML is the default and recommended format** — it has clear file boundaries for structured analysis
+5. **XML is the default and recommended format** --- it has clear file boundaries for structured analysis
 
 ## Output Formats
 

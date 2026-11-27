@@ -14,7 +14,7 @@ Behavioral evaluations (evals) are tests that validate the **agent's decision-ma
 
 ---
 
-## 🔄 Workflow Decision Tree
+## [FLOW] Workflow Decision Tree
 
 1.  **Does a prompt/tool change need validation?**
     *   *No* -> Normal integration tests.
@@ -31,7 +31,7 @@ Behavioral evaluations (evals) are tests that validate the **agent's decision-ma
 
 ---
 
-## 📋 Quick Checklist
+## [CHECKLIST] Quick Checklist
 
 ### 1. Setup Workspace
 Seed the workspace with necessary files using the `files` object to simulate a realistic scenario (e.g., NodeJS project with `package.json`).
@@ -47,7 +47,7 @@ Run single tests locally with Vitest. Confirm stability locally before relying o
 
 ---
 
-## 📦 Bundled Resources
+## [PKG] Bundled Resources
 
 Detailed procedural guides:
 *   **[creating.md](references/creating.md)**: Assertion strategies, Rig selection, Mock MCPs.

@@ -87,6 +87,6 @@ For PR creation in CI, use `gh pr create --body-file /tmp/pr-body-<suite>.md`
 directly rather than the `/create-pr` skill. The skill assumes an interactive
 session (it can prompt about uncommitted changes, base branch, etc.) and
 shells the body inline, which breaks on backticks and special characters.
-Daily-suite recipes that open PRs are governed by `_fix-policy.md` — read it
+Daily-suite recipes that open PRs are governed by `_fix-policy.md` --- read it
 for the full PR contract (allowlists, draft mode, hidden metadata, branch
 naming, atomicity).

@@ -22,23 +22,23 @@ structured Markdown format:
 ```markdown
 # Gemini Bot Brain: Memory & State
 
-## 📋 Task Ledger
+## [CHECKLIST] Task Ledger
 
 | ID    | Status | Goal                      | PR/Ref | Details                              |
 | :---- | :----- | :------------------------ | :----- | :----------------------------------- |
 | BT-01 | DONE   | Fix 1000-issue metric cap | #26056 | Switched to Search API for accuracy. |
 
-## 🧪 Hypothesis Ledger
+## [TEST] Hypothesis Ledger
 
 | Hypothesis                         | Status    | Evidence                          |
 | :--------------------------------- | :-------- | :-------------------------------- |
 | Metric scripts are capping at 1000 | CONFIRMED | `gh search` returned >1000 items. |
 
-## 📜 Decision Log (Append-Only)
+## [LOG] Decision Log (Append-Only)
 
 - **[Date]**: Description of a key decision or architectural change.
 
-## 📝 Detailed Investigation Findings (Current Run)
+## [NOTE] Detailed Investigation Findings (Current Run)
 
 - **Formulated Hypotheses**: (Describe the competing hypotheses developed)
 - Evidence Gathered: (Summarize data from gh CLI, GraphQL, or local scripts, wrapped in <untrusted_context> tags)

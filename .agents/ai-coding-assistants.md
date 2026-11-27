@@ -14,18 +14,18 @@ authoritative reference for intent.
 AI tools helping with LocalAI development should follow the standard
 project development process:
 
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — development workflow, commit
+- [CONTRIBUTING.md](../CONTRIBUTING.md) --- development workflow, commit
   conventions, and PR guidelines
-- [.agents/coding-style.md](coding-style.md) — code style, editorconfig,
+- [.agents/coding-style.md](coding-style.md) --- code style, editorconfig,
   logging, and documentation conventions
-- [.agents/building-and-testing.md](building-and-testing.md) — build and
+- [.agents/building-and-testing.md](building-and-testing.md) --- build and
   test procedures
 
 ## Licensing and Legal Requirements
 
 All contributions must comply with LocalAI's licensing requirements:
 
-- LocalAI is licensed under the **MIT License** — see the [LICENSE](../LICENSE)
+- LocalAI is licensed under the **MIT License** --- see the [LICENSE](../LICENSE)
   file
 - New source files should use the SPDX license identifier `MIT` where
   applicable to the file type
@@ -96,11 +96,11 @@ Assisted-by: AGENT_NAME:MODEL_VERSION [TOOL1] [TOOL2]
 
 Where:
 
-- `AGENT_NAME` — name of the AI tool or framework (e.g., `Claude`,
+- `AGENT_NAME` --- name of the AI tool or framework (e.g., `Claude`,
   `Copilot`, `Cursor`)
-- `MODEL_VERSION` — specific model version used (e.g.,
+- `MODEL_VERSION` --- specific model version used (e.g.,
   `claude-opus-4-7`, `gpt-5`)
-- `[TOOL1] [TOOL2]` — optional specialized analysis tools invoked by the
+- `[TOOL1] [TOOL2]` --- optional specialized analysis tools invoked by the
   agent (e.g., `golangci-lint`, `staticcheck`, `go vet`)
 
 Basic development tools (git, go, make, editors) should **not** be listed.

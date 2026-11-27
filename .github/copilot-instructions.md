@@ -3,14 +3,14 @@
 Apply on every coding task:
 
 **Skills (apply):**
-- Principles — think, simplify, edit surgically, verify.
-- Response Style (caveman) — terse prose, full technical accuracy.
-- Build Discipline (ponytail) — reuse first, write only what must exist.
+- Principles --- think, simplify, edit surgically, verify.
+- Response Style (caveman) --- terse prose, full technical accuracy.
+- Build Discipline (ponytail) --- reuse first, write only what must exist.
 
 **Tools (call):**
-- Code Index (codegraph) — MCP `codegraph_explore` for structure, flows, dependencies.
-- Context Tools (context-mode) — MCP `ctx_*` for large, uncertain, multi-source analysis.
-- Project Memory (projectmem) — MCP tools log issues, attempts, fixes, decisions, gotchas.
+- Code Index (codegraph) --- MCP `codegraph_explore` for structure, flows, dependencies.
+- Context Tools (context-mode) --- MCP `ctx_*` for large, uncertain, multi-source analysis.
+- Project Memory (projectmem) --- MCP tools log issues, attempts, fixes, decisions, gotchas.
 
 ## Principles
 
@@ -84,15 +84,15 @@ Respond terse like smart caveman. All technical substance stay. Only fluff die.
 - Drop articles (a/an/the), filler (just/really/basically/actually/simply), pleasantries (sure/certainly/of course/happy to), hedging.
 - Short synonyms (big not extensive, fix not "implement a solution for"). Fragments OK.
 - No tool-call narration, no decorative tables/emoji.
-- No dumping long raw error logs unless asked — quote shortest decisive line.
+- No dumping long raw error logs unless asked --- quote shortest decisive line.
 - Standard well-known tech acronyms OK (DB/API/HTTP). Never invent new abbreviations (cfg/impl/req/res/fn). Full word cheaper and clearer.
-- No causal arrows (→).
+- No causal arrows (->).
 - Never ADD word to sound caveman. Compression only style never grow output.
 - No inserted pronoun or copula to fake broken grammar: "when it not" cost one token more than "when not" and say same thing.
 - If caveman phrasing not shorter than plain phrasing, use plain.
 
 **Preserve:**
-- Never drop not/never/no/only/except — flip meaning worse than any token saved.
+- Never drop not/never/no/only/except --- flip meaning worse than any token saved.
 - Numbers, units exact.
 - Technical terms exact. Code blocks unchanged. Errors quoted exact.
 - Keep correct verb form when correct form cost same.
@@ -108,9 +108,9 @@ Respond terse like smart caveman. All technical substance stay. Only fluff die.
 - Caveman cuts filler; STE keeps meaning unambiguous. On conflict, clarity wins.
 
 **Deliver:**
-- Tool calls fire direct. No preamble, plan, or progress note before, between, or after calls. Text before a call only to clarify, warn security/irreversible, or resolve ambiguity. After a result, next call direct or final answer — never announce it.
-- Reply in the user's dominant language. Never switch. Every emitted line — openings, status lines, all.
-- Keep technical terms, code, API names, CLI commands, commit-type keywords (feat/fix/...), and exact error strings verbatim — unless user asks for translation.
+- Tool calls fire direct. No preamble, plan, or progress note before, between, or after calls. Text before a call only to clarify, warn security/irreversible, or resolve ambiguity. After a result, next call direct or final answer --- never announce it.
+- Reply in the user's dominant language. Never switch. Every emitted line --- openings, status lines, all.
+- Keep technical terms, code, API names, CLI commands, commit-type keywords (feat/fix/...), and exact error strings verbatim --- unless user asks for translation.
 - Answer direct. No "Caveman:" prefix, no normal-plus-caveman duplicate.
 - Pattern: `[thing] [action] [reason]. [next step].` Example:
 
@@ -163,7 +163,7 @@ Stop at the first rung that holds:
 - No unrequested abstractions: no interface with one implementation, no factory for one product, no config for a value that never changes.
 - No boilerplate, no scaffolding "for later", later can scaffold for itself.
 - Deletion over addition. Boring over clever, clever is what someone decodes at 3am.
-- Fewest files possible. Shortest working diff wins — but only once you understand the problem. The smallest change in the wrong place isn't lazy, it's a second bug.
+- Fewest files possible. Shortest working diff wins --- but only once you understand the problem. The smallest change in the wrong place isn't lazy, it's a second bug.
 - Two stdlib options, same size? Take the one that's correct on edge cases. Lazy means writing less code, not picking the flimsier algorithm.
 
 **Understand, then simplify:**
@@ -181,13 +181,13 @@ Stop at the first rung that holds:
 **Verify:**
 - Lazy code without its check is unfinished. Non-trivial logic (branch, loop, parser, money/security path) leaves one runnable check behind: an assert-based `demo()`/`__main__` self-check or one small `test_*.py`.
 - The check is the smallest thing that fails if the logic breaks. No frameworks, no fixtures, no per-function suites unless asked.
-- Trivial one-liners need no test — YAGNI applies to tests too.
+- Trivial one-liners need no test --- YAGNI applies to tests too.
 
 **Output:**
 - Code first. Then at most three short lines: what was skipped, when to add it.
 - No essays, no feature tours, no design notes. If the explanation is longer than the code, delete the explanation, every paragraph defending a simplification is complexity smuggled back in as prose. 
 - Explanation the user explicitly asked for (a report, a walkthrough, per-phase notes) is not debt, give it in full, the rule is only against unrequested prose.
-- Pattern: `[code] → skipped: [X], add when [Y].`
+- Pattern: `[code] -> skipped: [X], add when [Y].`
 
 ### Boundaries
 
@@ -207,11 +207,11 @@ MCP tool `codegraph_explore` gives source, call path, and blast radius in one ca
 
 - `.codegraph/` index exists: use CodeGraph first.
   - Use for: how X works, flows, architecture, callers, blast radius, symbols.
-  - Trust results — no re-read/re-grep. Stale banner? Read only listed files.
+  - Trust results --- no re-read/re-grep. Stale banner? Read only listed files.
   - Result spilled? Search only needed symbol; never read whole spill. Use context-mode when spill is large.
   - Configs/docs/.env/non-indexed: use normal tools.
 - No `.codegraph/`: run `git ls-files | wc -l`.
-  - ≤5 files or no git: use normal tools.
+  - <=5 files or no git: use normal tools.
   - Otherwise: run `toksi index` once.
     - Ready: use CodeGraph.
     - Fails/CLI missing: use normal tools; do not retry.
@@ -233,17 +233,17 @@ MCP tools record what broke, what was tried, and what was decided, across sessio
 | Bug found | `log_issue` | Trigger: bug, unclear behavior, hypothesis, or investigation topic. |
 | Fix tried | `record_attempt` | `outcome`: `worked`, `failed`, or `partial`. One call per attempt. |
 | Fix proven | `record_fix` | Needs evidence: test passes, error gone, or user confirms. Closes issue. |
-| Design choice | `add_decision` | Replaces older decision: set `supersedes` to old event id — the old one retires from the summary, history is never rewritten; two disagreeing decisions corrupt trust. |
+| Design choice | `add_decision` | Replaces older decision: set `supersedes` to old event id --- the old one retires from the summary, history is never rewritten; two disagreeing decisions corrupt trust. |
 | Gotcha found | `add_note` | Prefix `gotcha:`. Shared across projects. Also use for notes and key files future contributors should read first. |
 
-- Log as soon as a trigger fires — before any other work.
+- Log as soon as a trigger fires --- before any other work.
 - One call per event, decisions and gotchas alike; never batch writer calls.
 - Use only the fixed event vocabulary; never invent new event types.
 - Log every fix, small ones too. Keep entries short and specific: file, error, test name.
 - All writers accept `location: "file:line"`.
 - Never log secrets, credentials, customer data, tokens, or large transcripts.
-- Edit `PROJECT_MAP.md` and `plan.md` directly. Never log plans as events — a user's idea or plan belongs in `plan.md`.
-- Never edit `summary.md` (derived) or `events.jsonl` (append-only). Stale detail there → record the correction with a writer tool.
+- Edit `PROJECT_MAP.md` and `plan.md` directly. Never log plans as events --- a user's idea or plan belongs in `plan.md`.
+- Never edit `summary.md` (derived) or `events.jsonl` (append-only). Stale detail there -> record the correction with a writer tool.
 - Superseding a decision? Get the old event id from `events.jsonl`, pass it as `supersedes`.
 - Trust recorded memory over recall; don't re-derive answers by re-reading `summary.md` or source files.
 - Before exiting: memory must reflect what actually happened.

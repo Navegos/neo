@@ -21,17 +21,17 @@ Rules that are easy to get wrong:
 
 - **PR type labels mirror the Conventional Commit title.** The labeler derives the work type and optional breaking marker from the title, and `package:*` and `integration:*` from its scope. Labels support triage; release-please still reads Conventional Commits to determine releases. `release(...)` titles receive `auto:release-pr` for release and stale-PR automation.
 - An issue carries exactly one `type:*`, normally one `package:*`, and any number of `topic:*`.
-- `priority:*` has three levels on issues, with `priority:backlog` as the default. Only `priority:urgent` and `priority:high` propagate to linked PRs; backlog leaves a PR without a priority label. Retired `p0`–`p4` labels are stripped from PRs without mapping them to a new priority.
+- `priority:*` has three levels on issues, with `priority:backlog` as the default. Only `priority:urgent` and `priority:high` propagate to linked PRs; backlog leaves a PR without a priority label. Retired `p0`--`p4` labels are stripped from PRs without mapping them to a new priority.
 - **A `ci:*` label always represents a human decision, but two of them are written by automation on a maintainer's instruction:** `ci:keep-open` (`keep_open_on_comment.yml`, on a `!keep-open` comment) and `ci:skip-issue-link` (`require_issue_link.yml`, when a maintainer bypasses the gate). The labeler never applies a `ci:*`, and every one of them is read by a gate. See the `ci:*` table for which are read-only.
 - Every label must have a description.
 
 ## Automatic labels
 
-### `size:*` — `pr_labeler.yml`
+### `size:*` --- `pr_labeler.yml`
 
 `size: XS` (<50 changed lines), `size: S` (<200), `size: M` (<500), `size: L` (<1000), `size: XL` (rest). Mutually exclusive; stale ones removed. Thresholds are `sizeThresholds` in [`scripts/labeling/pr-labeler-config.json`](./scripts/labeling/pr-labeler-config.json). `uv.lock` (`excludedFiles`) and `docs/` (`excludedPaths`) do not count.
 
-### `package:*` and `integration:*` — `pr_labeler.yml`, `auto-label-by-package.yml`
+### `package:*` and `integration:*` --- `pr_labeler.yml`, `auto-label-by-package.yml`
 
 `scopeToLabel` maps title scopes and `fileRules` maps path prefixes onto the same labels:
 
@@ -48,11 +48,11 @@ Rules that are easy to get wrong:
 | `integration:quickjs` | `quickjs`, `langchain-quickjs` | `libs/partners/quickjs/` |
 | `integration:runloop` | `runloop`, `langchain-runloop` | `libs/partners/runloop/` |
 | `integration:vercel` | `vercel`, `langchain-vercel-sandbox` | `libs/partners/vercel/` |
-| `integration:langsmith` | `langsmith-sandbox` | — |
+| `integration:langsmith` | `langsmith-sandbox` | --- |
 
-Package and integration labels are additive: title edits do not remove them. `pr_labeler.yml` normalizes package aliases such as `deepagents` → `sdk` before labeling. `pr_scope_file_check.yml` uses the same mappings to validate that PR title scopes match changed packages.
+Package and integration labels are additive: title edits do not remove them. `pr_labeler.yml` normalizes package aliases such as `deepagents` -> `sdk` before labeling. `pr_scope_file_check.yml` uses the same mappings to validate that PR title scopes match changed packages.
 
-### `topic:*` — `pr_labeler.yml`, `auto-label-by-package.yml`, maintainers
+### `topic:*` --- `pr_labeler.yml`, `auto-label-by-package.yml`, maintainers
 
 `topic:async-subagents`, `topic:backends`, `topic:filesystem`, `topic:harness`, `topic:mcp`, `topic:memory`, `topic:middleware`, `topic:models`, `topic:multimodal`, `topic:performance`, `topic:prompts`, `topic:sandboxes`, `topic:skills`, `topic:streaming`, `topic:subagents`, `topic:tracing`. Any number may apply.
 
@@ -67,7 +67,7 @@ A daily workflow adds newly discovered repository topics to `.github/topic-label
 
 Runtime labeling reads the local manifest, so it makes no extra label-list API call. Add a `topicFileRules` entry only when deterministic path-based matching is also useful; model output is filtered against the manifest before labels are applied.
 
-### `org:*` — `pr_labeler.yml` (PRs), `tag-external-issues.yml` (issues)
+### `org:*` --- `pr_labeler.yml` (PRs), `tag-external-issues.yml` (issues)
 
 | Label | Meaning |
 | --- | --- |
@@ -77,15 +77,15 @@ Runtime labeling reads the local manifest, so it makes no extra label-list API c
 
 `org:external` is applied on `opened` only, using the `ORG_MEMBERSHIP_APP_*` GitHub App token, because org membership is private. A non-404 membership error fails the step rather than defaulting to external. The other two come from the default-token step, so they fire no `labeled` event.
 
-### `priority:*` — `auto-label-by-package.yml`, `sync_priority_labels.yml`
+### `priority:*` --- `auto-label-by-package.yml`, `sync_priority_labels.yml`
 
 `priority:urgent` > `priority:high` > `priority:backlog`, mutually exclusive.
 
 **Every new issue gets `priority:backlog`** from the "Apply default priority" step in `auto-label-by-package.yml`, which runs on `opened` before the Area sync so an issue filed without the form is still prioritized. It skips an issue that already carries a `priority:*`, so a re-run never overwrites an escalation.
 
-`sync_priority_labels.yml` copies a priority from issues linked by `Closes/Fixes/Resolves #N` onto the PR, highest across linked issues winning — but **only `priority:urgent` and `priority:high` propagate** (`PROPAGATED_PRIORITY_LABELS`). Backlog is every issue's default, so copying it would label nearly every PR while saying nothing; a PR carrying a backlog label from an earlier run gets it stripped. The workflow also strips the retired `p0`–`p4` from PRs (`STALE_PRIORITY_LABELS`) without mapping them onto a new priority — drop that list once no open item carries one.
+`sync_priority_labels.yml` copies a priority from issues linked by `Closes/Fixes/Resolves #N` onto the PR, highest across linked issues winning --- but **only `priority:urgent` and `priority:high` propagate** (`PROPAGATED_PRIORITY_LABELS`). Backlog is every issue's default, so copying it would label nearly every PR while saying nothing; a PR carrying a backlog label from an earlier run gets it stripped. The workflow also strips the retired `p0`--`p4` from PRs (`STALE_PRIORITY_LABELS`) without mapping them onto a new priority --- drop that list once no open item carries one.
 
-### `auto:*` — lifecycle and release automation
+### `auto:*` --- lifecycle and release automation
 
 | Label | Applied by | Meaning |
 | --- | --- | --- |
@@ -93,7 +93,7 @@ Runtime labeling reads the local manifest, so it makes no extra label-list API c
 | `auto:waiting-on-author` | maintainer, cleared by `waiting_on_author_reply.yml` and by the `waiting_on_author.yml` sweep when it detects an author reply | closes the item 10 days later; `auto:*` because workflows own its removal and timeout |
 | `auto:missing-issue-link` | `require_issue_link.yml` | external PR had no approved, assigned issue link; PR was closed |
 | `auto:new-contributor` | `pr_labeler.yml` | external author, 0 merged PRs (PRs only) |
-| `auto:trusted-contributor` | `pr_labeler.yml`, `tag-external-issues.yml` | external author, ≥`trustedThreshold` (5) merged PRs **in this repo** |
+| `auto:trusted-contributor` | `pr_labeler.yml`, `tag-external-issues.yml` | external author, >=`trustedThreshold` (5) merged PRs **in this repo** |
 | `auto:release-pr` | PR title labeler + `release-please.yml` via `h.labelPR()` | package release PR (`releaseLabel` in the config) |
 | `auto:release-pending` | release-please itself | release PR open, not yet tagged |
 | `auto:release-tagged` | `release.yml` after tagging | release tagged |
@@ -102,11 +102,11 @@ Runtime labeling reads the local manifest, so it makes no extra label-list API c
 
 > During migration, release workflows accept legacy `autorelease: pending` and `autorelease: tagged` labels. Before release-please runs, automation adds `auto:release-pending` to open PRs that still use the legacy pending label. Publishing then removes both pending-label variants and applies `auto:release-tagged`. Let workflows running the old code finish before merging.
 
-### `triage:*` — maintainers and agents
+### `triage:*` --- maintainers and agents
 
 `triage:duplicate`, `triage:help-wanted`, `triage:needs-investigation`, `triage:unable-to-reproduce`. Four durable states on purpose: missing information is requested in a comment rather than tracked as another label lifecycle.
 
-### `type:*` — issue forms, PR title labeler, and maintainers
+### `type:*` --- issue forms, PR title labeler, and maintainers
 
 [`ISSUE_TEMPLATE/bug-report.yml`](./ISSUE_TEMPLATE/) applies `type:bug` and `feature-request.yml` applies `type:feature`. Maintainers can also assign `type:spike`, `type:chore`, or `type:docs` to issues. These replace GitHub Issue Types so the repo owns the names and descriptions.
 
@@ -126,13 +126,13 @@ For PRs, `typeToLabel` in `pr-labeler-config.json` maps the title's commit type:
 | `ci` | `type:ci` |
 | `chore` | `type:chore` |
 | `revert` | `type:revert` |
-| `release` | `auto:release-pr` (from `releaseLabel`, not `typeToLabel` — see [`auto:*`](#auto---lifecycle-and-release-automation)) |
+| `release` | `auto:release-pr` (from `releaseLabel`, not `typeToLabel` --- see [`auto:*`](#auto---lifecycle-and-release-automation)) |
 
 The `!` marker immediately before `:` (for example, `feat(sdk)!:` or `feat!:`) adds `type:breaking` (`breakingLabel` in the config) alongside the work type. The label parser does not recognize `feat!(sdk):`. A recognized title edit replaces stale managed type labels and removes the breaking label when `!` is dropped; unrecognized titles preserve the previous classification. Live labeling, backfill, and release PR labeling share this behavior. Scope/file labels remain additive. Newly created type labels receive descriptions from `labelDescriptions` in the same config.
 
-> A label in an issue form's `labels:` list that does not exist on the repo is **silently skipped** — GitHub applies nothing and reports nothing. Create the label before merging a form change.
+> A label in an issue form's `labels:` list that does not exist on the repo is **silently skipped** --- GitHub applies nothing and reports nothing. Create the label before merging a form change.
 
-## `ci:*` — human overrides
+## `ci:*` --- human overrides
 
 Each unblocks a gate that is otherwise red. Every one is read-only and must be created by hand except `ci:skip-issue-link` and `ci:keep-open`, which automation also applies on a maintainer's instruction (noted in their rows below). See [Mechanics](#mechanics-worth-knowing).
 
@@ -161,7 +161,7 @@ Each unblocks a gate that is otherwise red. Every one is read-only and must be c
 
 ## Changing the taxonomy
 
-1. **New package**: add a `scopeToLabel` key and a `fileRules` prefix in `pr-labeler-config.json`, add the scope to `pr_lint.yml`, and add the issue form option plus its `mapping` entry in `auto-label-by-package.yml`. Check `check_pr_scope_files.py`'s tests — it reads both maps as package identity.
+1. **New package**: add a `scopeToLabel` key and a `fileRules` prefix in `pr-labeler-config.json`, add the scope to `pr_lint.yml`, and add the issue form option plus its `mapping` entry in `auto-label-by-package.yml`. Check `check_pr_scope_files.py`'s tests --- it reads both maps as package identity.
 2. **New `ci:*` gate**: read the label from the live API in the gate workflow, create the label by hand, and add a row above.
 3. **Backfill**: use `pr_labeler_backfill.yml` for open PRs and the dispatch job in `tag-external-issues.yml` for open issues.
 

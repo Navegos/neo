@@ -14,7 +14,7 @@ Targets:
   - crates/toksi/src/headroom/compression/economizer.rs
   - crates/toksi/src/agents/{opt.rs, mod.rs, manager.rs, hooks.rs, mcp_adapters.rs, open_agents.rs}
   - crates/toksi/src/{telemetry/tokentracker.rs, rtk/*, icm/mcp.rs, projectmem/{mcp.rs, store.rs}, aimemory/*, rules/*}
-  - crates/toksi/src/gateway/providers/ (Categories 1â€“5 + 22 Local Inference Engines)
+  - crates/toksi/src/gateway/providers/ (Categories 1--5 + 22 Local Inference Engines)
   - crates/toksi/src/tools/autoindex.rs, crates/toksi/src/util/{exec.rs, paths.rs}
 
 Disciplinary & Portability Requirements:
@@ -38,8 +38,8 @@ Requirements:
    - **`projectmem`**: Add 3 missing MCP tools (`precheck_file`, `list_projects`, `current_project`) + `staleness`/`structure`.
    - **`icm`**: Add ~23 missing MCP tools (`memoir_*`, `feedback_*`, `transcript_*`, `icm_pin`/`forget`/`consolidate`), `temporal` decay, `fusion` RRF.
    - **`caveman` v4 & `ponytail`**: Stage v4 companion modes (`/ultracave`, `/megacave`, `caveman-commit`, `caveman-review`, `caveman-compress`, `shrink`, `browse`, `.blocks`) + `ponytail` modes/statusline externally outside `crates/toksi/` (`<neo>/agents/`, `<neo>/rules/`, synced to `<skills>` `Navegos/skills` with zero binary bloat, healed/graded via `skilldoctor` + `agentskills`).
-3. Register Full 65/90+ Categories 1â€“5 Ecosystem & 22 Local Inference Engines:
-   - Wire all Category 1â€“5 connectors, webhooks, PR/review MCP/A2A hooks, router headers (`x-portkey-*`, `cf-aig-*`, `Helicone-*`), AND 22 local inference engines (`Ollama`, `vLLM`, `llama.cpp`, `LM Studio`, `SGLang`, `TGI`, `Exo`, `MLC`, etc.) into `gateway/providers/` + `agents/` + `PATH`/endpoint discovery.
+3. Register Full 65/90+ Categories 1--5 Ecosystem & 22 Local Inference Engines:
+   - Wire all Category 1--5 connectors, webhooks, PR/review MCP/A2A hooks, router headers (`x-portkey-*`, `cf-aig-*`, `Helicone-*`), AND 22 local inference engines (`Ollama`, `vLLM`, `llama.cpp`, `LM Studio`, `SGLang`, `TGI`, `Exo`, `MLC`, etc.) into `gateway/providers/` + `agents/` + `PATH`/endpoint discovery.
 4. Reconcile `agents-structures/` & Purge Legacy Remnants:
    - Fix `agents/mcp_adapters.rs:992` (`"openagents"` + `.agents/mcp`), `agents/hooks.rs` (`antigravity-cli` vs `antigravity-ide`), `.grok/hooks/*.json`, `.copilot/hooks/`, `.github/copilot/`, `.gemini/{settings.json, commands/*.toml}`, `.claude/.mcp.json`.
    - Purge legacy strings/helpers: `toksi-projectmem`, `toksi-codegraph`, `toksi-codegraph-index`, `agy-hook codegraph-index`, `rtk hook cursor` (`main.rs:340`), `tokless_*` (`paths.rs`), `resolve_npm_binary` (`util/exec.rs`), `toksi-codegraph-init.js` (`tools/autoindex.rs`), `util/projectmem.rs`.
@@ -59,12 +59,12 @@ Requirements:
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Expand audited reference scope from **36** to all **495 unique mandated vaults** (`+259` Wave 18 new & companion vaults across Sections `2.1`â€“`2.10` incl. `opencode`, `temporal`, `restate`, `qdrant`, `cognee`, `graphiti`, `opa`, `cedar`, `spire`, `Guardrails`, `llm-guard`, `E2B`, `OpenShell`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `defenseclaw`, `skill-scanner`, 26 local/Rust inference engines, 48 vLLM/DeepSeek/SGLang vaults, 41 HF/Optimum/NeMo vaults, 51 PyTorch/TRT/Triton/GPUStack/CUDA/Slurm vaults, `<advisory>`, `<skills>` synthesized in `PHASE_18_1`â€“`PHASE_18_6`) into **35-component `<toksi-siagent>`** and **43** `.agents/brain/*.md` guides (`shared 7-entrypoint HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`).
+- Expand audited reference scope from **36** to all **495 unique mandated vaults** (`+259` Wave 18 new & companion vaults across Sections `2.1`--`2.10` incl. `opencode`, `temporal`, `restate`, `qdrant`, `cognee`, `graphiti`, `opa`, `cedar`, `spire`, `Guardrails`, `llm-guard`, `E2B`, `OpenShell`, `cve-*`, `osv-schema`, `skilldoctor`, `sandbox-runtime`, `defenseclaw`, `skill-scanner`, 26 local/Rust inference engines, 48 vLLM/DeepSeek/SGLang vaults, 41 HF/Optimum/NeMo vaults, 51 PyTorch/TRT/Triton/GPUStack/CUDA/Slurm vaults, `<advisory>`, `<skills>` synthesized in `PHASE_18_1`--`PHASE_18_6`) into **35-component `<toksi-siagent>`** and **43** `.agents/brain/*.md` guides (`shared 7-entrypoint HeadroomEffortCompressor`, zero paid-tier restrictions, canonical `<repo>/.toksi/projectmem/`).
 - Enforce `<enforce>` security delimiters, `defenseclaw` fail-closed hookguard + `skill-scanner` multi-engine/CEL scan, `skilldoctor` + `agentskills` YAML frontmatter healing + deduplication (`PHASE_18_2`), externalized `<skills>` staging (zero binary bloat), Toksi Unified Plugin System (`src/plugins/`) hook/MCP mounts, and OpenCode `.opencode/hooks.json` unification (`PHASE_18_5`) across all synced rule files, `SKILL.md` assets, plugins, and agent hook catalogs.
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
-- **Wave 19â€“20 Reconciliation:** Legacy misroutes in `commands/{index,ctx,runmcp}.rs` repaired; `PHASE_19_1` `ctxmode-hook` migration and `PHASE_19_2` subprocess Direct-Wire IPC completed.
+- **Wave 19--20 Reconciliation:** Legacy misroutes in `commands/{index,ctx,runmcp}.rs` repaired; `PHASE_19_1` `ctxmode-hook` migration and `PHASE_19_2` subprocess Direct-Wire IPC completed.
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

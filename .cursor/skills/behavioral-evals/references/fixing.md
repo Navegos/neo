@@ -5,7 +5,7 @@ evaluation.
 
 ---
 
-## 1. 🔍 Investigate
+## 1. [INPUT] Investigate
 
 1.  **Fetch Nightly Results**: Use the `gh` CLI to inspect the latest run from
     `evals-nightly.yml` if applicable.
@@ -21,7 +21,7 @@ evaluation.
 
 ---
 
-## 2. 🛠️ Fix Strategy
+## 2. [TOOLS] Fix Strategy
 
 1.  **Targeted Location**: Locate the test case and the corresponding
     prompt/code.
@@ -76,7 +76,7 @@ evaluation.
 
 ---
 
-## 3. ✅ Verify
+## 3. [DONE] Verify
 
 1.  **Run Local**: Run Vitest in non-interactive mode on just the file.
 2.  **Log Audit**: Prioritize diagnosing failures via log comparison before
@@ -91,7 +91,7 @@ evaluation.
 
 ---
 
-## 4. 📊 Report
+## 4. [METRICS] Report
 
 Provide a summary of:
 

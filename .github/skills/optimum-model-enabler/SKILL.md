@@ -10,16 +10,16 @@ smallest complete model-support implementation.
 
 ## Technical references
 
-- [model-patching-patterns.md](model-patching-patterns.md) — tracing failures,
+- [model-patching-patterns.md](model-patching-patterns.md) --- tracing failures,
   data-dependent control flow, and vectorized MoE reference.
-- [inference-validation.md](inference-validation.md) — common accuracy-diagnosis
+- [inference-validation.md](inference-validation.md) --- common accuracy-diagnosis
   guidance for end-to-end validation.
 
 Use `.model_analysis/<model_type>_analysis.md` from the model-analysis agent as
 the architecture source of truth. Do not replace real-model evidence with
 assumptions from a nearby family or tiny fixture.
 
-## Step 1 — Reproduce the failure
+## Step 1 --- Reproduce the failure
 
 Run the requested export before editing anything:
 
@@ -55,7 +55,7 @@ default CI matrix does not currently exercise that exact compatible version.
 Preview-workflow routing is decided separately from Optimum Intel's declared
 Transformers dependency range.
 
-## Step 2 — Analyze the real architecture
+## Step 2 --- Analyze the real architecture
 
 Inspect the original model configuration and implementation. Record:
 
@@ -78,7 +78,7 @@ range solely from a nearby in-library architecture.
 Do not map a model to a nearby architecture unless its inputs, outputs, cache,
 position IDs, tracing behavior, and runtime behavior are compatible.
 
-## Step 3 — Implement targeted support
+## Step 3 --- Implement targeted support
 
 Before adding new implementation code, search the repository for existing
 helpers, base classes, patchers, dummy generators, runtime utilities, and
@@ -258,7 +258,7 @@ For multi-behavior exporters, verify every value in `SUPPORTED_BEHAVIORS`:
 Do not consider successful conversion sufficient when a behavior silently
 maps to the wrong component or produces a `None` configuration.
 
-## Step 4 — Add repository tests
+## Step 4 --- Add repository tests
 
 Source support without tests is incomplete. Update the applicable files:
 
@@ -357,7 +357,7 @@ Record the Transformers version before and after installation and verify that
 it did not change. Never use a plain editable installation that may silently
 downgrade or replace the model-compatible Transformers version.
 
-## Step 5 — Validate end to end
+## Step 5 --- Validate end to end
 
 Run all applicable checks:
 
@@ -386,7 +386,7 @@ Loading, saving, conversion alone, or a forward-only call does not prove
 support. If quality differs, compare preprocessing tensors, submodel outputs,
 embedding insertion, logits, and task outputs to find the first divergence.
 
-## Step 6 — Documentation and cleanup
+## Step 6 --- Documentation and cleanup
 
 Add the supported model type to `docs/source/openvino/models.mdx` using the
 existing format.

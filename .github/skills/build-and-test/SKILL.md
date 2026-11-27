@@ -92,7 +92,7 @@ To run only the .NET Core tests, use the `-f net11.0` option with `dotnet test`.
 Tests use the [Microsoft Testing Platform](https://learn.microsoft.com/dotnet/core/testing/unit-testing-platform-intro) via xUnit v3. Key differences from the legacy VSTest runner:
 
 - **`dotnet test` requires `--project`** to specify a test project directly (positional arguments are no longer supported).
-- **Test output** uses the MTP format (e.g., `[✓112/x0/↓0]` progress and `Test run summary: Passed!`).
+- **Test output** uses the MTP format (e.g., `[[x]112/x0/v0]` progress and `Test run summary: Passed!`).
 - **TRX reports** use `--report-xunit-trx` instead of `--logger trx`.
 - **Code coverage** uses `Microsoft.Testing.Extensions.CodeCoverage` with `--coverage --coverage-output-format cobertura`.
 - **Running a test project directly** is supported via `dotnet run --project <test-project>`. This bypasses the `dotnet test` infrastructure and runs the test executable directly with the MTP command line.

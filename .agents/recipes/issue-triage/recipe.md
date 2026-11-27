@@ -45,7 +45,7 @@ done
 ### 2. Decide an action for every flagged item
 
 For each open issue and PR, decide whether it needs maintainer action and, if
-so, which **action bucket** it belongs in. Buckets are exclusive — every
+so, which **action bucket** it belongs in. Buckets are exclusive --- every
 flagged item appears under exactly one heading.
 
 Buckets and the criteria for each:
@@ -60,11 +60,11 @@ Buckets and the criteria for each:
 | `Duplicate PRs` | Two or more open PRs reference the same issue (`Fixes/Closes/Resolves #N`). |
 | `Stale, consider closing` | 60+ days since last activity, no assignee, no linked open PR. Older than `Ready for assignment` and without traction. |
 
-Items that don't fit any of the above are **healthy** — count them but do
+Items that don't fit any of the above are **healthy** --- count them but do
 not list them in the action sections.
 
 Also check `attempted_fixes` in any daily-suite runner-state files (under
-`.agentic-ci-state/` if accessible) — findings with two `closed` or
+`.agentic-ci-state/` if accessible) --- findings with two `closed` or
 `abandoned` attempts are surfaced in their own section so the maintainer
 sees them alongside other action items. (This section may be empty if
 those state files are not available in the triage run; that's fine.)
@@ -80,7 +80,7 @@ Format:
 
 ````markdown
 <!-- agentic-ci-issue-triage:1/N -->
-## Repository Triage Report — YYYY-MM-DD
+## Repository Triage Report --- YYYY-MM-DD
 
 **Open issues:** N | **Open PRs:** N | **Healthy (no action needed):** N
 
@@ -130,7 +130,7 @@ Format:
 
 ### Repeatedly-failed fix attempts (M)
 
-(Only emit this section if any items qualify. See `_fix-policy.md` —
+(Only emit this section if any items qualify. See `_fix-policy.md` ---
 two-strike escalation.)
 
 | Finding | Suite | Attempts | Notes |
@@ -142,7 +142,7 @@ two-strike escalation.)
 <details>
 <summary>Healthy items (M issues, M PRs)</summary>
 
-(One-line summary of each: `#N <title> — <author> — <last update>`. No
+(One-line summary of each: `#N <title> --- <author> --- <last update>`. No
 action needed; this block is for completeness.)
 
 </details>
@@ -169,7 +169,7 @@ Build the parts:
 2. Otherwise, split on **action-bucket boundaries** (never split a table
    mid-row). Each part starts with its own marker
    `<!-- agentic-ci-issue-triage:i/N -->` and a heading
-   `### Triage Report — Part i of N`.
+   `### Triage Report --- Part i of N`.
 3. Place the summary and `Healthy items` `<details>` block at the end of
    the last part.
 

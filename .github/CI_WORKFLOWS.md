@@ -88,7 +88,7 @@ Unix/Mac Matrix:
   Python: [3.9, 3.11, 3.12]
   Excludes: (12.0 + older Python versions)
 
-  Total: 8 jobs (2 OS × 2 Ghidra × 2 Python combinations)
+  Total: 8 jobs (2 OS x 2 Ghidra x 2 Python combinations)
 
 Windows:
   OS: windows-latest
@@ -137,7 +137,7 @@ Both workflows automatically run on:
 The headless workflow can be manually triggered:
 
 1. Go to Actions tab in GitHub
-2. Select "Test Headless Mode 🤖"
+2. Select "Test Headless Mode [BOT]"
 3. Click "Run workflow"
 4. Select branch
 5. Click "Run workflow"
@@ -162,7 +162,7 @@ Failed runs upload artifacts:
 - Log files
 - Configuration files
 
-Download via workflow run page → Artifacts section
+Download via workflow run page -> Artifacts section
 
 ### Common Issues
 
@@ -283,7 +283,7 @@ GitHub sends notifications on:
 - Workflow failures (to committer)
 - Status changes (if watching repo)
 
-Configure in GitHub settings → Notifications
+Configure in GitHub settings -> Notifications
 
 ## Future Enhancements
 

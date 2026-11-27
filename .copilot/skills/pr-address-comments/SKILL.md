@@ -9,5 +9,5 @@ OBJECTIVE: Help the user review and address comments on their PR.
 # Comment Review Procedure
 
 1. Run the `scripts/fetch-pr-info.js` script to get PR info and state. MAKE SURE you read the entire output of the command, even if it gets truncated.
-2. Summarize the review status by analyzing the diff, commit log, and comments to see which still need to be addressed. Pay attention to the current user's comments. For resolved threads, summarize as a single line with a ✅. For open threads, provide a reference number e.g. [1] and the comment content.
+2. Summarize the review status by analyzing the diff, commit log, and comments to see which still need to be addressed. Pay attention to the current user's comments. For resolved threads, summarize as a single line with a [DONE]. For open threads, provide a reference number e.g. [1] and the comment content.
 3. Present your summary of the feedback and current state and allow the user to guide you as to what to fix/address/skip. DO NOT begin fixing issues automatically.

@@ -933,7 +933,7 @@ https://generativelanguage.googleapis.com/{API_VERSION}/models/{MODEL_ID}:{METHO
     * `devin: pause`: Halts micro-VM execution.
     * `devin: resume`: Continues autonomous workflow.
     * `devin: restart`: Flushes current VM workspace and restarts from source commit.
-* **Enforced Limits & Billing:** Billed per Devin Compute Unit (ACU) / wall-clock execution hour; strict concurrent runner caps (typically 1–10 parallel tasks per team).
+* **Enforced Limits & Billing:** Billed per Devin Compute Unit (ACU) / wall-clock execution hour; strict concurrent runner caps (typically 1--10 parallel tasks per team).
 
 #### 2. Factory AI (Code Droids)
 * **Architecture:** Specialized autonomous enterprise cloud workers (Review Droid, Refactor Droid, Documentation Droid, Test Droid).
@@ -1119,7 +1119,7 @@ https://generativelanguage.googleapis.com/{API_VERSION}/models/{MODEL_ID}:{METHO
 
 | Provider / Tier | Requests Per Minute (RPM) | Tokens Per Minute (TPM) | Requests Per Day (RPD) | Concurrency Limit |
 | :--- | :--- | :--- | :--- | :--- |
-| **Google AI Studio (Free Tier)** | 15 RPM (Flash) / 2 RPM (Pro) | 1,000,000 TPM (Flash) / 32,000 TPM (Pro) | 1,500 RPD (Flash) / 50 RPD (Pro) | 1–2 in-flight |
+| **Google AI Studio (Free Tier)** | 15 RPM (Flash) / 2 RPM (Pro) | 1,000,000 TPM (Flash) / 32,000 TPM (Pro) | 1,500 RPD (Flash) / 50 RPD (Pro) | 1--2 in-flight |
 | **Google AI Studio (Pay-Go Tier 1)** | 1,000 RPM (Flash) / 360 RPM (Pro) | 4,000,000 TPM (Flash) / 2,000,000 TPM (Pro) | Unlimited | Up to 100 in-flight |
 | **Google AI Studio (Pay-Go Tier 2+)** | 4,000+ RPM | 10,000,000+ TPM | Unlimited | Custom |
 | **OpenAI (Tier 1: $5 paid)** | 500 RPM | 30,000 TPM (`gpt-4o`) / 10,000 TPM (`o3-mini`) | Unlimited | 5 in-flight |
@@ -1128,7 +1128,7 @@ https://generativelanguage.googleapis.com/{API_VERSION}/models/{MODEL_ID}:{METHO
 | **Anthropic (Tier 1: $5 deposit)** | 50 RPM | 20,000 TPM (`claude-3-7-sonnet`) | Unlimited | 2 in-flight |
 | **Anthropic (Tier 4: $400 deposit)** | 4,000 RPM | 400,000 TPM (`claude-3-7-sonnet`) | Unlimited | 80 in-flight |
 | **DeepSeek API (Standard Pay-Go)** | 1,000 RPM | Dynamic cluster capacity throttling | Unlimited | Dynamic based on cluster load |
-| **Groq Cloud (Developer Free)** | 30 RPM | 6,000 to 30,000 TPM | 14,400 RPD | 1–3 in-flight |
+| **Groq Cloud (Developer Free)** | 30 RPM | 6,000 to 30,000 TPM | 14,400 RPD | 1--3 in-flight |
 
 ---
 

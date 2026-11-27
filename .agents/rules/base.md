@@ -11,10 +11,10 @@ Refer to `README.md` for full project overview and `CONTRIBUTING.md` for contrib
 
 ## Repository Layout
 
-- `src/` — main source code (`cli/`, `config/`, `core/`, `shared/`). Feature-based structure; avoid dependencies between features
-- `tests/` — mirrors the `src/` directory structure
-- `website/` — documentation website (VitePress); docs live in 15 language directories (`en` + 14 translated locales) under `website/client/src/`
-- `browser/` — browser extension
+- `src/` --- main source code (`cli/`, `config/`, `core/`, `shared/`). Feature-based structure; avoid dependencies between features
+- `tests/` --- mirrors the `src/` directory structure
+- `website/` --- documentation website (VitePress); docs live in 15 language directories (`en` + 14 translated locales) under `website/client/src/`
+- `browser/` --- browser extension
 
 ## Coding Guidelines
 

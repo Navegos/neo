@@ -1,6 +1,6 @@
 ---
 name: author-contributions
-description: Identify all files a specific author contributed to on a branch vs its upstream, tracing code through renames. Use when asked who edited what, what code an author contributed, or to audit authorship before a merge. This skill should be run as a subagent — it performs many git operations and returns a concise table.
+description: Identify all files a specific author contributed to on a branch vs its upstream, tracing code through renames. Use when asked who edited what, what code an author contributed, or to audit authorship before a merge. This skill should be run as a subagent --- it performs many git operations and returns a concise table.
 ---
 
 When asked to find all files a specific author contributed to on a branch (compared to main or another upstream), follow this procedure. The goal is to produce a simple table that both humans and LLMs can consume.
@@ -19,7 +19,7 @@ This skill involves many sequential git commands. Delegate it to a subagent with
 git log --format="%an <%ae>" <upstream>..<branch> | sort -u
 ```
 
-Match the requested person to their exact `--author=` string. Do not guess — short usernames won't match full display names (resolve via `git log` or the GitHub MCP `get_me` tool).
+Match the requested person to their exact `--author=` string. Do not guess --- short usernames won't match full display names (resolve via `git log` or the GitHub MCP `get_me` tool).
 
 ### 2. Collect all files the author directly committed to
 
@@ -43,7 +43,7 @@ For **every** commit on the branch (not just the author's), extract renames:
 git diff-tree --no-commit-id -r -M <hash>
 ```
 
-Parse lines with `R` status to build a map: `new_path → {old_paths}`.
+Parse lines with `R` status to build a map: `new_path -> {old_paths}`.
 
 ### 4. Get the merge diff file list
 
@@ -56,9 +56,9 @@ These are the files that will actually land when the branch merges.
 ### 5. Classify each file in the merge diff
 
 For each file in step 4:
-- If it's in `author_files` → **DIRECT**
-- Else, walk the rename map transitively (follow chains: current → old → older) and check if any ancestor is in `author_files` → **VIA_RENAME**
-- Otherwise → not this author's contribution
+- If it's in `author_files` -> **DIRECT**
+- Else, walk the rename map transitively (follow chains: current -> old -> older) and check if any ancestor is in `author_files` -> **VIA_RENAME**
+- Otherwise -> not this author's contribution
 
 ### 6. Get diff stats
 
@@ -84,8 +84,8 @@ Format the result as a markdown table:
 
 - **Use Python for the heavy lifting.** Shell loops with inline comments break in zsh. Write a temp `.py` script, run it, then delete it.
 - **Author matching is exact.** Always run step 1 first. `--author` does substring matching but you must verify the right person is matched (e.g., don't match "Joshua Smith" when looking for "Josh S."). Use the GitHub MCP `get_me` tool or `git log` output to resolve the correct full name.
-- **Renames can be multi-hop.** A file may have moved `contrib/chat/` → `agentSessions/` → `sessions/`. The rename map must be walked transitively.
-- **Only report files in the merge diff** (step 4). Files the author touched that were later deleted entirely should not appear — they won't land in the upstream.
+- **Renames can be multi-hop.** A file may have moved `contrib/chat/` -> `agentSessions/` -> `sessions/`. The rename map must be walked transitively.
+- **Only report files in the merge diff** (step 4). Files the author touched that were later deleted entirely should not appear --- they won't land in the upstream.
 - **The rename map must include all authors' commits**, not just the target author's. Other people often do the rename commits (e.g., bulk refactors/moves).
 
 ## Example Python Script

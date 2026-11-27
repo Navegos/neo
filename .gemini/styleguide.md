@@ -2,7 +2,7 @@
 
 vLLM Ascend is a hardware plugin integrating Ascend NPUs into vLLM. Formatting,
 PR title tags, and PR description templates are enforced by CI (`format.sh ci`,
-check gates) and by the coding agents developers already use — do NOT comment
+check gates) and by the coding agents developers already use --- do NOT comment
 on them.
 
 Focus your review on issues that automated tooling cannot catch:
@@ -12,7 +12,7 @@ Focus your review on issues that automated tooling cannot catch:
   device tensors in hot paths: each forces a host-device synchronization and
   can stall AsyncScheduler. Suggest device-side alternatives
   (`torch.argmax`, `torch.sum`, keeping values on device, batching).
-- Unnecessary CPU↔NPU transfers or avoidable copies in hot paths.
+- Unnecessary CPU<->NPU transfers or avoidable copies in hot paths.
 - Long-running-process memory concerns: fragmentation, tensors that should be
   freed, per-step allocations that could be reused.
 
@@ -47,7 +47,7 @@ Focus your review on issues that automated tooling cannot catch:
   following `release_notes/TEMPLATE.yaml`.
 - Flag fragments that: describe internal refactors users cannot observe,
   state performance numbers without a scenario (model/workload/hardware) or an
-  invented magnitude, or change config/env behavior without old→new plus the
+  invented magnitude, or change config/env behavior without old->new plus the
   migration step.
 - Bug-fix fragments should describe the user-visible symptom, not the internal
   root cause.
@@ -55,5 +55,5 @@ Focus your review on issues that automated tooling cannot catch:
 ## Testing
 - Changes to kernels, model runners, or config parsing should come with or
   update CPU-runnable unit tests under `tests/ut`.
-- Do not ask authors for NPU/E2E/performance runs when they lack hardware —
+- Do not ask authors for NPU/E2E/performance runs when they lack hardware ---
   that evidence comes from CI; just say so.

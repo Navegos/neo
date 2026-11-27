@@ -34,7 +34,7 @@ confirm before reviewing the rest.
 ## Triage: Ownership and Scope
 
 During triage, check ownership, supported behavior, and acceptance criteria.
-Issue readiness means the work is clear enough to start—not that the fix is
+Issue readiness means the work is clear enough to start---not that the fix is
 complete. Do not require a PR, passing implementation tests, or before-and-after
 fix evidence. Reconsider readiness when new information leaves scope or expected
 behavior unresolved.
@@ -87,9 +87,9 @@ Submit exactly one review:
   unmet checkpoint or acceptance criterion, and the smallest viable correction.
 - Never use **REQUEST_CHANGES**. A human maintainer owns the blocking decision.
 
-For changes that can affect agent or benchmark behavior—prompts, tool selection,
+For changes that can affect agent or benchmark behavior---prompts, tool selection,
 conversation payloads, terminal behavior, planning, memory, or evaluation
-paths—state the eval risk in the review. Missing optional eval evidence is not a
+paths---state the eval risk in the review. Missing optional eval evidence is not a
 material code finding: when the current head otherwise passes review, APPROVE so
 the automation can request a human maintainer to choose the appropriate
 lightweight evaluation. Use COMMENT when an acceptance criterion or required
@@ -115,7 +115,7 @@ maintainability.
 | `OpenHands/extensions`         | Reusable skills, plugins, and integrations                                                                      |
 | `OpenHands/automation`         | Scheduling, webhooks, run history, and automation dispatch                                                      |
 
-The normal dependency direction is Agent Server contract → TypeScript client →
+The normal dependency direction is Agent Server contract -> TypeScript client ->
 Canvas. Submit **COMMENT** for raw endpoint reimplementations, Canvas-local copies
 of server contracts, or behavior implemented in the wrong repository.
 
@@ -273,11 +273,11 @@ working after that removal or PR branch deletion.
 
 Scale the response to the risk assessment:
 
-- **Deep and 🔴 HIGH risk without adequate context:** submit **COMMENT** and ask
+- **Deep and [HIGH] HIGH risk without adequate context:** submit **COMMENT** and ask
   for the write-up or a SHA-pinned doc.
-- **Deep and 🟡 MEDIUM risk:** ask for it when the change is hard to reconstruct
+- **Deep and [MED] MEDIUM risk:** ask for it when the change is hard to reconstruct
   from the diff; a small, self-evident change does not need it.
-- **🟢 LOW risk:** never withhold approval for missing design context.
+- **[LOW] LOW risk:** never withhold approval for missing design context.
 
 Design context is a review aid, not a merge gate by itself. It does not excuse a
 correctness, security, compatibility, or architecture defect.
@@ -303,7 +303,7 @@ correctness, security, compatibility, or architecture defect.
   not prove computed styling, isolation, layout, or readability, or replace captures.
 - Every functional change needs screenshots or video of the running Canvas
   exercising the changed behavior, including backend integration, launcher,
-  API, and lifecycle changes. Logs, commands, and tests supplement—not replace—
+  API, and lifecycle changes. Logs, commands, and tests supplement---not replace---
   that demonstration. Bug fixes must show failure before and success after;
   new features must demonstrate the working behavior.
 - Authentic evidence comes from the real Agent Canvas app, browser, OS dialog,

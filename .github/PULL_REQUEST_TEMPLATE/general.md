@@ -128,12 +128,12 @@ If you're seeing a delay in your PR being merged, ping the LiteLLM Team on [Slac
 <!-- Select the type of Pull Request -->
 <!-- Keep only the necessary ones -->
 
-🆕 New Feature
-🐛 Bug Fix
-🧹 Refactoring
-📖 Documentation
-🚄 Infrastructure
-✅ Test
+[NEW] New Feature
+[DEBUG] Bug Fix
+[CLEAN] Refactoring
+[DOCS] Documentation
+[INFRA] Infrastructure
+[DONE] Test
 
 ## Caveats (if any)
 
