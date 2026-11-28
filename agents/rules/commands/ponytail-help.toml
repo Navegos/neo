@@ -1,0 +1,2 @@
+description = "Quick reference for ponytail levels, skills, and commands"
+prompt = "Show the ponytail quick reference for levels (lite, full, ultra, off), companion skills, and default mode resolution (PONYTAIL_DEFAULT_MODE > config > full). Report only."

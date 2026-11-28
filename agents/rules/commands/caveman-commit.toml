@@ -1,0 +1,2 @@
+description = "Generate terse caveman-style commit message"
+prompt = "Generate a terse commit message for staged changes. Conventional Commits format. Subject <=50 chars, imperative, lowercase after type, no trailing period. Include body only when why is non-obvious."

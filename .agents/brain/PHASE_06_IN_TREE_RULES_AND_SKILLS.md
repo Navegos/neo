@@ -1,6 +1,6 @@
 # Phase 06: Externalized Rules, `<skills>` Staging, `<enforce>` Guard & Skill Healing
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]` [SOURCE-CODE-NEEDS-FIX]
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -17,13 +17,13 @@ Sources:
   - neo/inspect-vault/agentskills
   - neo/inspect-vault/skills (<skills> Navegos/skills)
 Targets:
-  - <neo>/agents/ and <neo>/rules/ (external staged skills/rules outside crates/toksi/)
+  - <neo>/agents/ and <neo>/agents/rules/ (external staged skills/rules outside crates/toksi/)
   - crates/toksi/src/rules/{mod.rs,sync.rs,skill_validator.rs,skills_catalog.rs,skills_repo.rs}
 
 Disciplinary & Portability Requirements:
 1. Safe Rust (Edition 2024): #![deny(unsafe_code)] enforced. Zero compiler warnings (RUSTFLAGS="-D warnings").
 2. Zero Panics Policy: Strictly prohibit .unwrap(), .expect(), panic!(). Use thiserror for domain errors.
-3. Zero Binary Bloat Policy (`RESEARCHPLAN.md` Section 1.1.4): NEVER embed skills, rules, `.md`, `.yaml`, or `.json` files inside the `toksi` binary (`crates/toksi/`). Stage curated assets outside `crates/toksi/` (`<neo>/agents/`, `<neo>/rules/`) synced to `<skills>` (`Navegos/skills`); installed `toksi` fetches vetted skills online from `<skills>` (or `[repositories].skills_dir`) + user custom skills dir (`[repositories].user_skills_dir`), heals/grades them via `skilldoctor` + `agentskills`, verifies via `skill-scanner` + `defenseclaw`, and installs cleanly.
+3. Zero Binary Bloat Policy (`RESEARCHPLAN.md` Section 1.1.4): NEVER embed skills, rules, `.md`, `.yaml`, or `.json` files inside the `toksi` binary (`crates/toksi/`). Stage curated assets outside `crates/toksi/` (`<neo>/agents/`, `<neo>/agents/rules/`) synced to `<skills>` (`Navegos/skills`); installed `toksi` fetches vetted skills online from `<skills>` (or `[repositories].skills_dir`) + user custom skills dir (`[repositories].user_skills_dir`), heals/grades them via `skilldoctor` + `agentskills`, verifies via `skill-scanner` + `defenseclaw`, and installs cleanly.
 4. Universal Forward-Slash (/) Standard: Use normalize_path() for all rule destinations and file targets.
 5. Directory Placement Policy:
    - User-Level configs (~/.<agent>/ or ~/.agents/) are auto-installed if selected.
@@ -31,7 +31,7 @@ Disciplinary & Portability Requirements:
    - Workspace rules are placed strictly in the first workspace root directory.
 
 Requirements:
-1. Stage & maintain externalized rule/skill definitions outside `crates/toksi/` (`<neo>/agents/`, `<neo>/rules/`, synced with `<skills>` `Navegos/skills`) with `<enforce>...</enforce>` wrappers:
+1. Stage & maintain externalized rule/skill definitions outside `crates/toksi/` (`<neo>/agents/`, `<neo>/agents/rules/`, synced with `<skills>` `Navegos/skills`) with `<enforce>...</enforce>` wrappers:
    - `principles` (Karpathy engineering principles: think before coding, simplicity first, surgical changes, goal-driven execution)
    - `caveman` (ASD-STE100 primitive English compression + Wave 17 v4 modes: `/ultracave`, `/megacave`, `caveman-commit`, `caveman-review`, `caveman-compress`, `shrink`, `browse`, `.blocks`)
    - `ponytail` (lazy senior developer build discipline ladder + mode variants, companion skills, and statusline telemetry)
@@ -56,7 +56,7 @@ Requirements:
 ## Technical Specifications & Details
 
 ### 1. Architectural Scope & Subsystems
-- **Zero-Bloat Externalized `<skills>` Distribution** (`<neo>/agents/`, `<neo>/rules/`, `src/rules/skills_repo.rs`): Keeps `toksi` binary lean by storing vetted markdown/YAML/JSON skills and rules outside `crates/toksi/` synced to `Navegos/skills` (`<skills>`), while `skilldoctor` + `agentskills` heal frontmatter and `<enforce>` guards block unsafe payloads on install.
+- **Zero-Bloat Externalized `<skills>` Distribution** (`<neo>/agents/`, `<neo>/agents/rules/`, `src/rules/skills_repo.rs`): Keeps `toksi` binary lean by storing vetted markdown/YAML/JSON skills and rules outside `crates/toksi/` synced to `Navegos/skills` (`<skills>`), while `skilldoctor` + `agentskills` heal frontmatter and `<enforce>` guards block unsafe payloads on install.
 - **Universal Synchronizer** (`src/rules/sync.rs`): Injects or updates vetted rule files across all agent configuration directories in the workspace root or user home.
 - **Rules Formatting & Header Preserver**: Merges toksi-managed rules cleanly while preserving existing user-defined rules.
 
@@ -78,7 +78,7 @@ Requirements:
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`
-- **Wave 19--20 Reconciliation:** Remediated (`PHASE_19_4`): `<neo>/.agents/skills/` audited and cleaned alongside `<neo>/agents/` and `<neo>/rules/`; vetted skills graded via `skilldoctor`/`agentskills`/`upskill`/`skill-scanner` and synced cleanly to `Navegos/skills`.
+- **Wave 19--20 Reconciliation:** Remediated (`PHASE_19_4`): `<neo>/.agents/skills/` audited and cleaned alongside `<neo>/agents/` and `<neo>/agents/rules/`; vetted skills graded via `skilldoctor`/`agentskills`/`upskill`/`skill-scanner` and synced cleanly to `Navegos/skills`.
 
 ## Wave 20 (v7.0) Synchronization Addendum
 - Synchronized against **493 unique mandated vaults** (Sections 2.1-2.17 `[DEEP-RESEARCH-DONE]`) and all **49** `.agents/brain/*.md` guides (`INDEX_AND_EXECUTION_GUIDE.md` + `PHASE_01..PHASE_20_6`).

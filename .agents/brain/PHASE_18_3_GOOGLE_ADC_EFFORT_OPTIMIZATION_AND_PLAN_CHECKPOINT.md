@@ -1,6 +1,6 @@
 # Phase 18.3 --- Google Cloud ADC (`AGY_ADC_AUTH=true`), Thinking-Effort Optimization & Safe Plan Checkpoints
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]` [SOURCE-CODE-IMPLEMENTED-AND-FULLY-COMPLETE]
 
 ## Ready-to-Run Chat Prompt
 

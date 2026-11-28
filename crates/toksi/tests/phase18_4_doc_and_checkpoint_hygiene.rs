@@ -41,13 +41,13 @@ fn test_phase18_4_brain_guides_37_files_and_prereads() {
 
     assert_eq!(
         md_files.len(),
-        55,
-        "Expected exact 55 .agents/brain/*.md files (INDEX_AND_EXECUTION_GUIDE.md + PHASE_01..PHASE_21_6)"
+        61,
+        "Expected exact 61 .agents/brain/*.md files (INDEX_AND_EXECUTION_GUIDE.md + PHASE_01..PHASE_22_6)"
     );
     assert!(md_files.iter().any(|f| f == "INDEX_AND_EXECUTION_GUIDE.md"));
 
     let phase_files: Vec<&String> = md_files.iter().filter(|f| f.starts_with("PHASE_")).collect();
-    assert_eq!(phase_files.len(), 54, "Expected 54 PHASE_*.md files");
+    assert_eq!(phase_files.len(), 60, "Expected 60 PHASE_*.md files");
 
     let valid_states = [
         "[DEEP-RESEARCH-DONE]",
@@ -58,6 +58,10 @@ fn test_phase18_4_brain_guides_37_files_and_prereads() {
         "[PLAN-NOT-DONE]",
         "[PLAN-UNIMPLEMENTED]",
         "[PLAN-NEEDS-FIX]",
+        "[SOURCE-CODE-IMPLEMENTED-AND-FULLY-COMPLETE]",
+        "[SOURCE-CODE-INCOMPLETE]",
+        "[SOURCE-CODE-NOT-IMPLEMENTED]",
+        "[SOURCE-CODE-NEEDS-FIX]",
     ];
 
     for pf in phase_files {
@@ -89,7 +93,7 @@ fn test_phase18_4_brain_guides_37_files_and_prereads() {
 fn test_phase18_4_audit_docs_zero_stale_projectmem_prereads() {
     let root = repo_root();
     let report = audit_docs(&root).expect("audit_docs should succeed");
-    assert!(report.files_scanned >= 55, "Expected >= 55 docs scanned, got {}", report.files_scanned);
+    assert!(report.files_scanned >= 61, "Expected >= 61 docs scanned, got {}", report.files_scanned);
     assert!(
         report.findings.is_empty(),
         "Stale .projectmem/ pre-read references found: {:?}",
@@ -132,9 +136,10 @@ fn test_phase18_4_master_docs_topology_and_parity() {
             }
         }
 
-        // Core Wave 20 / Wave 21 invariants present across all 7 master docs
+        // Core Wave 20 / Wave 21 / Wave 22 invariants present across all 7 master docs
         assert!(content.contains("493"), "{} missing 493 Wave 20 baseline vaults", rel);
         assert!(content.contains("495"), "{} missing 495 Wave 21 mandated vaults", rel);
+        assert!(content.contains("502"), "{} missing 502 Wave 22 mandated vaults", rel);
         assert!(content.contains("<toksi-siagent>"), "{} missing <toksi-siagent>", rel);
         assert!(content.contains("<advisory>"), "{} missing <advisory> 3-repo topology", rel);
         assert!(content.contains("<skills>"), "{} missing <skills> 3-repo topology", rel);

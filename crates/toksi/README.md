@@ -70,7 +70,8 @@ All routes support universal forward-slash paths (`/`), ground-truth SSE token a
 - `toksi [init]` / `update` / `doctor [--fix] [--workspace]` / `agent` / `disable` / `uninstall` / `self-update`
 - `toksi rtk` / `projectmem` (`mem`) / `ctxmode` (`ctx`) / `graph` (`codegraph`) / `icm` / `aimemory` (`handoff`) / `index` / `prime` / `gain` / `info`
 - `toksi dataset` / `toksi train` / `toksi eval` / `toksi compress` / `toksi serve` / `toksi cluster` / `toksi otel` / `toksi orchestrator` — Declarative recipes (`unsloth`, `axolotl`, `LLaMA-Factory`, `torchtune`, `trl`, `Megatron-Bridge`, `nemo-rl`, `OpenRLHF`), fail-closed `.safetensors` verification, 22 eval harnesses (`lm-evaluation-harness`, `deepeval`, `ragas`, `guidellm`, `genai-bench`, `autofa`), KvPress/BnB plans, 37+ local engines, NVCRE cluster readiness & OpenTelemetry collector YAML
-- `toksi test [--all | --force | --sandbox]` — Incremental BLAKE3 `watched_paths` + `Cargo.lock` test runner & sandbox runner
+- `toksi heal-encoding` / `toksi refactor-router` *(Wave 22 Roadmap)* — Pure 7-bit ASCII validator & `MojibakeLab`/`python-ftfy` mojibake healer across source and docs, plus non-destructive prompt-architecture classification & router-index extraction; paired with `r3bl-open-core` (`r3bl_tui`) Chat/TUI migration, Headroom-central `:8787` `<toksi-siagent>` routing, `.git/config` dynamic repo detection, and externalized `<neo>/agents/rules/` + `<neo>/agents/agent_instructions.md` staging
+- `toksi test [--all | --force | --sandbox | --docker]` — Incremental BLAKE3 `watched_paths` + `Cargo.lock` test runner, sandbox, and `docker/Dockerfile.test` + `docker/compose.test.yaml` isolation runner
 
 ---
 
@@ -125,7 +126,7 @@ docker compose -f docker/compose.test.yaml run --rm toksi-test
 
 ## 7. Architecture Plans & Research
 
-All **54 remediation phase specs** (`PHASE_01_RTK_FILTER_ENGINE.md` through `PHASE_21_6_WAVE21_VERIFICATION_AND_55FILE_8STATE_SYNC.md`) spanning the **493** Wave 20 baseline vaults plus Wave 21 additions (**495** mandated vaults total) are indexed in [`.agents/brain/INDEX_AND_EXECUTION_GUIDE.md`](../../.agents/brain/INDEX_AND_EXECUTION_GUIDE.md) and tracked in [`PLAN.md`](PLAN.md), [`CONSOLIDATION_PLAN.md`](CONSOLIDATION_PLAN.md), and [`research/RESEARCHPLAN.md`](research/RESEARCHPLAN.md).
+All **60 remediation phase specs** (`PHASE_01_RTK_FILTER_ENGINE.md` through `PHASE_22_6_WAVE22_VERIFICATION_12STATE_AUDIT_AND_61FILE_SYNC.md`, tracked under the **12-State Progress Taxonomy** across **61 guides**) spanning the **493** Wave 20 baseline vaults, Wave 21 additions (**495** vaults), and Wave 22 additions (**502** mandated vaults total, incorporating `ratatui`, `ratatui-image`, `tui-realm`, `iocraft`, `r3bl-open-core`, `MojibakeLab`, and `python-ftfy`) are indexed in [`.agents/brain/INDEX_AND_EXECUTION_GUIDE.md`](../../.agents/brain/INDEX_AND_EXECUTION_GUIDE.md) and tracked in [`PLAN.md`](PLAN.md), [`CONSOLIDATION_PLAN.md`](CONSOLIDATION_PLAN.md), [`research/RESEARCHPLAN.md`](research/RESEARCHPLAN.md), and [`research/WAVE22_MASTER_EXECUTION_PROMPT.md`](research/WAVE22_MASTER_EXECUTION_PROMPT.md).
 
 ---
 

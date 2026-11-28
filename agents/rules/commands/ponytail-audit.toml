@@ -1,0 +1,2 @@
+description = "Quality audit of the whole repo: bugs, security, load, tests, speed, lean"
+prompt = "Audit the repository (or specified path) in order: bugs, security/data-loss risk, scale, missing tests, speed, lean cuts. Require concrete failure cases and honor shortcut: deferrals under ceiling. Output report only; change no code."

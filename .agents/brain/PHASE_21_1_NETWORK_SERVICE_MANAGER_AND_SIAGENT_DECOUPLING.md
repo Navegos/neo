@@ -1,6 +1,6 @@
 # Phase 21.1 --- Single `NetworkService` Manager (`toksi _worker network-manager`) & On-Demand `<toksi-siagent>` Decoupling
 
-> **Status (Wave 21 / v8.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
+> **Status (Wave 21 / v8.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]` [SOURCE-CODE-INCOMPLETE]
 
 ## Ready-to-Run Chat Prompt
 ```text

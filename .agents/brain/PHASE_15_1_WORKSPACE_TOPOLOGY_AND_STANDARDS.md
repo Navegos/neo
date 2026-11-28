@@ -1,6 +1,6 @@
 # Phase 15.1: Workspace Topology, Forward-Slash Normalization, Standards & PATH Validation
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]` [SOURCE-CODE-NEEDS-FIX]
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -117,7 +117,7 @@ pub fn check_executable_in_path(cmd: &str) -> Result<(), String> {
 ---
 
 ## Wave 18 (v5.2) Synchronization Addendum
-- Keep `<neo>/agents/` and `<neo>/rules/` outside `crates/toksi/` synced to `<skills>` (`Navegos/skills`) with zero binary bloat, keep `<advisory>` (`Navegos/advisory`) outside `crates/toksi/`, and enforce canonical `<repo>/.toksi/projectmem/` across **495 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, and zero paid-tier restrictions.
+- Keep `<neo>/agents/` and `<neo>/agents/rules/` outside `crates/toksi/` synced to `<skills>` (`Navegos/skills`) with zero binary bloat, keep `<advisory>` (`Navegos/advisory`) outside `crates/toksi/`, and enforce canonical `<repo>/.toksi/projectmem/` across **495 mandated vaults**, **35-component `<toksi-siagent>`**, **43** `.agents/brain/*.md` guides, shared 7-entrypoint `HeadroomEffortCompressor`, and zero paid-tier restrictions.
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-FIXED]`

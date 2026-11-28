@@ -1,6 +1,6 @@
 # Phase 18.5 --- Agent Source Unification, ADR Layer, Isolated Agent Sandbox (`sbx` / `sandbox-runtime` / 3-OS Native), & `CommandGuard` Bypass Kill-Switch
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]` [SOURCE-CODE-IMPLEMENTED-AND-FULLY-COMPLETE]
 
 ## Ready-to-Run Chat Prompt
 
@@ -60,7 +60,7 @@ Your goals in Rust (`crates/toksi`):
 
 ### 3. OpenCode & Agent Source Unification (`src/agents/opencode.rs`, `src/agent_runtime/codemode.rs`)
 - Port OpenCode `codemode` execution wrappers, `http-recorder` trace capture into `tokview`, Drizzle/SQLite session semantics into `agent_runtime/session.rs`, and `.opencode/hooks.json` (`session_start`, `session_shutdown`, `before_agent_start`, `turn_start`, `turn_end`, `tool_call`, `tool_result`, `shell.env`) cleanly into Toksi's canonical hook normalizer (`src/agents/hooks.rs`).
-- Externalize all generated skills/rules into `<neo>/agents/` and `<neo>/rules/` (outside `crates/toksi/`) synced to `<skills>` (`Navegos/skills`) with zero binary bloat.
+- Externalize all generated skills/rules into `<neo>/agents/` and `<neo>/agents/rules/` (outside `crates/toksi/`) synced to `<skills>` (`Navegos/skills`) with zero binary bloat.
 
 ## Wave 19 (v6.0) Synchronization Addendum
 - **Verified 8-State Status:** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]`

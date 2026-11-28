@@ -1,6 +1,6 @@
 # Phase 17.4: Deep Vault Parity, 65/90+ Ecosystem & 22 Local Engines, & Hook/MCP Cleanup
 
-> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]`
+> **Status (Wave 20 / v7.0):** `[DEEP-RESEARCH-DONE]` `[PLAN-DONE]` `[PLAN-IMPLEMENTED]` `[PLAN-FIXED]` [SOURCE-CODE-IMPLEMENTED-AND-FULLY-COMPLETE]
 
 ## Ready-to-Run Chat Prompt
 ```text
@@ -37,7 +37,7 @@ Requirements:
    - **`rtk`**: Port SQLite `Tracker` (`rtk gain` JSON/history), `tee` failure saver, `discover` missed-savings scanner, `learn` TOML/correction detector.
    - **`projectmem`**: Add 3 missing MCP tools (`precheck_file`, `list_projects`, `current_project`) + `staleness`/`structure`.
    - **`icm`**: Add ~23 missing MCP tools (`memoir_*`, `feedback_*`, `transcript_*`, `icm_pin`/`forget`/`consolidate`), `temporal` decay, `fusion` RRF.
-   - **`caveman` v4 & `ponytail`**: Stage v4 companion modes (`/ultracave`, `/megacave`, `caveman-commit`, `caveman-review`, `caveman-compress`, `shrink`, `browse`, `.blocks`) + `ponytail` modes/statusline externally outside `crates/toksi/` (`<neo>/agents/`, `<neo>/rules/`, synced to `<skills>` `Navegos/skills` with zero binary bloat, healed/graded via `skilldoctor` + `agentskills`).
+   - **`caveman` v4 & `ponytail`**: Stage v4 companion modes (`/ultracave`, `/megacave`, `caveman-commit`, `caveman-review`, `caveman-compress`, `shrink`, `browse`, `.blocks`) + `ponytail` modes/statusline externally outside `crates/toksi/` (`<neo>/agents/`, `<neo>/agents/rules/`, synced to `<skills>` `Navegos/skills` with zero binary bloat, healed/graded via `skilldoctor` + `agentskills`).
 3. Register Full 65/90+ Categories 1--5 Ecosystem & 22 Local Inference Engines:
    - Wire all Category 1--5 connectors, webhooks, PR/review MCP/A2A hooks, router headers (`x-portkey-*`, `cf-aig-*`, `Helicone-*`), AND 22 local inference engines (`Ollama`, `vLLM`, `llama.cpp`, `LM Studio`, `SGLang`, `TGI`, `Exo`, `MLC`, etc.) into `gateway/providers/` + `agents/` + `PATH`/endpoint discovery.
 4. Reconcile `agents-structures/` & Purge Legacy Remnants:

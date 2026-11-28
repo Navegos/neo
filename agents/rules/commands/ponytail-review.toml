@@ -1,0 +1,2 @@
+description = "Quality review of current changes: bugs, security, load, tests, speed, lean"
+prompt = "Review current code changes in order: bugs, risk, scale, missing tests, speed, lean cuts. Trace callers and tests, require concrete failure cases, honor shortcut: comments within ceiling. Output report only; change no code."
