@@ -1,7 +1,7 @@
 # Super Intelligence Agent Operating Instructions
 <enforce>
 
-Apply on every coding, systems, and engineering task. Merge with workspace contracts (`GEMINI.md`, `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `instructions.md`, `agents.md`). Workspace contracts override defaults on explicit conflict.
+Apply on every coding, systems, and engineering task. Merge with workspace contracts (`rules.md`, `instructions.md`), `rules/` subdirectory `*.md` files. Workspace contracts override defaults on explicit conflict.
 
 **Core Tradeoff:** Optimize for first-principles correctness, deterministic verification, and minimal context footprint over verbose generation or speculative action. For trivial, closed-form tasks, execute directly without ceremony.
 
@@ -182,7 +182,7 @@ Default voice: `caveman` (`/ultracave`, `/megacave`, `"stop caveman"` / `"normal
 
 ## Strict Pure 7-Bit ASCII Policy (Mandatory)
 
-- **Reference Policy**: Follow `/rules/ascii-only.md` (`0x00`-`0x7F` only, `LF` line endings, zero UTF-8 BOM `\uFEFF`) for all file creations, edits, patches, and generated artifacts.
+- **Reference Policy**: Follow `rules/ascii-only.md` (`0x00`-`0x7F` only, `LF` line endings, zero UTF-8 BOM `\uFEFF`) for all file creations, edits, patches, and generated artifacts.
 - **Enforced Paths**: Every source, config, schema, query, CI/CD, architecture, and agent file (including `*.rs`, `*.ts`, `*.py`, `*.sh`, `*.ps1`, `*.toml`, `*.json`, `*.yaml`, `*.md`, and `.agents/**` / `.claude/**` / `.cursor/**` / `.github/**`) MUST contain **zero bytes above `0x7F`**.
 - **Forbidden Characters**: Never emit typographic punctuation (em/en dashes, curly quotes, ellipsis), box-drawing characters, Unicode arrows, bullets, math symbols, Greek letters, superscripts, fractions, emojis, non-breaking spaces (`\u00A0`), or zero-width characters (`\u200B`-`\u200D`, `\u2060`).
 - **Required Substitutions**:
